@@ -2,6 +2,7 @@
 #define slic3r_GUI_CalibrationPressureAdvDialog_hpp_
 
 #include "CalibrationAbstractDialog.hpp"
+#include <map>
 //pressure advance PressureAdv ss
 namespace Slic3r { 
 namespace GUI {
@@ -21,6 +22,7 @@ protected:
     void create_row_controls(wxBoxSizer* parent_sizer, int row_count);
     void create_geometry(wxCommandEvent& event_args);
     void on_row_change(wxCommandEvent& event);
+    void on_smooth_time_toggle(wxCommandEvent& event);
     std::pair<std::vector<double>, int> calc_PA_values(int id_item);
     double magical_scaling(double, double, double, double, double, double, double );
 
@@ -34,6 +36,10 @@ protected:
     std::vector<wxComboBox*> dynamicExtrusionRole;//extrusion role Pressure/Linear Advance -user choice select
     std::vector<wxCheckBox*> dynamicEnableST;     // checkbox for "smooth_time" - klipper only feature?
     std::vector<wxBoxSizer*> dynamicRowcount;     // To keep track of dynamically created rows
+
+    // Saved PA values per row when smooth time is toggled on, so we can restore them
+    struct SavedPaValues { wxString firstPa, startPa, endPa, increment, extrusionRole; };
+    std::map<int, SavedPaValues> savedPaBeforeST;
 
     wxBoxSizer* dynamicSizer;
     int currentTestCount;

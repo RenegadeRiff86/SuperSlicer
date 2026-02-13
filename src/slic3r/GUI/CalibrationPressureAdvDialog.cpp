@@ -872,6 +872,9 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         gcfSmoothie,
         gcfNoExtrusion*/
 
+        // Name each tower so they're identifiable on the build plate and in the object list
+        model.objects[objs_idx[id_item]]->name = "PA Test " + std::to_string(id_item) + " - " + selected_extrusion_role;
+
         // config modifers for the base model
         model.objects[objs_idx[id_item]]->config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipMonotonic));// ipConcentric or ipConcentricGapFill ?
         model.objects[objs_idx[id_item]]->config.set_key_value("infill_filled_bottom", new ConfigOptionBool(true));
@@ -1439,13 +1442,11 @@ void CalibrationPressureAdvDialog::create_row_controls(wxBoxSizer* parentSizer, 
 
         if (prefix == " PA ") {//klipper only feature ?
             rowSizer->AddSpacer(15);
-            wxCheckBox* enableST = new wxCheckBox(parentSizer->GetContainingWindow(), wxID_ANY, _L(""), wxDefaultPosition, wxDefaultSize);
-            wxStaticText* text_smooth_time = new wxStaticText(parentSizer->GetContainingWindow(), wxID_ANY, _L("Smooth time: "));
-            text_smooth_time->SetForegroundColour(text_color);
-            rowSizer->Add(text_smooth_time, 0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
-            //enableST->SetToolTip(_L("Generate smooth time values"));
-            enableST->SetToolTip(_L("This parameter defines the duration over which extruder velocity changes are averaged, helping to smooth out rapid changes in extrusion pressure. Shorter times (e.g., 0.01 seconds) are beneficial for fast printing, while longer times (e.g., 0.4 seconds) are better for slower printing. The default value is 0.04 seconds."));
+            wxCheckBox* enableST = new wxCheckBox(parentSizer->GetContainingWindow(), wxID_ANY, _L("Calibrate Smooth Time instead of Advance"), wxDefaultPosition, wxDefaultSize);
+            enableST->SetForegroundColour(text_color);
+            enableST->SetToolTip(_L("When enabled, the start/end/increment values will sweep Klipper's SMOOTH_TIME parameter instead of ADVANCE.\n\nSmooth Time controls how long extruder velocity changes are averaged to smooth out rapid pressure changes.\nShorter times (e.g., 0.01s) suit fast printing; longer times (e.g., 0.4s) suit slower printing.\nKlipper default: 0.04s."));
             enableST->SetValue(false);
+            enableST->Bind(wxEVT_CHECKBOX, &CalibrationPressureAdvDialog::on_smooth_time_toggle, this);
             rowSizer->Add(enableST, 1, wxALIGN_CENTER_VERTICAL);
             dynamicEnableST.push_back(enableST);
         }
@@ -1489,6 +1490,64 @@ void CalibrationPressureAdvDialog::on_row_change(wxCommandEvent& event) {
     //this->SetSize(1600,600);
     this->SetSize(auto_size); //makes GUI flash on updating
 
+}
+
+void CalibrationPressureAdvDialog::on_smooth_time_toggle(wxCommandEvent& event) {
+    // Find which row's checkbox was toggled
+    wxCheckBox* cb = dynamic_cast<wxCheckBox*>(event.GetEventObject());
+    if (!cb) return;
+
+    int row = -1;
+    for (size_t i = 0; i < dynamicEnableST.size(); i++) {
+        if (dynamicEnableST[i] == cb) { row = static_cast<int>(i); break; }
+    }
+    if (row < 0 || row >= static_cast<int>(dynamicFirstPa.size())) return;
+
+    bool enabled = cb->GetValue();
+
+    if (enabled) {
+        // Save current values before overwriting
+        savedPaBeforeST[row] = {
+            dynamicFirstPa[row]->GetValue(),
+            dynamicStartPa[row]->GetValue(),
+            dynamicEndPa[row]->GetValue(),
+            dynamicPaIncrement[row]->GetValue(),
+            dynamicExtrusionRole[row]->GetValue()
+        };
+
+        // Set recommended smooth time calibration values (Klipper default is 0.04s)
+        // ExternalPerimeter is the standard role for smooth time tuning
+        dynamicFirstPa[row]->SetValue("0.040");
+        dynamicStartPa[row]->SetValue("0.010");
+        dynamicEndPa[row]->SetValue("0.080");
+        dynamicPaIncrement[row]->SetValue("0.005");
+        dynamicExtrusionRole[row]->SetValue("ExternalPerimeter");
+
+        // Disable editing — smooth time calibration uses fixed recommended values
+        dynamicFirstPa[row]->Enable(false);
+        dynamicStartPa[row]->Enable(false);
+        dynamicEndPa[row]->Enable(false);
+        dynamicPaIncrement[row]->Enable(false);
+        dynamicExtrusionRole[row]->Enable(false);
+    } else {
+        // Restore saved values
+        auto it = savedPaBeforeST.find(row);
+        if (it != savedPaBeforeST.end()) {
+            dynamicFirstPa[row]->SetValue(it->second.firstPa);
+            dynamicStartPa[row]->SetValue(it->second.startPa);
+            dynamicEndPa[row]->SetValue(it->second.endPa);
+            dynamicPaIncrement[row]->SetValue(it->second.increment);
+            dynamicExtrusionRole[row]->SetValue(it->second.extrusionRole);
+            savedPaBeforeST.erase(it);
+        }
+
+        // Re-enable editing
+        dynamicFirstPa[row]->Enable(true);
+        dynamicStartPa[row]->Enable(true);
+        dynamicEndPa[row]->Enable(true);
+        dynamicPaIncrement[row]->Enable(true);
+        dynamicExtrusionRole[row]->Enable(true);
+    }
 }
 
 std::pair<std::vector<double>, int> CalibrationPressureAdvDialog::calc_PA_values(int id_item) {
