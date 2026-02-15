@@ -7050,6 +7050,12 @@ double_t GCodeGenerator::_compute_speed_mm_per_sec(const ExtrusionPath& path, co
     if (m_layer->bottom_z() < EPSILON) {
         path_mm3_per_mm *= this->config().first_layer_flow_ratio.get_abs_value(1);
     }
+    // Factor in extrusion multipliers so the volumetric speed cap
+    // reflects the actual plastic volume, not just the geometric flow.
+    // (These same multipliers are applied in _compute_e_per_mm().)
+    path_mm3_per_mm *= this->config().print_extrusion_multiplier.get_abs_value(1);
+    double filament_extrusion_multiplier = EXTRUDER_CONFIG_WITH_DEFAULT(extrusion_multiplier, 1);
+    path_mm3_per_mm *= filament_extrusion_multiplier;
     // cap speed with max_volumetric_speed anyway (even if user is not using autospeed)
     if (m_config.max_volumetric_speed.value > 0 && path_mm3_per_mm > 0 && m_config.max_volumetric_speed.value / path_mm3_per_mm < speed) {
         speed = m_config.max_volumetric_speed.value / path_mm3_per_mm;
@@ -7432,60 +7438,74 @@ std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const Extrus
     if (m_config.filament_pressure_advance.is_enabled()) {
         pa = m_config.filament_pressure_advance.get_at(m_writer.tool()->id());
         if (m_config.filament_travel_pa.is_enabled(m_writer.tool()->id())) {
-            travel_pa = m_config.filament_travel_pa.get_abs_value(m_writer.tool()->id(), pa);
+            travel_pa = m_config.filament_travel_pa.get_at(m_writer.tool()->id());
         }
         switch (extrusion_role_to_gcode_extrusion_role(path.role())) {
         case GCodeExtrusionRole::Perimeter:
-            pa = m_config.get_computed_value("filament_perimeter_pa", m_writer.tool()->id());
+            if (m_config.filament_perimeter_pa.is_enabled(m_writer.tool()->id()))
+                pa = m_config.filament_perimeter_pa.get_at(m_writer.tool()->id());
             break;
         case GCodeExtrusionRole::ExternalPerimeter:
-            pa = m_config.get_computed_value("filament_external_perimeter_pa", m_writer.tool()->id());
+            if (m_config.filament_external_perimeter_pa.is_enabled(m_writer.tool()->id()))
+                pa = m_config.filament_external_perimeter_pa.get_at(m_writer.tool()->id());
             break;
         case GCodeExtrusionRole::SolidInfill:
-            pa = m_config.get_computed_value("filament_solid_infill_pa", m_writer.tool()->id());
+            if (m_config.filament_solid_infill_pa.is_enabled(m_writer.tool()->id()))
+                pa = m_config.filament_solid_infill_pa.get_at(m_writer.tool()->id());
             break;
         case GCodeExtrusionRole::InternalInfill:
-            pa = m_config.get_computed_value("filament_infill_pa", m_writer.tool()->id());
+            if (m_config.filament_infill_pa.is_enabled(m_writer.tool()->id()))
+                pa = m_config.filament_infill_pa.get_at(m_writer.tool()->id());
             break;
         case GCodeExtrusionRole::TopSolidInfill:
-            pa = m_config.get_computed_value("filament_top_solid_infill_pa", m_writer.tool()->id());
+            if (m_config.filament_top_solid_infill_pa.is_enabled(m_writer.tool()->id()))
+                pa = m_config.filament_top_solid_infill_pa.get_at(m_writer.tool()->id());
             break;
         case GCodeExtrusionRole::Ironing:
-            pa = m_config.get_computed_value("filament_ironing_pa", m_writer.tool()->id());
+            if (m_config.filament_ironing_pa.is_enabled(m_writer.tool()->id()))
+                pa = m_config.filament_ironing_pa.get_at(m_writer.tool()->id());
             break;
         case GCodeExtrusionRole::SupportMaterial:
         case GCodeExtrusionRole::WipeTower:
-            pa = m_config.get_computed_value("filament_support_material_pa", m_writer.tool()->id());
+            if (m_config.filament_support_material_pa.is_enabled(m_writer.tool()->id()))
+                pa = m_config.filament_support_material_pa.get_at(m_writer.tool()->id());
             break;
         case GCodeExtrusionRole::SupportMaterialInterface:
-            pa = m_config.get_computed_value("filament_support_material_interface_pa", m_writer.tool()->id());
+            if (m_config.filament_support_material_interface_pa.is_enabled(m_writer.tool()->id()))
+                pa = m_config.filament_support_material_interface_pa.get_at(m_writer.tool()->id());
             break;
         case GCodeExtrusionRole::Skirt:
-            pa = m_config.get_computed_value("filament_brim_pa", m_writer.tool()->id());
+            if (m_config.filament_brim_pa.is_enabled(m_writer.tool()->id()))
+                pa = m_config.filament_brim_pa.get_at(m_writer.tool()->id());
             break;
         case GCodeExtrusionRole::BridgeInfill:
-            pa = m_config.get_computed_value("filament_bridge_pa", m_writer.tool()->id());
+            if (m_config.filament_bridge_pa.is_enabled(m_writer.tool()->id()))
+                pa = m_config.filament_bridge_pa.get_at(m_writer.tool()->id());
             break;
         case GCodeExtrusionRole::InternalBridgeInfill:
-            pa = m_config.get_computed_value("filament_bridge_internal_pa", m_writer.tool()->id());
+            if (m_config.filament_bridge_internal_pa.is_enabled(m_writer.tool()->id()))
+                pa = m_config.filament_bridge_internal_pa.get_at(m_writer.tool()->id());
             break;
         case GCodeExtrusionRole::OverhangPerimeter:
-            pa = m_config.get_computed_value("filament_overhangs_pa", m_writer.tool()->id());
+            if (m_config.filament_overhangs_pa.is_enabled(m_writer.tool()->id()))
+                pa = m_config.filament_overhangs_pa.get_at(m_writer.tool()->id());
             break;
         case GCodeExtrusionRole::GapFill:
-            pa = m_config.get_computed_value("filament_gap_fill_pa", m_writer.tool()->id());
+            if (m_config.filament_gap_fill_pa.is_enabled(m_writer.tool()->id()))
+                pa = m_config.filament_gap_fill_pa.get_at(m_writer.tool()->id());
             break;
         case GCodeExtrusionRole::ThinWall:
-            pa = m_config.get_computed_value("filament_thin_walls_pa", m_writer.tool()->id());
+            if (m_config.filament_thin_walls_pa.is_enabled(m_writer.tool()->id()))
+                pa = m_config.filament_thin_walls_pa.get_at(m_writer.tool()->id());
             break;
         default:
             break;
         }
 
-        if (this->on_first_layer() && m_config.filament_first_layer_pa.get_at(m_writer.tool()->id()).value > 0) {
-            pa = std::min(pa, m_config.filament_first_layer_pa.get_abs_value(m_writer.tool()->id(), pa));
-        } else if (this->object_layer_over_raft() && m_config.filament_first_layer_pa_over_raft.get_at(m_writer.tool()->id()).value > 0) {
-            pa = m_config.filament_first_layer_pa_over_raft.get_abs_value(m_writer.tool()->id(), pa);
+        if (this->on_first_layer() && m_config.filament_first_layer_pa.is_enabled(m_writer.tool()->id())) {
+            pa = std::min(pa, m_config.filament_first_layer_pa.get_at(m_writer.tool()->id()));
+        } else if (this->object_layer_over_raft() && m_config.filament_first_layer_pa_over_raft.is_enabled(m_writer.tool()->id())) {
+            pa = m_config.filament_first_layer_pa_over_raft.get_at(m_writer.tool()->id());
         }
         if (pa < 0) {
             pa = 0;

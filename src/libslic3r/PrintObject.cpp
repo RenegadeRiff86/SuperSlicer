@@ -289,8 +289,9 @@ void PrintObject::make_perimeters()
                 m_print->set_status( int((nb_layers_done * 100) / m_print->secondary_status_counter_get_max()), L("Generating perimeters: layer %s / %s"), 
                     { std::to_string(nb_layers_done), std::to_string(m_print->secondary_status_counter_get_max()) }, PrintBase::SlicingStatus::SECONDARY_STATE);
 
-                // make perimeters
-                m_layers[layer_idx]->make_perimeters();
+                // make perimeters (skip layers with no sliced geometry)
+                if (! m_layers[layer_idx]->lslices().empty())
+                    m_layers[layer_idx]->make_perimeters();
         }
     );
     m_print->throw_if_canceled();

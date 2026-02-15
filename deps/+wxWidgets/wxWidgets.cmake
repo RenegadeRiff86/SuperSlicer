@@ -39,6 +39,9 @@ add_cmake_project(wxWidgets
         -DwxUSE_XTEST=OFF
         -DwxUSE_GLCANVAS_EGL=OFF
         -DwxUSE_WEBREQUEST=OFF
+        -DwxUSE_WEBVIEW=ON
+        -DwxUSE_WEBVIEW_EDGE=ON
+        -DwxUSE_WEBVIEW_EDGE_STATIC=ON
 )
 
 set(DEP_wxWidgets_DEPENDS ZLIB PNG EXPAT JPEG NanoSVG)

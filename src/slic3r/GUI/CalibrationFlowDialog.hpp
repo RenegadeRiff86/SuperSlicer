@@ -18,6 +18,7 @@ protected:
     void create_geometry(float start, float delta);
     void create_geometry_10(wxCommandEvent& event_args);
     void create_geometry_2_5(wxCommandEvent& event_args);
+    void create_geometry_2_5_above(wxCommandEvent& event_args);
 
 };
 

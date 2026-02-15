@@ -178,6 +178,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/MeshUtils.hpp
     GUI/Tab.cpp
     GUI/Tab.hpp
+    GUI/TabDevice.cpp
+    GUI/TabDevice.hpp
     GUI/ConfigManipulation.cpp
     GUI/ConfigManipulation.hpp
     GUI/Field.cpp

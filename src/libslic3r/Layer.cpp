@@ -665,8 +665,7 @@ void Layer::make_perimeters()
     BOOST_LOG_TRIVIAL(trace) << "Generating perimeters for layer " << this->id();
 
     if (lslices().empty()) {
-        assert(false);
-        // there is nothing to make perimeter with.
+        // Layer has no sliced geometry — nothing to generate perimeters for.
         return;
     }
     

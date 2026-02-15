@@ -39,6 +39,7 @@ namespace GUI
 {
 
 class Tab;
+class TabDevice;
 class PrintHostQueueDialog;
 class Plater;
 class MainFrame;
@@ -248,6 +249,7 @@ public:
     PrintHostQueueDialog* m_printhost_queue_dlg;
 //    std::shared_ptr<ProgressStatusBar>  m_statusbar;
     GalleryDialog*        m_gallery_dialog{ nullptr };
+    TabDevice*            m_device_tab{ nullptr };
 
 #ifdef __APPLE__
     std::unique_ptr<wxTaskBarIcon> m_taskbar_icon;

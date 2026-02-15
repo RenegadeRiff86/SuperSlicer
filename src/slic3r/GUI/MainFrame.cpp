@@ -46,6 +46,7 @@
 // #include "ProgressStatusBar.hpp"
 #include "RemovableDriveManager.hpp"
 #include "Tab.hpp"
+#include "TabDevice.hpp"
 #include "format.hpp"
 #include "wxExtensions.hpp"
 
@@ -1121,6 +1122,13 @@ void MainFrame::init_tabpanel()
         //}
 
         wxWindow* panel = m_tabpanel->GetCurrentPage();
+
+        // If the Device tab is selected, load the printer URL
+        if (panel == m_device_tab) {
+            m_device_tab->load_printer_url();
+            return;
+        }
+
         Tab* tab = dynamic_cast<Tab*>(panel);
 
         // There shouldn't be a case, when we try to select a tab, which doesn't support a printer technology
@@ -1342,6 +1350,21 @@ void MainFrame::create_preset_tabs()
     add_created_tab(new TabSLAPrint(m_tabpanel));
     add_created_tab(new TabSLAMaterial(m_tabpanel));
     add_created_tab(new TabPrinter(m_tabpanel));
+
+    // Device tab — embeds the printer's web interface (Mainsail/Fluidd)
+    m_device_tab = new TabDevice(m_tabpanel);
+#ifdef _USE_CUSTOM_NOTEBOOK
+    if (!wxGetApp().tabs_as_menu()) {
+        int icon_size = 0;
+        try {
+            icon_size = atoi(wxGetApp().app_config->get("tab_icon_size").c_str());
+        } catch (std::exception&) {}
+        dynamic_cast<Notebook*>(m_tabpanel)->InsertBtPage(
+            m_tabpanel->GetPageCount(), m_device_tab, _L("Device"), "printer", icon_size);
+    } else
+#endif
+        m_tabpanel->AddPage(m_device_tab, _L("Device"));
+
     TabFrequent* freq = (new TabFrequent(m_tabpanel, "Freq_fff", Preset::Type::TYPE_FREQUENT_FFF));
     freq->create_preset_tab();
     freq = (new TabFrequent(m_tabpanel, "Freq_sla", Preset::Type::TYPE_FREQUENT_SLA));
@@ -2811,6 +2834,11 @@ void MainFrame::on_presets_changed(SimpleEvent &event)
 
         m_plater->on_config_change(*tab->get_config());
         m_plater->sidebar().update_presets(preset_type);
+
+        // If the printer preset changed and the Device tab is currently shown, reload its URL
+        if (preset_type == Slic3r::Preset::TYPE_PRINTER && m_device_tab &&
+            m_tabpanel->GetCurrentPage() == m_device_tab)
+            m_device_tab->load_printer_url();
     }
 }
 

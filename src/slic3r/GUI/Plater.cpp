@@ -106,6 +106,7 @@
 #include "InstanceCheck.hpp"
 #include "MainFrame.hpp"
 #include "Mouse3DController.hpp"
+#include "TabDevice.hpp"
 #include "MsgDialog.hpp"
 #include "NotificationManager.hpp"
 #include "PresetComboBoxes.hpp"
@@ -8145,7 +8146,15 @@ void Plater::send_gcode()
                 return;
         }
 
+        bool switch_to_device = upload_job.upload_data.post_action == PrintHostPostUploadAction::StartPrint;
         p->export_gcode(fs::path(), false, std::move(upload_job));
+
+        // Switch to the Device tab so the user can monitor the print via Mainsail/Fluidd
+        if (switch_to_device && wxGetApp().mainframe->m_device_tab) {
+            int page_idx = wxGetApp().mainframe->m_tabpanel->FindPage(wxGetApp().mainframe->m_device_tab);
+            if (page_idx != wxNOT_FOUND)
+                wxGetApp().mainframe->m_tabpanel->SetSelection(page_idx);
+        }
     }
 }
 

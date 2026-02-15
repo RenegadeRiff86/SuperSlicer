@@ -35,6 +35,10 @@ void CalibrationFlowDialog::create_buttons(wxStdDialogButtonSizer* buttons){
     bt = new wxButton(this, wxID_FILE2, _L("Generate 2% intervals below current value"));
     bt->Bind(wxEVT_BUTTON, &CalibrationFlowDialog::create_geometry_2_5, this);
     buttons->Add(bt);
+    buttons->AddSpacer(20);
+    bt = new wxButton(this, wxID_FILE3, _L("Generate 2% intervals above current value"));
+    bt->Bind(wxEVT_BUTTON, &CalibrationFlowDialog::create_geometry_2_5_above, this);
+    buttons->Add(bt);
 }
 
 void CalibrationFlowDialog::create_geometry_10(wxCommandEvent &event_args)
@@ -51,6 +55,14 @@ void CalibrationFlowDialog::create_geometry_2_5(wxCommandEvent &event_args)
     if (!plat->new_project(L("Flow 2 percent calibration")))
         return;
     create_geometry(92.f, 2.F);
+}
+
+void CalibrationFlowDialog::create_geometry_2_5_above(wxCommandEvent &event_args)
+{
+    Plater *plat = this->main_frame->plater();
+    if (!plat->new_project(L("Flow 2 percent above calibration")))
+        return;
+    create_geometry(100.f, 2.f);
 }
 
 void CalibrationFlowDialog::create_geometry(float start, float delta) {
@@ -140,6 +152,12 @@ void CalibrationFlowDialog::create_geometry(float start, float delta) {
         add_part(model.objects[objs_idx[2]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "m4.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
         add_part(model.objects[objs_idx[3]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "m2.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
         add_part(model.objects[objs_idx[4]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "_0.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+    } else if (delta == 2.f && start == 100.f) {
+        add_part(model.objects[objs_idx[0]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "_0.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[1]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "p2.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[2]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "p4.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[3]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "p6.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[4]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "p8.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
     }
     for (size_t i = 0; i < 5; i++) {
         translate_from_rotation(i, Vec3d{ 10 * xyScale, 0, zscale/2 - z_origin });
@@ -179,7 +197,7 @@ void CalibrationFlowDialog::create_geometry(float start, float delta) {
         model.objects[objs_idx[i]]->config.set_key_value("external_infill_margin", new ConfigOptionFloatOrPercent(100, true));
         model.objects[objs_idx[i]]->config.set_key_value("solid_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipRectilinear));
         model.objects[objs_idx[0]]->config.set_key_value("infill_filled_solid", new ConfigOptionBool(true));
-        model.objects[objs_idx[i]]->config.set_key_value("top_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipSmooth));
+        model.objects[objs_idx[i]]->config.set_key_value("top_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipMonotonic));
         //disable ironing post-process
         model.objects[objs_idx[i]]->config.set_key_value("ironing", new ConfigOptionBool(false));
         //set extrusion mult: 80 90 100 110 120

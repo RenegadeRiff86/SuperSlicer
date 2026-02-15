@@ -63,12 +63,27 @@ if (SLIC3R_GUI)
         set (wxWidgets_CONFIG_OPTIONS "--toolkit=gtk${SLIC3R_GTK}")
             endif ()
     if(WIN32)
-        find_package(wxWidgets 3.2 MODULE REQUIRED COMPONENTS base core adv html gl stc scintilla)
+        find_package(wxWidgets 3.2 MODULE REQUIRED COMPONENTS base core adv html gl stc scintilla webview)
     else()
         find_package(wxWidgets 3.2 MODULE REQUIRED COMPONENTS base core adv html gl stc)
     endif()
 
     include(${wxWidgets_USE_FILE})
+
+    # WebView2LoaderStatic.lib is needed when wxUSE_WEBVIEW_EDGE_STATIC is ON.
+    # The lib lives inside the WebView2 SDK that wxWidgets auto-downloaded during its dep build.
+    if(WIN32)
+        # Resolve the deps/build directory from CMAKE_PREFIX_PATH (which points to deps/build/destdir/usr/local)
+        get_filename_component(_deps_build_dir "${CMAKE_PREFIX_PATH}/../../../" ABSOLUTE)
+        file(GLOB _webview2_pkg_dirs "${_deps_build_dir}/builds/wxWidgets/packages/Microsoft.Web.WebView2.*/build/native/x64")
+        if(_webview2_pkg_dirs)
+            list(GET _webview2_pkg_dirs 0 _webview2_lib_dir)
+            message(STATUS "WebView2 static loader dir: ${_webview2_lib_dir}")
+            link_directories(${_webview2_lib_dir})
+        else()
+            message(WARNING "WebView2LoaderStatic.lib not found - Edge WebView backend may not link")
+        endif()
+    endif()
 
     slic3r_remap_configs(wx::wxhtml wx::wxadv wx::wxgl wx::wxcore wx::wxbase RelWithDebInfo Release)
 
