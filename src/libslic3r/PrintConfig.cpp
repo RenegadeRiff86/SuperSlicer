@@ -904,7 +904,8 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::cooling;
     def->tooltip = L("This fan speed is enforced during bridges and overhangs. It won't slow down the fan if it's currently running at a higher speed."
         "\nSet to 0 to stop the fan."
-        "\nIf disabled, default fan speed will be used."
+        "\nIf disabled, the 'Default fan speed' setting will be used."
+        "\nWhen enabled, the speed will not exceed the 'Default fan speed' unless explicitly set higher."
         "\nCan be disabled by disable_fan_first_layers and increased by low layer time.");
     def->sidetext = L("%");
     def->min = 0;
@@ -1670,7 +1671,8 @@ void PrintConfigDef::init_fff_params()
     def->label = L("External perimeter fan speed");
     def->tooltip = L("When set to a non-zero value this fan speed is used only for external perimeters (visible ones) and thin walls."
                     "\nSet to 0 to stop the fan."
-                    "\nIf disabled, the default fan speed will be used."
+                    "\nIf disabled, the 'Default fan speed' setting will be used."
+                    "\nWhen enabled, the speed will not exceed the 'Default fan speed' unless explicitly set higher."
                     "\nExternal perimeters can benefit from higher fan speed to improve surface finish, "
                     "while internal perimeters, infill, etc. benefit from lower fan speed to improve layer adhesion."
                     "\nCan be disabled by disable_fan_first_layers, slowed down by full_fan_speed_layer and increased by low layer time.");
@@ -3242,7 +3244,8 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::cooling;
     def->tooltip = L("This fan speed is enforced during all gap fill Perimeter moves"
         "\nSet to 0 to stop the fan."
-        "\nIf disabled, default fan speed will be used."
+        "\nIf disabled, the 'Default fan speed' setting will be used."
+        "\nWhen enabled, the speed will not exceed the 'Default fan speed' unless explicitly set higher."
         "\nCan be disabled by disable_fan_first_layers, slowed down by full_fan_speed_layer and increased by low layer time.");
     def->sidetext = L("%");
     def->min = 0;
@@ -3719,7 +3722,8 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::cooling;
     def->tooltip = L("This fan speed is enforced during all Internal Infill moves"
         "\nSet to 0 to stop the fan."
-        "\nIf disabled, default fan speed will be used."
+        "\nIf disabled, the 'Default fan speed' setting will be used."
+        "\nWhen enabled, the speed will not exceed the 'Default fan speed' unless explicitly set higher."
         "\nCan be disabled by disable_fan_first_layers, slowed down by full_fan_speed_layer and increased by low layer time.");
     def->sidetext = L("%");
     def->min = 0;
@@ -5016,7 +5020,8 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::cooling;
     def->tooltip = L("This fan speed is enforced during all Perimeter moves"
         "\nSet to 0 to stop the fan."
-        "\nIf disabled, default fan speed will be used."
+        "\nIf disabled, the 'Default fan speed' setting will be used."
+        "\nWhen enabled, the speed will not exceed the 'Default fan speed' unless explicitly set higher."
         "\nCan be disabled by disable_fan_first_layers, slowed down by full_fan_speed_layer and increased by low layer time.");
     def->sidetext = L("%");
     def->min = 0;
@@ -6136,7 +6141,8 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::cooling;
     def->tooltip = L("This fan speed is enforced during all Solid Infill moves"
         "\nSet to 0 to stop the fan."
-        "\nIf disabled, default fan speed will be used."
+        "\nIf disabled, the 'Default fan speed' setting will be used."
+        "\nWhen enabled, the speed will not exceed the 'Default fan speed' unless explicitly set higher."
         "\nCan be disabled by disable_fan_first_layers, slowed down by full_fan_speed_layer and increased by low layer time.");
     def->sidetext = L("%");
     def->min = 0;
@@ -6514,7 +6520,8 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::cooling;
     def->tooltip = L("This fan speed is enforced during all support moves"
         "\nSet to 0 to stop the fan."
-        "\nIf disabled, default fan speed will be used."
+        "\nIf disabled, the 'Default fan speed' setting will be used."
+        "\nWhen enabled, the speed will not exceed the 'Default fan speed' unless explicitly set higher."
         "\nCan be disabled by disable_fan_first_layers, slowed down by full_fan_speed_layer.");
     def->sidetext = L("%");
     def->min = 0;
