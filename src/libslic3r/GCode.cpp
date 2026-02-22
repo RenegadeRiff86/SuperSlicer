@@ -8155,11 +8155,16 @@ std::string GCodeGenerator::generate_travel_gcode(
 ) {
     std::string gcode;
 
-    const unsigned acceleration =(unsigned)(m_config.travel_acceleration.value + 0.5);
-
     if (travel.empty()) {
         return "";
     }
+
+    // Use the machine-limit-aware helper, then cap by first_layer_acceleration on layer 1
+    // (travel_acceleration.value is the raw config value and bypasses machine limits).
+    double accel_d = get_travel_acceleration(m_config);
+    if (this->on_first_layer() && m_config.first_layer_acceleration.value > 0)
+        accel_d = std::min(accel_d, m_config.first_layer_acceleration.get_abs_value(accel_d));
+    const unsigned acceleration = (unsigned)(accel_d + 0.5);
 
     // generate G-code for the travel move
     // use G1 because we rely on paths being straight (G0 may make round paths)

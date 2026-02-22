@@ -45,7 +45,8 @@ namespace Slic3r {
 // static
 bool GCodeWriter::supports_separate_travel_acceleration(GCodeFlavor flavor)
 {
-    return (flavor == gcfRepetier || flavor == gcfMarlinFirmware ||  flavor == gcfRepRap);
+    // Klipper supports M204 T<travel> separately from M204 P<print>
+    return (flavor == gcfRepetier || flavor == gcfMarlinFirmware || flavor == gcfRepRap || flavor == gcfKlipper);
 }
 
 std::string GCodeWriter::get_default_pause_gcode(const GCodeConfig &config)
@@ -422,9 +423,10 @@ void GCodeWriter::set_acceleration(uint32_t acceleration)
 
 void GCodeWriter::set_travel_acceleration(uint32_t acceleration)
 {
-    //only gcfMarlinFirmware and gcfRepRap can use the travel accel
-    // so for the other, override the current accel
-    if (FLAVOR_IS_NOT(gcfMarlinFirmware) && FLAVOR_IS_NOT(gcfRepRap))
+    // Flavors that support a separate travel acceleration (M204 T) keep print and travel
+    // acceleration independently.  All other flavors have only one acceleration register,
+    // so we alias travel → print acceleration.
+    if (FLAVOR_IS_NOT(gcfMarlinFirmware) && FLAVOR_IS_NOT(gcfRepRap) && FLAVOR_IS_NOT(gcfKlipper))
         set_acceleration(acceleration);
 
     if (acceleration == m_current_travel_acceleration)
@@ -440,7 +442,7 @@ uint32_t GCodeWriter::get_acceleration() const
 
 std::string GCodeWriter::write_acceleration(){
     std::ostringstream gcode;
-    bool need_write_travel_accel = (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfRepRap)) &&
+    bool need_write_travel_accel = (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfRepRap) || FLAVOR_IS(gcfKlipper)) &&
                                    m_current_travel_acceleration != m_last_travel_acceleration;
     bool need_write_main_accel = m_current_acceleration != m_last_acceleration &&
                                  m_current_acceleration != 0;
@@ -459,16 +461,13 @@ std::string GCodeWriter::write_acceleration(){
             // Use M204 P, we don't want to override travel acc by M204 S (which is deprecated anyway).
             if (m_current_acceleration > 0)
                 gcode << "M204 P" << m_current_acceleration;
-        } else if (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfRepRap)) {
-            // M204: Set printing & travel acceleration
+        } else if (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfRepRap) || FLAVOR_IS(gcfKlipper)) {
+            // M204 P<print> T<travel>: set print and travel acceleration separately.
+            // Klipper supports both P and T parameters just like MarlinFirmware.
             if (m_current_acceleration > 0)
                 gcode << "M204 P" << m_current_acceleration << " T" << (m_current_travel_acceleration > 0 ? m_current_travel_acceleration : m_current_acceleration);
             else if(m_current_travel_acceleration > 0)
                 gcode << "M204 T" << m_current_travel_acceleration;
-        } else if (FLAVOR_IS(gcfKlipper)) {
-            // M204 P: set print acceleration (Klipper-preferred form; M204 S would also set travel)
-            if (m_current_acceleration > 0)
-                gcode << "M204 P" << m_current_acceleration;
         } else { // gcfMarlinLegacy and others
             // M204 S: legacy single-value acceleration
             if (m_current_acceleration > 0)
