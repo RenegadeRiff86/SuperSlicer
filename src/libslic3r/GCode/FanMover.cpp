@@ -378,7 +378,11 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                             if (m_current_kickstart.time > 0) {
                                 current_front_buffer_fan_speed = m_current_kickstart.fan_speed;
                             }
-                            if (kickstart > 0 && fan_speed > current_front_buffer_fan_speed) {
+                            // Only kickstart when the speed increase is large enough to matter.
+                            // Small bumps (e.g. 40%→45%) don't need a 100% burst and would
+                            // just create unnecessary noise in the G-code.
+                            const int16_t KICKSTART_MIN_DELTA = 10; // % fan speed
+                            if (kickstart > 0 && fan_speed > current_front_buffer_fan_speed + KICKSTART_MIN_DELTA) {
                                 // update current kickstart?
                                 if (m_current_kickstart.time > 0) {
                                     const float kickstart_duration = kickstart * float(fan_speed - current_front_buffer_fan_speed) / 100.f;
