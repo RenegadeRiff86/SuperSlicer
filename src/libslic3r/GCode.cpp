@@ -2867,6 +2867,19 @@ void GCodeGenerator::print_machine_envelope(GCodeOutputStream &file, const Print
    // gcfRepRap, gcfRepetier, gcfTeacup, gcfMakerWare, gcfMarlinLegacy, gcfMarlinFirmware, gcfKlipper, gcfSailfish, gcfSprinter, gcfMach3, gcfMachinekit,
    ///     gcfSmoothie, gcfNoExtrusion,
     if (print.config().machine_limits_usage.value == MachineLimitsUsage::EmitToGCode) {
+        if (print.config().gcode_flavor.value == gcfKlipper) {
+            // Klipper uses SET_VELOCITY_LIMIT for all motion limits.
+            // MAX_ACCEL_TO_DECEL was removed in Klipper 20250811; do not emit it.
+            // machine_max_jerk_x/y map to SQUARE_CORNER_VELOCITY (mm/s); use the minimum of X and Y.
+            file.write_format(
+                "SET_VELOCITY_LIMIT MAX_VELOCITY=%.1lf MAX_ACCEL=%d SQUARE_CORNER_VELOCITY=%.2lf"
+                " ; sets Klipper velocity/acceleration limits\n",
+                std::min(print.config().machine_max_feedrate_x.get_at(0),
+                         print.config().machine_max_feedrate_y.get_at(0)),
+                int(print.config().machine_max_acceleration_extruding.get_at(0) + 0.5),
+                std::min(print.config().machine_max_jerk_x.get_at(0),
+                         print.config().machine_max_jerk_y.get_at(0)));
+        } else {
         // some firmware are using mm/sec and some others mm/min for M203 and M566
         int factor = (std::set<uint8_t>{gcfMarlinLegacy, gcfMarlinFirmware, gcfSmoothie}.count(print.config().gcode_flavor.value) > 0) ? 1 : 60;
         if (std::set<uint8_t>{gcfMarlinLegacy, gcfMarlinFirmware, gcfRepetier, gcfRepRap,  gcfSprinter}.count(print.config().gcode_flavor.value) > 0)
@@ -2909,7 +2922,7 @@ void GCodeGenerator::print_machine_envelope(GCodeOutputStream &file, const Print
                 int(print.config().machine_max_acceleration_extruding.get_at(0) + 0.5),
                 int(print.config().machine_max_acceleration_retracting.get_at(0) + 0.5),
                 int(print.config().machine_max_acceleration_travel.get_at(0) + 0.5));
-        else if (std::set<uint8_t>{gcfRepRap, gcfKlipper, gcfSprinter}.count(print.config().gcode_flavor.value) > 0)
+        else if (std::set<uint8_t>{gcfRepRap, gcfSprinter}.count(print.config().gcode_flavor.value) > 0)
             // Uses M204 P[print] T[travel]
             file.write_format("M204 P%d T%d ; sets acceleration (P, T), mm/sec^2\n",
                 int(print.config().machine_max_acceleration_extruding.get_at(0) + 0.5),
@@ -2937,6 +2950,7 @@ void GCodeGenerator::print_machine_envelope(GCodeOutputStream &file, const Print
             file.write_format("M205 S%d T%d ; sets the minimum extruding and travel feed rate, mm/sec\n",
                 int(print.config().machine_min_extruding_rate.get_at(0) + 0.5),
                 int(print.config().machine_min_travel_rate.get_at(0) + 0.5));
+        } // end non-Klipper machine limits
     }
 }
 // Write 1st layer bed temperatures into the G-code.

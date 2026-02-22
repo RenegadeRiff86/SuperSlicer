@@ -465,8 +465,12 @@ std::string GCodeWriter::write_acceleration(){
                 gcode << "M204 P" << m_current_acceleration << " T" << (m_current_travel_acceleration > 0 ? m_current_travel_acceleration : m_current_acceleration);
             else if(m_current_travel_acceleration > 0)
                 gcode << "M204 T" << m_current_travel_acceleration;
-        } else { // gcfMarlinLegacy
-            // M204: Set default acceleration
+        } else if (FLAVOR_IS(gcfKlipper)) {
+            // M204 P: set print acceleration (Klipper-preferred form; M204 S would also set travel)
+            if (m_current_acceleration > 0)
+                gcode << "M204 P" << m_current_acceleration;
+        } else { // gcfMarlinLegacy and others
+            // M204 S: legacy single-value acceleration
             if (m_current_acceleration > 0)
                 gcode << "M204 S" << m_current_acceleration;
         }
