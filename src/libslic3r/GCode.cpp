@@ -1051,6 +1051,8 @@ namespace DoExport {
                     }
                     for (auto layer : object->support_layers()) {
                         const LayerTools *layer_tools = tool_ordering.tools_for_layer(layer->print_z);
+                        if (!layer_tools)
+                            continue;
                         // Soluble?
                         bool soluble = print.config().filament_soluble.get_at(extruder_id);
                         uint16_t support_extruder = object->config().support_material_extruder;
@@ -7433,12 +7435,22 @@ std::string GCodeGenerator::_travel_before_extrude(const ExtrusionPath &path, co
 
 std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const ExtrusionPath &path) {
 
+    // Maximum PA value we will emit. Values above this cannot be physically
+    // meaningful (2 seconds of lookahead is already extreme) and will crash
+    // Klipper's MCU planner. Users sometimes store values like 100 in per-role
+    // PA fields as an informal "disabled" sentinel; this threshold catches them.
+    static constexpr double PA_SANE_MAX = 2.0;
+
     double pa = 0;
     double travel_pa = -1;
     if (m_config.filament_pressure_advance.is_enabled()) {
         pa = m_config.filament_pressure_advance.get_at(m_writer.tool()->id());
+        const double base_pa = pa;  // save before per-role overrides
+
         if (m_config.filament_travel_pa.is_enabled(m_writer.tool()->id())) {
             travel_pa = m_config.filament_travel_pa.get_at(m_writer.tool()->id());
+            if (travel_pa > PA_SANE_MAX)
+                travel_pa = -1;  // treat as disabled sentinel, suppress
         }
         switch (extrusion_role_to_gcode_extrusion_role(path.role())) {
         case GCodeExtrusionRole::Perimeter:
@@ -7498,6 +7510,13 @@ std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const Extrus
             if (m_config.filament_thin_walls_pa.is_enabled(m_writer.tool()->id()))
                 pa = m_config.filament_thin_walls_pa.get_at(m_writer.tool()->id());
             break;
+        case GCodeExtrusionRole::Travel:
+            // Travel paths carry no extrusion; the base filament PA must not be
+            // applied here. filament_travel_pa (if configured) is already captured
+            // in travel_pa above and will be used during the retract/travel phase.
+            // Set pa=0 so the post-unretract set_pressure_advance() call is benign.
+            pa = 0;
+            break;
         default:
             break;
         }
@@ -7509,6 +7528,17 @@ std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const Extrus
         }
         if (pa < 0) {
             pa = 0;
+        }
+        // If the resolved PA exceeds the sane maximum, a per-role override (or
+        // the base value itself) is being used as an informal "disabled" sentinel
+        // (e.g., 100 meaning "don't override"). Fall back to the base PA if it is
+        // valid; otherwise disable PA for this path to prevent firmware crashes.
+        if (pa > PA_SANE_MAX) {
+            BOOST_LOG_TRIVIAL(warning) << "PA value " << pa
+                << " for role " << gcode_extrusion_role_to_string(extrusion_role_to_gcode_extrusion_role(path.role()))
+                << " exceeds " << PA_SANE_MAX << ". Treating as disabled sentinel; "
+                << "use the toggle (!) in filament settings to properly disable per-role PA.";
+            pa = (base_pa <= PA_SANE_MAX) ? base_pa : 0.0;
         }
     }
     return { pa, travel_pa };
