@@ -202,7 +202,9 @@ void FanMover::_remove_slow_fan(int16_t min_speed, float past_sec) {
     auto it = m_buffer.begin();
     while (it != m_buffer.end() && past_sec > 0) {
         past_sec -= it->time;
-        if (it->fan_speed >= 0 && it->fan_speed < min_speed){
+        // Never remove kickstart-target markers: they terminate a previous kickstart and
+        // must be preserved even during a new kickstart's clearing sweep.
+        if (it->fan_speed >= 0 && it->fan_speed < min_speed && !it->is_kickstart){
             //found something that is lower than us
             it = remove_from_buffer(it);
 
@@ -568,10 +570,12 @@ void FanMover::write_buffer_data()
             m_front_buffer_fan_speed = frontdata.fan_speed;
         } else {
             m_process_output += frontdata.raw + "\n";
-            if (frontdata.fan_speed >= 0 || frontdata.is_kickstart) {
+            if (frontdata.fan_speed >= 0) {
                 // note that this is the only place where the fan_speed is set and we print from the buffer, as if the
                 // fan_speed >= 0 => time == 0 and as this flush all time == 0 lines from the back of the queue...
-                m_front_buffer_fan_speed = frontdata.is_kickstart ? 100 : frontdata.fan_speed;
+                // For kickstart targets use the actual target speed, not 100; a second kickstart target
+                // landing here (preserved by _remove_slow_fan fix) should not reset state to 100%.
+                m_front_buffer_fan_speed = frontdata.fan_speed;
             }
         }
     }
