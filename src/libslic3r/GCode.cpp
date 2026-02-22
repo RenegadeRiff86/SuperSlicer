@@ -997,6 +997,10 @@ namespace DoExport {
             return ret;
         }
         const double max_print_speed = print.config().get_computed_value("max_print_speed");
+        // If max_print_speed resolves to 0 (e.g. percentage with machine_max_feedrate_x=0),
+        // autospeed is meaningless and the divisions below would crash.
+        if (max_print_speed <= 0)
+            return ret;
 
         ExtrusionMinMM compute_min_mm3_per_mm(&print.config());
         // per extruder
@@ -7009,7 +7013,9 @@ double_t GCodeGenerator::_compute_speed_mm_per_sec(const ExtrusionPath& path, co
 
 
     if (speed == 0) { // if you don't have a m_volumetric_speed
-        speed = m_config.max_print_speed.value;
+        // Use get_computed_value so a percentage (e.g. 100% of machine_max_feedrate_x)
+        // is resolved to mm/s; .value would return the raw number (100) not the mm/s value.
+        speed = m_config.get_computed_value("max_print_speed");
         if(comment) *comment = "max_print_speed";
     }
     // Apply small perimeter 'modifier
