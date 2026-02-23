@@ -3676,11 +3676,6 @@ void TabPrinter::build()
     m_printer_technology == ptSLA ? build_sla() : build_fff();
 }
 
-static wxString get_info_klipper_string()
-{
-    return _L("Emitting machine limits to G-code is not supported with Klipper G-code flavor.\n"
-              "The option was switched to \"Use for time estimate\".");
-}
 
 void TabPrinter::build_fff()
 {
@@ -3839,25 +3834,10 @@ PageShp TabPrinter::build_kinematics_page()
     optgroup->append_line(line);
     page->descriptions.push_back("machine_limits");
 
-    //TODO: check that if it's not annoying.
-    optgroup->m_on_change = [this](const OptionKeyIdx &opt_key_idx, bool enabled, const boost::any &value)
+    optgroup->m_on_change = [this](const OptionKeyIdx &, bool, const boost::any &)
     {
-        if (opt_key_idx.key == "machine_limits_usage" &&
-            static_cast<MachineLimitsUsage>(boost::any_cast<int>(value)) == MachineLimitsUsage::EmitToGCode &&
-            m_config->option<ConfigOptionEnum<GCodeFlavor>>("gcode_flavor")->value == gcfKlipper)
-        {
-            assert(enabled);
-            DynamicPrintConfig new_conf = *m_config;
-
-            auto machine_limits_usage = static_cast<ConfigOptionEnum<MachineLimitsUsage>*>(m_config->option("machine_limits_usage")->clone());
-            machine_limits_usage->value = MachineLimitsUsage::TimeEstimateOnly;
-
-            new_conf.set_key_value("machine_limits_usage", machine_limits_usage);
-
-            InfoDialog(parent(), wxEmptyString, get_info_klipper_string()).ShowModal();
-            load_config(new_conf);
-        }
-
+        // Klipper now correctly emits machine limits via SET_VELOCITY_LIMIT, so no
+        // override of machine_limits_usage is needed when switching to EmitToGCode.
         update_dirty();
         update();
     };

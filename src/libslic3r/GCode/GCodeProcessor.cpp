@@ -649,8 +649,9 @@ void GCodeProcessor::apply_config(const PrintConfig& config)
 
     if (config.machine_limits_usage.value < MachineLimitsUsage::Limits) {
         m_time_processor.machine_limits = reinterpret_cast<const MachineEnvelopeConfig&>(config);
-        if (m_flavor == gcfMarlinLegacy || m_flavor == gcfKlipper) {
-            // Legacy Marlin and Klipper don't have separate travel acceleration, they use the 'extruding' value instead.
+        if (m_flavor == gcfMarlinLegacy) {
+            // Legacy Marlin doesn't have separate travel acceleration; use the extruding value instead.
+            // Note: Klipper supports M204 T<travel> since our #4755 fix and correctly tracks them separately.
             m_time_processor.machine_limits.machine_max_acceleration_travel = m_time_processor.machine_limits.machine_max_acceleration_extruding;
         }
         if (m_flavor == gcfRepRap) {
@@ -960,8 +961,9 @@ void GCodeProcessor::apply_config(const DynamicPrintConfig& config)
             m_time_processor.machine_limits.machine_max_acceleration_retracting.set(machine_max_acceleration_retracting->get_values());
 
 
-        // Legacy Marlin and Klipper don't have separate travel acceleration, they use the 'extruding' value instead.
-        const ConfigOptionFloats* machine_max_acceleration_travel = config.option<ConfigOptionFloats>((m_flavor == gcfMarlinLegacy || m_flavor == gcfKlipper)
+        // Legacy Marlin doesn't have separate travel acceleration; use the extruding value instead.
+        // Klipper supports M204 T<travel> and tracks travel acceleration independently.
+        const ConfigOptionFloats* machine_max_acceleration_travel = config.option<ConfigOptionFloats>((m_flavor == gcfMarlinLegacy)
                                                                                                     ? "machine_max_acceleration_extruding"
                                                                                                     : "machine_max_acceleration_travel");
         if (machine_max_acceleration_travel != nullptr)
