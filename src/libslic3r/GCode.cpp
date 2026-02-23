@@ -996,11 +996,15 @@ namespace DoExport {
         if (print.config().max_volumetric_speed.value <= 0) {
             return ret;
         }
-        const double max_print_speed = print.config().get_computed_value("max_print_speed");
-        // If max_print_speed resolves to 0 (e.g. percentage with machine_max_feedrate_x=0),
-        // autospeed is meaningless and the divisions below would crash.
+        // max_print_speed raw value == 0 means "unlimited" — treat as a very large sentinel
+        // so that the std::min below reduces it to the volumetric cap.
+        // If the option is a percentage and machine_max_feedrate_x is unconfigured the
+        // resolved value is also 0, but the raw value != 0; skip that to avoid div-by-zero.
+        const double max_print_speed = (print.config().max_print_speed.value == 0)
+            ? 1e6  // unlimited → sentinel; will be capped to max_volumetric_speed below
+            : print.config().get_computed_value("max_print_speed");
         if (max_print_speed <= 0)
-            return ret;
+            return ret;  // percentage resolved to 0 (misconfigured machine feedrate), skip
 
         ExtrusionMinMM compute_min_mm3_per_mm(&print.config());
         // per extruder
@@ -7016,6 +7020,13 @@ double_t GCodeGenerator::_compute_speed_mm_per_sec(const ExtrusionPath& path, co
         // Use get_computed_value so a percentage (e.g. 100% of machine_max_feedrate_x)
         // is resolved to mm/s; .value would return the raw number (100) not the mm/s value.
         speed = m_config.get_computed_value("max_print_speed");
+        if (speed <= 0 && m_config.max_print_speed.value == 0) {
+            // max_print_speed = 0 means "unlimited". Use a large sentinel so the
+            // volumetric caps below (max_volumetric_speed, filament_max_volumetric_speed)
+            // can still reduce it to the correct mm/s value.  Without this the cap
+            // comparisons (cap < 0) are always false and volumetric limits are ignored.
+            speed = 1e6;
+        }
         if(comment) *comment = "max_print_speed";
     }
     // Apply small perimeter 'modifier
