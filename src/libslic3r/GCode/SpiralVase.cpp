@@ -92,9 +92,10 @@ std::string SpiralVase::process_layer(const std::string &gcode)
     float len = 0.f;
     double E_accumulator = 0;
     double last_old_E = 0;
+    bool transition_e_restored = false;
     bool is_milling = false;
     GCodeReader::GCodeLine line_last_position;
-    m_reader.parse_buffer(gcode, [this, &keep_first_travel , &new_gcode, &z, total_layer_length, layer_height_factor, &len, &E_accumulator, &last_old_E, &height_str, &is_milling, &line_last_position]
+    m_reader.parse_buffer(gcode, [this, &keep_first_travel , &new_gcode, &z, total_layer_length, layer_height_factor, &len, &E_accumulator, &last_old_E, &transition_e_restored, &height_str, &is_milling, &line_last_position]
         (GCodeReader &reader, GCodeReader::GCodeLine line) {
         if (boost::starts_with(line.comment()," milling"))
             is_milling = true;
@@ -137,6 +138,17 @@ std::string SpiralVase::process_layer(const std::string &gcode)
                             it we blend the first loop move in the XY plane (although the smoothness
                             of such blend depend on how long the first segment is; maybe we should
                             enforce some minimum length?).  */
+                    } else if (m_transition_layer && !m_config.use_relative_e_distances.value && line.has(E)) {
+                        // Retraction or prime during absolute-E transition layer.
+                        // Apply the original E delta to E_accumulator so the printer E register
+                        // stays in sync with our modulated coordinate space.  Without this, the
+                        // retraction falls through to the G92 block below with last_old_E==0,
+                        // which causes a massive extrusion (E: 0 → ~2500) then an equally massive
+                        // retraction on the next spiral extrusion move.
+                        E_accumulator += line.dist_E(reader);
+                        line.set(reader, E, E_accumulator);
+                        new_gcode += line.raw() + '\n';
+                        return;
                     }
                 }
             } else if (!height_str.empty()) {
@@ -149,9 +161,10 @@ std::string SpiralVase::process_layer(const std::string &gcode)
                     }
                 }
             }
-            if (m_transition_layer && !m_config.use_relative_e_distances.value) {
+            if (m_transition_layer && !m_config.use_relative_e_distances.value && !transition_e_restored) {
                 new_gcode += "; End spiral transition layer\n";
                 new_gcode += "G92 E" + to_string_nozero(last_old_E, m_config.gcode_precision_e.value) + "\n";
+                transition_e_restored = true;
             }
             new_gcode += line.raw() + '\n';
         } else {
