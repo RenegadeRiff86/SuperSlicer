@@ -46,11 +46,12 @@ namespace Slic3r::FFFSupport {
 #define SUPPORT_SURFACES_OFFSET_PARAMETERS ClipperLib::jtSquare, 0.
 
 void remove_bridges_from_contacts(
-    const PrintConfig   &print_config, 
+    const PrintConfig   &print_config,
     const Layer         &lower_layer,
     const LayerRegion   &layerm,
-    float                fw, 
-    ExPolygons          &contact_polygons)
+    float                fw,
+    ExPolygons          &contact_polygons,
+    coord_t              max_bridge_length)
 {
     // compute the area of bridging perimeters
     ExPolygons bridges;
@@ -73,7 +74,7 @@ void remove_bridges_from_contacts(
     #else
         Polylines overhang_perimeters = diff_pl(to_polylines(layerm.perimeters().as_polylines(), nozzle_diameter*2), lower_grown_slices);
     #endif
-        
+
         // only consider straight overhangs
         // only consider overhangs having endpoints inside layer's slices
         // convert bridging polylines into polygons by inflating them with their thickness
@@ -87,7 +88,7 @@ void remove_bridges_from_contacts(
         const float w = float(0.5 * std::max(perimeter_bridge_flow.scaled_width(), perimeter_bridge_flow.scaled_spacing())) + scaled<float>(0.001);
         for (Polyline &polyline : overhang_perimeters)
             if (polyline.is_straight()) {
-                // This is a bridge 
+                // This is a bridge
                 polyline.extend_start(fw);
                 polyline.extend_end(fw);
                 // Is the straight perimeter segment supported at both sides?
@@ -98,9 +99,13 @@ void remove_bridges_from_contacts(
                     for (int j = 0; j < 2; ++ j)
                         if (! supported[j] && lower_layer.lslices_ex[i].bbox.contains(pts[j]) && lower_layer.lslices()[i].contains(pts[j]))
                             supported[j] = true;
-                if (supported[0] && supported[1])
+                if (supported[0] && supported[1]) {
+                    // If max_bridge_length is set, skip bridges that are too long to span unsupported.
+                    if (max_bridge_length > 0 && polyline.length() > max_bridge_length)
+                        continue;
                     // Offset a polyline into a thick line.
                     append(bridges, to_expolygons(offset(polyline, w)));
+                }
             }
         bridges = union_ex(bridges);
     }
@@ -108,6 +113,12 @@ void remove_bridges_from_contacts(
     //FIXME the brided regions are already collected as layerm.bridged. Use it?
     for (const Surface &surface : layerm.fill_surfaces()) {
         if (surface.has_pos_bottom() && surface.has_mod_bridge() && surface.bridge_angle >= 0.0) {
+            // If max_bridge_length is set, only remove bridge surfaces that fit within it.
+            if (max_bridge_length > 0) {
+                auto bbox_size = get_extents(surface.expolygon).size();
+                if (bbox_size.x() > max_bridge_length || bbox_size.y() > max_bridge_length)
+                    continue;
+            }
             bridges.push_back(surface.expolygon);
         }
     }

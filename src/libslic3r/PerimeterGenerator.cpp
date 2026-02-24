@@ -1054,7 +1054,7 @@ ExtrusionPaths PerimeterGenerator::create_overhangs_classic(const Parameters &pa
     if (!dynamic_speed.empty()) {
         has_dynamic = true;
         extrusion_paths_append(paths, dynamic_speed,
-                               ExtrusionAttributes{role,
+                               ExtrusionAttributes{role | ExtrusionRoleModifier::ERM_Bridge,
                                                    ExtrusionFlow(is_external ? params.ext_mm3_per_mm() :
                                                                                params.mm3_per_mm(),
                                                                  is_external ? params.ext_perimeter_flow.width() :

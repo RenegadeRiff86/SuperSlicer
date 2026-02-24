@@ -20,12 +20,16 @@ namespace FFFSupport {
 
 // Remove bridges from support contact areas.
 // To be called if PrintObjectConfig::dont_support_bridges.
+// max_bridge_length: if > 0, only remove bridges shorter than this length (scaled).
+//   Bridges longer than this are kept in contact_polygons (they need support).
+//   If 0, all detected bridges are removed (legacy behavior).
 void remove_bridges_from_contacts(
-    const PrintConfig   &print_config, 
+    const PrintConfig   &print_config,
     const Layer         &lower_layer,
     const LayerRegion   &layerm,
-    float                fw, 
-    ExPolygons          &contact_polygons);
+    float                fw,
+    ExPolygons          &contact_polygons,
+    coord_t              max_bridge_length = 0);
 
 // Turn some of the base layers into base interface layers.
 // For soluble interfaces with non-soluble bases, print maximum two first interface layers with the base

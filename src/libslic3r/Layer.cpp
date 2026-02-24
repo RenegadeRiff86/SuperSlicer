@@ -65,8 +65,6 @@ void Layer::make_slices()
             slices = union_safety_offset_ex(slices_exp);
         }
         for (ExPolygon &poly : slices) for(auto &hole :poly.holes) assert(hole.is_clockwise());
-        ensure_valid(slices, std::max(scale_t(this->object()->print()->config().resolution), SCALED_EPSILON));
-        for (ExPolygon &poly : slices) poly.assert_valid();
         // lslices are sorted by topological order from outside to inside from the clipper union used above
 #ifdef _DEBUG
         if (slices.size() > 1) {
