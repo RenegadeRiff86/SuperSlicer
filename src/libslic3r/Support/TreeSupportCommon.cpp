@@ -35,7 +35,9 @@ TreeSupportMeshGroupSettings::TreeSupportMeshGroupSettings(const PrintObject &pr
     }
     
     this->layer_height              = scale_t(layer_height_mm);
-    this->resolution                = scale_t(print_config.resolution_internal.value);
+    // Use fine slicing resolution (not resolution_internal which is 8x coarser) so tree support
+    // geometry is not simplified too aggressively, matching PrusaSlicer/OrcaSlicer behavior.
+    this->resolution                = std::max(scale_t(print_config.resolution.value), coord_t(SCALED_EPSILON));
     // Arache feature <- why? it's not even editable when the organic support are activated! And it doesn't take into account the %! I'll fix it to 25% of external_perimeter_width. 
     this->min_feature_size          = scale_t(external_perimeter_width * 0.25); //config.min_feature_size.value);
     // +1 makes the threshold inclusive
@@ -62,7 +64,14 @@ TreeSupportMeshGroupSettings::TreeSupportMeshGroupSettings(const PrintObject &pr
     if (config.support_material_contact_distance_type.value == zdNone) {
         this->support_top_distance      = 0;
         this->support_bottom_distance   = 0;
-    } else if (config.support_material_contact_distance_type.value == zdFilament && print_object.layers().size() > 0 &&
+    } else if (config.support_material_contact_distance_type.value == zdFilament &&
+        // zdFilament adds bridge-filament-height to the gap distance, which is only relevant for
+        // conventional (non-tree) supports where the interface is a horizontal surface under a bridge.
+        // For organic tree supports the tip approaches the overhang directly from below, so the
+        // bridge-height adjustment is incorrect and makes the support column end too far from the
+        // overhang (matching PrusaSlicer behaviour which has no equivalent adjustment).
+        config.support_material_style.value != smsOrganic &&
+        print_object.layers().size() > 0 &&
         print_object.layers().front()->regions().size() > 0) {
         //get one region, with organic support there is only one layer height anyway
         assert(print_object.num_printing_regions() > 0);
