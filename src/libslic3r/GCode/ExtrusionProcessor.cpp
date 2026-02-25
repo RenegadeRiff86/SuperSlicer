@@ -241,66 +241,58 @@ std::pair<float,float> calculate_overhang_speed(const ExtrusionAttributes &attri
     float speed_ratio = 0; // 0: overhangs speed, 1= perimeter/externalperimeter speed.
     float fan_speed = -1;
     if (config.overhangs_dynamic_speed.is_enabled()) {
-        if (attributes.overhang_attributes->start_distance_from_prev_layer == 0 &&
-            attributes.overhang_attributes->end_distance_from_prev_layer == 0) {
-            speed_ratio = 1;
-        } else {
-            assert(config.overhangs);
-            float max_dynamic_distance =
-                (float) (config.overhangs_width_speed.is_enabled() ?
-                             config.overhangs_width_speed.get_abs_value(config.nozzle_diameter.get_at(extruder_id)) :
-                             config.overhangs_width.get_abs_value(config.nozzle_diameter.get_at(extruder_id)));
-            GraphData graph = config.overhangs_dynamic_speed.value;
-            // ensure it start at 0%, and ensure it ends at 100%
-            if (graph.graph_points[graph.begin_idx].x() != 0) {
-                graph.graph_points.insert(graph.graph_points.begin() + graph.begin_idx, {0, 0});
-                graph.end_idx++;
-            }
-            if (graph.graph_points[graph.end_idx - 1].x() != 100) {
-                graph.graph_points.insert(graph.graph_points.begin() + graph.end_idx, {100, 100});
-                graph.end_idx++;
-            }
-            graph.graph_points[graph.begin_idx].x() = 0;
-            graph.graph_points[graph.end_idx - 1].y() = 100;
-            // interpolate
-            assert(attributes.overhang_attributes->start_distance_from_prev_layer >= 0);
-            assert(attributes.overhang_attributes->end_distance_from_prev_layer >= 0);
-            // x=0 → 0% overlap (full overhang, slow), x=100 → 100% overlap (fully supported, fast).
-            // distance_from_prev_layer=0 is at the boundary (0% overlap); larger = deeper inside (more overlap).
-            float extrusion_ratio   = std::min(
-                         graph.interpolate(100 * std::min(1.f, attributes.overhang_attributes->start_distance_from_prev_layer / max_dynamic_distance)),
-                         graph.interpolate(100 * std::min(1.f, attributes.overhang_attributes->end_distance_from_prev_layer / max_dynamic_distance)));
-            assert(attributes.width * attributes.overhang_attributes->proximity_to_curled_lines >= 0 &&
-                   attributes.width * attributes.overhang_attributes->proximity_to_curled_lines <= 1);
-            float curled_extrusion_ratio = graph.interpolate(100 - 100 * attributes.overhang_attributes->proximity_to_curled_lines);
-            speed_ratio       = std::min(extrusion_ratio, curled_extrusion_ratio) / 100.0;
-            assert(speed_ratio >= 0 && speed_ratio <= 1);
+        assert(config.overhangs);
+        float max_dynamic_distance =
+            (float) (config.overhangs_width_speed.is_enabled() ?
+                         config.overhangs_width_speed.get_abs_value(config.nozzle_diameter.get_at(extruder_id)) :
+                         config.overhangs_width.get_abs_value(config.nozzle_diameter.get_at(extruder_id)));
+        GraphData graph = config.overhangs_dynamic_speed.value;
+        // ensure it start at 0%, and ensure it ends at 100%
+        if (graph.graph_points[graph.begin_idx].x() != 0) {
+            graph.graph_points.insert(graph.graph_points.begin() + graph.begin_idx, {0, 0});
+            graph.end_idx++;
         }
+        if (graph.graph_points[graph.end_idx - 1].x() != 100) {
+            graph.graph_points.insert(graph.graph_points.begin() + graph.end_idx, {100, 100});
+            graph.end_idx++;
+        }
+        graph.graph_points[graph.begin_idx].x() = 0;
+        graph.graph_points[graph.end_idx - 1].y() = 100;
+        // interpolate
+        assert(attributes.overhang_attributes->start_distance_from_prev_layer >= 0);
+        assert(attributes.overhang_attributes->end_distance_from_prev_layer >= 0);
+        // Graph x-axis convention: x=0 → fully supported (no overhang), x=100 → at boundary (full overhang, slow).
+        // distance_from_prev_layer=0 is at boundary (most overhang); larger = deeper inside (more overlap, faster).
+        // Formula: 100 - 100*distance/max so that x=100 when at boundary, x=0 when deep inside.
+        float extrusion_ratio   = std::min(
+                     graph.interpolate(100 - 100 * std::min(1.f, attributes.overhang_attributes->start_distance_from_prev_layer / max_dynamic_distance)),
+                     graph.interpolate(100 - 100 * std::min(1.f, attributes.overhang_attributes->end_distance_from_prev_layer / max_dynamic_distance)));
+        assert(attributes.width * attributes.overhang_attributes->proximity_to_curled_lines >= 0 &&
+               attributes.width * attributes.overhang_attributes->proximity_to_curled_lines <= 1);
+        float curled_extrusion_ratio = graph.interpolate(100 - 100 * attributes.overhang_attributes->proximity_to_curled_lines);
+        speed_ratio       = std::min(extrusion_ratio, curled_extrusion_ratio) / 100.0;
+        assert(speed_ratio >= 0 && speed_ratio <= 1);
     }
 
 
     std::vector<std::pair<int, ConfigOptionInts>> overhang_with_fan_speeds = {{100, ConfigOptionInts{0}}};
-    if (config.overhangs_dynamic_fan_speed.is_enabled(extruder_id) &&
-        attributes.overhang_attributes->start_distance_from_prev_layer > 0 &&
-        attributes.overhang_attributes->end_distance_from_prev_layer > 0) {
+    if (config.overhangs_dynamic_fan_speed.is_enabled(extruder_id)) {
         GraphData graph = config.overhangs_dynamic_fan_speed.get_at(extruder_id);
-        //interpolate
         assert((attributes.overhang_attributes->start_distance_from_prev_layer >= 0 &&
                 attributes.overhang_attributes->start_distance_from_prev_layer <= 1) ||
                attributes.overhang_attributes->start_distance_from_prev_layer == 2);
         assert((attributes.overhang_attributes->end_distance_from_prev_layer >= 0 &&
                 attributes.overhang_attributes->end_distance_from_prev_layer <= 1) ||
                attributes.overhang_attributes->end_distance_from_prev_layer == 2);
-        // x=0 → 0% overlap (full overhang, max fan), x=100 → 100% overlap (fully supported, min fan).
-        // Normalize by overhangs_width so the fan graph x-axis has the same physical meaning as the
-        // speed graph (x=100 = 1 nozzle-width inside the previous layer, matching speed normalization).
+        // Graph x-axis convention: x=0 → fully supported (no overhang, min fan), x=100 → at boundary (max fan).
+        // Same direction as speed graph: 100 - 100*distance/max.
         float max_dynamic_distance_fan =
             (float) config.overhangs_width.get_abs_value(config.nozzle_diameter.get_at(extruder_id));
         if (max_dynamic_distance_fan <= 0)
             max_dynamic_distance_fan = (float) config.nozzle_diameter.get_at(extruder_id);
         fan_speed = std::min(
-                     graph.interpolate(100 * std::min(1.f, attributes.overhang_attributes->start_distance_from_prev_layer / max_dynamic_distance_fan)),
-                     graph.interpolate(100 * std::min(1.f, attributes.overhang_attributes->end_distance_from_prev_layer / max_dynamic_distance_fan)));
+                     graph.interpolate(100 - 100 * std::min(1.f, attributes.overhang_attributes->start_distance_from_prev_layer / max_dynamic_distance_fan)),
+                     graph.interpolate(100 - 100 * std::min(1.f, attributes.overhang_attributes->end_distance_from_prev_layer / max_dynamic_distance_fan)));
         assert(fan_speed >= 0 && fan_speed <= 100);
     }
     return {speed_ratio, fan_speed};

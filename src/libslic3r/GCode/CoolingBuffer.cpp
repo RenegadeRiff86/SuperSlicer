@@ -1010,9 +1010,9 @@ std::string CoolingBuffer::apply_layer_cooldown(
     default_fan_speed[ uint8_t(GCodeExtrusionRole::OverhangPerimeter)] = FAN_CONFIG(overhangs_fan_speed);
     default_fan_speed[ uint8_t(GCodeExtrusionRole::GapFill)] = FAN_CONFIG(gap_fill_fan_speed);
     if (m_config.overhangs_dynamic_fan_speed.is_enabled(m_current_extruder)) {
-        //const GraphData graph = m_config.overhangs_dynamic_fan_speed.get_at(m_current_extruder);
-        //default_fan_speed[ uint8_t(GCodeExtrusionRole::OverhangPerimeter)] = graph.data().front().y();
-        default_fan_speed[ uint8_t(GCodeExtrusionRole::OverhangPerimeter)] =  -1;
+        const GraphData graph = m_config.overhangs_dynamic_fan_speed.get_at(m_current_extruder);
+        // x=100 is the full-overhang end (boundary) in the current convention; use it for extreme overhang perimeters.
+        default_fan_speed[ uint8_t(GCodeExtrusionRole::OverhangPerimeter)] = (int)graph.data().back().y();
     }
     // if disabled, and default is not default
     if (default_fan_speed[uint8_t(GCodeExtrusionRole::TopSolidInfill)] < 0) {

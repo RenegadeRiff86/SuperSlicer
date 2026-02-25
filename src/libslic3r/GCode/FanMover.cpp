@@ -397,12 +397,12 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                                     _remove_slow_fan(fan_baseline, kickstart);
                                     // print me
                                     if (!m_buffer.empty() && (m_buffer_time_size - m_buffer.front().time * 0.1) > nb_seconds_delay) {
-                                        _print_in_middle_G1(m_buffer.front(), m_buffer_time_size - nb_seconds_delay, _set_fan(100, "kickstart fan"));//m_writer.set_fan(100, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
+                                        _print_in_middle_G1(m_buffer.front(), m_buffer_time_size - nb_seconds_delay, _set_fan(fan_speed, "kickstart fan"));//m_writer.set_fan(100, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
                                         remove_from_buffer(m_buffer.begin());
                                     } else {
-                                        m_process_output += _set_fan(100, "kickstart fan") + "\n";//m_writer.set_fan(100, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
+                                        m_process_output += _set_fan(fan_speed, "kickstart fan") + "\n";//m_writer.set_fan(100, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
                                     }
-                                    m_front_buffer_fan_speed = 100;
+                                    m_front_buffer_fan_speed = fan_speed;
                                     //write it in the queue if possible
                                     const float kickstart_duration = kickstart * float(fan_speed - current_front_buffer_fan_speed) / 100.f;
                                     float time_count = kickstart_duration;
@@ -464,7 +464,7 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                                 float kickstart_duration = kickstart * float(fan_speed - m_back_buffer_fan_speed) / 100.f;
                                 //if kickstart, write the M106 S[fan_baseline] first
                                 //set the target speed and set the kickstart flag
-                                put_in_buffer(BufferData(_set_fan(100, "kickstart fan")//m_writer.set_fan(100, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
+                                put_in_buffer(BufferData(_set_fan(fan_speed, "kickstart fan")//m_writer.set_fan(100, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
                                     , 0, fan_speed, true));
                                 //kickstart!
                                 //m_process_output += m_writer.set_fan(100, true) + "\n";
