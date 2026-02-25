@@ -265,9 +265,11 @@ std::pair<float,float> calculate_overhang_speed(const ExtrusionAttributes &attri
             // interpolate
             assert(attributes.overhang_attributes->start_distance_from_prev_layer >= 0);
             assert(attributes.overhang_attributes->end_distance_from_prev_layer >= 0);
+            // x=0 → 0% overlap (full overhang, slow), x=100 → 100% overlap (fully supported, fast).
+            // distance_from_prev_layer=0 is at the boundary (0% overlap); larger = deeper inside (more overlap).
             float extrusion_ratio   = std::min(
-                         graph.interpolate(100 - 100 * std::min(1.f, attributes.overhang_attributes->start_distance_from_prev_layer / max_dynamic_distance)),
-                         graph.interpolate(100 - 100 * std::min(1.f, attributes.overhang_attributes->end_distance_from_prev_layer / max_dynamic_distance)));
+                         graph.interpolate(100 * std::min(1.f, attributes.overhang_attributes->start_distance_from_prev_layer / max_dynamic_distance)),
+                         graph.interpolate(100 * std::min(1.f, attributes.overhang_attributes->end_distance_from_prev_layer / max_dynamic_distance)));
             assert(attributes.width * attributes.overhang_attributes->proximity_to_curled_lines >= 0 &&
                    attributes.width * attributes.overhang_attributes->proximity_to_curled_lines <= 1);
             float curled_extrusion_ratio = graph.interpolate(100 - 100 * attributes.overhang_attributes->proximity_to_curled_lines);
@@ -289,9 +291,16 @@ std::pair<float,float> calculate_overhang_speed(const ExtrusionAttributes &attri
         assert((attributes.overhang_attributes->end_distance_from_prev_layer >= 0 &&
                 attributes.overhang_attributes->end_distance_from_prev_layer <= 1) ||
                attributes.overhang_attributes->end_distance_from_prev_layer == 2);
+        // x=0 → 0% overlap (full overhang, max fan), x=100 → 100% overlap (fully supported, min fan).
+        // Normalize by overhangs_width so the fan graph x-axis has the same physical meaning as the
+        // speed graph (x=100 = 1 nozzle-width inside the previous layer, matching speed normalization).
+        float max_dynamic_distance_fan =
+            (float) config.overhangs_width.get_abs_value(config.nozzle_diameter.get_at(extruder_id));
+        if (max_dynamic_distance_fan <= 0)
+            max_dynamic_distance_fan = (float) config.nozzle_diameter.get_at(extruder_id);
         fan_speed = std::min(
-                     graph.interpolate(100 - 100 * std::min(1.f, attributes.overhang_attributes->start_distance_from_prev_layer)),
-                     graph.interpolate(100 - 100 * std::min(1.f, attributes.overhang_attributes->end_distance_from_prev_layer)));
+                     graph.interpolate(100 * std::min(1.f, attributes.overhang_attributes->start_distance_from_prev_layer / max_dynamic_distance_fan)),
+                     graph.interpolate(100 * std::min(1.f, attributes.overhang_attributes->end_distance_from_prev_layer / max_dynamic_distance_fan)));
         assert(fan_speed >= 0 && fan_speed <= 100);
     }
     return {speed_ratio, fan_speed};
