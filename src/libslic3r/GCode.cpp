@@ -7571,7 +7571,8 @@ std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const Extrus
                 << " exceeds Klipper maximum " << PA_SANE_MAX << ". "
                 << "Treating as disabled sentinel for Klipper; "
                 << "use the toggle (!) in filament settings to properly disable per-role PA.";
-            pa = (base_pa <= PA_SANE_MAX) ? base_pa : 0.0;
+            const double fallback_pa = std::clamp(base_pa, 0.0, PA_SANE_MAX);
+            pa = fallback_pa;
         }
     }
     return { pa, travel_pa };
