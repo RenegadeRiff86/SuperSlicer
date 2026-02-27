@@ -18,6 +18,7 @@ GCodeExtrusionRole extrusion_role_to_gcode_extrusion_role(ExtrusionRole role)
 {
     assert(role != ExtrusionRole::Mixed);
     if (role == ExtrusionRole::None)                return GCodeExtrusionRole::None;
+    if (role == ExtrusionRole::ThinWall)            return GCodeExtrusionRole::ThinWall;
     if (role.is_perimeter()) {
         if (role.is_overhang())
             return GCodeExtrusionRole::OverhangPerimeter;
@@ -32,7 +33,6 @@ GCodeExtrusionRole extrusion_role_to_gcode_extrusion_role(ExtrusionRole role)
             return role.is_external() ? GCodeExtrusionRole::TopSolidInfill : GCodeExtrusionRole::SolidInfill;
         return GCodeExtrusionRole::InternalInfill;
     }
-    if (role == ExtrusionRole::ThinWall)            return GCodeExtrusionRole::ThinWall;
     if (role == ExtrusionRole::GapFill)             return GCodeExtrusionRole::GapFill;
     if (role == ExtrusionRole::Skirt)               return GCodeExtrusionRole::Skirt;
     if (role == ExtrusionRole::SupportMaterial)     return GCodeExtrusionRole::SupportMaterial;
