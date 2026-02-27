@@ -139,8 +139,14 @@ ExtrusionPaths calculate_and_split_overhanging_extrusions(const ExtrusionPath   
     }
     // Keep the overhang role on split segments so TYPE tags and preview coloring
     // remain consistent even on short perimeter fragments.
-    for (ExtrusionPath &res_path : result)
+    for (ExtrusionPath &res_path : result) {
         assert(res_path.attributes().overhang_attributes);
+        if (res_path.attributes().overhang_attributes.has_value() &&
+            res_path.role().is_perimeter() &&
+            !res_path.role().is_overhang()) {
+            res_path.set_role(res_path.role() | ExtrusionRoleModifier::ERM_Bridge);
+        }
+    }
 #ifdef _DEBUG
     for (auto &path : result) {
         assert(path.attributes().overhang_attributes.has_value());
