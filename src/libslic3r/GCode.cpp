@@ -7466,11 +7466,11 @@ std::string GCodeGenerator::_travel_before_extrude(const ExtrusionPath &path, co
 
 std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const ExtrusionPath &path) {
 
-    // Maximum PA value we will emit. Values above this cannot be physically
-    // meaningful (2 seconds of lookahead is already extreme) and will crash
-    // Klipper's MCU planner. Users sometimes store values like 100 in per-role
-    // PA fields as an informal "disabled" sentinel; this threshold catches them.
+    // Maximum PA value we will emit when the active firmware requires it.
+    // Values above this can crash Klipper's MCU planner.
     static constexpr double PA_SANE_MAX = 2.0;
+    const GCodeFlavor flavor = config().gcode_flavor.value;
+    const bool requires_pa_sane_max = (flavor == gcfKlipper);
 
     double pa = 0;
     double travel_pa = -1;
@@ -7480,7 +7480,7 @@ std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const Extrus
 
         if (m_config.filament_travel_pa.is_enabled(m_writer.tool()->id())) {
             travel_pa = m_config.filament_travel_pa.get_at(m_writer.tool()->id());
-            if (travel_pa > PA_SANE_MAX)
+            if (requires_pa_sane_max && travel_pa > PA_SANE_MAX)
                 travel_pa = -1;  // treat as disabled sentinel, suppress
         }
         switch (extrusion_role_to_gcode_extrusion_role(path.role())) {
@@ -7560,14 +7560,16 @@ std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const Extrus
         if (pa < 0) {
             pa = 0;
         }
-        // If the resolved PA exceeds the sane maximum, a per-role override (or
-        // the base value itself) is being used as an informal "disabled" sentinel
-        // (e.g., 100 meaning "don't override"). Fall back to the base PA if it is
-        // valid; otherwise disable PA for this path to prevent firmware crashes.
-        if (pa > PA_SANE_MAX) {
+        // Klipper's planner cannot handle very large PA values. If the resolved
+        // PA exceeds the sane maximum, a per-role override (or the base value
+        // itself) is likely used as an informal "disabled" sentinel (e.g., 100
+        // meaning "don't override"). Fall back to the base PA if it is valid;
+        // otherwise disable PA for this path to prevent firmware crashes.
+        if (requires_pa_sane_max && pa > PA_SANE_MAX) {
             BOOST_LOG_TRIVIAL(warning) << "PA value " << pa
                 << " for role " << gcode_extrusion_role_to_string(extrusion_role_to_gcode_extrusion_role(path.role()))
-                << " exceeds " << PA_SANE_MAX << ". Treating as disabled sentinel; "
+                << " exceeds Klipper maximum " << PA_SANE_MAX << ". "
+                << "Treating as disabled sentinel for Klipper; "
                 << "use the toggle (!) in filament settings to properly disable per-role PA.";
             pa = (base_pa <= PA_SANE_MAX) ? base_pa : 0.0;
         }
