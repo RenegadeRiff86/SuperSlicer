@@ -75,19 +75,20 @@ You can also inspect each 'base model' and view the object modifiers for each 90
 
 <li>If you use PA/LA commands in your <b>feature_gcode</b> you need to remove them, otherwise your calibration will be invalid.</li>
 
-<p>Currently unsupported roles:</p>
+<p>Role coverage:</p>
 <ul>
-<li>BridgeInfill, InternalBridgeInfill, ThinWall, GapFill, Ironing</li>
+<li><b>Directly supported:</b> InternalInfill, ExternalPerimeter, OverhangPerimeter, Perimeter, SolidInfill, SupportMaterial, SupportMaterialInterface, TopSolidInfill, FirstLayer.</li>
+<li><b>Compatibility mode (with safe fallbacks):</b> BridgeInfill, InternalBridgeInfill, ThinWall, GapFill, Ironing. These roles are generated with deterministic base-layer geometry and fallback spacing/width values when role-specific values are unavailable.</li>
 </ul>
 <p>What is the "CheckAll" option?<br>
 The "CheckAll" option is an experimental feature. It aims to create a 90° model for each extrusion role, applying specific settings related to that extrusion role. <br>
 You need to <b>manually</b> add the pressure advance values into the "per region g-code" box.<br>
-However, it currently doesn't work perfectly. Occasionally the models get 'gap fill' and that will produce inaccurate results. Select the "CheckAll" option to identify which extrusion roles need Pressure Advance tuning.</p>
+For consistency, "CheckAll" forces deterministic geometry and disables object-level gap fill artifacts so the output stays easier to compare. Select the "CheckAll" option to identify which extrusion roles need Pressure Advance tuning.</p>
 
 <h2>Known Bugs</h2>
 <ul>
 <li>Classic line sweep style is visible in the UI for reference, but currently disabled due to a known model/object-list cleanup issue.</li>
-<li>The first layer may receive gap fill on the 90° bend models; it is recommended to disable gap fill in the object modifiers if this occurs.</li>
+<li>Bridge/GAP/ThinWall/Ironing paths still use compatibility-mode approximations. Use the result as a baseline and confirm with a focused real-part test if absolute accuracy is critical.</li>
 <li>Occasionally some numbers might get scaled wrong so they won't show up on the G-code preview, this has primarily been for number '1'. If this happens, adjust main config 'thin_perimeters' to '-1'.</li>
 <li>Other minor bugs may be present.</li>
 </ul>
