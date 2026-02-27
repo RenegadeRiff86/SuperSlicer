@@ -219,6 +219,8 @@ void GCodeWriter::_write_pressure_advance(std::string &gcode) {
 }
 
 std::string GCodeWriter::write_pressure_advance(double pa) {
+    static constexpr double KLIPPER_PA_SANE_MAX = 2.0;
+
     if (pa < 0)
         return "";
     std::string gcode;
@@ -227,7 +229,6 @@ std::string GCodeWriter::write_pressure_advance(double pa) {
     if (m_tool) {
         tool_id = m_tool->id();
     }
-    m_last_pressure_advance = pa;
     if (FLAVOR_IS(gcfRepRap) || FLAVOR_IS(gcfSprinter)) {
         if (tool_id >= 0 && !this->config.single_extruder_multi_material.value) {
             gcode += "M572 D" + std::to_string(tool_id) + " S" + to_string_nozero(pa, 4);
@@ -236,6 +237,7 @@ std::string GCodeWriter::write_pressure_advance(double pa) {
             gcode = std::string("M572 S") + to_string_nozero(pa, 4);
         }
     } else if (FLAVOR_IS(gcfKlipper)) {
+        pa = std::clamp(pa, 0.0, KLIPPER_PA_SANE_MAX);
         gcode = std::string("SET_PRESSURE_ADVANCE ADVANCE=") + to_string_nozero(pa, 4);
         if (this->config.tool_name.size() > tool_id && !this->config.tool_name.get_at(tool_id).empty()) {
             gcode += std::string(" EXTRUDER=") + this->config.tool_name.get_at(tool_id);
@@ -248,6 +250,7 @@ std::string GCodeWriter::write_pressure_advance(double pa) {
         // if (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfMarlinLegacy))
         gcode += "M900 K" + to_string_nozero(pa, 4);
     }
+    m_last_pressure_advance = pa;
     if (this->config.gcode_comments) {
         gcode += comment;
     }
