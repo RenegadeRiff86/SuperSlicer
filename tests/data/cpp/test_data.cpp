@@ -252,7 +252,7 @@ void init_print(std::vector<TriangleMesh> &&meshes, Slic3r::Print &print, Slic3r
 		object->add_instance();
 	}
 
-    double distance = min_object_distance(config);
+    double distance = min_object_distance(static_cast<const ConfigBase*>(&config));
     arr2::ArrangeSettings arrange_settings{};
     arrange_settings.set_distance_from_objects(distance);
     arr2::ArrangeBed bed{arr2::to_arrange_bed(get_bed_shape(config))};
@@ -267,8 +267,6 @@ void init_print(std::vector<TriangleMesh> &&meshes, Slic3r::Print &print, Slic3r
 		print.auto_assign_extruders(mo);
     }
 
-	print.apply(model, config);
-    arrange_objects(model, InfiniteBed{}, ArrangeParams{ scaled(print.config().min_object_distance()) });
     print.apply(model, config);
     print.validate();
     print.set_status_silent();

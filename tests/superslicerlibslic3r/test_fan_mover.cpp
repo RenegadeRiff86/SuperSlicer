@@ -7,6 +7,7 @@
 #include <libslic3r/ExtrusionEntity.hpp>
 
 #include <boost/algorithm/string.hpp>
+#include <vector>
 
 using namespace Slic3r;
 using namespace Slic3r::Geometry;
@@ -164,6 +165,32 @@ TEST_CASE("Simple gcode") {
         processed_gcode += fan_mover.process_gcode(gcode+m107, true);
         REQUIRE(gcode+gcode.substr(5) == processed_gcode); // substr to remove first m107
     }
+
+    SECTION("no kickstart spam at 100% target")
+    {
+        Slic3r::FanMover fan_mover(writer,
+                                   0,     // fan_speedup_time.value,
+                                   false, // with_D_option
+                                   true,  // use_relative_e_distances.value,
+                                   false, // fan_speedup_overhangs.value,
+                                   1      // fan_kickstart.value));
+        );
+        std::string gcode_full;
+        gcode_full += "M107\n";
+        gcode_full += "M106 S255\n";
+        gcode_full += ";TYPE:Perimeter\n";
+        gcode_full += "M106 S255\n";
+        gcode_full += ";TYPE:External perimeter\n";
+        gcode_full += "M106 S255\n";
+        gcode_full += "G1 X20 Y0 E20 F600\n";
+
+        const std::string processed_gcode = fan_mover.process_gcode(gcode_full, true);
+
+        std::vector<std::string> matches;
+        boost::algorithm::find_all(matches, processed_gcode, "M106 S255\n");
+        REQUIRE(matches.size() == 1);
+    }
+
     SECTION("erase M107-like M106 -> M107")
     {
         Slic3r::FanMover fan_mover(writer,

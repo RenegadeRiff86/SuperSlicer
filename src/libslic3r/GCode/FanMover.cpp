@@ -382,7 +382,8 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                             // Small bumps (e.g. 40%→45%) don't need a 100% burst and would
                             // just create unnecessary noise in the G-code.
                             const int16_t KICKSTART_MIN_DELTA = 10; // % fan speed
-                            if (kickstart > 0 && fan_speed > current_front_buffer_fan_speed + KICKSTART_MIN_DELTA) {
+                            // Kickstart has no effect at 100% target and only creates duplicated M106 S255 lines.
+                            if (kickstart > 0 && fan_speed < 100 && fan_speed > current_front_buffer_fan_speed + KICKSTART_MIN_DELTA) {
                                 // update current kickstart?
                                 if (m_current_kickstart.time > 0) {
                                     const float kickstart_duration = kickstart * float(fan_speed - current_front_buffer_fan_speed) / 100.f;
@@ -457,7 +458,7 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                                     //i'm printed by the m_current_kickstart
                                     time = -1;
                                 }
-                            } else if(m_back_buffer_fan_speed < fan_speed - 10){ //only kickstart if more than 10% change
+                            } else if(fan_speed < 100 && m_back_buffer_fan_speed < fan_speed - 10){ //only kickstart if more than 10% change
                                 //don't write this line, as it will need to be delayed
                                 time = -1;
                                 //get the duration of kickstart
