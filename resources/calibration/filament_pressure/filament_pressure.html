@@ -51,23 +51,23 @@
 </tbody>
 </table>
 
-<p><span style="color: red; font-weight: bold;">This test is still in development. The beta version should work well, but your current print settings need to be saved before clicking "Generate" since they are used to create the model.</span></p>
+<p><span style="color: red; font-weight: bold;">This line pressure advance calibration is still in development. The beta version should work well, but your current print settings need to be saved before clicking "Generate" since they are used to create the model.</span></p>
 
-<p>Note: This test will automatically pull all your currently saved configuration parameters and generate a model for you to print. For optimal results, depending if you're chasing speed/quality or a mix of both, it is recommended to keep similar speeds for most extrusion roles, (although this is not mandatory).</p>
+<p>Note: This calibration will automatically pull all your currently saved configuration parameters and generate a model for you to print. For optimal results, depending if you're chasing speed/quality or a mix of both, it is recommended to keep similar speeds for most extrusion roles, (although this is not mandatory).</p>
 
 <h2>How to Tune Your Printer for Pressure/Linear Advance</h2>
 <p>To get started:</p>
 <ul>
-<li>Select the number of tests to create, the <b>max</b> is <b>10</b>.</li>
+<li>Select the number of calibration lines to create, the <b>max</b> is <b>10</b>.</li>
 <li>Each row represents the config parameters for the selected extrusion role (e.g., first row = ExternalPerimeter, second row = FirstLayer).</li>
 <li>Select the start/end and increment values, <b>you can manually edit these values if you want larger or smaller values.</b></li>
-<li>Since each model will have its own config, one test model might print faster or slower than others. This is expected and normal.</li>
+<li>Since each model will have its own config, one calibration model might print faster or slower than others. This is expected and normal.</li>
 <li>This is the first calibration tool that supports <b>Arachne!</b> so leave it enabled if you use Arachne. </li>
-<li>Helpful tip: If you are running multiple tests on a single plate, take a screenshot of the main configuration page (or leave it open and drag the window out of the way) to match the row number to the ID label on the bottom right of the loaded model. (counting starts at '0' ☺)<br>
+<li>Helpful tip: If you are running multiple calibration lines on a single plate, take a screenshot of the main configuration page (or leave it open and drag the window out of the way) to match the row number to the ID label on the bottom right of the loaded model. (counting starts at '0' ☺)<br>
 You can also inspect each 'base model' and view the object modifiers for each 90° bend model, the 'region_gcode' will have a comment for the extrusion role.<br></li>
 </ul>
 
-<li>if you use PA/LA commands in your <b>feature_gcode</b> you need to remove it, otherwise your test will be invalidated.</li>
+<li>If you use PA/LA commands in your <b>feature_gcode</b> you need to remove them, otherwise your calibration will be invalid.</li>
 
 <p>Currently unsupported roles:</p>
 <ul>
