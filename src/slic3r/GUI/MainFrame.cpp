@@ -1066,18 +1066,13 @@ void MainFrame::init_tabpanel()
 {
     wxGetApp().update_ui_colours_from_appconfig();
 
-    // wxNB_NOPAGETHEME: Disable Windows Vista theme for the Notebook background. The theme performance is terrible on Windows 10
-    // with multiple high resolution displays connected.
-#ifdef _USE_CUSTOM_NOTEBOOK
+    const long tab_style = wxNB_TOP | wxTAB_TRAVERSAL;
     if (wxGetApp().tabs_as_menu()) {
-        m_tabpanel = new wxSimplebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNB_TOP | wxTAB_TRAVERSAL | wxNB_NOPAGETHEME);
+        m_tabpanel = new wxSimplebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, tab_style);
 //        wxGetApp().UpdateDarkUI(m_tabpanel);
     }
     else
-        m_tabpanel = new Notebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNB_TOP | wxTAB_TRAVERSAL | wxNB_NOPAGETHEME, true);
-#else
-    m_tabpanel = new wxNotebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNB_TOP | wxTAB_TRAVERSAL | wxNB_NOPAGETHEME);
-#endif
+        m_tabpanel = new Notebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, tab_style, true);
 
     wxGetApp().UpdateDarkUI(m_tabpanel);
 
@@ -1085,32 +1080,7 @@ void MainFrame::init_tabpanel()
     m_tabpanel->Hide();
     m_settings_dialog.set_tabpanel(m_tabpanel);
 
-#ifndef _USE_CUSTOM_NOTEBOOK
-    int icon_size = 0;
-    try {
-        icon_size = atoi(wxGetApp().app_config->get("tab_icon_size").c_str());
-    }
-    catch (std::exception e) {}
-    // icons for m_tabpanel tabs
-    wxImageList* img_list = nullptr;
-    if (icon_size >= 8) {
-        std::vector<std::string> icon_list =  { "editor_menu", "layers", "preview_menu", "cog", "spool_cog",  "printer_cog",  "resin_cog",    "sla_printer_cog" };
-        if (icon_size < 16)
-            icon_list =                       { "editor_menu", "layers", "preview_menu", "cog", "spool",      "printer",      "resin",        "sla_printer" };
-        for (std::string icon_name : icon_list) {
-            const wxBitmap bmp = get_bmp_bundle(icon_name, icon_size)->GetBitmap(wxDefaultSize);
-            if (img_list == nullptr)
-                img_list = new wxImageList(bmp.GetWidth(), bmp.GetHeight());
-            img_list->Add(bmp);
-        }
-    }
-    m_tabpanel->AssignImageList(img_list);
-#endif
-#ifdef __WXMSW__
     m_tabpanel->Bind(wxEVT_BOOKCTRL_PAGE_CHANGED, [this](wxBookCtrlEvent& e) {
-#else
-    m_tabpanel->Bind(wxEVT_NOTEBOOK_PAGE_CHANGED, [this](wxBookCtrlEvent& e) {
-#endif
         if (m_tabpanel_stop_event)
             return;
         // merill: ????? it should already be called by on_change... like other events

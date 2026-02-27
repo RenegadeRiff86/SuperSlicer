@@ -31,10 +31,7 @@ void                sys_color_changed_menu(wxMenu* menu);
 inline void         sys_color_changed_menu(wxMenu* /* menu */) {}
 #endif // no __linux__
 
-#ifdef _MSW_DARK_MODE
-#define _USE_CUSTOM_NOTEBOOK 1
-#endif
-#ifdef __APPLE__
+#ifndef _USE_CUSTOM_NOTEBOOK
 #define _USE_CUSTOM_NOTEBOOK 1
 #endif
 

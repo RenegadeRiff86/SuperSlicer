@@ -175,6 +175,9 @@ void AppConfig::set_defaults()
         if (get("tab_icon_size").empty())
             set("tab_icon_size", "32");
 
+        if (get("tab_density_compact").empty())
+            set("tab_density_compact", "0");
+
         if (get("font_size").empty())
             set("font_size", "0");
 

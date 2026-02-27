@@ -30,6 +30,12 @@ constexpr const char* ROLE_TAB_TEXT_DEFAULT = "tab.text.default";
 constexpr const char* ROLE_TAB_TEXT_HOVER = "tab.text.hover";
 constexpr const char* ROLE_TAB_TEXT_SELECTED = "tab.text.selected";
 
+bool use_compact_tab_density()
+{
+    auto *app_config = Slic3r::GUI::wxGetApp().app_config;
+    return app_config != nullptr && app_config->get_bool("tab_density_compact");
+}
+
 void draw_tab_chrome(wxDC& dc, const wxRect& button_rect, const wxRect& client_rect, const wxColour& background, const wxColour& border, const wxColour* focus_ring, int radius, int bottom_line_height)
 {
     wxRect chrome = button_rect;
@@ -60,12 +66,13 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, bool add_mode_buttons/* = fal
 #endif //__WINDOWS__
 
     int em = em_unit(this);// Slic3r::GUI::wxGetApp().em_unit();
+    const double compact_factor = use_compact_tab_density() ? 0.75 : 1.0;
 #ifdef __WINDOWS__
-    m_btn_margin = std::lround(0.3 * em);
+    m_btn_margin = std::lround(0.3 * em * compact_factor);
 #else
-    m_btn_margin = std::lround(0.4 * em);
+    m_btn_margin = std::lround(0.4 * em * compact_factor);
 #endif
-    m_line_margin = std::lround(0.1 * em);
+    m_line_margin = std::max(1, std::lround(0.1 * em * compact_factor));
 
     SetBackgroundStyle(wxBG_STYLE_PAINT);
 
@@ -174,14 +181,15 @@ void ButtonsListCtrl::UpdateMode()
 void ButtonsListCtrl::Rescale()
 {
     int em = em_unit(this);
+    const double compact_factor = use_compact_tab_density() ? 0.75 : 1.0;
 
 #ifdef __APPLE__
     // Adjust margins and sizes specifically for macOS
-    m_btn_margin = std::lround(0.4 * em);
-    m_line_margin = std::lround(0.1 * em);
+    m_btn_margin = std::lround(0.4 * em * compact_factor);
+    m_line_margin = std::max(1, std::lround(0.1 * em * compact_factor));
 #else
-    m_btn_margin = std::lround(0.3 * em);
-    m_line_margin = std::lround(0.1 * em);
+    m_btn_margin = std::lround(0.3 * em * compact_factor);
+    m_line_margin = std::max(1, std::lround(0.1 * em * compact_factor));
 #endif //__APPLE__
 
     m_buttons_sizer->SetVGap(m_btn_margin);  // Adjust vertical gap here
@@ -229,6 +237,9 @@ bool ButtonsListCtrl::InsertPage(size_t n, const wxString& text, bool bSelect/* 
         wxBU_EXACTFIT | wxNO_BORDER | (bmp_name.empty() ? 0 : wxBU_LEFT),
 #endif //__APPLE__
         false, bmp_size);
+
+    if (use_compact_tab_density())
+        btn->SetMinSize(wxSize(-1, std::lround(1.8 * em_unit(this))));
 
     apply_tab_state(btn, bSelect ? TabVisualState::Selected : TabVisualState::Default);
 
