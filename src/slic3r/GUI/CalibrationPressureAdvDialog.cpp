@@ -207,7 +207,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
 
     Plater* plat = this->main_frame->plater();
     Model& model = plat->model();
-    if (!plat->new_project(L("Pressure calibration")))
+    if (!plat->new_project(L("Pressure advance line calibration")))
         return;
 
     bool autocenter = gui_app->app_config->get("autocenter") == "1";
@@ -873,7 +873,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         gcfNoExtrusion*/
 
         // Name each tower so they're identifiable on the build plate and in the object list
-        model.objects[objs_idx[id_item]]->name = "PA Test " + std::to_string(id_item) + " - " + selected_extrusion_role;
+        model.objects[objs_idx[id_item]]->name = "PA Line Calibration " + std::to_string(id_item) + " - " + selected_extrusion_role;
 
         // config modifers for the base model
         model.objects[objs_idx[id_item]]->config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipMonotonic));// ipConcentric or ipConcentricGapFill ?
@@ -1305,11 +1305,11 @@ void CalibrationPressureAdvDialog::create_buttons(wxStdDialogButtonSizer* button
 
         wxString number_of_runs[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10" };//setting this any higher will break loading the model for the ID
         nbRuns = new wxComboBox(mainPanel, wxID_ANY, wxString{ "1" }, wxDefaultPosition, wxDefaultSize, 10, number_of_runs, wxCB_READONLY);
-        nbRuns->SetToolTip(_L("Select the number of tests to generate, max 6 is recommended due to bed size limits"));
+        nbRuns->SetToolTip(_L("Select the number of calibration lines to generate. Max 6 is recommended due to bed size limits."));
         nbRuns->SetSelection(0);
         nbRuns->Bind(wxEVT_COMBOBOX, &CalibrationPressureAdvDialog::on_row_change, this);
 
-        wxStaticText* text_generate_count = new wxStaticText(mainPanel, wxID_ANY, _L("Number of" + prefix + "tests: "));
+        wxStaticText* text_generate_count = new wxStaticText(mainPanel, wxID_ANY, _L("Number of" + prefix + "calibration lines: "));
         text_generate_count->SetForegroundColour(text_color);
         commonSizer->Add(text_generate_count, 0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
         commonSizer->Add(nbRuns, 0, wxALIGN_CENTER_VERTICAL | wxALL, 5);

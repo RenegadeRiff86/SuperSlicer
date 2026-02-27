@@ -7560,16 +7560,25 @@ std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const Extrus
         if (pa < 0) {
             pa = 0;
         }
-        // If the resolved PA exceeds the sane maximum, a per-role override (or
-        // the base value itself) is being used as an informal "disabled" sentinel
-        // (e.g., 100 meaning "don't override"). Fall back to the base PA if it is
-        // valid; otherwise disable PA for this path to prevent firmware crashes.
-        if (pa > PA_SANE_MAX) {
-            BOOST_LOG_TRIVIAL(warning) << "PA value " << pa
-                << " for role " << gcode_extrusion_role_to_string(extrusion_role_to_gcode_extrusion_role(path.role()))
-                << " exceeds " << PA_SANE_MAX << ". Treating as disabled sentinel; "
-                << "use the toggle (!) in filament settings to properly disable per-role PA.";
+        // Only Klipper needs PA sanity clamping here: extreme values can crash
+        // its MCU planner. Other firmwares may intentionally use larger values
+        // (e.g. Marlin M900 K) and should keep the user-configured value.
+        if (pa > PA_SANE_MAX && m_config.gcode_flavor.value == gcfKlipper) {
+            const std::string role = gcode_extrusion_role_to_string(extrusion_role_to_gcode_extrusion_role(path.role()));
+            const double      role_pa_original = pa;
             pa = (base_pa <= PA_SANE_MAX) ? base_pa : 0.0;
+
+            // Keep warning only for truly invalid Klipper values (resolved PA and
+            // base PA both out of range), but include flavor and role/value context.
+            if (base_pa > PA_SANE_MAX) {
+                BOOST_LOG_TRIVIAL(warning)
+                    << "Invalid pressure advance for flavor=klipper"
+                    << ", role=" << role
+                    << ", role_pa_original=" << role_pa_original
+                    << ", base_pa=" << base_pa
+                    << " (limit " << PA_SANE_MAX << ")."
+                    << " Falling back to 0 to prevent unsafe G-code emission.";
+            }
         }
     }
     return { pa, travel_pa };
