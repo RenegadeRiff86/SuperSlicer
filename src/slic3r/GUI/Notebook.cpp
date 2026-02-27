@@ -11,7 +11,33 @@
 #include "wxExtensions.hpp"
 
 #include <wx/button.h>
+#include <wx/dcgraph.h>
+#include <wx/dcbuffer.h>
 #include <wx/sizer.h>
+
+#include <algorithm>
+#include <cmath>
+
+namespace
+{
+void draw_tab_chrome(wxDC& dc, const wxRect& button_rect, const wxRect& client_rect, const wxColour& background, const wxColour& border, const wxColour* focus_ring, int radius, int bottom_line_height)
+{
+    wxRect chrome = button_rect;
+    chrome.SetHeight(client_rect.GetBottom() - button_rect.GetTop() - bottom_line_height + 1);
+
+    dc.SetPen(wxPen(border, 1));
+    dc.SetBrush(wxBrush(background));
+    dc.DrawRoundedRectangle(chrome, radius);
+
+    if (focus_ring != nullptr) {
+        wxRect ring = chrome;
+        ring.Inflate(1);
+        dc.SetPen(wxPen(*focus_ring, 2));
+        dc.SetBrush(*wxTRANSPARENT_BRUSH);
+        dc.DrawRoundedRectangle(ring, radius + 1);
+    }
+}
+}
 
 wxDEFINE_EVENT(wxCUSTOMEVT_NOTEBOOK_SEL_CHANGED, wxCommandEvent);
 wxDEFINE_EVENT(wxCUSTOMEVT_NOTEBOOK_BT_PRESSED, wxCommandEvent);
@@ -30,6 +56,8 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, bool add_mode_buttons/* = fal
     m_btn_margin = std::lround(0.4 * em);
 #endif
     m_line_margin = std::lround(0.1 * em);
+
+    SetBackgroundStyle(wxBG_STYLE_PAINT);
 
     m_sizer = new wxBoxSizer(wxHORIZONTAL);
     this->SetSizer(m_sizer);
@@ -53,56 +81,84 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, bool add_mode_buttons/* = fal
 
 void ButtonsListCtrl::OnPaint(wxPaintEvent&)
 {
-    Slic3r::GUI::wxGetApp().UpdateDarkUI(this);
-    const wxSize sz = GetSize();
-    wxPaintDC dc(this);
+    auto &app = Slic3r::GUI::wxGetApp();
+    app.UpdateDarkUI(this);
 
-    if (m_selection < 0 || m_selection >= (int)m_pageButtons.size())
-        return;
+    wxAutoBufferedPaintDC buffered_dc(this);
+    wxGCDC dc(buffered_dc);
+    dc.SetBackground(wxBrush(GetBackgroundColour()));
+    dc.Clear();
 
-    const wxColour& selected_btn_bg  = Slic3r::GUI::wxGetApp().get_color_selected_btn_bg();
-    const wxColour& default_btn_bg   = Slic3r::GUI::wxGetApp().get_highlight_default_clr();
-    const wxColour& btn_marker_color = Slic3r::GUI::wxGetApp().get_color_hovered_btn();
+    const wxRect client_rect(wxPoint(0, 0), GetClientSize());
+    const int radius = std::max(2, m_btn_margin / 2);
 
-    // highlight selected notebook button
-    for (int idx = 0; idx < int(m_pageButtons.size()); idx++) {
-        wxButton* btn = m_pageButtons[idx];
-        btn->SetBackgroundColour(idx == m_selection ? selected_btn_bg : default_btn_bg);
-#ifdef __APPLE__
-        // Adding border to make it look more like buttons
-        btn->SetWindowStyle(wxBORDER_SUNKEN | wxBORDER_SIMPLE);
-#else
-        wxPoint pos = btn->GetPosition();
-        wxSize size = btn->GetSize();
-        const wxColour& clr = idx == m_selection ? btn_marker_color : default_btn_bg;
-        dc.SetPen(clr);
-        dc.SetBrush(clr);
-        dc.DrawRectangle(pos.x, pos.y + size.y, size.x, sz.y - size.y);
-#endif
+    for (int idx = 0; idx < int(m_pageButtons.size()); ++idx) {
+        if (ScalableButton *button = m_pageButtons[idx]) {
+            const TabVisualState state = get_tab_state(button, idx);
+            apply_tab_state(button, state);
+
+            const bool is_focused = state == TabVisualState::Focused;
+            const wxColour& background = app.get_style_role_color(
+                state == TabVisualState::Selected ? "tab.bg.selected" :
+                state == TabVisualState::Hovered  ? "tab.bg.hover"    :
+                                                    "tab.bg.default");
+            const wxColour& border = app.get_style_role_color(
+                (state == TabVisualState::Selected || state == TabVisualState::Focused) ? "tab.border.active" : "tab.border.default");
+            const wxColour* focus_ring = is_focused ? &app.get_style_role_color("tab.border.focus") : nullptr;
+            draw_tab_chrome(dc, button->GetRect(), client_rect, background, border, focus_ring, radius, m_line_margin);
+        }
     }
 
-    // highlight selected mode button
     if (m_mode_sizer) {
-        const std::vector<Slic3r::GUI::ModeButton*>& mode_btns = m_mode_sizer->get_btns();
-        for (int idx = 0; idx < int(mode_btns.size()); idx++) {
-            Slic3r::GUI::ModeButton* btn = mode_btns[idx];
-            btn->SetBackgroundColour(btn->is_selected() ? selected_btn_bg : default_btn_bg);
-#ifdef __APPLE_
-            // Adding border to make it look more like buttons
-            btn->SetWindowStyle(wxBORDER_SUNKEN | wxBORDER_SIMPLE);
+        const auto &mode_btns = m_mode_sizer->get_btns();
+        for (Slic3r::GUI::ModeButton* mode_btn : mode_btns) {
+            if (!mode_btn)
+                continue;
+            const bool selected = mode_btn->is_selected();
+            const wxColour& bg = app.get_style_role_color(selected ? "tab.bg.selected" : "tab.bg.default");
+            const wxColour& border = app.get_style_role_color(selected ? "tab.border.active" : "tab.border.default");
+            draw_tab_chrome(dc, mode_btn->GetRect(), client_rect, bg, border, nullptr, radius, m_line_margin);
+            apply_tab_state(mode_btn, selected ? TabVisualState::Selected : TabVisualState::Default);
+#ifdef __APPLE__
+            mode_btn->SetWindowStyle(wxBORDER_SUNKEN | wxBORDER_SIMPLE);
 #endif
         }
     }
 
-    // Draw orange bottom line
-    dc.SetPen(btn_marker_color);
-    dc.SetBrush(btn_marker_color);
-    dc.DrawRectangle(1, sz.y - m_line_margin, sz.x, m_line_margin);
+    dc.SetPen(wxPen(app.get_style_role_color("tab.border.active"), m_line_margin));
+    dc.DrawLine(client_rect.GetLeft(), client_rect.GetBottom() - m_line_margin / 2,
+                client_rect.GetRight(), client_rect.GetBottom() - m_line_margin / 2);
+}
+
+ButtonsListCtrl::TabVisualState ButtonsListCtrl::get_tab_state(const ScalableButton* button, int idx) const
+{
+    if (button == m_focused_button)
+        return TabVisualState::Focused;
+    if (idx == m_selection)
+        return TabVisualState::Selected;
+    if (button == m_hovered_button)
+        return TabVisualState::Hovered;
+    return TabVisualState::Default;
+}
+
+void ButtonsListCtrl::apply_tab_state(ScalableButton* button, TabVisualState state) const
+{
+    auto &app = Slic3r::GUI::wxGetApp();
+    const wxColour& text_color = app.get_style_role_color(
+        state == TabVisualState::Selected ? "tab.text.selected" :
+        state == TabVisualState::Hovered  ? "tab.text.hover"    :
+                                            "tab.text.default");
+
+    button->SetForegroundColour(text_color);
+#ifdef __APPLE__
+    button->SetWindowStyle(wxBORDER_SUNKEN | wxBORDER_SIMPLE);
+#endif
 }
 
 void ButtonsListCtrl::UpdateMode()
 {
-    m_mode_sizer->SetMode(Slic3r::GUI::wxGetApp().get_mode());
+    if (m_mode_sizer)
+        m_mode_sizer->SetMode(Slic3r::GUI::wxGetApp().get_mode());
 }
 
 void ButtonsListCtrl::Rescale()
@@ -126,17 +182,23 @@ void ButtonsListCtrl::Rescale()
 
 void ButtonsListCtrl::OnColorsChanged()
 {
-    for (ScalableButton* btn : m_pageButtons)
+    for (size_t idx = 0; idx < m_pageButtons.size(); ++idx) {
+        ScalableButton* btn = m_pageButtons[idx];
         btn->sys_color_changed();
+        apply_tab_state(btn, get_tab_state(btn, int(idx)));
+    }
 
-    m_mode_sizer->sys_color_changed();
+    if (m_mode_sizer)
+        m_mode_sizer->sys_color_changed();
 
     m_sizer->Layout();
+    Refresh();
 }
 
 void ButtonsListCtrl::UpdateModeMarkers()
 {
-    m_mode_sizer->update_mode_markers();
+    if (m_mode_sizer)
+        m_mode_sizer->update_mode_markers();
 }
 
 void ButtonsListCtrl::SetSelection(int sel)
@@ -158,8 +220,30 @@ bool ButtonsListCtrl::InsertPage(size_t n, const wxString& text, bool bSelect/* 
 #endif //__APPLE__
         false, bmp_size);
 
-    // Set custom background color for the button
-    btn->SetBackgroundColour(Slic3r::GUI::wxGetApp().get_color_hovered_btn());
+    apply_tab_state(btn, bSelect ? TabVisualState::Selected : TabVisualState::Default);
+
+    btn->Bind(wxEVT_ENTER_WINDOW, [this, btn](wxMouseEvent& event) {
+        m_hovered_button = btn;
+        Refresh();
+        event.Skip();
+    });
+    btn->Bind(wxEVT_LEAVE_WINDOW, [this, btn](wxMouseEvent& event) {
+        if (m_hovered_button == btn)
+            m_hovered_button = nullptr;
+        Refresh();
+        event.Skip();
+    });
+    btn->Bind(wxEVT_SET_FOCUS, [this, btn](wxFocusEvent& event) {
+        m_focused_button = btn;
+        Refresh();
+        event.Skip();
+    });
+    btn->Bind(wxEVT_KILL_FOCUS, [this, btn](wxFocusEvent& event) {
+        if (m_focused_button == btn)
+            m_focused_button = nullptr;
+        Refresh();
+        event.Skip();
+    });
 
     btn->Bind(wxEVT_BUTTON, [this, btn](wxCommandEvent& event) {
         if (auto it = std::find(m_pageButtons.begin(), m_pageButtons.end(), btn); it != m_pageButtons.end()) {
@@ -212,6 +296,10 @@ bool ButtonsListCtrl::HasSpacer(size_t n)
 void ButtonsListCtrl::RemovePage(size_t n)
 {
     ScalableButton* btn = m_pageButtons[n];
+    if (m_hovered_button == btn)
+        m_hovered_button = nullptr;
+    if (m_focused_button == btn)
+        m_focused_button = nullptr;
     m_pageButtons.erase(m_pageButtons.begin() + n);
     size_t idx = n;
     for (int i = 0; i < n; i++) {

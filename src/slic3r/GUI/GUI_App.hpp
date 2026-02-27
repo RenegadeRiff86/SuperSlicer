@@ -252,6 +252,7 @@ public:
     const wxColour& get_color_default_btn_label() { return m_color_default_btn_label; }
     const wxColour& get_color_hovered_btn() { return m_color_hovered_btn; }
     const wxColour& get_color_selected_btn_bg() { return m_color_selected_btn_bg; }
+    const wxColour& get_style_role_color(const std::string& role) const;
     void            force_colors_update();
 #ifdef _MSW_DARK_MODE
     void            force_menu_update();

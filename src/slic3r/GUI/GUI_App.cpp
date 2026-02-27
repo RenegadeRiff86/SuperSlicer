@@ -2098,6 +2098,30 @@ void GUI_App::update_label_colours()
         tab->update_label_colours();
 }
 
+const wxColour& GUI_App::get_style_role_color(const std::string& role) const
+{
+    if (role == "tab.bg.default")
+        return m_color_highlight_default;
+    if (role == "tab.bg.hover")
+        return m_color_selected_btn_bg;
+    if (role == "tab.bg.selected")
+        return m_color_selected_btn_bg;
+    if (role == "tab.border.default")
+        return m_color_highlight_default;
+    if (role == "tab.border.active")
+        return m_color_hovered_btn;
+    if (role == "tab.border.focus")
+        return m_color_default_btn_label;
+    if (role == "tab.text.default")
+        return dark_mode() ? m_color_dark_mode_label_default : m_color_label_default;
+    if (role == "tab.text.hover")
+        return m_color_default_btn_label;
+    if (role == "tab.text.selected")
+        return m_color_hovered_btn_label;
+
+    return dark_mode() ? m_color_dark_mode_label_default : m_color_label_default;
+}
+
 #ifdef _WIN32
 static bool is_focused(HWND hWnd)
 {

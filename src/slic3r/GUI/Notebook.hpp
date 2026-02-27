@@ -5,6 +5,8 @@
 #ifndef slic3r_Notebook_hpp_
 #define slic3r_Notebook_hpp_
 
+#include <cstdint>
+
 #include <wx/bookctrl.h>
 #include <wx/sizer.h>
 
@@ -33,6 +35,13 @@ public:
     void OnColorsChanged();
     void UpdateModeMarkers();
     bool InsertPage(size_t n, const wxString& text, bool bSelect = false, const std::string& bmp_name = "", const int bmp_size = 16);
+
+    enum class TabVisualState : uint8_t {
+        Default,
+        Hovered,
+        Selected,
+        Focused
+    };
     void RemovePage(size_t n);
     bool InsertSpacer(size_t n, int size);
     void RemoveSpacer(size_t n);
@@ -50,9 +59,14 @@ private:
     std::vector<ScalableButton*>    m_pageButtons;
     std::vector<bool>               m_spacers;
     int                             m_selection {-1};
+    ScalableButton*                 m_hovered_button { nullptr };
+    ScalableButton*                 m_focused_button { nullptr };
     int                             m_btn_margin;
     int                             m_line_margin;
     Slic3r::GUI::ModeSizer*         m_mode_sizer {nullptr};
+
+    TabVisualState get_tab_state(const ScalableButton* button, int idx) const;
+    void apply_tab_state(ScalableButton* button, TabVisualState state) const;
 };
 
 // A tabpane but with custom buttons.
