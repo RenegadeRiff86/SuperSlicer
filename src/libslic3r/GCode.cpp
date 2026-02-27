@@ -7562,7 +7562,7 @@ std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const Extrus
         }
         // Only Klipper needs PA sanity clamping here: extreme values can crash
         // its MCU planner. Other firmwares may intentionally use larger values
-        // and should keep the user-configured value.
+        // (e.g. Marlin M900 K) and should keep the user-configured value.
         if (requires_pa_sane_max && pa > PA_SANE_MAX) {
             const std::string role = gcode_extrusion_role_to_string(extrusion_role_to_gcode_extrusion_role(path.role()));
             const double role_pa_original = pa;

@@ -203,6 +203,33 @@ TEST_CASE("Used filament", "[GCode]") {
     CHECK(print.print_statistics().total_used_filament > 0);
 }
 
+TEST_CASE("Pressure advance sane-max fallback is Klipper-only", "[GCode]") {
+    SECTION("Marlin keeps configured PA above sane max") {
+        DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
+        config.set_deserialize_strict({
+            { "gcode_flavor", "marlin2" },
+            { "start_gcode", "" },
+            { "filament_pressure_advance", "3" },
+        });
+
+        const std::string gcode = Slic3r::Test::slice({ TestMesh::cube_20x20x20 }, config);
+        CHECK(gcode.find("M900 K3") != std::string::npos);
+    }
+
+    SECTION("Klipper still safely falls back for extreme PA") {
+        DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
+        config.set_deserialize_strict({
+            { "gcode_flavor", "klipper" },
+            { "start_gcode", "" },
+            { "filament_pressure_advance", "100" },
+        });
+
+        const std::string gcode = Slic3r::Test::slice({ TestMesh::cube_20x20x20 }, config);
+        CHECK(gcode.find("SET_PRESSURE_ADVANCE ADVANCE=0") != std::string::npos);
+        CHECK(gcode.find("SET_PRESSURE_ADVANCE ADVANCE=100") == std::string::npos);
+    }
+}
+
 void check_m73s(Print& print){
     std::vector<double> percent{};
     bool got_100 = false;

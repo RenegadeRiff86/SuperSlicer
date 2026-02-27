@@ -254,8 +254,10 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
 
-    find_package(DBus REQUIRED)
-    include_directories(${DBUS_INCLUDE_DIRS})
+    if (SLIC3R_GUI)
+        find_package(DBus REQUIRED)
+        include_directories(${DBUS_INCLUDE_DIRS})
+    endif ()
 endif()
 
 if (CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUXX)
@@ -730,4 +732,3 @@ if (NOT WIN32)
 endif()
 
 include(CPack)
-
