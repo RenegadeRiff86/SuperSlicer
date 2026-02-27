@@ -639,6 +639,8 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
             const std::string active_role = (selected_extrusion_role == "CheckAll") ? er_role : selected_extrusion_role;
             const double active_layer_height = role_layer_height(active_role);
             er_width_to_scale = magical_scaling(nozzle_diameter, er_width, filament_max_overlap, perimeter_overlap, external_perimeter_overlap, active_layer_height, er_spacing);
+            z_90_bend_pos = (first_layer_height + (base_layer_height * 4)) / 2;
+            z_scale_90_bend = (first_layer_height + (base_layer_height * 4)) / initial_model_height;
             if (active_layer_height != base_layer_height) {
                 z_90_bend_pos = (first_layer_height + (active_layer_height * 5)) / 2;
                 z_scale_90_bend = (first_layer_height + (active_layer_height * 5)) / initial_model_height;
