@@ -24,13 +24,17 @@ for url in all_repositories:
 	print(f"Cloning {url}...")
 	repo_name_with_git = os.path.basename(url)
 	repo_name = repo_name_with_git.removesuffix('.git')
+	repo_path = repo_name
 	try:
 		subprocess.run(["git", "clone", url], check=True)
 	except subprocess.CalledProcessError as e:
-		print(f"Failed to clone {url}: {e}")
-		continue
+		if os.path.isdir(repo_path):
+			print(f"Failed to clone {url}, using existing checkout at {repo_path}: {e}")
+		else:
+			print(f"Failed to clone {url}: {e}")
+			continue
 
-	description_path = repo_name + "/description.ini"
+	description_path = repo_path + "/description.ini"
 	if not os.path.exists(description_path):
 		print(f"Failed to process {url}: missing {description_path}")
 		continue
@@ -42,8 +46,8 @@ for url in all_repositories:
 	vendor_id = config.get("vendor", "id")
 	print(f"Vendor ID: {vendor_id}")
 
-	vendor_ini_source = repo_name + "/profiles/" + vendor_id + ".ini"
-	vendor_dir_source = repo_name + "/profiles/" + vendor_id
+	vendor_ini_source = repo_path + "/profiles/" + vendor_id + ".ini"
+	vendor_dir_source = repo_path + "/profiles/" + vendor_id
 	if not os.path.exists(vendor_ini_source) or not os.path.exists(vendor_dir_source):
 		print(f"Failed to process {url}: missing profile files for vendor '{vendor_id}'")
 		continue
