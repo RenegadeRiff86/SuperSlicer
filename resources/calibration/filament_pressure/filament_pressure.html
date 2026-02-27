@@ -59,6 +59,12 @@
 <p>To get started:</p>
 <ul>
 <li>Select the number of calibration lines to create, the <b>max</b> is <b>10</b>.</li>
+<li>Select a calibration style:
+  <ul>
+    <li><b>Segmented line sweep (recommended):</b> Uses segmented layer-range configuration that is currently stable and safe for repeated generation/plate clearing.</li>
+    <li><b>Classic line sweep:</b> Matches Orca-style naming but is temporarily disabled while object cleanup handling is fixed for this dialog.</li>
+  </ul>
+</li>
 <li>Each row represents the config parameters for the selected extrusion role (e.g., first row = ExternalPerimeter, second row = FirstLayer).</li>
 <li>Select the start/end and increment values, <b>you can manually edit these values if you want larger or smaller values.</b></li>
 <li>Since each model will have its own config, one calibration model might print faster or slower than others. This is expected and normal.</li>
@@ -80,6 +86,7 @@ However, it currently doesn't work perfectly. Occasionally the models get 'gap f
 
 <h2>Known Bugs</h2>
 <ul>
+<li>Classic line sweep style is visible in the UI for reference, but currently disabled due to a known model/object-list cleanup issue.</li>
 <li>Setting the first layer's PA value for multiple tests only applies the last row's value to (before_layer_gcode).</li>
 <li>The first layer may receive gap fill on the 90° bend models; it is recommended to disable gap fill in the object modifiers if this occurs.</li>
 <li>Occasionally some numbers might get scaled wrong so they won't show up on the G-code preview, this has primarily been for number '1'. If this happens, adjust main config 'thin_perimeters' to '-1'.</li>

@@ -12,6 +12,7 @@
 #include <wx/scrolwin.h>
 #include <wx/display.h>
 #include <wx/file.h>
+#include <wx/choice.h>
 #include "wxExtensions.hpp"
 #include "Jobs/ArrangeJob.hpp"
 //#include "Jobs/job.hpp" 2.7 requirement?
@@ -892,9 +893,10 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         model.objects[objs_idx[id_item]]->config.set_key_value("top_solid_layers", new ConfigOptionInt(0));
         model.objects[objs_idx[id_item]]->config.set_key_value("region_gcode", new ConfigOptionString(region_prefix + " \n" ));
 
-        int style = 2;
+        const CalibrationStyle style = m_selected_style;
+        const bool use_segmented_line_sweep = (style == CalibrationStyle::SegmentedLineSweep);
         if (selected_extrusion_role != "CheckAll") {//don't apply layer ranges to the main object for CheckAll mode(option isn't supported.and it needs to be!!)
-            if(style == 1){//BUG:using this one "works" untill you clear the plate, and it gets stuck in a infinite loop trying to delete nodes, see line 781 of objectDataViewModel.cpp
+            if(style == CalibrationStyle::ClassicLineSweep){//BUG:using this one "works" untill you clear the plate, and it gets stuck in a infinite loop trying to delete nodes, see line 781 of objectDataViewModel.cpp
 
                 if (infill_every_layers > 1 && selected_extrusion_role == "InternalInfill" && infill_dense == false) {
                     ModelConfig range_conf;
@@ -905,7 +907,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                     wxGetApp().obj_list()->layers_editing();
                 }
             }
-            if(style == 2){
+            if(use_segmented_line_sweep){
                 if (infill_every_layers > 1 && selected_extrusion_role == "InternalInfill" && infill_dense == false) {
 
                     wxGetApp().obj_list()->layers_editing(id_item);//could prob use this same thing for the unsupported roles since they need a different layer_height/width
@@ -1317,6 +1319,29 @@ void CalibrationPressureAdvDialog::create_buttons(wxStdDialogButtonSizer* button
         text_generate_count->SetForegroundColour(text_color);
         commonSizer->Add(text_generate_count, 0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
         commonSizer->Add(nbRuns, 0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
+
+        wxString style_labels[] = {
+            _L("Classic line sweep (temporarily disabled)"),
+            _L("Segmented line sweep (recommended)")
+        };
+        m_style_choice = new wxChoice(mainPanel, wxID_ANY, wxDefaultPosition, wxDefaultSize, 2, style_labels);
+        m_style_choice->SetSelection(static_cast<int>(CalibrationStyle::SegmentedLineSweep));
+        m_style_choice->SetToolTip(_L("Classic line sweep is temporarily disabled due to a known object-cleanup issue when clearing the plate. Use Segmented line sweep for now."));
+        m_style_choice->Bind(wxEVT_CHOICE, [this](wxCommandEvent& event) {
+            if (event.GetSelection() == static_cast<int>(CalibrationStyle::ClassicLineSweep)) {
+                m_selected_style = CalibrationStyle::SegmentedLineSweep;
+                if (m_style_choice != nullptr)
+                    m_style_choice->SetSelection(static_cast<int>(CalibrationStyle::SegmentedLineSweep));
+                return;
+            }
+
+            m_selected_style = static_cast<CalibrationStyle>(event.GetSelection());
+        });
+
+        wxStaticText* text_style = new wxStaticText(mainPanel, wxID_ANY, _L("Calibration style:"));
+        text_style->SetForegroundColour(text_color);
+        commonSizer->Add(text_style, 0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
+        commonSizer->Add(m_style_choice, 0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
         
         // Create a button for generating models
         wxButton* generateButton = new wxButton(mainPanel, wxID_FILE1, _L("Generate"));
@@ -1335,6 +1360,7 @@ void CalibrationPressureAdvDialog::create_buttons(wxStdDialogButtonSizer* button
         buttons->Add(mainPanel, 1, wxEXPAND | wxALL, 10);
 
         currentTestCount = wxAtoi(nbRuns->GetValue());
+        m_selected_style = CalibrationStyle::SegmentedLineSweep;
         create_row_controls(dynamicSizer, currentTestCount);
     } else {
 
