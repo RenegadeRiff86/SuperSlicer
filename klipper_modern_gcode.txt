@@ -1,0 +1,1636 @@
+SuperSlicer — Klipper Modern G-code Audit
+Scanned 2607 source files under C:\Users\elsto\source\repos\Stan-Elston\SuperSlicer\src
+Total pattern hits (after context filtering): 142
+================================================================================
+
+CATEGORY   PATTERN                                         HITS
+-----------------------------------------------------------------
+  REVIEW     G10_G11_fw_retract                               6
+  REVIEW     SET_FAN_SPEED                                    8
+  REVIEW     gcfKlipper_branch                               41
+  MODERN     EXCLUDE_OBJECT                                   4
+  MODERN     M106_M107_fan                                   11
+  MODERN     M204_P_print_accel                               4
+  MODERN     SET_PRESSURE_ADVANCE                            11
+  MODERN     SET_RETRACTION_FIRMWARE_RETRACT                 28
+  MODERN     SET_SKEW_SKEW_PROFILE                           26
+  MODERN     SET_VELOCITY_LIMIT                               3
+
+  OK  No LEGACY patterns found inside Klipper branches.
+
+================================================================================
+
+================================================================================
+  [REVIEW] patterns
+================================================================================
+
+  ────────────────────────────────────────────────────────────
+  G10_G11_fw_retract  (6 hits)
+  *** REVIEW: manual inspection recommended ***
+  ────────────────────────────────────────────────────────────
+
+    src\libslic3r\GCode.cpp:1285
+         1281:                     standby_temp += print.config().standby_temperature_delta.value;
+         1282:                 if (print.config().idle_temperature.is_enabled(tool_id)) {
+         1283:                     standby_temp = print.config().idle_temperature.get_at(tool_id);
+         1284:                 }
+    >>>  1285:                 out.append("G10 P").append(std::to_string(tool_id)).append(" R").append(std::to_string(standby_temp)).append(" ; sets the standby temperature\n");
+         1286:                 //out.append("G10 P").append(std::to_string(tool_id)).append(" S").append(std::to_string(printing_temp)).append(" ; sets the default temperature\n");
+         1287:             }
+         1288:         }
+         1289:     }
+
+    src\libslic3r\GCode.cpp:1286
+         1282:                 if (print.config().idle_temperature.is_enabled(tool_id)) {
+         1283:                     standby_temp = print.config().idle_temperature.get_at(tool_id);
+         1284:                 }
+         1285:                 out.append("G10 P").append(std::to_string(tool_id)).append(" R").append(std::to_string(standby_temp)).append(" ; sets the standby temperature\n");
+    >>>  1286:                 //out.append("G10 P").append(std::to_string(tool_id)).append(" S").append(std::to_string(printing_temp)).append(" ; sets the default temperature\n");
+         1287:             }
+         1288:         }
+         1289:     }
+         1290: }
+
+    src\libslic3r\GCode\GCodeWriter.cpp:293
+          289:             code = "M109"sv;
+          290:             comment = "set temperature and wait for it to be reached"sv;
+          291:         } else {
+          292:             if (FLAVOR_IS(gcfRepRap)) { // M104 is deprecated on RepRapFirmware
+    >>>   293:                 code = "G10"sv;
+          294:             } else {
+          295:                 code = "M104"sv;
+          296:             }
+          297:             comment = "set temperature"sv;
+
+    src\libslic3r\GCode\GCodeWriter.cpp:1056
+         1052:         if (this->config.use_firmware_retraction) {
+         1053:             if (FLAVOR_IS(gcfMachinekit))
+         1054:                 gcode += "G22 ; retract\n";
+         1055:             else
+    >>>  1056:                 gcode += "G10 ; retract\n";
+         1057:         } else if (!m_extrusion_axis.empty()) {
+         1058:             GCodeG1Formatter w(this->get_default_gcode_formatter());
+         1059:             w.emit_e(m_extrusion_axis, emit_E);
+         1060:             if (int speed = m_tool->retract_speed(); speed > 0.) {
+
+    src\libslic3r\GCode\GCodeWriter.cpp:1093
+         1089:         // write pa if it's set for retraction
+         1090:         _write_pressure_advance(gcode);
+         1091:         // write unretract gcode
+         1092:         if (this->config.use_firmware_retraction) {
+    >>>  1093:             gcode += (FLAVOR_IS(gcfMachinekit) ? "G23 ; unretract\n" : "G11 ; unretract\n");
+         1094:             gcode += this->reset_e();
+         1095:         } else if (! m_extrusion_axis.empty()) {
+         1096:             // use G1 instead of G0 because G0 will blend the restart with the previous travel move
+         1097:             GCodeG1Formatter w(this->get_default_gcode_formatter());
+
+    src\libslic3r\GCode\WipeTower.cpp:413
+          409:         if (wait && this->m_gcode_flavor != (gcfTeacup) && this->m_gcode_flavor != (gcfRepRap) && this->m_gcode_flavor != (gcfSprinter)) {
+          410:             code = "M109";
+          411:         } else {
+          412:             if (this->m_gcode_flavor == (gcfRepRap)) { // M104 is deprecated on RepRapFirmware
+    >>>   413:                 code = "G10";
+          414:             } else {
+          415:                 code = "M104";
+          416:             }
+          417:         }
+
+  ────────────────────────────────────────────────────────────
+  SET_FAN_SPEED  (8 hits)
+  *** REVIEW: manual inspection recommended ***
+  ────────────────────────────────────────────────────────────
+
+    src\libslic3r\GCode\CoolingBuffer.cpp:97
+           93:         // Would be TYPE_ADJUSTABLE, but the block of G-code lines has zero extrusion length, thus the block
+           94:         // cannot have its speed adjusted. This should not happen (sic!). (delete the block if no g1)
+           95:         TYPE_ADJUSTABLE_EMPTY   = 1 << 25,
+           96:         // Custom fan speed (introduced for overhang fan speed)
+    >>>    97:         TYPE_SET_FAN_SPEED      = 1 << 26,
+           98:         TYPE_RESET_FAN_SPEED    = 1 << 27,
+           99:         TYPE_SET_MIN_FAN_SPEED      = 1 << 28,
+          100:         TYPE_RESET_MIN_FAN_SPEED    = 1 << 29,    };
+          101:     static inline GCodeExtrusionRole to_extrusion_role(uint32_t type) {
+
+    src\libslic3r\GCode\CoolingBuffer.cpp:98
+           94:         // cannot have its speed adjusted. This should not happen (sic!). (delete the block if no g1)
+           95:         TYPE_ADJUSTABLE_EMPTY   = 1 << 25,
+           96:         // Custom fan speed (introduced for overhang fan speed)
+           97:         TYPE_SET_FAN_SPEED      = 1 << 26,
+    >>>    98:         TYPE_RESET_FAN_SPEED    = 1 << 27,
+           99:         TYPE_SET_MIN_FAN_SPEED      = 1 << 28,
+          100:         TYPE_RESET_MIN_FAN_SPEED    = 1 << 29,    };
+          101:     static inline GCodeExtrusionRole to_extrusion_role(uint32_t type) {
+          102:         return GCodeExtrusionRole(uint8_t(type & 0x1F));
+
+    src\libslic3r\GCode\CoolingBuffer.cpp:687
+          683:             line.fan_speed = speed;
+          684:         } else if (boost::contains(sline, ";_RESET_MIN_FAN_SPEED")) {
+          685:             line.type |= CoolingLine::TYPE_RESET_MIN_FAN_SPEED;
+          686:         }
+    >>>   687:         if (boost::contains(sline, ";_SET_FAN_SPEED")) {
+          688:             auto speed_start = sline.find_last_of('D');
+          689:             int  speed       = 0;
+          690:             for (char num : sline.substr(speed_start + 1)) {
+          691:                 speed = speed * 10 + (num - '0');
+
+    src\libslic3r\GCode\CoolingBuffer.cpp:693
+          689:             int  speed       = 0;
+          690:             for (char num : sline.substr(speed_start + 1)) {
+          691:                 speed = speed * 10 + (num - '0');
+          692:             }
+    >>>   693:             line.type |= CoolingLine::TYPE_SET_FAN_SPEED;
+          694:             line.fan_speed = speed;
+          695:         } else if (boost::contains(sline, ";_RESET_FAN_SPEED")) {
+          696:             line.type |= CoolingLine::TYPE_RESET_FAN_SPEED;
+          697:         }
+
+    src\libslic3r\GCode\CoolingBuffer.cpp:695
+          691:                 speed = speed * 10 + (num - '0');
+          692:             }
+          693:             line.type |= CoolingLine::TYPE_SET_FAN_SPEED;
+          694:             line.fan_speed = speed;
+    >>>   695:         } else if (boost::contains(sline, ";_RESET_FAN_SPEED")) {
+          696:             line.type |= CoolingLine::TYPE_RESET_FAN_SPEED;
+          697:         }
+          698: 
+          699:         if (line.type != 0)
+
+    src\libslic3r\GCode\CoolingBuffer.cpp:696
+          692:             }
+          693:             line.type |= CoolingLine::TYPE_SET_FAN_SPEED;
+          694:             line.fan_speed = speed;
+          695:         } else if (boost::contains(sline, ";_RESET_FAN_SPEED")) {
+    >>>   696:             line.type |= CoolingLine::TYPE_RESET_FAN_SPEED;
+          697:         }
+          698: 
+          699:         if (line.type != 0)
+          700:             adjustment->lines.emplace_back(std::move(line));
+
+    src\libslic3r\GCode\CoolingBuffer.cpp:1190
+         1186:             fan_need_set = true;
+         1187:         } else if (line->type & CoolingLine::TYPE_RESET_MIN_FAN_SPEED){
+         1188:             override_min_fan_speed = -1;
+         1189:             fan_need_set = true;
+    >>>  1190:         } else if (line->type & CoolingLine::TYPE_SET_FAN_SPEED) {
+         1191:             override_fan_speed = std::clamp(line->fan_speed, fan_speed_limits.first, fan_speed_limits.second);
+         1192:             fan_need_set = true;
+         1193:         } else if (line->type & CoolingLine::TYPE_RESET_FAN_SPEED){
+         1194:             override_fan_speed = -1;
+
+    src\libslic3r\GCode\CoolingBuffer.cpp:1193
+         1189:             fan_need_set = true;
+         1190:         } else if (line->type & CoolingLine::TYPE_SET_FAN_SPEED) {
+         1191:             override_fan_speed = std::clamp(line->fan_speed, fan_speed_limits.first, fan_speed_limits.second);
+         1192:             fan_need_set = true;
+    >>>  1193:         } else if (line->type & CoolingLine::TYPE_RESET_FAN_SPEED){
+         1194:             override_fan_speed = -1;
+         1195:             fan_need_set = true;
+         1196:         } else if (line->type & CoolingLine::TYPE_EXTRUDE_END) {
+         1197:             assert(extrude_tree.size() > 0);
+
+  ────────────────────────────────────────────────────────────
+  gcfKlipper_branch  (41 hits)
+  *** REVIEW: manual inspection recommended ***
+  ────────────────────────────────────────────────────────────
+
+    src\libslic3r\GCode.cpp:734
+          730: void check_remaning_times(GCodeFlavor firmware, RemainingTimeType type, Print::StatusMonitor &monitor)
+          731: {
+          732:     if (type == RemainingTimeType::rtM73 || type == rtM73_M117 || type == rtM73_Quiet) {
+          733:         if (!(firmware == gcfMarlinLegacy || firmware == gcfMarlinFirmware || firmware == gcfMakerWare ||
+    >>>   734:                 firmware == gcfKlipper || firmware == gcfRepRap))
+          735:             monitor.active_step_add_warning(
+          736:                 PrintStateBase::WarningLevel::CRITICAL,
+          737:                 L("Your firmware doesn't allow to print the remaining times with M73."));
+          738:     }
+
+    src\libslic3r\GCode.cpp:741
+          737:                 L("Your firmware doesn't allow to print the remaining times with M73."));
+          738:     }
+          739:     if ((type == rtM117 || type == rtM73_M117)) {
+          740:         if (!(firmware == gcfMarlinLegacy || firmware == gcfMarlinFirmware || firmware == gcfMakerWare ||
+    >>>   741:                 firmware == gcfKlipper || firmware == gcfRepRap || firmware == gcfRepetier ||
+          742:                 firmware == gcfSmoothie))
+          743:             monitor.active_step_add_warning(
+          744:                 PrintStateBase::WarningLevel::CRITICAL,
+          745:                 L("Your firmware doesn't allow to print the remaining times with M117."));
+
+    src\libslic3r\GCode.cpp:1832
+         1828:     if((initial_extruder_id != (uint16_t)-1) && !this->config().start_gcode_manual && print.config().chamber_temperature.get_at(initial_extruder_id) != 0)
+         1829:          this->_print_first_layer_chamber_temperature(preamble_to_put_start_layer, print, start_all_gcode, initial_extruder_id, false);
+         1830: 
+         1831:     // Set bed temperature if the start G-code does not contain any bed temp control G-codes.
+    >>>  1832:     if((initial_extruder_id != (uint16_t)-1) && !this->config().start_gcode_manual && this->config().gcode_flavor != gcfKlipper && print.config().first_layer_bed_temperature.get_at(initial_extruder_id) != 0)
+         1833:          this->_print_first_layer_bed_temperature(preamble_to_put_start_layer, print, start_all_gcode, initial_extruder_id, false);
+         1834: 
+         1835:     //init extruders
+         1836:     if (!this->config().start_gcode_manual)
+
+    src\libslic3r\GCode.cpp:1840
+         1836:     if (!this->config().start_gcode_manual)
+         1837:         this->_init_multiextruders(print, preamble_to_put_start_layer, m_writer, tool_ordering, start_gcode);
+         1838: 
+         1839:     // Set extruder(s) temperature before and after start G-code.
+    >>>  1840:     if ((initial_extruder_id != (uint16_t)-1) && !this->config().start_gcode_manual && (this->config().gcode_flavor != gcfKlipper || print.config().start_gcode.value.empty()) && print.config().first_layer_temperature.get_at(initial_extruder_id) != 0)
+         1841:         this->_print_first_layer_extruder_temperatures(preamble_to_put_start_layer, print, start_all_gcode, initial_extruder_id, false);
+         1842: 
+         1843:     // adds tag for processor
+         1844:     preamble_to_put_start_layer.append(";").append(GCodeProcessor::reserved_tag(GCodeProcessor::ETags::Role)).append(gcode_extrusion_role_to_string(GCodeExtrusionRole::Custom)).append("\n");
+
+    src\libslic3r\GCode.cpp:1886
+         1882:                     if (*ptr == 'T') {
+         1883:                         // TX for most of the firmwares
+         1884:                         find = true;
+         1885:                         break;
+    >>>  1886:                     } else if (*ptr == 'A' && print.config().gcode_flavor.value == gcfKlipper) {
+         1887:                         // ACTIVATE_EXTRUDER for klipper (if used)
+         1888:                         if (std::string::npos != start_gcode.find("ACTIVATE_EXTRUDER", size_t(ptr - start_gcode.data()))) {
+         1889:                             find = true;
+         1890:                             break;
+
+    src\libslic3r\GCode.cpp:2871
+         2867: // Print the machine envelope G-code for the Marlin firmware based on the "machine_max_xxx" parameters.
+         2868: // Do not process this piece of G-code by the time estimator, it already knows the values through another sources.
+         2869: void GCodeGenerator::print_machine_envelope(GCodeOutputStream &file, const Print &print)
+         2870: {
+    >>>  2871:    // gcfRepRap, gcfRepetier, gcfTeacup, gcfMakerWare, gcfMarlinLegacy, gcfMarlinFirmware, gcfKlipper, gcfSailfish, gcfSprinter, gcfMach3, gcfMachinekit,
+         2872:    ///     gcfSmoothie, gcfNoExtrusion,
+         2873:     if (print.config().machine_limits_usage.value == MachineLimitsUsage::EmitToGCode) {
+         2874:         if (print.config().gcode_flavor.value == gcfKlipper) {
+         2875:             // Klipper uses SET_VELOCITY_LIMIT for all motion limits.
+
+    src\libslic3r\GCode.cpp:2874
+         2870: {
+         2871:    // gcfRepRap, gcfRepetier, gcfTeacup, gcfMakerWare, gcfMarlinLegacy, gcfMarlinFirmware, gcfKlipper, gcfSailfish, gcfSprinter, gcfMach3, gcfMachinekit,
+         2872:    ///     gcfSmoothie, gcfNoExtrusion,
+         2873:     if (print.config().machine_limits_usage.value == MachineLimitsUsage::EmitToGCode) {
+    >>>  2874:         if (print.config().gcode_flavor.value == gcfKlipper) {
+         2875:             // Klipper uses SET_VELOCITY_LIMIT for all motion limits.
+         2876:             // MAX_ACCEL_TO_DECEL was removed in Klipper 20250811; do not emit it.
+         2877:             // machine_max_jerk_x/y map to SQUARE_CORNER_VELOCITY (mm/s); use the minimum of X and Y.
+         2878:             file.write_format(
+
+    src\libslic3r\GCode.cpp:3204
+         3200:                                                          GCodeWriter::get_default_pause_gcode(print.config()),
+         3201:                                                          current_extruder_id, &cfg);
+         3202:             gcode += "\n";
+         3203:             if (auto flavor = print.config().gcode_flavor.value; 
+    >>>  3204:                 flavor == gcfKlipper || flavor == gcfMarlinFirmware || flavor == gcfMarlinLegacy || flavor == gcfRepetier || flavor == gcfSmoothie || flavor == gcfRepRap)
+         3205:                 gcode += "M117 Change filament for Extruder " + std::to_string(color_change_extruder) + "\n";
+         3206:         } else {
+         3207:             if (GCodeWriter::get_default_color_change_gcode(print.config()).empty()) {
+         3208:                 status_emitter.active_step_add_warning(
+
+    src\libslic3r\GCode.cpp:3267
+         3263:                 gcode += ";" + GCodeProcessor::reserved_tag(GCodeProcessor::ETags::Pause_Print) + "\n";
+         3264:                 //! FIXME_in_fw show message during print pause
+         3265:                 if (!pause_print_msg.empty())
+         3266:                     if (auto flavor = print.config().gcode_flavor.value; 
+    >>>  3267:                         flavor == gcfKlipper ||
+         3268:                         flavor == gcfMarlinFirmware || flavor == gcfMarlinLegacy || flavor == gcfRepetier ||
+         3269:                         flavor == gcfSmoothie || flavor == gcfRepRap)
+         3270:                         gcode += "M117 " + pause_print_msg + "\n";
+         3271: 
+
+    src\libslic3r\GCode\GCodeProcessor.cpp:906
+          902:     const ConfigOptionEnum<MachineLimitsUsage>* machine_limits_usage = config.option<ConfigOptionEnum<MachineLimitsUsage>>("machine_limits_usage");
+          903:     if (machine_limits_usage != nullptr)
+          904:         use_machine_limits = machine_limits_usage->value != MachineLimitsUsage::Ignore;
+          905: 
+    >>>   906:     if (use_machine_limits) {// && (m_flavor == gcfMarlinLegacy || m_flavor == gcfMarlinFirmware || m_flavor == gcfRepRap || m_flavor == gcfKlipper)) {
+          907:         const ConfigOptionFloats* machine_max_acceleration_x = config.option<ConfigOptionFloats>("machine_max_acceleration_x");
+          908:         if (machine_max_acceleration_x != nullptr)
+          909:             m_time_processor.machine_limits.machine_max_acceleration_x.set(machine_max_acceleration_x->get_values());
+          910: 
+
+    src\libslic3r\GCode\GCodeProcessor.cpp:1839
+         1835:     // update start position
+         1836:     m_start_position = m_end_position;
+         1837: 
+         1838:     const std::string_view cmd = line.cmd();
+    >>>  1839:     if (cmd.length() > 10 && m_flavor == GCodeFlavor::gcfKlipper) {
+         1840:         try {
+         1841:             std::string cmd_up = boost::to_upper_copy<std::string>(std::string(cmd));
+         1842:             //klipper extendt comands
+         1843:             if (cmd_up == "TURN_OFF_HEATERS")
+
+    src\libslic3r\GCode\GCodeWriter.cpp:49
+           45: // static
+           46: bool GCodeWriter::supports_separate_travel_acceleration(GCodeFlavor flavor)
+           47: {
+           48:     // Klipper supports M204 T<travel> separately from M204 P<print>
+    >>>    49:     return (flavor == gcfRepetier || flavor == gcfMarlinFirmware || flavor == gcfRepRap || flavor == gcfKlipper);
+           50: }
+           51: 
+           52: std::string GCodeWriter::get_default_pause_gcode(const GCodeConfig &config)
+           53: {
+
+    src\libslic3r\GCode\GCodeWriter.cpp:55
+           51: 
+           52: std::string GCodeWriter::get_default_pause_gcode(const GCodeConfig &config)
+           53: {
+           54:     if (config.pause_print_gcode.value.empty()) {
+    >>>    55:         if (config.gcode_flavor.value == GCodeFlavor::gcfKlipper) {
+           56:             return "PAUSE";
+           57:         } else if (config.gcode_flavor.value == GCodeFlavor::gcfRepRap || config.gcode_flavor.value == GCodeFlavor::gcfMarlinLegacy /*prusa only*/) {
+           58:             return "M601";
+           59:         } else {
+
+    src\libslic3r\GCode\GCodeWriter.cpp:185
+          181:     if (FLAVOR_IS(gcfSprinter) ||
+          182:         FLAVOR_IS(gcfRepRap) ||
+          183:         FLAVOR_IS(gcfMarlinLegacy) ||
+          184:         FLAVOR_IS(gcfMarlinFirmware) ||
+    >>>   185:         FLAVOR_IS(gcfKlipper) ||
+          186:         FLAVOR_IS(gcfTeacup) ||
+          187:         FLAVOR_IS(gcfRepetier) ||
+          188:         FLAVOR_IS(gcfSmoothie)
+          189:     )
+
+    src\libslic3r\GCode\GCodeWriter.cpp:238
+          234:         } else {
+          235:             // is it possible to have no tool id? or a -1 is possible?
+          236:             gcode = std::string("M572 S") + to_string_nozero(pa, 4);
+          237:         }
+    >>>   238:     } else if (FLAVOR_IS(gcfKlipper)) {
+          239:         gcode = std::string("SET_PRESSURE_ADVANCE ADVANCE=") + to_string_nozero(pa, 4);
+          240:         if (this->config.tool_name.size() > tool_id && !this->config.tool_name.get_at(tool_id).empty()) {
+          241:             gcode += std::string(" EXTRUDER=") + this->config.tool_name.get_at(tool_id);
+          242:             } else if(tool_id > 0){
+
+    src\libslic3r\GCode\GCodeWriter.cpp:429
+          425: {
+          426:     // Flavors that support a separate travel acceleration (M204 T) keep print and travel
+          427:     // acceleration independently.  All other flavors have only one acceleration register,
+          428:     // so we alias travel → print acceleration.
+    >>>   429:     if (FLAVOR_IS_NOT(gcfMarlinFirmware) && FLAVOR_IS_NOT(gcfRepRap) && FLAVOR_IS_NOT(gcfKlipper))
+          430:         set_acceleration(acceleration);
+          431: 
+          432:     if (acceleration == m_current_travel_acceleration)
+          433:         return;
+
+    src\libslic3r\GCode\GCodeWriter.cpp:445
+          441: }
+          442: 
+          443: std::string GCodeWriter::write_acceleration(){
+          444:     std::ostringstream gcode;
+    >>>   445:     bool need_write_travel_accel = (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfRepRap) || FLAVOR_IS(gcfKlipper)) &&
+          446:                                    m_current_travel_acceleration != m_last_travel_acceleration;
+          447:     bool need_write_main_accel = m_current_acceleration != m_last_acceleration &&
+          448:                                  m_current_acceleration != 0;
+          449:     if (need_write_travel_accel || need_write_main_accel) {
+
+    src\libslic3r\GCode\GCodeWriter.cpp:464
+          460:             // This is new MarlinFirmware with separated print/retraction/travel acceleration.
+          461:             // Use M204 P, we don't want to override travel acc by M204 S (which is deprecated anyway).
+          462:             if (m_current_acceleration > 0)
+          463:                 gcode << "M204 P" << m_current_acceleration;
+    >>>   464:         } else if (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfRepRap) || FLAVOR_IS(gcfKlipper)) {
+          465:             // M204 P<print> T<travel>: set print and travel acceleration separately.
+          466:             // Klipper supports both P and T parameters just like MarlinFirmware.
+          467:             if (m_current_acceleration > 0)
+          468:                 gcode << "M204 P" << m_current_acceleration << " T" << (m_current_travel_acceleration > 0 ? m_current_travel_acceleration : m_current_acceleration);
+
+    src\libslic3r\GCode\GCodeWriter.cpp:533
+          529: std::string GCodeWriter::toolchange_prefix() const
+          530: {
+          531:     return FLAVOR_IS(gcfMakerWare)                                                  ? "M135 T" :
+          532:         FLAVOR_IS(gcfSailfish)                                                      ? "M108 T" :
+    >>>   533:         FLAVOR_IS(gcfKlipper) && !this->config.single_extruder_multi_material.value ? "ACTIVATE_EXTRUDER EXTRUDER=" :
+          534:                                                                                       "T";
+          535: }
+          536: 
+          537: std::string GCodeWriter::toolchange(uint16_t tool_id)
+
+    src\libslic3r\GCode\GCodeWriter.cpp:567
+          563:     // no, still output TX to let the firmware know to change the filament
+          564:     std::ostringstream gcode;
+          565:     if (this->multiple_extruders) {
+          566:         // if klipper and not in single_extruder_multi_material, then you need to select the extruder by name.
+    >>>   567:         if (FLAVOR_IS(gcfKlipper) && !this->config.single_extruder_multi_material.value) {
+          568:             //check if we can use the tool_name field or not
+          569:             if (tool_id > 0 && tool_id < this->config.tool_name.size() && !this->config.tool_name.get_at(tool_id).empty()
+          570:                 // NOTE: this will probably break if there's more than 10 tools, as it's relying on the
+          571:                 // ASCII character table.
+
+    src\libslic3r\GCode\LabelObjects.cpp:86
+           82:             else if (m_label_objects_style != LabelObjectsStyle::Disabled) {
+           83:                 // use zero-based indexing for objects and instances, as we always have done
+           84:                 name += " id:" + std::to_string(object_id) + " copy " + std::to_string(instance_id); 
+           85:             }
+    >>>    86:             if (m_flavor == gcfKlipper) {
+           87:                 const std::string banned = "\b\t\n\v\f\r \"#%&\'*-./:;<>\\";
+           88:                 std::replace_if(name.begin(), name.end(), [&banned](char c) { return banned.find(c) != std::string::npos; }, '_');
+           89:             }
+           90: 
+
+    src\libslic3r\GCode\LabelObjects.cpp:132
+          128:         //update global outline
+          129:         global_outline = Geometry::convex_hull(Polygons{outline, global_outline});
+          130:         //use data for printing firmware-specific stuff.
+          131:         if ((m_label_objects_style == LabelObjectsStyle::Firmware || m_label_objects_style == LabelObjectsStyle::Both)
+    >>>   132:                 && m_flavor == gcfKlipper)  {
+          133:             //start EXCLUDE_OBJECT_DEFINE line with name
+          134:             out.append("EXCLUDE_OBJECT_DEFINE NAME='").append(label.unique_name).append("'");
+          135:             // add centroid of object.
+          136:             std::snprintf(buffer, sizeof(buffer) - 1, " CENTER=%.3f,%.3f", unscale<float>(center[0]), unscale<float>(center[1]));
+
+    src\libslic3r\GCode\LabelObjects.cpp:220
+          216:                 out += (m_flavor == GCodeFlavor::gcfRepRap ? " A" : "\nM486 A");
+          217:                 out += (m_flavor == GCodeFlavor::gcfRepRap ? (std::string("\"") + label.unique_name + "\"") : label.unique_name);
+          218:             }
+          219:             out += "\n";
+    >>>   220:         } else if (m_flavor == gcfKlipper)
+          221:             out += "EXCLUDE_OBJECT_START NAME='" + label.unique_name + "'\n";
+          222:         else {
+          223:             // Not supported by / implemented for the other firmware flavors.
+          224:         }
+
+    src\libslic3r\GCode\LabelObjects.cpp:244
+          240:         out += std::string("; stop printing object ") + label.unique_name + "\n";
+          241:     if (m_label_objects_style == LabelObjectsStyle::Firmware || m_label_objects_style == LabelObjectsStyle::Both) {
+          242:         if (m_flavor == GCodeFlavor::gcfMarlinFirmware || m_flavor == GCodeFlavor::gcfMarlinLegacy || m_flavor == GCodeFlavor::gcfRepRap)
+          243:             out += std::string("M486 S-1\n");
+    >>>   244:         else if (m_flavor ==gcfKlipper)
+          245:             out += "EXCLUDE_OBJECT_END NAME='" + label.unique_name + "'\n";
+          246:         else {
+          247:             // Not supported by / implemented for the other firmware flavors.
+          248:         }
+
+    src\libslic3r\GCode\WipeTower.cpp:488
+          484: 
+          485: 	// Set digital trimpot motor
+          486: 	WipeTowerWriter& set_extruder_trimpot(int current)
+          487: 	{
+    >>>   488:         if (m_gcode_flavor == gcfKlipper)
+          489:             return *this;
+          490:         if (m_gcode_flavor == gcfRepRap || m_gcode_flavor == gcfSprinter)
+          491:             m_gcode += "M906 E";
+          492:         else
+
+    src\libslic3r\Print.cpp:766
+          762:         if (m_objects.front()->all_regions().size() > 1)
+          763:             return { PrintBase::PrintValidationError::pveWrongSettings, _u8L("The Spiral Vase option can only be used when printing single material objects, and without any modifiers that may break the vase.") };
+          764:     }
+          765: 
+    >>>   766:     //if (m_config.machine_limits_usage == MachineLimitsUsage::EmitToGCode && m_config.gcode_flavor == gcfKlipper)
+          767:     //    return _u8L("Machine limits cannot be emitted to G-Code when Klipper firmware flavor is used. "
+          768:     //             "Change the value of machine_limits_usage.");
+          769: 
+          770:     // Cache of layer height profiles for checking:
+
+    src\libslic3r\Print.cpp:834
+          830:             && m_config.gcode_flavor != gcfSprinter
+          831:             && m_config.gcode_flavor != gcfRepetier 
+          832:             && m_config.gcode_flavor != gcfMarlinLegacy
+          833:             && m_config.gcode_flavor != gcfMarlinFirmware
+    >>>   834:             && m_config.gcode_flavor != gcfKlipper )
+          835:             return { PrintBase::PrintValidationError::pveWrongSettings, _u8L("The Wipe Tower is currently only supported for the Marlin, Klipper, RepRap/Sprinter and Repetier G-code flavors.") };
+          836:         //if (! m_config.use_relative_e_distances)
+          837:             //return { PrintBase::PrintValidationError::pveWrongSettings, _u8L("The Wipe Tower is currently only supported with the relative extruder addressing (use_relative_e_distances=1).") };
+          838:         if (m_config.ooze_prevention && m_config.single_extruder_multi_material)
+
+    src\libslic3r\PrintConfig.cpp:115
+          111:     {"teacup",          gcfTeacup},
+          112:     {"makerware",       gcfMakerWare},
+          113:     {"marlin",          gcfMarlinLegacy },
+          114:     {"marlin2",         gcfMarlinFirmware },
+    >>>   115:     {"klipper",         gcfKlipper},
+          116:     {"sailfish",        gcfSailfish},
+          117:     {"smoothie",        gcfSmoothie},
+          118:     {"sprinter",        gcfSprinter},
+          119:     {"mach3",           gcfMach3},
+
+    src\libslic3r\PrintConfig.cpp:11827
+        11823:         cfg.gcode_flavor.value != gcfMarlinLegacy &&
+        11824:         cfg.gcode_flavor.value != gcfMarlinFirmware &&
+        11825:         cfg.gcode_flavor.value != gcfMachinekit &&
+        11826:         cfg.gcode_flavor.value != gcfRepetier &&
+    >>> 11827:         cfg.gcode_flavor.value != gcfKlipper)
+        11828:         return "--use-firmware-retraction is only supported by Marlin 1&2, Smoothie, Sprinter, Reprap, Repetier, Machinekit, Repetier, Klipper? and Lerdge firmware";
+        11829: 
+        11830:     if (cfg.use_firmware_retraction.value)
+        11831:         for (unsigned char wipe : cfg.wipe.get_values())
+
+    src\libslic3r\PrintConfig.hpp:85
+           81:     gcfTeacup,
+           82:     gcfMakerWare,
+           83:     gcfMarlinLegacy,
+           84:     gcfMarlinFirmware,
+    >>>    85:     gcfKlipper,
+           86:     gcfSailfish,
+           87:     gcfMach3,
+           88:     gcfMachinekit,
+           89:     gcfSmoothie,
+
+    src\slic3r\GUI\CalibrationPressureAdvDialog.cpp:854
+          850:         auto last_90_bend_scale = model.objects[objs_idx[id_item]]->volumes[count_increments]->get_scaling_factor();
+          851:         Eigen::Vector3d bend_90_mesh = model.objects[objs_idx[id_item]]->volumes[count_increments]->mesh().size();
+          852:         double model_height = bend_90_mesh.z() * last_90_bend_scale.z();
+          853: 
+    >>>   854:         std::string set_first_layer_prefix = (gcfKlipper == flavor) ? "SET_PRESSURE_ADVANCE ADVANCE=" :
+          855:                                          (gcfMarlinFirmware == flavor) ? "M900 K" :
+          856:                                          (gcfRepRap == flavor) ? "M572 S" : "";
+          857:         std::string region_prefix = "{if layer_z <= " + std::to_string(first_layer_height) + "}" + set_first_layer_prefix + std::to_string(first_pa) + "; first layer [layer_z] {endif}";
+          858: 
+
+    src\slic3r\GUI\CalibrationPressureAdvDialog.cpp:868
+          864:         gcfMakerWare,
+          865:         gcfMarlinLegacy,
+          866:         gcfMarlinFirmware,
+          867:         gcfLerdge,
+    >>>   868:         gcfKlipper,
+          869:         gcfSailfish,
+          870:         gcfMach3,
+          871:         gcfMachinekit,
+          872:         gcfSmoothie,
+
+    src\slic3r\GUI\CalibrationPressureAdvDialog.cpp:1042
+         1038:             double adjusted_first_layer_width_y = er_width * (1 + (xy_scaled_90_bend_y - first_layer_xy_scaled_90_bend_y_match) / xy_scaled_90_bend_y);
+         1039:             double adjusted_first_average = (adjusted_first_layer_width_x + adjusted_first_layer_width_y) / 2;
+         1040: 
+         1041:             std::string set_advance_prefix = 
+    >>>  1042:                 (gcfKlipper == flavor) ? (smooth_time ? "SET_PRESSURE_ADVANCE SMOOTH_TIME=" : "SET_PRESSURE_ADVANCE ADVANCE=") :
+         1043:                 (gcfMarlinFirmware == flavor) ? "M900 K" :
+         1044:                 (gcfRepRap == flavor) ? "M572 S" : "";
+         1045: 
+         1046: 
+
+    src\slic3r\GUI\CalibrationPressureAdvDialog.cpp:1102
+         1098: 
+         1099:         bool enable_region_gcode_for_numbers = false;// this still needa a bit of work, the first layer ends up getting messed up surfaces. might be a config thing?
+         1100:         //                                              unless i need to change the numbers height and z position?
+         1101:         if (enable_region_gcode_for_numbers == true){
+    >>>  1102:             std::string set_advance_prefix = (gcfKlipper == flavor) ? (smooth_time ? "SET_PRESSURE_ADVANCE SMOOTH_TIME=" : "SET_PRESSURE_ADVANCE ADVANCE=") :
+         1103:                                              (gcfMarlinFirmware == flavor) ? "M900 K" :
+         1104:                                              (gcfRepRap == flavor) ? "M572 S" : "";
+         1105: 
+         1106:             int pa_index = 0;
+
+    src\slic3r\GUI\CalibrationPressureAdvDialog.cpp:1291
+         1287: 
+         1288:     std::string color_background = dark_mode ? "333233" : "ffffff";//dark grey and white. whats the offical dark mode color ?
+         1289:     wxColour background_color("#" + color_background);
+         1290: 
+    >>>  1291:     std::string prefix = (gcfMarlinFirmware == flavor) ? " LA " : ((gcfKlipper == flavor || gcfRepRap == flavor) ? " PA " : "unsupported firmware type");
+         1292: 
+         1293:     if (prefix != "unsupported firmware type") {
+         1294: 
+         1295:         wxPanel* mainPanel = new wxPanel(this, wxID_ANY);
+
+    src\slic3r\GUI\CalibrationPressureAdvDialog.cpp:1366
+         1362:         "SupportMaterialInterface", "ThinWall", "TopSolidInfill", "FirstLayer", "CheckAll"
+         1363:     };
+         1364:     const DynamicPrintConfig* printer_config = this->gui_app->get_tab(Preset::TYPE_PRINTER)->get_config();
+         1365:     GCodeFlavor flavor = printer_config->option<ConfigOptionEnum<GCodeFlavor>>("gcode_flavor")->value;
+    >>>  1366:     std::string prefix = (gcfMarlinFirmware == flavor) ? " LA " : ((gcfKlipper == flavor || gcfRepRap == flavor) ? " PA " : "unsupported firmware type");
+         1367:     //improvements: pull retraction value and auto select a better suited start/end value?
+         1368: 
+         1369:     int current_selection = 2;//start selection at ExternalPerimeter
+         1370: 
+
+    src\slic3r\GUI\Tab.cpp:4211
+         4207:     //    m_supports_min_feedrates = supports_min_feedrates;
+         4208:     //}
+         4209:     //
+         4210:     //const bool is_emit_to_gcode = m_config->option("machine_limits_usage")->getInt() == static_cast<int>(MachineLimitsUsage::EmitToGCode);
+    >>>  4211:     //if ((flavor == gcfKlipper && is_emit_to_gcode) || (!m_supports_min_feedrates && m_use_silent_mode)) {
+         4212:     //    DynamicPrintConfig new_conf = *m_config;
+         4213:     //    wxString           msg;
+         4214: 
+         4215:     //    if (flavor == gcfKlipper && is_emit_to_gcode) {
+
+    src\slic3r\GUI\Tab.cpp:4215
+         4211:     //if ((flavor == gcfKlipper && is_emit_to_gcode) || (!m_supports_min_feedrates && m_use_silent_mode)) {
+         4212:     //    DynamicPrintConfig new_conf = *m_config;
+         4213:     //    wxString           msg;
+         4214: 
+    >>>  4215:     //    if (flavor == gcfKlipper && is_emit_to_gcode) {
+         4216:     //        msg = get_info_klipper_string();
+         4217: 
+         4218:     //        auto machine_limits_usage = static_cast<ConfigOptionEnum<MachineLimitsUsage> *>(
+         4219:     //            m_config->option("machine_limits_usage")->clone());
+
+    src\slic3r\GUI\Tab.cpp:5968
+         5964:         wxColour black_color = wxGetApp().get_label_clr_default();//wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);
+         5965:         Field* field;
+         5966:         std::vector<std::string> axes{ "x", "y", "z", "e" };
+         5967: 
+    >>>  5968:         wxColour color = (std::set<uint8_t>{gcfKlipper, gcfMach3, gcfMachinekit, gcfMakerWare, gcfSailfish, gcfTeacup}.count(flavor) > 0) ? grey_color : black_color;
+         5969:             for (const std::string& axis : axes) {
+         5970:                 field = m_active_page->get_field("machine_max_feedrate_" + axis, 0);
+         5971:                 if (field) dynamic_cast<TextInput*>(field->getWindow())->SetForegroundColour(color);
+         5972:             }
+
+    src\slic3r\GUI\Tab.cpp:5973
+         5969:             for (const std::string& axis : axes) {
+         5970:                 field = m_active_page->get_field("machine_max_feedrate_" + axis, 0);
+         5971:                 if (field) dynamic_cast<TextInput*>(field->getWindow())->SetForegroundColour(color);
+         5972:             }
+    >>>  5973:         color = (std::set<uint8_t>{gcfKlipper, gcfSmoothie, gcfMach3, gcfMachinekit, gcfMakerWare, gcfSailfish, gcfTeacup}.count(flavor) > 0) ? grey_color : black_color;
+         5974:             for (const std::string& axis : axes) {
+         5975:                 field = m_active_page->get_field("machine_max_acceleration_" + axis, 0);
+         5976:                 if (field) dynamic_cast<TextInput*>(field->getWindow())->SetForegroundColour(color);
+         5977:             }
+
+    src\slic3r\GUI\Tab.cpp:5993
+         5989:         {
+         5990:             field = m_active_page->get_field("machine_max_acceleration_travel", 0);
+         5991:             if (field) dynamic_cast<TextInput*>(field->getWindow())->SetForegroundColour(color);
+         5992:         }
+    >>>  5993:         color = (std::set<uint8_t>{gcfKlipper, gcfMach3, gcfMachinekit, gcfMakerWare, gcfSailfish, gcfTeacup}.count(flavor) > 0) ? grey_color : black_color;
+         5994:             for (const std::string& axis : axes) {
+         5995:                 field = m_active_page->get_field("machine_max_jerk_" + axis, 0);
+         5996:                 if (field) dynamic_cast<TextInput*>(field->getWindow())->SetForegroundColour(color);
+         5997:             }
+
+
+================================================================================
+  [MODERN] patterns
+================================================================================
+
+  ────────────────────────────────────────────────────────────
+  EXCLUDE_OBJECT  (4 hits)
+  ────────────────────────────────────────────────────────────
+
+    src\libslic3r\GCode\LabelObjects.cpp:133
+          129:         global_outline = Geometry::convex_hull(Polygons{outline, global_outline});
+          130:         //use data for printing firmware-specific stuff.
+          131:         if ((m_label_objects_style == LabelObjectsStyle::Firmware || m_label_objects_style == LabelObjectsStyle::Both)
+          132:                 && m_flavor == gcfKlipper)  {
+    >>>   133:             //start EXCLUDE_OBJECT_DEFINE line with name
+          134:             out.append("EXCLUDE_OBJECT_DEFINE NAME='").append(label.unique_name).append("'");
+          135:             // add centroid of object.
+          136:             std::snprintf(buffer, sizeof(buffer) - 1, " CENTER=%.3f,%.3f", unscale<float>(center[0]), unscale<float>(center[1]));
+          137:             out.append(buffer).append(" POLYGON=[");
+
+    src\libslic3r\GCode\LabelObjects.cpp:134
+          130:         //use data for printing firmware-specific stuff.
+          131:         if ((m_label_objects_style == LabelObjectsStyle::Firmware || m_label_objects_style == LabelObjectsStyle::Both)
+          132:                 && m_flavor == gcfKlipper)  {
+          133:             //start EXCLUDE_OBJECT_DEFINE line with name
+    >>>   134:             out.append("EXCLUDE_OBJECT_DEFINE NAME='").append(label.unique_name).append("'");
+          135:             // add centroid of object.
+          136:             std::snprintf(buffer, sizeof(buffer) - 1, " CENTER=%.3f,%.3f", unscale<float>(center[0]), unscale<float>(center[1]));
+          137:             out.append(buffer).append(" POLYGON=[");
+          138:             for (const Point& point : outline) {
+
+    src\libslic3r\GCode\LabelObjects.cpp:221
+          217:                 out += (m_flavor == GCodeFlavor::gcfRepRap ? (std::string("\"") + label.unique_name + "\"") : label.unique_name);
+          218:             }
+          219:             out += "\n";
+          220:         } else if (m_flavor == gcfKlipper)
+    >>>   221:             out += "EXCLUDE_OBJECT_START NAME='" + label.unique_name + "'\n";
+          222:         else {
+          223:             // Not supported by / implemented for the other firmware flavors.
+          224:         }
+          225:     }
+
+    src\libslic3r\GCode\LabelObjects.cpp:245
+          241:     if (m_label_objects_style == LabelObjectsStyle::Firmware || m_label_objects_style == LabelObjectsStyle::Both) {
+          242:         if (m_flavor == GCodeFlavor::gcfMarlinFirmware || m_flavor == GCodeFlavor::gcfMarlinLegacy || m_flavor == GCodeFlavor::gcfRepRap)
+          243:             out += std::string("M486 S-1\n");
+          244:         else if (m_flavor ==gcfKlipper)
+    >>>   245:             out += "EXCLUDE_OBJECT_END NAME='" + label.unique_name + "'\n";
+          246:         else {
+          247:             // Not supported by / implemented for the other firmware flavors.
+          248:         }
+          249:     }
+
+  ────────────────────────────────────────────────────────────
+  M106_M107_fan  (11 hits)
+  ────────────────────────────────────────────────────────────
+
+    src\libslic3r\GCode\FanMover.cpp:77
+           73:     line = line.replace(pos, end - pos, to_string_nozero(new_value, decimal_digits));
+           74: }
+           75: 
+           76: int16_t get_fan_speed(const std::string &line, GCodeFlavor flavor) {
+    >>>    77:     if (line.compare(0, 4, "M106") == 0) {
+           78:         if (flavor == (gcfMach3) || flavor == (gcfMachinekit)) {
+           79:             return (int16_t)get_axis_value(line, 'P');
+           80:         } else {
+           81:             return (int16_t)get_axis_value(line, 'S');
+
+    src\libslic3r\GCode\FanMover.cpp:83
+           79:             return (int16_t)get_axis_value(line, 'P');
+           80:         } else {
+           81:             return (int16_t)get_axis_value(line, 'S');
+           82:         }
+    >>>    83:     } else if (line.compare(0, 4, "M127") == 0 || line.compare(0, 4, "M107") == 0) {
+           84:         return 0;
+           85:     } else if ((flavor == (gcfMakerWare) || flavor == (gcfSailfish)) && line.compare(0, 4, "M126") == 0) {
+           86:         return (int16_t)get_axis_value(line, 'T');
+           87:     } else {
+
+    src\libslic3r\GCode\GCodeWriter.cpp:1195
+         1191:     std::ostringstream gcode;
+         1192:     if (speed == 0) {
+         1193:         switch (gcode_flavor) {
+         1194:         case gcfTeacup:
+    >>>  1195:             gcode << "M106 S0"; break;
+         1196:         case gcfMakerWare:
+         1197:         case gcfSailfish:
+         1198:             gcode << "M127";    break;
+         1199:         default:
+
+    src\libslic3r\GCode\GCodeWriter.cpp:1200
+         1196:         case gcfMakerWare:
+         1197:         case gcfSailfish:
+         1198:             gcode << "M127";    break;
+         1199:         default:
+    >>>  1200:             gcode << "M107";    break;
+         1201:         }
+         1202:         if (gcode_comments)
+         1203:             gcode << " ; disable fan";
+         1204:         gcode << "\n";
+
+    src\libslic3r\GCode\GCodeWriter.cpp:1212
+         1208:         case gcfSailfish:
+         1209:             gcode << "M126";    break;
+         1210:         case gcfMach3:
+         1211:         case gcfMachinekit:
+    >>>  1212:             gcode << "M106 P" << 255.0 * speed / 100.0; break;
+         1213:         default:
+         1214:             gcode << "M106 S" << 255.0 * speed / 100.0; break;
+         1215:         }
+         1216:         if (gcode_comments) 
+
+    src\libslic3r\GCode\GCodeWriter.cpp:1214
+         1210:         case gcfMach3:
+         1211:         case gcfMachinekit:
+         1212:             gcode << "M106 P" << 255.0 * speed / 100.0; break;
+         1213:         default:
+    >>>  1214:             gcode << "M106 S" << 255.0 * speed / 100.0; break;
+         1215:         }
+         1216:         if (gcode_comments) 
+         1217:             gcode << " ; enable fan";
+         1218:         gcode << "\n";
+
+    src\libslic3r\GCode\GCodeWriter.cpp:1233
+         1229: 
+         1230:     // write it
+         1231:     if (fan_speed == 0) {
+         1232:         if ((gcfTeacup == gcode_flavor || gcfRepRap == gcode_flavor)) {
+    >>>  1233:             gcode << "M106 S0";
+         1234:         } else if ((gcfMakerWare == gcode_flavor) || (gcfSailfish == gcode_flavor)) {
+         1235:             gcode << "M127";
+         1236:         } else {
+         1237:             gcode << "M107";
+
+    src\libslic3r\GCode\GCodeWriter.cpp:1237
+         1233:             gcode << "M106 S0";
+         1234:         } else if ((gcfMakerWare == gcode_flavor) || (gcfSailfish == gcode_flavor)) {
+         1235:             gcode << "M127";
+         1236:         } else {
+    >>>  1237:             gcode << "M107";
+         1238:         }
+         1239:         if (gcode_comments)
+         1240:             gcode << " ; " << (comment.empty() ? "disable fan" : comment);
+         1241:         gcode << "\n";
+
+    src\libslic3r\GCode\GCodeWriter.cpp:1246
+         1242:     } else {
+         1243:         if ((gcfMakerWare == gcode_flavor) || (gcfSailfish == gcode_flavor)) {
+         1244:             gcode << "M126 T";
+         1245:         } else {
+    >>>  1246:             gcode << "M106 ";
+         1247:             if ((gcfMach3 == gcode_flavor) || (gcfMachinekit == gcode_flavor)) {
+         1248:                 gcode << "P";
+         1249:             } else {
+         1250:                 gcode << "S";
+
+    src\libslic3r\GCode\WipeTower.cpp:524
+          520:         assert(comment.empty() || comment[0] == ';' || (comment.size() > 1 && comment[0] == ' ' && comment[1] == ';'));
+          521: 		if (speed == m_last_fan_speed)
+          522: 			return *this;
+          523: 		if (speed == 0 && (gcfTeacup != m_gcode_flavor && gcfRepRap != m_gcode_flavor))
+    >>>   524: 			m_gcode += "M107" + comment + "\n";
+          525: 		else
+          526:             m_gcode += "M106 S" + std::to_string(unsigned(255.0 * speed / 100.0)) + comment + "\n";
+          527: 		m_last_fan_speed = speed;
+          528: 		return *this;
+
+    src\libslic3r\GCode\WipeTower.cpp:526
+          522: 			return *this;
+          523: 		if (speed == 0 && (gcfTeacup != m_gcode_flavor && gcfRepRap != m_gcode_flavor))
+          524: 			m_gcode += "M107" + comment + "\n";
+          525: 		else
+    >>>   526:             m_gcode += "M106 S" + std::to_string(unsigned(255.0 * speed / 100.0)) + comment + "\n";
+          527: 		m_last_fan_speed = speed;
+          528: 		return *this;
+          529: 	}
+          530: 
+
+  ────────────────────────────────────────────────────────────
+  M204_P_print_accel  (4 hits)
+  ────────────────────────────────────────────────────────────
+
+    src\libslic3r\GCode.cpp:2925
+         2921:             file.write_format("M204 S%d T%d ; sets acceleration (S) and retract acceleration (R), mm/sec^2\n",
+         2922:                 int(print.config().machine_max_acceleration_extruding.get_at(0) + 0.5),
+         2923:                 int(print.config().machine_max_acceleration_retracting.get_at(0) + 0.5));
+         2924:         else if (std::set<uint8_t>{gcfMarlinFirmware}.count(print.config().gcode_flavor.value) > 0)
+    >>>  2925:             file.write_format("M204 P%d R%d T%d ; sets acceleration (P, T) and retract acceleration (R), mm/sec^2\n",
+         2926:                 int(print.config().machine_max_acceleration_extruding.get_at(0) + 0.5),
+         2927:                 int(print.config().machine_max_acceleration_retracting.get_at(0) + 0.5),
+         2928:                 int(print.config().machine_max_acceleration_travel.get_at(0) + 0.5));
+         2929:         else if (std::set<uint8_t>{gcfRepRap, gcfSprinter}.count(print.config().gcode_flavor.value) > 0)
+
+    src\libslic3r\GCode.cpp:2931
+         2927:                 int(print.config().machine_max_acceleration_retracting.get_at(0) + 0.5),
+         2928:                 int(print.config().machine_max_acceleration_travel.get_at(0) + 0.5));
+         2929:         else if (std::set<uint8_t>{gcfRepRap, gcfSprinter}.count(print.config().gcode_flavor.value) > 0)
+         2930:             // Uses M204 P[print] T[travel]
+    >>>  2931:             file.write_format("M204 P%d T%d ; sets acceleration (P, T), mm/sec^2\n",
+         2932:                 int(print.config().machine_max_acceleration_extruding.get_at(0) + 0.5),
+         2933:                 int(print.config().machine_max_acceleration_travel.get_at(0) + 0.5));
+         2934:         // jerk
+         2935:         if (std::set<uint8_t>{gcfRepRap}.count(print.config().gcode_flavor.value) > 0)
+
+    src\libslic3r\GCode\GCodeWriter.cpp:463
+          459:             // M204: Set printing acceleration
+          460:             // This is new MarlinFirmware with separated print/retraction/travel acceleration.
+          461:             // Use M204 P, we don't want to override travel acc by M204 S (which is deprecated anyway).
+          462:             if (m_current_acceleration > 0)
+    >>>   463:                 gcode << "M204 P" << m_current_acceleration;
+          464:         } else if (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfRepRap) || FLAVOR_IS(gcfKlipper)) {
+          465:             // M204 P<print> T<travel>: set print and travel acceleration separately.
+          466:             // Klipper supports both P and T parameters just like MarlinFirmware.
+          467:             if (m_current_acceleration > 0)
+
+    src\libslic3r\GCode\GCodeWriter.cpp:468
+          464:         } else if (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfRepRap) || FLAVOR_IS(gcfKlipper)) {
+          465:             // M204 P<print> T<travel>: set print and travel acceleration separately.
+          466:             // Klipper supports both P and T parameters just like MarlinFirmware.
+          467:             if (m_current_acceleration > 0)
+    >>>   468:                 gcode << "M204 P" << m_current_acceleration << " T" << (m_current_travel_acceleration > 0 ? m_current_travel_acceleration : m_current_acceleration);
+          469:             else if(m_current_travel_acceleration > 0)
+          470:                 gcode << "M204 T" << m_current_travel_acceleration;
+          471:         } else { // gcfMarlinLegacy and others
+          472:             // M204 S: legacy single-value acceleration
+
+  ────────────────────────────────────────────────────────────
+  SET_PRESSURE_ADVANCE  (11 hits)
+  ────────────────────────────────────────────────────────────
+
+    src\libslic3r\GCode.cpp:7537
+         7533:         case GCodeExtrusionRole::Travel:
+         7534:             // Travel paths carry no extrusion; the base filament PA must not be
+         7535:             // applied here. filament_travel_pa (if configured) is already captured
+         7536:             // in travel_pa above and will be used during the retract/travel phase.
+    >>>  7537:             // Set pa=0 so the post-unretract set_pressure_advance() call is benign.
+         7538:             pa = 0;
+         7539:             break;
+         7540:         default:
+         7541:             break;
+
+    src\libslic3r\GCode.cpp:7578
+         7574:     speed_mm_s = _compute_speed_mm_per_sec(path, speed_mm_s, m_overhang_fan_override, m_config.gcode_comments ? &speed_comment : nullptr);
+         7575: 
+         7576:     auto[/*double*/pa, /*double*/travel_pa] = _compute_pressure_advance(path);
+         7577:     if (travel_pa >= 0) {
+    >>>  7578:         m_writer.set_pressure_advance(travel_pa);
+         7579:     } else {
+         7580:         m_writer.set_pressure_advance(pa);
+         7581:     }
+         7582: 
+
+    src\libslic3r\GCode.cpp:7580
+         7576:     auto[/*double*/pa, /*double*/travel_pa] = _compute_pressure_advance(path);
+         7577:     if (travel_pa >= 0) {
+         7578:         m_writer.set_pressure_advance(travel_pa);
+         7579:     } else {
+    >>>  7580:         m_writer.set_pressure_advance(pa);
+         7581:     }
+         7582: 
+         7583:     gcode += this->_travel_before_extrude(path, description_in, speed_mm_s);
+         7584: 
+
+    src\libslic3r\GCode.cpp:7608
+         7604:     }
+         7605:     gcode += m_writer.unretract();
+         7606: 
+         7607:     //set pa after unretraction (do nothing if it isn't changed)
+    >>>  7608:     m_writer.set_pressure_advance(pa);
+         7609: 
+         7610:     if (!m_pending_pre_extrusion_gcode.empty()) {
+         7611:         // There is G-Code that is due to be inserted before an extrusion starts. Insert it.
+         7612:         gcode += m_pending_pre_extrusion_gcode;
+
+    src\libslic3r\GCode\GCodeWriter.cpp:211
+          207:     return gcode.str();
+          208: }
+          209: 
+          210: 
+    >>>   211: void GCodeWriter::set_pressure_advance(double pa) {
+          212:     m_current_pressure_advance = pa;
+          213: }
+          214: 
+          215: void GCodeWriter::_write_pressure_advance(std::string &gcode) {
+
+    src\libslic3r\GCode\GCodeWriter.cpp:239
+          235:             // is it possible to have no tool id? or a -1 is possible?
+          236:             gcode = std::string("M572 S") + to_string_nozero(pa, 4);
+          237:         }
+          238:     } else if (FLAVOR_IS(gcfKlipper)) {
+    >>>   239:         gcode = std::string("SET_PRESSURE_ADVANCE ADVANCE=") + to_string_nozero(pa, 4);
+          240:         if (this->config.tool_name.size() > tool_id && !this->config.tool_name.get_at(tool_id).empty()) {
+          241:             gcode += std::string(" EXTRUDER=") + this->config.tool_name.get_at(tool_id);
+          242:             } else if(tool_id > 0){
+          243:                 gcode += std::string(" EXTRUDER=extruder") + std::to_string(tool_id);
+
+    src\libslic3r\GCode\GCodeWriter.hpp:61
+           57:     std::string preamble();
+           58:     std::string postamble() const;
+           59:     std::string set_temperature(int16_t temperature, bool wait = false, int tool = -1);
+           60:     std::string set_bed_temperature(uint32_t temperature, bool wait = false);
+    >>>    61:     void set_pressure_advance(double pa);
+           62:     std::string write_pressure_advance(double pa);
+           63:     std::string set_chamber_temperature(uint32_t temperature, bool wait = false);
+           64:     void        set_acceleration(uint32_t acceleration);
+           65:     void        set_travel_acceleration(uint32_t acceleration);
+
+    src\libslic3r\PrintConfig.cpp:2363
+         2359:     def->label = L("Pressure advance");
+         2360:     def->tooltip = L("Default pressure advance value (Linear advance factor for Marlin)."
+         2361:            " If enabled, the gcode will emit a pressure advance value for this filament."
+         2362:            "\nWith reprap and sprinter, 'M572 Dx Sx' is used."
+    >>>  2363:            "\nWith klipper, 'SET_PRESSURE_ADVANCE ADVANCE=x EXTRUDER=x' is used."
+         2364:            "\nWith other firmware 'M900 Kx' is used.");
+         2365:     def->category = OptionCategory::filament;
+         2366:     def->min = 0;
+         2367:     def->can_be_disabled = true;
+
+    src\slic3r\GUI\CalibrationPressureAdvDialog.cpp:854
+          850:         auto last_90_bend_scale = model.objects[objs_idx[id_item]]->volumes[count_increments]->get_scaling_factor();
+          851:         Eigen::Vector3d bend_90_mesh = model.objects[objs_idx[id_item]]->volumes[count_increments]->mesh().size();
+          852:         double model_height = bend_90_mesh.z() * last_90_bend_scale.z();
+          853: 
+    >>>   854:         std::string set_first_layer_prefix = (gcfKlipper == flavor) ? "SET_PRESSURE_ADVANCE ADVANCE=" :
+          855:                                          (gcfMarlinFirmware == flavor) ? "M900 K" :
+          856:                                          (gcfRepRap == flavor) ? "M572 S" : "";
+          857:         std::string region_prefix = "{if layer_z <= " + std::to_string(first_layer_height) + "}" + set_first_layer_prefix + std::to_string(first_pa) + "; first layer [layer_z] {endif}";
+          858: 
+
+    src\slic3r\GUI\CalibrationPressureAdvDialog.cpp:1042
+         1038:             double adjusted_first_layer_width_y = er_width * (1 + (xy_scaled_90_bend_y - first_layer_xy_scaled_90_bend_y_match) / xy_scaled_90_bend_y);
+         1039:             double adjusted_first_average = (adjusted_first_layer_width_x + adjusted_first_layer_width_y) / 2;
+         1040: 
+         1041:             std::string set_advance_prefix = 
+    >>>  1042:                 (gcfKlipper == flavor) ? (smooth_time ? "SET_PRESSURE_ADVANCE SMOOTH_TIME=" : "SET_PRESSURE_ADVANCE ADVANCE=") :
+         1043:                 (gcfMarlinFirmware == flavor) ? "M900 K" :
+         1044:                 (gcfRepRap == flavor) ? "M572 S" : "";
+         1045: 
+         1046: 
+
+    src\slic3r\GUI\CalibrationPressureAdvDialog.cpp:1102
+         1098: 
+         1099:         bool enable_region_gcode_for_numbers = false;// this still needa a bit of work, the first layer ends up getting messed up surfaces. might be a config thing?
+         1100:         //                                              unless i need to change the numbers height and z position?
+         1101:         if (enable_region_gcode_for_numbers == true){
+    >>>  1102:             std::string set_advance_prefix = (gcfKlipper == flavor) ? (smooth_time ? "SET_PRESSURE_ADVANCE SMOOTH_TIME=" : "SET_PRESSURE_ADVANCE ADVANCE=") :
+         1103:                                              (gcfMarlinFirmware == flavor) ? "M900 K" :
+         1104:                                              (gcfRepRap == flavor) ? "M572 S" : "";
+         1105: 
+         1106:             int pa_index = 0;
+
+  ────────────────────────────────────────────────────────────
+  SET_RETRACTION_FIRMWARE_RETRACT  (28 hits)
+  ────────────────────────────────────────────────────────────
+
+    src\libslic3r\Format\BBConfig.cpp:380
+          376:     key_translation_map["single_extruder_multi_material"]      = "single_extruder_multi_material";
+          377:     key_translation_map["thumbnails"]                          = "thumbnails"; //TOCHECK
+          378:     key_translation_map["thumbnails_format"]                   = "thumbnails_format";
+          379:     key_translation_map["template_custom_gcode"]               = "template_custom_gcode";
+    >>>   380:     key_translation_map["use_firmware_retraction"]             = "use_firmware_retraction";
+          381:     key_translation_map["use_relative_e_distances"]            = "use_relative_e_distances";
+          382:     key_translation_map["wipe"]                                = "wipe";
+          383: 
+          384: //    'physical_printer' => {
+
+    src\libslic3r\GCode\GCodeWriter.cpp:1025
+         1021:     
+         1022:     /*  If firmware retraction is enabled, we use a fake value of 1
+         1023:         since we ignore the actual configured retract_length which 
+         1024:         might be 0, in which case the retraction logic gets skipped. */
+    >>>  1025:     if (this->config.use_firmware_retraction)
+         1026:         length = 1;
+         1027:     
+         1028:     // If we use volumetric E values we turn lengths into volumes */
+         1029:     if (this->config.use_volumetric_e) {
+
+    src\libslic3r\GCode\GCodeWriter.cpp:1052
+         1048:     if (dE != 0) {
+         1049:         // write pa if it's set for retraction
+         1050:         _write_pressure_advance(gcode);
+         1051:         //write retract gcode
+    >>>  1052:         if (this->config.use_firmware_retraction) {
+         1053:             if (FLAVOR_IS(gcfMachinekit))
+         1054:                 gcode += "G22 ; retract\n";
+         1055:             else
+         1056:                 gcode += "G10 ; retract\n";
+
+    src\libslic3r\GCode\GCodeWriter.cpp:1092
+         1088:     if (dE != 0) {
+         1089:         // write pa if it's set for retraction
+         1090:         _write_pressure_advance(gcode);
+         1091:         // write unretract gcode
+    >>>  1092:         if (this->config.use_firmware_retraction) {
+         1093:             gcode += (FLAVOR_IS(gcfMachinekit) ? "G23 ; unretract\n" : "G11 ; unretract\n");
+         1094:             gcode += this->reset_e();
+         1095:         } else if (! m_extrusion_axis.empty()) {
+         1096:             // use G1 instead of G0 because G0 will blend the restart with the previous travel move
+
+    src\libslic3r\GCode\Wipe.cpp:111
+          107: {
+          108:     std::string     gcode;
+          109:     const Tool &extruder = *gcodegen.writer().tool();
+          110:     static constexpr const std::string_view wipe_retract_comment = "wipe and retract"sv;
+    >>>   111:     const bool use_firmware_retract = gcodegen.writer().gcode_config().use_firmware_retraction.value;
+          112: 
+          113:     if (!gcodegen.writer().tool_is_extruder())
+          114:         return "";
+          115: 
+
+    src\libslic3r\GCode\Wipe.cpp:159
+          155:         const double lift_per_mm = lift / lift_length;
+          156:         const double initial_z = gcodegen.writer().get_position().z();
+          157:         double current_z = initial_z;
+          158:         const double final_z = gcodegen.writer().get_position().z() + lift;
+    >>>   159:         auto         wipe_linear = [&gcode, &gcodegen, &retract_length, &wipe_length, &no_lift_length, &current_z, xy_to_e, use_firmware_retract, lift_per_mm, final_z]
+          160:         (const Vec2d &prev_quantized, Vec2d &p, bool &done)->bool { //return false if point is used, true if need to be recalled again
+          161:             bool partial_segment = false;
+          162:             Vec2d  p_quantized = gcodegen.writer().get_default_gcode_formatter().quantize(p);
+          163:             if (p_quantized == prev_quantized) {
+
+    src\libslic3r\GCode\Wipe.cpp:219
+          215:                         segment_length = (p_quantized - prev_quantized).norm();
+          216:                         partial_segment = true;
+          217:                         // test if the shorten segment isn't too short
+          218:                         if (p_quantized == prev_quantized) {
+    >>>   219:                             if (!use_firmware_retract) {
+          220:                                 // add it as missing extrusion to push through as soon as possible.
+          221:                                 gcodegen.writer().add_de_delayed(retract_length);
+          222:                             }
+          223:                             // too small to print, ask for a retry (with no retract_length left)
+
+    src\libslic3r\GCode\Wipe.cpp:235
+          231:             p = p_quantized;
+          232:             assert(p.x() != gcodegen.writer().get_position().x() || p.y() != gcodegen.writer().get_position().y());
+          233:             if (lift_per_mm == 0 || no_lift_length > EPSILON) {
+          234:                 if (dE > 0) {
+    >>>   235:                     gcode += gcodegen.writer().extrude_to_xy(p, use_firmware_retract ? 0 : -dE, wipe_retract_comment);
+          236:                 } else {
+          237:                     gcode += gcodegen.writer().travel_to_xy(p, 0,  wipe_retract_comment);
+          238:                 }
+          239:             } else {
+
+    src\libslic3r\GCode\Wipe.cpp:243
+          239:             } else {
+          240:                 current_z = std::min(final_z, current_z + segment_length * lift_per_mm);
+          241:                 Vec3d p3d(p.x(), p.y(), current_z);
+          242:                 if (dE > 0) {
+    >>>   243:                     gcode += gcodegen.writer().extrude_to_xyz(p3d, use_firmware_retract ? 0 : -dE, wipe_retract_comment);
+          244:                 } else {
+          245:                     gcode += gcodegen.writer().travel_to_xyz(p3d, false, 0,  wipe_retract_comment);
+          246:                 }
+          247:             }
+
+    src\libslic3r\GCode\Wipe.cpp:255
+          251:             done = wipe_length < EPSILON;
+          252:             assert(wipe_length > -0.1);
+          253:             return partial_segment;
+          254:         };
+    >>>   255:         auto         wipe_arc = [this, &gcode, &gcodegen, &retract_length, &wipe_length, &no_lift_length, &current_z, xy_to_e, use_firmware_retract, lift_per_mm, final_z, &wipe_linear]
+          256:                 (const Vec2d &prev_quantized, Vec2d &p,  const Slic3r::Geometry::ArcWelder::Segment &seg/*double radius_in, const bool ccw, */, bool &done)->bool { //return false if point is used, true if need to be recalled again
+          257:             const double radius_in = unscaled(seg.radius);
+          258:             const bool ccw = seg.ccw();
+          259:             bool partial_segment = false;
+
+    src\libslic3r\GCode\Wipe.cpp:335
+          331:                 p = p_quantized;
+          332:                 // The arc is valid.
+          333:                 if (lift_per_mm == 0 || no_lift_length > EPSILON) {
+          334:                     if (dE > 0) {
+    >>>   335:                         gcode += gcodegen.writer().extrude_arc_to_xy(p, ij, use_firmware_retract ? 0 : -dE, ccw, wipe_retract_comment);
+          336:                     } else {
+          337:                         gcode += gcodegen.writer().travel_arc_to_xy(p, ij, ccw, 0/*speed*/, wipe_retract_comment);
+          338:                     }
+          339:                 } else {
+
+    src\libslic3r\GCode\Wipe.cpp:342
+          338:                     }
+          339:                 } else {
+          340:                     current_z = std::min(final_z, current_z + segment_length * lift_per_mm);
+          341:                     Vec3d p3d(p.x(), p.y(), current_z);
+    >>>   342:                     gcode += gcodegen.writer().extrude_arc_to_xyz(p3d, ij, use_firmware_retract ? 0 : -dE, ccw, wipe_retract_comment);
+          343:                 }
+          344:             }
+          345:             retract_length -= dE;
+          346:             wipe_length -= segment_length;
+
+    src\libslic3r\Preset.cpp:1080
+         1076:     "gcode_flavor",
+         1077:     "gcode_precision_xyz",
+         1078:     "gcode_precision_e",
+         1079:     "use_relative_e_distances",
+    >>>  1080:     "use_firmware_retraction", "use_volumetric_e", "variable_layer_height",
+         1081:     "lift_min",
+         1082:     "gcode_command_buffer",
+         1083:     "gcode_min_length",
+         1084:     "gcode_min_resolution",
+
+    src\libslic3r\Print.cpp:242
+          238:         "tool_name",
+          239:         "toolchange_gcode",
+          240:         "top_fan_speed",
+          241:         "threads",
+    >>>   242:         "use_firmware_retraction",
+          243:         "use_relative_e_distances",
+          244:         "use_volumetric_e",
+          245:         "variable_layer_height",
+          246:         "wipe",
+
+    src\libslic3r\PrintConfig.cpp:7238
+         7234:     def->min = 0;
+         7235:     def->mode = comExpert | comPrusa;
+         7236:     def->set_default_value(new ConfigOptionFloat(0.));
+         7237: 
+    >>>  7238:     def = this->add("use_firmware_retraction", coBool);
+         7239:     def->label = L("Use firmware retraction");
+         7240:     def->category = OptionCategory::general;
+         7241:     def->tooltip = L("This setting uses G10 and G11 commands to have the firmware "
+         7242:                    "handle the retraction. Note that this has to be supported by firmware.");
+
+    src\libslic3r\PrintConfig.cpp:11819
+        11815:         return "Invalid value for --top-solid-layers";
+        11816:     if (cfg.bottom_solid_layers < 0)
+        11817:         return "Invalid value for --bottom-solid-layers";
+        11818: 
+    >>> 11819:     if (cfg.use_firmware_retraction.value &&
+        11820:         cfg.gcode_flavor.value != gcfSmoothie &&
+        11821:         cfg.gcode_flavor.value != gcfSprinter &&
+        11822:         cfg.gcode_flavor.value != gcfRepRap &&
+        11823:         cfg.gcode_flavor.value != gcfMarlinLegacy &&
+
+    src\libslic3r\PrintConfig.cpp:11830
+        11826:         cfg.gcode_flavor.value != gcfRepetier &&
+        11827:         cfg.gcode_flavor.value != gcfKlipper)
+        11828:         return "--use-firmware-retraction is only supported by Marlin 1&2, Smoothie, Sprinter, Reprap, Repetier, Machinekit, Repetier, Klipper? and Lerdge firmware";
+        11829: 
+    >>> 11830:     if (cfg.use_firmware_retraction.value)
+        11831:         for (unsigned char wipe : cfg.wipe.get_values())
+        11832:              if (wipe)
+        11833:                 return "--use-firmware-retraction is not compatible with --wipe";
+        11834: 
+
+    src\libslic3r\PrintConfig.hpp:1238
+         1234:     ((ConfigOptionStrings,             tool_name))
+         1235:     ((ConfigOptionString,              toolchange_gcode))
+         1236:     ((ConfigOptionFloat,               travel_speed))
+         1237:     ((ConfigOptionFloat,               travel_speed_z))
+    >>>  1238:     ((ConfigOptionBool,                use_firmware_retraction))
+         1239:     ((ConfigOptionBool,                use_relative_e_distances))
+         1240:     ((ConfigOptionBool,                use_volumetric_e))
+         1241:     ((ConfigOptionBool,                variable_layer_height))
+         1242:     ((ConfigOptionBool,                wipe_advanced))
+
+    src\slic3r\GUI\CalibrationRetractionDialog.cpp:154
+          150:     full_print_config.apply(*print_config);
+          151:     full_print_config.apply(*printer_config);
+          152:     full_print_config.apply(*filament_config);
+          153: 
+    >>>   154:     // check if the printer has use_firmware_retraction
+          155:     if (printer_config->opt_bool("use_firmware_retraction")) {
+          156:         MessageDialog dialog(this, _L("The current printer profile has the firmware retraction enabled. This calibration can't work with this setting enabled."), _L("Firmware retraction enabled"),
+          157:             wxICON_WARNING | wxOK);
+          158:         dialog.Show();
+
+    src\slic3r\GUI\CalibrationRetractionDialog.cpp:155
+          151:     full_print_config.apply(*printer_config);
+          152:     full_print_config.apply(*filament_config);
+          153: 
+          154:     // check if the printer has use_firmware_retraction
+    >>>   155:     if (printer_config->opt_bool("use_firmware_retraction")) {
+          156:         MessageDialog dialog(this, _L("The current printer profile has the firmware retraction enabled. This calibration can't work with this setting enabled."), _L("Firmware retraction enabled"),
+          157:             wxICON_WARNING | wxOK);
+          158:         dialog.Show();
+          159:         return;
+
+    src\slic3r\GUI\ConfigManipulation.cpp:726
+          722:             is_msg_dlg_already_exist = false;
+          723:         }
+          724:         
+          725:         bool have_retract_length = config->opt_float("retract_length", extruder_idx) > 0;
+    >>>   726:         bool use_firmware_retraction = config->opt_bool("use_firmware_retraction");
+          727:         bool wipe = config->get_bool("wipe", extruder_idx) && have_retract_length;
+          728:         if (use_firmware_retraction && wipe) {
+          729:             DynamicPrintConfig new_conf = *config;
+          730:             //wxMessageDialog dialog(parent(),
+
+    src\slic3r\GUI\ConfigManipulation.cpp:728
+          724:         
+          725:         bool have_retract_length = config->opt_float("retract_length", extruder_idx) > 0;
+          726:         bool use_firmware_retraction = config->opt_bool("use_firmware_retraction");
+          727:         bool wipe = config->get_bool("wipe", extruder_idx) && have_retract_length;
+    >>>   728:         if (use_firmware_retraction && wipe) {
+          729:             DynamicPrintConfig new_conf = *config;
+          730:             //wxMessageDialog dialog(parent(),
+          731:             MessageDialog dialog(m_msg_dlg_parent,
+          732:                 _(L("The Wipe option is not available when using the Firmware Retraction mode.\n"
+
+    src\slic3r\GUI\ConfigManipulation.cpp:739
+          735: 
+          736:             if (dialog.ShowModal() == wxID_YES) {
+          737:                 new_conf.option<ConfigOptionBools>("wipe")->set_at(uint8_t(false), extruder_idx);
+          738:             } else {
+    >>>   739:                 new_conf.option<ConfigOptionBool>("use_firmware_retraction")->value = false;
+          740:             }
+          741:             apply(config, &new_conf);
+          742:         }
+          743:     }
+
+    src\slic3r\GUI\ConfigManipulation.cpp:794
+          790:         toggle_field("travel_slope", ramping_lift, i);
+          791:         // toggle_field("retract_lift", ! ramping_lift, i);
+          792: 
+          793:         // when using firmware retraction, firmware decides retraction length
+    >>>   794:         bool use_firmware_retraction = config->opt_bool("use_firmware_retraction");
+          795:         toggle_field("retract_length", !use_firmware_retraction, i);
+          796: 
+          797:         // retraction only if have retraction length or we're using firmware retraction
+          798:         bool retraction = (have_retract_length || use_firmware_retraction);
+
+    src\slic3r\GUI\ConfigManipulation.cpp:795
+          791:         // toggle_field("retract_lift", ! ramping_lift, i);
+          792: 
+          793:         // when using firmware retraction, firmware decides retraction length
+          794:         bool use_firmware_retraction = config->opt_bool("use_firmware_retraction");
+    >>>   795:         toggle_field("retract_length", !use_firmware_retraction, i);
+          796: 
+          797:         // retraction only if have retraction length or we're using firmware retraction
+          798:         bool retraction = (have_retract_length || use_firmware_retraction);
+          799:         
+
+    src\slic3r\GUI\ConfigManipulation.cpp:798
+          794:         bool use_firmware_retraction = config->opt_bool("use_firmware_retraction");
+          795:         toggle_field("retract_length", !use_firmware_retraction, i);
+          796: 
+          797:         // retraction only if have retraction length or we're using firmware retraction
+    >>>   798:         bool retraction = (have_retract_length || use_firmware_retraction);
+          799:         
+          800:         // user can customize travel length if we have retraction length or we"re using
+          801:         // firmware retraction
+          802:         toggle_field("retract_before_travel", have_retract_length || use_firmware_retraction, i);
+
+    src\slic3r\GUI\ConfigManipulation.cpp:802
+          798:         bool retraction = (have_retract_length || use_firmware_retraction);
+          799:         
+          800:         // user can customize travel length if we have retraction length or we"re using
+          801:         // firmware retraction
+    >>>   802:         toggle_field("retract_before_travel", have_retract_length || use_firmware_retraction, i);
+          803:         
+          804:         // user can customize other retraction options if retraction is enabled
+          805:         //std::vector<std::string> vec = {"retract_layer_change" }; // "retract_lift" "retract_before_travel"
+          806:         // now possible outside retraction
+
+    src\slic3r\GUI\ConfigManipulation.cpp:824
+          820:         vec = { "retract_speed", "deretract_speed", "retract_before_wipe",
+          821:             "retract_restart_extra", "wipe", "wipe_speed" , "wipe_only_crossing",
+          822:             "wipe_return"};
+          823:         for (auto el : vec) {
+    >>>   824:             toggle_field(el, retraction && !use_firmware_retraction, i);
+          825:         }
+          826: 
+          827:         bool wipe = config->opt_bool("wipe", i) && have_retract_length;
+          828:         vec.resize(0);
+
+  ────────────────────────────────────────────────────────────
+  SET_SKEW_SKEW_PROFILE  (26 hits)
+  ────────────────────────────────────────────────────────────
+
+    src\libslic3r\Geometry.cpp:648
+          644:     const Geometry::TransformationSVD svd(*this);
+          645:     m_matrix = get_offset_matrix() * Transform3d(svd.u) * Transform3d(svd.v.transpose()) * svd.mirror_matrix();
+          646: }
+          647: 
+    >>>   648: void Transformation::reset_skew()
+          649: {
+          650:     auto new_scale_factor = [](const Matrix3d& s) {
+          651:         return pow(s(0, 0) * s(1, 1) * s(2, 2), 1. / 3.); // scale average
+          652:     };
+
+    src\libslic3r\Geometry.hpp:481
+          477:     void reset_offset() { set_offset(Vec3d::Zero()); }
+          478:     void reset_rotation();
+          479:     void reset_scaling_factor();
+          480:     void reset_mirror() { set_mirror(Vec3d::Ones()); }
+    >>>   481:     void reset_skew();
+          482: 
+          483:     const Transform3d& get_matrix() const { return m_matrix; }
+          484:     Transform3d get_matrix_no_offset() const;
+          485:     Transform3d get_matrix_no_scaling_factor() const;
+
+    src\slic3r\GUI\GLCanvas3D.cpp:1194
+         1190: wxDEFINE_EVENT(EVT_GLCANVAS_QUESTION_MARK, SimpleEvent);
+         1191: wxDEFINE_EVENT(EVT_GLCANVAS_INCREASE_INSTANCES, Event<int>);
+         1192: wxDEFINE_EVENT(EVT_GLCANVAS_INSTANCE_MOVED, SimpleEvent);
+         1193: wxDEFINE_EVENT(EVT_GLCANVAS_INSTANCE_ROTATED, SimpleEvent);
+    >>>  1194: wxDEFINE_EVENT(EVT_GLCANVAS_RESET_SKEW, SimpleEvent);
+         1195: wxDEFINE_EVENT(EVT_GLCANVAS_INSTANCE_SCALED, SimpleEvent);
+         1196: wxDEFINE_EVENT(EVT_GLCANVAS_INSTANCE_MIRRORED, SimpleEvent);
+         1197: wxDEFINE_EVENT(EVT_GLCANVAS_FORCE_UPDATE, SimpleEvent);
+         1198: wxDEFINE_EVENT(EVT_GLCANVAS_WIPETOWER_MOVED, Vec3dEvent);
+
+    src\slic3r\GUI\GLCanvas3D.cpp:4723
+         4719: 
+         4720:     m_dirty = true;
+         4721: }
+         4722: 
+    >>>  4723: void GLCanvas3D::do_reset_skew(const std::string& snapshot_type)
+         4724: {
+         4725:     if (m_model == nullptr)
+         4726:         return;
+         4727: 
+
+    src\slic3r\GUI\GLCanvas3D.cpp:4784
+         4780:     //update sinking information in ObjectList
+         4781:     for (int id : obj_idx_for_update_info_items)
+         4782:         wxGetApp().obj_list()->update_info_items(static_cast<size_t>(id));
+         4783: 
+    >>>  4784:     post_event(SimpleEvent(EVT_GLCANVAS_RESET_SKEW));
+         4785: 
+         4786:     m_dirty = true;
+         4787: }
+         4788: 
+
+    src\slic3r\GUI\GLCanvas3D.hpp:169
+          165: wxDECLARE_EVENT(EVT_GLCANVAS_INSTANCE_MOVED, SimpleEvent);
+          166: wxDECLARE_EVENT(EVT_GLCANVAS_FORCE_UPDATE, SimpleEvent);
+          167: wxDECLARE_EVENT(EVT_GLCANVAS_WIPETOWER_MOVED, Vec3dEvent);
+          168: wxDECLARE_EVENT(EVT_GLCANVAS_INSTANCE_ROTATED, SimpleEvent);
+    >>>   169: wxDECLARE_EVENT(EVT_GLCANVAS_RESET_SKEW, SimpleEvent);
+          170: wxDECLARE_EVENT(EVT_GLCANVAS_INSTANCE_SCALED, SimpleEvent);
+          171: wxDECLARE_EVENT(EVT_GLCANVAS_INSTANCE_MIRRORED, SimpleEvent);
+          172: wxDECLARE_EVENT(EVT_GLCANVAS_WIPETOWER_ROTATED, Vec3dEvent);
+          173: wxDECLARE_EVENT(EVT_GLCANVAS_ENABLE_ACTION_BUTTONS, Event<bool>);
+
+    src\slic3r\GUI\GLCanvas3D.hpp:934
+          930:     void do_move(const std::string& snapshot_type);
+          931:     void do_rotate(const std::string& snapshot_type);
+          932:     void do_scale(const std::string& snapshot_type);
+          933:     void do_mirror(const std::string& snapshot_type);
+    >>>   934:     void do_reset_skew(const std::string& snapshot_type);
+          935: 
+          936:     void update_gizmos_on_off_state();
+          937:     void reset_all_gizmos() { m_gizmos.reset_all_states(); }
+          938: 
+
+    src\slic3r\GUI\GUI_ObjectManipulation.cpp:488
+          484: 
+          485:     m_skew_label = new wxStaticText(parent, wxID_ANY, _L("Skew [World]"));
+          486:     m_main_grid_sizer->Add(m_skew_label, 1, wxEXPAND);
+          487: 
+    >>>   488:     m_reset_skew_button = new ScalableButton(parent, wxID_ANY, ScalableBitmap(parent, "undo"));
+          489:     m_reset_skew_button->SetToolTip(_L("Reset skew"));
+          490:     m_reset_skew_button->Bind(wxEVT_BUTTON, [this](wxCommandEvent& e) {
+          491:         GLCanvas3D* canvas = wxGetApp().plater()->canvas3D();
+          492:         Selection& selection = canvas->get_selection();
+
+    src\slic3r\GUI\GUI_ObjectManipulation.cpp:489
+          485:     m_skew_label = new wxStaticText(parent, wxID_ANY, _L("Skew [World]"));
+          486:     m_main_grid_sizer->Add(m_skew_label, 1, wxEXPAND);
+          487: 
+          488:     m_reset_skew_button = new ScalableButton(parent, wxID_ANY, ScalableBitmap(parent, "undo"));
+    >>>   489:     m_reset_skew_button->SetToolTip(_L("Reset skew"));
+          490:     m_reset_skew_button->Bind(wxEVT_BUTTON, [this](wxCommandEvent& e) {
+          491:         GLCanvas3D* canvas = wxGetApp().plater()->canvas3D();
+          492:         Selection& selection = canvas->get_selection();
+          493:         if (selection.is_single_full_instance() || selection.is_single_volume_or_modifier()) {
+
+    src\slic3r\GUI\GUI_ObjectManipulation.cpp:490
+          486:     m_main_grid_sizer->Add(m_skew_label, 1, wxEXPAND);
+          487: 
+          488:     m_reset_skew_button = new ScalableButton(parent, wxID_ANY, ScalableBitmap(parent, "undo"));
+          489:     m_reset_skew_button->SetToolTip(_L("Reset skew"));
+    >>>   490:     m_reset_skew_button->Bind(wxEVT_BUTTON, [this](wxCommandEvent& e) {
+          491:         GLCanvas3D* canvas = wxGetApp().plater()->canvas3D();
+          492:         Selection& selection = canvas->get_selection();
+          493:         if (selection.is_single_full_instance() || selection.is_single_volume_or_modifier()) {
+          494:             selection.setup_cache();
+
+    src\slic3r\GUI\GUI_ObjectManipulation.cpp:495
+          491:         GLCanvas3D* canvas = wxGetApp().plater()->canvas3D();
+          492:         Selection& selection = canvas->get_selection();
+          493:         if (selection.is_single_full_instance() || selection.is_single_volume_or_modifier()) {
+          494:             selection.setup_cache();
+    >>>   495:             selection.reset_skew();
+          496:             canvas->do_reset_skew(L("Reset skew"));
+          497:             UpdateAndShow(true);
+          498:         }
+          499:         });
+
+    src\slic3r\GUI\GUI_ObjectManipulation.cpp:496
+          492:         Selection& selection = canvas->get_selection();
+          493:         if (selection.is_single_full_instance() || selection.is_single_volume_or_modifier()) {
+          494:             selection.setup_cache();
+          495:             selection.reset_skew();
+    >>>   496:             canvas->do_reset_skew(L("Reset skew"));
+          497:             UpdateAndShow(true);
+          498:         }
+          499:         });
+          500:     m_main_grid_sizer->Add(m_reset_skew_button);
+
+    src\slic3r\GUI\GUI_ObjectManipulation.cpp:500
+          496:             canvas->do_reset_skew(L("Reset skew"));
+          497:             UpdateAndShow(true);
+          498:         }
+          499:         });
+    >>>   500:     m_main_grid_sizer->Add(m_reset_skew_button);
+          501: 
+          502:     m_check_inch = CheckBox::GetNewWin(parent, _L("Inches"));
+          503:     m_check_inch->SetFont(wxGetApp().normal_font());
+          504: 
+
+    src\slic3r\GUI\GUI_ObjectManipulation.cpp:556
+          552:         m_word_local_combo->Show(show_world_local_combo);
+          553:         m_empty_str->Show(!show_world_local_combo);
+          554: 
+          555:         m_skew_label->Show(m_show_skew);
+    >>>   556:         m_reset_skew_button->Show(m_show_skew);
+          557: 
+          558:         m_parent->Layout();
+          559:     }
+          560: }
+
+    src\slic3r\GUI\GUI_ObjectManipulation.cpp:584
+          580: void ObjectManipulation::Enable(const bool enable)
+          581: {
+          582:     m_is_enabled = m_is_enabled_size_and_scale = enable;
+          583:     for (wxWindow* win : std::initializer_list<wxWindow*>{ m_reset_scale_button, m_reset_rotation_button, m_drop_to_bed_button, m_check_inch, m_lock_bnt
+    >>>   584:       , m_reset_skew_button })
+          585:         win->Enable(enable);
+          586: }
+          587: 
+          588: void ObjectManipulation::DisableScale()
+
+    src\slic3r\GUI\GUI_ObjectManipulation.cpp:592
+          588: void ObjectManipulation::DisableScale()
+          589: {
+          590:     m_is_enabled = true;
+          591:     m_is_enabled_size_and_scale = false;
+    >>>   592:     for (wxWindow* win : std::initializer_list<wxWindow*>{ m_reset_scale_button, m_lock_bnt, m_reset_skew_button })
+          593:         win->Enable(false);
+          594: }
+          595: 
+          596: void ObjectManipulation::DisableUnuniformScale()
+
+    src\slic3r\GUI\GUI_ObjectManipulation.cpp:867
+          863:         else {
+          864:             // Call sidebar layout only if it's really needed,
+          865:             // it means, when we show/hide additional line for skew information
+          866:             m_show_skew = show_skew;
+    >>>   867:             m_reset_skew_button->Show(m_show_skew);
+          868:             m_skew_label->Show(m_show_skew);
+          869:             // Because of CallAfter we need to layout sidebar after Show/hide of reset buttons one more time
+          870:             Sidebar& panel = wxGetApp().sidebar();
+          871:             if (!panel.IsFrozen()) {
+
+    src\slic3r\GUI\GUI_ObjectManipulation.hpp:135
+          131: 
+          132:     // Non-owning pointers to the reset buttons, so we can hide and show them.
+          133:     ScalableButton* m_reset_scale_button{ nullptr };
+          134:     ScalableButton* m_reset_rotation_button{ nullptr };
+    >>>   135:     ScalableButton* m_reset_skew_button{ nullptr };
+          136:     ScalableButton* m_drop_to_bed_button{ nullptr };
+          137: 
+          138:     wxWindow*       m_check_inch {nullptr};
+          139: 
+
+    src\slic3r\GUI\Plater.cpp:2372
+         2368:         view3D_canvas->Bind(EVT_GLCANVAS_FORCE_UPDATE, [this](SimpleEvent&) { update(); });
+         2369:         view3D_canvas->Bind(EVT_GLCANVAS_WIPETOWER_MOVED, &priv::on_wipetower_moved, this);
+         2370:         view3D_canvas->Bind(EVT_GLCANVAS_WIPETOWER_ROTATED, &priv::on_wipetower_rotated, this);
+         2371:         view3D_canvas->Bind(EVT_GLCANVAS_INSTANCE_ROTATED, [this](SimpleEvent&) { update(); });
+    >>>  2372:         view3D_canvas->Bind(EVT_GLCANVAS_RESET_SKEW, [this](SimpleEvent&) { update(); });
+         2373:         view3D_canvas->Bind(EVT_GLCANVAS_INSTANCE_SCALED, [this](SimpleEvent&) { update(); });
+         2374:         view3D_canvas->Bind(EVT_GLCANVAS_INSTANCE_MIRRORED, [this](SimpleEvent&) { update(); });
+         2375:         view3D_canvas->Bind(EVT_GLCANVAS_ENABLE_ACTION_BUTTONS, [this](Event<bool>& evt) { this->sidebar->enable_buttons(evt.data); });
+         2376:         view3D_canvas->Bind(EVT_GLCANVAS_UPDATE_GEOMETRY, &priv::on_update_geometry, this);
+
+    src\slic3r\GUI\Selection.cpp:1361
+         1357:     set_bounding_boxes_dirty();
+         1358:     wxGetApp().plater()->canvas3D()->requires_check_outside_state();
+         1359: }
+         1360: 
+    >>>  1361: void Selection::reset_skew()
+         1362: {
+         1363:     if (!m_valid)
+         1364:         return;
+         1365: 
+
+    src\slic3r\GUI\Selection.cpp:1376
+         1372:         if (world_trafo.has_skew()) {
+         1373:             if (!inst_trafo.has_skew() && !vol_trafo.has_skew()) {
+         1374:                 // <W> = [I][V]
+         1375:                 world_trafo.reset_offset();
+    >>>  1376:                 world_trafo.reset_skew();
+         1377:                 v.set_volume_transformation(vol_trafo.get_offset_matrix() * inst_trafo.get_matrix_no_offset().inverse() * world_trafo.get_matrix());
+         1378:             }
+         1379:             else {
+         1380:                 // <W> = <I><V>
+
+    src\slic3r\GUI\Selection.cpp:1384
+         1380:                 // <W> = <I><V>
+         1381:                 // <W> = <I>[V]
+         1382:                 // <W> = [I]<V>
+         1383:                 if (inst_trafo.has_skew()) {
+    >>>  1384:                     inst_trafo.reset_skew();
+         1385:                     v.set_instance_transformation(inst_trafo);
+         1386:                 }
+         1387:                 if (vol_trafo.has_skew()) {
+         1388:                     vol_trafo.reset_skew();
+
+    src\slic3r\GUI\Selection.cpp:1388
+         1384:                     inst_trafo.reset_skew();
+         1385:                     v.set_instance_transformation(inst_trafo);
+         1386:                 }
+         1387:                 if (vol_trafo.has_skew()) {
+    >>>  1388:                     vol_trafo.reset_skew();
+         1389:                     v.set_volume_transformation(vol_trafo);
+         1390:                 }
+         1391:             }
+         1392:         }
+
+    src\slic3r\GUI\Selection.cpp:1397
+         1393:         else {
+         1394:             // [W] = [I][V]
+         1395:             // [W] = <I><V>
+         1396:             if (inst_trafo.has_skew()) {
+    >>>  1397:                 inst_trafo.reset_skew();
+         1398:                 v.set_instance_transformation(inst_trafo);
+         1399:             }
+         1400:             if (vol_trafo.has_skew()) {
+         1401:                 vol_trafo.reset_skew();
+
+    src\slic3r\GUI\Selection.cpp:1401
+         1397:                 inst_trafo.reset_skew();
+         1398:                 v.set_instance_transformation(inst_trafo);
+         1399:             }
+         1400:             if (vol_trafo.has_skew()) {
+    >>>  1401:                 vol_trafo.reset_skew();
+         1402:                 v.set_volume_transformation(vol_trafo);
+         1403:             }
+         1404:         }
+         1405:     }
+
+    src\slic3r\GUI\Selection.hpp:315
+          311:     void scale(const Vec3d& scale, TransformationType transformation_type);
+          312:     void scale_to_fit_print_volume(const BuildVolume& volume);
+          313:     void scale_and_translate(const Vec3d& scale, const Vec3d& world_translation, TransformationType transformation_type);
+          314:     void mirror(Axis axis, TransformationType transformation_type);
+    >>>   315:     void reset_skew();
+          316:     void translate(unsigned int object_idx, unsigned int instance_idx, const Vec3d& displacement);
+          317: 
+          318:     // returns:
+          319:     // -1 if the user refused to proceed with baking when asked
+
+  ────────────────────────────────────────────────────────────
+  SET_VELOCITY_LIMIT  (3 hits)
+  ────────────────────────────────────────────────────────────
+
+    src\libslic3r\GCode.cpp:2875
+         2871:    // gcfRepRap, gcfRepetier, gcfTeacup, gcfMakerWare, gcfMarlinLegacy, gcfMarlinFirmware, gcfKlipper, gcfSailfish, gcfSprinter, gcfMach3, gcfMachinekit,
+         2872:    ///     gcfSmoothie, gcfNoExtrusion,
+         2873:     if (print.config().machine_limits_usage.value == MachineLimitsUsage::EmitToGCode) {
+         2874:         if (print.config().gcode_flavor.value == gcfKlipper) {
+    >>>  2875:             // Klipper uses SET_VELOCITY_LIMIT for all motion limits.
+         2876:             // MAX_ACCEL_TO_DECEL was removed in Klipper 20250811; do not emit it.
+         2877:             // machine_max_jerk_x/y map to SQUARE_CORNER_VELOCITY (mm/s); use the minimum of X and Y.
+         2878:             file.write_format(
+         2879:                 "SET_VELOCITY_LIMIT MAX_VELOCITY=%.1lf MAX_ACCEL=%d SQUARE_CORNER_VELOCITY=%.2lf"
+
+    src\libslic3r\GCode.cpp:2879
+         2875:             // Klipper uses SET_VELOCITY_LIMIT for all motion limits.
+         2876:             // MAX_ACCEL_TO_DECEL was removed in Klipper 20250811; do not emit it.
+         2877:             // machine_max_jerk_x/y map to SQUARE_CORNER_VELOCITY (mm/s); use the minimum of X and Y.
+         2878:             file.write_format(
+    >>>  2879:                 "SET_VELOCITY_LIMIT MAX_VELOCITY=%.1lf MAX_ACCEL=%d SQUARE_CORNER_VELOCITY=%.2lf"
+         2880:                 " ; sets Klipper velocity/acceleration limits\n",
+         2881:                 std::min(print.config().machine_max_feedrate_x.get_at(0),
+         2882:                          print.config().machine_max_feedrate_y.get_at(0)),
+         2883:                 int(print.config().machine_max_acceleration_extruding.get_at(0) + 0.5),
+
+    src\slic3r\GUI\Tab.cpp:3839
+         3835:     page->descriptions.push_back("machine_limits");
+         3836: 
+         3837:     optgroup->m_on_change = [this](const OptionKeyIdx &, bool, const boost::any &)
+         3838:     {
+    >>>  3839:         // Klipper now correctly emits machine limits via SET_VELOCITY_LIMIT, so no
+         3840:         // override of machine_limits_usage is needed when switching to EmitToGCode.
+         3841:         update_dirty();
+         3842:         update();
+         3843:     };
+
