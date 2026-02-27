@@ -13,6 +13,7 @@
 #include <wx/display.h>
 #include <wx/file.h>
 #include <wx/choice.h>
+#include <wx/msgdlg.h>
 #include "wxExtensions.hpp"
 #include "Jobs/ArrangeJob.hpp"
 //#include "Jobs/job.hpp" 2.7 requirement?
@@ -205,6 +206,14 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
     {"FirstLayer", "first_layer_speed"}
     };
 
+    std::vector<std::pair<std::vector<double>, int>> pa_results(currentTestCount);
+    for (int id_item = 0; id_item < currentTestCount; id_item++) {
+        pa_results[id_item] = calc_PA_values(id_item);
+        if (pa_results[id_item].second <= 0 || pa_results[id_item].first.empty()) {
+            return;
+        }
+    }
+
 
     Plater* plat = this->main_frame->plater();
     Model& model = plat->model();
@@ -353,7 +362,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         bend_90_positions.clear();
         number_positions.clear();
         
-        auto pa_result = calc_PA_values(id_item);
+        auto pa_result = pa_results[id_item];
         std::vector<double> pa_values = pa_result.first;
         int count_increments = pa_result.second;
         selected_extrusion_role = dynamicExtrusionRole[id_item]->GetValue().ToStdString();
@@ -822,7 +831,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
     assert(objs_idx.size() == currentTestCount);
     for (int id_item = 0; id_item < currentTestCount; id_item++) {
 
-        auto pa_result = calc_PA_values(id_item);
+        auto pa_result = pa_results[id_item];
         std::vector<double> pa_values = pa_result.first;
         int count_increments = pa_result.second;
 
@@ -1585,7 +1594,6 @@ std::pair<std::vector<double>, int> CalibrationPressureAdvDialog::calc_PA_values
     wxString startPaValue = dynamicStartPa[id_item]->GetValue();
     wxString endPaValue = dynamicEndPa[id_item]->GetValue();
     wxString paIncrementValue = dynamicPaIncrement[id_item]->GetValue();
-    wxString erPaValue = dynamicExtrusionRole[id_item]->GetValue();
 
     //need to validate german/others localization issues with "," and "." getting swapped around.
 
@@ -1602,30 +1610,59 @@ std::pair<std::vector<double>, int> CalibrationPressureAdvDialog::calc_PA_values
         startPaValue.Replace(thousands_sep, decimal_sep);
         endPaValue.Replace(thousands_sep, decimal_sep);
         paIncrementValue.Replace(thousands_sep, decimal_sep);
-        erPaValue.Replace(thousands_sep, decimal_sep);
     }
     */
     firstPaValue.Replace(",", ".");
     startPaValue.Replace(",", ".");
     endPaValue.Replace(",", ".");
     paIncrementValue.Replace(",", ".");
-    erPaValue.Replace(",", "."); 
+    auto show_input_error = [this, id_item](const wxString& details) {
+        wxMessageBox(
+            wxString::Format(_L("Invalid pressure advance input in row %d:\n%s"), id_item + 1, details),
+            _L("Invalid calibration values"),
+            wxOK | wxICON_ERROR,
+            this);
+    };
     
     //maybe? will need to load in the correct 'acsii' character based on localization then swap ?
     //any point idiot profing the input to stop crashing ? nothing stopping users typing in letters to force a crash...
 
-    double first_pa;
-    firstPaValue.ToDouble(&first_pa);
+    double first_pa = 0.0;
+    bool first_pa_ok = firstPaValue.ToDouble(&first_pa);
+    double start_pa = 0.0;
+    bool start_pa_ok = startPaValue.ToDouble(&start_pa);
+    double end_pa = 0.0;
+    bool end_pa_ok = endPaValue.ToDouble(&end_pa);
+    double pa_increment = 0.0;
+    bool pa_increment_ok = paIncrementValue.ToDouble(&pa_increment);
 
-    double start_pa;
-    startPaValue.ToDouble(&start_pa);
-    double end_pa;
-    endPaValue.ToDouble(&end_pa);
-    double pa_increment;
-    paIncrementValue.ToDouble(&pa_increment);
+    if (!first_pa_ok || !start_pa_ok || !end_pa_ok || !pa_increment_ok) {
+        show_input_error(_L("Please enter numeric values for first PA, start PA, end PA, and PA increment."));
+        return std::make_pair(std::vector<double>{}, 0);
+    }
+
+    if (pa_increment <= 0.0) {
+        show_input_error(_L("PA increment must be greater than 0."));
+        return std::make_pair(std::vector<double>{}, 0);
+    }
+
+    if (end_pa < start_pa) {
+        show_input_error(_L("End PA must be greater than or equal to Start PA."));
+        return std::make_pair(std::vector<double>{}, 0);
+    }
+
+    constexpr int max_pa_points = 500;
+    int estimated_points = static_cast<int>(std::ceil((end_pa - start_pa) / pa_increment)) + 1;
+    if (estimated_points > max_pa_points) {
+        show_input_error(wxString::Format(
+            _L("Too many PA values (%d). Increase the increment or reduce the range. Maximum allowed is %d."),
+            estimated_points,
+            max_pa_points));
+        return std::make_pair(std::vector<double>{}, 0);
+    }
 
     int countincrements = 0;
-    int sizeofarray = static_cast<int>((end_pa - start_pa) / pa_increment) + 2;//'+2' needed for odd/even numbers 
+    int sizeofarray = estimated_points + 1;//'+1' keeps room for the end-pa failsafe branch.
     std::vector<double> pa_values(sizeofarray);
 
     double incremented_pa_value = start_pa;
