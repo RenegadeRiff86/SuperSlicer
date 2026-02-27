@@ -1224,7 +1224,7 @@ double CalibrationPressureAdvDialog::magical_scaling(double nozzle_diameter, dou
 double CalibrationPressureAdvDialog::magical_scaling(double nozzle_diameter, double er_width, double filament_max_overlap, double perimeter_overlap, double external_perimeter_overlap, double base_layer_height, double er_spacing) {
 
     const DynamicPrintConfig* print_config = this->gui_app->get_tab(Preset::TYPE_FFF_PRINT)->get_config();//i should pass this over instead...
-    assert(er_width > 1.0 && "er_width should be above 1.0 as it's a percentage value");
+    (void)print_config;
 
     // extrusions 1 and 2 overlap with external and internal perimeter overlap/spacing values. (same for extrusions 3 and 4)
     // extrusions 2 and 3 would normally have internal infill but the 90_bend model is scaled so the 2/3 are touching and won't have a 'gap' that could be filled.
@@ -1234,7 +1234,11 @@ double CalibrationPressureAdvDialog::magical_scaling(double nozzle_diameter, dou
     //                                        [ curved cap ] ---flat--- [ curved cap ]                                     [ curved cap ] ---flat--- [ curved cap ]
 
     //this can obviously be cleaned up alot... kept it all expanded since i'm not sure if there SHOULD be a gap/overlap between extrusions 2/3
-    double extrusion_width = nozzle_diameter * (er_width / 100.0);
+    // er_width is currently collected with get_abs_value(), so it is already expressed in mm.
+    // Keep a fallback for any legacy callsites still passing percentages.
+    double extrusion_width = er_width;
+    if (er_width > nozzle_diameter * 3.0)
+        extrusion_width = nozzle_diameter * (er_width / 100.0);
     double model_design_width = nozzle_diameter * 4.0;
     double raw_wall_width = extrusion_width * 4;
     double overgap_value = extrusion_width - er_spacing;
