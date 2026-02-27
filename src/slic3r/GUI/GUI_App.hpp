@@ -214,6 +214,7 @@ public:
     const std::vector<std::string> get_mode_default_palette();
     void            init_ui_colours();
     void            update_ui_colours_from_appconfig();
+    void            derive_semantic_ui_colours();
     void            update_label_colours();
     // update color mode for window
     void            UpdateDarkUI(wxWindow *window, bool highlited = false, bool just_font = false);
@@ -246,6 +247,21 @@ public:
     void                    set_mode_palette(const std::vector<wxColour> &palette);
 #endif
 
+    // Semantic color role map:
+    // - tab.bg.default     : Neutral tab/chrome surface (idle state).
+    // - tab.bg.hover       : Tab/chrome surface while hovered.
+    // - tab.bg.selected    : Tab/chrome surface while selected.
+    // - tab.border.default : Neutral tab/chrome border.
+    // - tab.border.active  : Active/hovered/selected tab border accent.
+    // - tab.border.focus   : Keyboard focus ring for tab-like controls.
+    // - tab.text.default   : Default text for tabs and similar controls.
+    // - tab.text.hover     : Hovered text accent for tabs and similar controls.
+    // - tab.text.selected  : Selected text accent for tabs and similar controls.
+    // - combo.bg.selected  : Selected list-row background in bitmap combo box.
+    // - combo.bg.disabled  : Disabled list-row background in bitmap combo box.
+    // - combo.bg.default   : Default list-row background in bitmap combo box.
+    // - combo.text.selected: Selected list-row text in bitmap combo box.
+    // - combo.text.default : Default list-row text in bitmap combo box.
     const wxColour& get_label_highlight_clr()   { return m_color_highlight_label_default; }
     const wxColour& get_highlight_default_clr() { return m_color_highlight_default; }
     const wxColour& get_color_hovered_btn_label() { return m_color_hovered_btn_label; }

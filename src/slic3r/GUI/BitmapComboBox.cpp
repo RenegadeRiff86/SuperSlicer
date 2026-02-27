@@ -161,9 +161,9 @@ void BitmapComboBox::DrawBackground_(wxDC& dc, const wxRect& rect, int WXUNUSED(
     {
         const int vSizeDec = 0;  // Vertical size reduction of selection rectangle edges
 
-        dc.SetTextForeground(wxGetApp().get_label_highlight_clr());
+        dc.SetTextForeground(wxGetApp().get_style_role_color("combo.text.selected"));
 
-        wxColour selCol = wxGetApp().get_highlight_default_clr();
+        wxColour selCol = wxGetApp().get_style_role_color("combo.bg.selected");
         dc.SetPen(selCol);
         dc.SetBrush(selCol);
         dc.DrawRectangle(rect.x,
@@ -173,15 +173,11 @@ void BitmapComboBox::DrawBackground_(wxDC& dc, const wxRect& rect, int WXUNUSED(
     }
     else
     {
-        dc.SetTextForeground(flags & ODCB_PAINTING_DISABLED ? wxColour(108,108,108) : wxGetApp().get_label_clr_default());
+        dc.SetTextForeground(flags & ODCB_PAINTING_DISABLED ? wxColour(108,108,108) : wxGetApp().get_style_role_color("combo.text.default"));
 
-        wxColour selCol = flags & ODCB_PAINTING_DISABLED ? 
-#ifdef _MSW_DARK_MODE
-            wxRGBToColour(NppDarkMode::GetSofterBackgroundColor()) :
-#else
-            wxGetApp().get_highlight_default_clr() :
-#endif
-            wxGetApp().get_window_default_clr();
+        wxColour selCol = flags & ODCB_PAINTING_DISABLED ?
+            wxGetApp().get_style_role_color("combo.bg.disabled") :
+            wxGetApp().get_style_role_color("combo.bg.default");
         dc.SetPen(selCol);
         dc.SetBrush(selCol);
         dc.DrawRectangle(rect);
@@ -205,4 +201,3 @@ void BitmapComboBox::Rescale()
 #endif
 
 }}
-

@@ -5961,7 +5961,7 @@ void TabPrinter::update_machine_limits_description(const MachineLimitsUsage usag
     //no need to worry for "silent" version, as it's only for marlin.
     if (usage == MachineLimitsUsage::EmitToGCode) {
         wxColour grey_color(128, 128, 128);
-        wxColour black_color = wxGetApp().get_label_clr_default();//wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);
+        wxColour black_color = wxGetApp().get_style_role_color("tab.text.default");
         Field* field;
         std::vector<std::string> axes{ "x", "y", "z", "e" };
 
@@ -6008,7 +6008,7 @@ void TabPrinter::update_machine_limits_description(const MachineLimitsUsage usag
     } else {
         Field* field;
         std::vector<std::string> axes{ "x", "y", "z", "e" };
-        const wxColour color = wxGetApp().get_label_clr_default();//wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);
+        const wxColour color = wxGetApp().get_style_role_color("tab.text.default");
         for (const std::string& axis : axes) {
             field = m_active_page->get_field("machine_max_feedrate_" + axis, 0);
             if (field) dynamic_cast<TextInput*>(field->getWindow())->SetForegroundColour(color);

@@ -20,6 +20,16 @@
 
 namespace
 {
+constexpr const char* ROLE_TAB_BG_DEFAULT = "tab.bg.default";
+constexpr const char* ROLE_TAB_BG_HOVER = "tab.bg.hover";
+constexpr const char* ROLE_TAB_BG_SELECTED = "tab.bg.selected";
+constexpr const char* ROLE_TAB_BORDER_DEFAULT = "tab.border.default";
+constexpr const char* ROLE_TAB_BORDER_ACTIVE = "tab.border.active";
+constexpr const char* ROLE_TAB_BORDER_FOCUS = "tab.border.focus";
+constexpr const char* ROLE_TAB_TEXT_DEFAULT = "tab.text.default";
+constexpr const char* ROLE_TAB_TEXT_HOVER = "tab.text.hover";
+constexpr const char* ROLE_TAB_TEXT_SELECTED = "tab.text.selected";
+
 void draw_tab_chrome(wxDC& dc, const wxRect& button_rect, const wxRect& client_rect, const wxColour& background, const wxColour& border, const wxColour* focus_ring, int radius, int bottom_line_height)
 {
     wxRect chrome = button_rect;
@@ -99,12 +109,12 @@ void ButtonsListCtrl::OnPaint(wxPaintEvent&)
 
             const bool is_focused = state == TabVisualState::Focused;
             const wxColour& background = app.get_style_role_color(
-                state == TabVisualState::Selected ? "tab.bg.selected" :
-                state == TabVisualState::Hovered  ? "tab.bg.hover"    :
-                                                    "tab.bg.default");
+                state == TabVisualState::Selected ? ROLE_TAB_BG_SELECTED :
+                state == TabVisualState::Hovered  ? ROLE_TAB_BG_HOVER    :
+                                                    ROLE_TAB_BG_DEFAULT);
             const wxColour& border = app.get_style_role_color(
-                (state == TabVisualState::Selected || state == TabVisualState::Focused) ? "tab.border.active" : "tab.border.default");
-            const wxColour* focus_ring = is_focused ? &app.get_style_role_color("tab.border.focus") : nullptr;
+                (state == TabVisualState::Selected || state == TabVisualState::Focused) ? ROLE_TAB_BORDER_ACTIVE : ROLE_TAB_BORDER_DEFAULT);
+            const wxColour* focus_ring = is_focused ? &app.get_style_role_color(ROLE_TAB_BORDER_FOCUS) : nullptr;
             draw_tab_chrome(dc, button->GetRect(), client_rect, background, border, focus_ring, radius, m_line_margin);
         }
     }
@@ -115,8 +125,8 @@ void ButtonsListCtrl::OnPaint(wxPaintEvent&)
             if (!mode_btn)
                 continue;
             const bool selected = mode_btn->is_selected();
-            const wxColour& bg = app.get_style_role_color(selected ? "tab.bg.selected" : "tab.bg.default");
-            const wxColour& border = app.get_style_role_color(selected ? "tab.border.active" : "tab.border.default");
+            const wxColour& bg = app.get_style_role_color(selected ? ROLE_TAB_BG_SELECTED : ROLE_TAB_BG_DEFAULT);
+            const wxColour& border = app.get_style_role_color(selected ? ROLE_TAB_BORDER_ACTIVE : ROLE_TAB_BORDER_DEFAULT);
             draw_tab_chrome(dc, mode_btn->GetRect(), client_rect, bg, border, nullptr, radius, m_line_margin);
             apply_tab_state(mode_btn, selected ? TabVisualState::Selected : TabVisualState::Default);
 #ifdef __APPLE__
@@ -125,7 +135,7 @@ void ButtonsListCtrl::OnPaint(wxPaintEvent&)
         }
     }
 
-    dc.SetPen(wxPen(app.get_style_role_color("tab.border.active"), m_line_margin));
+    dc.SetPen(wxPen(app.get_style_role_color(ROLE_TAB_BORDER_ACTIVE), m_line_margin));
     dc.DrawLine(client_rect.GetLeft(), client_rect.GetBottom() - m_line_margin / 2,
                 client_rect.GetRight(), client_rect.GetBottom() - m_line_margin / 2);
 }
@@ -145,9 +155,9 @@ void ButtonsListCtrl::apply_tab_state(ScalableButton* button, TabVisualState sta
 {
     auto &app = Slic3r::GUI::wxGetApp();
     const wxColour& text_color = app.get_style_role_color(
-        state == TabVisualState::Selected ? "tab.text.selected" :
-        state == TabVisualState::Hovered  ? "tab.text.hover"    :
-                                            "tab.text.default");
+        state == TabVisualState::Selected ? ROLE_TAB_TEXT_SELECTED :
+        state == TabVisualState::Hovered  ? ROLE_TAB_TEXT_HOVER    :
+                                            ROLE_TAB_TEXT_DEFAULT);
 
     button->SetForegroundColour(text_color);
 #ifdef __APPLE__

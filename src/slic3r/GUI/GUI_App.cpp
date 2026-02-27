@@ -1996,20 +1996,36 @@ void GUI_App::init_ui_colours()
 #endif
 
     const bool is_dark_mode = dark_mode();
-#ifdef _MSW_DARK_MODE
-    m_color_highlight_label_default = is_dark_mode ? wxColour(230, 230, 230): wxSystemSettings::GetColour(/*wxSYS_COLOUR_HIGHLIGHTTEXT*/wxSYS_COLOUR_WINDOWTEXT);
-    m_color_highlight_default       = is_dark_mode ? wxColour(78, 78, 78)   : wxSystemSettings::GetColour(wxSYS_COLOUR_3DLIGHT);
-    // Prusa: is_dark_mode ? wxColour(253, 111, 40) : wxColour(252, 77, 1); (fd6f28 & fc4d01) SV: 84 99 ; 100 99 (with light hue diff)
-    // custom background color for the notbook (tab) button
-    m_color_hovered_btn             = is_dark_mode ? wxColour(253, 111, 40) : wxColour(252, 77, 1);
-    // text color on hover on any button
-    m_color_hovered_btn_label       = is_dark_mode ? wxColour(253, 111, 40) : wxColour(252, 77, 1);
-    // m_color_default_btn_label: color of the ok button text in normal state (default button when clickingon enter). And graph line
-    m_color_default_btn_label       = is_dark_mode ? wxColour(255, 181, 100): wxColour(203, 61, 0);
-    // Prusa: is_dark_mode ? wxColour(95, 73, 62)   : wxColour(228, 220, 216); (f2ba9e & e4dcd8) SV: 35 37 ;  5 90
-    m_color_selected_btn_bg         = is_dark_mode ? wxColour(95, 73, 62)   : wxColour(228, 220, 216);
-#endif
+    m_color_highlight_label_default = is_dark_mode ? wxColour(230, 230, 230) : wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);
+    m_color_highlight_default       = is_dark_mode ? wxColour(78, 78, 78) : wxSystemSettings::GetColour(wxSYS_COLOUR_3DLIGHT);
+    derive_semantic_ui_colours();
     m_color_window_default          = is_dark_mode ? wxColour(43, 43, 43)   : wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
+}
+
+void GUI_App::derive_semantic_ui_colours()
+{
+    const bool is_dark_mode = dark_mode();
+    const auto resolve = [this, is_dark_mode](float dark_sat, float dark_val, float light_sat, float light_val, AppConfig::EAppColorType type, const wxColour& fallback) {
+        if (app_config == nullptr)
+            return fallback;
+
+        const float saturation = is_dark_mode ? dark_sat : light_sat;
+        const float value      = is_dark_mode ? dark_val : light_val;
+        return color_from_int(app_config->create_color(saturation, value, type));
+    };
+
+    // custom background color for notebook/tab buttons in hover and active states.
+    m_color_hovered_btn = resolve(0.84f, 0.99f, 1.00f, 0.99f, AppConfig::EAppColorType::Main,
+                                  is_dark_mode ? wxColour(253, 111, 40) : wxColour(252, 77, 1));
+    // text color on hover on button-like controls.
+    m_color_hovered_btn_label = resolve(0.84f, 0.99f, 1.00f, 0.99f, AppConfig::EAppColorType::Highlight,
+                                        is_dark_mode ? wxColour(253, 111, 40) : wxColour(252, 77, 1));
+    // default button text (enter key action), graph line accent.
+    m_color_default_btn_label = resolve(0.90f, 0.80f, 1.00f, 0.80f, AppConfig::EAppColorType::Highlight,
+                                        is_dark_mode ? wxColour(255, 181, 100) : wxColour(203, 61, 0));
+    // selected tab/button background accent.
+    m_color_selected_btn_bg   = resolve(0.35f, 0.37f, 0.05f, 0.90f, AppConfig::EAppColorType::Main,
+                                        is_dark_mode ? wxColour(95, 73, 62) : wxColour(228, 220, 216));
 }
 
 void GUI_App::update_ui_colours_from_appconfig()
@@ -2076,17 +2092,7 @@ void GUI_App::update_ui_colours_from_appconfig()
     Slic3r::GUI::Widget::set_clr_background_focused(change_endian_int24(
         app_config->create_color(0.86f, 0.93f, AppConfig::EAppColorType::Main)));
 
-#ifdef _WIN32
-    const bool is_dark_mode = dark_mode();
-    m_color_hovered_btn = is_dark_mode ? color_from_int(app_config->create_color(0.84f, 0.99f, AppConfig::EAppColorType::Main)) :
-        color_from_int(app_config->create_color(1.00f, 0.99f, AppConfig::EAppColorType::Main));
-    m_color_hovered_btn_label = is_dark_mode ? color_from_int(app_config->create_color(0.84f, 0.99f, AppConfig::EAppColorType::Highlight)) :
-        color_from_int(app_config->create_color(1.00f, 0.99f, AppConfig::EAppColorType::Highlight));
-    m_color_default_btn_label = is_dark_mode ? color_from_int(app_config->create_color(0.9f, 0.80f, AppConfig::EAppColorType::Highlight)) :
-        color_from_int(app_config->create_color(1.00f, 0.80f, AppConfig::EAppColorType::Highlight));
-    m_color_selected_btn_bg = is_dark_mode ? color_from_int(app_config->create_color(0.35f, 0.37f, AppConfig::EAppColorType::Main)) :
-        color_from_int(app_config->create_color(0.05f, 0.9f, AppConfig::EAppColorType::Main));
-#endif
+    derive_semantic_ui_colours();
 
     //also update imgui color cache... can be moved if you have a better placee it 
     m_imgui->reset_color();
@@ -2118,6 +2124,23 @@ const wxColour& GUI_App::get_style_role_color(const std::string& role) const
         return m_color_default_btn_label;
     if (role == "tab.text.selected")
         return m_color_hovered_btn_label;
+    if (role == "combo.bg.selected")
+        return m_color_highlight_default;
+    if (role == "combo.bg.disabled") {
+#ifdef _MSW_DARK_MODE
+        if (dark_mode()) {
+            static const wxColour disabled_dark = wxRGBToColour(NppDarkMode::GetSofterBackgroundColor());
+            return disabled_dark;
+        }
+#endif
+        return m_color_highlight_default;
+    }
+    if (role == "combo.bg.default")
+        return m_color_window_default;
+    if (role == "combo.text.selected")
+        return m_color_highlight_label_default;
+    if (role == "combo.text.default")
+        return dark_mode() ? m_color_dark_mode_label_default : m_color_label_default;
 
     return dark_mode() ? m_color_dark_mode_label_default : m_color_label_default;
 }
