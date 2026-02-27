@@ -43,6 +43,7 @@
 #include "I18N.hpp"
 #include "NotificationManager.hpp"
 #include "format.hpp"
+#include "ThemeMetrics.hpp"
 
 #include "slic3r/GUI/Gizmos/GLGizmoPainterBase.hpp"
 #include "slic3r/Utils/UndoRedo.hpp"
@@ -5751,9 +5752,9 @@ bool GLCanvas3D::_init_main_toolbar()
     m_main_toolbar.set_layout_type(GLToolbar::Layout::Horizontal);
     m_main_toolbar.set_horizontal_orientation(GLToolbar::Layout::HO_Right);
     m_main_toolbar.set_vertical_orientation(GLToolbar::Layout::VO_Top);
-    m_main_toolbar.set_border(5.0f);
-    m_main_toolbar.set_separator_size(5);
-    m_main_toolbar.set_gap_size(4);
+    m_main_toolbar.set_border(ThemeMetrics::toolbar_border());
+    m_main_toolbar.set_separator_size(ThemeMetrics::toolbar_separator());
+    m_main_toolbar.set_gap_size(ThemeMetrics::toolbar_main_gap());
 
     GLToolbarItem::Data item;
     int sprite_id = 0;
@@ -5978,9 +5979,9 @@ bool GLCanvas3D::_init_undoredo_toolbar()
     m_undoredo_toolbar.set_layout_type(GLToolbar::Layout::Horizontal);
     m_undoredo_toolbar.set_horizontal_orientation(GLToolbar::Layout::HO_Left);
     m_undoredo_toolbar.set_vertical_orientation(GLToolbar::Layout::VO_Top);
-    m_undoredo_toolbar.set_border(5.0f);
-    m_undoredo_toolbar.set_separator_size(5);
-    m_undoredo_toolbar.set_gap_size(4);
+    m_undoredo_toolbar.set_border(ThemeMetrics::toolbar_border());
+    m_undoredo_toolbar.set_separator_size(ThemeMetrics::toolbar_separator());
+    m_undoredo_toolbar.set_gap_size(ThemeMetrics::toolbar_main_gap());
 
     GLToolbarItem::Data item;
 

@@ -178,6 +178,9 @@ void AppConfig::set_defaults()
         if (get("tab_density_compact").empty())
             set("tab_density_compact", "0");
 
+        if (get("ui_density").empty())
+            set("ui_density", get_bool("tab_density_compact") ? "compact" : "comfortable");
+
         if (get("font_size").empty())
             set("font_size", "0");
 

@@ -278,6 +278,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/DoubleSlider.hpp
     GUI/Notebook.cpp
     GUI/Notebook.hpp
+    GUI/ThemeMetrics.cpp
+    GUI/ThemeMetrics.hpp
     GUI/ObjectDataViewModel.cpp
     GUI/ObjectDataViewModel.hpp
     GUI/InstanceCheck.cpp
