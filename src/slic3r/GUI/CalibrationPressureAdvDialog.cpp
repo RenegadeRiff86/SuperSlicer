@@ -864,7 +864,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         std::string set_first_layer_prefix = (gcfKlipper == flavor) ? "SET_PRESSURE_ADVANCE ADVANCE=" :
                                          (gcfMarlinFirmware == flavor) ? "M900 K" :
                                          (gcfRepRap == flavor) ? "M572 S" : "";
-        std::string region_prefix = "{if layer_z <= " + std::to_string(first_layer_height) + "}" + set_first_layer_prefix + std::to_string(first_pa) + "; first layer [layer_z] {endif}";
+        std::string first_layer_region_prefix = "{if layer_z <= " + std::to_string(first_layer_height) + "}" + set_first_layer_prefix + std::to_string(first_pa) + "; first layer [layer_z] {endif}";
 
         /*
         gcfRepRap,
@@ -900,7 +900,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         //model.objects[objs_idx[id_item]]->config.set_key_value("perimeter_overlap", new ConfigOptionPercent(100));//
         model.objects[objs_idx[id_item]]->config.set_key_value("seam_position", new ConfigOptionEnum<SeamPosition>(spRear)); //spRear or spCost //BUG: should be fixed in 2.7 merge/SS 2.5.59.7, when this is changed the "perimeters & shell" doesn't turn red indicating a change.
         model.objects[objs_idx[id_item]]->config.set_key_value("top_solid_layers", new ConfigOptionInt(0));
-        model.objects[objs_idx[id_item]]->config.set_key_value("region_gcode", new ConfigOptionString(region_prefix + " \n" ));
+        model.objects[objs_idx[id_item]]->config.set_key_value("region_gcode", new ConfigOptionString(first_layer_region_prefix + " \n" ));
 
         const CalibrationStyle style = m_selected_style;
         const bool use_segmented_line_sweep = (style == CalibrationStyle::SegmentedLineSweep);
@@ -1071,8 +1071,12 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
             }
             model.objects[objs_idx[id_item]]->volumes[num_part + extra_vol]->config.set_key_value("layer_height", new ConfigOptionFloat(0.3));
 
+            const std::string first_layer_scope_prefix = "{if layer_z <= " + std::to_string(first_layer_height) + "}" + set_first_layer_prefix + std::to_string(first_pa) + " ; first layer [layer_z]\n{endif}\n";
+            const std::string next_layer_scope_prefix = "{if layer_z > " + std::to_string(first_layer_height) + "}";
+            const std::string next_layer_scope_suffix = " {endif}";
+
             if (selected_extrusion_role == "CheckAll") {
-                model.objects[objs_idx[id_item]]->volumes[num_part + extra_vol]->config.set_key_value("region_gcode", new ConfigOptionString(";" + set_advance_prefix + " ; " + er_role ));//user manual type in values commented out to stop errors
+                model.objects[objs_idx[id_item]]->volumes[num_part + extra_vol]->config.set_key_value("region_gcode", new ConfigOptionString(first_layer_scope_prefix + ";" + set_advance_prefix + " ; " + er_role ));//user manual type in values commented out to stop errors
                 //will need to adjust layerheight for infill,support, other er roles that needs a different layerheight for CheckAll mode.
 
                 /*ModelConfig range_conf;
@@ -1099,7 +1103,9 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                     }*/
             }
             else{
-                model.objects[objs_idx[id_item]]->volumes[num_part + extra_vol]->config.set_key_value("region_gcode", new ConfigOptionString(set_advance_prefix + std::to_string(pa_values[num_part]) + " ; " + er_role + "\n"));
+                model.objects[objs_idx[id_item]]->volumes[num_part + extra_vol]->config.set_key_value("region_gcode", new ConfigOptionString(
+                    first_layer_scope_prefix +
+                    next_layer_scope_prefix + set_advance_prefix + std::to_string(pa_values[num_part]) + " ; " + er_role + next_layer_scope_suffix + "\n"));
             }
             num_part++;
             //model.objects[objs_idx[id_item]]->ensure_on_bed(); // put at the correct z (kind of arrange-z)) shouldn't be needed though.
