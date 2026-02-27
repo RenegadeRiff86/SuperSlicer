@@ -7466,11 +7466,11 @@ std::string GCodeGenerator::_travel_before_extrude(const ExtrusionPath &path, co
 
 std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const ExtrusionPath &path) {
 
-    // Maximum PA value we will emit. Values above this cannot be physically
-    // meaningful (2 seconds of lookahead is already extreme) and will crash
-    // Klipper's MCU planner. Users sometimes store values like 100 in per-role
-    // PA fields as an informal "disabled" sentinel; this threshold catches them.
+    // Maximum PA value we will emit when the active firmware requires it.
+    // Values above this can crash Klipper's MCU planner.
     static constexpr double PA_SANE_MAX = 2.0;
+    const GCodeFlavor flavor = config().gcode_flavor.value;
+    const bool requires_pa_sane_max = (flavor == gcfKlipper);
 
     double pa = 0;
     double travel_pa = -1;
@@ -7480,7 +7480,7 @@ std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const Extrus
 
         if (m_config.filament_travel_pa.is_enabled(m_writer.tool()->id())) {
             travel_pa = m_config.filament_travel_pa.get_at(m_writer.tool()->id());
-            if (travel_pa > PA_SANE_MAX)
+            if (requires_pa_sane_max && travel_pa > PA_SANE_MAX)
                 travel_pa = -1;  // treat as disabled sentinel, suppress
         }
         switch (extrusion_role_to_gcode_extrusion_role(path.role())) {
@@ -7563,14 +7563,15 @@ std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const Extrus
         // Only Klipper needs PA sanity clamping here: extreme values can crash
         // its MCU planner. Other firmwares may intentionally use larger values
         // (e.g. Marlin M900 K) and should keep the user-configured value.
-        if (pa > PA_SANE_MAX && m_config.gcode_flavor.value == gcfKlipper) {
+        if (requires_pa_sane_max && pa > PA_SANE_MAX) {
             const std::string role = gcode_extrusion_role_to_string(extrusion_role_to_gcode_extrusion_role(path.role()));
-            const double      role_pa_original = pa;
-            pa = (base_pa <= PA_SANE_MAX) ? base_pa : 0.0;
+            const double role_pa_original = pa;
+            pa = (base_pa >= 0.0 && base_pa <= PA_SANE_MAX) ? base_pa : 0.0;
 
-            // Keep warning only for truly invalid Klipper values (resolved PA and
-            // base PA both out of range), but include flavor and role/value context.
-            if (base_pa > PA_SANE_MAX) {
+            // Warn only when both the resolved PA and base PA are invalid for
+            // Klipper. If the base value is valid, a per-role sentinel override
+            // was likely used intentionally and no warning is needed.
+            if (base_pa < 0.0 || base_pa > PA_SANE_MAX) {
                 BOOST_LOG_TRIVIAL(warning)
                     << "Invalid pressure advance for flavor=klipper"
                     << ", role=" << role
