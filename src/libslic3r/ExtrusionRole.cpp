@@ -18,16 +18,20 @@ GCodeExtrusionRole extrusion_role_to_gcode_extrusion_role(ExtrusionRole role)
 {
     assert(role != ExtrusionRole::Mixed);
     if (role == ExtrusionRole::None)                return GCodeExtrusionRole::None;
-    if (role == ExtrusionRole::ExternalPerimeter)   return GCodeExtrusionRole::ExternalPerimeter;
-    if (role == ExtrusionRole::Perimeter)           return GCodeExtrusionRole::Perimeter;
-    if (role == ExtrusionRole::OverhangExternalPerimeter) return GCodeExtrusionRole::OverhangPerimeter;
-    if (role == ExtrusionRole::OverhangPerimeter)   return GCodeExtrusionRole::OverhangPerimeter;
-    if (role == ExtrusionRole::InternalInfill)      return GCodeExtrusionRole::InternalInfill;
-    if (role == ExtrusionRole::SolidInfill)         return GCodeExtrusionRole::SolidInfill;
-    if (role == ExtrusionRole::TopSolidInfill)      return GCodeExtrusionRole::TopSolidInfill;
-    if (role == ExtrusionRole::Ironing)             return GCodeExtrusionRole::Ironing;
-    if (role == ExtrusionRole::BridgeInfill)        return GCodeExtrusionRole::BridgeInfill;
-    if (role == ExtrusionRole::InternalBridgeInfill)return GCodeExtrusionRole::InternalBridgeInfill;
+    if (role.is_perimeter()) {
+        if (role.is_overhang())
+            return GCodeExtrusionRole::OverhangPerimeter;
+        return role.is_external_perimeter() ? GCodeExtrusionRole::ExternalPerimeter : GCodeExtrusionRole::Perimeter;
+    }
+    if (role.is_infill()) {
+        if (role.is_bridge())
+            return role.is_external() ? GCodeExtrusionRole::BridgeInfill : GCodeExtrusionRole::InternalBridgeInfill;
+        if (role == ExtrusionRole::Ironing)
+            return GCodeExtrusionRole::Ironing;
+        if (role.is_solid_infill())
+            return role.is_external() ? GCodeExtrusionRole::TopSolidInfill : GCodeExtrusionRole::SolidInfill;
+        return GCodeExtrusionRole::InternalInfill;
+    }
     if (role == ExtrusionRole::ThinWall)            return GCodeExtrusionRole::ThinWall;
     if (role == ExtrusionRole::GapFill)             return GCodeExtrusionRole::GapFill;
     if (role == ExtrusionRole::Skirt)               return GCodeExtrusionRole::Skirt;
