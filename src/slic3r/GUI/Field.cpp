@@ -2037,8 +2037,14 @@ void ColourPicker::set_internal_any_value(const boost::any &value, bool change_e
         } else {
             str_value = this->m_opt.get_default_value<ConfigOptionStrings>()->get_at(size_t(-1));
         }
+    } else if (this->m_opt.type == coStrings || this->m_opt.type == coString) {
+        str_value = into_u8(any_to_wxstring(value, m_opt, m_opt_key_idx.idx));
     } else if (this->m_opt.type == coGraph || this->m_opt.type == coGraphs) {
         str_value = boost::any_cast<std::string>(value);
+    } else if (this->m_opt.type == coInt) {
+        str_value = wxColour((unsigned long) boost::any_cast<int32_t>(value)).GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
+    } else if (this->m_opt.type == coInts) {
+        str_value = wxColour((unsigned long) boost::any_cast<int32_t>(value)).GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
     }
     // can be ConfigOptionDef::GUIType::color
     const wxString clr_str(str_value);
@@ -2500,4 +2506,3 @@ boost::any &SliderCtrl::get_value()
 
 
 } // Slic3r :: GUI
-
