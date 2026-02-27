@@ -485,9 +485,9 @@ void PreferencesDialog::build()
 	auto app_config = get_app_config();
 
 #ifdef _MSW_DARK_MODE
-		tabs = new Notebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNB_TOP | wxTAB_TRAVERSAL | wxNB_NOPAGETHEME | wxNB_DEFAULT);
+		tabs = new Notebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNB_TOP | wxTAB_TRAVERSAL | wxNB_DEFAULT);
 #else
-    tabs = new wxNotebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNB_TOP | wxTAB_TRAVERSAL  |wxNB_NOPAGETHEME | wxNB_DEFAULT );
+    tabs = new wxNotebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNB_TOP | wxTAB_TRAVERSAL   | wxNB_DEFAULT );
 #ifdef __linux__
 	tabs->Bind(wxEVT_NOTEBOOK_PAGE_CHANGED, [this](wxBookCtrlEvent& e) {
 		e.Skip();
@@ -974,6 +974,12 @@ void PreferencesDialog::build()
 			6,
 			app_config->get_int("tab_icon_size"));
 		m_values_need_restart.push_back("tab_icon_size");
+
+		append_bool_option(m_tabid_2_optgroups.back().back(), "tab_density_compact",
+			L("Use compact tab density"),
+			L("Reduce tab button paddings to better fit laptop-sized displays. Disable for roomier tab spacing on larger screens."),
+			app_config->get_bool("tab_density_compact"));
+		m_values_need_restart.push_back("tab_density_compact");
 		
 		append_int_option(m_tabid_2_optgroups.back().back(), "font_size",
 			L("Font size"),
