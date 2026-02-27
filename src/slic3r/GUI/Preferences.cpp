@@ -100,6 +100,16 @@ namespace Slic3r {
     };
     CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(SuppressHyperlinks)
 
+    enum UiDensityMode {
+        uiDensityComfortable,
+        uiDensityCompact,
+    };
+    static const t_config_enum_values s_keys_map_UiDensityMode = {
+        {"comfortable", uiDensityComfortable},
+        {"compact", uiDensityCompact},
+    };
+    CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(UiDensityMode)
+
 namespace GUI {
 
 wxIcon icon_from_bitmap(const wxBitmap &bitmap) {
@@ -186,6 +196,7 @@ void PreferencesDialog::show(const std::string& highlight_opt_key /*= std::strin
             {"notify_release", s_keys_map_NotifyReleaseMode},
             {"auto_switch_preview", s_keys_map_AutoSwitchPreview},
             {"suppress_hyperlinks", s_keys_map_SuppressHyperlinks},
+            {"ui_density", s_keys_map_UiDensityMode},
         };
         for (auto key2map : enums) {
             if (m_optkey_to_optgroup.find(key2map.first) != m_optkey_to_optgroup.end()) {
@@ -975,11 +986,16 @@ void PreferencesDialog::build()
 			app_config->get_int("tab_icon_size"));
 		m_values_need_restart.push_back("tab_icon_size");
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), "tab_density_compact",
-			L("Use compact tab density"),
-			L("Reduce tab button paddings to better fit laptop-sized displays. Disable for roomier tab spacing on larger screens."),
-			app_config->get_bool("tab_density_compact"));
-		m_values_need_restart.push_back("tab_density_compact");
+		std::string ui_density_value = app_config->get("ui_density");
+		if (s_keys_map_UiDensityMode.find(ui_density_value) == s_keys_map_UiDensityMode.end())
+			ui_density_value = app_config->get_bool("tab_density_compact") ? "compact" : "comfortable";
+		append_enum_option<UiDensityMode>(m_tabid_2_optgroups.back().back(), "ui_density",
+			L("UI density"),
+			L("Controls spacing across tabs, toolbars, and combo boxes. Compact fits more UI on screen; Comfortable provides roomier spacing."),
+			new ConfigOptionEnum<UiDensityMode>(static_cast<UiDensityMode>(s_keys_map_UiDensityMode.at(ui_density_value))),
+			{ { "comfortable", L("Comfortable") },
+			  { "compact", L("Compact") } });
+		m_values_need_restart.push_back("ui_density");
 		
 		append_int_option(m_tabid_2_optgroups.back().back(), "font_size",
 			L("Font size"),

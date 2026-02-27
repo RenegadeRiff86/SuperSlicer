@@ -18,6 +18,7 @@
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 #include "Plater.hpp"
+#include "ThemeMetrics.hpp"
 #include "slic3r/GUI/Jobs/UIThreadWorker.hpp"
 
 #include <cstddef>
@@ -5065,8 +5066,8 @@ bool Plater::priv::init_view_toolbar()
 
     view_toolbar.set_horizontal_orientation(GLToolbar::Layout::HO_Left);
     view_toolbar.set_vertical_orientation(GLToolbar::Layout::VO_Bottom);
-    view_toolbar.set_border(5.0f);
-    view_toolbar.set_gap_size(1.0f);
+    view_toolbar.set_border(ThemeMetrics::toolbar_border());
+    view_toolbar.set_gap_size(ThemeMetrics::toolbar_view_gap());
 
     GLToolbarItem::Data item;
 
@@ -5113,9 +5114,9 @@ bool Plater::priv::init_collapse_toolbar()
     collapse_toolbar.set_layout_type(GLToolbar::Layout::Vertical);
     collapse_toolbar.set_horizontal_orientation(GLToolbar::Layout::HO_Right);
     collapse_toolbar.set_vertical_orientation(GLToolbar::Layout::VO_Top);
-    collapse_toolbar.set_border(5.0f);
-    collapse_toolbar.set_separator_size(5);
-    collapse_toolbar.set_gap_size(2);
+    collapse_toolbar.set_border(ThemeMetrics::toolbar_border());
+    collapse_toolbar.set_separator_size(ThemeMetrics::toolbar_separator());
+    collapse_toolbar.set_gap_size(ThemeMetrics::toolbar_collapse_gap());
 
     GLToolbarItem::Data item;
 

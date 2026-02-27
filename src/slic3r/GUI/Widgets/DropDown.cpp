@@ -1,6 +1,7 @@
 #include "DropDown.hpp"
 #include "ComboBox.hpp"
 #include "../GUI_App.hpp"
+#include "../ThemeMetrics.hpp"
 #include "../OptionsGroup.hpp"
 
 #include <wx/dcgraph.h>
@@ -41,7 +42,7 @@ DropDown::DropDown(std::vector<wxString> &texts,
                    std::vector<wxBitmapBundle> &icons)
     : texts(texts)
     , icons(icons)
-    , radius(Slic3r::GUI::wxGetApp().suppress_round_corners() ? 0 : 5)
+    , radius(0.0)
     , state_handler(this)
     , text_color(0x363636)
     , border_color(0xDBDBDB)
@@ -123,6 +124,7 @@ void DropDown::Create(wxWindow *     parent,
     text_off = style & DD_NO_TEXT;
 
     SetFont(parent->GetFont());
+    radius = Slic3r::GUI::ThemeMetrics::combo_corner_radius(parent);
 #ifdef __WXOSX__
     // wxPopupTransientWindow releases mouse on idle, which may cause various problems,
     //  such as losting mouse move, and dismissing soon on first LEFT_DOWN event.
@@ -209,6 +211,7 @@ void DropDown::SetAlignIcon(bool align) { align_icon = align; }
 
 void DropDown::Rescale()
 {
+    radius = Slic3r::GUI::ThemeMetrics::combo_corner_radius(GetParent() ? GetParent() : this);
     need_sync = true;
 }
 
@@ -270,7 +273,6 @@ constexpr int slider_step   = 1;
 #else
 constexpr int slider_step   = 5;
 #endif
-constexpr int items_padding = 2;
 
 /*
  * Here we do the actual rendering. I put it in a separate
@@ -444,7 +446,7 @@ void DropDown::messureSize()
     }
     if (iconSize.x > 0) szContent.x += iconSize.x + (text_off ? 0 : 5);
     if (iconSize.y > szContent.y) szContent.y = iconSize.y;
-    szContent.y += items_padding;
+    szContent.y += Slic3r::GUI::ThemeMetrics::combo_item_padding(GetParent() ? GetParent() : this);
     if (texts.size() > 15) szContent.x += 6;
     if (GetParent()) {
         auto x = GetParent()->GetSize().x;
