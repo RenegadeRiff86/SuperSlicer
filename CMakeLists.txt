@@ -130,6 +130,13 @@ else ()
 endif ()
 
 if (MSVC)
+    # Imported third-party packages often omit RelWithDebInfo/MinSizeRel artifacts.
+    # Prefer their release variants for non-debug optimized builds to avoid mixed-runtime link noise.
+    set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release)
+    set(CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL Release)
+endif ()
+
+if (MSVC)
     if (SLIC3R_MSVC_COMPILE_PARALLEL AND NOT IS_CLANG_CL)
            add_compile_options(/MP)
     endif ()
@@ -146,6 +153,8 @@ if (MSVC)
     add_compile_options(/wd4244 /wd4267)
     # Enforce strict C++ conformance, so our code that compiles on MSVC also compiles on GCC and clang.
     add_compile_options(/permissive-)
+    # Our RelWithDebInfo links against some /GL-built third-party libs; align the linker flags with them.
+    add_link_options($<$<CONFIG:RelWithDebInfo>:/INCREMENTAL:NO> $<$<CONFIG:RelWithDebInfo>:/LTCG>)
 endif ()
 
 if (MINGW)
