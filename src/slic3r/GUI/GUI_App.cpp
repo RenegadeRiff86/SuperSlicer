@@ -2251,8 +2251,8 @@ static void update_dark_children_ui(wxWindow* window, bool just_buttons_update =
     if (!(just_buttons_update && !is_btn))
         wxGetApp().UpdateDarkUI(window, is_btn);
 
-    auto children = window->GetChildren();
-    for (auto child : children) {        
+    const auto& children = window->GetChildren();
+    for (wxWindow* child : children) {
         update_dark_children_ui(child);
     }
 }
@@ -2285,8 +2285,8 @@ void GUI_App::UpdateAllStaticTextDarkUI(wxWindow* parent)
 #ifdef _WIN32
     wxGetApp().UpdateDarkUI(parent);
 
-    auto children = parent->GetChildren();
-    for (auto child : children) {
+    const auto& children = parent->GetChildren();
+    for (wxWindow* child : children) {
         if (dynamic_cast<wxStaticText*>(child))
             child->SetForegroundColour(dark_mode() ? m_color_dark_mode_label_default : m_color_label_default);
     }
@@ -3002,8 +3002,8 @@ int GUI_App::GetSingleChoiceIndex(const wxString& message,
 #ifdef _WIN32
     wxSingleChoiceDialog dialog(nullptr, message, caption, choices);
     wxGetApp().UpdateDlgDarkUI(&dialog);
-    auto children = dialog.GetChildren();
-    for (auto child : children)
+    const auto& children = dialog.GetChildren();
+    for (wxWindow* child : children)
         child->SetFont(normal_font());
 
     dialog.SetSelection(initialSelection);
@@ -3439,7 +3439,8 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
                 
                 // set current normal font for dialog children, 
                 // because of just dlg.SetFont(normal_font()) has no result;
-                for (auto child : dlg.GetChildren())
+                const auto& children = dlg.GetChildren();
+                for (wxWindow* child : children)
                     child->SetFont(normal_font());
 
                 if (dlg.ShowModal() == wxID_OK)
