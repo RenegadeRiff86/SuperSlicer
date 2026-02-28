@@ -1947,19 +1947,19 @@ const wxColour GUI_App::get_label_default_clr_phony(bool is_dark_mode)
     return is_dark_mode ? wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT) : wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT);
 }
 
-const wxColour &GUI_App::get_label_clr_default() {
+const wxColour &GUI_App::get_label_clr_default() const {
     return dark_mode() ? m_color_dark_mode_label_default : m_color_label_default;
 }
 
-const wxColour &GUI_App::get_label_clr_modified() {
+const wxColour &GUI_App::get_label_clr_modified() const {
     return dark_mode() ? m_color_dark_mode_label_modified : m_color_label_modified;
 }
 
-const wxColour &GUI_App::get_label_clr_sys() {
+const wxColour &GUI_App::get_label_clr_sys() const {
     return dark_mode() ? m_color_dark_mode_label_sys : m_color_label_sys;
 }
 
-const wxColour &GUI_App::get_label_clr_phony() {
+const wxColour &GUI_App::get_label_clr_phony() const {
     return dark_mode() ? m_color_dark_mode_label_phony : m_color_label_phony;
 }
 
@@ -2306,7 +2306,7 @@ void GUI_App::SetWindowVariantForButton(wxButton* btn)
 #endif
 }
 
-int GUI_App::get_max_font_pt_size()
+int GUI_App::get_max_font_pt_size() const
 {
     const unsigned disp_count = wxDisplay::GetCount();
     for (unsigned i = 0; i < disp_count; i++) {
@@ -2425,7 +2425,7 @@ void GUI_App::set_label_clr_phony(const wxColour& clr) {
     app_config->save();
 }
 
-const std::string GUI_App::get_html_bg_color(wxWindow* html_parent)
+const std::string GUI_App::get_html_bg_color(wxWindow* html_parent) const
 {
     wxColour    bgr_clr = html_parent->GetBackgroundColour();
 #ifdef __APPLE__
@@ -3612,7 +3612,7 @@ bool GUI_App::has_current_preset_changes() const
     return false;
 }
 
-void GUI_App::update_saved_preset_from_current_preset()
+void GUI_App::update_saved_preset_from_current_preset() const
 {
     PrinterTechnology printer_technology = get_current_printer_technology();
     for (Tab* tab : tabs_list) {
@@ -3781,7 +3781,7 @@ bool GUI_App::can_load_project()
     return true;
 }
 
-bool GUI_App::check_print_host_queue()
+bool GUI_App::check_print_host_queue() const
 {
     wxString dirty;
     std::vector<std::pair<std::string, std::string>> jobs;
@@ -3924,34 +3924,34 @@ void GUI_App::MacOpenURL(const wxString& url)
 
 #endif /* __APPLE */
 
-Sidebar& GUI_App::sidebar()
+Sidebar& GUI_App::sidebar() const
 {
     return plater_->sidebar();
 }
 
-ObjectManipulation* GUI_App::obj_manipul()
+ObjectManipulation* GUI_App::obj_manipul() const
 {
     // If this method is called before plater_ has been initialized, return nullptr (to avoid a crash)
     return (plater_ != nullptr) ? sidebar().obj_manipul() : nullptr;
 }
 
-ObjectSettings* GUI_App::obj_settings()
+ObjectSettings* GUI_App::obj_settings() const
 {
     return sidebar().obj_settings();
 }
 
-ObjectList* GUI_App::obj_list()
+ObjectList* GUI_App::obj_list() const
 {
     // If this method is called before plater_ has been initialized, return nullptr (to avoid a crash)
     return plater_ ? sidebar().obj_list() : nullptr;
 }
 
-ObjectLayers* GUI_App::obj_layers()
+ObjectLayers* GUI_App::obj_layers() const
 {
     return sidebar().obj_layers();
 }
 
-Plater* GUI_App::plater()
+Plater* GUI_App::plater() // NOLINT(readability-make-member-function-const)
 {
     return plater_;
 }
@@ -3961,7 +3961,7 @@ const Plater* GUI_App::plater() const
     return plater_;
 }
 
-Model& GUI_App::model()
+Model& GUI_App::model() const
 {
     return plater_->model();
 }
@@ -3970,12 +3970,12 @@ wxBookCtrlBase* GUI_App::tab_panel() const
     return mainframe->m_tabpanel;
 }
 
-NotificationManager* GUI_App::notification_manager()
+NotificationManager* GUI_App::notification_manager() const
 {
     return plater_->get_notification_manager();
 }
 
-GalleryDialog* GUI_App::gallery_dialog()
+GalleryDialog* GUI_App::gallery_dialog() const
 {
     return mainframe->gallery_dialog();
 }
@@ -4039,7 +4039,7 @@ void GUI_App::open_web_page_localized(const std::string &http_address)
 
 // If we are switching from the FFF-preset to the SLA, we should to control the printed objects if they have a part(s).
 // Because of we can't to print the multi-part objects with SLA technology.
-bool GUI_App::may_switch_to_SLA_preset(const wxString& caption)
+bool GUI_App::may_switch_to_SLA_preset(const wxString& caption) const
 {
     if (model_has_parameter_modifiers_in_objects(model())) {
         show_info(nullptr,
@@ -4429,7 +4429,7 @@ void GUI_App::associate_bgcode_files()
 }
 #endif // __WXMSW__
 
-void GUI_App::on_version_read(wxCommandEvent& evt)
+void GUI_App::on_version_read(wxCommandEvent& evt) const
 {
     app_config->set("version_online", into_u8(evt.GetString()));
     std::optional<Slic3r::Semver> version_online = Semver::parse(into_u8(evt.GetString()));
@@ -4473,7 +4473,7 @@ void GUI_App::on_version_read(wxCommandEvent& evt)
     app_updater(m_app_updater->get_triggered_by_user());
 }
 
-void GUI_App::app_updater(bool from_user)
+void GUI_App::app_updater(bool from_user) const
 {
     DownloadAppData app_data = m_app_updater->get_app_data();
 
@@ -4529,7 +4529,7 @@ void GUI_App::app_version_check(bool from_user)
     m_app_updater->sync_version(version_check_url, from_user);
 }
 
-void GUI_App::start_download(std::string url)
+void GUI_App::start_download(std::string url) const
 {
     if (!plater_) {
         BOOST_LOG_TRIVIAL(error) << "Could not start URL download: plater is nullptr.";
