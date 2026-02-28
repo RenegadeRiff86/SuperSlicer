@@ -60,8 +60,8 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, bool add_mode_buttons/* = fal
     SetDoubleBuffered(true);
 #endif //__WINDOWS__
 
-    m_btn_margin = ThemeMetrics::notebook_button_margin(this);
-    m_line_margin = ThemeMetrics::notebook_line_margin(this);
+    m_btn_margin = Slic3r::GUI::ThemeMetrics::notebook_button_margin(this);
+    m_line_margin = Slic3r::GUI::ThemeMetrics::notebook_line_margin(this);
 
     SetBackgroundStyle(wxBG_STYLE_PAINT);
 
@@ -96,7 +96,7 @@ void ButtonsListCtrl::OnPaint(wxPaintEvent&)
     dc.Clear();
 
     const wxRect client_rect(wxPoint(0, 0), GetClientSize());
-    const int radius = ThemeMetrics::radius_sm(this);
+    const int radius = Slic3r::GUI::ThemeMetrics::radius_sm(this);
 
     for (int idx = 0; idx < int(m_pageButtons.size()); ++idx) {
         if (ScalableButton *button = m_pageButtons[idx]) {
@@ -169,8 +169,8 @@ void ButtonsListCtrl::UpdateMode()
 
 void ButtonsListCtrl::Rescale()
 {
-    m_btn_margin = ThemeMetrics::notebook_button_margin(this);
-    m_line_margin = ThemeMetrics::notebook_line_margin(this);
+    m_btn_margin = Slic3r::GUI::ThemeMetrics::notebook_button_margin(this);
+    m_line_margin = Slic3r::GUI::ThemeMetrics::notebook_line_margin(this);
 
     m_buttons_sizer->SetVGap(m_btn_margin);  // Adjust vertical gap here
     m_buttons_sizer->SetHGap(m_btn_margin);  // Adjust horizontal gap here
@@ -218,8 +218,8 @@ bool ButtonsListCtrl::InsertPage(size_t n, const wxString& text, bool bSelect/* 
 #endif //__APPLE__
         false, bmp_size);
 
-    if (ThemeMetrics::ui_density_preference() == "compact")
-        btn->SetMinSize(wxSize(-1, ThemeMetrics::notebook_min_height(this)));
+    if (Slic3r::GUI::ThemeMetrics::ui_density_preference() == "compact")
+        btn->SetMinSize(wxSize(-1, Slic3r::GUI::ThemeMetrics::notebook_min_height(this)));
 
     apply_tab_state(btn, bSelect ? TabVisualState::Selected : TabVisualState::Default);
 

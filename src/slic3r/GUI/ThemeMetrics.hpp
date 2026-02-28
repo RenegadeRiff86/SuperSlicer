@@ -5,7 +5,9 @@
 
 class wxWindow;
 
-namespace Slic3r::GUI::ThemeMetrics {
+namespace Slic3r {
+namespace GUI {
+namespace ThemeMetrics {
 
 int space_xs(wxWindow* win);
 int space_sm(wxWindow* win);
@@ -31,6 +33,8 @@ int combo_item_padding(wxWindow* win);
 
 std::string ui_density_preference();
 
-} // namespace Slic3r::GUI::ThemeMetrics
+} // namespace ThemeMetrics
+} // namespace GUI
+} // namespace Slic3r
 
 #endif

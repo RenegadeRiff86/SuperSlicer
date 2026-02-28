@@ -1,13 +1,16 @@
 #include "ThemeMetrics.hpp"
 
 #include "GUI_App.hpp"
+#include "libslic3r/AppConfig.hpp"
 #include "wxExtensions.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 
-namespace Slic3r::GUI::ThemeMetrics {
+namespace Slic3r {
+namespace GUI {
+namespace ThemeMetrics {
 
 namespace {
 enum class Platform : size_t { Windows = 0, Mac = 1, Linux = 2 };
@@ -89,7 +92,7 @@ int em_scaled_min1(wxWindow* win, double ems)
 
 std::string ui_density_preference()
 {
-    auto* app_config = wxGetApp().app_config;
+    AppConfig* app_config = wxGetApp().app_config.get();
     if (app_config == nullptr)
         return "comfortable";
 
@@ -129,4 +132,6 @@ int combo_item_padding(wxWindow* win)
     return space_xs(win);
 }
 
-} // namespace Slic3r::GUI::ThemeMetrics
+} // namespace ThemeMetrics
+} // namespace GUI
+} // namespace Slic3r
