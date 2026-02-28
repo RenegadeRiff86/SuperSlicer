@@ -14,8 +14,6 @@
 #include "GUI_ObjectManipulation.hpp"
 #include "GUI_Factories.hpp"
 #include "format.hpp"
-#include "InstanceCheck.hpp" 
-
 // Localization headers: include libslic3r version first so everything in this file
 // uses the slic3r/GUI version (the macros will take precedence over the functions).
 // Also, there is a check that the former is not included from slic3r module.
@@ -123,9 +121,6 @@
 #ifdef _MSW_DARK_MODE
 #include <wx/msw/dark_mode.h>
 #endif // _MSW_DARK_MODE
-#endif
-#ifdef _WIN32
-#include <boost/dll/runtime_symbol_info.hpp>
 #endif
 
 #if ENABLE_THUMBNAIL_GENERATOR_DEBUG
@@ -2129,7 +2124,7 @@ const wxColour& GUI_App::get_style_role_color(const std::string& role) const
     if (role == "combo.bg.disabled") {
 #ifdef _MSW_DARK_MODE
         if (dark_mode()) {
-            static const wxColour disabled_dark = wxRGBToColour(NppDarkMode::GetSofterBackgroundColor());
+            static const wxColour disabled_dark(NppDarkMode::GetSofterBackgroundColor());
             return disabled_dark;
         }
 #endif
