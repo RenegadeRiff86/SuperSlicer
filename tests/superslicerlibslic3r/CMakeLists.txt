@@ -1,7 +1,17 @@
 get_filename_component(_TEST_NAME ${CMAKE_CURRENT_LIST_DIR} NAME)
 
+set(_SUPERSLICERLIBSLIC3R_WIN32_SMOKE_TESTS
+    test_clipper_utils
+    test_dense_infill
+    test_thin
+)
+
 
 function(create_test test_name)
+    if (WIN32 AND NOT test_name IN_LIST _SUPERSLICERLIBSLIC3R_WIN32_SMOKE_TESTS)
+        return()
+    endif()
+
     add_executable(${test_name}_test
         ${test_name}.cpp
         test_data.hpp

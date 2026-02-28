@@ -116,6 +116,7 @@ public:
     explicit RandomArrangeSettings() : m_rng(std::random_device{} ()) {}
 
     float get_distance_from_objects() const override { return m_v.d_obj; }
+    float get_previous_distance_from_objects() const override { return m_v.d_obj_prev; }
     float get_distance_from_bed() const override { return m_v.d_bed; }
     bool  is_rotation_enabled() const override { return m_v.rotations; }
     XLPivots get_xl_alignment() const override { return m_v.xl_align; }
@@ -362,7 +363,7 @@ TEMPLATE_TEST_CASE("Common virtual bed handlers",
                              unscaled(bedbb.center()) - to_2d(modelbb.center()),
                              0.);
 
-    const auto vbed_gap = GENERATE(0, random_value(1, scaled(100.)));
+    const auto vbed_gap = GENERATE(coord_t(0), random_value<coord_t>(coord_t(1), scaled(100.)));
 
     INFO("vbed_gap = " << unscaled(vbed_gap));
 
@@ -505,7 +506,7 @@ TEST_CASE("Virtual bed handlers - StriderVBedHandler", "[arrange2][integration][
 
         INFO("Instance pos at " << instance_pos << " of bed");
 
-        coord_t gap = GENERATE(0, random_value(1, scaled(100.)));
+        coord_t gap = GENERATE(coord_t(0), random_value<coord_t>(coord_t(1), scaled(100.)));
 
         INFO("Gap is " << unscaled(gap));
 
@@ -633,7 +634,7 @@ TEMPLATE_TEST_CASE("Bed needs to be completely filled with 1cm cubes",
     ModelVolume* new_volume = new_object->add_volume(mesh);
     new_volume->name = new_object->name;
 
-        store_3mf("fillbed_10mm.3mf", &m, &cfg, false);
+        store_3mf("fillbed_10mm.3mf", &m, &cfg, OptionStore3mf{}.set_fullpath_sources(false));
 
     arr2::ArrangeSettings settings;
     settings.values().d_obj = 0.;
@@ -651,7 +652,7 @@ TEMPLATE_TEST_CASE("Bed needs to be completely filled with 1cm cubes",
     auto result = task->process_native(arr2::DummyCtl{});
     result->apply_on(scene.model());
 
-    store_3mf("fillbed_10mm_result.3mf", &m, &cfg, false);
+    store_3mf("fillbed_10mm_result.3mf", &m, &cfg, OptionStore3mf{}.set_fullpath_sources(false));
 
     Points bedpts = get_bed_shape(cfg);
     arr2::ArrangeBed bed = arr2::to_arrange_bed(bedpts);
@@ -855,7 +856,7 @@ TEST_CASE("Testing arrangement involving virtual beds", "[arrange2][integration]
 
     bool applied = result->apply_on(scene.model());
     REQUIRE(applied);
-    store_3mf("vbed_test_result.3mf", &model, &cfg, false);
+    store_3mf("vbed_test_result.3mf", &model, &cfg, OptionStore3mf{}.set_fullpath_sources(false));
 
     REQUIRE(std::all_of(task->printable.selected.begin(), task->printable.selected.end(),
                         [&bed](auto &item) { return bounding_box(bed).contains(arr2::envelope_bounding_box(item)); }));
@@ -1033,7 +1034,7 @@ TEST_CASE("Testing duplicate function to really duplicate the whole Model",
 
     Model model = get_example_model_with_arranged_primitives();
 
-    store_3mf("dupl_example.3mf", &model, nullptr, false);
+    store_3mf("dupl_example.3mf", &model, nullptr, OptionStore3mf{}.set_fullpath_sources(false));
 
     size_t instcnt = arr2::model_instance_count(model);
 
@@ -1056,7 +1057,7 @@ TEST_CASE("Testing duplicate function to really duplicate the whole Model",
     bool applied = result->apply_on(scene.model());
     if (applied) {
         dup_model.apply_duplicates();
-        store_3mf("dupl_example_result.3mf", &model, nullptr, false);
+        store_3mf("dupl_example_result.3mf", &model, nullptr, OptionStore3mf{}.set_fullpath_sources(false));
         REQUIRE(applied);
     }
 

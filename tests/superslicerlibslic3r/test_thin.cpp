@@ -12,6 +12,11 @@ using namespace Slic3r;
 using namespace Slic3r::Geometry;
 using namespace Slic3r::Test;
 
+static double ccw_angle_for_test(const Point &me, const Point &p1, const Point &p2)
+{
+    return abs_angle(angle_ccw(p1 - me, p2 - me));
+}
+
 class ExtrusionVolumeVisitor : public ExtrusionVisitorConst {
     double volume = 0;
 public:
@@ -185,7 +190,7 @@ SCENARIO("thin walls: ")
                 for (int idx = 1; idx < res[0].size() - 2; idx++) {
                     //assert(lines[idx].a== lines[idx - 1].b);
                     Line line(res[0].points[idx], res[0].points[idx + 1]);
-                    double angle = ccw_angle_old_test(res[0].points[idx], res[0].points[idx - 1], res[0].points[idx + 1]);
+                    double angle = ccw_angle_for_test(res[0].points[idx], res[0].points[idx - 1], res[0].points[idx + 1]);
                     if (std::abs(angle) - EPSILON < 0) angle = 0;
                     //if (angle < 0) std::cout << unscale_(lines[idx - 1].a.x()) << ":" << unscale_(lines[idx - 1].a.y()) << " -> " << unscale_(lines[idx - 1].b.x()) << ":" << unscale_(lines[idx - 1].b.y()) << " -> " << unscale_(lines[idx].b.x()) << ":" << unscale_(lines[idx].b.y()) << "\n";
                     std::cout << "angle=" << 180*angle/PI <<  "\n";
@@ -249,7 +254,7 @@ SCENARIO("thin walls: ")
                 double min_angle = 1, max_angle = -1;
                 for (int idx = 1; idx < res[0].size() - 1; idx++){
                     //double angle = lines[idx - 1].ccw(lines[idx].b);
-                    double angle = ccw_angle_old_test(res[0].points[idx], res[0].points[idx - 1], res[0].points[idx + 1]);
+                    double angle = ccw_angle_for_test(res[0].points[idx], res[0].points[idx - 1], res[0].points[idx + 1]);
                     min_angle = std::min(min_angle, angle);
                     max_angle = std::max(max_angle, angle);
                 }
@@ -260,7 +265,7 @@ SCENARIO("thin walls: ")
                 double min_angle = 1, max_angle = -1;
                 for (int idx = 1; idx < res[1].size() - 1; idx++){
                     //double angle = lines[idx - 1].ccw(lines[idx].b);
-                    double angle = ccw_angle_old_test(res[1].points[idx], res[1].points[idx - 1], res[1].points[idx + 1]);
+                    double angle = ccw_angle_for_test(res[1].points[idx], res[1].points[idx - 1], res[1].points[idx + 1]);
                     min_angle = std::min(min_angle, angle);
                     max_angle = std::max(max_angle, angle);
                 }

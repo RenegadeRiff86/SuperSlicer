@@ -1640,7 +1640,9 @@ bool GUI_App::on_init_inner()
 #endif // __WXMSW__
 
         preset_updater.reset(new PresetUpdater(this));
-        Bind(EVT_SLIC3R_VERSION_ONLINE, &GUI_App::on_version_read, this);
+        Bind(EVT_SLIC3R_VERSION_ONLINE, [this](wxCommandEvent& evt) {
+            this->on_version_read(evt);
+        });
         Bind(EVT_SLIC3R_EXPERIMENTAL_VERSION_ONLINE, [this](const wxCommandEvent& evt) {
             if (this->plater_ != nullptr && (m_app_updater->get_triggered_by_user() || app_config->get("notify_release") == "all")) {
                 std::string evt_string = into_u8(evt.GetString());

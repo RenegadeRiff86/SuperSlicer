@@ -52,7 +52,7 @@ SCENARIO("Export+Import geometry to/from 3mf file cycle", "[3mf]") {
         WHEN("model is saved+loaded to/from 3mf file") {
             // save the model to 3mf file
             std::string test_file = std::string(TEST_DATA_DIR) + "/test_3mf/prusa.3mf";
-            store_3mf(test_file.c_str(), &src_model, nullptr, false);
+            store_3mf(test_file.c_str(), &src_model, nullptr, OptionStore3mf{}.set_fullpath_sources(false));
 
             // load back the model from the 3mf file
             Model dst_model;

@@ -117,7 +117,7 @@ TEST_CASE("Validate Empty Thumbnails", "[Thumbnails in Config]") {
 
     auto test_loaded_config = [](DynamicPrintConfig& config) {
         REQUIRE(config.opt<ConfigOptionString>("thumbnails")->empty());
-        REQUIRE(config.option("thumbnails_format")->getInt() == (int)GCodeThumbnailsFormat::PNG);
+        REQUIRE(config.opt_enum<GCodeThumbnailsFormat>("thumbnails_format") == GCodeThumbnailsFormat::PNG);
     };
 
     SECTION("Load empty init_data") {
@@ -137,7 +137,7 @@ TEST_CASE("Validate New Thumbnails", "[Thumbnails in Config]") {
 
     auto test_loaded_config = [](DynamicPrintConfig& config, GCodeThumbnailsFormat format) {
         REQUIRE(!config.opt<ConfigOptionString>("thumbnails")->empty());
-        REQUIRE(config.option("thumbnails_format")->getInt() == (int)format);
+        REQUIRE(config.opt_enum<GCodeThumbnailsFormat>("thumbnails_format") == format);
     };
 
     SECTION("Test 1 (valid)") {
@@ -205,7 +205,7 @@ TEST_CASE("Validate Old Thumbnails", "[Thumbnails in Config]") {
 
     auto test_loaded_config = [](DynamicPrintConfig& config, GCodeThumbnailsFormat format) {
         REQUIRE(!config.opt<ConfigOptionString>("thumbnails")->empty());
-        REQUIRE(config.option("thumbnails_format")->getInt() == (int)format);
+        REQUIRE(config.opt_enum<GCodeThumbnailsFormat>("thumbnails_format") == format);
     };
 
     SECTION("Test 1 (valid)") {

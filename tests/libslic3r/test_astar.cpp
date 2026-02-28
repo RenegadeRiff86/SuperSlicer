@@ -6,6 +6,8 @@
 #include "libslic3r/PointGrid.hpp"
 
 using namespace Slic3r;
+using Vec2i = Vec2i32;
+using Vec3i = Vec3i32;
 
 TEST_CASE("Testing basic invariants of AStar", "[AStar]") {
     struct DummyTracer {
