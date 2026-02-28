@@ -232,13 +232,13 @@ public:
     void            set_label_clr_default(const wxColour& clr);
     void            set_label_clr_phony(const wxColour& clr);
 
-    const wxColour &get_label_clr_modified();
-    const wxColour &get_label_clr_sys();
-    const wxColour &get_label_clr_default();
-    const wxColour &get_label_clr_phony();
+    const wxColour &get_label_clr_modified() const;
+    const wxColour &get_label_clr_sys() const;
+    const wxColour &get_label_clr_default() const;
+    const wxColour &get_label_clr_phony() const;
     const wxColour &get_window_default_clr() { return m_color_window_default; }
 
-    const std::string       get_html_bg_color(wxWindow* html_parent);
+    const std::string       get_html_bg_color(wxWindow* html_parent) const;
 
     std::string             get_first_mode_btn_color(ConfigOptionMode mode_id) const;
     std::string             get_last_mode_btn_color(ConfigOptionMode mode_id) const;
@@ -283,7 +283,7 @@ public:
     bool            tabs_as_menu() const;
     bool            suppress_round_corners() const;
     wxSize          get_min_size(wxWindow* display_win) const;
-    int             get_max_font_pt_size();
+    int             get_max_font_pt_size() const;
     float           toolbar_icon_scale(const bool is_limited = false) const;
     void            set_auto_toolbar_icon_scale(float scale) const;
     void            check_printer_presets();
@@ -329,13 +329,13 @@ public:
     bool            has_unsaved_preset_changes() const;
     // Compare the content of get_selected_preset() with get_edited_preset() configs, return true if they differ.
     bool            has_current_preset_changes() const;
-    void            update_saved_preset_from_current_preset();
+    void            update_saved_preset_from_current_preset() const;
     std::vector<const PresetCollection*> get_active_preset_collections() const;
     bool            check_and_save_current_preset_changes(const wxString& caption, const wxString& header, bool remember_choice = true, bool use_dont_save_insted_of_discard = false);
     void            apply_keeped_preset_modifications();
     bool            check_and_keep_current_preset_changes(const wxString& caption, const wxString& header, int action_buttons, bool* postponed_apply_of_keeped_changes = nullptr);
     bool            can_load_project();
-    bool            check_print_host_queue();
+    bool            check_print_host_queue() const;
     bool            checked_tab(Tab* tab);
     void            load_current_presets(bool check_printer_presets = true);
 
@@ -357,16 +357,16 @@ public:
     void            MacOpenURL(const wxString& url) override;
 #endif /* __APPLE */
 
-    Sidebar&            sidebar();
-    ObjectManipulation* obj_manipul();
-    ObjectSettings*     obj_settings();
-    ObjectList*         obj_list();
-    ObjectLayers*       obj_layers();
+    Sidebar&            sidebar() const;
+    ObjectManipulation* obj_manipul() const;
+    ObjectSettings*     obj_settings() const;
+    ObjectList*         obj_list() const;
+    ObjectLayers*       obj_layers() const;
     Plater*             plater();
     const Plater*        plater() const;
-    Model&      		model();
-    NotificationManager* notification_manager();
-    GalleryDialog *      gallery_dialog();
+    Model&      		model() const;
+    NotificationManager* notification_manager() const;
+    GalleryDialog *      gallery_dialog() const;
     Downloader*          downloader();
 
     // Parameters extracted from the command line to be passed to GUI after initialization.
@@ -406,7 +406,7 @@ public:
     PrintHostJobQueue& printhost_job_queue() { return *m_printhost_job_queue.get(); }
 
     void            open_web_page_localized(const std::string &http_address);
-    bool            may_switch_to_SLA_preset(const wxString& caption);
+    bool            may_switch_to_SLA_preset(const wxString& caption) const;
 
     enum RunVendorBundleManage {
         RVBM_NEVER,
@@ -440,7 +440,7 @@ public:
 
 
     // URL download - PrusaSlicer gets system call to open prusaslicer:// URL which should contain address of download
-    void            start_download(std::string url);
+    void            start_download(std::string url) const;
 
     void            open_wifi_config_dialog(bool forced, const wxString& drive_path = {});
     bool            get_wifi_config_dialog_shown() const { return m_wifi_config_dialog_shown; }
@@ -459,9 +459,9 @@ private:
     // Returns true if the configuration is fine. 
     // Returns true if the configuration is not compatible and the user decided to rather close the slicer instead of reconfiguring.
 	bool            check_updates(const bool verbose, int nb_updates = 0);
-    void            on_version_read(wxCommandEvent& evt);
+    void            on_version_read(wxCommandEvent& evt) const;
     // if the data from version file are already downloaded, shows dialogs to start download of new version of app
-    void            app_updater(bool from_user);
+    void            app_updater(bool from_user) const;
     // inititate read of version file online in separate thread
     void            app_version_check(bool from_user);
 
