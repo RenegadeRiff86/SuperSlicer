@@ -1,0 +1,29 @@
+// Visual Studio IntelliSense hint file.
+//
+// Purpose:
+// - Provide a minimal set of preprocessor symbols so IntelliSense can follow
+//   the common code paths in src/slic3r/GUI/GUI_App.cpp.
+// - This helps reduce repeated VCR102 diagnostics caused by unresolved
+//   platform / feature-gated branches while browsing.
+//
+// Usage for contributors:
+// - Keep this file small and focused on frequently-hit gates.
+// - After changing this file, reopen the solution (or refresh IntelliSense)
+//   so the database is rebuilt with updated symbols.
+
+// Primary platform gates used across GUI_App.cpp
+#define _WIN32
+#define WIN32
+#define __linux__
+#define __APPLE__
+
+// wxWidgets / platform integration gates
+#define __WXMSW__
+#define __WXGTK3__
+
+// SuperSlicer feature gates frequently encountered in GUI_App.cpp
+#define _MSW_DARK_MODE
+#define USE_GTHUB_PRESET_UPDATE
+#define ENABLE_GL_CORE_PROFILE
+#define ENABLE_THUMBNAIL_GENERATOR_DEBUG
+#define GUI_TAG_PALETTE
