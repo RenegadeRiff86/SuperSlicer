@@ -790,12 +790,16 @@ static void register_win32_device_notification_event()
         auto plater = (main_frame == nullptr) ? nullptr : main_frame->plater();
 //        if (wParam == RIM_INPUTSINK && plater != nullptr && main_frame->IsActive()) {
         if (wParam == RIM_INPUT && plater != nullptr && main_frame->IsActive()) {
-        RAWINPUT raw;
-			UINT rawSize = sizeof(RAWINPUT);
-			::GetRawInputData((HRAWINPUT)lParam, RID_INPUT, &raw, &rawSize, sizeof(RAWINPUTHEADER));
-			if (raw.header.dwType == RIM_TYPEHID && plater->get_mouse3d_controller().handle_raw_input_win32(raw.data.hid.bRawData, raw.data.hid.dwSizeHid))
-				return true;
-		}
+            RAWINPUT raw{};
+            UINT     rawSize = sizeof(raw);
+            const UINT bytes_read = ::GetRawInputData((HRAWINPUT)lParam, RID_INPUT, &raw, &rawSize, sizeof(RAWINPUTHEADER));
+            if (bytes_read == static_cast<UINT>(-1) || bytes_read < sizeof(RAWINPUTHEADER) || rawSize < sizeof(RAWINPUTHEADER))
+                return false;
+
+            if (raw.header.dwType == RIM_TYPEHID &&
+                plater->get_mouse3d_controller().handle_raw_input_win32(raw.data.hid.bRawData, raw.data.hid.dwSizeHid))
+                return true;
+        }
         return false;
     });
 
