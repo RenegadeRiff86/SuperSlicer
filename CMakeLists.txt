@@ -171,6 +171,12 @@ if (MSVC)
         $<$<NOT:$<CONFIG:Debug>>:/INCREMENTAL:NO>
         $<$<NOT:$<CONFIG:Debug>>:/NODEFAULTLIB:LIBCMT>
     )
+    # Enable MSVC external-header support so that include paths marked SYSTEM in CMake
+    # are emitted as /external:I instead of /I, and /external:W0 suppresses all compiler
+    # and code-analysis diagnostics from those paths (IntelliSense honours these flags too).
+    set(CMAKE_INCLUDE_SYSTEM_FLAG_CXX "/external:I ")
+    set(CMAKE_INCLUDE_SYSTEM_FLAG_C   "/external:I ")
+    add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:/external:W0>")
 endif ()
 
 if (MINGW)
@@ -199,6 +205,16 @@ foreach (DIR ${PREFIX_PATH_CHECK})
         message(WARNING "CMAKE_PREFIX_PATH element doesn't exist: ${DIR}")
     endif ()
 endforeach ()
+
+# On MSVC, mark each CMAKE_PREFIX_PATH include directory as a system (external) include so
+# that /external:W0 suppresses diagnostics from pre-built dependency headers.
+if (MSVC)
+    foreach (_dir ${CMAKE_PREFIX_PATH})
+        if (IS_DIRECTORY "${_dir}/include")
+            include_directories(SYSTEM "${_dir}/include")
+        endif ()
+    endforeach ()
+endif ()
 
 # Add our own cmake module path.
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules/)

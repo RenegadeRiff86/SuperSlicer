@@ -10,3 +10,12 @@ add_library(clipper STATIC
 )
 
 target_link_libraries(clipper TBB::tbb TBB::tbbmalloc)
+
+if (MSVC)
+    # Suppress all compiler and code-analysis diagnostics from this bundled third-party library.
+    target_compile_options(clipper PRIVATE /W0 /analyze-)
+    set_target_properties(clipper PROPERTIES
+        VS_GLOBAL_EnableCppCoreCheck false
+        VS_GLOBAL_RunCodeAnalysis false
+    )
+endif ()
