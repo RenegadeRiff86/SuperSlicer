@@ -19,11 +19,11 @@ protected:
     void remove_slowdown(wxCommandEvent& event_args);
     void create_geometry(wxCommandEvent& event_args);
 
-    ComboBox* steps;
-    ComboBox* nb_steps;
+    ComboBox* steps = nullptr;
+    ComboBox* nb_steps = nullptr;
     //wxComboBox* start_step;
-    wxTextCtrl* temp_start;
-    ComboBox* decr_temp;
+    wxTextCtrl* temp_start = nullptr;
+    ComboBox* decr_temp = nullptr;
 };
 
 } // namespace GUI

@@ -32,7 +32,7 @@ protected:
     double magical_scaling(double, double, double, double, double, double, double );
 
     //i've set choice boxes for now just to save me typing numbers in when i want to test it :)
-    wxComboBox* nbRuns;
+    wxComboBox* nbRuns = nullptr;
     wxChoice* m_style_choice{ nullptr };
     CalibrationStyle m_selected_style{ CalibrationStyle::SegmentedLineSweep };
 
@@ -48,7 +48,7 @@ protected:
     struct SavedPaValues { wxString firstPa, startPa, endPa, increment, extrusionRole; };
     std::map<int, SavedPaValues> savedPaBeforeST;
 
-    wxBoxSizer* dynamicSizer;
+    wxBoxSizer* dynamicSizer = nullptr;
     int currentTestCount;
 };
 

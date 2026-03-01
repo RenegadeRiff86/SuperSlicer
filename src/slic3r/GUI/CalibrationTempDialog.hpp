@@ -18,9 +18,9 @@ protected:
     void create_buttons(wxStdDialogButtonSizer* sizer) override;
     void create_geometry(wxCommandEvent& event_args);
 
-    ComboBox* steps;
-    ComboBox* nb_down;
-    ComboBox* nb_up;
+    ComboBox* steps = nullptr;
+    ComboBox* nb_down = nullptr;
+    ComboBox* nb_up = nullptr;
 
 };
 

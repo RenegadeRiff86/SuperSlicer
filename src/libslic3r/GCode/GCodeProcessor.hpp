@@ -54,8 +54,8 @@ namespace Slic3r {
 
         struct Mode
         {
-            float time;
-            float travel_time;
+            float time = 0.0f;
+            float travel_time = 0.0f;
             std::vector<std::pair<CustomGCode::Type, std::pair<float, float>>> custom_gcode_times;
             std::vector<std::pair<EMoveType, float>> moves_times;
             std::vector<std::pair<GCodeExtrusionRole, float>> roles_times;
@@ -322,8 +322,8 @@ namespace Slic3r {
 
             struct CustomGCodeTime
             {
-                bool needed;
-                float cache;
+                bool needed = false;
+                float cache = 0.0f;
                 std::vector<std::pair<CustomGCode::Type, float>> times;
 
                 void reset();
@@ -335,6 +335,8 @@ namespace Slic3r {
                 unsigned int remaining_internal_g1_lines;
                 float elapsed_time;
             };
+
+            TimeMachine() { reset(); }
 
             bool enabled;
             float acceleration; // mm/s^2

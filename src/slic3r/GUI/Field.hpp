@@ -380,7 +380,7 @@ protected:
 
 	wxString			m_last_tooltip;
 
-    int                 m_em_unit;
+    int                 m_em_unit = 0;
 
     bool    bEnterPressed = false;
 

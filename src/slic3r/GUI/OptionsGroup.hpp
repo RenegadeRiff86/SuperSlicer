@@ -372,7 +372,7 @@ private:
     // scripted are in m_options but not in m_opt_set
     std::set<OptionKeyIdx>      m_opt_set;
     wxString                    m_config_category;
-    int                         m_config_type;
+    int                         m_config_type = 0;
 
     // Change an option on m_config, possibly call ModelConfig::touch().
 	void 	change_opt_value(const t_config_option_key& opt_key, bool enable, const boost::any& value, int opt_index = -1);

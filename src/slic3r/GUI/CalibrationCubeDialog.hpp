@@ -20,8 +20,8 @@ protected:
     void create_geometry_voron(wxCommandEvent& event_args) { create_geometry("voron_design_cube_v7.amf"); }
     void create_geometry_standard(wxCommandEvent& event_args) { create_geometry("xyzCalibration_cube.amf"); }
 
-    ComboBox* scale;
-    ComboBox* calibrate;
+    ComboBox* scale = nullptr;
+    ComboBox* calibrate = nullptr;
 
 };
 

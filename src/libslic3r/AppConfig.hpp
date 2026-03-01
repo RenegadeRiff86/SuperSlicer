@@ -68,7 +68,7 @@ public:
 		LayoutEntry(std::string name, std::string description, boost::filesystem::path path, Semver version) : name(name), description(description), path(path), version(version) {}
 	};
 	struct Tag {
-		ConfigOptionMode tag;
+		ConfigOptionMode tag{};
 		std::string name;
 		std::string description;
 		std::string color_hash; // with the hash, '#' + 6 digits.

@@ -858,7 +858,7 @@ private:
 protected:
     // this default is used to fill this vector when resized. It's not the default of a setting, for it please use the
     // ConfigOptionDef. It's not even serialized or put in the undo/redo.
-    T default_value;
+    T default_value{};
     std::vector<T> m_values;
 public:
 

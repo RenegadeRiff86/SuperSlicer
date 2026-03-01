@@ -88,7 +88,7 @@ class Mouse3DController
             bool 			 is_buttons() const { return ! this->is_translation() && ! this->is_rotation(); }
 
             Vec3d        	 vector;
-            unsigned int 	 type_or_buttons;
+            unsigned int 	 type_or_buttons = 0;
 
             static constexpr unsigned int TranslationType = std::numeric_limits<unsigned int>::max();
             static constexpr unsigned int RotationType    = TranslationType - 1;

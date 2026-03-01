@@ -673,7 +673,7 @@ private: // Prevents erroneous use by other classes.
     typedef std::pair<PrintObject *, bool>         PrintObjectInfo;
 
 public:
-    Print() {
+    Print() : m_timestamp_last_change(0) {
         //create config hierachy
         m_default_object_config.parent = &m_config;
         m_default_region_config.parent = &m_default_object_config;

@@ -57,7 +57,7 @@ public:
     };
 
     struct PrinterModel {
-        PrinterModel() {}
+        PrinterModel() : technology(ptFFF), bed_with_grid(false) {}
         std::string                 id;
         std::string                 name;
         PrinterTechnology           technology;

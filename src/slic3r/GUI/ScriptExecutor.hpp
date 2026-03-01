@@ -82,7 +82,7 @@ class ScriptContainer
     std::vector<std::string>                   m_to_reset_initial;
 
     // main vars
-    Tab *m_tab;
+    Tab *m_tab = nullptr;
     bool m_initialized = false;
 
 public:

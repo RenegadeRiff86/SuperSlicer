@@ -130,11 +130,11 @@ protected:
 
 class SpinInputDouble : public SpinInputBase
 {
-    double val;
-    double min;
-    double max;
-    double inc;
-    double delta;
+    double val = 0.0;
+    double min = 0.0;
+    double max = 0.0;
+    double inc = 0.0;
+    double delta = 0.0;
     int digits {-1};
 
 public:

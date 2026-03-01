@@ -20,8 +20,8 @@ protected:
     void create_geometry_flow_ratio(wxCommandEvent& event_args) { create_geometry("bridge_flow_ratio", false);  }
     void create_geometry_overlap(wxCommandEvent& event_args) { create_geometry("bridge_overlap", true); }
 
-    ComboBox* steps;
-    ComboBox* nb_tests;
+    ComboBox* steps = nullptr;
+    ComboBox* nb_tests = nullptr;
 };
 
 } // namespace GUI

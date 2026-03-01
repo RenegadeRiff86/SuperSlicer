@@ -71,7 +71,7 @@ class BedShapePanel : public wxPanel
     std::string        m_custom_model;
 
 public:
-    BedShapePanel(wxWindow* parent) : wxPanel(parent, wxID_ANY), m_custom_texture(NONE), m_custom_model(NONE) {}
+    BedShapePanel(wxWindow* parent) : wxPanel(parent, wxID_ANY), m_canvas(nullptr), m_shape_options_book(nullptr), m_custom_texture(NONE), m_custom_model(NONE) {}
 
     void build_panel(const ConfigOptionPoints& default_pt, const ConfigOptionString& custom_texture, const ConfigOptionString& custom_model);
 

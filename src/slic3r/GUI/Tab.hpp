@@ -680,7 +680,7 @@ public:
 	size_t		m_cache_extruder_count = 0;
 	size_t		m_milling_count = 0;
 	size_t		m_milling_count_old = 0;
-	size_t		m_initial_milling_count;
+	size_t		m_initial_milling_count = 0;
 	size_t		m_sys_milling_count = 0;
 	size_t		m_cache_milling_count = 0;
 

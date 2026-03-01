@@ -25,14 +25,14 @@ protected:
     void create_geometry(float min_flow, float max_flow, float min_speed, float max_speed, float min_overlap, float max_overlap);
     std::tuple<float,float, Flow> get_cube_size(float overlap);
     
-    ComboBox* cmb_gram;
-    ComboBox* cmb_nb_steps;
-    wxTextCtrl* txt_min_speed;
-    wxTextCtrl* txt_max_speed;
-    wxTextCtrl* txt_min_flow;
-    wxTextCtrl* txt_max_flow;
-    ComboBox* cmb_min_overlap;
-    ComboBox* cmb_max_overlap;
+    ComboBox* cmb_gram = nullptr;
+    ComboBox* cmb_nb_steps = nullptr;
+    wxTextCtrl* txt_min_speed = nullptr;
+    wxTextCtrl* txt_max_speed = nullptr;
+    wxTextCtrl* txt_min_flow = nullptr;
+    wxTextCtrl* txt_max_flow = nullptr;
+    ComboBox* cmb_min_overlap = nullptr;
+    ComboBox* cmb_max_overlap = nullptr;
 };
 
 } // namespace GUI

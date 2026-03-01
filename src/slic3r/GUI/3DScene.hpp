@@ -365,9 +365,9 @@ public:
         //   [0] = min.x, [1] = min.y, [2] = max.x, [3] = max.y
         // Circle:
         //   [0] = center.x, [1] = center.y, [3] = radius
-        std::array<float, 4> data;
+        std::array<float, 4> data{};
         //   [0] = min z, [1] = max z
-        std::array<float, 2> zs;
+        std::array<float, 2> zs{};
     };
 
 private:
@@ -387,9 +387,9 @@ private:
 
     struct Slope
     {
-        // toggle for slope rendering 
+        // toggle for slope rendering
         bool active{ false };
-        float normal_z;
+        float normal_z = 0.0f;
     };
 
     Slope m_slope;

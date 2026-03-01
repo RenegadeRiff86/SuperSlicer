@@ -183,7 +183,7 @@ private:
 	friend class cereal::access;
 	friend class UndoRedo::StackImpl;
 	// Create an object for deserialization, don't allocate IDs for ModelMaterial and its config.
-	ModelMaterial() : ObjectBase(-1), config(-1) { assert(this->id().invalid()); assert(this->config.id().invalid()); }
+	ModelMaterial() : ObjectBase(-1), config(-1), m_model(nullptr) { assert(this->id().invalid()); assert(this->config.id().invalid()); }
 	template<class Archive> void serialize(Archive &ar) { 
 		assert(this->id().invalid()); assert(this->config.id().invalid());
 		Internal::StaticSerializationWrapper<ModelConfigObject> config_wrapper(config);
@@ -1082,7 +1082,7 @@ private:
 	friend class cereal::access;
 	friend class UndoRedo::StackImpl;
 	// Used for deserialization, therefore no IDs are allocated.
-	ModelVolume() : ObjectBase(-1), config(-1), supported_facets(-1), seam_facets(-1), mm_segmentation_facets(-1), object(nullptr) {
+	ModelVolume() : ObjectBase(-1), config(-1), supported_facets(-1), seam_facets(-1), mm_segmentation_facets(-1), m_type(ModelVolumeType::MODEL_PART), object(nullptr) {
 		assert(this->id().invalid());
         assert(this->config.id().invalid());
         assert(this->supported_facets.id().invalid());
@@ -1234,7 +1234,7 @@ private:
 	friend class cereal::access;
 	friend class UndoRedo::StackImpl;
 	// Used for deserialization, therefore no IDs are allocated.
-	ModelInstance() : ObjectBase(-1), object(nullptr) { assert(this->id().invalid()); }
+	ModelInstance() : ObjectBase(-1), print_volume_state(ModelInstancePVS_Inside), object(nullptr) { assert(this->id().invalid()); }
 	template<class Archive> void serialize(Archive &ar) {
         ar(m_transformation, print_volume_state, printable);
     }
@@ -1254,10 +1254,10 @@ private:
 
     // Constructors to be only called by derived classes.
     // Default constructor to assign a unique ID.
-    explicit ModelWipeTower() {}
+    explicit ModelWipeTower() : rotation(0.0) {}
     // Constructor with ignored int parameter to assign an invalid ID, to be replaced
     // by an existing ID copied from elsewhere.
-    explicit ModelWipeTower(int) : ObjectBase(-1) {}
+    explicit ModelWipeTower(int) : ObjectBase(-1), rotation(0.0) {}
     // Copy constructor copies the ID.
 	explicit ModelWipeTower(const ModelWipeTower &cfg) = default;
 

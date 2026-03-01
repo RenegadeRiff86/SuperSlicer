@@ -131,7 +131,7 @@ private:
 	std::string 			m_last_save_path;
 	// Verifies that exporting was finished so drive can be ejected.
 	// Set false by set_and_verify_last_save_path() that is called just before exporting.
-	bool                    m_exporting_finished;
+	bool                    m_exporting_finished = false;
 #if __APPLE__
     void register_window_osx();
     void unregister_window_osx();

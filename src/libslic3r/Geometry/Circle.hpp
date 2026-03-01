@@ -74,7 +74,7 @@ struct CircleSq {
     using Scalar = typename Vector::Scalar;
 
     Vector center;
-    Scalar radius2;
+    Scalar radius2{};
 
     CircleSq() {}
     CircleSq(const Vector &center, const Scalar radius2) : center(center), radius2(radius2) {}
