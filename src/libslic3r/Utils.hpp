@@ -333,7 +333,7 @@ public:
     ScopeGuard() {}
     ScopeGuard(Closure closure) : closure(std::move(closure)) {}
     ScopeGuard(const ScopeGuard&) = delete;
-    ScopeGuard(ScopeGuard &&other) : closure(std::move(other.closure)) {}
+    ScopeGuard(ScopeGuard &&other) noexcept : closure(std::move(other.closure)) {}
 
     ~ScopeGuard()
     {
@@ -341,7 +341,7 @@ public:
     }
 
     ScopeGuard& operator=(const ScopeGuard&) = delete;
-    ScopeGuard& operator=(ScopeGuard &&other)
+    ScopeGuard& operator=(ScopeGuard &&other) noexcept
     {
         closure = std::move(other.closure);
         return *this;

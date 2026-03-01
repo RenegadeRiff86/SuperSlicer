@@ -63,7 +63,7 @@ public:
         return *this;
     }
     /// @brief Move operator, never throws
-    clonable_ptr& operator=(clonable_ptr&& rhs)
+    clonable_ptr& operator=(clonable_ptr&& rhs) noexcept
     {
 		delete px;
         px = rhs.px;

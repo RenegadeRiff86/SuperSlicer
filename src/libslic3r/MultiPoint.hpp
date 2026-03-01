@@ -409,7 +409,7 @@ public:
 
     MultiPoint() = default;
     MultiPoint(const MultiPoint &other) : points(other.points) {}
-    MultiPoint(MultiPoint &&other) : points(std::move(other.points)) {}
+    MultiPoint(MultiPoint &&other) noexcept : points(std::move(other.points)) {}
     MultiPoint(std::initializer_list<Point> list) : points(list) {}
     explicit MultiPoint(const Points &_points) : points(_points) {}
     explicit MultiPoint(Points &&_points) : points(std::move(_points)) {}
@@ -417,7 +417,7 @@ public:
         points = other.points;
         return *this;
     }
-    MultiPoint &operator=(MultiPoint &&other) {
+    MultiPoint &operator=(MultiPoint &&other) noexcept {
         points = std::move(other.points);
         return *this;
     }

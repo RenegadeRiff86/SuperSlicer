@@ -53,7 +53,7 @@ public:
     Polygon(const Polygon &other) : MultiPoint(other.points) {
         assert(this->empty() || !this->front().coincides_with(this->back()));
     }
-    Polygon(Polygon &&other) : MultiPoint(std::move(other.points)) {
+    Polygon(Polygon &&other) noexcept : MultiPoint(std::move(other.points)) {
         assert(this->size() != 1);
         assert(this->empty() || !this->front().coincides_with(this->back()));
         if (this->size() > 1 && this->front().coincides_with_epsilon(this->back()))
@@ -67,7 +67,7 @@ public:
 		return pgn;
 	}
     Polygon& operator=(const Polygon &other) { points = other.points; return *this; }
-    Polygon& operator=(Polygon &&other) { points = std::move(other.points); return *this; }
+    Polygon& operator=(Polygon &&other) noexcept { points = std::move(other.points); return *this; }
 
     Point& operator[](Points::size_type idx) { return this->points[idx]; }
     const Point& operator[](Points::size_type idx) const { return this->points[idx]; }

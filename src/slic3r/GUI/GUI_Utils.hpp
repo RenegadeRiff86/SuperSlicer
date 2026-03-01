@@ -346,7 +346,7 @@ private:
 public:
     EventGuard() {}
     EventGuard(const EventGuard&) = delete;
-    EventGuard(EventGuard &&other) : event_storage(std::move(other.event_storage)) {}
+    EventGuard(EventGuard &&other) noexcept : event_storage(std::move(other.event_storage)) {}
 
     template<class EvTag, class Fun>
     EventGuard(wxEvtHandler *emitter, const EvTag &tag, Fun fun)
@@ -359,7 +359,7 @@ public:
     {}
 
     EventGuard& operator=(const EventGuard&) = delete;
-    EventGuard& operator=(EventGuard &&other)
+    EventGuard& operator=(EventGuard &&other) noexcept
     {
         event_storage = std::move(other.event_storage);
         return *this;

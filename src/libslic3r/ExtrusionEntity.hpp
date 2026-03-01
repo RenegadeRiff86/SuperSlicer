@@ -196,7 +196,7 @@ public:
     //ExtrusionPath(ExtrusionRole role) : ExtrusionEntity(true), m_attributes{role} {}
     ExtrusionPath(const ExtrusionAttributes &attributes, bool can_reverse = true) : ExtrusionEntity(can_reverse), m_attributes(attributes) {}
     ExtrusionPath(const ExtrusionPath &rhs) : ExtrusionEntity(rhs.m_id, rhs.m_can_reverse), polyline(rhs.polyline), m_attributes(rhs.m_attributes) {}
-    ExtrusionPath(ExtrusionPath &&rhs) : ExtrusionEntity(rhs.m_id, rhs.m_can_reverse), polyline(std::move(rhs.polyline)), m_attributes(rhs.m_attributes) {}
+    ExtrusionPath(ExtrusionPath &&rhs) noexcept : ExtrusionEntity(rhs.m_id, rhs.m_can_reverse), polyline(std::move(rhs.polyline)), m_attributes(rhs.m_attributes) {}
     ExtrusionPath(const ArcPolyline &polyline, const ExtrusionAttributes &attribs, bool can_reverse = true) : ExtrusionEntity(can_reverse), polyline(polyline), m_attributes(attribs) {}
     ExtrusionPath(ArcPolyline &&polyline, const ExtrusionAttributes &attribs, bool can_reverse = true) : ExtrusionEntity(can_reverse), polyline(std::move(polyline)), m_attributes(attribs) {}
 
@@ -206,7 +206,7 @@ public:
         m_attributes = rhs.m_attributes;
         return *this;
     }
-    ExtrusionPath &operator=(ExtrusionPath &&rhs) {
+    ExtrusionPath &operator=(ExtrusionPath &&rhs) noexcept {
         this->m_can_reverse = rhs.m_can_reverse;
         this->polyline = std::move(rhs.polyline);
         m_attributes = rhs.m_attributes;
@@ -303,7 +303,7 @@ public:
     ExtrusionPath3D(const ExtrusionPath &rhs) : ExtrusionPath(rhs) { init();  }
     ExtrusionPath3D(ExtrusionPath &&rhs) : ExtrusionPath(rhs) { init();  }
     ExtrusionPath3D(const ExtrusionPath3D &rhs) : ExtrusionPath(rhs), z_offsets(rhs.z_offsets) { init();  }
-    ExtrusionPath3D(ExtrusionPath3D &&rhs) : ExtrusionPath(rhs), z_offsets(std::move(rhs.z_offsets)) { init();  }
+    ExtrusionPath3D(ExtrusionPath3D &&rhs) noexcept : ExtrusionPath(rhs), z_offsets(std::move(rhs.z_offsets)) { init();  }
 
 
     ExtrusionPath3D &operator=(const ExtrusionPath3D &rhs)
@@ -314,9 +314,9 @@ public:
         z_offsets = rhs.z_offsets;
         return *this;
     }
-    ExtrusionPath3D &operator=(ExtrusionPath3D &&rhs)
+    ExtrusionPath3D &operator=(ExtrusionPath3D &&rhs) noexcept
     {
-        this->m_can_reverse = rhs.m_can_reverse; 
+        this->m_can_reverse = rhs.m_can_reverse;
         this->m_attributes = rhs.m_attributes;
         this->polyline = std::move(rhs.polyline);
         z_offsets = std::move(rhs.z_offsets);
@@ -449,7 +449,7 @@ public:
 
     ExtrusionMultiPath() {};
     ExtrusionMultiPath(const ExtrusionMultiPath &rhs) : ExtrusionMultiEntity(rhs) {}
-    ExtrusionMultiPath(ExtrusionMultiPath &&rhs) : ExtrusionMultiEntity(rhs) {}
+    ExtrusionMultiPath(ExtrusionMultiPath &&rhs) noexcept : ExtrusionMultiEntity(rhs) {}
     ExtrusionMultiPath(const ExtrusionPaths &paths) : ExtrusionMultiEntity(paths) {};
     ExtrusionMultiPath(const ExtrusionPath &path) :ExtrusionMultiEntity(path) {}
 
@@ -458,7 +458,7 @@ public:
         this->paths = rhs.paths;
         return *this;
     }
-    ExtrusionMultiPath &operator=(ExtrusionMultiPath &&rhs) {
+    ExtrusionMultiPath &operator=(ExtrusionMultiPath &&rhs) noexcept {
         this->m_can_reverse = rhs.m_can_reverse;
         this->paths = std::move(rhs.paths);
         return *this;
@@ -479,12 +479,12 @@ public:
 
     ExtrusionMultiPath3D() {};
     ExtrusionMultiPath3D(const ExtrusionMultiPath3D &rhs) : ExtrusionMultiEntity(rhs) {}
-    ExtrusionMultiPath3D(ExtrusionMultiPath3D &&rhs) : ExtrusionMultiEntity(rhs) {}
+    ExtrusionMultiPath3D(ExtrusionMultiPath3D &&rhs) noexcept : ExtrusionMultiEntity(rhs) {}
     ExtrusionMultiPath3D(const ExtrusionPaths3D &paths) : ExtrusionMultiEntity(paths) {};
     ExtrusionMultiPath3D(const ExtrusionPath3D &path) :ExtrusionMultiEntity(path) {}
 
     ExtrusionMultiPath3D& operator=(const ExtrusionMultiPath3D& rhs) { this->paths = rhs.paths; return *this; }
-    ExtrusionMultiPath3D& operator=(ExtrusionMultiPath3D&& rhs) { this->paths = std::move(rhs.paths); return *this; }
+    ExtrusionMultiPath3D& operator=(ExtrusionMultiPath3D&& rhs) noexcept { this->paths = std::move(rhs.paths); return *this; }
 
     virtual ExtrusionMultiPath3D* clone() const override { return new ExtrusionMultiPath3D(*this); }
     virtual ExtrusionMultiPath3D* clone_move() override { return new ExtrusionMultiPath3D(std::move(*this)); }

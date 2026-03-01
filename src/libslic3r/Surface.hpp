@@ -93,7 +93,7 @@ public:
             bridge_angle(other.bridge_angle), extra_perimeters(other.extra_perimeters),
             maxNbSolidLayersOnTop(other.maxNbSolidLayersOnTop),
             priority(other.priority) {};
-    Surface(Surface &&rhs)
+    Surface(Surface &&rhs) noexcept
         : surface_type(rhs.surface_type), expolygon(std::move(rhs.expolygon)),
             thickness(rhs.thickness), thickness_layers(rhs.thickness_layers), 
             bridge_angle(rhs.bridge_angle), extra_perimeters(rhs.extra_perimeters),
@@ -121,7 +121,7 @@ public:
         return *this;
     }
 
-    Surface& operator=(Surface &&rhs)
+    Surface& operator=(Surface &&rhs) noexcept
     {
         surface_type     = rhs.surface_type;
         expolygon        = std::move(rhs.expolygon);

@@ -98,7 +98,7 @@ struct PrintHostJob
 
     PrintHostJob() {}
     PrintHostJob(const PrintHostJob&) = delete;
-    PrintHostJob(PrintHostJob &&other)
+    PrintHostJob(PrintHostJob &&other) noexcept
         : upload_data(std::move(other.upload_data))
         , printhost(std::move(other.printhost))
         , cancelled(other.cancelled)
@@ -109,7 +109,7 @@ struct PrintHostJob
     {}
 
     PrintHostJob& operator=(const PrintHostJob&) = delete;
-    PrintHostJob& operator=(PrintHostJob &&other)
+    PrintHostJob& operator=(PrintHostJob &&other) noexcept
     {
         upload_data = std::move(other.upload_data);
         printhost = std::move(other.printhost);
