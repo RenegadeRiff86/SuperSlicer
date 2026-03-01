@@ -28,14 +28,14 @@ class wxZipStreamLink;
 #include "slic3r/GUI/I18N.hpp"
 
 #include <algorithm>
-#include <iterator>
 #include <exception>
 #include <cstdlib>
 #include <regex>
 #include <string_view>
 #include <boost/nowide/fstream.hpp>
+#include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/predicate.hpp>
-#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/split.hpp>
 #include <boost/format.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/nowide/convert.hpp>
@@ -48,15 +48,13 @@ class wxZipStreamLink;
 #include <wx/menuitem.h>
 #include <wx/filedlg.h>
 #include <wx/progdlg.h>
-#include <wx/dir.h>
 #include <wx/filefn.h>
-#include <wx/sysopt.h>
 #include <wx/log.h>
 #include <wx/intl.h>
 
 #include <wx/dialog.h>
 #include <wx/textctrl.h>
-#include <wx/splash.h>
+#include <wx/generic/splash.h>
 #include <wx/fontutil.h>
 
 #include "exif.h"

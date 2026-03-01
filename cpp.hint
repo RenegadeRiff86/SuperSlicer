@@ -28,3 +28,26 @@
 // confuse the parser and pollute the Error List without affecting real builds.
 class wxZipStreamLink;
 #define wxDEFINE_EVENT(name, type)
+
+// wxWidgets application entry point.
+// Real expansion generates extern "C" WinMain() + global factory objects inside
+// namespace scope, which breaks IntelliSense's structural analysis of the TU
+// and produces dozens of "Browsing operations around this macro may fail" warnings.
+#define wxIMPLEMENT_WXWIN_MAIN
+#define wxIMPLEMENT_APP_NO_MAIN(appname)
+#define wxIMPLEMENT_WX_THEME_SUPPORT
+#define wxIMPLEMENT_APP_NO_THEMES(appname)
+#define wxIMPLEMENT_APP(appname)
+#define IMPLEMENT_APP(appname)
+
+// wxWidgets assertion / guard macros.
+// The else-branch contains a bare `return rc` or arbitrary `op` statement;
+// IntelliSense loses track of the enclosing function return type when parsing.
+#define wxCHECK2_MSG(cond, op, msg)
+#define wxCHECK_MSG(cond, rc, msg)
+#define wxCHECK_RET(cond, msg)
+#define wxCHECK(cond, rc)
+
+// Localisation helpers.
+#define _L(x) x
+#define _u8L(x) x
