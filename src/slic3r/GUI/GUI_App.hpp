@@ -181,7 +181,7 @@ private:
     std::unique_ptr <wxSingleInstanceChecker> m_single_instance_checker;
     std::unique_ptr <Downloader> m_downloader;
     std::string m_instance_hash_string;
-	size_t m_instance_hash_int;
+	size_t m_instance_hash_int = 0;
 
 public:
     bool            OnInit() override;

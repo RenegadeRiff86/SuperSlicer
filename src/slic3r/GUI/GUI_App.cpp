@@ -1598,7 +1598,7 @@ bool GUI_App::on_init_inner()
         bool default_splashscreen_pos = true;
         if (app_config->has("window_mainframe") && app_config->get_bool("restore_win_position")) {
             std::optional<WindowMetrics> metrics = WindowMetrics::deserialize(app_config->get("window_mainframe"));
-            default_splashscreen_pos = metrics.has_value();
+            default_splashscreen_pos = !metrics.has_value();
             if (!default_splashscreen_pos)
                 splashscreen_pos = metrics->get_rect().GetPosition();
         }
@@ -2469,7 +2469,7 @@ std::string GUI_App::get_last_mode_btn_color(ConfigOptionMode mode_id) const
     std::lock_guard<std::recursive_mutex> lk(get_app_config()->config_lock);
     const std::vector<AppConfig::Tag> &tags = get_app_config()->tags();
     assert(size_t(mode_id) < tags.size());
-    for (size_t idx_p1 = tags.size() - 1; idx_p1 < tags.size(); --idx_p1) {
+    for (size_t idx_p1 = tags.size(); idx_p1-- > 0; ) {
         const AppConfig::Tag& tag = tags[idx_p1];
         // get the first good tag.
         if ((tag.tag & mode_id) == tag.tag) {
@@ -3167,6 +3167,11 @@ bool GUI_App::load_language(wxString language, bool initial)
         	language_info = m_language_info_best;
 	    if (language_info == nullptr)
 			language_info = wxLocale::GetLanguageInfo(wxLANGUAGE_ENGLISH_US);
+    }
+
+    if (language_info == nullptr) {
+        BOOST_LOG_TRIVIAL(error) << "Failed to resolve any usable language info; aborting language switch.";
+        return false;
     }
 
 	BOOST_LOG_TRIVIAL(trace) << boost::format("Switching wxLocales to %1%") % language_info->CanonicalName.ToUTF8().data();
