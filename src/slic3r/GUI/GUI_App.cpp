@@ -17,7 +17,6 @@ class wxZipStreamLink;
 #include "GUI_Init.hpp"
 #include "GUI_ObjectList.hpp"
 #include "GUI_ObjectManipulation.hpp"
-#include "GUI_Factories.hpp"
 #include "format.hpp"
 // Localization headers: include libslic3r version first so everything in this file
 // uses the slic3r/GUI version (the macros will take precedence over the functions).
@@ -38,7 +37,6 @@ class wxZipStreamLink;
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
-#include <boost/lexical_cast.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/nowide/convert.hpp>
 #include <boost/dll/runtime_symbol_info.hpp>
@@ -51,10 +49,8 @@ class wxZipStreamLink;
 #include <wx/filedlg.h>
 #include <wx/progdlg.h>
 #include <wx/dir.h>
-#include <wx/wupdlock.h>
 #include <wx/filefn.h>
 #include <wx/sysopt.h>
-#include <wx/richmsgdlg.h>
 #include <wx/log.h>
 #include <wx/intl.h>
 
@@ -73,7 +69,6 @@ class wxZipStreamLink;
 
 #include "GUI.hpp"
 #include "GUI_Utils.hpp"
-#include "3DScene.hpp"
 #include "MainFrame.hpp"
 #include "Plater.hpp"
 #include "GLCanvas3D.hpp"
@@ -81,7 +76,9 @@ class wxZipStreamLink;
 #include "../Utils/PresetUpdater.hpp"
 #include "../Utils/PrintHost.hpp"
 #include "../Utils/Process.hpp"
+#ifdef __APPLE__
 #include "../Utils/MacDarkMode.hpp"
+#endif
 #include "../Utils/AppUpdater.hpp"
 #include "../Utils/WinRegistry.hpp"
 #include "slic3r/Config/Snapshot.hpp"
@@ -108,16 +105,14 @@ class wxZipStreamLink;
 #include "InstanceCheck.hpp"
 #include "NotificationManager.hpp"
 #include "UnsavedChangesDialog.hpp"
-#include "SavePresetDialog.hpp"
 #include "PrintHostDialogs.hpp"
+#ifdef __linux__
 #include "DesktopIntegrationDialog.hpp"
-#include "SendSystemInfoDialog.hpp"
+#endif
 #include "Downloader.hpp"
-#include "PhysicalPrinterDialog.hpp"
 #include "WifiConfigDialog.hpp"
 #include "Widgets/UIColors.hpp"
 
-#include "BitmapCache.hpp"
 #include "Notebook.hpp"
 
 #ifdef __WXMSW__
