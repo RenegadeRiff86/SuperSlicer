@@ -223,7 +223,7 @@ public:
     // update color mode for DataViewControl
     void            UpdateDVCDarkUI(wxDataViewCtrl* dvc, bool highlited = false);
     // update color mode for panel including all static texts controls
-    void            UpdateAllStaticTextDarkUI(wxWindow* parent);
+    void            UpdateAllStaticTextDarkUI(wxWindow* parent) const;
     void            SetWindowVariantForButton(wxButton* btn);
     void            init_fonts();
 	void            update_fonts(const MainFrame *main_frame = nullptr);
@@ -271,7 +271,7 @@ public:
     const wxColour& get_style_role_color(const std::string& role) const;
     void            force_colors_update();
 #ifdef _MSW_DARK_MODE
-    void            force_menu_update();
+    void            force_menu_update() const;
 #endif //_MSW_DARK_MODE
 
     const wxFont&   small_font()            { return m_small_font; }
@@ -286,7 +286,7 @@ public:
     int             get_max_font_pt_size() const;
     float           toolbar_icon_scale(const bool is_limited = false) const;
     void            set_auto_toolbar_icon_scale(float scale) const;
-    void            check_printer_presets();
+    void            check_printer_presets() const;
 
     void            recreate_GUI(const wxString& message);
     void            system_info();
@@ -320,7 +320,7 @@ public:
     bool            load_language(wxString language, bool initial);
 
     Tab*            get_tab(Preset::Type type, bool only_completed = true);
-    ConfigOptionMode get_mode();
+    ConfigOptionMode get_mode() const;
     bool            save_mode(const ConfigOptionMode mode) ;
     void            update_mode();
 
@@ -417,7 +417,7 @@ public:
                     ConfigWizard::StartPage start_page = ConfigWizard::SP_WELCOME,
                     RunVendorBundleManage bypass_bundle_install = RVBM_IF_EMPTY);
     void            show_desktop_integration_dialog();
-    void            show_downloader_registration_dialog();
+    void            show_downloader_registration_dialog() const;
 
 #if ENABLE_THUMBNAIL_GENERATOR_DEBUG
     // temporary and debug only -> extract thumbnails from selected gcode and save them as png files
@@ -450,8 +450,8 @@ private:
     // returns old config path to copy from if such exists,
     // returns an empty string if such config path does not exists or if it cannot be loaded.
     std::string     check_older_app_config(Semver current_version, bool backup);
-    void            window_pos_save(wxTopLevelWindow* window, const std::string &name);
-    void            window_pos_restore(wxTopLevelWindow* window, const std::string &name, bool default_maximized = false);
+    void            window_pos_save(wxTopLevelWindow* window, const std::string &name) const;
+    void            window_pos_restore(wxTopLevelWindow* window, const std::string &name, bool default_maximized = false) const;
     void            window_pos_sanitize(wxTopLevelWindow* window);
     bool            select_language();
 

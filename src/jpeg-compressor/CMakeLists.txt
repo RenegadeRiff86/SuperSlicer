@@ -1,6 +1,6 @@
 # PrusaSlicer specific CMake
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 project(jpeg-compressor)
 
 add_library(jpeg-compressor STATIC

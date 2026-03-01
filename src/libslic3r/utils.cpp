@@ -83,9 +83,13 @@
 #include <cstdlib>   // getenv()
 #ifdef WIN32
 	// The standard Windows includes.
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <shellapi.h>
+	#ifndef WIN32_LEAN_AND_MEAN
+		#define WIN32_LEAN_AND_MEAN
+	#endif
+	#ifndef NOMINMAX
+		#define NOMINMAX
+	#endif
+	#include <shellapi.h>
 #else
 	// POSIX
 #include <sstream>

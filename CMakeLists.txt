@@ -14,10 +14,9 @@ project(Slic3r)
 if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/version.date.inc")
 	include("version.date.inc")
 else()
-	message(STATUS "Warning: cannot find file 'version.date.inc', using template 'version.inc' instead.")
 	include("version.inc")
 endif()
-set(BOOST_VERBOSE YES)
+set(BOOST_VERBOSE NO)
 include(GNUInstallDirs)
 include(CMakeDependentOption)
 
@@ -72,6 +71,11 @@ if (SLIC3R_STATIC)
     # while having a Find<PkgName> module in standard cmake installation.
     # (e.g. CURL)
     set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
+endif ()
+
+if (WIN32)
+    # Optional Windows dependency discovery does not use pkg-config.
+    set(CMAKE_DISABLE_FIND_PACKAGE_PkgConfig TRUE)
 endif ()
 
 # Dependency build management
@@ -134,27 +138,39 @@ if (MSVC)
     # Prefer their release variants for non-debug optimized builds to avoid mixed-runtime link noise.
     set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release)
     set(CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL Release)
+    foreach(_cfg RELEASE RELWITHDEBINFO MINSIZEREL)
+        string(APPEND CMAKE_EXE_LINKER_FLAGS_${_cfg} " /LTCG")
+        string(APPEND CMAKE_SHARED_LINKER_FLAGS_${_cfg} " /LTCG")
+    endforeach()
 endif ()
 
 if (MSVC)
     if (SLIC3R_MSVC_COMPILE_PARALLEL AND NOT IS_CLANG_CL)
-           add_compile_options(/MP)
+           add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:/MP>")
     endif ()
     # /bigobj (Increase Number of Sections in .Obj file)
     # error C3859: virtual memory range for PCH exceeded; please recompile with a command line option of '-Zm90' or greater
     # Generate symbols at every build target, even for the release.
-    add_compile_options(-bigobj -Zm520 /Zi)
+    add_compile_options(
+        "$<$<COMPILE_LANGUAGE:C,CXX>:-bigobj>"
+        "$<$<COMPILE_LANGUAGE:C,CXX>:-Zm520>"
+        "$<$<COMPILE_LANGUAGE:C,CXX>:/Zi>"
+    )
     # Disable STL4007: Many result_type typedefs and all argument_type, first_argument_type, and second_argument_type typedefs are deprecated in C++17.
     #FIXME Remove this line after eigen library adapts to the new C++17 adaptor rules.
-    add_compile_options(-D_SILENCE_CXX17_ADAPTOR_TYPEDEFS_DEPRECATION_WARNING)
+    add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:-D_SILENCE_CXX17_ADAPTOR_TYPEDEFS_DEPRECATION_WARNING>")
     # Disable warnings on conversion from unsigned to signed (possible loss of data)
     # C4244: 'conversion' conversion from 'type1' to 'type2', possible loss of data. An integer type is converted to a smaller integer type.
     # C4267: The compiler detected a conversion from size_t to a smaller type.
-    add_compile_options(/wd4244 /wd4267)
+    add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:/wd4244>" "$<$<COMPILE_LANGUAGE:C,CXX>:/wd4267>")
     # Enforce strict C++ conformance, so our code that compiles on MSVC also compiles on GCC and clang.
-    add_compile_options(/permissive-)
-    # Our RelWithDebInfo links against some /GL-built third-party libs; align the linker flags with them.
-    add_link_options($<$<CONFIG:RelWithDebInfo>:/INCREMENTAL:NO> $<$<CONFIG:RelWithDebInfo>:/LTCG>)
+    add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:/permissive->")
+    # Optimized MSVC links should not be incremental. The Windows jpeg-static dependency
+    # also requests the static CRT, so prefer the target's /MD runtime for non-debug links.
+    add_link_options(
+        $<$<NOT:$<CONFIG:Debug>>:/INCREMENTAL:NO>
+        $<$<NOT:$<CONFIG:Debug>>:/NODEFAULTLIB:LIBCMT>
+    )
 endif ()
 
 if (MINGW)
@@ -213,7 +229,7 @@ if(WIN32)
     else()
         # Try to use the default Windows 10 SDK path.
         if(NOT DEFINED ENV{WindowsSdkDir})
-            message("Env var 'WindowsSdkDir' not defined, trying to use location on 'C:/Program Files (x86)/Windows Kits/10' and version '${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}' for it.")
+            message(STATUS "Env var 'WindowsSdkDir' not defined, trying to use location on 'C:/Program Files (x86)/Windows Kits/10' and version '${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}' for it.")
             set(CMAKE_WINDOWS_KITS_10_DIR "C:/Program Files (x86)/Windows Kits/10")
             set(WIN10SDK_PATH "${CMAKE_WINDOWS_KITS_10_DIR}")
             set(WIN10SDK_INCLUDE_PATH "${CMAKE_WINDOWS_KITS_10_DIR}/Include/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}")
@@ -233,11 +249,11 @@ if(WIN32)
 		endif()
     endif()
     if(WIN10SDK_INCLUDE_PATH)
-        message("Building with Win10 STL fixing service support")
+        message(STATUS "Building with Win10 STL fixing service support")
         add_definitions(-DHAS_WIN10SDK)
         include_directories("${WIN10SDK_INCLUDE_PATH}")
     else()
-        message("Building without Win10 STL fixing service support")
+        message(STATUS "Building without Win10 STL fixing service support")
     endif()
 endif()
 
@@ -373,9 +389,8 @@ if(WIN32)
         # BOOST_ALL_NO_LIB: Avoid the automatic linking of Boost libraries on Windows. Rather rely on explicit linking.
         add_definitions(-DBOOST_ALL_NO_LIB -DBOOST_USE_WINAPI_VERSION=0x601 -DBOOST_SYSTEM_USE_UTF8 )
         # Force the source code encoding to UTF-8. See PrusaSlicer GH pull request #5583
-        add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
-        add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
-        add_compile_options("$<$<CONFIG:RELWITHDEBINFO>:-D_RELWITHDEBINFO>")
+        add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:/utf-8>")
+        add_compile_definitions("$<$<CONFIG:RelWithDebInfo>:_RELWITHDEBINFO>")
     endif(MSVC)
 endif(WIN32)
 
@@ -556,7 +571,6 @@ foreach(po_file ${L10N_PO_FILES})
         COMMAND msgmerge -N -o ${po_file} ${po_file} "${L10N_DIR}/Slic3r.pot"
         # delete obsolete lines from resulting PO to avoid conflicts after a merging of it with wxWidgets.po
         COMMAND msgattrib --no-obsolete -o ${po_file} ${po_file}
-        DEPENDS ${po_file}
     )
     endif()
 endforeach()
@@ -576,7 +590,6 @@ foreach(po_file ${L10N_PO_FILES})
         COMMAND msgcat --use-first -o ${po_file} ${po_file} ${wx_po_file}
         # delete obsolete lines from resulting PO
         COMMAND msgattrib --no-obsolete -o ${po_file} ${po_file}
-        DEPENDS ${po_file}
     )
 endforeach()
 
@@ -588,12 +601,11 @@ file(GLOB L10N_PO_FILES "${L10N_DIR}/*/Slic3r.po")
 foreach(po_file ${L10N_PO_FILES})
     GET_FILENAME_COMPONENT(po_dir "${po_file}" DIRECTORY)
     SET(mo_file "${po_dir}/${SLIC3R_APP_KEY}.mo")
-    message(STATUS "po_dir mo_file imgui : '${po_file}' and mo file is '${mo_file}'") 
+    message(VERBOSE "po_dir mo_file imgui : '${po_file}' and mo file is '${mo_file}'")
     add_custom_command(
         TARGET gettext_po_to_mo PRE_BUILD
         COMMAND msgfmt ARGS --check-format -o ${mo_file} ${po_file}
         #COMMAND msgfmt ARGS --check-compatibility -o ${mo_file} ${po_file}
-        DEPENDS ${po_file}
     )
 endforeach()
 
@@ -615,19 +627,21 @@ else ()
                    "OpenVDB installation with the OPENVDB_FIND_MODULE_PATH cache variable.")
 endif ()
 
-find_path(SPNAV_INCLUDE_DIR spnav.h)
-if (SPNAV_INCLUDE_DIR)
-    find_library(HAVE_SPNAV spnav)
-    if (HAVE_SPNAV)
-        add_definitions(-DHAVE_SPNAV)
-        add_library(libspnav SHARED IMPORTED)
-        target_link_libraries(libspnav INTERFACE spnav)
-        message(STATUS "SPNAV library found")
+if (NOT WIN32)
+    find_path(SPNAV_INCLUDE_DIR spnav.h)
+    if (SPNAV_INCLUDE_DIR)
+        find_library(HAVE_SPNAV spnav)
+        if (HAVE_SPNAV)
+            add_definitions(-DHAVE_SPNAV)
+            add_library(libspnav SHARED IMPORTED)
+            target_link_libraries(libspnav INTERFACE spnav)
+            message(STATUS "SPNAV library found")
+        else()
+            message(STATUS "SPNAV library NOT found, Spacenavd not supported")
+        endif()
     else()
         message(STATUS "SPNAV library NOT found, Spacenavd not supported")
     endif()
-else()
-    message(STATUS "SPNAV library NOT found, Spacenavd not supported")
 endif()
 
 set(TOP_LEVEL_PROJECT_DIR ${PROJECT_SOURCE_DIR})

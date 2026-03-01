@@ -123,7 +123,7 @@ if (OPENVDB_FIND_MODULE_PATH)
 endif ()
 # ###########################################################################
 
-cmake_minimum_required(VERSION 3.5)
+cmake_policy(VERSION 3.13)
 # Monitoring <PackageName>_ROOT variables
 if(POLICY CMP0074)
   cmake_policy(SET CMP0074 NEW)
@@ -179,8 +179,14 @@ set(_OPENVDB_ROOT_SEARCH_DIR "")
 
 # Additionally try and use pkconfig to find OpenVDB
 
-find_package(PkgConfig ${_quiet} )
-pkg_check_modules(PC_OpenVDB QUIET OpenVDB)
+find_package(PkgConfig ${_quiet})
+if(COMMAND pkg_check_modules)
+  pkg_check_modules(PC_OpenVDB QUIET OpenVDB)
+else()
+  set(PC_OpenVDB_INCLUDE_DIRS "")
+  set(PC_OpenVDB_LIBRARY_DIRS "")
+  set(PC_OpenVDB_CFLAGS_OTHER "")
+endif()
 
 # ------------------------------------------------------------------------
 #  Search for OpenVDB include DIR

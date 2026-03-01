@@ -11,15 +11,11 @@
 // - After changing this file, reopen the solution (or refresh IntelliSense)
 //   so the database is rebuilt with updated symbols.
 
-// Primary platform gates used across GUI_App.cpp
+// Primary platform gates used across GUI_App.cpp.
+// Keep these aligned with the active Windows / Visual Studio environment.
 #define _WIN32
 #define WIN32
-#define __linux__
-#define __APPLE__
-
-// wxWidgets / platform integration gates
 #define __WXMSW__
-#define __WXGTK3__
 
 // SuperSlicer feature gates frequently encountered in GUI_App.cpp
 #define _MSW_DARK_MODE
@@ -27,3 +23,8 @@
 #define ENABLE_GL_CORE_PROFILE
 #define ENABLE_THUMBNAIL_GENERATOR_DEBUG
 #define GUI_TAG_PALETTE
+
+// IntelliSense-only stubs for macros / forward declarations that frequently
+// confuse the parser and pollute the Error List without affecting real builds.
+class wxZipStreamLink;
+#define wxDEFINE_EVENT(name, type)

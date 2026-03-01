@@ -18,6 +18,10 @@ function(create_test test_name)
         test_data.cpp
         )
     target_link_libraries(${test_name}_test test_common libslic3r)
+    if (MSVC)
+        # Large literal datasets in test_data.cpp are authored as doubles and fed into Vec3f fixtures.
+        target_compile_options(${test_name}_test PRIVATE /wd4305)
+    endif()
     set_property(TARGET ${test_name}_test PROPERTY FOLDER "tests")
     if (WIN32)
         prusaslicer_copy_dlls(${test_name}_test)

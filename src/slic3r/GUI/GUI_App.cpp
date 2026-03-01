@@ -6,6 +6,11 @@
 ///|/
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
+#ifdef __INTELLISENSE__
+// wx/zipstrm.h uses this type before IntelliSense sees a declaration for it.
+class wxZipStreamLink;
+#endif
+
 #include "libslic3r/Technologies.hpp"
 #include "libslic3r/Thread.hpp"
 #include "GUI_App.hpp"
@@ -1044,7 +1049,7 @@ static std::optional<Semver> parse_semver_from_ini(std::string path)
     return Semver::parse(body);
 }
 
-void choose_app_dir(GUI_App &app) {
+static void choose_app_dir(GUI_App &app) {
     assert(app.app_config->data_dir().empty());
 
     // find ourself inside m_all_slic3r_installed
@@ -2282,7 +2287,7 @@ void GUI_App::UpdateDVCDarkUI(wxDataViewCtrl* dvc, bool highlited/* = false*/)
 #endif
 }
 
-void GUI_App::UpdateAllStaticTextDarkUI(wxWindow* parent)
+void GUI_App::UpdateAllStaticTextDarkUI(wxWindow* parent) const
 {
 #ifdef _WIN32
     wxGetApp().UpdateDarkUI(parent);
@@ -2574,7 +2579,7 @@ void GUI_App::set_auto_toolbar_icon_scale(float scale) const
 }
 
 // check user printer_presets for the containing information about "Print Host upload"
-void GUI_App::check_printer_presets()
+void GUI_App::check_printer_presets() const
 {
     std::vector<std::string> preset_names = PhysicalPrinter::presets_with_print_host_information(preset_bundle->printers);
     if (preset_names.empty())
@@ -2751,7 +2756,7 @@ bool GUI_App::catch_error(std::function<void()> cb,
 }
 
 // static method accepting a wxWindow object as first parameter
-void fatal_error(wxWindow* parent)
+static void fatal_error(wxWindow* parent)
 {
     show_error(parent, "");
     //     exit 1; // #ys_FIXME
@@ -2779,7 +2784,7 @@ static void update_scrolls(wxWindow* window)
 
 
 #ifdef _MSW_DARK_MODE
-void GUI_App::force_menu_update()
+void GUI_App::force_menu_update() const
 {
     NppDarkMode::SetSystemMenuForApp(app_config->get_bool("sys_menu_enabled"));
 }
@@ -3238,7 +3243,7 @@ Tab* GUI_App::get_tab(Preset::Type type, bool only_completed)
     return nullptr;
 }
 
-ConfigOptionMode GUI_App::get_mode()
+ConfigOptionMode GUI_App::get_mode() const
 {
     if (!app_config->has("view_mode"))
         return comSimple;
@@ -3390,7 +3395,7 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
                     std::lock_guard<std::mutex> guard(this->preset_updater->callback_update_preset_mutex);
                     //test again, to avoid issues
                     if (this->preset_updater->synch_process_ongoing) {
-                        auto old_callback_update_preset = this->preset_updater->callback_update_preset;
+                        const auto& old_callback_update_preset = this->preset_updater->callback_update_preset;
                         this->preset_updater->sync_async([this, old_callback_update_preset](int nb_updates) {
                             old_callback_update_preset(nb_updates);
                             this->preset_updater->set_installed_vendors(preset_bundle.get());
@@ -4117,7 +4122,7 @@ void GUI_App::show_desktop_integration_dialog()
 #endif //__linux__
 }
 
-void GUI_App::show_downloader_registration_dialog()
+void GUI_App::show_downloader_registration_dialog() const
 {
     InfoDialog msg(nullptr
         , format_wxstr(_L("Welcome to %1% version %2%."), SLIC3R_APP_NAME, SLIC3R_VERSION)
@@ -4206,7 +4211,7 @@ void GUI_App::gcode_thumbnails_debug()
 }
 #endif // ENABLE_THUMBNAIL_GENERATOR_DEBUG
 
-void GUI_App::window_pos_save(wxTopLevelWindow* window, const std::string &name)
+void GUI_App::window_pos_save(wxTopLevelWindow* window, const std::string &name) const
 {
     if (name.empty()) { return; }
     const auto config_key = (boost::format("window_%1%") % name).str();
@@ -4218,7 +4223,7 @@ void GUI_App::window_pos_save(wxTopLevelWindow* window, const std::string &name)
         app_config->save();
 }
 
-void GUI_App::window_pos_restore(wxTopLevelWindow* window, const std::string &name, bool default_maximized)
+void GUI_App::window_pos_restore(wxTopLevelWindow* window, const std::string &name, bool default_maximized) const
 {
     if (name.empty()) { return; }
     const auto config_key = (boost::format("window_%1%") % name).str();
