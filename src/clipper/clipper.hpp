@@ -34,6 +34,10 @@
 #ifndef clipper_hpp
 #define clipper_hpp
 
+// Treat this bundled third-party header as a system header so that compilers
+// and IntelliSense suppress all diagnostics originating from it.
+#pragma system_header
+
 #include <inttypes.h>
 #include <functional>
 

@@ -172,11 +172,17 @@ if (MSVC)
         $<$<NOT:$<CONFIG:Debug>>:/NODEFAULTLIB:LIBCMT>
     )
     # Enable MSVC external-header support so that include paths marked SYSTEM in CMake
-    # are emitted as /external:I instead of /I, and /external:W0 suppresses all compiler
-    # and code-analysis diagnostics from those paths (IntelliSense honours these flags too).
+    # are emitted as /external:I instead of /I.
+    # /external:W0   — suppress compiler warnings from external paths.
+    # /analyze:external- — suppress Code Analysis (CppCoreCheck/SAL) on external paths.
+    #                     Requires MSVC 19.36 / VS 2022 17.6+ (VS 2026 qualifies).
+    # IntelliSense honours all three flags for background analysis too.
     set(CMAKE_INCLUDE_SYSTEM_FLAG_CXX "/external:I ")
     set(CMAKE_INCLUDE_SYSTEM_FLAG_C   "/external:I ")
-    add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:/external:W0>")
+    add_compile_options(
+        "$<$<COMPILE_LANGUAGE:C,CXX>:/external:W0>"
+        "$<$<COMPILE_LANGUAGE:C,CXX>:/analyze:external->"
+    )
 endif ()
 
 if (MINGW)

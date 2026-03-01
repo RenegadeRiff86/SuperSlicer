@@ -1,4 +1,6 @@
 // Hackish wrapper around the ClipperLib library to compile the Clipper library with the Z support.
+// Treat as a system header so compilers and IntelliSense suppress all diagnostics from it.
+#pragma system_header
 
 #ifndef clipper_z_hpp
 #ifdef clipper_hpp
