@@ -171,14 +171,16 @@ if (MSVC)
         $<$<NOT:$<CONFIG:Debug>>:/INCREMENTAL:NO>
         $<$<NOT:$<CONFIG:Debug>>:/NODEFAULTLIB:LIBCMT>
     )
-    # Enable MSVC external-header support so that include paths marked SYSTEM in CMake
-    # are emitted as /external:I instead of /I.
-    # /external:W0   — suppress compiler warnings from external paths.
-    # /analyze:external- — suppress Code Analysis (CppCoreCheck/SAL) on external paths.
-    #                     Requires MSVC 19.36 / VS 2022 17.6+ (VS 2026 qualifies).
-    # IntelliSense honours all three flags for background analysis too.
-    set(CMAKE_INCLUDE_SYSTEM_FLAG_CXX "/external:I ")
-    set(CMAKE_INCLUDE_SYSTEM_FLAG_C   "/external:I ")
+    # Leave CMAKE_INCLUDE_SYSTEM_FLAG_CXX/C unset so that CMake's VS generator
+    # places SYSTEM include directories into the vcxproj <ExternalIncludePath>
+    # property (VS-native mechanism).  IntelliSense Code Analysis reads
+    # <ExternalIncludePath> to suppress CppCoreCheck/SAL diagnostics from
+    # external headers; it does NOT read raw /external:I flags from
+    # AdditionalOptions for that purpose.
+    #
+    # /external:W0     — suppress compiler warnings from external paths.
+    # /analyze:external- — also suppress Code Analysis when /analyze is run
+    #                      on the command line (MSVC 19.36+ / VS 2026).
     add_compile_options(
         "$<$<COMPILE_LANGUAGE:C,CXX>:/external:W0>"
         "$<$<COMPILE_LANGUAGE:C,CXX>:/analyze:external->"
