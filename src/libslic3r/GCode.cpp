@@ -8222,6 +8222,7 @@ std::string GCodeGenerator::generate_travel_gcode(
 ) {
     std::string gcode;
 
+
     if (travel.empty()) {
         return "";
     }
