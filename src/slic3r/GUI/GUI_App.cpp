@@ -854,6 +854,18 @@ static void generic_exception_handle()
     }
 }
 
+std::string GUI_App::logo_name() const {
+    return std::string(is_editor() ? SLIC3R_APP_KEY : GCODEVIEWER_APP_KEY) + std::string("_logo");
+}
+
+std::string GUI_App::dark_icon_name() const {
+    return std::string(is_editor() ? SLIC3R_APP_KEY : GCODEVIEWER_APP_KEY) + std::string("");
+}
+
+std::string GUI_App::light_icon_name() const {
+    return std::string(is_editor() ? SLIC3R_APP_KEY : GCODEVIEWER_APP_KEY) + std::string("");
+}
+
 void GUI_App::post_init()
 {
     assert(initialized());
