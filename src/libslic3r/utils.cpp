@@ -163,29 +163,75 @@ void enforce_thread_count(const std::size_t count)
 #endif // TBB_HAS_GLOBAL_CONTROL
 }
 
-static std::string g_var_dir;
-
-void set_var_dir(const std::string &dir)
+boost::filesystem::path clean_absolute_path(const boost::filesystem::path &path)
 {
-    g_var_dir = dir;
+    assert(path.is_absolute());
+    // make sure the path is well formed for the os.
+    boost::filesystem::path fixpath(path);
+    // note: lexically_normal() already do make_preferred()
+    fixpath.lexically_normal();
+#ifndef _WIN32
+    fixpath = boost::filesystem::canonical(fixpath);
+#else
+    if (!fixpath.empty() && fixpath.string().front() != '\\') {
+        if (boost::filesystem::exists(fixpath)) {
+            // if the path exists, we can canonicalize it and add the long path prefix, which will resolve any ".." or
+            // "." in the path and give us a proper absolute path.
+            fixpath = R"(\\?\)" + boost::filesystem::canonical(fixpath).string();
+        } else if (boost::filesystem::exists(fixpath.parent_path())) {
+            // if the path doesn't exist, but the parent path exists, we can canonicalize the parent path and then
+            // append the filename
+            fixpath = R"(\\?\)" + (boost::filesystem::canonical(fixpath.parent_path()) / fixpath.filename()).string();
+        } else {
+            // if the path doesn't exist, we can't canonicalize it, so we just add the long path prefix and hope for the best
+            fixpath = R"(\\?\)" + fixpath.string();
+        }
+    }
+#endif
+    assert(fixpath.string().find("..") == std::string::npos);
+    assert(fixpath.is_absolute());
+    return fixpath;
 }
 
-const std::string& var_dir()
+std::string clean_dir(const std::string &dir_name)
 {
-    return g_var_dir;
+    // make sure the path is well formed for the os.
+    boost::filesystem::path fixpath(dir_name);
+    // note: lexically_normal() already do make_preferred()
+    fixpath.lexically_normal();
+    assert(fixpath.string().find("..") == std::string::npos);
+    return fixpath.string();
 }
 
-std::string var(const std::string &file_name)
+static std::string g_icons_dir;
+static boost::filesystem::path g_icons_path;
+
+void set_icons_dir(const std::string &dir)
 {
-    auto file = (boost::filesystem::path(g_var_dir) / file_name).make_preferred();
-    return file.string();
+    g_icons_dir = clean_dir(dir);
+    g_icons_path = clean_absolute_path(dir);
+}
+
+const std::string& icons_dir()
+{
+    return g_icons_dir;
+}
+
+const boost::filesystem::path& icons_path()
+{
+    return g_icons_path;
+}
+
+std::string get_icon_file(const std::string &file_name)
+{
+    return (g_icons_path / file_name).make_preferred().string();
 }
 
 static boost::filesystem::path g_binary_file;
 
 void set_binary_file(const boost::filesystem::path &file)
 {
-    g_binary_file = file;
+    g_binary_file = clean_absolute_path(file);
 }
 
 const boost::filesystem::path& binary_file()
@@ -198,7 +244,7 @@ static boost::filesystem::path g_install_path;
 
 void set_install_path(const boost::filesystem::path &file)
 {
-    g_install_path = file;
+    g_install_path = clean_absolute_path(file);
 }
 
 const boost::filesystem::path& install_path()
@@ -207,10 +253,12 @@ const boost::filesystem::path& install_path()
 }
 
 static std::string g_resources_dir;
+static boost::filesystem::path g_resources_path;
 
 void set_resources_dir(const std::string &dir)
 {
-    g_resources_dir = dir;
+    g_resources_dir = clean_dir(dir);
+    g_resources_path = clean_absolute_path(dir);
 }
 
 const std::string& resources_dir()
@@ -218,11 +266,18 @@ const std::string& resources_dir()
     return g_resources_dir;
 }
 
+const boost::filesystem::path& resources_path()
+{
+    return g_resources_path;
+}
+
 static std::string g_local_dir;
+static boost::filesystem::path g_local_path;
 
 void set_local_dir(const std::string &dir)
 {
-    g_local_dir = dir;
+    g_local_dir = clean_dir(dir);
+    g_local_path = clean_absolute_path(dir);
 }
 
 const std::string& localization_dir()
@@ -230,11 +285,18 @@ const std::string& localization_dir()
 	return g_local_dir;
 }
 
+const boost::filesystem::path& localization_path()
+{
+	return g_local_path;
+}
+
 static std::string g_sys_shapes_dir;
+static boost::filesystem::path g_sys_shapes_path;
 
 void set_sys_shapes_dir(const std::string &dir)
 {
-    g_sys_shapes_dir = dir;
+    g_sys_shapes_dir = clean_dir(dir);
+    g_sys_shapes_path = clean_absolute_path(dir);
 }
 
 const std::string& sys_shapes_dir()
@@ -242,34 +304,46 @@ const std::string& sys_shapes_dir()
 	return g_sys_shapes_dir;
 }
 
-static std::string g_custom_gcodes_dir;
-
-void set_custom_gcodes_dir(const std::string &dir)
+const boost::filesystem::path& sys_shapes_path()
 {
-    g_custom_gcodes_dir = dir;
+	return g_sys_shapes_path;
 }
 
-const std::string& custom_gcodes_dir()
-{
-    return g_custom_gcodes_dir;
-}
+// not used
+// static std::string g_custom_gcodes_dir;
+
+// void set_custom_gcodes_dir(const std::string &dir)
+// {
+    // g_custom_gcodes_dir = clean_absolute_path(dir).string();
+// }
+
+// const std::string& custom_gcodes_dir()
+// {
+    // return g_custom_gcodes_dir;
+// }
 
 // Translate function callback, to call wxWidgets translate function to convert non-localized UTF8 string to a localized one.
 Slic3r::I18N::translate_fn_type Slic3r::I18N::translate_fn = nullptr;
 
 static std::string g_data_dir;
+static boost::filesystem::path g_data_path;
 
 void set_data_dir(const std::string &dir)
 {
-    // make sure the path is well formed for the os.
-    boost::filesystem::path fixpath(dir);
-    g_data_dir = fixpath.make_preferred().string();
+    g_data_dir = clean_dir(dir);
+    g_data_path = clean_absolute_path(dir);
 }
 
 const std::string& data_dir()
 {
     assert(!g_data_dir.empty());
     return g_data_dir;
+}
+
+const boost::filesystem::path& data_path()
+{
+    assert(!g_data_path.empty());
+    return g_data_path;
 }
 
 bool has_data_dir() { return !g_data_dir.empty(); }
@@ -284,7 +358,7 @@ std::string debug_out_path(const char *name, ...)
 {
     static constexpr const char *SLIC3R_DEBUG_OUT_PATH_PREFIX = "out/";
     if (!debug_out_path_called.exchange(true)) {
-        std::string path = boost::filesystem::system_complete(SLIC3R_DEBUG_OUT_PATH_PREFIX).string();
+        std::string path = clean_absolute_path(boost::filesystem::system_complete(SLIC3R_DEBUG_OUT_PATH_PREFIX)).string();
         printf("Debugging output files will be written to %s\n", path.c_str());
     }
     char buffer[2048];
@@ -308,7 +382,7 @@ std::string debug_out_path_uniqueid(std::string name, ...) {
     
     static constexpr const char *SLIC3R_DEBUG_OUT_PATH_PREFIX = "out/";
     if (!debug_out_path_called.exchange(true)) {
-        std::string path = boost::filesystem::system_complete(SLIC3R_DEBUG_OUT_PATH_PREFIX).string();
+        std::string path = clean_absolute_path(boost::filesystem::system_complete(SLIC3R_DEBUG_OUT_PATH_PREFIX)).string();
         printf("Debugging output files will be written to %s\n", path.c_str());
     }
     char buffer[2048];
