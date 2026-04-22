@@ -1251,6 +1251,7 @@ static inline std::tuple<Polygons, Polygons, Polygons, float> detect_overhangs(
         0.;
     float        no_interface_offset = 0.f;
 
+    coord_t max_flow_width  = 0;
     if (layer_id == 0) 
     {
         // This is the first object layer, so the object is being printed on a raft and
@@ -1264,6 +1265,10 @@ static inline std::tuple<Polygons, Polygons, Polygons, float> detect_overhangs(
 #endif
         // Expand for better stability.
         contact_polygons = object_config.raft_expansion.value > 0 ? expand(overhang_polygons, scaled<float>(object_config.raft_expansion.value)) : overhang_polygons;
+
+        for (LayerRegion *layerm : layer.regions()) {
+            max_flow_width = std::max(max_flow_width, (layerm->flow(frExternalPerimeter).scaled_width()));
+        }
     }
     else if (! layer.regions().empty())
     {
@@ -1298,7 +1303,8 @@ static inline std::tuple<Polygons, Polygons, Polygons, float> detect_overhangs(
         for (LayerRegion *layerm : layer.regions()) {
             // Extrusion width accounts for the roundings of the extrudates.
             // It is the maximum widh of the extrudate.
-            float fw = float(layerm->flow(frExternalPerimeter).scaled_width());
+            coord_t flow_width = float(layerm->flow(frExternalPerimeter).scaled_width());
+            max_flow_width = std::max(max_flow_width, flow_width);
             lower_layer_offset  = 
                 (layer_id < (size_t)object_config.support_material_enforce_layers.value) ? 
                     // Enforce a full possible support, ignore the overhang angle.
@@ -1307,7 +1313,7 @@ static inline std::tuple<Polygons, Polygons, Polygons, float> detect_overhangs(
                     // Overhang defined by an angle.
                     float(scale_(lower_layer.height / tan(threshold_rad))) :
                     // Overhang defined by half the extrusion width.
-                    0.5f * fw);
+                    flow_width / 2);
             // Overhang polygons for this layer and region.
             ExPolygons diff_polygons;
             for(auto &srf : layerm->slices().surfaces) srf.expolygon.assert_valid();
@@ -1333,10 +1339,10 @@ static inline std::tuple<Polygons, Polygons, Polygons, float> detect_overhangs(
                             // are not supporting this layer.
                             // However this may lead to a situation where regions at the current layer that are narrow thus not extrudable will generate unnecessary supports.
                             // For example, see GH issue #3094
-                            opening_ex(lower_layer_polygons, 0.5f * fw, lower_layer_offset + 0.5f * fw, SUPPORT_SURFACES_OFFSET_PARAMETERS)), 
+                            opening_ex(lower_layer_polygons, 0.5f * flow_width, lower_layer_offset + 0.5f * flow_width, SUPPORT_SURFACES_OFFSET_PARAMETERS)), 
                     //FIXME This opening is targeted to reduce very thin regions to support, but it may lead to
                     // no support at all for not so steep overhangs.
-                    0.1f * fw);
+                    0.1f * fflow_widthw);
 #else
                 diff_polygons = 
                     diff_ex(layerm_expolygons,
@@ -1387,7 +1393,7 @@ static inline std::tuple<Polygons, Polygons, Polygons, float> detect_overhangs(
             if (object_config.dont_support_bridges) {
                 // FIXME Expensive, potentially not precise enough. Misses gap fill extrusions, which bridge.
                 assert_valid(diff_polygons);
-                remove_bridges_from_contacts(print_config, lower_layer, *layerm, fw, diff_polygons);
+                remove_bridges_from_contacts(print_config, lower_layer, *layerm, double(flow_width), diff_polygons);
                 ensure_valid(diff_polygons, resolution);
             }
 
@@ -1466,6 +1472,9 @@ static inline std::tuple<Polygons, Polygons, Polygons, float> detect_overhangs(
                 }
             }
         }
+    overhang_polygons = closing(overhang_polygons, double(max_flow_width) * 0.1);
+    contact_polygons = closing(contact_polygons, double(max_flow_width) * 0.1);
+    enforcer_polygons = closing(enforcer_polygons, double(max_flow_width) * 0.1);
 
     return std::make_tuple(std::move(overhang_polygons), std::move(contact_polygons), std::move(enforcer_polygons), no_interface_offset);
 }
