@@ -1617,7 +1617,7 @@ bool GUI_App::on_init_inner()
 
         // make a bitmap with dark grey banner on the left side
         if (!bmp.IsOk()) {
-            bmp = SplashScreen::MakeBitmap(get_bmp_bundle(SLIC3R_APP_KEY, 600)->GetPreferredBitmapSizeAtScale(1.0), scrn_scaling);
+            bmp = SplashScreen::MakeBitmap(get_bmp_bundle(light_icon_name(), 600)->GetPreferredBitmapSizeAtScale(1.0), scrn_scaling);
         }
         scrn = new SplashScreen(bmp, scrn_scaling, wxSPLASH_CENTRE_ON_SCREEN | wxSPLASH_TIMEOUT, 4000, splashscreen_pos, artist);
 
