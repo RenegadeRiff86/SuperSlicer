@@ -1963,7 +1963,7 @@ private:
 	}
 	template<class Archive> void load(Archive& archive) {
         archive(flags);
-		size_t cnt;
+		size_t cnt = 0;
 		archive(cnt);
 		this->m_values.assign(cnt, Vec2d());
 		archive.loadBinary((char*)this->m_values.data(), sizeof(Vec2d) * cnt);
@@ -2156,7 +2156,7 @@ private:
     }
     template<class Archive> void load(Archive& archive) {
         archive(flags);
-        size_t cnt;
+        size_t cnt = 0;
         archive(cnt);
         std::string serialized;
         serialized.assign(cnt, char());
@@ -2622,7 +2622,6 @@ public:
     bool                                is_scalar()     const { return (int(this->type) & int(coVectorType)) == 0; }
 
     template<class Archive> ConfigOption* load_option_from_archive(Archive &archive) const {
-        ConfigOption* option;
 		switch (this->type) {
         case coFloat:           { auto opt = new ConfigOptionFloat();           archive(*opt);
             assert(this->can_be_disabled == opt->can_be_disabled());
@@ -2771,7 +2770,7 @@ protected:
 
     void set_enum_values(const std::vector<std::string> il);
 
-    void set_enum_values(const std::initializer_list<std::string_view> il);
+    void set_enum_values(const std::initializer_list<const char*> il);
 
     void set_enum_values(const std::initializer_list<std::pair<std::string_view, std::string_view>> il);
 
@@ -2785,7 +2784,7 @@ protected:
     }
 
 public:
-    void set_enum_values(GUIType gui_type, const std::initializer_list<std::string_view> il);
+    void set_enum_values(GUIType gui_type, const std::initializer_list<const char*> il);
 
     void set_enum_as_closed_for_scripted_enum(const std::vector<std::pair<std::string, std::string>> il);
 
@@ -2798,7 +2797,7 @@ public:
     void set_enum_labels(GUIType gui_type, const std::initializer_list<std::string_view> il);
 
     template<typename EnumType>
-    void set_enum(std::initializer_list<std::string_view> il) {
+    void set_enum(std::initializer_list<const char*> il) {
         this->set_enum_values(il);
         enum_def->set_enum_map<EnumType>();
     }
@@ -3097,7 +3096,7 @@ public:
 
     const ConfigOptionDef* get_option_def(const t_config_option_key& opt_key) const;
     double get_computed_value(const t_config_option_key &opt_key, int extruder_id = -1) const;
-    double get_abs_value(const t_config_option_key &opt_key, double ratio_over) const; //TODO: 2.7: use extruder_id, reform the gat_abs_value to have common signature.
+    double get_abs_value(const t_config_option_key &opt_key, double ratio_over, int extruder_id = -1) const;
 
     std::string&        opt_string(const t_config_option_key &opt_key, bool create = false)     { return this->option<ConfigOptionString>(opt_key, create)->value; }
     const std::string&  opt_string(const t_config_option_key &opt_key) const                    { return const_cast<ConfigBase*>(this)->opt_string(opt_key); }
@@ -3154,7 +3153,7 @@ public:
 #ifdef _DEBUG
     //little dirty test to be sure it exists (not needed, but it's good for testing)
     int32_t m_exists = 0x55555555;
-    bool    exists() { return m_exists == 0x55555555; }
+    bool    exists() const { return m_exists == 0x55555555; }
     ~ConfigBase() override { m_exists = 0; }
 #endif
 

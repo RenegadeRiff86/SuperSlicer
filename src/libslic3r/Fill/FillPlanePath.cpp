@@ -232,7 +232,7 @@ static inline Point hilbert_n_to_xy(const size_t n)
     int state    = (ndigits & 1) ? 4 : 0;
     coord_t x = 0;
     coord_t y = 0;
-    for (int i = (int)ndigits - 1; i >= 0; -- i) {
+    for (int i = static_cast<int>(ndigits) - 1; i >= 0; -- i) {
         int digit = (n >> (i * 2)) & 3;
         state += digit;
         x |= digit_to_x[state] << i;

@@ -323,7 +323,7 @@ void igl::copyleft::cgal::order_facets_around_edge(
 
   // Because face indices are used for tie breaking, the original face indices
   // in the new faces array must be ascending.
-  auto comp = [&](int i, int j) 
+  auto comp = [&](size_t i, size_t j) 
   {
     return signed_index_to_index(adj_faces[i]) <
       signed_index_to_index(adj_faces[j]);

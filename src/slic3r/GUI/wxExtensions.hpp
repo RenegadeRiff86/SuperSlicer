@@ -148,7 +148,7 @@ inline wxSize get_preferred_size(const wxBitmapBundle& bmp, wxWindow* parent)
 {
     if (!bmp.IsOk())
         return wxSize(0,0);
-#ifdef __WIN32__
+#ifdef _WIN32
     return bmp.GetPreferredBitmapSizeFor(parent);
 #else
     return bmp.GetDefaultSize();

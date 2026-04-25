@@ -62,25 +62,25 @@ inline Grids line_rasterization(const Line &line, int64_t xdist = RasteXDistance
 
     while (lastVoxel != currentVoxel) {
         if (lastVoxel.first == currentVoxel.first) {
-            for (int64_t i = currentVoxel.second; i != lastVoxel.second; i += (int64_t) stepY) {
-                currentVoxel.second += (int64_t) stepY;
+            for (int64_t i = currentVoxel.second; i != lastVoxel.second; i += static_cast<int64_t>(stepY)) {
+                currentVoxel.second += static_cast<int64_t>(stepY);
                 res.push_back(currentVoxel);
             }
             break;
         }
         if (lastVoxel.second == currentVoxel.second) {
-            for (int64_t i = currentVoxel.first; i != lastVoxel.first; i += (int64_t) stepX) {
-                currentVoxel.first += (int64_t) stepX;
+            for (int64_t i = currentVoxel.first; i != lastVoxel.first; i += static_cast<int64_t>(stepX)) {
+                currentVoxel.first += static_cast<int64_t>(stepX);
                 res.push_back(currentVoxel);
             }
             break;
         }
 
         if (tx < ty) {
-            currentVoxel.first += (int64_t) stepX;
+            currentVoxel.first += static_cast<int64_t>(stepX);
             tx += tDeltaX;
         } else {
-            currentVoxel.second += (int64_t) stepY;
+            currentVoxel.second += static_cast<int64_t>(stepY);
             ty += tDeltaY;
         }
         res.push_back(currentVoxel);
@@ -92,6 +92,41 @@ inline Grids line_rasterization(const Line &line, int64_t xdist = RasteXDistance
     return res;
 }
 } // namespace RasterizationImpl
+
+namespace {
+
+constexpr float wipe_tower_fill_spacing = 3.f;
+constexpr double half_scale = 0.5;
+constexpr double full_circle_radians = 2.0 * M_PI;
+constexpr double circle_completion_margin = 0.01 * M_PI;
+constexpr int cone_segment_count = 20;
+
+void append_path_if_valid(ExtrusionPaths& paths, const ExtrusionPath& path)
+{
+    if (path.size() <= 1)
+        return;
+
+    assert(path.polyline.is_valid());
+    paths.emplace_back(path);
+}
+
+void build_wipe_tower_ring(ArcPolyline& polyline, float width, float depth, double x_radius, double y_radius)
+{
+    polyline.clear();
+
+    const double center_x = width * half_scale;
+    const double center_y = depth * half_scale;
+    const double angle_step = full_circle_radians / cone_segment_count;
+    for (double alpha = 0.0; alpha < full_circle_radians + circle_completion_margin; alpha += angle_step) {
+        Point point = Point::new_scale(center_x + x_radius * std::cos(alpha), center_y + y_radius * std::sin(alpha));
+        if (!polyline.empty() && point.coincides_with_epsilon(polyline.front()))
+            continue;
+
+        polyline.append(std::move(point));
+    }
+}
+
+} // namespace
 
 
 
@@ -133,7 +168,7 @@ static std::vector<ExtrusionPaths> getFakeExtrusionPathsFromWipeTower(const Wipe
 
         // We added the border, now add several parallel lines so we can detect an object that is fully inside the tower.
         // For now, simply use fixed spacing of 3mm.
-        for (coord_t y=minCorner.y()+scale_(3.); y<maxCorner.y(); y+=scale_(3.)) {
+        for (coord_t y = minCorner.y() + scale_(wipe_tower_fill_spacing); y < maxCorner.y(); y += scale_(wipe_tower_fill_spacing)) {
             path.polyline = ArcPolyline(Points{ {minCorner.x(), y}, {maxCorner.x(), y} });
             assert(path.polyline.is_valid());
             paths.back().emplace_back(path);
@@ -141,34 +176,16 @@ static std::vector<ExtrusionPaths> getFakeExtrusionPathsFromWipeTower(const Wipe
 
         // And of course the stabilization cone and its base...
         if (cone_base_R > 0.) {
-            path.polyline.clear();
             double r = cone_base_R * (1 - hh / height);
-            for (double alpha = 0; alpha < 2.01 * M_PI; alpha += 2 * M_PI / 20.) {
-                Point point = Point::new_scale(width / 2. + r * std::cos(alpha) / cone_scale_x,
-                                               depth / 2. + r * std::sin(alpha));
-                if (path.polyline.empty() || !point.coincides_with_epsilon(path.polyline.front())) {
-                    path.polyline.append(std::move(point));
-                }
-            }
-            if (path.size() > 1) {
-                assert(path.polyline.is_valid());
-                paths.back().emplace_back(path);
-            }
+            build_wipe_tower_ring(path.polyline, width, depth, r / cone_scale_x, r);
+            append_path_if_valid(paths.back(), path);
+
             if (hh == 0.f) { // Cone brim.
-                for (float bw = wtd.brim_width; bw > 0.f; bw -= 3.f) {
-                    path.polyline.clear();
-                    for (double alpha = 0; alpha < 2.01 * M_PI; alpha += 2 * M_PI / 20.) {
-                        // see load_wipe_tower_preview, where the same is a bit clearer
-                        Point point = Point::new_scale(width / 2. + cone_base_R * std::cos(alpha) / cone_scale_x * (1. + cone_scale_x * bw / cone_base_R),
-                                                       depth / 2. + cone_base_R * std::sin(alpha) * (1. + bw / cone_base_R));
-                        if (path.polyline.empty() || !point.coincides_with_epsilon(path.polyline.front())) {
-                            path.polyline.append(std::move(point));
-                        }
-                    }
-                    if (path.size() > 1) {
-                        assert(path.polyline.is_valid());
-                        paths.back().emplace_back(path);
-                    }
+                for (float bw = wtd.brim_width; bw > 0.f; bw -= wipe_tower_fill_spacing) {
+                    const double brim_x_radius = cone_base_R / cone_scale_x + bw;
+                    const double brim_y_radius = cone_base_R + bw;
+                    build_wipe_tower_ring(path.polyline, width, depth, brim_x_radius, brim_y_radius);
+                    append_path_if_valid(paths.back(), path);
                 }
             }
         }
@@ -292,7 +309,7 @@ ConflictComputeOpt ConflictChecker::find_inter_of_lines(const LineWithIDs &lines
     using namespace RasterizationImpl;
     std::map<IndexPair, std::vector<int>> indexToLine;
 
-    for (int i = 0; i < (int)lines.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(lines.size()); ++i) {
         const LineWithID &l1      = lines[i];
         auto              indexes = line_rasterization(l1._line);
         for (auto index : indexes) {

@@ -126,7 +126,7 @@ uint16_t GCodeWriter::first_mill() const {
         for (const Extruder& e : m_extruders)
             max = std::max(max, e.id());
         max++;
-        return (uint16_t)max;
+        return static_cast<uint16_t>(max);
     } else return m_millers.front().id();
 }
 bool GCodeWriter::tool_is_extruder() const {
@@ -519,8 +519,8 @@ std::string GCodeWriter::update_progress(uint32_t num, uint32_t tot, bool allow_
     if (FLAVOR_IS_NOT(gcfMakerWare) && FLAVOR_IS_NOT(gcfSailfish))
         return {};
     
-    uint8_t percent = (uint32_t)floor(100.0 * num / tot + 0.5);
-    if (!allow_100) percent = std::min(percent, (uint8_t)99);
+    uint8_t percent = static_cast<uint8_t>(floor(100.0 * num / tot + 0.5));
+    if (!allow_100) percent = std::min(percent, static_cast<uint8_t>(99));
     
     std::ostringstream gcode;
     gcode << "M73 P" << int(percent);

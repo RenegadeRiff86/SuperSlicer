@@ -27,6 +27,8 @@
 
 namespace Slic3r {
 
+ExPolygon::~ExPolygon() = default;
+
 void ExPolygon::scale(double factor)
 {
     contour.scale(factor);
@@ -520,15 +522,8 @@ bool has_duplicate_points(const ExPolygons &expolys)
     struct PointHash {
         uint64_t operator()(const Point &p) const noexcept
         {
-#ifdef COORD_64B
             return ankerl::unordered_dense::detail::wyhash::hash(p.x()) 
                 + ankerl::unordered_dense::detail::wyhash::hash(p.y());
-#else
-            uint64_t h;
-            static_assert(sizeof(h) == sizeof(p));
-            memcpy(&h, &p, sizeof(p));
-            return ankerl::unordered_dense::detail::wyhash::hash(h);
-#endif
         }
     };
     ankerl::unordered_dense::set<Point, PointHash> allpts;

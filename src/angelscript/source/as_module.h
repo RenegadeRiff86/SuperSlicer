@@ -64,9 +64,10 @@ struct asSNameSpace;
 
 struct sBindInfo
 {
-	asCScriptFunction *importedFunctionSignature;
+	sBindInfo() : importedFunctionSignature(0), boundFunctionId(0) {}
+	asCScriptFunction *importedFunctionSignature = 0;
 	asCString          importFromModule;
-	int                boundFunctionId;
+	int                boundFunctionId = 0;
 };
 
 struct sObjectTypePair

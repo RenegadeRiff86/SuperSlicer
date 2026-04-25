@@ -245,19 +245,19 @@ void stl_mirror_xz(stl_file *stl)
 	stl->stats.facets_reversed -= stl->stats.number_of_facets;  // for not altering stats
 }
 
-static float get_area(stl_facet *facet)
+static float get_area(const stl_facet *facet)
 {
 	/* cast to double before calculating cross product because large coordinates
 	 can result in overflowing product
 	(bad area is responsible for bad volume and bad facets reversal) */
-	double cross[3][3];
+	double cross[3][3] = {};
 	for (int i = 0; i < 3; i++) {
-		cross[i][0]=(((double)facet->vertex[i](1) * (double)facet->vertex[(i + 1) % 3](2)) -
-	             	 ((double)facet->vertex[i](2) * (double)facet->vertex[(i + 1) % 3](1)));
-		cross[i][1]=(((double)facet->vertex[i](2) * (double)facet->vertex[(i + 1) % 3](0)) -
-	             	 ((double)facet->vertex[i](0) * (double)facet->vertex[(i + 1) % 3](2)));
-		cross[i][2]=(((double)facet->vertex[i](0) * (double)facet->vertex[(i + 1) % 3](1)) -
-	             	 ((double)facet->vertex[i](1) * (double)facet->vertex[(i + 1) % 3](0)));
+		cross[i][0]=((static_cast<double>(facet->vertex[i](1)) * static_cast<double>(facet->vertex[(i + 1) % 3](2))) -
+	             	 (static_cast<double>(facet->vertex[i](2)) * static_cast<double>(facet->vertex[(i + 1) % 3](1))));
+		cross[i][1]=((static_cast<double>(facet->vertex[i](2)) * static_cast<double>(facet->vertex[(i + 1) % 3](0))) -
+	             	 (static_cast<double>(facet->vertex[i](0)) * static_cast<double>(facet->vertex[(i + 1) % 3](2))));
+		cross[i][2]=((static_cast<double>(facet->vertex[i](0)) * static_cast<double>(facet->vertex[(i + 1) % 3](1))) -
+	             	 (static_cast<double>(facet->vertex[i](1)) * static_cast<double>(facet->vertex[(i + 1) % 3](0))));
 	}
 
 	stl_normal sum;
@@ -265,8 +265,8 @@ static float get_area(stl_facet *facet)
 	sum(1) = cross[0][1] + cross[1][1] + cross[2][1];
 	sum(2) = cross[0][2] + cross[1][2] + cross[2][2];
 
-	// This should already be done.  But just in case, let's do it again.
-	//FIXME this is questionable. the "sum" normal should be accurate, while the normal "n" may be calculated with a low accuracy.
+	// Recompute a normalized geometric normal in case facet->normal is stale.
+	// The accumulated sum still carries the signed area magnitude.
 	stl_normal n;
 	stl_calculate_normal(n, facet);
 	stl_normalize_vector(n);

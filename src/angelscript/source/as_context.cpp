@@ -182,30 +182,43 @@ void asPopActiveContext(asCThreadLocalData *tld, asIScriptContext *ctx)
 		tld->activeContexts.PopLast();
 }
 
-asCContext::asCContext(asCScriptEngine *engine, bool holdRef)
+asCContext::asCContext(asCScriptEngine *engine, bool holdRef) :
+	m_holdEngineRef(holdRef),
+	m_engine(engine),
+	m_status(asEXECUTION_UNINITIALIZED),
+	m_doSuspend(false),
+	m_doAbort(false),
+	m_externalSuspendRequest(false),
+	m_currentFunction(0),
+	m_callingSystemFunction(0),
+	m_stackBlockSize(0),
+	m_stackIndex(0),
+	m_originalStackPointer(0),
+	m_originalStackIndex(0),
+	m_isStackMemoryNotAllocated(false),
+	m_needToCleanupArgs(false),
+	m_inExceptionHandler(false),
+	m_exceptionFunction(0),
+	m_exceptionSectionIdx(0),
+	m_exceptionLine(0),
+	m_exceptionColumn(0),
+	m_exceptionWillBeCaught(false),
+	m_initialFunction(0),
+	m_returnValueSize(0),
+	m_argumentsSize(0),
+	m_argsOnStackCacheProgPos(0),
+	m_argsOnStackCacheFunc(0),
+	m_lineCallback(false),
+	m_lineCallbackObj(0),
+	m_exceptionCallback(false),
+	m_exceptionCallbackObj(0)
 {
 	m_refCount.set(1);
 
-	m_holdEngineRef = holdRef;
 	if( holdRef )
 		engine->AddRef();
 
-	m_engine                    = engine;
-	m_status                    = asEXECUTION_UNINITIALIZED;
-	m_stackBlockSize            = 0;
-	m_originalStackPointer      = 0;
-	m_originalStackIndex        = 0;
-	m_inExceptionHandler        = false;
-	m_isStackMemoryNotAllocated = false;
-	m_needToCleanupArgs         = false;
-	m_currentFunction           = 0;
-	m_callingSystemFunction     = 0;
-	m_initialFunction           = 0;
-	m_lineCallback              = false;
-	m_exceptionCallback         = false;
 	m_regs.doProcessSuspend     = false;
-	m_doSuspend                 = false;
-	m_exceptionWillBeCaught     = false;
 	m_regs.ctx                  = this;
 	m_regs.objectRegister       = 0;
 	m_regs.objectType           = 0;

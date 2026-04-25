@@ -545,14 +545,23 @@ void remove_inside_triangles(indexed_triangle_set &mesh, const Interior &interio
     faces.swap(new_faces);
     new_faces = {};
 
-//    mesh = TriangleMesh{mesh.its};
-    //FIXME do we want to repair the mesh? Are there duplicate vertices or flipped triangles?
+    const int merged_vertices = its_merge_vertices(mesh, false);
+    const int removed_degenerate_faces = its_remove_degenerate_faces(mesh, false);
+    const int removed_isolated_vertices = its_compactify_vertices(mesh);
+
+    BOOST_LOG_TRIVIAL(info)
+            << "Trimming: " << merged_vertices << " duplicate vertices merged, "
+            << removed_degenerate_faces << " degenerate faces removed, "
+            << removed_isolated_vertices << " isolated vertices compacted";
 }
 
 void remove_inside_triangles(TriangleMesh &mesh, const Interior &interior,
                              const std::vector<bool> &exclude_mask)
 {
     remove_inside_triangles(mesh.its, interior, exclude_mask);
+
+    // Refresh cached stats and adjacency after rewriting the indexed mesh.
+    mesh = TriangleMesh{mesh.its};
 }
 
 struct FaceHash {

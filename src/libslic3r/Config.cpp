@@ -421,7 +421,7 @@ double GraphData::interpolate(double x_value) const{
                     const bool boundary_first_derivative = true; // true - first derivative is 0 at the leftmost and
                                                                  // rightmost point false - second ---- || -------
                     // TODO: cache (if the caller use my cache).
-                    const int N = end_idx - begin_idx - 1; // last point can be accessed as N, we have N+1 total points
+                    const size_t N = end_idx - begin_idx - 1; // last point can be accessed as N, we have N+1 total points
                     std::vector<float> diag(N + 1);
                     std::vector<float> mu(N + 1);
                     std::vector<float> lambda(N + 1);
@@ -429,12 +429,12 @@ double GraphData::interpolate(double x_value) const{
                     std::vector<float> rhs(N + 1);
 
                     // let's fill in inner equations
-                    for (int i = 1 + begin_idx; i <= N + begin_idx; ++i) h[i] = this->graph_points[i].x() - this->graph_points[i - 1].x();
+                    for (size_t i = 1 + begin_idx; i <= N + begin_idx; ++i) h[i] = float(this->graph_points[i].x() - this->graph_points[i - 1].x());
                     std::fill(diag.begin(), diag.end(), 2.f);
-                    for (int i = 1 + begin_idx; i <= N + begin_idx - 1; ++i) {
+                    for (size_t i = 1 + begin_idx; i <= N + begin_idx - 1; ++i) {
                         mu[i]     = h[i] / (h[i] + h[i + 1]);
                         lambda[i] = 1.f - mu[i];
-                        rhs[i]    = 6 * (float(this->graph_points[i + 1].y() - this->graph_points[i].y()) /
+                        rhs[i]    = 6.f * (float(this->graph_points[i + 1].y() - this->graph_points[i].y()) /
                                           (h[i + 1] * (this->graph_points[i + 1].x() - this->graph_points[i - 1].x())) -
                                       float(this->graph_points[i].y() - this->graph_points[i - 1].y()) /
                                           (h[i] * (this->graph_points[i + 1].x() - this->graph_points[i - 1].x())));
@@ -457,14 +457,14 @@ double GraphData::interpolate(double x_value) const{
                     }
 
                     // the trilinear system is ready to be solved:
-                    for (int i = 1; i <= N; ++i) {
+                    for (size_t i = 1; i <= N; ++i) {
                         float multiple = mu[i] / diag[i - 1]; // let's subtract proper multiple of above equation
                         diag[i] -= multiple * lambda[i - 1];
                         rhs[i] -= multiple * rhs[i - 1];
                     }
                     // now the back substitution (vector mu contains invalid values from now on):
                     rhs[N] = rhs[N] / diag[N];
-                    for (int i = N - 1; i >= 0; --i) rhs[i] = (rhs[i] - lambda[i] * rhs[i + 1]) / diag[i];
+                    for (size_t i = N; i-- > 0;) rhs[i] = (rhs[i] - lambda[i] * rhs[i + 1]) / diag[i];
 
                     //now interpolate at our point
                     size_t curr_idx = idx - begin_idx;
@@ -640,8 +640,8 @@ std::vector<std::string> ConfigOptionDef::cli_args(const std::string &key) const
 	std::vector<std::string> args;
 	if (this->cli != ConfigOptionDef::nocli) {
         const std::string &cli = this->cli;
-        //FIXME What was that for? Check the "readline" documentation.
-        // Neither '=' nor '!' is used in any of the cli parameters currently defined by PrusaSlicer.
+		//FIXME What was that for? Check the "readline" documentation.
+		// Neither '=' nor '!' is used in any of the cli parameters currently defined by PrusaSlicer.
 //        std::string cli = this->cli.substr(0, this->cli.find("="));
 //        boost::trim_right_if(cli, boost::is_any_of("!"));
 		if (cli.empty()) {
@@ -1005,10 +1005,9 @@ void ConfigOptionDef::set_enum_values(const std::vector<std::string> il)
     enum_def->set_values(il);
 }
 
-void ConfigOptionDef::set_enum_values(const std::initializer_list<std::string_view> il)
+void ConfigOptionDef::set_enum_values(const std::initializer_list<const char*> il)
 {
-    this->enum_def_new();
-    enum_def->set_values(il);
+    this->set_enum_values(std::vector<std::string>(il.begin(), il.end()));
 }
 
 void ConfigOptionDef::set_enum_values(const std::initializer_list<std::pair<std::string_view, std::string_view>> il)
@@ -1023,12 +1022,9 @@ void ConfigOptionDef::set_enum_values(const std::vector<std::pair<std::string, s
     enum_def->set_values(il);
 }
 
-void ConfigOptionDef::set_enum_values(GUIType gui_type, const std::initializer_list<std::string_view> il)
+void ConfigOptionDef::set_enum_values(GUIType gui_type, const std::initializer_list<const char*> il)
 {
-    this->enum_def_new();
-    assert(is_gui_type_enum_open(gui_type));
-    this->gui_type = gui_type;
-    enum_def->set_values(il);
+    this->set_enum_values(gui_type, std::vector<std::string>(il.begin(), il.end()));
 }
 
 void ConfigOptionDef::set_enum_as_closed_for_scripted_enum(const std::vector<std::pair<std::string, std::string>> il)
@@ -1424,6 +1420,14 @@ double ConfigBase::get_computed_value(const t_config_option_key &opt_key, int ex
         throw std::runtime_error(ss.str());
     }
 
+    const auto resolve_ratio_over = [this](const std::string &ratio_over_key, int ratio_over_extruder_id) {
+        if (ratio_over_key == "perimeter_width" || ratio_over_key == "perimeter_width_square") {
+            const double perimeter_width = this->get_computed_value("perimeter_extrusion_width", ratio_over_extruder_id);
+            return ratio_over_key == "perimeter_width_square" ? perimeter_width * perimeter_width : perimeter_width;
+        }
+        return this->get_computed_value(ratio_over_key, ratio_over_extruder_id);
+    };
+
     if (!raw_opt->is_vector()) {
         if (raw_opt->type() == coFloat)
             return static_cast<const ConfigOptionFloat*>(raw_opt)->value;
@@ -1450,11 +1454,8 @@ double ConfigBase::get_computed_value(const t_config_option_key &opt_key, int ex
         //if over no other key, it's most probably a simple %
         if (opt_def->ratio_over == "")
             return cast_opt->get_abs_value(1);
-        // Compute absolute value over the absolute value of the base option.
-        //FIXME there are some ratio_over chains, which end with empty ratio_with.
-        // For example, XXX_extrusion_width parameters are not handled by get_abs_value correctly.
         if (!opt_def->ratio_over.empty() && opt_def->ratio_over != "depends")
-            return cast_opt->get_abs_value(this->get_computed_value(opt_def->ratio_over, extruder_id));
+            return cast_opt->get_abs_value(resolve_ratio_over(opt_def->ratio_over, extruder_id));
 
         std::stringstream ss; ss << "ConfigBase::get_abs_value(): " << opt_key << " has no valid ratio_over to compute of";
         throw ConfigurationError(ss.str());
@@ -1495,7 +1496,7 @@ double ConfigBase::get_computed_value(const t_config_option_key &opt_key, int ex
                 if (opt_def->ratio_over.empty())
                     return opt_fl_per->get_abs_value(idx, 1);
                 if (opt_def->ratio_over != "depends")
-                    return opt_fl_per->get_abs_value(idx, this->get_computed_value(opt_def->ratio_over, idx));
+                    return opt_fl_per->get_abs_value(idx, resolve_ratio_over(opt_def->ratio_over, idx));
                 std::stringstream ss; ss << "ConfigBase::get_abs_value(): " << opt_key << " has no valid ratio_over to compute of";
                 throw ConfigurationError(ss.str());
             }
@@ -1507,7 +1508,7 @@ double ConfigBase::get_computed_value(const t_config_option_key &opt_key, int ex
                 if (opt_def->ratio_over.empty())
                     return opt_per->get_abs_value(idx, 1);
                 if (opt_def->ratio_over != "depends")
-                    return opt_per->get_abs_value(idx, this->get_computed_value(opt_def->ratio_over, idx));
+                    return opt_per->get_abs_value(idx, resolve_ratio_over(opt_def->ratio_over, idx));
                 std::stringstream ss; ss << "ConfigBase::get_abs_value(): " << opt_key << " has no valid ratio_over to compute of";
                 throw ConfigurationError(ss.str());
             }
@@ -1519,18 +1520,48 @@ double ConfigBase::get_computed_value(const t_config_option_key &opt_key, int ex
 
 // Return an absolute value of a possibly relative config variable.
 // For example, return absolute infill extrusion width, either from an absolute value, or relative to a provided value.
-double ConfigBase::get_abs_value(const t_config_option_key &opt_key, double ratio_over) const 
+double ConfigBase::get_abs_value(const t_config_option_key &opt_key, double ratio_over, int extruder_id) const 
 {
     // Get stored option value.
     const ConfigOption *raw_opt = this->option(opt_key);
     assert(raw_opt != nullptr);
-    if (raw_opt->type() != coFloatOrPercent) {
-        if(raw_opt->type() != coPercent)
-            throw ConfigurationError("ConfigBase::get_abs_value(): opt_key is not of coFloatOrPercent");
-        return static_cast<const ConfigOptionPercent*>(raw_opt)->get_abs_value(ratio_over);
+    if (!raw_opt->is_vector()) {
+        if (raw_opt->type() == coPercent)
+            return static_cast<const ConfigOptionPercent*>(raw_opt)->get_abs_value(ratio_over);
+        if (raw_opt->type() == coFloatOrPercent)
+            return static_cast<const ConfigOptionFloatOrPercent*>(raw_opt)->get_abs_value(ratio_over);
+        throw ConfigurationError("ConfigBase::get_abs_value(): opt_key is not of coFloatOrPercent");
     }
-    // Compute absolute value.
-    return static_cast<const ConfigOptionFloatOrPercent*>(raw_opt)->get_abs_value(ratio_over);
+
+    const ConfigOptionVectorBase* vector_opt = static_cast<const ConfigOptionVectorBase*>(raw_opt);
+    int idx = -1;
+    if (vector_opt->is_extruder_size()) {
+        idx = extruder_id;
+        if (extruder_id < 0) {
+            const ConfigOption* opt_extruder_id = nullptr;
+            if ((opt_extruder_id = this->option("extruder")) == nullptr)
+                if ((opt_extruder_id = this->option("current_extruder")) == nullptr
+                    || opt_extruder_id->get_int() < 0 || opt_extruder_id->get_int() >= vector_opt->size()) {
+                    std::stringstream ss; ss << "ConfigBase::get_abs_value(): " << opt_key << " need to has the extuder id to get the right value, but it's not available";
+                    throw ConfigurationError(ss.str());
+                }
+            extruder_id = opt_extruder_id->get_int();
+            idx = extruder_id;
+        }
+    } else {
+        t_config_option_keys machine_limits = Preset::machine_limits_options();
+        if (std::find(machine_limits.begin(), machine_limits.end(), opt_key) != machine_limits.end())
+            idx = 0;
+    }
+
+    if (idx >= 0) {
+        if (raw_opt->type() == coPercents)
+            return static_cast<const ConfigOptionPercents*>(raw_opt)->get_abs_value(idx, ratio_over);
+        if (raw_opt->type() == coFloatsOrPercents)
+            return static_cast<const ConfigOptionFloatsOrPercents*>(raw_opt)->get_abs_value(idx, ratio_over);
+    }
+
+    throw ConfigurationError("ConfigBase::get_abs_value(): opt_key is not of coFloatOrPercent");
 }
 
 void ConfigBase::setenv_() const
@@ -2001,7 +2032,7 @@ ConfigSubstitutions ConfigBase::load_from_gcode_file(const std::string &filename
         // Try a heuristics reading the G-code from back.
         ifs.seekg(0, ifs.end);
         auto file_length = ifs.tellg();
-    	auto data_length = std::min<std::fstream::pos_type>(65535, file_length - header_end_pos);
+    	std::fstream::pos_type data_length = std::min<std::fstream::pos_type>(65535, file_length - header_end_pos);
     	ifs.seekg(file_length - data_length, ifs.beg);
         std::vector<char> data(size_t(data_length) + 1, 0);
         ifs.read(data.data(), data_length);
@@ -2144,13 +2175,12 @@ bool DynamicConfig::operator==(const DynamicConfig &rhs) const
     return it1 == it1_end && it2 == it2_end;
 }
 
-// Remove options with all nil values, those are optional and it does not help to hold them.
+// Remove disabled optional options; mandatory entries should never be stored disabled.
 size_t DynamicConfig::remove_optional_disabled_options()
 {
-    assert(false); // TODO: add check for optional 
 	size_t cnt_removed = 0;
 	for (auto it = options.begin(); it != options.end();)
-		if (!it->second->is_enabled()) {
+		if (assert(it->second->can_be_disabled() || it->second->is_enabled()); it->second->can_be_disabled() && !it->second->is_enabled()) {
 			it = options.erase(it);
 			++ cnt_removed;
 		} else
@@ -2264,7 +2294,7 @@ bool DynamicConfig::read_cli(int argc, const char* const argv[], t_config_option
         // If the option type expects a value and it was not already provided,
         // look for it in the next token.
         if (value.empty() && optdef.type != coBool && optdef.type != coBools) {
-            if (i == argc-1) {
+            if (i + 1 == size_t(argc)) {
                 boost::nowide::cerr << "No value supplied for --" << token.c_str() << std::endl;
                 return false;
             }

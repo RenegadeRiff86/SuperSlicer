@@ -3878,6 +3878,7 @@ PageShp TabPrinter::build_kinematics_page()
     append_option_line_kinematics(optgroup, "machine_max_acceleration_extruding");
     append_option_line_kinematics(optgroup, "machine_max_acceleration_retracting");
     append_option_line_kinematics(optgroup, "machine_max_acceleration_travel");
+    append_option_line_kinematics(optgroup, "machine_min_cruise_ratio");
 
     optgroup = page->new_optgroup(L("Jerk limits"));
     for (const std::string& axis : axes) {

@@ -291,7 +291,7 @@ Slic3r::Transform3d get_transform_from_3mf_specs_string(const std::string& mat_s
     std::vector<std::string> mat_elements_str;
     boost::split(mat_elements_str, mat_str, boost::is_any_of(" "), boost::token_compress_on);
 
-    unsigned int size = (unsigned int)mat_elements_str.size();
+    const size_t size = mat_elements_str.size();
     if (size != 12)
         // invalid data, return identity matrix
         return ret;
@@ -807,10 +807,10 @@ namespace Slic3r {
                     std::replace(name.begin(), name.end(), '\\', '/');
                     if (name == "_rels/.rels") {
                         // open
-                        std::string buffer((size_t) stat.m_uncomp_size, 0);
+                        std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
                         mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index,
-                                                                   (void *) buffer.data(),
-                                                                   (size_t) stat.m_uncomp_size, 0);
+                                                                   buffer.data(),
+                                                                   static_cast<size_t>(stat.m_uncomp_size), 0);
                         if (res != 0) {
                             has_MODEL_in_rels = buffer.find(MODEL_FILE) != std::string::npos;
                         }
@@ -977,7 +977,7 @@ namespace Slic3r {
                     }
 
                     // use the geometry to create the volumes in the new model objects
-                    ObjectMetadata::VolumeMetadataList volumes(1, { 0, (unsigned int)geometry->triangles.size() - 1 });
+                    ObjectMetadata::VolumeMetadataList volumes(1, { 0, static_cast<unsigned int>(geometry->triangles.size()) - 1 });
 
                     // for each instance after the 1st, create a new model object containing only that instance
                     // and copy into it the geometry
@@ -1053,7 +1053,7 @@ namespace Slic3r {
                 // config data not found, this model was not saved using slic3r pe
 
                 // add the entire geometry as the single volume to generate
-                volumes.emplace_back(0, (int)obj_geometry->second.triangles.size() - 1);
+                volumes.emplace_back(0, static_cast<int>(obj_geometry->second.triangles.size()) - 1);
 
                 // select as volumes
                 volumes_ptr = &volumes;
@@ -1148,7 +1148,7 @@ namespace Slic3r {
             return false;
         }
 
-        XML_SetUserData(m_xml_parser, (void*)this);
+        XML_SetUserData(m_xml_parser, this);
         XML_SetElementHandler(m_xml_parser, _3MF_Importer::_handle_start_model_xml_element, _3MF_Importer::_handle_end_model_xml_element);
         XML_SetCharacterDataHandler(m_xml_parser, _3MF_Importer::_handle_model_xml_characters);
 
@@ -1168,11 +1168,11 @@ namespace Slic3r {
         try
         {
             res = mz_zip_reader_extract_to_callback(&archive, stat.m_file_index, [](void* pOpaque, mz_uint64 file_ofs, const void* pBuf, size_t n)->size_t {
-                CallbackData* data = (CallbackData*)pOpaque;
-                if (!XML_Parse(data->parser, (const char*)pBuf, (int)n, (file_ofs + n == data->stat.m_uncomp_size) ? 1 : 0) || data->importer.parse_error()) {
+                CallbackData* data = static_cast<CallbackData*>(pOpaque);
+                if (!XML_Parse(data->parser, static_cast<const char*>(pBuf), static_cast<int>(n), (file_ofs + n == data->stat.m_uncomp_size) ? 1 : 0) || data->importer.parse_error()) {
                     std::string error_msg = std::string("Error (") + std::string(data->importer.parse_error_message()) +
                                            std::string(") while parsing '") + std::string(data->stat.m_filename) +
-                                           std::string("' at line ") + std::to_string((int)XML_GetCurrentLineNumber(data->parser));
+                                           std::string("' at line ") + std::to_string(static_cast<int>(XML_GetCurrentLineNumber(data->parser)));
                     throw Slic3r::FileIOError(error_msg);
                 }
 

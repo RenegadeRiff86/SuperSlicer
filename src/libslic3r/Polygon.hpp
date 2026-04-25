@@ -22,13 +22,10 @@
 namespace Slic3r {
 
 class Polygon;
-using Polygons          = std::vector<Polygon, PointsAllocator<Polygon>>;
-using PolygonPtrs       = std::vector<Polygon*, PointsAllocator<Polygon*>>;
-using ConstPolygonPtrs  = std::vector<const Polygon*, PointsAllocator<const Polygon*>>;
 
 // Returns true if inside. Returns border_result if on boundary.
 bool contains(const Polygon& polygon, const Point& p, bool border_result = true);
-bool contains(const Polygons& polygons, const Point& p, bool border_result = true);
+bool contains(const std::vector<Polygon, PointsAllocator<Polygon>>& polygons, const Point& p, bool border_result = true);
 
 class Polygon : public MultiPoint
 {
@@ -64,8 +61,9 @@ public:
         pgn.points.reserve(points.size());
         for (const Vec2d &pt : points)
             pgn.points.emplace_back(Point::new_scale(pt(0), pt(1)));
-		return pgn;
-	}
+
+        return pgn;
+    }
     Polygon& operator=(const Polygon &other) { points = other.points; return *this; }
     Polygon& operator=(Polygon &&other) noexcept { points = std::move(other.points); return *this; }
 
@@ -102,9 +100,9 @@ public:
         { return (this->point_projection(point).first - point).cast<double>().squaredNorm() < eps * eps; }
 
     // Works on CCW polygons only, CW contour will be reoriented to CCW by Clipper's simplify_polygons()!
-    Polygons simplify(distf_t tolerance) const;
+    std::vector<Polygon, PointsAllocator<Polygon>> simplify(distf_t tolerance) const;
     void densify(float min_length, std::vector<float>* lengths = nullptr);
-    void triangulate_convex(Polygons* polygons) const;
+    void triangulate_convex(std::vector<Polygon, PointsAllocator<Polygon>>* polygons) const;
     Point centroid() const;
 
     bool intersection(const Line& line, Point* intersection) const;
@@ -137,6 +135,10 @@ public:
     using iterator = Points::iterator;
     using const_iterator = Points::const_iterator;
 };
+
+using Polygons          = std::vector<Polygon, PointsAllocator<Polygon>>;
+using PolygonPtrs       = std::vector<Polygon*, PointsAllocator<Polygon*>>;
+using ConstPolygonPtrs  = std::vector<const Polygon*, PointsAllocator<const Polygon*>>;
 
 inline bool operator==(const Polygon &lhs, const Polygon &rhs) { return lhs.points == rhs.points; }
 inline bool operator!=(const Polygon &lhs, const Polygon &rhs) { return lhs.points != rhs.points; }

@@ -9,6 +9,7 @@
 #include "SLA/RasterBase.hpp"
 #include "libslic3r/SLAPrint.hpp"
 
+#include <bit>
 #include <sstream>
 #include <iostream>
 #include <fstream>
@@ -417,15 +418,14 @@ static void anycubicsla_write_int32(std::ofstream &out, std::uint32_t val)
     const char i3 = (val >> 16) & 0xFF;
     const char i4 = (val >> 24) & 0xFF;
 
-    out.write((const char *) &i1, 1);
-    out.write((const char *) &i2, 1);
-    out.write((const char *) &i3, 1);
-    out.write((const char *) &i4, 1);
+    out.write(&i1, 1);
+    out.write(&i2, 1);
+    out.write(&i3, 1);
+    out.write(&i4, 1);
 }
 static void anycubicsla_write_float(std::ofstream &out, float val)
 {
-    std::uint32_t *f = (std::uint32_t *) &val;
-    anycubicsla_write_int32(out, *f);
+    anycubicsla_write_int32(out, std::bit_cast<std::uint32_t>(val));
 }
 
 static void anycubicsla_write_intro(std::ofstream &out, anycubicsla_format_intro &i)
@@ -475,7 +475,7 @@ static void anycubicsla_write_preview(std::ofstream &out, anycubicsla_format_pre
     anycubicsla_write_int32(out, p.preview_w);
     anycubicsla_write_int32(out, p.preview_dpi);
     anycubicsla_write_int32(out, p.preview_h);
-    out.write((const char*) p.pixels, sizeof(p.pixels));
+    out.write(reinterpret_cast<const char*>(p.pixels), sizeof(p.pixels));
 }
 
 static void anycubicsla_write_layers_header(std::ofstream &out, anycubicsla_format_layers_header &h)

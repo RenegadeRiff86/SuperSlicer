@@ -12,7 +12,6 @@
 #include "I18N.hpp"
 #include "Print.hpp"
 #include "Layer.hpp"
-#include "Layer.hpp"
 #include <cassert>
 #include <cmath>
 

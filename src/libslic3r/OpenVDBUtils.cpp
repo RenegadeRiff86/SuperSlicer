@@ -20,6 +20,8 @@
 #include <openvdb/tools/LevelSetRebuild.h>
 #include <openvdb/tools/FastSweeping.h>
 
+#include <memory>
+
 namespace Slic3r {
 
 struct VoxelGrid
@@ -32,27 +34,27 @@ struct VoxelGrid
     VoxelGrid(Args &&...args): grid{std::forward<Args>(args)...} {}
 };
 
-void VoxelGridDeleter::operator()(VoxelGrid *ptr) { delete ptr; }
+void VoxelGridDeleter::operator()(VoxelGrid *ptr) { std::default_delete<VoxelGrid>{}(ptr); }
 
-// Similarly to std::make_unique()
-template<class...Args>
-VoxelGridPtr make_voxelgrid(Args &&...args)
+namespace {
+
+template<class T>
+VoxelGridPtr make_voxelgrid_impl(T &&grid)
 {
-    VoxelGrid *ptr = nullptr;
-    try {
-        ptr = new VoxelGrid(std::forward<Args>(args)...);
-    } catch(...) {
-        delete ptr;
-    }
-
-    return VoxelGridPtr{ptr};
+    auto ptr = std::make_unique<VoxelGrid>(std::forward<T>(grid));
+    return VoxelGridPtr{ptr.release()};
 }
 
-template VoxelGridPtr make_voxelgrid<>();
+VoxelGridPtr make_voxelgrid(const openvdb::FloatGrid &grid) { return make_voxelgrid_impl(grid); }
+VoxelGridPtr make_voxelgrid(openvdb::FloatGrid &&grid) { return make_voxelgrid_impl(std::move(grid)); }
+VoxelGridPtr make_voxelgrid(const VoxelGrid &grid) { return make_voxelgrid_impl(grid); }
+VoxelGridPtr make_voxelgrid(VoxelGrid &&grid) { return make_voxelgrid_impl(std::move(grid)); }
 
-inline Vec3f to_vec3f(const openvdb::Vec3s &v) { return Vec3f{v.x(), v.y(), v.z()}; }
-inline Vec3d to_vec3d(const openvdb::Vec3s &v) { return to_vec3f(v).cast<double>(); }
-inline Vec3i32 to_vec3i(const openvdb::Vec3I &v) { return Vec3i32{int32_t(v[2]), int32_t(v[1]), int32_t(v[0])}; }
+} // namespace
+
+static inline Vec3f to_vec3f(const openvdb::Vec3s &v) { return Vec3f{v.x(), v.y(), v.z()}; }
+static inline Vec3d to_vec3d(const openvdb::Vec3s &v) { return to_vec3f(v).cast<double>(); }
+static inline Vec3i32 to_vec3i(const openvdb::Vec3I &v) { return Vec3i32{int32_t(v[2]), int32_t(v[1]), int32_t(v[0])}; }
 
 class TriangleMeshDataAdapter {
 public:
@@ -68,7 +70,7 @@ public:
     // And the voxel count per unit volume can be affected this way.
     void getIndexSpacePoint(size_t n, size_t v, openvdb::Vec3d& pos) const
     {
-        auto vidx = size_t(its.indices[n](Eigen::Index(v)));
+        auto vidx = static_cast<size_t>(its.indices[n](Eigen::Index(v)));
         Slic3r::Vec3d p = trafo * its.vertices[vidx].cast<double>();
         pos = {p.x(), p.y(), p.z()};
     }
@@ -81,10 +83,10 @@ struct Interrupter
 {
     std::function<bool(int)> statusfn;
 
-    void start(const char* name = nullptr) { (void)name; }
+    void start(const char* name = nullptr) { static_cast<void>(name); }
     void end() {}
 
-    inline bool wasInterrupted(int percent = -1) { return statusfn && statusfn(percent); }
+    inline bool wasInterrupted(int percent = -1) const { return statusfn && statusfn(percent); }
 };
 
 VoxelGridPtr mesh_to_grid(const indexed_triangle_set &mesh,

@@ -40,7 +40,7 @@ IMPLEMENT_VARIANT_OBJECT(DataViewBitmapText)
 
 static wxSize get_size(const wxBitmap& icon)
 {
-#ifdef __WIN32__
+#ifdef _WIN32
     return icon.GetSize();
 #else
     return icon.GetScaledSize();

@@ -71,7 +71,7 @@ IGL_INLINE size_t igl::extract_manifold_patches(
         }
         num_patches++;
     }
-    assert((P.array() != INVALID).all());
+    assert((P.array() < INVALID).all());
 
     return num_patches;
 }

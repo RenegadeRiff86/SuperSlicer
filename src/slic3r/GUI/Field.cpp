@@ -21,6 +21,7 @@
 #include "Plater.hpp"
 #include "wxExtensions.hpp"
 
+#include <algorithm>
 #include <regex>
 #include "libslic3r/enum_bitmask.hpp"
 #include "libslic3r/GCode/Thumbnails.hpp"
@@ -569,8 +570,12 @@ bool TextField::get_vector_value(const wxString &str, ConfigOptionVectorBase &re
         // first, remove all spaces
         vector_str = str.SubString(1, str.size() - 1).ToStdString();
     }
-    // FIXME: also remove other unwanted chars only "[0-9].-,;" should remain
     boost::erase_all(vector_str, " ");
+    vector_str.erase(
+        std::remove_if(vector_str.begin(), vector_str.end(), [](unsigned char c) {
+            return !std::isdigit(c) && c != '.' && c != '-' && c != ',' && c != ';';
+        }),
+        vector_str.end());
     bool is_decimal_sep_point = is_decimal_separator_point();
     if (!is_decimal_sep_point) {
         //',' are the decimal separator, transform to '.' for deserialization (which happens in C locale)
@@ -1829,8 +1834,9 @@ void Choice::set_values(const std::vector<std::string>& values)
 //Please don't use that on Enum fields it will just break everything
 void Choice::set_values(const wxArrayString &values)
 {
+    // host_type is the one enum field whose visible choices are rebuilt at runtime.
     assert(m_opt.type != coEnum
-        || m_opt.opt_key == "host_type"); //FIXME
+        || m_opt.opt_key == "host_type");
 	if (values.empty())
 		return;
 

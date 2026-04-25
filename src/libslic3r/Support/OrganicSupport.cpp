@@ -1056,7 +1056,10 @@ void organic_draw_branches(
                 for (int32_t parent_idx : elem.parents) {
                     SupportElement &parent = (*layer_above)[parent_idx];
                     if (parent.state.result_on_layer_is_set())
-                        map_downwards_new.emplace_back(&parent, elem_idx);
+                    {
+                        assert(elem_idx <= size_t(std::numeric_limits<int>::max()));
+                        map_downwards_new.emplace_back(&parent, static_cast<int>(elem_idx));
+                    }
                 }
 
                 elements_with_link_down.push_back({ &elem, int(child) });

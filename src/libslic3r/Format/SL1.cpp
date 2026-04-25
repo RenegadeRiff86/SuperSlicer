@@ -176,7 +176,7 @@ static void write_thumbnail(Zipper &zipper, const ThumbnailData &data)
     size_t png_size = 0;
 
     void  *png_data = tdefl_write_image_to_png_file_in_memory_ex(
-         (const void *) data.pixels.data(), data.width, data.height, 4,
+         data.pixels.data(), data.width, data.height, 4,
          &png_size, MZ_DEFAULT_LEVEL, 1);
 
     if (png_data != nullptr) {

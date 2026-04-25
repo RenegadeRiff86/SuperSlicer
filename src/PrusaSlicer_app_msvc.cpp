@@ -170,17 +170,17 @@ protected:
         HGLRC glcontext = wglCreateContext(ourWindowHandleToDeviceContext);
         wglMakeCurrent(ourWindowHandleToDeviceContext, glcontext);
         // Opengl32.dll
-        const char *data = (const char*)glGetString(GL_VERSION);
+        const char *data = reinterpret_cast<const char*>(glGetString(GL_VERSION));
         if (data != nullptr)
             this->version = data;
         // printf("check -version: %s\n", version.c_str());
-        data = (const char*)glGetString(0x8B8C); // GL_SHADING_LANGUAGE_VERSION
+        data = reinterpret_cast<const char*>(glGetString(0x8B8C)); // GL_SHADING_LANGUAGE_VERSION
         if (data != nullptr)
             this->glsl_version = data;
-        data = (const char*)glGetString(GL_VENDOR);
+        data = reinterpret_cast<const char*>(glGetString(GL_VENDOR));
         if (data != nullptr)
             this->vendor = data;
-        data = (const char*)glGetString(GL_RENDERER);
+        data = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
         if (data != nullptr)
             this->renderer = data;
         // Opengl32.dll
@@ -218,19 +218,12 @@ extern "C" {
     Slic3rMainFunc slic3r_main = nullptr;
 }
 
-extern "C" {
-#ifdef SLIC3R_WRAPPER_NOCONSOLE
-int APIENTRY wWinMain(HINSTANCE /* hInstance */, HINSTANCE /* hPrevInstance */, PWSTR /* lpCmdLine */, int /* nCmdShow */)
+// Common implementation shared by both wWinMain and wmain.
+static int slic3r_run(int argc, wchar_t** argv)
 {
-    int       argc;
-    wchar_t **argv = ::CommandLineToArgvW(::GetCommandLineW(), &argc);
-#else
-int wmain(int argc, wchar_t **argv)
-{
-#endif
-    // Allow the asserts to open message box, such message box allows to ignore the assert and continue with the application.
-    // Without this call, the seemingly same message box is being opened by the abort() function, but that is too late and
-    // the application will be killed even if "Ignore" button is pressed.
+    // Allow asserts to open a message box so the user can choose Ignore and
+    // continue. Without this, abort() opens a similar box but kills the
+    // process regardless.
     _set_error_mode(_OUT_TO_MSGBOX);
 
     std::vector<wchar_t*> argv_extended;
@@ -242,11 +235,10 @@ int wmain(int argc, wchar_t **argv)
 #endif /* SLIC3R_WRAPPER_GCODEVIEWER */
 
 #ifdef SLIC3R_GUI
-    // Here one may push some additional parameters based on the wrapper type.
     bool force_mesa = false;
     bool force_hw   = false;
 #endif /* SLIC3R_GUI */
-    for (int i = 1; i < argc; ++ i) {
+    for (int i = 1; i < argc; ++i) {
 #ifdef SLIC3R_GUI
         if (wcscmp(argv[i], L"--sw-renderer") == 0)
             force_mesa = true;
@@ -259,14 +251,13 @@ int wmain(int argc, wchar_t **argv)
 
 #ifdef SLIC3R_GUI
     OpenGLVersionCheck opengl_version_check;
+    // Use Mesa SW renderer if: forced from CLI, running over Remote Desktop
+    // without RemoteFX, or the system OpenGL driver is older than 3.2.
     bool load_mesa =
-        // Forced from the command line.
         force_mesa ||
-        // Running over a rempote desktop, and the RemoteFX is not enabled, therefore Windows will only provide SW OpenGL 1.1 context.
-        // In that case, use Mesa.
         (::GetSystemMetrics(SM_REMOTESESSION) && !force_hw) ||
-        // Try to load the default OpenGL driver and test its context version.
-        ! opengl_version_check.load_opengl_dll() || ! opengl_version_check.is_version_greater_or_equal_to(3, 2);
+        !opengl_version_check.load_opengl_dll() ||
+        !opengl_version_check.is_version_greater_or_equal_to(3, 2);
 #endif /* SLIC3R_GUI */
 
     wchar_t path_to_exe[MAX_PATH + 1] = { 0 };
@@ -279,53 +270,65 @@ int wmain(int argc, wchar_t **argv)
     _wmakepath(path_to_exe, drive, dir, nullptr, nullptr);
 
 #ifdef SLIC3R_GUI
-// https://wiki.qt.io/Cross_compiling_Mesa_for_Windows
-// http://download.qt.io/development_releases/prebuilt/llvmpipe/windows/
+    // https://wiki.qt.io/Cross_compiling_Mesa_for_Windows
+    // http://download.qt.io/development_releases/prebuilt/llvmpipe/windows/
     if (load_mesa) {
-        bool res = opengl_version_check.unload_opengl_dll();
-        if (!res) {
-            MessageBox(nullptr, L"PrusaSlicer was unable to automatically switch to MESA OpenGL library\nPlease, try to run the application using the '--sw-renderer' option.\n",
+        if (!opengl_version_check.unload_opengl_dll()) {
+            MessageBox(nullptr,
+                L"PrusaSlicer was unable to automatically switch to MESA OpenGL library\n"
+                L"Please, try to run the application using the '--sw-renderer' option.\n",
                 L"PrusaSlicer Warning", MB_OK);
             return -1;
         }
-        else {
-            wchar_t path_to_mesa[MAX_PATH + 1] = { 0 };
-            wcscpy(path_to_mesa, path_to_exe);
-            wcscat(path_to_mesa, L"mesa\\opengl32.dll");
-            printf("Loading MESA OpenGL library: %S\n", path_to_mesa);
-            HINSTANCE hInstance_OpenGL = LoadLibraryExW(path_to_mesa, nullptr, 0);
-            if (hInstance_OpenGL == nullptr)
+        wchar_t path_to_mesa[MAX_PATH + 1] = { 0 };
+        wcscpy(path_to_mesa, path_to_exe);
+        wcscat(path_to_mesa, L"mesa\\opengl32.dll");
+        printf("Loading MESA OpenGL library: %S\n", path_to_mesa);
+        HINSTANCE hInstance_OpenGL = LoadLibraryExW(path_to_mesa, nullptr, 0);
+        if (hInstance_OpenGL == nullptr)
             printf("MESA OpenGL library was not loaded\n");
-            else
-                printf("MESA OpenGL library was loaded sucessfully\n");
-    }
+        else
+            printf("MESA OpenGL library was loaded sucessfully\n");
     }
 #endif /* SLIC3R_GUI */
 
     wchar_t path_to_slic3r[MAX_PATH + 1] = { 0 };
     wcscpy(path_to_slic3r, path_to_exe);
     wcscat(path_to_slic3r, L"Slic3r.dll");
-//    printf("Loading Slic3r library: %S\n", path_to_slic3r);
     HINSTANCE hInstance_Slic3r = LoadLibraryExW(path_to_slic3r, nullptr, 0);
     if (hInstance_Slic3r == nullptr) {
         printf("Slic3r.dll was not loaded, error code: %d\n", GetLastError());
         return -1;
     }
 
-    // resolve function address here
-    slic3r_main = (Slic3rMainFunc)GetProcAddress(hInstance_Slic3r, 
+    slic3r_main = reinterpret_cast<Slic3rMainFunc>(GetProcAddress(hInstance_Slic3r,
 #ifdef _WIN64
-        // there is just a single calling conversion, therefore no mangling of the function name.
+        // Single calling convention on x64 — no name mangling.
         "slic3r_main"
-#else    // stdcall calling convention declaration
+#else
+        // stdcall name mangling on x86.
         "_slic3r_main@8"
 #endif
-        );
+        ));
     if (slic3r_main == nullptr) {
         printf("could not locate the function slic3r_main in slic3r.dll\n");
         return -1;
     }
-    // argc minus the trailing nullptr of the argv
-    return slic3r_main((int)argv_extended.size() - 1, argv_extended.data());
+    return slic3r_main(static_cast<int>(argv_extended.size()) - 1, argv_extended.data());
 }
+
+extern "C" {
+#ifdef SLIC3R_WRAPPER_NOCONSOLE
+int APIENTRY wWinMain(HINSTANCE /* hInstance */, HINSTANCE /* hPrevInstance */, PWSTR /* lpCmdLine */, int /* nCmdShow */)
+{
+    int      argc;
+    wchar_t **argv = ::CommandLineToArgvW(::GetCommandLineW(), &argc);
+    return slic3r_run(argc, argv);
+}
+#else
+int wmain(int argc, wchar_t **argv)
+{
+    return slic3r_run(argc, argv);
+}
+#endif
 }

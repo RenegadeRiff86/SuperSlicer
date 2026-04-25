@@ -862,8 +862,6 @@ inline bool is_outside_support_cone(const Vec3f &supp,
                                     const Vec3f &pt,
                                     float angle)
 {
-    using namespace Slic3r;
-
     Vec3d D = (pt - supp).cast<double>();
     double dot_sq = -D.z() * std::abs(-D.z());
 

@@ -445,7 +445,7 @@ ThickPolylines FillEnsuring::make_fill_polylines(
                                              [scaled_spacing](const ThickPolyline &tp) {
                                                  return tp.length() < scaled_spacing &&
                                                         std::all_of(tp.points_width.begin(), tp.points_width.end(),
-                                                                    [scaled_spacing](double w) { return w < scaled_spacing; });
+                                                                    [scaled_spacing](const coord_t w) { return w < scaled_spacing; });
                                              }),
                               thick_polylines.end());
     }

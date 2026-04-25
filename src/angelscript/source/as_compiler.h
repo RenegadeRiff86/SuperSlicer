@@ -124,11 +124,11 @@ struct asCExprContext;
 // cleaned up after the result of a function has been evaluated.
 struct asSDeferredParam
 {
-	asSDeferredParam() {argNode = 0; origExpr = 0;}
+	asSDeferredParam() : argNode(0), argInOutFlags(0), origExpr(0) {}
 
 	asCScriptNode  *argNode;
 	asCExprValue    argType;
-	int             argInOutFlags;
+	int             argInOutFlags = 0;
 	asCExprContext *origExpr;
 };
 
@@ -391,26 +391,26 @@ protected:
 
 	asCByteCode byteCode;
 
-	bool hasCompileErrors;
+	bool hasCompileErrors = false;
 
-	int nextLabel;
-	int numLambdas;
+	int nextLabel = 0;
+	int numLambdas = 0;
 
 	asCVariableScope  *variables;
 	asCBuilder        *builder;
-	asCScriptEngine   *engine;
+	asCScriptEngine   *engine = 0;
 	asCScriptCode     *script;
-	asCScriptFunction *outFunc;
+	asCScriptFunction *outFunc = 0;
 
-	bool                         m_isConstructor;
-	bool                         m_isConstructorCalled;
-	bool                         m_hasReturned;
+	bool                         m_isConstructor = false;
+	bool                         m_isConstructorCalled = false;
+	bool                         m_hasReturned = false;
 	asCArray<asCObjectProperty*> m_initializedProperties; // Doesn't hold reference
 	asCArray<asSNameSpace*>      m_namespaceVisibility;
 	asCMap<asCObjectProperty*, asUINT> m_propertyAccessCount; // Doesn't hold reference
 	asCMap<asCObjectProperty*, asCScriptNode*> m_inheritedPropertyAccess; // Doesn't hold reference
-	sClassDeclaration           *m_classDecl;
-	sGlobalVariableDescription  *m_globalVar;
+	sClassDeclaration           *m_classDecl = 0;
+	sGlobalVariableDescription  *m_globalVar = 0;
 
 	asCArray<int> breakLabels;
 	asCArray<int> continueLabels;

@@ -24,11 +24,20 @@ static bool is_point_in_rect(const wxPoint& pt, const wxRect& rect)
 
 static wxSize get_bitmap_size(const wxBitmapBundle* bmp, wxWindow* parent)
 {
-#ifdef __WIN32__
+#ifdef _WIN32
     return bmp->GetBitmapFor(parent).GetSize();
 #else
     return bmp->GetDefaultSize();
 #endif
+}
+
+static wxString translate_option_label(const std::string& label)
+{
+    if (label == "Top")
+        return _CTX(L_CONTEXT("Top", "Layers"), "Layers");
+    if (label == "Bottom")
+        return _CTX(L_CONTEXT("Bottom", "Layers"), "Layers");
+    return _(label);
 }
 
 static wxString get_url(const wxString& path_end, bool get_default = false) 
@@ -213,8 +222,7 @@ wxPoint OG_CustomCtrl::get_pos(const Line& line, Field* field_in/* = nullptr*/)
                 // add label if any
                 if (is_multioption_line && !option.label.empty()) {
                     std::string opt_label = (option.label.empty() || option.label.back() != '_') ? option.label : option.label.substr(0, option.label.size() - 1);
-                    // FIXME: 'Top' & 'Bottom'  require localization with context 'Layers'
-                    label =  _(opt_label);
+                    label = translate_option_label(opt_label);
                     bool no_dots = label.empty() || option.label.back() == '_';
                     if (!no_dots)
                         label += ":";
@@ -802,8 +810,7 @@ void OG_CustomCtrl::CtrlLine::render(wxDC& dc, wxCoord v_pos)
         // add label if any
         if (is_multioption_line && !option.label.empty()) {
             std::string opt_label = (option.label.empty() || option.label.back() != '_') ? option.label : option.label.substr(0, option.label.size() - 1);
-            // FIXME: 'Top' & 'Bottom'  require localization with context 'Layers'
-            wxString label = _(opt_label);
+            wxString label = translate_option_label(opt_label);
             bool no_dots = label.empty() || option.label.back() == '_';
             if (!no_dots)
                 label += ":";

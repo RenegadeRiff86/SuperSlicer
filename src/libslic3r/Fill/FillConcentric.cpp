@@ -314,7 +314,7 @@ FillConcentric::fill_surface_extrusion(
                 // get parameters 
                 coordf_t min = 0.2 * distance * (1 - INSET_OVERLAP_TOLERANCE);
                 //be sure we don't gapfill where the perimeters are already touching each other (negative spacing).
-                min = std::max(min, double(Flow::new_from_spacing((float)EPSILON, (float)params.flow.nozzle_diameter(), (float)params.flow.height(), (float)params.flow.spacing_ratio(), false).scaled_width()));
+                min = std::max(min, double(Flow::new_from_spacing(static_cast<float>(EPSILON), static_cast<float>(params.flow.nozzle_diameter()), static_cast<float>(params.flow.height()), static_cast<float>(params.flow.spacing_ratio()), false).scaled_width()));
                 coordf_t real_max = 2.5 * distance;
                 const coordf_t minwidth = scale_d(params.config->get_abs_value("gap_fill_min_width", params.flow.width()));
                 const coordf_t maxwidth = scale_d(params.config->get_abs_value("gap_fill_max_width", params.flow.width()));

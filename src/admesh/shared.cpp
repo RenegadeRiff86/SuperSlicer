@@ -32,6 +32,22 @@
 
 #include "libslic3r/LocalesUtils.hpp"
 
+static bool close_output_file(FILE* fp, const char* file, const char* operation, bool write_ok)
+{
+    if (!write_ok || ferror(fp)) {
+        BOOST_LOG_TRIVIAL(error) << operation << ": Failed while writing " << file;
+        fclose(fp);
+        return false;
+    }
+
+    if (fclose(fp) != 0) {
+        BOOST_LOG_TRIVIAL(error) << operation << ": Failed to finalize " << file;
+        return false;
+    }
+
+    return true;
+}
+
 void stl_generate_shared_vertices(stl_file *stl, indexed_triangle_set &its)
 {
 	// 3 indices to vertex per face
@@ -51,7 +67,7 @@ void stl_generate_shared_vertices(stl_file *stl, indexed_triangle_set &its)
 			if (its.indices[facet_idx][j] != -1)
 				// Shared vertex was already assigned.
 				continue;
-			// Create a new shared vertex.
+			// Create a shared vertex and add it to the vertex list.
 			its.vertices.emplace_back(stl->facet_start[facet_idx].vertex[j]);
 			// Traverse the fan around the j-th vertex of the i-th face, assign the newly created shared vertex index to all the neighboring triangles in the triangle fan.
 			int  facet_in_fan_idx 	= facet_idx;
@@ -63,7 +79,7 @@ void stl_generate_shared_vertices(stl_file *stl, indexed_triangle_set &its)
 			for (;;) {
 				// Next edge on facet_in_fan_idx to be traversed. The edge is indexed by its starting vertex index.
 				int next_edge    = 0;
-				// Vertex index in facet_in_fan_idx, which is being pivoted around, and which is being assigned a new shared vertex.
+			// Vertex index in facet_in_fan_idx being pivoted around, assigned a shared vertex index.
 				int pivot_vertex = 0;
 				if (vnot > 2) {
 					// The edge of facet_in_fan_idx opposite to vnot is equally oriented, therefore
@@ -107,7 +123,7 @@ void stl_generate_shared_vertices(stl_file *stl, indexed_triangle_set &its)
 					// Traversed a closed fan all around.
 //					assert(! traversal_reversed);
 					break;
-				} else if (next_facet >= (int)stl->stats.number_of_facets) {
+			} else if (next_facet >= static_cast<int>(stl->stats.number_of_facets)) {
 					// The mesh is not valid!
 					// assert(false);
 					break;
@@ -138,7 +154,7 @@ bool its_write_off(const indexed_triangle_set &its, const char *file)
 	}
 
 	fprintf(fp, "OFF\n");
-	fprintf(fp, "%d %d 0\n", (int)its.vertices.size(), (int)its.indices.size());
+	fprintf(fp, "%d %d 0\n", static_cast<int>(its.vertices.size()), static_cast<int>(its.indices.size()));
 	for (int i = 0; i < its.vertices.size(); ++ i)
 		fprintf(fp, "\t%f %f %f\n", its.vertices[i](0), its.vertices[i](1), its.vertices[i](2));
 	for (uint32_t i = 0; i < its.indices.size(); ++ i)
@@ -199,12 +215,12 @@ bool its_write_obj(const indexed_triangle_set &its, const char *file)
     	return false;
   	}
 
-	for (size_t i = 0; i < its.vertices.size(); ++ i)
-    	fprintf(fp, "v %f %f %f\n", its.vertices[i](0), its.vertices[i](1), its.vertices[i](2));
-  	for (size_t i = 0; i < its.indices.size(); ++ i)
-    	fprintf(fp, "f %d %d %d\n", its.indices[i][0]+1, its.indices[i][1]+1, its.indices[i][2]+1);
-  	fclose(fp);
-  	return true;
+	bool write_ok = true;
+	for (size_t i = 0; i < its.vertices.size() && write_ok; ++ i)
+	    write_ok = fprintf(fp, "v %f %f %f\n", its.vertices[i](0), its.vertices[i](1), its.vertices[i](2)) >= 0;
+	for (size_t i = 0; i < its.indices.size() && write_ok; ++ i)
+	    write_ok = fprintf(fp, "f %d %d %d\n", its.indices[i][0]+1, its.indices[i][1]+1, its.indices[i][2]+1) >= 0;
+	return close_output_file(fp, file, "stl_write_obj", write_ok);
 }
 
 bool its_write_obj(const indexed_triangle_set& its, const std::vector<obj_color> &color, const char* file)
@@ -216,21 +232,21 @@ bool its_write_obj(const indexed_triangle_set& its, const std::vector<obj_color>
         return false;
     }
 
-    for (size_t i = 0; i < its.vertices.size(); ++i)
-        fprintf(fp, "v %f %f %f %f %f %f\n", 
-            its.vertices[i](0), 
+	bool write_ok = true;
+	for (size_t i = 0; i < its.vertices.size() && write_ok; ++i)
+	    write_ok = fprintf(fp, "v %f %f %f %f %f %f\n", 
+	        its.vertices[i](0), 
 			its.vertices[i](1), 
 			its.vertices[i](2),
-            color[i](0), 
+	        color[i](0), 
 			color[i](1), 
-			color[i](2));
-    for (size_t i = 0; i < its.indices.size(); ++i)
-        fprintf(fp, "f %d %d %d\n", 
+			color[i](2)) >= 0;
+	for (size_t i = 0; i < its.indices.size() && write_ok; ++i)
+	    write_ok = fprintf(fp, "f %d %d %d\n", 
 			its.indices[i][0] + 1, 
 			its.indices[i][1] + 1, 
-			its.indices[i][2] + 1);
-    fclose(fp);
-    return true;
+			its.indices[i][2] + 1) >= 0;
+	return close_output_file(fp, file, "stl_write_obj", write_ok);
 }
 
 // Check validity of the mesh, assert on error.
@@ -247,12 +263,12 @@ bool stl_validate(const stl_file *stl, const indexed_triangle_set &its)
 
 #ifdef _DEBUG
     // Verify validity of neighborship data.
-    for (int facet_idx = 0; facet_idx < (int)stl->stats.number_of_facets; ++ facet_idx) {
+    for (int facet_idx = 0; facet_idx < static_cast<int>(stl->stats.number_of_facets); ++ facet_idx) {
         const stl_neighbors &nbr 		= stl->neighbors_start[facet_idx];
         const int 			*vertices 	= its.indices.empty() ? nullptr : its.indices[facet_idx].data();
         for (int nbr_idx = 0; nbr_idx < 3; ++ nbr_idx) {
             int nbr_face = stl->neighbors_start[facet_idx].neighbor[nbr_idx];
-            assert(nbr_face < (int)stl->stats.number_of_facets);
+            assert(nbr_face < static_cast<int>(stl->stats.number_of_facets));
             if (nbr_face != -1) {
             	int nbr_vnot = nbr.which_vertex_not[nbr_idx];
 				assert(nbr_vnot >= 0 && nbr_vnot < 6);

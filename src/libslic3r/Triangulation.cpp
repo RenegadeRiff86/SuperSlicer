@@ -111,14 +111,15 @@ Triangulation::Indices Triangulation::triangulate(const Points    &points,
     // construct a constrained triangulation
     CDT cdt;
     {
+        assert(points.size() <= std::numeric_limits<uint32_t>::max());
         std::vector<CDT::Vertex_handle> vertices_handle(points.size()); // for constriants
-        using Point_with_ord = std::pair<CDT::Point, size_t>;
+        using Point_with_ord = std::pair<CDT::Point, uint32_t>;
         using SearchTrait    = CGAL::Spatial_sort_traits_adapter_2
             <K, CGAL::First_of_pair_property_map<Point_with_ord> >;
 
         std::vector<Point_with_ord> cdt_points;
         cdt_points.reserve(points.size());
-        size_t ord = 0;
+        uint32_t ord = 0;
         for (const auto &p : points)
             cdt_points.emplace_back(std::make_pair(CDT::Point{p.x(), p.y()}, ord++));
         
@@ -251,8 +252,10 @@ Triangulation::Indices Triangulation::triangulate(const ExPolygons &expolygons){
     Changes changes = create_changes(pts, d_pts);
     Indices indices = triangulate(expolygons, pts, changes);
     // reverse map for changes
+    assert(changes.size() <= std::numeric_limits<uint32_t>::max());
     Changes changes2(changes.size(), std::numeric_limits<uint32_t>::max());
-    for (size_t i = 0; i < changes.size(); ++i)
+    const uint32_t change_count = static_cast<uint32_t>(changes.size());
+    for (uint32_t i = 0; i < change_count; ++i)
         changes2[changes[i]] = i;
 
     // convert indices into expolygons indicies

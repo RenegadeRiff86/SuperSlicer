@@ -676,8 +676,8 @@ void AMFParserContext::endElement(const char * /* name */)
             m_volume->source.transform = Slic3r::Geometry::Transformation(m_volume_transform);
 
         if (m_volume->source.input_file.empty()) {
-            m_volume->source.object_idx = (int)m_model.objects.size() - 1;
-            m_volume->source.volume_idx = (int)m_model.objects.back()->volumes.size() - 1;
+            m_volume->source.object_idx = static_cast<int>(m_model.objects.size()) - 1;
+            m_volume->source.volume_idx = static_cast<int>(m_model.objects.back()->volumes.size()) - 1;
             m_volume->center_geometry_after_creation();
         }
         else
@@ -873,7 +873,7 @@ void AMFParserContext::endElement(const char * /* name */)
                 m_volume->name = std::move(m_value[1]);
         }
         else if (strncmp(m_value[0].c_str(), SLIC3RPE_AMF_VERSION, strlen(SLIC3RPE_AMF_VERSION)) == 0) {
-            m_version = (unsigned int)atoi(m_value[1].c_str());
+            m_version = static_cast<unsigned int>(atoi(m_value[1].c_str()));
         }
 
         m_value[0].clear();
@@ -895,10 +895,10 @@ void AMFParserContext::endDocument()
         for (const Instance &instance : object.second.instances)
             if (instance.anything_set()) {
                 ModelInstance *mi = m_model.objects[object.second.idx]->add_instance();
-                mi->set_offset(Vec3d(instance.deltax_set ? (double)instance.deltax : 0.0, instance.deltay_set ? (double)instance.deltay : 0.0, instance.deltaz_set ? (double)instance.deltaz : 0.0));
-                mi->set_rotation(Vec3d(instance.rx_set ? (double)instance.rx : 0.0, instance.ry_set ? (double)instance.ry : 0.0, instance.rz_set ? (double)instance.rz : 0.0));
-                mi->set_scaling_factor(Vec3d(instance.scalex_set ? (double)instance.scalex : 1.0, instance.scaley_set ? (double)instance.scaley : 1.0, instance.scalez_set ? (double)instance.scalez : 1.0));
-                mi->set_mirror(Vec3d(instance.mirrorx_set ? (double)instance.mirrorx : 1.0, instance.mirrory_set ? (double)instance.mirrory : 1.0, instance.mirrorz_set ? (double)instance.mirrorz : 1.0));
+                mi->set_offset(Vec3d(instance.deltax_set ? static_cast<double>(instance.deltax) : 0.0, instance.deltay_set ? static_cast<double>(instance.deltay) : 0.0, instance.deltaz_set ? static_cast<double>(instance.deltaz) : 0.0));
+                mi->set_rotation(Vec3d(instance.rx_set ? static_cast<double>(instance.rx) : 0.0, instance.ry_set ? static_cast<double>(instance.ry) : 0.0, instance.rz_set ? static_cast<double>(instance.rz) : 0.0));
+                mi->set_scaling_factor(Vec3d(instance.scalex_set ? static_cast<double>(instance.scalex) : 1.0, instance.scaley_set ? static_cast<double>(instance.scaley) : 1.0, instance.scalez_set ? static_cast<double>(instance.scalez) : 1.0));
+                mi->set_mirror(Vec3d(instance.mirrorx_set ? static_cast<double>(instance.mirrorx) : 1.0, instance.mirrory_set ? static_cast<double>(instance.mirrory) : 1.0, instance.mirrorz_set ? static_cast<double>(instance.mirrorz) : 1.0));
                 mi->printable = instance.printable;
         }
     }

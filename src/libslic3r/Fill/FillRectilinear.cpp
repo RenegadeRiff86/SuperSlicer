@@ -1387,9 +1387,13 @@ static void pinch_contours_insert_phony_outer_intersections(std::vector<Segmente
                 {
                     size_t i = 0;
                     temp_intersections.clear();
+                    const auto mapped_intersection_index = [&temp_intersections]() {
+                        assert(temp_intersections.size() <= size_t(std::numeric_limits<int32_t>::max()));
+                        return static_cast<int32_t>(temp_intersections.size());
+                    };
                     for (size_t idx_inset_after : insert_after) {
                         for (; i <= idx_inset_after; ++ i) {
-                            map.emplace_back(temp_intersections.size());
+                            map.emplace_back(mapped_intersection_index());
                             temp_intersections.emplace_back(il.intersections[i]);
                         }
                         coord_t pos = (temp_intersections.back().pos() + il.intersections[i].pos()) / 2;
@@ -1397,7 +1401,7 @@ static void pinch_contours_insert_phony_outer_intersections(std::vector<Segmente
                         temp_intersections.emplace_back(phony_outer_intersection(SegmentIntersection::OUTER_LOW, pos));
                     }
                     for (; i < il.intersections.size(); ++ i) {
-                        map.emplace_back(temp_intersections.size());
+                        map.emplace_back(mapped_intersection_index());
                         temp_intersections.emplace_back(il.intersections[i]);
                     }
                     temp_intersections.swap(il.intersections);
@@ -1525,7 +1529,8 @@ static void traverse_graph_generate_polylines(
                                     if (dist2 < dist2min) {
                                         dist2min = dist2;
                                         i_vline = int(i_vline2);
-                                        i_intersection = int(i);
+                                        assert(i <= size_t(std::numeric_limits<int>::max()));
+                                        i_intersection = static_cast<int>(i);
                                         //FIXME We are taking the first left point always. Verify, that the caller chains the paths
                                         // by a shortest distance, while reversing the paths if needed.
                                         //if (polylines_out.empty())
@@ -1576,7 +1581,9 @@ static void traverse_graph_generate_polylines(
                 }
                 //if inverted dir, stay on the current column but try to start at the opposide side
                 if (inverted_dir) {
-                    int i_intersection_inv = segs[i_vline].intersections.size() - 1;
+                    assert(! segs[i_vline].intersections.empty());
+                    assert(segs[i_vline].intersections.size() <= size_t(std::numeric_limits<int>::max()));
+                    int i_intersection_inv = static_cast<int>(segs[i_vline].intersections.size()) - 1;
                     found = false;
                     while (!found) {
                         assert(segs[i_vline].intersections[i_intersection_inv].is_low() || i_intersection_inv > 0);

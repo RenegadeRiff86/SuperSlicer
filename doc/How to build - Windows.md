@@ -4,7 +4,7 @@
 ## 0. Prerequisities
 
 The following tools need to be installed on your computer:
-- Microsoft Visual Studio version 16 2019 or 17 2022
+- Microsoft Visual Studio version 16 2019, 17 2022, or 18 2026
 - CMake
 - git
 
@@ -49,7 +49,7 @@ cmake ..
 cmake --build .
 ```
 Expect this to take some time. Note that both _Debug_ and _Release_ variants are built.
-If you need to compile with a specific version of visual studio, add this option to the first CMake call `-G "Visual Studio 16 2022"`
+If you need to compile with a specific version of Visual Studio, add this option to the first CMake call, for example `-G "Visual Studio 18 2026"`.
 If you want to compile in another place than C:\local\Slic3r\deps\usr\local, add this �ption to the first CMake call: ` -DDESTDIR="c:\local\Slic3-deps"`
  You can force only the _Release_ build by passing `-DDEP_DEBUG=OFF` to the first CMake call.
 
@@ -67,7 +67,7 @@ cmake .. -DCMAKE_PREFIX_PATH="c:\local\Slic3r\deps\build\destdir\usr\local"
 
 Note that `CMAKE_PREFIX_PATH` must be absolute path. A relative path will not work.
 If you set yourself the DESTDIR for the deps, write your location instead of `c:\local\Slic3r\deps\build\destdir\usr\local`
-If you need to compile with a specific version of visual studio, add this option to the first CMake call `-G "Visual Studio 16 2022"`. Use the same version as the deps.
+If you need to compile with a specific version of Visual Studio, add this option to the first CMake call, for example `-G "Visual Studio 18 2026"`. Use the same version as the deps.
 
 If it complains about not finding PSAPI, you cans et yourself the value in your cmakcache. Search your computer for 'psapi.lib'. For exemple, mine is at "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.22621.0/um/x64/psapi.lib".
 

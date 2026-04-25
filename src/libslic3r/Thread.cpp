@@ -32,6 +32,62 @@
 
 namespace Slic3r {
 
+#ifndef _WIN32
+namespace {
+
+class ThreadCLocaleSetter
+{
+public:
+    void ensure_c_locales()
+    {
+        if (m_initialized)
+            return;
+
+        m_original_locale = uselocale((locale_t)0);
+        m_c_locale = newlocale(
+#ifdef __APPLE__
+            LC_ALL_MASK
+#else
+            LC_ALL
+#endif
+            , "C", nullptr);
+        uselocale(m_c_locale);
+        m_initialized = true;
+    }
+
+    ~ThreadCLocaleSetter()
+    {
+        if (!m_initialized)
+            return;
+
+        uselocale(m_original_locale);
+        freelocale(m_c_locale);
+    }
+
+private:
+    locale_t m_original_locale { nullptr };
+    locale_t m_c_locale { nullptr };
+    bool     m_initialized { false };
+};
+
+static thread_local ThreadCLocaleSetter s_thread_c_locale_setter;
+
+} // namespace
+#endif
+
+#ifdef _WIN32
+static void set_thread_c_locales()
+{
+    _configthreadlocale(_ENABLE_PER_THREAD_LOCALE);
+    std::setlocale(LC_ALL, "C");
+}
+#else
+static void set_thread_c_locales()
+{
+    s_thread_c_locale_setter.ensure_c_locales();
+}
+#endif
+
 #ifdef _WIN32
 // The new API is better than the old SEH style thread naming since the names also show up in crash dumpsand ETW traces.
 // Because the new API is only available on newer Windows 10, look it up dynamically.
@@ -335,7 +391,7 @@ void name_tbb_thread_pool_threads_set_locale()
 		        name << "slic3r_tbb_" << range.begin();
 		        set_current_thread_name(name.str().c_str());
                 // Set locales of the worker thread to "C".
-                set_c_locales();
+                set_thread_c_locales();
     		}
         });
 }
@@ -356,7 +412,7 @@ void ThreadData::tbb_worker_thread_set_c_locales()
 //    std::cout << "TBBLocalesSetter Entering " << cnt ++ << " ID " << std::this_thread::get_id() << "\n";
     if (! m_tbb_worker_thread_c_locales_set) {
         // Set locales of the worker thread to "C".
-        set_c_locales();
+        set_thread_c_locales();
         // OSX specific: Elevate QOS on Apple Silicon.
         set_current_thread_qos();
         m_tbb_worker_thread_c_locales_set = true;

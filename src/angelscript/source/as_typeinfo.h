@@ -186,7 +186,7 @@ protected:
 struct asSEnumValue
 {
 	asCString name;
-	int       value;
+	int       value = 0;
 };
 
 class asCEnumType : public asCTypeInfo

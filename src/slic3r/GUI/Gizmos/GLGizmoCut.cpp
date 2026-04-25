@@ -3294,9 +3294,9 @@ static void check_objects_after_cut(const ModelObjectPtrs& objects)
                                            "Thank you.", names)).ShowModal();
     }
 
-    if (is_windows10() && !err_objects_idxs.empty()) {
+    if (!err_objects_idxs.empty()) {
         auto dlg = WarningDialog(plater, _L("Open edges or errors were detected after the cut.\n"
-                                            "Do you want to fix them by Windows repair algorithm?"), 
+                                            "Do you want to repair them now?"), 
                                          _L("Errors detected after cut operation"), wxYES_NO);
         if (dlg.ShowModal() == wxID_YES) {
             //          model_name
@@ -3327,7 +3327,7 @@ static void check_objects_after_cut(const ModelObjectPtrs& objects)
                     }
 
                     std::string res;
-                    if (!fix_model_by_win10_sdk_gui(*objects[obj_idx], -1, progress_dlg, msg, res))
+                    if (!fix_model_by_repair_gui(*objects[obj_idx], -1, progress_dlg, msg, res))
                         return false;
                     
                     if (res.empty())
@@ -3339,7 +3339,7 @@ static void check_objects_after_cut(const ModelObjectPtrs& objects)
 
             // Open a progress dialog.
             // TRN: This shows in a progress dialog while the operation is in progress.
-            wxProgressDialog progress_dlg(_L("Fixing by Windows repair algorithm"), "", 100, find_toplevel_parent(plater),
+            wxProgressDialog progress_dlg(_L("Repairing model"), "", 100, find_toplevel_parent(plater),
                 wxPD_AUTO_HIDE | wxPD_APP_MODAL | wxPD_CAN_ABORT);
             int model_idx{ 0 };
             for (int obj_idx : err_objects_idxs) {

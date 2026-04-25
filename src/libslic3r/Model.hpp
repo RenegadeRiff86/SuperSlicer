@@ -122,9 +122,9 @@ typedef std::vector<ModelInstance*> ModelInstancePtrs;
     /* Copy a model, copy the IDs. The Print::apply() will call the TYPE::copy() method */ \
     /* to make a private copy for background processing. */ \
     static TYPE* new_copy(const TYPE &rhs)  { auto *ret = new TYPE(rhs); assert(ret->id() == rhs.id()); return ret; } \
-    static TYPE* new_copy(TYPE &&rhs)       { auto *ret = new TYPE(std::move(rhs)); assert(ret->id() == rhs.id()); return ret; } \
+    static TYPE* new_copy(TYPE &&rhs)       { const auto rhs_id = rhs.id(); auto *ret = new TYPE(std::move(rhs)); assert(ret->id() == rhs_id); return ret; } \
     static TYPE  make_copy(const TYPE &rhs) { TYPE ret(rhs); assert(ret.id() == rhs.id()); return ret; } \
-    static TYPE  make_copy(TYPE &&rhs)      { TYPE ret(std::move(rhs)); assert(ret.id() == rhs.id()); return ret; } \
+    static TYPE  make_copy(TYPE &&rhs)      { const auto rhs_id = rhs.id(); TYPE ret(std::move(rhs)); assert(ret.id() == rhs_id); return ret; } \
     TYPE&        assign_copy(const TYPE &rhs); \
     TYPE&        assign_copy(TYPE &&rhs); \
     /* Copy a TYPE, generate new IDs. The front end will use this call. */ \
@@ -561,20 +561,25 @@ private:
         assert(this->layer_height_profile.id() == rhs.layer_height_profile.id());
     }
     explicit ModelObject(ModelObject &&rhs) noexcept : ObjectBase(-1), config(-1), layer_height_profile(-1) {
+        const auto rhs_id = rhs.id();
+        const auto rhs_config_id = rhs.config.id();
+        const auto rhs_layer_height_profile_id = rhs.layer_height_profile.id();
+        Model *const rhs_model = rhs.m_model;
     	assert(this->id().invalid()); 
         assert(this->config.id().invalid()); 
         assert(this->layer_height_profile.id().invalid());
         assert(rhs.id() != rhs.config.id());
         assert(rhs.id() != rhs.layer_height_profile.id());
     	this->assign_copy(std::move(rhs));
+        this->m_model = rhs_model;
     	assert(this->id().valid());
         assert(this->config.id().valid());
         assert(this->layer_height_profile.id().valid());
         assert(this->id() != this->config.id());
         assert(this->id() != this->layer_height_profile.id());
-    	assert(this->id() == rhs.id());
-        assert(this->config.id() == rhs.config.id());
-        assert(this->layer_height_profile.id() == rhs.layer_height_profile.id());
+    	assert(this->id() == rhs_id);
+        assert(this->config.id() == rhs_config_id);
+        assert(this->layer_height_profile.id() == rhs_layer_height_profile_id);
     }
     ModelObject& operator=(const ModelObject &rhs) {
     	this->assign_copy(rhs); 
@@ -590,16 +595,20 @@ private:
     	return *this;
     }
     ModelObject& operator=(ModelObject &&rhs) noexcept {
+        const auto rhs_id = rhs.id();
+        const auto rhs_config_id = rhs.config.id();
+        const auto rhs_layer_height_profile_id = rhs.layer_height_profile.id();
+        Model *const rhs_model = rhs.m_model;
     	this->assign_copy(std::move(rhs));
-    	m_model = rhs.m_model;
+    	m_model = rhs_model;
     	assert(this->id().valid()); 
         assert(this->config.id().valid());
         assert(this->layer_height_profile.id().valid());
         assert(this->id() != this->config.id());
         assert(this->id() != this->layer_height_profile.id());
-    	assert(this->id() == rhs.id());
-        assert(this->config.id() == rhs.config.id());
-        assert(this->layer_height_profile.id() == rhs.layer_height_profile.id());
+    	assert(this->id() == rhs_id);
+        assert(this->config.id() == rhs_config_id);
+        assert(this->layer_height_profile.id() == rhs_layer_height_profile_id);
     	return *this;
     }
 	void set_new_unique_id() { 
@@ -1299,9 +1308,21 @@ public:
     /* To be able to return an object from own copy / clone methods. Hopefully the compiler will do the "Copy elision" */
     /* (Omits copy and move(since C++11) constructors, resulting in zero - copy pass - by - value semantics). */
     Model(const Model &rhs) : ObjectBase(-1) { assert(this->id().invalid()); this->assign_copy(rhs); assert(this->id().valid()); assert(this->id() == rhs.id()); }
-    explicit Model(Model &&rhs) noexcept : ObjectBase(-1) { assert(this->id().invalid()); this->assign_copy(std::move(rhs)); assert(this->id().valid()); assert(this->id() == rhs.id()); }
+    explicit Model(Model &&rhs) noexcept : ObjectBase(-1) {
+        const auto rhs_id = rhs.id();
+        assert(this->id().invalid());
+        this->assign_copy(std::move(rhs));
+        assert(this->id().valid());
+        assert(this->id() == rhs_id);
+    }
     Model& operator=(const Model &rhs) { this->assign_copy(rhs); assert(this->id().valid()); assert(this->id() == rhs.id()); return *this; }
-    Model& operator=(Model &&rhs) noexcept { this->assign_copy(std::move(rhs)); assert(this->id().valid()); assert(this->id() == rhs.id()); return *this; }
+    Model& operator=(Model &&rhs) noexcept {
+        const auto rhs_id = rhs.id();
+        this->assign_copy(std::move(rhs));
+        assert(this->id().valid());
+        assert(this->id() == rhs_id);
+        return *this;
+    }
 
     OBJECTBASE_DERIVED_COPY_MOVE_CLONE(Model)
 

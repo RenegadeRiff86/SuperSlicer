@@ -34,8 +34,6 @@ struct SVGDebugOutputKernelWrapper {
                           const Context &packing_context,
                           const Range<RemIt> &rem)
     {
-        using namespace Slic3r;
-
         bool ret = KernelTraits<Kernel>::on_start_packing(k, itm, bed,
                                                           packing_context,
                                                           rem);
@@ -77,9 +75,6 @@ struct SVGDebugOutputKernelWrapper {
     template<class ArrItem>
     bool on_item_packed(ArrItem &itm)
     {
-        using namespace Slic3r;
-        using namespace Slic3r::arr2;
-
         bool ret = KernelTraits<Kernel>::on_item_packed(k, itm);
 
         if (svg) {

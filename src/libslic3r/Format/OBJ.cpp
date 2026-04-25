@@ -128,9 +128,7 @@ bool load_obj(const char *path, Model *model, const char *object_name_in)
 
 bool store_obj(const char *path, TriangleMesh *mesh)
 {
-    //FIXME returning false even if write failed.
-    mesh->WriteOBJFile(path);
-    return true;
+    return mesh != nullptr && mesh->WriteOBJFile(path);
 }
 
 bool store_obj(const char *path, ModelObject *model_object)

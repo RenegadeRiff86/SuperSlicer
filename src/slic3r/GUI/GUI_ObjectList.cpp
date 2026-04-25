@@ -485,8 +485,8 @@ MeshErrorsInfo ObjectList::get_mesh_errors_info(const int obj_idx, const int vol
     if (sidebar_info)
         *sidebar_info = stats.manifold() ? auto_repaired_info : (remaining_info + (stats.repaired() ? ("\n" + auto_repaired_info) : ""));
 
-    if (is_windows10() && !sidebar_info)
-        tooltip += "\n" + _L("Right button click the icon to fix STL by Windows repair algorithm");
+    if (!sidebar_info)
+        tooltip += "\n" + _L("Right-click the icon to repair the mesh");
 
     return { tooltip, get_warning_icon_name(stats) };
 }
@@ -1010,9 +1010,9 @@ void ObjectList::list_manipulation(const wxPoint& mouse_pos, bool evt_context_me
 	        show_context_menu(evt_context_menu);
         else if (title == _("Name"))
         {
-            if (is_windows10() && m_objects_model->HasWarningIcon(item) &&
+            if (m_objects_model->HasWarningIcon(item) &&
                 mouse_pos.x > 2 * wxGetApp().em_unit() && mouse_pos.x < 4 * wxGetApp().em_unit())
-                fix_through_winsdk();
+                repair_selection();
             else if (evt_context_menu)
                 show_context_menu(evt_context_menu); // show context menu for "Name" column too
         }
@@ -4668,7 +4668,7 @@ void ObjectList::rename_item()
         update_name_in_model(item);
 }
 
-void ObjectList::fix_through_winsdk() 
+void ObjectList::repair_selection() 
 {
     // Do not fix anything when a gizmo is open. There might be issues with updates
     // and what is worse, the snapshot time would refer to the internal stack.
@@ -4688,21 +4688,21 @@ void ObjectList::fix_through_winsdk()
     // clear selections from the non-broken models if any exists
     // and than fill names of models to repairing 
     if (vol_idxs.empty()) {
-#if !FIX_THROUGH_WINSDK_ALWAYS
+#if !REPAIR_MODEL_ALWAYS
         for (int i = int(obj_idxs.size())-1; i >= 0; --i)
                 if (object(obj_idxs[i])->get_repaired_errors_count() == 0)
                     obj_idxs.erase(obj_idxs.begin()+i);
-#endif // FIX_THROUGH_WINSDK_ALWAYS
+#endif // REPAIR_MODEL_ALWAYS
         for (int obj_idx : obj_idxs)
             model_names.push_back(object(obj_idx)->name);
     }
     else {
         ModelObject* obj = object(obj_idxs.front());
-#if !FIX_THROUGH_WINSDK_ALWAYS
+#if !REPAIR_MODEL_ALWAYS
         for (int i = int(vol_idxs.size()) - 1; i >= 0; --i)
             if (obj->get_repaired_errors_count(vol_idxs[i]) == 0)
                 vol_idxs.erase(vol_idxs.begin() + i);
-#endif // FIX_THROUGH_WINSDK_ALWAYS
+#endif // REPAIR_MODEL_ALWAYS
         for (int vol_idx : vol_idxs)
             model_names.push_back(obj->volumes[vol_idx]->name);
     }
@@ -4729,7 +4729,7 @@ void ObjectList::fix_through_winsdk()
         plater->clear_before_change_mesh(obj_idx, _u8L("Custom supports, seams and multimaterial painting were "
                                                        "removed after repairing the mesh."));
         std::string res;
-        if (!fix_model_by_win10_sdk_gui(*(object(obj_idx)), vol_idx, progress_dlg, msg, res))
+        if (!fix_model_by_repair_gui(*(object(obj_idx)), vol_idx, progress_dlg, msg, res))
             return false;
         wxGetApp().plater()->changed_mesh(obj_idx);
 
@@ -4746,19 +4746,19 @@ void ObjectList::fix_through_winsdk()
         return true;
     };
 
-    Plater::TakeSnapshot snapshot(plater, _L("Fix by Windows repair algorithm"));
+    Plater::TakeSnapshot snapshot(plater, _L("Repair model"));
 
     // Open a progress dialog.
-    wxProgressDialog progress_dlg(_L("Fixing by Windows repair algorithm"), "", 100, find_toplevel_parent(plater),
+    wxProgressDialog progress_dlg(_L("Repairing model"), "", 100, find_toplevel_parent(plater),
                                     wxPD_AUTO_HIDE | wxPD_APP_MODAL | wxPD_CAN_ABORT);
     int model_idx{ 0 };
     if (vol_idxs.empty()) {
         int vol_idx{ -1 };
         for (int obj_idx : obj_idxs) {
-#if !FIX_THROUGH_WINSDK_ALWAYS
+#if !REPAIR_MODEL_ALWAYS
             if (object(obj_idx)->get_repaired_errors_count(vol_idx) == 0)
                 continue;
-#endif // FIX_THROUGH_WINSDK_ALWAYS
+#endif // REPAIR_MODEL_ALWAYS
             if (!fix_and_update_progress(obj_idx, vol_idx, model_idx, progress_dlg, succes_models, failed_models))
                 break;
             model_idx++;

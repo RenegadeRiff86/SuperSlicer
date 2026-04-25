@@ -29,6 +29,24 @@
 
 #include "stl.h"
 
+static constexpr const char* kForWriting = " for writing";
+
+static bool close_output_file(FILE* fp, const char* file, const char* operation, bool write_ok)
+{
+	if (!write_ok || ferror(fp)) {
+		BOOST_LOG_TRIVIAL(error) << operation << ": Failed while writing " << file;
+		fclose(fp);
+		return false;
+	}
+
+	if (fclose(fp) != 0) {
+		BOOST_LOG_TRIVIAL(error) << operation << ": Failed to finalize " << file;
+		return false;
+	}
+
+	return true;
+}
+
 void stl_stats_out(stl_file *stl, FILE *file, char *input_file)
 {
   	// This is here for Slic3r, without our config.h it won't use this part of the code anyway.
@@ -71,32 +89,31 @@ bool stl_write_ascii(stl_file *stl, const char *file, const char *label)
 {
 	FILE *fp = boost::nowide::fopen(file, "w");
   	if (fp == nullptr) {
-		BOOST_LOG_TRIVIAL(error) << "stl_write_ascii: Couldn't open " << file << " for writing";
+		BOOST_LOG_TRIVIAL(error) << "stl_write_ascii: Couldn't open " << file << kForWriting;
     	return false;
   	}
 
-	fprintf(fp, "solid  %s\n", label);
+	bool write_ok = fprintf(fp, "solid  %s\n", label) >= 0;
 
-	for (uint32_t i = 0; i < stl->stats.number_of_facets; ++ i) {
-		fprintf(fp, "  facet normal % .8E % .8E % .8E\n", stl->facet_start[i].normal(0), stl->facet_start[i].normal(1), stl->facet_start[i].normal(2));
-		fprintf(fp, "    outer loop\n");
-		fprintf(fp, "      vertex % .8E % .8E % .8E\n", stl->facet_start[i].vertex[0](0), stl->facet_start[i].vertex[0](1), stl->facet_start[i].vertex[0](2));
-		fprintf(fp, "      vertex % .8E % .8E % .8E\n", stl->facet_start[i].vertex[1](0), stl->facet_start[i].vertex[1](1), stl->facet_start[i].vertex[1](2));
-		fprintf(fp, "      vertex % .8E % .8E % .8E\n", stl->facet_start[i].vertex[2](0), stl->facet_start[i].vertex[2](1), stl->facet_start[i].vertex[2](2));
-		fprintf(fp, "    endloop\n");
-		fprintf(fp, "  endfacet\n");
+	for (uint32_t i = 0; i < stl->stats.number_of_facets && write_ok; ++ i) {
+		write_ok = fprintf(fp, "  facet normal % .8E % .8E % .8E\n", stl->facet_start[i].normal(0), stl->facet_start[i].normal(1), stl->facet_start[i].normal(2)) >= 0 &&
+		           fprintf(fp, "    outer loop\n") >= 0 &&
+		           fprintf(fp, "      vertex % .8E % .8E % .8E\n", stl->facet_start[i].vertex[0](0), stl->facet_start[i].vertex[0](1), stl->facet_start[i].vertex[0](2)) >= 0 &&
+		           fprintf(fp, "      vertex % .8E % .8E % .8E\n", stl->facet_start[i].vertex[1](0), stl->facet_start[i].vertex[1](1), stl->facet_start[i].vertex[1](2)) >= 0 &&
+		           fprintf(fp, "      vertex % .8E % .8E % .8E\n", stl->facet_start[i].vertex[2](0), stl->facet_start[i].vertex[2](1), stl->facet_start[i].vertex[2](2)) >= 0 &&
+		           fprintf(fp, "    endloop\n") >= 0 &&
+		           fprintf(fp, "  endfacet\n") >= 0;
 	}
 
-  	fprintf(fp, "endsolid  %s\n", label);
-  	fclose(fp);
-  	return true;
+	write_ok = write_ok && fprintf(fp, "endsolid  %s\n", label) >= 0;
+	return close_output_file(fp, file, "stl_write_ascii", write_ok);
 }
 
 bool stl_print_neighbors(stl_file *stl, char *file)
 {
 	FILE *fp = boost::nowide::fopen(file, "w");
 	if (fp == nullptr) {
-		BOOST_LOG_TRIVIAL(error) << "stl_print_neighbors: Couldn't open " << file << " for writing";
+		BOOST_LOG_TRIVIAL(error) << "stl_print_neighbors: Couldn't open " << file << kForWriting;
     	return false;
   	}
 
@@ -104,11 +121,11 @@ bool stl_print_neighbors(stl_file *stl, char *file)
     	fprintf(fp, "%d, %d,%d, %d,%d, %d,%d\n",
             i,
             stl->neighbors_start[i].neighbor[0],
-            (int)stl->neighbors_start[i].which_vertex_not[0],
+            static_cast<int>(stl->neighbors_start[i].which_vertex_not[0]),
             stl->neighbors_start[i].neighbor[1],
-            (int)stl->neighbors_start[i].which_vertex_not[1],
+            static_cast<int>(stl->neighbors_start[i].which_vertex_not[1]),
             stl->neighbors_start[i].neighbor[2],
-            (int)stl->neighbors_start[i].which_vertex_not[2]);
+            static_cast<int>(stl->neighbors_start[i].which_vertex_not[2]));
   	}
   	fclose(fp);
   	return true;
@@ -129,37 +146,36 @@ bool stl_write_binary(stl_file *stl, const char *file, const char *label)
 {
 	FILE *fp = boost::nowide::fopen(file, "wb");
 	if (fp == nullptr) {
-		BOOST_LOG_TRIVIAL(error) << "stl_write_binary: Couldn't open " << file << " for writing";
+		BOOST_LOG_TRIVIAL(error) << "stl_write_binary: Couldn't open " << file << kForWriting;
     	return false;
   	}
 
-	fprintf(fp, "%s", label);
+	bool write_ok = fprintf(fp, "%s", label) >= 0;
 	for (size_t i = strlen(label); i < LABEL_SIZE; ++ i)
-		putc(0, fp);
+		write_ok = write_ok && putc(0, fp) != EOF;
 
 #if !defined(SEEK_SET)
 	#define SEEK_SET 0
 #endif
-	fseek(fp, LABEL_SIZE, SEEK_SET);
+	write_ok = write_ok && fseek(fp, LABEL_SIZE, SEEK_SET) == 0;
 #if BOOST_ENDIAN_LITTLE_BYTE
-	fwrite(&stl->stats.number_of_facets, 4, 1, fp);
+	write_ok = write_ok && fwrite(&stl->stats.number_of_facets, 4, 1, fp) == 1;
 	for (const stl_facet &facet : stl->facet_start)
-	  	fwrite(&facet, SIZEOF_STL_FACET, 1, fp);
+	  	write_ok = write_ok && fwrite(&facet, SIZEOF_STL_FACET, 1, fp) == 1;
 #else /* BOOST_ENDIAN_LITTLE_BYTE */
 	char buffer[50];
 	// Convert the number of facets to little endian.
 	memcpy(buffer, &stl->stats.number_of_facets, 4);
 	stl_internal_reverse_quads(buffer, 4);
-	fwrite(buffer, 4, 1, fp);
+	write_ok = write_ok && fwrite(buffer, 4, 1, fp) == 1;
 	for (const stl_facet &facet : stl->facet_start) {
 		memcpy(buffer, &facet, 50);
 		// Convert to little endian.
 		stl_internal_reverse_quads(buffer, 48);
-		fwrite(buffer, SIZEOF_STL_FACET, 1, fp);
+		write_ok = write_ok && fwrite(buffer, SIZEOF_STL_FACET, 1, fp) == 1;
 	}
 #endif /* BOOST_ENDIAN_LITTLE_BYTE */
-	fclose(fp);
-	return true;
+	return close_output_file(fp, file, "stl_write_binary", write_ok);
 }
 
 void stl_write_vertex(stl_file *stl, int facet, int vertex)
@@ -199,7 +215,7 @@ bool stl_write_quad_object(stl_file *stl, char *file)
 
 	FILE *fp = boost::nowide::fopen(file, "w");
 	if (fp == nullptr) {
-		BOOST_LOG_TRIVIAL(error) << "stl_write_quad_object: Couldn't open " << file << " for writing";
+		BOOST_LOG_TRIVIAL(error) << "stl_write_quad_object: Couldn't open " << file << kForWriting;
 		return false;
 	}
 
@@ -225,7 +241,7 @@ bool stl_write_dxf(stl_file *stl, const char *file, char *label)
 {
 	FILE *fp = boost::nowide::fopen(file, "w");
 	if (fp == nullptr) {
-		BOOST_LOG_TRIVIAL(error) << "stl_write_quad_object: Couldn't open " << file << " for writing";
+		BOOST_LOG_TRIVIAL(error) << "stl_write_quad_object: Couldn't open " << file << kForWriting;
     	return false;
   	}
 

@@ -51,13 +51,14 @@ BEGIN_AS_NAMESPACE
 
 struct sVariable
 {
+	sVariable() : stackOffset(0), isInitialized(false), isPureConstant(false), constantValue(0), onHeap(false) {}
 	asCString   name;
 	asCDataType type;
-	int         stackOffset;
-	bool        isInitialized;
-	bool        isPureConstant;
-	asQWORD     constantValue;
-	bool        onHeap;
+	int         stackOffset = 0;
+	bool        isInitialized = false;
+	bool        isPureConstant = false;
+	asQWORD     constantValue = 0;
+	bool        onHeap = false;
 };
 
 class asCVariableScope

@@ -27,16 +27,16 @@ namespace Slic3r {
         ExtrusionEntityCollection *eec = new ExtrusionEntityCollection();
         eec->set_can_sort_reverse(!params.monotonic, !params.monotonic);
         FillParams params_modifided = params;
-        if (params.config != NULL && idx > 0) params_modifided.density /= (float)params.config->fill_smooth_width.get_abs_value(1);
+        if (params.config != NULL && idx > 0) params_modifided.density /= static_cast<float>(params.config->fill_smooth_width.get_abs_value(1));
         else if (params.config != NULL && idx == 0) params_modifided.density *= 1;
-        else params_modifided.density *= (float)percentWidth[idx];
+        else params_modifided.density *= static_cast<float>(percentWidth[idx]);
         // reduce flow for each increase in density
         params_modifided.flow_mult *= params.density;
         params_modifided.flow_mult /= params_modifided.density;
         // split the flow between steps
-        if (params.config != NULL && idx > 0) params_modifided.flow_mult *= (float)params.config->fill_smooth_distribution.get_abs_value(1);
-        else if (params.config != NULL && idx == 0) params_modifided.flow_mult *= (1.f - (float)params.config->fill_smooth_distribution.get_abs_value(1));
-        else params_modifided.flow_mult *= (float)percentFlow[idx];
+        if (params.config != NULL && idx > 0) params_modifided.flow_mult *= static_cast<float>(params.config->fill_smooth_distribution.get_abs_value(1));
+        else if (params.config != NULL && idx == 0) params_modifided.flow_mult *= (1.f - static_cast<float>(params.config->fill_smooth_distribution.get_abs_value(1)));
+        else params_modifided.flow_mult *= static_cast<float>(percentFlow[idx]);
         //set role
         if (rolePass[idx] != ExtrusionRole::None)
             params_modifided.role = rolePass[idx];

@@ -278,7 +278,7 @@ void Button::sendButtonEvent()
     GetEventHandler()->ProcessEvent(event);
 }
 
-#ifdef __WIN32__
+#ifdef _WIN32
 
 WXLRESULT Button::MSWWindowProc(WXUINT nMsg, WXWPARAM wParam, WXLPARAM lParam)
 {

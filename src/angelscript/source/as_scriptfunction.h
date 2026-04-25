@@ -58,6 +58,7 @@ struct asSNameSpace;
 
 struct asSScriptVariable
 {
+	asSScriptVariable() : stackOffset(0), onHeap(0), declaredAtProgramPos(0) {}
 	asCString   name;
 	asCDataType type;
 	int         stackOffset;
@@ -346,6 +347,7 @@ public:
 	// Used by asFUNC_SCRIPT
 	struct ScriptFunctionData
 	{
+		ScriptFunctionData() : variableSpace(0), stackNeeded(0), jitFunction(0), scriptSectionIdx(0), declaredAt(0) {}
 		// Bytecode for the script function
 		asCArray<asDWORD>               byteCode;
 

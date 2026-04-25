@@ -54,25 +54,6 @@ float  string_to_float_decimal_point (const std::string_view str, size_t* pos = 
 std::string from_dot_to_local(const std::string &in);
 float parse_float_all_locale(const std::string &in);
 
-// Set locales to "C".
-inline void set_c_locales()
-{
-#ifdef _WIN32
-    _configthreadlocale(_ENABLE_PER_THREAD_LOCALE);
-    std::setlocale(LC_ALL, "C");
-#else
-    // We are leaking some memory here, because the newlocale() produced memory will never be released.
-    // This is not a problem though, as there will be a maximum one worker thread created per physical thread.
-    uselocale(newlocale(
-#ifdef __APPLE__
-        LC_ALL_MASK
-#else // some Unix / Linux / BSD
-        LC_ALL
-#endif
-        , "C", nullptr));
-#endif
-}
-
 } // namespace Slic3r
 
 #endif // slic3r_LocalesUtils_hpp_

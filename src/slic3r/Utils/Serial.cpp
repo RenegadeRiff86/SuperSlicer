@@ -393,32 +393,46 @@ bool Serial::read_line(unsigned timeout, std::string &line, error_code &ec)
 {
 	auto& io_context =
 #if BOOST_VERSION >= 107000
-		//FIXME this is most certainly wrong!
-		(boost::asio::io_context&)this->get_executor().context();
+		static_cast<boost::asio::io_context&>(this->get_executor().context());
  #else
 		this->get_io_service();
 #endif
 	asio::deadline_timer timer(io_context);
 	char c = 0;
 	bool fail = false;
+	bool timed_out = false;
 
 	while (true) {
 		io_context.reset();
+		ec.clear();
+		fail = false;
+		timed_out = false;
 
 		asio::async_read(*this, boost::asio::buffer(&c, 1), [&](const error_code &read_ec, size_t size) {
-			if (ec || size == 0) {
-				fail = true;
-				ec = read_ec;   // FIXME: only if operation not aborted
+			if (read_ec == asio::error::operation_aborted) {
+				if (!timed_out) {
+					fail = true;
+					ec = read_ec;
+					timer.cancel();
+				}
+				return;
 			}
-			timer.cancel();   // FIXME: ditto
+
+			timer.cancel();
+			if (read_ec || size == 0) {
+				fail = true;
+				ec = read_ec ? read_ec : make_error_code(asio::error::eof);
+			}
 		});
 
 		if (timeout > 0) {
 			timer.expires_from_now(boost::posix_time::milliseconds(timeout));
-			timer.async_wait([&](const error_code &ec) {
+			timer.async_wait([&](const error_code &timer_ec) {
 				// Ignore timer aborts
-				if (!ec) {
+				if (!timer_ec) {
+					timed_out = true;
 					fail = true;
+					ec = make_error_code(asio::error::timed_out);
 					this->cancel();
 				}
 			});

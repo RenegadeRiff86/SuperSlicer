@@ -165,6 +165,7 @@ private:
                                // Note: for 100% Scale m_em_unit = 10 -> it's a good enough coefficient for a size setting of controls
 
     std::unique_ptr<wxLocale> 	  m_wxLocale;
+    std::vector<std::unique_ptr<wxLocale>> m_retired_wx_locales;
     // System language, from locales, owned by wxWidgets.
     const wxLanguageInfo		 *m_language_info_system = nullptr;
     // Best translation language, provided by Windows or OSX, owned by wxWidgets.

@@ -51,10 +51,14 @@ asCGarbageCollector::asCGarbageCollector()
 	detectState     = clearCounters_init;
 	destroyNewState = destroyGarbage_init;
 	destroyOldState = destroyGarbage_init;
+	destroyNewIdx   = 0;
+	destroyOldIdx   = 0;
 	numDestroyed    = 0;
 	numNewDestroyed = 0;
+	detectIdx       = 0;
 	numDetected     = 0;
 	numAdded        = 0;
+	gcMapCursor     = 0;
 	isProcessing    = false;
 
 	seqAtSweepStart[0] = 0;

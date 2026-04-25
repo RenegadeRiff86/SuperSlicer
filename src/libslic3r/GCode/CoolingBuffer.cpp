@@ -445,8 +445,8 @@ std::vector<PerExtruderAdjustments> CoolingBuffer::parse_layer_gcode(const std::
             assert(active_speed_modifier < adjustment->lines.size());
             CoolingLine &sm = adjustment->lines[active_speed_modifier];
             // There should be at least some extrusion move inside the adjustment block.
-            // However if the block has no extrusion (which is wrong), fix it for the cooling buffer to work.
-            //FIXME: Pressure equalizer add EXTRUDE_SET_SPEED_TAG withotu removing the previous one at the line before.
+            // PressureEqualizer drops superseded speed-only EXTRUDE_SET_SPEED lines before
+            // emitting a replacement, so a zero-length block here is just an empty marker.
             if (!ignore_empty && sm.length <= 0) {
                 // the mouvment has been deleted because it'ts too short for the precision.
                 // so soft-delete the CoolingLine (will be deleted in the apply layer cooldown func)

@@ -391,13 +391,13 @@ private:
         int text_banner_width = lround(0.4 * m_main_bitmap.GetWidth()) - roundl(get_margin()); // banner_width - margins
 
         int default_width_title = GetTextExtent(m_constant_text.title).GetX();
-        float title_font_scale = (float)text_banner_width / default_width_title;
+        float title_font_scale = static_cast<float>(text_banner_width) / default_width_title;
         if (title_font_scale > 2.f) {
-            title_font_scale = std::max(2.f, (float)(text_banner_width * 0.5f) / default_width_title);
+            title_font_scale = std::max(2.f, text_banner_width * 0.5f / default_width_title);
         }
         scale_font(m_constant_text.title_font, title_font_scale);
 
-        float version_font_scale = (float)text_banner_width / GetTextExtent(m_constant_text.version).GetX();
+        float version_font_scale = static_cast<float>(text_banner_width) / GetTextExtent(m_constant_text.version).GetX();
         if (version_font_scale > 1.f && version_font_scale > title_font_scale * 0.6f) {
             if (title_font_scale > 1.6f) {
                 version_font_scale = title_font_scale * 0.6f;
@@ -410,7 +410,7 @@ private:
         // The width of the credits information string doesn't respect to the banner width some times.
         // So, scale credits_font in the respect to the longest string width
         int   longest_string_width = word_wrap_string(m_constant_text.credits);
-        float font_scale = (float)text_banner_width / longest_string_width;
+        float font_scale = static_cast<float>(text_banner_width) / longest_string_width;
         scale_font(m_constant_text.credits_font, font_scale);
     }
 
@@ -1385,6 +1385,7 @@ bool GUI_App::OnInit()
 {
     try {
         //app config initializes early becasuse it is used in instance checking in PrusaSlicer.cpp
+
         this->init_app_config();
         //ImGuiWrapper need the app config to get the colors
         m_imgui.reset(new ImGuiWrapper{});
@@ -1574,7 +1575,7 @@ bool GUI_App::on_init_inner()
                     tag = exif_getTagInfo(ifdArray, IFD_0TH, TAG_Artist);
                     if (tag) {
                         if (!tag->error) {
-                            wxString artist_name = wxString::FromUTF8((char*)tag->byteData);
+                            wxString artist_name = wxString::FromUTF8(reinterpret_cast<const char*>(tag->byteData));
                             artist_name = artist_name.Trim();
                             if (!artist_name.empty()) {
                                 artist = (_L("Artwork model by") + " " + artist_name);
@@ -3217,9 +3218,10 @@ bool GUI_App::load_language(wxString language, bool initial)
         }
     }
 
-    // Release the old locales, create new locales.
-    //FIXME wxWidgets cause havoc if the current locale is deleted. We just forget it causing memory leaks for now.
-    m_wxLocale.release();
+    // wxWidgets still misbehaves if the previously active locale is destroyed immediately.
+    // Retire old locales here and destroy them with the app instead of leaking them forever.
+    if (m_wxLocale)
+        m_retired_wx_locales.emplace_back(std::move(m_wxLocale));
     m_wxLocale = Slic3r::make_unique<wxLocale>();
     m_wxLocale->Init(language_info->Language);
     // Override language at the active wxTranslations class (which is stored in the active m_wxLocale)
@@ -3227,8 +3229,7 @@ bool GUI_App::load_language(wxString language, bool initial)
     wxTranslations::Get()->SetLanguage(language_dict);
     m_wxLocale->AddCatalog(SLIC3R_APP_KEY);
     m_imgui->set_language(into_u8(language_info->CanonicalName));
-    //FIXME This is a temporary workaround, the correct solution is to switch to "C" locale during file import / export only.
-    //wxSetlocale(LC_NUMERIC, "C");
+    // Numeric locale changes are scoped in libslic3r import/export code instead of being forced globally here.
     Preset::update_suffix_modified(format(" (%1%)", _L("modified")));
 	return true;
 }

@@ -3036,6 +3036,8 @@ void GLCanvas3D::unbind_event_handlers()
 void GLCanvas3D::on_size(wxSizeEvent& evt)
 {
     m_dirty = true;
+    if (m_initialized)
+        _refresh_if_shown_on_screen();
 }
  
 void GLCanvas3D::on_idle(wxIdleEvent& evt)

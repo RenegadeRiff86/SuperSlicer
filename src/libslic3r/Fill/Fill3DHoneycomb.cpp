@@ -159,8 +159,8 @@ void Fill3DHoneycomb::_fill_surface_single(
     Polylines   polylines = makeGrid(
         scale_(this->z),
         distance,
-        (size_t)ceil(bb.size().x() / distance) + 1,
-        (size_t)ceil(bb.size().y() / distance) + 1,
+        static_cast<size_t>(ceil(bb.size().x() / distance)) + 1,
+        static_cast<size_t>(ceil(bb.size().y() / distance)) + 1,
 		size_t((this->layer_id / thickness_layers) % 2) + 1);
 	//makeGrid(coord_t z, coord_t gridSize, size_t gridWidth, size_t gridHeight, size_t curveType)
     

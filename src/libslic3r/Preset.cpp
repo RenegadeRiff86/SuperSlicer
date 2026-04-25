@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <limits>
 #include <regex>
 #include <stdexcept>
 #include <unordered_map>
@@ -56,6 +57,24 @@ using boost::property_tree::ptree;
 // todo: arc_fitting and mlin_gcode_resolution switch from print to printer
 
 namespace Slic3r {
+
+namespace {
+
+int checked_size_to_config_int(size_t value, const char *field_name)
+{
+    if (value > static_cast<size_t>(std::numeric_limits<int>::max()))
+        throw RuntimeError(std::string("Value for '") + field_name + "' exceeds the supported integer range.");
+    return static_cast<int>(value);
+}
+
+int config_option_floats_size_to_int(const ConfigOption *opt, const char *field_name)
+{
+    const auto *values = dynamic_cast<const ConfigOptionFloats*>(opt);
+    assert(values != nullptr);
+    return checked_size_to_config_int(values->size(), field_name);
+}
+
+} // namespace
 
 ConfigFileType guess_config_file_type(const ptree &tree)
 {
@@ -551,13 +570,15 @@ bool is_compatible_with_printer(const PresetWithVendorProfile &preset, const Pre
     config.set_key_value("printer_preset", new ConfigOptionString(active_printer.preset.name));
     const ConfigOption *opt = active_printer.preset.config.option("nozzle_diameter");
     if (opt) {
-        config.set_key_value("num_extruders", new ConfigOptionInt((int)static_cast<const ConfigOptionFloats*>(opt)->size()));
-        config.set_key_value("extruders_count", new ConfigOptionInt((int) static_cast<const ConfigOptionFloats *>(opt)->size()));
+        const int num_extruders = config_option_floats_size_to_int(opt, "num_extruders");
+        config.set_key_value("num_extruders", new ConfigOptionInt(num_extruders));
+        config.set_key_value("extruders_count", new ConfigOptionInt(num_extruders));
     }
     opt = active_printer.preset.config.option("milling_diameter");
     if (opt) {
-        config.set_key_value("num_milling", new ConfigOptionInt((int)static_cast<const ConfigOptionFloats*>(opt)->size()));
-        config.set_key_value("milling_count", new ConfigOptionInt((int) static_cast<const ConfigOptionFloats *>(opt)->size()));
+        const int num_milling = config_option_floats_size_to_int(opt, "num_milling");
+        config.set_key_value("num_milling", new ConfigOptionInt(num_milling));
+        config.set_key_value("milling_count", new ConfigOptionInt(num_milling));
     }
     return is_compatible_with_printer(preset, active_printer, &config);
 }
@@ -1054,6 +1075,7 @@ static std::vector<std::string> s_Preset_machine_limits_options {
     "machine_max_feedrate_x", "machine_max_feedrate_y", "machine_max_feedrate_z", "machine_max_feedrate_e",
     "machine_min_extruding_rate", "machine_min_travel_rate",
     "machine_max_jerk_x", "machine_max_jerk_y", "machine_max_jerk_z", "machine_max_jerk_e",
+    "machine_min_cruise_ratio",
     "z_step"
 };
 
@@ -1874,13 +1896,15 @@ size_t PresetCollection::update_compatible_internal(const PresetWithVendorProfil
     config.set_key_value("printer_preset", new ConfigOptionString(active_printer.preset.name));
     const ConfigOption *opt = active_printer.preset.config.option("nozzle_diameter");
     if (opt) {
-        config.set_key_value("num_extruders", new ConfigOptionInt((int) static_cast<const ConfigOptionFloats *>(opt)->size()));
-        config.set_key_value("extruders_count", new ConfigOptionInt((int) static_cast<const ConfigOptionFloats *>(opt)->size()));
+        const int num_extruders = config_option_floats_size_to_int(opt, "num_extruders");
+        config.set_key_value("num_extruders", new ConfigOptionInt(num_extruders));
+        config.set_key_value("extruders_count", new ConfigOptionInt(num_extruders));
     }
     opt = active_printer.preset.config.option("milling_diameter");
     if (opt) {
-        config.set_key_value("num_milling", new ConfigOptionInt((int) static_cast<const ConfigOptionFloats *>(opt)->size()));
-        config.set_key_value("milling_count", new ConfigOptionInt((int) static_cast<const ConfigOptionFloats *>(opt)->size()));
+        const int num_milling = config_option_floats_size_to_int(opt, "num_milling");
+        config.set_key_value("num_milling", new ConfigOptionInt(num_milling));
+        config.set_key_value("milling_count", new ConfigOptionInt(num_milling));
     }
     bool some_compatible = false;
     std::vector<size_t> indices_of_template_presets;
@@ -2908,13 +2932,15 @@ size_t ExtruderFilaments::update_compatible_internal(const PresetWithVendorProfi
     config.set_key_value("printer_preset", new ConfigOptionString(active_printer.preset.name));
     const ConfigOption* opt = active_printer.preset.config.option("nozzle_diameter");
     if (opt) {
-        config.set_key_value("num_extruders", new ConfigOptionInt((int)static_cast<const ConfigOptionFloats*>(opt)->size()));
-        config.set_key_value("extruders_count", new ConfigOptionInt((int) static_cast<const ConfigOptionFloats *>(opt)->size()));
+        const int num_extruders = config_option_floats_size_to_int(opt, "num_extruders");
+        config.set_key_value("num_extruders", new ConfigOptionInt(num_extruders));
+        config.set_key_value("extruders_count", new ConfigOptionInt(num_extruders));
     }
     opt = active_printer.preset.config.option("milling_diameter");
     if (opt) {
-        config.set_key_value("num_milling", new ConfigOptionInt((int) static_cast<const ConfigOptionFloats *>(opt)->size()));
-        config.set_key_value("milling_count", new ConfigOptionInt((int) static_cast<const ConfigOptionFloats *>(opt)->size()));
+        const int num_milling = config_option_floats_size_to_int(opt, "num_milling");
+        config.set_key_value("num_milling", new ConfigOptionInt(num_milling));
+        config.set_key_value("milling_count", new ConfigOptionInt(num_milling));
     }
 
     // Adjust printer preset config to the first extruder from m_extruder_id 

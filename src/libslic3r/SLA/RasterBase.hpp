@@ -12,6 +12,7 @@
 #include <array>
 #include <utility>
 #include <cstdint>
+#include <string_view>
 
 #include <libslic3r/ExPolygon.hpp>
 
@@ -26,8 +27,8 @@ protected:
     std::string m_ext;
 public:
     EncodedRaster() = default;
-    explicit EncodedRaster(std::vector<uint8_t> &&buf, std::string ext)
-        : m_buffer(std::move(buf)), m_ext(std::move(ext))
+    explicit EncodedRaster(std::vector<uint8_t> &&buf, std::string_view ext)
+        : m_buffer(std::move(buf)), m_ext(ext)
     {}
     
     size_t size() const { return m_buffer.size(); }

@@ -84,9 +84,9 @@ static bool obj_parseline(const char *line, ObjData &data)
 			}
 			if (*line != 0)
 				return false;
-			data.textureCoordinates.push_back((float)u);
-			data.textureCoordinates.push_back((float)v);
-			data.textureCoordinates.push_back((float)w);
+			data.textureCoordinates.push_back(static_cast<float>(u));
+			data.textureCoordinates.push_back(static_cast<float>(v));
+			data.textureCoordinates.push_back(static_cast<float>(w));
 			break;
 		}
 		case 'n':
@@ -115,9 +115,9 @@ static bool obj_parseline(const char *line, ObjData &data)
 			EATWS();
 			if (*line != 0)
 				return false;
-			data.normals.push_back((float)x);
-			data.normals.push_back((float)y);
-			data.normals.push_back((float)z);
+			data.normals.push_back(static_cast<float>(x));
+			data.normals.push_back(static_cast<float>(y));
+			data.normals.push_back(static_cast<float>(z));
 			break;
 		}
 		case 'p':
@@ -148,9 +148,9 @@ static bool obj_parseline(const char *line, ObjData &data)
 			}
 			if (*line != 0)
 				return false;
-			data.parameters.push_back((float)u);
-			data.parameters.push_back((float)v);
-			data.parameters.push_back((float)w);
+			data.parameters.push_back(static_cast<float>(u));
+			data.parameters.push_back(static_cast<float>(v));
+			data.parameters.push_back(static_cast<float>(w));
 			break;
 		}
 		default:
@@ -188,10 +188,10 @@ static bool obj_parseline(const char *line, ObjData &data)
             // and this would lead to a crash because no vertex would be stored 
 //            if (*line != 0)
 //                return false;
-            data.coordinates.push_back((float)x);
-			data.coordinates.push_back((float)y);
-			data.coordinates.push_back((float)z);
-			data.coordinates.push_back((float)w);
+            data.coordinates.push_back(static_cast<float>(x));
+			data.coordinates.push_back(static_cast<float>(y));
+			data.coordinates.push_back(static_cast<float>(z));
+			data.coordinates.push_back(static_cast<float>(w));
 			break;
 		}
 		}
@@ -237,15 +237,15 @@ static bool obj_parseline(const char *line, ObjData &data)
 				}
 			}
 			if (vertex.coordIdx < 0)
-                vertex.coordIdx += (int)data.coordinates.size() / 4;
+                vertex.coordIdx += static_cast<int>(data.coordinates.size()) / 4;
             else
 				-- vertex.coordIdx;
 			if (vertex.normalIdx < 0)
-                vertex.normalIdx += (int)data.normals.size() / 3;
+                vertex.normalIdx += static_cast<int>(data.normals.size()) / 3;
             else
 				-- vertex.normalIdx;
 			if (vertex.textureCoordIdx < 0)
-                vertex.textureCoordIdx += (int)data.textureCoordinates.size() / 3;
+                vertex.textureCoordIdx += static_cast<int>(data.textureCoordinates.size()) / 3;
             else
 				-- vertex.textureCoordIdx;
 			data.vertices.push_back(vertex);
@@ -283,7 +283,7 @@ static bool obj_parseline(const char *line, ObjData &data)
 		// printf("usemtl %s\r\n", line);
 		EATWS();
 		ObjUseMtl usemtl;
-        usemtl.vertexIdxFirst = (int)data.vertices.size();
+        usemtl.vertexIdxFirst = static_cast<int>(data.vertices.size());
         usemtl.name = line;
 		data.usemtls.push_back(usemtl);
 		break;
@@ -299,7 +299,7 @@ static bool obj_parseline(const char *line, ObjData &data)
 		if (*line != 0)
 			return false;
 		ObjObject object;
-        object.vertexIdxFirst = (int)data.vertices.size();
+        object.vertexIdxFirst = static_cast<int>(data.vertices.size());
         object.name = line;
 		data.objects.push_back(object);
 		break;
@@ -309,7 +309,7 @@ static bool obj_parseline(const char *line, ObjData &data)
 		// g [group name]
 		// printf("group %s\r\n", line);
 		ObjGroup group;
-        group.vertexIdxFirst = (int)data.vertices.size();
+        group.vertexIdxFirst = static_cast<int>(data.vertices.size());
         group.name = line;
 		data.groups.push_back(group);
 		break;
@@ -330,7 +330,7 @@ static bool obj_parseline(const char *line, ObjData &data)
 		if (*line != 0)
 			return false;
 		ObjSmoothingGroup group;
-        group.vertexIdxFirst = (int)data.vertices.size();
+        group.vertexIdxFirst = static_cast<int>(data.vertices.size());
         group.smoothingGroupID = g;
 		data.smoothingGroups.push_back(group);
 		break;

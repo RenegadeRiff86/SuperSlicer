@@ -290,7 +290,7 @@ Node::RectilinearJunction Node::straighten(
             auto junction_moving_dir_len = coord_t(junction_moving_dir.norm());
             if (junction_moving_dir_len > junction_magnitude)
             {
-                junction_moving_dir = junction_moving_dir * ((double)junction_magnitude / (double)junction_moving_dir_len);
+                junction_moving_dir = junction_moving_dir * (static_cast<double>(junction_magnitude) / static_cast<double>(junction_moving_dir_len));
             }
             m_p += junction_moving_dir;
         }

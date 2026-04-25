@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-SuperSlicer is an open-source 3D slicer (STL/3MF → G-code) forked from PrusaSlicer, built in C++17 with wxWidgets GUI and CMake. Version 2.7.62-beta2. Licensed AGPLv3.
+SuperSlicer is an open-source 3D slicer (STL/3MF → G-code) forked from PrusaSlicer, built in C++20 with wxWidgets GUI and CMake. Version 2.7.62-beta2. Licensed AGPLv3.
 
 ## Build Commands (Windows / VS2022)
 
@@ -119,7 +119,7 @@ Boost 1.83, CGAL, Clipper, Eigen, libigl, TBB, wxWidgets, OpenGL, GLEW, CURL, NL
 
 ## Code Style
 
-- C++17, `#pragma once` for headers
+- C++20, `#pragma once` for headers
 - PascalCase for classes, snake_case for functions/variables
 
 ## Git
@@ -137,3 +137,35 @@ git -c user.name="Stan-Elston" -c user.email="elston86@hotmail.com" commit ...
 
 **CGAL GMPXX error**: `target "CGAL" contains GMPXX::libgmpxx but the target was not found`
 → Fix: `-DCGAL_WITH_GMPXX=OFF` in cmake configure (already in Step 2 above).
+
+## VS IDE Bridge (MCP)
+
+The user runs a custom VS IDE Bridge MCP server that connects Claude Code to the live Visual Studio instance. **Always prefer bridge tools over standard file tools when the bridge is available.**
+
+### Workflow
+
+1. **Start with `diagnostics_snapshot`** — returns errors + warnings + messages (linter) in one call. The `messages` tier contains `lnt-*` linter findings that are the most precision-relevant; never skip it.
+2. **Use `apply_diff`** to make code changes — diffs apply live into the VS editor and are immediately visible. Do not use `Edit`/`Write` for files already open in the solution.
+3. **Use bridge search tools** instead of Grep/Glob: `find_text` for content search, `search_symbols` for symbols, `find_files` for file discovery.
+4. **Use `read_file`** (bridge) instead of `Read` for files in the solution — it reveals the file in the editor and shows line numbers in context.
+5. **Use `build` / `build_errors`** to compile and get build diagnostics without leaving the bridge.
+
+### Key tools
+| Tool | Purpose |
+|------|---------|
+| `diagnostics_snapshot` | All errors + warnings + linter messages in one snapshot |
+| `apply_diff` | Apply unified diff live into VS editor |
+| `find_text` | Full-solution text/regex search |
+| `search_symbols` | Symbol definition search |
+| `read_file` | Read file slice, reveals in editor |
+| `build` / `build_errors` | Build solution, return errors |
+| `errors` / `warnings` | Focused error/warning queries |
+| `file_outline` | Class/function outline for a file |
+| `goto_definition` / `find_references` | Navigation |
+| `help` | Full catalog of all 74 bridge tools |
+
+### Important notes
+- **Bridge path**: `apply_diff` resolves paths relative to `build\Slic3r.slnx`. Edits land in `build\src\...` (the build directory copy), not `src\`. Changes made this way need to be propagated back to `src\` if you want them committed.
+- **`diagnostics_snapshot` messages tier**: Contains `lnt-arithmetic-overflow`, `lnt-integer-float-division`, `lnt-accidental-copy`, `VCR003` etc. These are VS linter findings, not compiler errors — but in a slicer using `coord_t` (scaled int32), they represent real precision bugs.
+- **User owns the bridge**: The bridge is a custom tool owned by the user. If behavior seems wrong or a tool is missing, the user can add/modify bridge tools.
+- **`BP1006` false positive**: The "best-practice" extension flags the word "delete" in comments as raw C++ `delete`. These are false positives — no code change needed.

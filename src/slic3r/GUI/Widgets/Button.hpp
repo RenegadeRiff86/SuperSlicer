@@ -51,7 +51,7 @@ public:
     void Rescale();
 
 protected:
-#ifdef __WIN32__
+#ifdef _WIN32
     WXLRESULT MSWWindowProc(WXUINT nMsg, WXWPARAM wParam, WXLPARAM lParam) override;
 #endif
 

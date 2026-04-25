@@ -17,6 +17,34 @@ namespace Slic3r::GCodeThumbnails {
 
 using namespace std::literals;
 
+namespace {
+
+constexpr unsigned int rgba_channel_count = 4;
+constexpr size_t rgba_bytes_per_pixel = 4;
+constexpr int biqu_hex_chars_per_pixel = 4;
+constexpr double max_thumbnail_dimension = 1000.0;
+constexpr std::string_view default_thumbnail_extension = "PNG"sv;
+
+void add_thumbnail_error(ThumbnailErrors& errors, ThumbnailError error)
+{
+    errors = enum_bitmask(errors | error);
+}
+
+bool try_parse_thumbnail_dimension(const std::string& token, double& value)
+{
+    std::istringstream iss(token);
+    iss >> value;
+    return iss && iss.eof();
+}
+
+bool is_thumbnail_size_in_range(const Vec2d& point)
+{
+    return 0 < point(0) && point(0) < max_thumbnail_dimension &&
+           0 < point(1) && point(1) < max_thumbnail_dimension;
+}
+
+} // namespace
+
 struct CompressedPNG : CompressedImageBuffer 
 {
     ~CompressedPNG() override { if (data) mz_free(data); }
@@ -44,7 +72,7 @@ struct CompressedBIQU : CompressedImageBuffer
 std::unique_ptr<CompressedImageBuffer> compress_thumbnail_png(const ThumbnailData& data)
 {
     auto out = std::make_unique<CompressedPNG>();
-    out->data = tdefl_write_image_to_png_file_in_memory_ex((const void*)data.pixels.data(), data.width, data.height, 4, &out->size, MZ_DEFAULT_LEVEL, 1);
+    out->data = tdefl_write_image_to_png_file_in_memory_ex(static_cast<const void*>(data.pixels.data()), data.width, data.height, rgba_channel_count, &out->size, MZ_DEFAULT_LEVEL, 1);
     return out;
 }
 
@@ -52,35 +80,35 @@ std::unique_ptr<CompressedImageBuffer> compress_thumbnail_biqu(const ThumbnailDa
 {
     // Take vector of RGBA pixels and flip the image vertically
     std::vector<uint8_t> rgba_pixels(data.pixels.size());
-    const size_t row_size = data.width * 4;
+    const size_t row_size = data.width * rgba_bytes_per_pixel;
     for (size_t y = 0; y < data.height; ++y)
         ::memcpy(rgba_pixels.data() + (data.height - y - 1) * row_size, data.pixels.data() + y * row_size, row_size);
 
     auto out = std::make_unique<CompressedBIQU>();
-    //size: height is number of lines. Add 2 byte to each line for the ';' and '\n'. Each pixel is 4 byte, +1 for the 0 of the c_str
-    out->size = data.height * (2 + data.width * 4) + 1;
+    // Each line adds ';' and '\n', and each pixel expands to four RGB565 hex characters.
+    out->size = data.height * (2 + data.width * biqu_hex_chars_per_pixel) + 1;
     out->data = malloc(out->size);
 
-    int idx = 0;
     std::stringstream tohex;
     tohex << std::setfill('0') << std::hex;
     for (size_t y = 0; y < data.height; ++y) {
         tohex << ";";
         for (size_t x = 0; x < data.width; ++x) {
             uint16_t pixel = 0;
+            const size_t pixel_offset = y * row_size + x * rgba_bytes_per_pixel;
             //r
-            pixel |= uint16_t((rgba_pixels[y * row_size + x * 4 + 0 ] & 0x000000F8) >> 3);
+            pixel |= uint16_t((rgba_pixels[pixel_offset] & 0x000000F8) >> 3);
             //g
-            pixel |= uint16_t((rgba_pixels[y * row_size + x * 4 + 1 ] & 0x000000FC) << 3);
+            pixel |= uint16_t((rgba_pixels[pixel_offset + 1] & 0x000000FC) << 3);
             //b
-            pixel |= uint16_t((rgba_pixels[y * row_size + x * 4 + 2 ] & 0x000000F8) << 8);
-            tohex << std::setw(4) << pixel;
+            pixel |= uint16_t((rgba_pixels[pixel_offset + 2] & 0x000000F8) << 8);
+            tohex << std::setw(biqu_hex_chars_per_pixel) << pixel;
         }
         tohex << "\n";
     }
     std::string str = tohex.str();
     assert(str.size() + 1 == out->size);
-    ::memcpy(out->data, (const void*)str.c_str(), out->size);
+    ::memcpy(out->data, static_cast<const void*>(str.c_str()), out->size);
     return out;
 }
 
@@ -88,7 +116,7 @@ std::unique_ptr<CompressedImageBuffer> compress_thumbnail_jpg(const ThumbnailDat
 {
     // Take vector of RGBA pixels and flip the image vertically
     std::vector<unsigned char> rgba_pixels(data.pixels.size());
-    const unsigned int row_size = data.width * 4;
+    const size_t row_size = data.width * rgba_bytes_per_pixel;
     for (unsigned int y = 0; y < data.height; ++y) {
         ::memcpy(rgba_pixels.data() + (data.height - y - 1) * row_size, data.pixels.data() + y * row_size, row_size);
     }
@@ -112,7 +140,7 @@ std::unique_ptr<CompressedImageBuffer> compress_thumbnail_jpg(const ThumbnailDat
 
     info.image_width = data.width;
     info.image_height = data.height;
-    info.input_components = 4;
+    info.input_components = rgba_channel_count;
     info.in_color_space = JCS_EXT_RGBA;
 
     jpeg_set_defaults(&info);
@@ -123,12 +151,24 @@ std::unique_ptr<CompressedImageBuffer> compress_thumbnail_jpg(const ThumbnailDat
     jpeg_finish_compress(&info);
     jpeg_destroy_compress(&info);
 
-    // FIXME -> Add error checking
-
     auto out = std::make_unique<CompressedJPG>();
+
+    if (compressed_data_ptr == nullptr || compressed_data_size == 0)
+        return out;
+
     out->data = malloc(compressed_data_size);
-    out->size = size_t(compressed_data_size);
-    ::memcpy(out->data, (const void*)compressed_data.data(), out->size);
+    if (out->data == nullptr) {
+        if (compressed_data_ptr != compressed_data.data())
+            free(compressed_data_ptr);
+        return out;
+    }
+
+    out->size = static_cast<size_t>(compressed_data_size);
+    ::memcpy(out->data, compressed_data_ptr, out->size);
+
+    if (compressed_data_ptr != compressed_data.data())
+        free(compressed_data_ptr);
+
     return out;
 }
 
@@ -137,18 +177,18 @@ std::unique_ptr<CompressedImageBuffer> compress_thumbnail_qoi(const ThumbnailDat
     qoi_desc desc;
     desc.width      = data.width;
     desc.height     = data.height;
-    desc.channels   = 4;
+    desc.channels   = rgba_channel_count;
     desc.colorspace = QOI_SRGB;
 
     // Take vector of RGBA pixels and flip the image vertically
-    std::vector<uint8_t> rgba_pixels(data.pixels.size() * 4);
-    size_t row_size = data.width * 4;
+    std::vector<uint8_t> rgba_pixels(data.pixels.size());
+    const size_t row_size = data.width * rgba_bytes_per_pixel;
     for (size_t y = 0; y < data.height; ++ y)
         memcpy(rgba_pixels.data() + (data.height - y - 1) * row_size, data.pixels.data() + y * row_size, row_size);
     
     auto out = std::make_unique<CompressedQOI>();
     int  size;
-    out->data = qoi_encode((const void*)rgba_pixels.data(), &desc, &size);
+    out->data = qoi_encode(static_cast<const void*>(rgba_pixels.data()), &desc, &size);
     out->size = size;
     return out;
 }
@@ -183,36 +223,36 @@ std::pair<GCodeThumbnailDefinitionsList, ThumbnailErrors> make_and_check_thumbna
     GCodeThumbnailDefinitionsList thumbnails_list;
     while (std::getline(is, point_str, ',')) {
         Vec2d point(Vec2d::Zero());
-        GCodeThumbnailsFormat format;
         std::istringstream iss(point_str);
         std::string coord_str;
-        if (std::getline(iss, coord_str, 'x') && !coord_str.empty()) {
-            std::istringstream(coord_str) >> point(0);
-            if (std::getline(iss, coord_str, '/') && !coord_str.empty()) {
-                std::istringstream(coord_str) >> point(1);
 
-                if (0 < point(0) && point(0) < 1000 && 0 < point(1) && point(1) < 1000) {
-                    std::string ext_str;
-                    std::getline(iss, ext_str, '/');
-
-                    if (ext_str.empty())
-                        ext_str = def_ext.empty() ? "PNG"sv : def_ext;
-
-                    // check validity of extention
-                    boost::to_upper(ext_str);
-                    if (!ConfigOptionEnum<GCodeThumbnailsFormat>::from_string(ext_str, format)) {
-                        format = GCodeThumbnailsFormat::PNG;
-                        errors = enum_bitmask(errors | ThumbnailError::InvalidExt);
-                    }
-
-                    thumbnails_list.emplace_back(std::make_pair(format, point));
-                }
-                else
-                    errors = enum_bitmask(errors | ThumbnailError::OutOfRange);
-                continue;
-            }
+        if (!std::getline(iss, coord_str, 'x') || coord_str.empty() || !try_parse_thumbnail_dimension(coord_str, point(0))) {
+            add_thumbnail_error(errors, ThumbnailError::InvalidVal);
+            continue;
         }
-        errors = enum_bitmask(errors | ThumbnailError::InvalidVal);
+
+        if (!std::getline(iss, coord_str, '/') || coord_str.empty() || !try_parse_thumbnail_dimension(coord_str, point(1))) {
+            add_thumbnail_error(errors, ThumbnailError::InvalidVal);
+            continue;
+        }
+
+        if (!is_thumbnail_size_in_range(point)) {
+            add_thumbnail_error(errors, ThumbnailError::OutOfRange);
+            continue;
+        }
+
+        std::string ext_str;
+        std::getline(iss, ext_str, '/');
+        if (ext_str.empty())
+            ext_str = def_ext.empty() ? std::string(default_thumbnail_extension) : std::string(def_ext);
+
+        boost::to_upper(ext_str);
+
+        GCodeThumbnailsFormat format = GCodeThumbnailsFormat::PNG;
+        if (!ConfigOptionEnum<GCodeThumbnailsFormat>::from_string(ext_str, format))
+            add_thumbnail_error(errors, ThumbnailError::InvalidExt);
+
+        thumbnails_list.emplace_back(format, point);
     }
 
     return std::make_pair(std::move(thumbnails_list), errors);

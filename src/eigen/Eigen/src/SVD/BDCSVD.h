@@ -352,13 +352,13 @@ void BDCSVD<MatrixType>::structured_update(Block<MatrixXr,Dynamic,Dynamic> A, co
     Index k1=0, k2=0;
     for(Index j=0; j<n; ++j)
     {
-      if( (A.col(j).head(n1).array()!=Literal(0)).any() )
+      if( A.col(j).head(n1).any() )
       {
         A1.col(k1) = A.col(j).head(n1);
         B1.row(k1) = B.row(j);
         ++k1;
       }
-      if( (A.col(j).tail(n2).array()!=Literal(0)).any() )
+      if( A.col(j).tail(n2).any() )
       {
         A2.col(k2) = A.col(j).tail(n2);
         B2.row(k2) = B.row(j);

@@ -21,9 +21,11 @@
 ********************************************************/
 
 #include <windows.h>
+#include <intsafe.h>
+#include <ntdef.h>
 
 #ifndef _NTDEF_
-typedef LONG NTSTATUS;
+typedef _Return_type_success_(return >= 0) LONG NTSTATUS;
 #endif
 
 #ifdef __MINGW32__
@@ -145,7 +147,10 @@ struct hid_device_ {
 
 static hid_device *new_hid_device()
 {
-	hid_device *dev = (hid_device*) calloc(1, sizeof(hid_device));
+	hid_device *dev = calloc(1, sizeof(hid_device));
+	if (!dev)
+		return NULL;
+
 	dev->device_handle = INVALID_HANDLE_VALUE;
 	dev->blocking = TRUE;
 	dev->output_report_length = 0;
@@ -156,6 +161,10 @@ static hid_device *new_hid_device()
 	dev->read_buf = NULL;
 	memset(&dev->ol, 0, sizeof(dev->ol));
 	dev->ol.hEvent = CreateEvent(NULL, FALSE, FALSE /*initial state f=nonsignaled*/, NULL);
+	if (!dev->ol.hEvent) {
+		free(dev);
+		return NULL;
+	}
 
 	return dev;
 }
@@ -171,7 +180,7 @@ static void free_hid_device(hid_device *dev)
 
 static void register_error(hid_device *dev, const char *op)
 {
-	WCHAR *ptr, *msg;
+	WCHAR *ptr, *msg = NULL;
 
 	FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER |
 		FORMAT_MESSAGE_FROM_SYSTEM |
@@ -181,6 +190,8 @@ static void register_error(hid_device *dev, const char *op)
 		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
 		(LPVOID)&msg, 0/*sz*/,
 		NULL);
+	if (!msg)
+		return;
 	
 	/* Get rid of the CR and LF that FormatMessage() sticks at the
 	   end of the message. Thanks Microsoft! */
@@ -197,6 +208,40 @@ static void register_error(hid_device *dev, const char *op)
 	   the hid_error() function can pick it up. */
 	LocalFree(dev->last_error_str);
 	dev->last_error_str = msg;
+}
+
+static int hidapi_size_to_dword(size_t value, DWORD *out)
+{
+	return SIZETToDWord(value, out) == S_OK ? 0 : -1;
+}
+
+static int hidapi_size_to_ulong(size_t value, ULONG *out)
+{
+	return SIZETToULong(value, out) == S_OK ? 0 : -1;
+}
+
+static int hidapi_size_to_int(size_t value, int *out)
+{
+	return SIZETToInt(value, out) == S_OK ? 0 : -1;
+}
+
+static int hidapi_int_to_ulong(int value, ULONG *out)
+{
+	return IntToULong(value, out) == S_OK ? 0 : -1;
+}
+
+static ULONG hidapi_string_buffer_size(size_t maxlen)
+{
+	size_t max_string_wchars = MAX_STRING_WCHARS;
+	size_t wchars = MIN(maxlen, max_string_wchars);
+	size_t bytes = 0;
+	ULONG result = 0;
+
+	if (SizeTMult(sizeof(wchar_t), wchars, &bytes) != S_OK ||
+	    hidapi_size_to_ulong(bytes, &result) < 0)
+		return 0;
+
+	return result;
 }
 
 #ifndef HIDAPI_USE_DDK
@@ -276,8 +321,8 @@ struct hid_device_info HID_API_EXPORT * HID_API_CALL hid_enumerate(unsigned shor
 
 	/* Windows objects for interacting with the driver. */
 	GUID InterfaceClassGuid = {0x4d1e55b2, 0xf16f, 0x11cf, {0x88, 0xcb, 0x00, 0x11, 0x11, 0x00, 0x00, 0x30} };
-	SP_DEVINFO_DATA devinfo_data;
-	SP_DEVICE_INTERFACE_DATA device_interface_data;
+	SP_DEVINFO_DATA devinfo_data = {0};
+	SP_DEVICE_INTERFACE_DATA device_interface_data = {0};
 	SP_DEVICE_INTERFACE_DETAIL_DATA_A *device_interface_detail_data = NULL;
 	HDEVINFO device_info_set = INVALID_HANDLE_VALUE;
 	int device_index = 0;
@@ -289,6 +334,7 @@ struct hid_device_info HID_API_EXPORT * HID_API_CALL hid_enumerate(unsigned shor
 	/* Initialize the Windows objects. */
 	memset(&devinfo_data, 0x0, sizeof(devinfo_data));
 	devinfo_data.cbSize = sizeof(SP_DEVINFO_DATA);
+	memset(&device_interface_data, 0x0, sizeof(device_interface_data));
 	device_interface_data.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
 
 	/* Get information for all the devices belonging to the HID class. */
@@ -299,7 +345,7 @@ struct hid_device_info HID_API_EXPORT * HID_API_CALL hid_enumerate(unsigned shor
 	for (;;) {
 		HANDLE write_handle = INVALID_HANDLE_VALUE;
 		DWORD required_size = 0;
-		HIDD_ATTRIBUTES attrib;
+		HIDD_ATTRIBUTES attrib = {0};
 
 		res = SetupDiEnumDeviceInterfaces(device_info_set,
 			NULL,
@@ -324,7 +370,10 @@ struct hid_device_info HID_API_EXPORT * HID_API_CALL hid_enumerate(unsigned shor
 			NULL);
 
 		/* Allocate a long enough structure for device_interface_detail_data. */
-		device_interface_detail_data = (SP_DEVICE_INTERFACE_DETAIL_DATA_A*) malloc(required_size);
+		device_interface_detail_data = malloc(required_size);
+		if (!device_interface_detail_data)
+			goto cont;
+
 		device_interface_detail_data->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_A);
 
 		/* Get the detailed data for this device. The detail data gives us
@@ -346,7 +395,7 @@ struct hid_device_info HID_API_EXPORT * HID_API_CALL hid_enumerate(unsigned shor
 		/* Make sure this device is of Setup Class "HIDClass" and has a
 		   driver bound to it. */
 		for (i = 0; ; i++) {
-			char driver_name[256];
+			char driver_name[256] = {0};
 
 			/* Populate devinfo_data. This function will return failure
 			   when there are no more interfaces left. */
@@ -384,6 +433,7 @@ struct hid_device_info HID_API_EXPORT * HID_API_CALL hid_enumerate(unsigned shor
 
 
 		/* Get the Vendor ID and Product ID for this device. */
+		memset(&attrib, 0x0, sizeof(attrib));
 		attrib.Size = sizeof(HIDD_ATTRIBUTES);
 		HidD_GetAttributes(write_handle, &attrib);
 		//wprintf(L"Product/Vendor: %x %x\n", attrib.ProductID, attrib.VendorID);
@@ -397,14 +447,17 @@ struct hid_device_info HID_API_EXPORT * HID_API_CALL hid_enumerate(unsigned shor
 			const char *str;
 			struct hid_device_info *tmp;
 			PHIDP_PREPARSED_DATA pp_data = NULL;
-			HIDP_CAPS caps;
-			BOOLEAN res;
-			NTSTATUS nt_res;
-			wchar_t wstr[WSTR_LEN]; /* TODO: Determine Size */
-			size_t len;
+			HIDP_CAPS caps = {0};
+			BOOLEAN res = FALSE;
+			NTSTATUS nt_res = 0;
+			wchar_t wstr[WSTR_LEN] = {0}; /* TODO: Determine Size */
+			size_t len = 0;
 
 			/* VID/PID match. Create the record. */
-			tmp = (struct hid_device_info*) calloc(1, sizeof(struct hid_device_info));
+			tmp = calloc(1, sizeof(struct hid_device_info));
+			if (!tmp)
+				goto cont_close;
+
 			if (cur_dev) {
 				cur_dev->next = tmp;
 			}
@@ -430,9 +483,11 @@ struct hid_device_info HID_API_EXPORT * HID_API_CALL hid_enumerate(unsigned shor
 			str = device_interface_detail_data->DevicePath;
 			if (str) {
 				len = strlen(str);
-				cur_dev->path = (char*) calloc(len+1, sizeof(char));
-				strncpy(cur_dev->path, str, len+1);
-				cur_dev->path[len] = '\0';
+				cur_dev->path = calloc(len+1, sizeof(char));
+				if (cur_dev->path) {
+					strncpy(cur_dev->path, str, len+1);
+					cur_dev->path[len] = '\0';
+				}
 			}
 			else
 				cur_dev->path = NULL;
@@ -567,6 +622,8 @@ HID_API_EXPORT hid_device * HID_API_CALL hid_open_path(const char *path)
 	}
 
 	dev = new_hid_device();
+	if (!dev)
+		return NULL;
 
 	/* Open a handle to the device */
 	dev->device_handle = open_device(path, TRUE);
@@ -623,11 +680,14 @@ err:
 
 int HID_API_EXPORT HID_API_CALL hid_write(hid_device *dev, const unsigned char *data, size_t length)
 {
-	DWORD bytes_written;
+	DWORD bytes_written = 0;
+	DWORD write_length;
+	int function_result = -1;
 	BOOL res;
 
 	OVERLAPPED ol;
-	unsigned char *buf;
+	const unsigned char *write_buf;
+	unsigned char *alloc_buf = NULL;
 	memset(&ol, 0, sizeof(ol));
 
 	/* Make sure the right number of bytes are passed to WriteFile. Windows
@@ -638,23 +698,35 @@ int HID_API_EXPORT HID_API_CALL hid_write(hid_device *dev, const unsigned char *
 	   create a temporary buffer which is the proper size. */
 	if (length >= dev->output_report_length) {
 		/* The user passed the right number of bytes. Use the buffer as-is. */
-		buf = (unsigned char *) data;
+		write_buf = data;
 	} else {
 		/* Create a temporary buffer and copy the user's data
 		   into it, padding the rest with zeros. */
-		buf = (unsigned char *) malloc(dev->output_report_length);
-		memcpy(buf, data, length);
-		memset(buf + length, 0, dev->output_report_length - length);
+		alloc_buf = malloc(dev->output_report_length);
+		if (!alloc_buf) {
+			SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+			register_error(dev, "malloc");
+			goto end_of_function;
+		}
+
+		memcpy(alloc_buf, data, length);
+		memset(alloc_buf + length, 0, dev->output_report_length - length);
 		length = dev->output_report_length;
+		write_buf = alloc_buf;
 	}
 
-	res = WriteFile(dev->device_handle, buf, length, NULL, &ol);
+	if (hidapi_size_to_dword(length, &write_length) < 0) {
+		SetLastError(ERROR_INVALID_PARAMETER);
+		register_error(dev, "WriteFile length");
+		goto end_of_function;
+	}
+
+	res = WriteFile(dev->device_handle, write_buf, write_length, NULL, &ol);
 	
 	if (!res) {
 		if (GetLastError() != ERROR_IO_PENDING) {
 			/* WriteFile() failed. Return error. */
 			register_error(dev, "WriteFile");
-			bytes_written = -1;
 			goto end_of_function;
 		}
 	}
@@ -665,33 +737,44 @@ int HID_API_EXPORT HID_API_CALL hid_write(hid_device *dev, const unsigned char *
 	if (!res) {
 		/* The Write operation failed. */
 		register_error(dev, "WriteFile");
-		bytes_written = -1;
 		goto end_of_function;
 	}
 
-end_of_function:
-	if (buf != data)
-		free(buf);
+	if (hidapi_size_to_int(bytes_written, &function_result) < 0) {
+		SetLastError(ERROR_INVALID_PARAMETER);
+		register_error(dev, "WriteFile result");
+	}
 
-	return bytes_written;
+end_of_function:
+	free(alloc_buf);
+
+	return function_result;
 }
 
 
 int HID_API_EXPORT HID_API_CALL hid_read_timeout(hid_device *dev, unsigned char *data, size_t length, int milliseconds)
 {
 	DWORD bytes_read = 0;
+	DWORD read_length;
 	size_t copy_len = 0;
+	int function_result = -1;
 	BOOL res;
 
 	/* Copy the handle for convenience. */
 	HANDLE ev = dev->ol.hEvent;
 
 	if (!dev->read_pending) {
+		if (hidapi_size_to_dword(dev->input_report_length, &read_length) < 0) {
+			SetLastError(ERROR_INVALID_PARAMETER);
+			register_error(dev, "ReadFile length");
+			return -1;
+		}
+
 		/* Start an Overlapped I/O read. */
 		dev->read_pending = TRUE;
 		memset(dev->read_buf, 0, dev->input_report_length);
 		ResetEvent(ev);
-		res = ReadFile(dev->device_handle, dev->read_buf, dev->input_report_length, &bytes_read, &dev->ol);
+		res = ReadFile(dev->device_handle, dev->read_buf, read_length, &bytes_read, &dev->ol);
 		
 		if (!res) {
 			if (GetLastError() != ERROR_IO_PENDING) {
@@ -745,7 +828,13 @@ end_of_function:
 		return -1;
 	}
 	
-	return copy_len;
+	if (hidapi_size_to_int(copy_len, &function_result) < 0) {
+		SetLastError(ERROR_INVALID_PARAMETER);
+		register_error(dev, "hid_read_timeout result");
+		return -1;
+	}
+
+	return function_result;
 }
 
 int HID_API_EXPORT HID_API_CALL hid_read(hid_device *dev, unsigned char *data, size_t length)
@@ -761,13 +850,24 @@ int HID_API_EXPORT HID_API_CALL hid_set_nonblocking(hid_device *dev, int nonbloc
 
 int HID_API_EXPORT HID_API_CALL hid_send_feature_report(hid_device *dev, const unsigned char *data, size_t length)
 {
-	BOOL res = HidD_SetFeature(dev->device_handle, (PVOID)data, length);
+	ULONG feature_length;
+	int function_result = -1;
+	BOOL res;
+
+	if (hidapi_size_to_ulong(length, &feature_length) < 0 ||
+	    hidapi_size_to_int(length, &function_result) < 0) {
+		SetLastError(ERROR_INVALID_PARAMETER);
+		register_error(dev, "HidD_SetFeature length");
+		return -1;
+	}
+
+	res = HidD_SetFeature(dev->device_handle, (PVOID)data, feature_length);
 	if (!res) {
 		register_error(dev, "HidD_SetFeature");
 		return -1;
 	}
 
-	return length;
+	return function_result;
 }
 
 
@@ -783,14 +883,23 @@ int HID_API_EXPORT HID_API_CALL hid_get_feature_report(hid_device *dev, unsigned
 	return 0; /* HidD_GetFeature() doesn't give us an actual length, unfortunately */
 #else
 	DWORD bytes_returned;
+	DWORD bytes_with_report_id;
+	DWORD feature_length;
+	int function_result = -1;
 
 	OVERLAPPED ol;
 	memset(&ol, 0, sizeof(ol));
 
+	if (hidapi_size_to_dword(length, &feature_length) < 0) {
+		SetLastError(ERROR_INVALID_PARAMETER);
+		register_error(dev, "Feature Report DeviceIoControl length");
+		return -1;
+	}
+
 	res = DeviceIoControl(dev->device_handle,
 		IOCTL_HID_GET_FEATURE,
-		data, length,
-		data, length,
+		data, feature_length,
+		data, feature_length,
 		&bytes_returned, &ol);
 
 	if (!res) {
@@ -813,9 +922,19 @@ int HID_API_EXPORT HID_API_CALL hid_get_feature_report(hid_device *dev, unsigned
 	/* bytes_returned does not include the first byte which contains the
 	   report ID. The data buffer actually contains one more byte than
 	   bytes_returned. */
-	bytes_returned++;
+	if (DWordAdd(bytes_returned, 1, &bytes_with_report_id) != S_OK) {
+		SetLastError(ERROR_INVALID_PARAMETER);
+		register_error(dev, "Feature Report result");
+		return -1;
+	}
 
-	return bytes_returned;
+	if (hidapi_size_to_int(bytes_with_report_id, &function_result) < 0) {
+		SetLastError(ERROR_INVALID_PARAMETER);
+		register_error(dev, "Feature Report result");
+		return -1;
+	}
+
+	return function_result;
 #endif
 }
 
@@ -831,7 +950,7 @@ int HID_API_EXPORT_CALL HID_API_CALL hid_get_manufacturer_string(hid_device *dev
 {
 	BOOL res;
 
-	res = HidD_GetManufacturerString(dev->device_handle, string, sizeof(wchar_t) * MIN(maxlen, MAX_STRING_WCHARS));
+	res = HidD_GetManufacturerString(dev->device_handle, string, hidapi_string_buffer_size(maxlen));
 	if (!res) {
 		register_error(dev, "HidD_GetManufacturerString");
 		return -1;
@@ -844,7 +963,7 @@ int HID_API_EXPORT_CALL HID_API_CALL hid_get_product_string(hid_device *dev, wch
 {
 	BOOL res;
 
-	res = HidD_GetProductString(dev->device_handle, string, sizeof(wchar_t) * MIN(maxlen, MAX_STRING_WCHARS));
+	res = HidD_GetProductString(dev->device_handle, string, hidapi_string_buffer_size(maxlen));
 	if (!res) {
 		register_error(dev, "HidD_GetProductString");
 		return -1;
@@ -857,7 +976,7 @@ int HID_API_EXPORT_CALL HID_API_CALL hid_get_serial_number_string(hid_device *de
 {
 	BOOL res;
 
-	res = HidD_GetSerialNumberString(dev->device_handle, string, sizeof(wchar_t) * MIN(maxlen, MAX_STRING_WCHARS));
+	res = HidD_GetSerialNumberString(dev->device_handle, string, hidapi_string_buffer_size(maxlen));
 	if (!res) {
 		register_error(dev, "HidD_GetSerialNumberString");
 		return -1;
@@ -868,9 +987,16 @@ int HID_API_EXPORT_CALL HID_API_CALL hid_get_serial_number_string(hid_device *de
 
 int HID_API_EXPORT_CALL HID_API_CALL hid_get_indexed_string(hid_device *dev, int string_index, wchar_t *string, size_t maxlen)
 {
+	ULONG hid_string_index;
 	BOOL res;
 
-	res = HidD_GetIndexedString(dev->device_handle, string_index, string, sizeof(wchar_t) * MIN(maxlen, MAX_STRING_WCHARS));
+	if (hidapi_int_to_ulong(string_index, &hid_string_index) < 0) {
+		SetLastError(ERROR_INVALID_PARAMETER);
+		register_error(dev, "HidD_GetIndexedString index");
+		return -1;
+	}
+
+	res = HidD_GetIndexedString(dev->device_handle, hid_string_index, string, hidapi_string_buffer_size(maxlen));
 	if (!res) {
 		register_error(dev, "HidD_GetIndexedString");
 		return -1;

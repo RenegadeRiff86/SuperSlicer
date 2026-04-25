@@ -56,6 +56,17 @@
 
 namespace Slic3r {
 
+namespace {
+
+int checked_size_to_config_int(size_t value, const char *field_name)
+{
+    if (value > static_cast<size_t>(std::numeric_limits<int>::max()))
+        throw RuntimeError(std::string("Value for '") + field_name + "' exceeds the supported integer range.");
+    return static_cast<int>(value);
+}
+
+} // namespace
+
 template class PrintState<PrintStep, psCount>;
 template class PrintState<PrintObjectStep, posCount>;
 
@@ -164,6 +175,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "lift_min",
         "max_fan_speed",
         "max_gcode_per_second",
+        "machine_min_cruise_ratio",
         "max_print_height",
         "max_print_speed",
         "max_speed_reduction",
@@ -483,7 +495,7 @@ std::set<uint16_t> Print::support_material_extruders(float z /*= -1*/) const
 {
     std::set<uint16_t> extruders;
     bool support_uses_current_extruder = false;
-    auto num_extruders = (uint16_t)m_config.nozzle_diameter.size();
+    auto num_extruders = static_cast<uint16_t>(m_config.nozzle_diameter.size());
 
     for (PrintObject *object : m_objects) {
         if (object->has_support_material()) {
@@ -502,7 +514,7 @@ std::set<uint16_t> Print::support_material_extruders(float z /*= -1*/) const
                 if (object->config().support_material_extruder == 0)
                     support_uses_current_extruder = true;
                 else {
-                    uint16_t i = (uint16_t) object->config().support_material_extruder - 1;
+                    uint16_t i = static_cast<uint16_t>(object->config().support_material_extruder - 1);
                     extruders.insert((i >= num_extruders) ? 0 : i);
                 }
             }
@@ -511,7 +523,7 @@ std::set<uint16_t> Print::support_material_extruders(float z /*= -1*/) const
                 if (object->config().support_material_interface_extruder == 0)
                     support_uses_current_extruder = true;
                 else {
-                    uint16_t i = (uint16_t)object->config().support_material_interface_extruder - 1;
+                    uint16_t i = static_cast<uint16_t>(object->config().support_material_interface_extruder - 1);
                     extruders.insert((i >= num_extruders) ? 0 : i);
                 }
             }
@@ -548,7 +560,7 @@ uint16_t Print::num_object_instances() const
 {
     uint16_t instances = 0;
     for (const PrintObject *print_object : m_objects)
-        instances += (uint16_t)print_object->instances().size();
+        instances += static_cast<uint16_t>(print_object->instances().size());
     return instances;
 }
 
@@ -977,7 +989,7 @@ std::pair<PrintBase::PrintValidationError, std::string> Print::validate(std::vec
                     double skirt_width = Flow::new_from_config_width(frPerimeter,
                         *Flow::extrusion_width_option("skirt", m_default_region_config),
                         *Flow::extrusion_spacing_option("skirt", m_default_region_config),
-                        (float)m_config.nozzle_diameter.get_at(extruder_id), 
+                        static_cast<float>(m_config.nozzle_diameter.get_at(extruder_id)),
                         print_first_layer_height,
                         1,0 //don't care, all i want if width from width
                     ).width();
@@ -986,7 +998,7 @@ std::pair<PrintBase::PrintValidationError, std::string> Print::validate(std::vec
                     if (object->shared_regions()->layer_ranges.front().layer_height_range.first < object_first_layer_height) {
                         if (object_first_layer_height + EPSILON < min_layer_height)
                             return { PrintBase::PrintValidationError::pveWrongSettings, format(_u8L("First layer height can't be lower than %s"), "min layer height") };
-                        for (auto tuple : std::vector<std::pair<double, const char*>>{
+                        for (const auto &tuple : std::vector<std::pair<double, const char*>>{
                                 {nozzle_diameter, "nozzle diameter"},
                                 {max_layer_height, "max layer height"},
                                 {skirt_width, "skirt extrusion width"},
@@ -1005,7 +1017,7 @@ std::pair<PrintBase::PrintValidationError, std::string> Print::validate(std::vec
                     if (object->shared_regions()->layer_ranges.front().layer_height_range.second > layer_height) {
                         if (layer_height + EPSILON < min_layer_height)
                             return { PrintBase::PrintValidationError::pveWrongSettings, format(_u8L("Layer height can't be lower than %s"), "min layer height") };
-                        for (auto tuple : std::vector<std::pair<double, const char*>>{
+                        for (const auto &tuple : std::vector<std::pair<double, const char*>>{
                                 {nozzle_diameter, "nozzle diameter"},
                                 {max_layer_height, "max layer height"},
                                 {skirt_width, "skirt extrusion width"},
@@ -1358,12 +1370,12 @@ void Print::process()
                     for (; path_idx < range.end() && path_idx < visitor.paths.size(); ++path_idx) {
                         visitor.paths[path_idx]->simplify(scaled_resolution, config().arc_fitting.value, scale_d(arc_fitting_tolerance.get_abs_value(visitor.paths[path_idx]->width())));
                         int nb_items_done = (++atomic_count);
-                        this->set_status(int((nb_items_done * 100) / (visitor.paths.size() + visitor.paths3D.size())), L("Optimizing skirt & brim %s%%"), { std::to_string(int(100*nb_items_done / double(visitor.paths.size() + visitor.paths3D.size()))) }, PrintBase::SlicingStatus::SECONDARY_STATE);
+                        this->set_status(int((size_t(nb_items_done) * 100) / (visitor.paths.size() + visitor.paths3D.size())), L("Optimizing skirt & brim %s%%"), { std::to_string(int(100.0 * double(nb_items_done) / double(visitor.paths.size() + visitor.paths3D.size()))) }, PrintBase::SlicingStatus::SECONDARY_STATE);
                     }
                     for (; path_idx < range.end() && path_idx - visitor.paths.size() < visitor.paths3D.size(); ++path_idx) {
                         visitor.paths3D[path_idx - visitor.paths.size()]->simplify(scaled_resolution, config().arc_fitting.value, scale_d(arc_fitting_tolerance.get_abs_value(visitor.paths[path_idx]->width())));
                         int nb_items_done = (++atomic_count);
-                        this->set_status(int((nb_items_done * 100) / (visitor.paths.size() + visitor.paths3D.size())), L("Optimizing skirt & brim %s%%"), { std::to_string(int(100*nb_items_done / double(visitor.paths.size() + visitor.paths3D.size()))) }, PrintBase::SlicingStatus::SECONDARY_STATE);
+                        this->set_status(int((size_t(nb_items_done) * 100) / (visitor.paths.size() + visitor.paths3D.size())), L("Optimizing skirt & brim %s%%"), { std::to_string(int(100.0 * double(nb_items_done) / double(visitor.paths.size() + visitor.paths3D.size()))) }, PrintBase::SlicingStatus::SECONDARY_STATE);
                     }
                 }
             );
@@ -1418,7 +1430,7 @@ std::string Print::export_gcode(const std::string& path_template, GCodeProcessor
     return path.c_str();
 }
 
-bool has_brim_patch(const PrintObject &obj, ModelVolumeType brim_type)
+static bool has_brim_patch(const PrintObject &obj, ModelVolumeType brim_type)
 {
     bool found = false;
     for (const ModelVolume *v : obj.model_object()->volumes) {
@@ -1430,7 +1442,7 @@ bool has_brim_patch(const PrintObject &obj, ModelVolumeType brim_type)
     }
     return found;
 }
-bool has_brim_patch(const std::vector<PrintObject*> &objs_group, ModelVolumeType brim_type)
+static bool has_brim_patch(const std::vector<PrintObject*> &objs_group, ModelVolumeType brim_type)
 {
     bool found = false;
     for (const PrintObject *obj : objs_group) {
@@ -1558,7 +1570,7 @@ void Print::_make_skirt_brim() {
                         //get flow
                         std::set<uint16_t> set_extruders = this->object_extruders(PrintObjectPtrs{ obj });
                         append(set_extruders, this->support_material_extruders());
-                        Flow        flow = this->brim_flow(set_extruders.empty() ? get_print_region(0).config().perimeter_extruder - 1 : *set_extruders.begin(), obj->config());
+                        Flow        flow = this->brim_flow(set_extruders.empty() ? size_t(get_print_region(0).config().perimeter_extruder - 1) : size_t(*set_extruders.begin()), obj->config());
                         //if complete objects
                         if (config().complete_objects || config().parallel_objects_step.value > 0) {
                             //don't consider other objects/instances, as they aren't colliding.
@@ -1606,7 +1618,7 @@ void Print::_make_skirt_brim() {
                     //get the first extruder in the list for these objects... replicating gcode generation
                     std::set<uint16_t> set_extruders = this->object_extruders(m_objects);
                     append(set_extruders, this->support_material_extruders());
-                    Flow        flow = this->brim_flow(set_extruders.empty() ? get_print_region(0).config().perimeter_extruder - 1 : *set_extruders.begin(), m_default_object_config);
+                    Flow        flow = this->brim_flow(set_extruders.empty() ? size_t(get_print_region(0).config().perimeter_extruder - 1) : size_t(*set_extruders.begin()), m_default_object_config);
                     if (brim_config.brim_ears)
                         make_brim_ears(*this, flow, obj_group, brim_area, m_brim);
                     else
@@ -1817,9 +1829,9 @@ void Print::_make_skirt(const PrintObjectPtrs &objects, ExtrusionEntityCollectio
         // Generate the skirt centerline.
         Polygon loop;
         {
-            Polygons loops = offset(convex_hull, distance, ClipperLib::jtRound, float(flow.scaled_width() / 10));
+            Polygons loops = offset(convex_hull, distance, ClipperLib::jtRound, float(flow.scaled_width()) / 10.f);
             //make sure the skirt is simple enough
-            Geometry::simplify_polygons(loops, flow.scaled_width() / 10, &loops);
+            Geometry::simplify_polygons(loops, flow.scaled_width() / 10.0, &loops);
 			if (loops.empty())
 				break;
             assert(loops.size() == 1);
@@ -2015,7 +2027,7 @@ void Print::alert_when_supports_needed()
                 if (i < int(translated_elements.size()) - 2) {
                     translated_list.replace(second_elem, 3, expansion_rule);
                 } else {
-                    translated_list.replace(second_elem, 3, translated_elements[i + 1]);
+                    translated_list.replace(second_elem, 3, translated_elements[size_t(i) + 1]);
                 }
             }
 
@@ -2378,10 +2390,12 @@ std::string Print::output_filename(const std::string &filename_base) const
     // Set the placeholders for the data know first after the G-code export is finished.
     // These values will be just propagated into the output file name.
     DynamicConfig config = this->finished() ? this->print_statistics().config() : this->print_statistics().placeholders();
-    config.set_key_value("num_extruders", new ConfigOptionInt((int)m_config.nozzle_diameter.size()));
-    config.set_key_value("extruders_count", new ConfigOptionInt((int)m_config.nozzle_diameter.size()));
-    config.set_key_value("num_milling", new ConfigOptionInt((int)m_config.milling_diameter.size()));
-    config.set_key_value("milling_count", new ConfigOptionInt((int)m_config.milling_diameter.size()));
+    const int num_extruders = checked_size_to_config_int(m_config.nozzle_diameter.size(), "num_extruders");
+    const int num_milling   = checked_size_to_config_int(m_config.milling_diameter.size(), "num_milling");
+    config.set_key_value("num_extruders", new ConfigOptionInt(num_extruders));
+    config.set_key_value("extruders_count", new ConfigOptionInt(num_extruders));
+    config.set_key_value("num_milling", new ConfigOptionInt(num_milling));
+    config.set_key_value("milling_count", new ConfigOptionInt(num_milling));
     config.set_key_value("default_output_extension", new ConfigOptionString(".gcode"));
 
     // Handle output_filename_format. There is a hack related to binary G-codes: gcode / bgcode substitution.

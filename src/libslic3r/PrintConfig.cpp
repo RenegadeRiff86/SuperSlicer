@@ -4237,6 +4237,24 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionFloats{ 1500., 1250. });
 
+    // Klipper SET_VELOCITY_LIMIT MINIMUM_CRUISE_RATIO=<ratio>
+    // Klipper requires 0 <= ratio < 1 (default 0.5). Replaces the removed
+    // ACCEL_TO_DECEL parameter (Klipper commit 20240313 / removal 20250811).
+    def = this->add("machine_min_cruise_ratio", coFloat);
+    def->label = L("Minimum cruise ratio (Klipper)");
+    def->full_label = L("Minimum cruise ratio (Klipper)");
+    def->category = OptionCategory::limits;
+    def->tooltip = L("Klipper SET_VELOCITY_LIMIT MINIMUM_CRUISE_RATIO."
+                     " Forces the toolhead to spend at least this fraction of every move at the requested cruise velocity"
+                     " before decelerating; replaces the removed ACCEL_TO_DECEL parameter."
+                     "\nValid range is 0 (no enforcement) up to but not including 1; Klipper's built-in default is 0.5."
+                     "\nDisable to leave the value untouched and let printer.cfg / the Klipper default apply.");
+    def->min = 0;
+    def->max = 0.99;
+    def->mode = comAdvancedE | comSuSi;
+    def->can_be_disabled = true;
+    def->set_default_value(disable_default_option(new ConfigOptionFloat(0.5)));
+
     def = this->add("max_gcode_per_second", coFloat);
     def->label = L("Maximum G1 per second (Experimental)");
     def->category = OptionCategory::speed;
@@ -9370,14 +9388,15 @@ void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_config_o
     const std::vector<std::string> move_deactivate = {
         "overhangs_width"s, "overhangs_flow_ratio"s
         };
-    for (int i = 0; i < move_deactivate.size(); i += 2) {
+    for (size_t i = 0; i < move_deactivate.size(); i += 2) {
+        const size_t companion_idx = i + size_t{1};
         // get our keyf
         if (has(dict, move_deactivate[i])) {
             // is it (now wrongly) deactivated?
             if (!value().empty() && value()[0] == '!') {
                 value() = value().substr(1);
                 // get our companion
-                if (has(dict, move_deactivate[i + 1])) {
+                if (has(dict, move_deactivate[companion_idx])) {
                     // deactivate it
                     if (value().empty()) {
                         value() = "!100";
@@ -9386,7 +9405,7 @@ void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_config_o
                     }
                 } else {
                     // or create it
-                    dict[move_deactivate[i + 1]] = {move_deactivate[i + 1], "!100"};
+                    dict[move_deactivate[companion_idx]] = {move_deactivate[companion_idx], "!100"};
                 }
             }
         }
@@ -10045,7 +10064,7 @@ std::map<std::string,std::string> PrintConfigDef::from_prusa(t_config_option_key
         std::vector<Vec2d> pts;
         ConfigOptionEnum<GCodeThumbnailsFormat> opt_format;
         opt_format.value = thumbnails_list.empty() ? GCodeThumbnailsFormat::PNG : thumbnails_list.front().first;
-        for (auto [format, pt] : thumbnails_list) {
+        for (const auto& [format, pt] : thumbnails_list) {
             pts.push_back(pt);
         }
         value = ConfigOptionPoints(pts).serialize();
@@ -10146,7 +10165,7 @@ void _convert_from_prusa(CONFIG_CLASS& conf, const DynamicPrintConfig& global_co
         }
         results.insert(result.begin(), result.end());
     }
-    for (auto entry : results) {
+    for (const auto& entry : results) {
         const ConfigOptionDef* def = print_config_def.get(entry.first);
         if (def) {
             ConfigOption* opt_new = def->default_value.get()->clone();

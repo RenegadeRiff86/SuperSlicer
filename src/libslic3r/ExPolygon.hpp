@@ -16,6 +16,16 @@
 #include "libslic3r.h"
 #include "Polygon.hpp"
 #include "Polyline.hpp"
+#include "BoundingBox.hpp"
+#include "Line.hpp"
+
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <initializer_list>
+#include <iterator>
+#include <limits>
+#include <utility>
 #include <vector>
 
 namespace Slic3r {
@@ -27,6 +37,7 @@ class ExPolygon
 {
 public:
     ExPolygon() = default;
+    ~ExPolygon();
     ExPolygon(const ExPolygon &other) = default;
     ExPolygon(ExPolygon &&other) = default;
     explicit ExPolygon(const Polygon &contour) : contour(contour) {}
@@ -190,10 +201,10 @@ inline Lines to_lines(const ExPolygon &src)
     Lines lines;
     lines.reserve(count_points(src));
     for (size_t i = 0; i <= src.holes.size(); ++ i) {
-        const Polygon &poly = (i == 0) ? src.contour : src.holes[i - 1];
-        for (Points::const_iterator it = poly.points.begin(); it != poly.points.end()-1; ++it)
+        const Polygon *poly = (i == 0) ? &src.contour : &src.holes[i - 1];
+        for (Points::const_iterator it = poly->points.begin(); it != poly->points.end()-1; ++it)
             lines.push_back(Line(*it, *(it + 1)));
-        lines.push_back(Line(poly.points.back(), poly.points.front()));
+        lines.push_back(Line(poly->points.back(), poly->points.front()));
     }
     return lines;
 }
@@ -204,7 +215,8 @@ inline Lines to_lines(const ExPolygons &src)
     lines.reserve(count_points(src));
     for (ExPolygons::const_iterator it_expoly = src.begin(); it_expoly != src.end(); ++ it_expoly) {
         for (size_t i = 0; i <= it_expoly->holes.size(); ++ i) {
-            const Points &points = ((i == 0) ? it_expoly->contour : it_expoly->holes[i - 1]).points;
+            const Polygon *poly = (i == 0) ? &it_expoly->contour : &it_expoly->holes[i - 1];
+            const Points &points = poly->points;
             for (Points::const_iterator it = points.begin(); it != points.end()-1; ++it)
                 lines.push_back(Line(*it, *(it + 1)));
             lines.push_back(Line(points.back(), points.front()));
@@ -217,8 +229,10 @@ inline Lines to_lines(const ExPolygons &src)
 // Next point of last point in polygon is first polygon point.
 inline Linesf to_linesf(const ExPolygons &src, uint32_t count_lines = 0)
 {
-    assert(count_lines == 0 || count_lines == count_points(src));
-    if (count_lines == 0) count_lines = count_points(src);
+    const size_t line_count = count_points(src);
+    assert(line_count <= std::numeric_limits<uint32_t>::max());
+    assert(count_lines == 0 || static_cast<size_t>(count_lines) == line_count);
+    if (count_lines == 0) count_lines = static_cast<uint32_t>(line_count);
     Linesf lines;
     lines.reserve(count_lines);
     Vec2d prev_pd;
@@ -249,7 +263,8 @@ inline Linesf to_unscaled_linesf(const ExPolygons &src)
     lines.reserve(count_points(src));
     for (ExPolygons::const_iterator it_expoly = src.begin(); it_expoly != src.end(); ++ it_expoly) {
         for (size_t i = 0; i <= it_expoly->holes.size(); ++ i) {
-            const Points &points = ((i == 0) ? it_expoly->contour : it_expoly->holes[i - 1]).points;
+            const Polygon *poly = (i == 0) ? &it_expoly->contour : &it_expoly->holes[i - 1];
+            const Points &points = poly->points;
             Vec2d unscaled_a = unscaled(points.front());
             Vec2d unscaled_b = unscaled_a;
             for (Points::const_iterator it = points.begin()+1; it != points.end(); ++it){
@@ -272,7 +287,7 @@ inline Points contours_to_points(const ExPolygons &src)
     }
     points.reserve(count);
     for (const ExPolygon &expolygon : src) {
-        append(points, expolygon.contour.points);
+        points.insert(points.end(), expolygon.contour.points.begin(), expolygon.contour.points.end());
     }
     return points;
 }
@@ -283,9 +298,9 @@ inline Points to_points(const ExPolygons &src)
     size_t count = count_points(src);
     points.reserve(count);
     for (const ExPolygon &expolygon : src) {
-        append(points, expolygon.contour.points);
+        points.insert(points.end(), expolygon.contour.points.begin(), expolygon.contour.points.end());
         for (const Polygon &hole : expolygon.holes)
-            append(points, hole.points);
+            points.insert(points.end(), hole.points.begin(), hole.points.end());
     }
     return points;
 }
@@ -392,12 +407,13 @@ inline Polygons to_polygons(const ExPolygons &src)
 #ifdef _DEBUG
     // check hole ordering
     Polygons holes;
-    for (size_t i = src.size() - 1; i < src.size(); i--) {
+    for (auto ex_poly_it = src.rbegin(); ex_poly_it != src.rend(); ++ex_poly_it) {
+        const ExPolygon &ex_poly = *ex_poly_it;
         for (Polygon &hole : holes) {
             // a big hole need to be before than the contour that lie inside.
-            assert(!hole.contains(src[i].contour.front()));
+            assert(!hole.contains(ex_poly.contour.front()));
         }
-        for (Polygon hole : src[i].holes) {
+        for (Polygon hole : ex_poly.holes) {
             hole.make_counter_clockwise();
             holes.push_back(std::move(hole));
         }
@@ -484,9 +500,9 @@ inline Points to_points(const ExPolygon &expoly)
 {
     Points out;
     out.reserve(count_points(expoly));
-    append(out, expoly.contour.points);
+    out.insert(out.end(), expoly.contour.points.begin(), expoly.contour.points.end());
     for (const Polygon &hole : expoly.holes)
-        append(out, hole.points);
+        out.insert(out.end(), hole.points.begin(), hole.points.end());
     return out;
 }
 
@@ -673,7 +689,8 @@ namespace boost { namespace polygon {
             return t.holes.end();
         }
         static inline unsigned int size_holes(const Slic3r::ExPolygon& t) {
-            return (int)t.holes.size();
+            assert(t.holes.size() <= std::numeric_limits<unsigned int>::max());
+            return static_cast<unsigned int>(t.holes.size());
         }
     };
 

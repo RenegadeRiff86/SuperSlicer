@@ -116,7 +116,7 @@ inline bool DenseBase<Derived>::any() const
   {
     for(Index j = 0; j < cols(); ++j)
       for(Index i = 0; i < rows(); ++i)
-        if (evaluator.coeff(i, j)) return true;
+        if (evaluator.coeff(i, j) != Scalar(0)) return true;
     return false;
   }
 }

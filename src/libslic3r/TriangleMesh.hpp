@@ -109,7 +109,7 @@ public:
     bool write_ascii(const char* output_file);
     bool write_binary(const char* output_file);
     float volume();
-    void WriteOBJFile(const char* output_file) const;
+    bool WriteOBJFile(const char* output_file) const;
     void scale(float factor);
     void scale(const Vec3f &versor);
     void translate(float x, float y, float z);

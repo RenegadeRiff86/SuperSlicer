@@ -46,7 +46,7 @@ struct Params
     const float brim_width_outer;
     const float brim_width_inner;
 
-    const std::pair<float,float> malformation_distance_factors = std::pair<float, float> { 0.2, 1.1 };
+    const std::pair<float,float> malformation_distance_factors = std::pair<float, float> { 0.2f, 1.1f };
     const float max_curled_height_factor = 10.0f;
     const float curling_tolerance_limit = 0.1f;
 

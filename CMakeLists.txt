@@ -9,6 +9,11 @@
 #/|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 #/|/
 cmake_minimum_required(VERSION 3.13)
+
+if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 NEW)
+endif()
+
 project(Slic3r)
 
 if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/version.date.inc")
@@ -87,6 +92,31 @@ if (${PROJECT_NAME}_BUILD_DEPS)
     include(deps/autobuild.cmake)
 endif ()
 
+if (SLIC3R_STATIC)
+    set(_slic3r_dependency_prefixes)
+    if (${PROJECT_NAME}_DEPS_BUILD_DIR)
+        list(APPEND _slic3r_dependency_prefixes "${${PROJECT_NAME}_DEPS_BUILD_DIR}/destdir/usr/local")
+    endif()
+    list(APPEND _slic3r_dependency_prefixes
+        "${CMAKE_CURRENT_SOURCE_DIR}/deps/build-${${PROJECT_NAME}_DEPS_PRESET}/destdir/usr/local"
+        "${CMAKE_CURRENT_SOURCE_DIR}/deps/build/destdir/usr/local"
+    )
+
+    foreach(_slic3r_dependency_prefix ${_slic3r_dependency_prefixes})
+        if (EXISTS "${_slic3r_dependency_prefix}/lib/cmake/Boost-1.83.0" OR
+            EXISTS "${_slic3r_dependency_prefix}/include/boost/version.hpp" OR
+            EXISTS "${_slic3r_dependency_prefix}/include/boost-1_83/boost/version.hpp")
+            list(FIND CMAKE_PREFIX_PATH "${_slic3r_dependency_prefix}" _slic3r_dependency_prefix_index)
+            if (_slic3r_dependency_prefix_index EQUAL -1)
+                list(PREPEND CMAKE_PREFIX_PATH "${_slic3r_dependency_prefix}")
+                set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" CACHE STRING "Package search prefixes" FORCE)
+            endif()
+            message(STATUS "Using bundled dependencies from ${_slic3r_dependency_prefix}")
+            break()
+        endif()
+    endforeach()
+endif()
+
 if (APPLE)
     set(CMAKE_FIND_FRAMEWORK LAST)
     set(CMAKE_FIND_APPBUNDLE LAST)
@@ -159,10 +189,6 @@ if (MSVC)
     # Disable STL4007: Many result_type typedefs and all argument_type, first_argument_type, and second_argument_type typedefs are deprecated in C++17.
     #FIXME Remove this line after eigen library adapts to the new C++17 adaptor rules.
     add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:-D_SILENCE_CXX17_ADAPTOR_TYPEDEFS_DEPRECATION_WARNING>")
-    # Disable warnings on conversion from unsigned to signed (possible loss of data)
-    # C4244: 'conversion' conversion from 'type1' to 'type2', possible loss of data. An integer type is converted to a smaller integer type.
-    # C4267: The compiler detected a conversion from size_t to a smaller type.
-    add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:/wd4244>" "$<$<COMPILE_LANGUAGE:C,CXX>:/wd4267>")
     # Enforce strict C++ conformance, so our code that compiles on MSVC also compiles on GCC and clang.
     add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:/permissive->")
     # Optimized MSVC links should not be incremental. The Windows jpeg-static dependency
@@ -229,9 +255,10 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules/)
 
 enable_testing ()
 
-# Enable C++17 language standard.
-set(CMAKE_CXX_STANDARD 17)
+# Enable C++23 language standard.
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # WIN10SDK_PATH is used to point CMake to the WIN10 SDK installation directory.
 # We pick it from environment if it is not defined in another way
@@ -253,8 +280,18 @@ if(WIN32)
     else()
         # Try to use the default Windows 10 SDK path.
         if(NOT DEFINED ENV{WindowsSdkDir})
-            message(STATUS "Env var 'WindowsSdkDir' not defined, trying to use location on 'C:/Program Files (x86)/Windows Kits/10' and version '${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}' for it.")
-            set(CMAKE_WINDOWS_KITS_10_DIR "C:/Program Files (x86)/Windows Kits/10")
+            # Query the registry for the canonical SDK root — more reliable than
+            # guessing a Program Files path.
+            get_filename_component(_kits_root
+                "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows Kits\\Installed Roots;KitsRoot10]"
+                ABSOLUTE CACHE)
+            if(_kits_root AND EXISTS "${_kits_root}")
+                set(CMAKE_WINDOWS_KITS_10_DIR "${_kits_root}")
+            else()
+                # Last-resort fallback: standard SDK install location.
+                set(CMAKE_WINDOWS_KITS_10_DIR "C:/Program Files (x86)/Windows Kits/10")
+            endif()
+            message(STATUS "Env var 'WindowsSdkDir' not defined, trying location '${CMAKE_WINDOWS_KITS_10_DIR}' with version '${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}'.")
             set(WIN10SDK_PATH "${CMAKE_WINDOWS_KITS_10_DIR}")
             set(WIN10SDK_INCLUDE_PATH "${CMAKE_WINDOWS_KITS_10_DIR}/Include/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}")
             link_directories(${CMAKE_WINDOWS_KITS_10_DIR}/Lib/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/um/x64)
@@ -295,11 +332,12 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_package(PkgConfig REQUIRED)
 
     if (CMAKE_VERSION VERSION_LESS "3.1")
-        # Workaround for an old CMake, which does not understand CMAKE_CXX_STANDARD.
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+        # Compatibility fallback for very old CMake versions that do not honor
+        # CMAKE_CXX_STANDARD.
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++23")
     endif()
 
-    # Boost on Raspberry-Pi does not link to pthreads.
+    # Some Raspberry Pi Boost builds do not link pthreads automatically.
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
 
@@ -314,6 +352,14 @@ if (CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUXX)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fext-numeric-literals" )
 endif()
 
+# C++23 mode is available in GCC 11+ and Clang 13+. Fail early with a clear message.
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "11")
+    message(FATAL_ERROR "C++23 requires GCC 11 or later. Found GCC ${CMAKE_CXX_COMPILER_VERSION}.")
+endif()
+if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "13")
+    message(FATAL_ERROR "C++23 requires Clang 13 or later. Found Clang ${CMAKE_CXX_COMPILER_VERSION}.")
+endif()
+
 if (NOT MSVC AND ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang"))
     if (NOT MINGW)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall" )
@@ -323,15 +369,14 @@ if (NOT MSVC AND ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMP
     # On GCC and Clang, no return from a non-void function is a warning only. Here, we make it an error.
     add_compile_options(-Werror=return-type)
 
-    # removes LOTS of extraneous Eigen warnings (GCC only supports it since 6.1)
+    # Reduce noisy Eigen diagnostics. GCC supports this suppression starting with 6.1.
     # https://eigen.tuxfamily.org/bz/show_bug.cgi?id=1221
     if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 6.0)
         add_compile_options(-Wno-ignored-attributes) # Tamas: Eigen include dirs are marked as SYSTEM
     endif()
 
-    # Clang reports legacy OpenGL calls as deprecated. Turn off the warning for now
-    # to reduce the clutter, we know about this one. It should be reenabled after
-    # we finally get rid of the deprecated code.
+    # Clang reports legacy OpenGL calls as deprecated. Keep this warning disabled
+    # until the remaining deprecated OpenGL paths are removed.
     if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
         add_compile_options(-Wno-deprecated-declarations)
     endif()
@@ -341,10 +386,12 @@ if (NOT MSVC AND ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMP
         add_compile_options(-Wno-misleading-indentation)
     endif()
 
-    #GCC generates loads of -Wunknown-pragmas when compiling igl. The fix is not easy due to a bug in gcc, see
-    # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66943 or
-    # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=53431
-    # We will turn the warning of for GCC for now:
+    # libigl triggers substantial -Wunknown-pragmas noise on GCC in practice.
+    # Historical context:
+    #   https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66943
+    #   https://gcc.gnu.org/bugzilla/show_bug.cgi?id=53431
+    # Keep this warning disabled for GCC builds unless the local libigl/GCC
+    # combination is verified to be clean without it.
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
         add_compile_options(-Wno-unknown-pragmas)
     endif()
@@ -427,17 +474,14 @@ add_definitions(-DwxNO_UNSAFE_WXSTRING_CONV)
 if(SLIC3R_STATIC)
     # Use static boost libraries.
     set(Boost_USE_STATIC_LIBS ON)
-    # Use boost libraries linked statically to the C++ runtime.
-    # set(Boost_USE_STATIC_RUNTIME ON)
 endif()
-#set(Boost_DEBUG ON)
-# set(Boost_COMPILER "-mgw81")
-# boost::process was introduced first in version 1.64.0,
-# boost::beast::detail::base64 was introduced first in version 1.66.0
+# Boost 1.66 is the first version that provides both boost::process and
+# boost::beast::detail::base64.
 set(MINIMUM_BOOST_VERSION "1.66.0")
 set(_boost_components "system;filesystem;thread;log;locale;regex;chrono;atomic;date_time;iostreams")
 find_package(Boost ${MINIMUM_BOOST_VERSION} REQUIRED COMPONENTS ${_boost_components})
-# boost compile only in release & debug. We have to force the release version for RELWITHDEBINFO compilation
+# Boost typically ships only Debug and Release binaries here, so map
+# RelWithDebInfo to Release for imported libraries.
 if (MSVC)
   set_target_properties(${Boost_LIBRARIES} PROPERTIES MAP_IMPORTED_CONFIG_RELWITHDEBINFO RELEASE)
 endif()
@@ -446,7 +490,8 @@ add_library(boost_libs INTERFACE)
 add_library(boost_headeronly INTERFACE)
 
 if (APPLE)
-    # BOOST_ASIO_DISABLE_KQUEUE : prevents a Boost ASIO bug on OS X: https://svn.boost.org/trac/boost/ticket/5339
+    # Historical Boost.Asio kqueue workaround on macOS:
+    # https://svn.boost.org/trac/boost/ticket/5339
     target_compile_definitions(boost_headeronly INTERFACE BOOST_ASIO_DISABLE_KQUEUE)
 endif()
 
@@ -470,8 +515,7 @@ if(TARGET Boost::system)
     message(STATUS "Boost::boost exists")
     target_link_libraries(boost_headeronly INTERFACE Boost::boost)
 
-    # Only from cmake 3.12
-    # list(TRANSFORM _boost_components PREPEND Boost:: OUTPUT_VARIABLE _boost_targets)
+    # Keep this explicit loop for compatibility with older CMake releases.
     set(_boost_targets "")
     foreach(comp ${_boost_components})
         list(APPEND _boost_targets "Boost::${comp}")
@@ -497,21 +541,14 @@ set(TBB_DEBUG 1)
 find_package(TBB REQUIRED)
 slic3r_remap_configs(TBB::tbb RelWithDebInfo Release)
 slic3r_remap_configs(TBB::tbbmalloc RelWithDebInfo Release)
-# include_directories(${TBB_INCLUDE_DIRS})
-# add_definitions(${TBB_DEFINITIONS})
-# if(MSVC)
-#     # Suppress implicit linking of the TBB libraries by the Visual Studio compiler.
-#     add_definitions(-D__TBB_NO_IMPLICIT_LINKAGE)
-# endif()
-# The Intel TBB library will use the std::exception_ptr feature of C++11.
-# add_definitions(-DTBB_USE_CAPTURED_EXCEPTION=0)
 
 find_package(CURL REQUIRED)
 
 add_library(libcurl INTERFACE)
 target_link_libraries(libcurl INTERFACE CURL::libcurl)
 
-# Fixing curl's cmake config script bugs
+# Work around incomplete or inconsistent CURL CMake package linkage by
+# attaching the extra platform libraries we rely on here.
 if (NOT WIN32)
     # Required by libcurl
     find_package(ZLIB REQUIRED)
@@ -582,18 +619,18 @@ add_custom_target(gettext_merge_community_po_with_pot
     COMMENT "Merge community po with new generated pot file"
 )
 file(GLOB L10N_PO_FILES "${L10N_DIR}/*/Slic3r*.po")
-# list of names of directories, which are licalized by PS internally
+# Locale directories that PrusaSlicer already ships internally.
 list(APPEND PS_L10N_DIRS "cs" "de" "es" "fr" "it" "ja" "pl")
 foreach(po_file ${L10N_PO_FILES})
     GET_FILENAME_COMPONENT(po_dir "${po_file}" DIRECTORY)
     GET_FILENAME_COMPONENT(po_dir_name "${po_dir}" NAME)
     list(FIND PS_L10N_DIRS ${po_dir_name} found_dir_id)
-    # found_dir_id==-1 means that po_dir_name wasn't found in PS_L10N_DIRS
+    # found_dir_id == -1 means po_dir_name is community-managed here.
     if(found_dir_id LESS 0)
     add_custom_command(
             TARGET gettext_merge_community_po_with_pot PRE_BUILD
         COMMAND msgmerge -N -o ${po_file} ${po_file} "${L10N_DIR}/Slic3r.pot"
-        # delete obsolete lines from resulting PO to avoid conflicts after a merging of it with wxWidgets.po
+        # Remove obsolete entries before later merges with wxWidgets.po.
         COMMAND msgattrib --no-obsolete -o ${po_file} ${po_file}
     )
     endif()
@@ -608,11 +645,10 @@ foreach(po_file ${L10N_PO_FILES})
     GET_FILENAME_COMPONENT(po_dir "${po_file}" DIRECTORY)
     GET_FILENAME_COMPONENT(po_dir_name "${po_dir}" NAME)
     SET(wx_po_file "${L10N_DIR}/wx_locale/${po_dir_name}.po")
-    #SET(po_new_file "${po_dir}/Slic3r_.po")
     add_custom_command(
         TARGET gettext_concat_wx_po_with_po PRE_BUILD
         COMMAND msgcat --use-first -o ${po_file} ${po_file} ${wx_po_file}
-        # delete obsolete lines from resulting PO
+        # Remove obsolete entries from the merged PO.
         COMMAND msgattrib --no-obsolete -o ${po_file} ${po_file}
     )
 endforeach()
@@ -687,7 +723,7 @@ function(prusaslicer_copy_dlls target)
         set (_out_dir "$<TARGET_PROPERTY:${target},BINARY_DIR>")
     endif ()
     
-    # This has to be a separate target due to the windows command line lenght limits    
+    # Keep this as a separate target to avoid Windows command-line length limits.
     add_custom_command(TARGET ${target} POST_BUILD 
         COMMAND ${CMAKE_COMMAND} -E copy ${TOP_LEVEL_PROJECT_DIR}/deps/+GMP/gmp/lib/win${_bits}/libgmp-10.dll ${_out_dir}
         COMMENT "Copy gmp runtime to build tree"

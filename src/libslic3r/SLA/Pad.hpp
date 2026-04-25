@@ -11,15 +11,11 @@
 #include <string>
 
 #include <libslic3r/Point.hpp>
+#include <libslic3r/ExPolygon.hpp>
 
 struct indexed_triangle_set;
 
 namespace Slic3r {
-
-class ExPolygon;
-class Polygon;
-using ExPolygons = std::vector<ExPolygon>;
-using Polygons = std::vector<Polygon, PointsAllocator<Polygon>>;
 
 namespace sla {
 

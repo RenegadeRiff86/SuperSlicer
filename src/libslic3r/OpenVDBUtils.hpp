@@ -13,12 +13,6 @@ struct VoxelGrid;
 struct VoxelGridDeleter { void operator()(VoxelGrid *ptr); };
 using VoxelGridPtr = std::unique_ptr<VoxelGrid, VoxelGridDeleter>;
 
-// This is like std::make_unique for a voxelgrid
-template<class... Args> VoxelGridPtr make_voxelgrid(Args &&...args);
-
-// Default constructed voxelgrid can be obtained this way.
-extern template VoxelGridPtr make_voxelgrid<>();
-
 void reset_accessor(const VoxelGrid &vgrid);
 
 double get_distance_raw(const Vec3f &p, const VoxelGrid &interior);

@@ -1352,9 +1352,9 @@ namespace PrusaSimpleConnect {
         for (size_t i = 0; i < merged_with.size(); ++i)
             merged_with[i] = i;
         struct ConnectionCost {
-            ConnectionCost(size_t idx_first, double cost, bool reversed) : idx_first(idx_first), cost(cost), reversed(reversed) {}
+            ConnectionCost(size_t idx_first, coord_t cost, bool reversed) : idx_first(idx_first), cost(cost), reversed(reversed) {}
             size_t  idx_first;
-            double  cost;
+            coord_t cost;
             bool 	reversed;
         };
         std::vector<ConnectionCost> connections_sorted;
@@ -2758,9 +2758,9 @@ void connect_infill(Polylines &&infill_ordered, const std::vector<const Polygon*
 //  const auto length_max = double(((2. / params.density) * spacing));
     const auto length_max = double(((1000. / params.density) * spacing));
     struct ConnectionCost {
-        ConnectionCost(size_t idx_first, double cost, bool reversed) : idx_first(idx_first), cost(cost), reversed(reversed) {}
+        ConnectionCost(size_t idx_first, coord_t cost, bool reversed) : idx_first(idx_first), cost(cost), reversed(reversed) {}
         size_t  idx_first;
-        double  cost;
+        coord_t cost;
         bool    reversed;
     };
     std::vector<ConnectionCost> connections_sorted;

@@ -193,9 +193,9 @@ public:
 	asCScriptEngine *m_engine;
 
 	asEContextState m_status;
-	bool            m_doSuspend;
-	bool            m_doAbort;
-	bool            m_externalSuspendRequest;
+	bool            m_doSuspend = false;
+	bool            m_doAbort = false;
+	bool            m_externalSuspendRequest = false;
 
 	asCScriptFunction *m_currentFunction;
 	asCScriptFunction *m_callingSystemFunction;
@@ -206,7 +206,7 @@ public:
 	// Dynamically growing local stack
 	asCArray<asDWORD *> m_stackBlocks;
 	asUINT              m_stackBlockSize;
-	asUINT              m_stackIndex;
+	asUINT              m_stackIndex = 0;
 	asDWORD            *m_originalStackPointer;
 	asUINT              m_originalStackIndex;
 
@@ -215,30 +215,30 @@ public:
 	bool      m_needToCleanupArgs;
 	bool      m_inExceptionHandler;
 	asCString m_exceptionString;
-	int       m_exceptionFunction;
-	int       m_exceptionSectionIdx;
-	int       m_exceptionLine;
-	int       m_exceptionColumn;
+	int       m_exceptionFunction = 0;
+	int       m_exceptionSectionIdx = 0;
+	int       m_exceptionLine = 0;
+	int       m_exceptionColumn = 0;
 	bool      m_exceptionWillBeCaught;
 
 	// The last prepared function, and some cached values related to it
 	asCScriptFunction *m_initialFunction;
-	int                m_returnValueSize;
-	int                m_argumentsSize;
+	int                m_returnValueSize = 0;
+	int                m_argumentsSize = 0;
 
 	// Cache for GetArgsOnStack
 	asCArray<int>      m_argsOnStackCache;
-	asUINT             m_argsOnStackCacheProgPos;
-	asCScriptFunction* m_argsOnStackCacheFunc;
+	asUINT             m_argsOnStackCacheProgPos = 0;
+	asCScriptFunction* m_argsOnStackCacheFunc = 0;
 
 	// callbacks
 	bool                       m_lineCallback;
 	asSSystemFunctionInterface m_lineCallbackFunc;
-	void *                     m_lineCallbackObj;
+	void *                     m_lineCallbackObj = 0;
 
 	bool                       m_exceptionCallback;
 	asSSystemFunctionInterface m_exceptionCallbackFunc;
-	void *                     m_exceptionCallbackObj;
+	void *                     m_exceptionCallbackObj = 0;
 
 	asCArray<asPWORD> m_userData;
 

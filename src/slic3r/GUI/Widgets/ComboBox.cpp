@@ -381,7 +381,7 @@ void ComboBox::OnEdit()
     SetValue(value);
 }
 
-#ifdef __WIN32__
+#ifdef _WIN32
 
 WXLRESULT ComboBox::MSWWindowProc(WXUINT nMsg, WXWPARAM wParam, WXLPARAM lParam)
 {

@@ -12,7 +12,7 @@
 
 namespace Slic3r { namespace arr2 {
 
-using namespace std::string_view_literals;
+using std::string_view_literals::operator""sv;
 
 class ArrangeSettingsView
 {

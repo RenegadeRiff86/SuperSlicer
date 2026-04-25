@@ -73,9 +73,8 @@ public:
     ~Bed3D() = default;
 
     // Update print bed model from configuration.
-    // Return true if the bed shape changed, so the calee will update the UI.
-    //FIXME if the build volume max print height is updated, this function still returns zero
-    // as this class does not use it, thus there is no need to update the UI.
+    // Return true when any rendered or collision-relevant bed input changes,
+    // including max_print_height via m_build_volume.
     bool set_shape(const Pointfs& bed_shape, const double max_print_height, const std::string& custom_texture, const std::string& custom_model, bool force_as_custom = false);
 
     // Build volume geometry for various collision detection tasks.
@@ -89,8 +88,8 @@ public:
     // Bounding box around the print bed, axes and model, for rendering.
     const BoundingBoxf3& extended_bounding_box() const { return m_extended_bounding_box; }
 
-    // Check against an expanded 2d bounding box.
-    //FIXME shall one check against the real build volume?
+    // Use the expanded interaction polygon rather than the exact bed contour.
+    // Callers that need strict geometry checks should query build_volume() or m_contour.
     bool contains(const Point& point) const;
     Point point_projection(const Point& point) const;
 

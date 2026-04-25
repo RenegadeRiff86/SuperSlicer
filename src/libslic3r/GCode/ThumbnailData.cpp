@@ -29,7 +29,7 @@ void ThumbnailData::reset()
 
 bool ThumbnailData::is_valid() const
 {
-    return (width != 0) && (height != 0) && ((unsigned int)pixels.size() == 4 * width * height);
+    return (width != 0) && (height != 0) && (pixels.size() == static_cast<size_t>(4) * width * height);
 }
 
 } // namespace Slic3r

@@ -45,25 +45,14 @@
 #include "Semver.hpp"
 
 
-#define COORD_64B 1
-#ifndef COORD_64B
-    // Saves around 32% RAM after slicing step, 6.7% after G-code export (tested on PrusaSlicer 2.2.0 final).
-using coord_t = int32_t;
-//using coor2 = int64_t;
-using coordf_t = double;
-using distf_t = double;
-using distsqrf_t = double;
-// to optimise computation by staying in int
-using lengthsqr_t = int64_t;
-#else
-    //FIXME At least FillRectilinear2 and std::boost Voronoi require coord_t to be 32bit.
+// SuperSlicer currently builds with 64-bit coordinates.
+// Some legacy algorithms still assume 32-bit coord_t semantics.
 using coord_t = int64_t;
 //using Coord2 = double;
 using coordf_t = double;
 using distf_t = double;
 using distsqrf_t = double;
 using lengthsqr_t = uint64_t;
-#endif
 
 
 inline uint16_t operator "" _u(unsigned long long value)
@@ -80,7 +69,7 @@ inline uint16_t operator "" _u(unsigned long long value)
 static constexpr double SCALING_FACTOR   = 0.000001;
 static constexpr double UNSCALING_FACTOR = 1000000; // 1 / SCALING_FACTOR; <- linux has some problem compiling this constexpr
 
-//FIXME This epsilon value is used for many non-related purposes:
+// EPSILON is currently reused for several unrelated geometric thresholds:
 // For a threshold of a squared Euclidean distance,
 // for a trheshold in a difference of radians,
 // for a threshold of a cross product of two non-normalized vectors etc.
@@ -88,20 +77,19 @@ static constexpr double EPSILON = 1e-4;
 static constexpr coord_t SCALED_EPSILON = 100; // coord_t(EPSILON/ SCALING_FACTOR); <- linux has some problem compiling this constexpr
 
 //for creating circles (for brim_ear)
-#define POLY_SIDES 24
-#define PI 3.141592653589793238
+static constexpr int POLY_SIDES = 24;
+static constexpr double PI = 3.141592653589793238;
 // When extruding a closed loop, the loop is interrupted and shortened a bit to reduce the seam.
 //static constexpr double LOOP_CLIPPING_LENGTH_OVER_NOZZLE_DIAMETER = 0.15; now seam_gap
 // Maximum perimeter length for the loop to apply the small perimeter speed. 
 //#define                 SMALL_PERIMETER_LENGTH  ((6.5 / SCALING_FACTOR) * 2 * PI)
 static constexpr double INSET_OVERLAP_TOLERANCE = 0.4;
-//FIXME Better to use an inline function with an explicit return type.
-//inline coord_t scale_(coordf_t v) { return coord_t(floor(v / SCALING_FACTOR + 0.5f)); }
-#define scale_(val) (coord_t)((val) / SCALING_FACTOR)
+template<typename T>
+constexpr coord_t scale_(T value) { return static_cast<coord_t>(value / SCALING_FACTOR); }
 
 
 #ifndef UNUSED
-#define UNUSED(x) (void)(x)
+#define UNUSED(x) static_cast<void>(x)
 #endif /* UNUSED */
 
 // Write slices as SVG images into out directory during the 2D processing of the slices.
@@ -132,11 +120,6 @@ constexpr coordf_t scale_d(double v) { return coordf_t(v * UNSCALING_FACTOR); }
 inline distsqrf_t coord_sqr(coord_t length) { return distf_t(length) * distf_t(length); }
 
 // lossy square (works only for 2^38 length), by dividing by 128 to remove epsilon (and a bit more)
-#ifndef COORD_64B
-inline lengthsqr_t coord_int_sqr(coord_t length) { 
-    return lengthsqr_t(length) * lengthsqr_t(length);
-}
-#else
 static constexpr uint8_t SQUARE_BIT_REDUCTION  = 7;
 inline lengthsqr_t coord_int_sqr(coord_t length) { 
     assert(length < std::pow(2,38));
@@ -145,7 +128,6 @@ inline lengthsqr_t coord_int_sqr(coord_t length) {
     lengthsqr_t temp = std::abs(length) >> SQUARE_BIT_REDUCTION;
     return temp * temp;
 }
-#endif
 
 enum Axis { 
 	X=0,
@@ -550,10 +532,10 @@ public:
         std::cout << "assign" << "\n";
         return *this;
     }
-    Intrumentation(Intrumentation&& sp) {
+    Intrumentation(Intrumentation&& sp) noexcept {
         std::cout << "move-copy" << "\n";
     }
-    Intrumentation& operator=(Intrumentation&& sp) {
+    Intrumentation& operator=(Intrumentation&& sp) noexcept {
         std::cout << "move-assign" << "\n";
         return *this;
     }

@@ -688,7 +688,7 @@ void Sidebar::priv::show_preset_comboboxes()
 using wxRichToolTipPopup = wxCustomBackgroundWindow<wxPopupTransientWindow>;
 static wxRichToolTipPopup* get_rtt_popup(wxButton* btn)
 {
-    auto children = btn->GetChildren();
+    const auto &children = btn->GetChildren();
     for (auto child : children)
         if (child->IsShown())
             return dynamic_cast<wxRichToolTipPopup*>(child);
@@ -698,7 +698,7 @@ static wxRichToolTipPopup* get_rtt_popup(wxButton* btn)
 // Help function to find and check if some combobox is dropped down and then dismiss it
 static bool found_and_dismiss_shown_dropdown(wxWindow* win)
 {
-    auto children = win->GetChildren(); 
+    const auto &children = win->GetChildren(); 
     if (children.IsEmpty()) {
         if (auto dd = dynamic_cast<DropDown*>(win); dd && dd->IsShown()) {
             dd->CallDismissAndNotify();
@@ -738,7 +738,7 @@ void Sidebar::priv::show_rich_tip(const wxString& tooltip, wxButton* btn)
     // Every one else are hidden. 
     // So, set a text color just for the shown rich tooltip
     if (wxRichToolTipPopup* popup = get_rtt_popup(btn)) {
-        auto children = popup->GetChildren();
+        const auto &children = popup->GetChildren();
         for (auto child : children) {
             child->SetForegroundColour(wxGetApp().get_label_clr_default());
             // we neen just first text line for out rich tooltip
@@ -1075,7 +1075,7 @@ void Sidebar::update_all_preset_comboboxes()
             auto opt = preset_bundle.printers.get_edited_preset().config.option<ConfigOptionStrings>("tool_name");
             assert(opt);
             if (opt && cb->label) {
-                std::string tool_name = opt ? opt->get_at(extr_idx) : nullptr;
+                std::string tool_name = opt->get_at(extr_idx);
                 if (tool_name.size() > 10) {
                     tool_name = tool_name.substr(0, 7) + std::string("... ");
                 }
@@ -1876,7 +1876,7 @@ struct Plater::priv
     MenuFactory menus;
 
     // Data
-    Slic3r::DynamicPrintConfig *config;        // FIXME: leak?
+    std::unique_ptr<Slic3r::DynamicPrintConfig> config;
     Slic3r::Print               fff_print;
     Slic3r::SLAPrint            sla_print;
     Slic3r::Model               model;
@@ -2183,7 +2183,7 @@ struct Plater::priv
     bool can_arrange() const;
     bool can_orient() const;
     bool can_layers_editing() const;
-    bool can_fix_through_winsdk() const;
+    bool can_repair_selection() const;
     bool can_simplify() const;
     bool can_set_instance_to_object() const;
     bool can_mirror() const;
@@ -2311,8 +2311,8 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     sla_print.set_status_callback(statuscb);
     this->q->Bind(EVT_SLICING_UPDATE, &priv::on_slicing_update, this);
 
-    view3D = new View3D(q, bed, &model, config, &background_process);
-    preview = new Preview(q, bed, &model, config, background_process, gcode_result, [this]() { schedule_background_process(); });
+    view3D = new View3D(q, bed, &model, config.get(), &background_process);
+    preview = new Preview(q, bed, &model, config.get(), background_process, gcode_result, [this]() { schedule_background_process(); });
 
 #ifdef __APPLE__
     // set default view_toolbar icons size equal to GLGizmosManager::Default_Icons_Size
@@ -2556,8 +2556,6 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
 
 Plater::priv::~priv()
 {
-    if (config != nullptr)
-        delete config;
     // Saves the database of visited (already shown) hints into hints.ini.
     notification_manager->deactivate_loaded_hints();
 }
@@ -2751,7 +2749,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
     size_t input_files_size = input_files.size();
     for (size_t i = 0; i < input_files_size; ++i) {
 #ifdef _WIN32
-        auto path = input_files[i];
+        fs::path path = input_files[i];
         // On Windows, we swap slashes to back slashes, see GH #6803 as read_from_file() does not understand slashes on Windows thus it assignes full path to names of loaded objects.
         path.make_preferred();
 #else // _WIN32
@@ -3589,7 +3587,7 @@ void Plater::priv::schedule_background_process()
     // Trigger the timer event after 0.5s
     this->background_process_timer.Start(500, wxTIMER_ONE_SHOT);
     // Notify the Canvas3D that something has changed, so it may invalidate some of the layer editing stuff.
-    this->view3D->get_canvas3d()->set_config(this->config);
+    this->view3D->get_canvas3d()->set_config(this->config.get());
 }
 
 void Plater::priv::update_print_volume_state()
@@ -4102,7 +4100,7 @@ void Plater::priv::reload_from_disk()
     std::vector<fs::path> input_paths;
     std::vector<fs::path> missing_input_paths;
     std::vector<std::pair<fs::path, fs::path>> replace_paths;
-    for (auto [obj_idx, vol_idx] : selected_volumes) {
+    for (const auto &[obj_idx, vol_idx] : selected_volumes) {
         const ModelObject* object = model.objects[obj_idx];
         const ModelVolume* volume = object->volumes[vol_idx];
         if (fs::exists(volume->source.input_file))
@@ -4209,7 +4207,7 @@ void Plater::priv::reload_from_disk()
         }
 
         // update the selected volumes whose source is the current file
-        for (auto [obj_idx, vol_idx] : selected_volumes) {
+        for (const auto &[obj_idx, vol_idx] : selected_volumes) {
             ModelObject* old_model_object = model.objects[obj_idx];
             ModelVolume* old_volume = old_model_object->volumes[vol_idx];
 
@@ -4296,8 +4294,8 @@ void Plater::priv::reload_from_disk()
 
     busy.reset();
 
-    for (auto [src, dest] : replace_paths) {
-        for (auto [obj_idx, vol_idx] : selected_volumes) {
+    for (const auto &[src, dest] : replace_paths) {
+        for (const auto &[obj_idx, vol_idx] : selected_volumes) {
             if (boost::algorithm::iequals(model.objects[obj_idx]->volumes[vol_idx]->source.input_file, src.string()))
                 replace_volume_with_stl(obj_idx, vol_idx, dest, "");
         }
@@ -5244,15 +5242,15 @@ bool Plater::priv::can_delete_all() const
     return !model.objects.empty() && !sidebar->obj_list()->is_editing();
 }
 
-bool Plater::priv::can_fix_through_winsdk() const
+bool Plater::priv::can_repair_selection() const
 {
     std::vector<int> obj_idxs, vol_idxs;
     sidebar->obj_list()->get_selection_indexes(obj_idxs, vol_idxs);
 
-#if FIX_THROUGH_WINSDK_ALWAYS
+#if REPAIR_MODEL_ALWAYS
     // Fixing always.
     return ! obj_idxs.empty() || ! vol_idxs.empty();
-#else // FIX_THROUGH_WINSDK_ALWAYS
+#else // REPAIR_MODEL_ALWAYS
     // Fixing only if the model is not manifold.
     if (vol_idxs.empty()) {
         for (auto obj_idx : obj_idxs)
@@ -5266,7 +5264,7 @@ bool Plater::priv::can_fix_through_winsdk() const
         if (model.objects[obj_idx]->get_repaired_errors_count(vol_idx) > 0)
             return true;
     return false;
-#endif // FIX_THROUGH_WINSDK_ALWAYS
+#endif // REPAIR_MODEL_ALWAYS
 }
 
 bool Plater::priv::can_simplify() const
@@ -8391,7 +8389,7 @@ void Plater::set_default_bed_shape() const
 void Plater::force_filament_colors_update()
 {
     bool update_scheduled = false;
-    DynamicPrintConfig* config = p->config;
+    DynamicPrintConfig* config = p->config.get();
 
     const auto& extruders_filaments = wxGetApp().preset_bundle->extruders_filaments;
     if (extruders_filaments.size() > 1 && 
@@ -8623,7 +8621,7 @@ PrinterTechnology Plater::printer_technology() const
     return p->printer_technology;
 }
 
-const DynamicPrintConfig * Plater::config() const { return p->config; }
+const DynamicPrintConfig * Plater::config() const { return p->config.get(); }
 
 bool Plater::set_printer_technology(PrinterTechnology printer_technology)
 {
@@ -8996,7 +8994,7 @@ bool Plater::can_delete_all() const { return p->can_delete_all(); }
 bool Plater::can_increase_instances() const { return p->can_increase_instances(); }
 bool Plater::can_decrease_instances(int obj_idx/* = -1*/) const { return p->can_decrease_instances(obj_idx); }
 bool Plater::can_set_instance_to_object() const { return p->can_set_instance_to_object(); }
-bool Plater::can_fix_through_winsdk() const { return p->can_fix_through_winsdk(); }
+bool Plater::can_repair_selection() const { return p->can_repair_selection(); }
 bool Plater::can_simplify() const { return p->can_simplify(); }
 bool Plater::can_split_to_objects() const { return p->can_split_to_objects(); }
 bool Plater::can_split_to_volumes() const { return p->can_split_to_volumes(); }

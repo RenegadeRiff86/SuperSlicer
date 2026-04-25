@@ -126,7 +126,7 @@ void Polygon::douglas_peucker(coord_t tolerance)
     }
 }
 
-Polygons Polygon::simplify(double tolerance) const
+Polygons Polygon::simplify(distf_t tolerance) const
 {
     // Works on CCW polygons only, CW contour will be reoriented to CCW by Clipper's simplify_polygons()!
     assert(this->is_counter_clockwise());
@@ -614,15 +614,8 @@ bool has_duplicate_points(const Polygons &polys)
     // Detect duplicates by inserting into an ankerl::unordered_dense hash set, which is is around 1/4 faster than qsort.
     struct PointHash {
         uint64_t operator()(const Point &p) const noexcept {
-#ifdef COORD_64B
             return ankerl::unordered_dense::detail::wyhash::hash(p.x()) 
                 + ankerl::unordered_dense::detail::wyhash::hash(p.y());
-#else
-            uint64_t h;
-            static_assert(sizeof(h) == sizeof(p));
-            memcpy(&h, &p, sizeof(p));
-            return ankerl::unordered_dense::detail::wyhash::hash(h);
-#endif
         }
     };
     ankerl::unordered_dense::set<Point, PointHash> allpts;
@@ -896,7 +889,7 @@ static inline void simplify_polygon_impl(const Points &points, double tolerance,
     }
 }
 
-Polygons polygons_simplify(Polygons &&source_polygons, double tolerance, bool strictly_simple /* = true */)
+Polygons polygons_simplify(Polygons &&source_polygons, distf_t tolerance, bool strictly_simple /* = true */)
 {
     Polygons out;
     out.reserve(source_polygons.size());
@@ -908,7 +901,7 @@ Polygons polygons_simplify(Polygons &&source_polygons, double tolerance, bool st
     return out;
 }
 
-Polygons polygons_simplify(const Polygons &source_polygons, double tolerance, bool strictly_simple /* = true */)
+Polygons polygons_simplify(const Polygons &source_polygons, distf_t tolerance, bool strictly_simple /* = true */)
 {
     Polygons out;
     out.reserve(source_polygons.size());

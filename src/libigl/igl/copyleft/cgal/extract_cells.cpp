@@ -51,7 +51,7 @@ IGL_INLINE size_t igl::copyleft::cgal::extract_cells(
   Eigen::VectorXi P;
   igl::extract_manifold_patches(F, EMAP, uE2E, P);
   // Extract cells
-  DerivedC per_patch_cells;
+  DerivedC per_patch_cells{};
   const size_t num_cells =
     igl::copyleft::cgal::extract_cells(V,F,P,E,uE,uE2E,EMAP,per_patch_cells);
   // Distribute per-patch cell information to each face
@@ -124,7 +124,7 @@ IGL_INLINE size_t igl::copyleft::cgal::extract_cells(
   const size_t num_patches = P.maxCoeff()+1;
 
   // Extract all cells...
-  DerivedC raw_cells;
+  DerivedC raw_cells{};
   const size_t num_raw_cells =
     extract_cells_single_component(V,F,P,uE,uE2E,EMAP,raw_cells);
   log_time("extract_single_component_cells");
@@ -171,7 +171,7 @@ IGL_INLINE size_t igl::copyleft::cgal::extract_cells(
   {
     Is[i].resize(components[i].size());
     std::copy(components[i].begin(), components[i].end(),Is[i].data());
-    bool flipped;
+    bool flipped = false;
     igl::copyleft::cgal::outer_facet(V, F, Is[i], outer_facets[i], flipped);
     outer_facet_orientation[i] = flipped?1:0;
     outer_cells[i] = raw_cells(P[outer_facets[i]], outer_facet_orientation[i]);
@@ -525,7 +525,7 @@ IGL_INLINE size_t igl::copyleft::cgal::extract_cells_single_component(
     extract_equivalent_cells(i*2+1);
   }
 
-  assert((cells.array() != INVALID).all());
+  assert((cells.array() < INVALID).all());
   return count;
 }
 

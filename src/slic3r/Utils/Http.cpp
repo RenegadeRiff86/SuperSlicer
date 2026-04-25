@@ -157,6 +157,7 @@ struct Http::priv
 	// Using a deque here because unlike vector it doesn't ivalidate pointers on insertion
 	std::deque<boost::nowide::ifstream> form_files;
 	std::string postfields;
+	std::string request_setup_error;
 	std::string error_buffer;    // Used for CURLOPT_ERRORBUFFER
 	size_t limit;
 	bool cancel;
@@ -330,16 +331,29 @@ void Http::priv::form_add_file(const char *name, const fs::path &path, const cha
 	}
 }
 
-//FIXME may throw! Is the caller aware of it?
 void Http::priv::set_post_body(const fs::path &path)
 {
-	boost::nowide::ifstream file(path.string());
+	boost::nowide::ifstream file(path.string(), std::ios::binary);
+	if (! file.is_open()) {
+		postfields.clear();
+		request_setup_error = (boost::format("Could not open HTTP request body file: %1%") % path.string()).str();
+		return;
+	}
+
 	std::string file_content { std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
+	if (file.bad()) {
+		postfields.clear();
+		request_setup_error = (boost::format("Could not read HTTP request body file: %1%") % path.string()).str();
+		return;
+	}
+
+	request_setup_error.clear();
 	postfields = std::move(file_content);
 }
 
 void Http::priv::set_post_body(const std::string &body)
 {
+	request_setup_error.clear();
 	postfields = body;
 }
 
@@ -347,11 +361,23 @@ void Http::priv::set_put_body(const fs::path &path)
 {
 	boost::system::error_code ec;
 	boost::uintmax_t filesize = file_size(path, ec);
-	if (!ec) {
-        putFile = std::make_unique<boost::nowide::ifstream>(path.string(), std::ios::binary);
-        ::curl_easy_setopt(curl, CURLOPT_READDATA, (void *) (putFile.get()));
-		::curl_easy_setopt(curl, CURLOPT_INFILESIZE, filesize);
+	if (ec) {
+		putFile.reset();
+		request_setup_error = (boost::format("Could not inspect HTTP upload file: %1%") % path.string()).str();
+		return;
 	}
+
+	auto file = std::make_unique<boost::nowide::ifstream>(path.string(), std::ios::binary);
+	if (! file->is_open()) {
+		putFile.reset();
+		request_setup_error = (boost::format("Could not open HTTP upload file: %1%") % path.string()).str();
+		return;
+	}
+
+	request_setup_error.clear();
+	::curl_easy_setopt(curl, CURLOPT_READDATA, (void *) (file.get()));
+		::curl_easy_setopt(curl, CURLOPT_INFILESIZE, filesize);
+		putFile = std::move(file);
 }
 
 void Http::priv::set_range(const std::string& range)
@@ -406,6 +432,11 @@ void Http::priv::http_perform()
 	if (!postfields.empty()) {
 		::curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postfields.c_str());
 		::curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, postfields.size());
+	}
+
+	if (! request_setup_error.empty()) {
+		if (errorfn) { errorfn(std::move(buffer), request_setup_error, 0); }
+		return;
 	}
 
 	CURLcode res = ::curl_easy_perform(curl);

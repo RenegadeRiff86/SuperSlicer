@@ -438,19 +438,19 @@ struct Segment
     // Start point is provided by the preceding segment.
     Point       point;
     // Radius of a circular segment. Positive - take the shorter arc. Negative - take the longer arc. Zero - linear segment.
-    float       radius;
+    coordf_t    radius;
     // CCW or CW. Ignored for zero radius (linear segment).
     Orientation orientation;
 #ifdef _DEBUG
     coordf_t length = 0;
     Point center = Point(0,0);
 #endif
-    Segment() : point(0, 0), radius(0.f), orientation(Orientation::Unknown) {}
-    Segment(const Point &pt, float fradius, Orientation orien) : point(pt), radius(fradius), orientation(orien) {
+    Segment() : point(0, 0), radius(0.), orientation(Orientation::Unknown) {}
+    Segment(const Point &pt, coordf_t fradius, Orientation orien) : point(pt), radius(fradius), orientation(orien) {
         assert(radius != 0 || orientation == Orientation::Unknown);
         assert(radius == 0 || orientation != Orientation::Unknown);
     }
-    Segment(Point &&pt, float fradius, Orientation orien) : point(std::move(pt)), radius(fradius), orientation(orien) {
+    Segment(Point &&pt, coordf_t fradius, Orientation orien) : point(std::move(pt)), radius(fradius), orientation(orien) {
         assert(radius != 0 || orientation == Orientation::Unknown);
         assert(radius == 0 || orientation != Orientation::Unknown);
     }

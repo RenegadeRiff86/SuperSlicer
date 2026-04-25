@@ -358,7 +358,7 @@ std::vector<Vec2f> sample_expolygon(const ExPolygon &expoly, float samples_per_m
         std::uniform_real_distribution<> random_float(0., 1.);
         for (size_t i = 0; i < num_samples; ++ i) {
             double r = random_triangle(rng);
-            size_t idx_triangle = std::min<size_t>(std::upper_bound(areas.begin(), areas.end(), (float)r) - areas.begin(), areas.size() - 1) * 3;
+            size_t idx_triangle = std::min<size_t>(std::upper_bound(areas.begin(), areas.end(), static_cast<float>(r)) - areas.begin(), areas.size() - 1) * 3;
             // Select a random point on the triangle.
             const Vec2f &a = triangles[idx_triangle ++];
             const Vec2f &b = triangles[idx_triangle++];
@@ -545,8 +545,6 @@ static inline std::vector<Vec2f> poisson_disk_from_samples(const std::vector<Vec
 
 void SupportPointGenerator::uniformly_cover(const ExPolygons& islands, Structure& structure, float deficit, PointGrid3D &grid3d, IslandCoverageFlags flags)
 {
-    //int num_of_points = std::max(1, (int)((island.area()*pow(SCALING_FACTOR, 2) * m_config.tear_pressure)/m_config.support_force));
-
     float support_force_deficit = deficit;
 //    auto bb = get_extents(islands);
 
@@ -642,7 +640,7 @@ void SupportPointGenerator::output_structures(const std::vector<Structure>& stru
 {
     for (unsigned int i=0 ; i<structures.size(); ++i) {
         std::stringstream ss;
-        ss << structures[i].unique_id.count() << "_" << std::setw(10) << std::setfill('0') << 1000 + (int)structures[i].height/1000 << ".png";
+        ss << structures[i].unique_id.count() << "_" << std::setw(10) << std::setfill('0') << 1000 + static_cast<int>(structures[i].height) / 1000 << ".png";
         output_expolygons(std::vector<ExPolygon>{*structures[i].polygon}, ss.str());
     }
 }

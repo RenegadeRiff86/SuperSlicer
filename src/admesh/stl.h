@@ -33,15 +33,19 @@
 // Size of the binary STL header, free form.
 #define LABEL_SIZE             80
 // Binary STL, length of the "number of faces" counter.
-#define NUM_FACET_SIZE         4
+#define NUM_FACET_SIZE         4  // 4 bytes for uint32_t face count
 // Binary STL, sizeof header + number of faces.
 #define HEADER_SIZE            84
 #define STL_MIN_FILE_SIZE      284
 #define ASCII_LINES_PER_FACET  7
 
-typedef Eigen::Matrix<float, 3, 1, Eigen::DontAlign> stl_vertex;
-typedef Eigen::Matrix<float, 3, 1, Eigen::DontAlign> stl_normal;
-typedef Eigen::Matrix<int32_t,   3, 1, Eigen::DontAlign> stl_triangle_vertex_indices;
+// STL triangles always have exactly 3 vertices and 3 edges.
+static constexpr int STL_VERTICES_PER_FACET = 3;
+
+// 3-component float vector (x, y, z).
+typedef Eigen::Matrix<float,   STL_VERTICES_PER_FACET, 1, Eigen::DontAlign> stl_vertex;
+typedef Eigen::Matrix<float,   STL_VERTICES_PER_FACET, 1, Eigen::DontAlign> stl_normal;
+typedef Eigen::Matrix<int32_t, STL_VERTICES_PER_FACET, 1, Eigen::DontAlign> stl_triangle_vertex_indices;
 static_assert(sizeof(stl_vertex) == 12, "size of stl_vertex incorrect");
 static_assert(sizeof(stl_normal) == 12, "size of stl_normal incorrect");
 
@@ -55,8 +59,8 @@ typedef enum {
 
 struct stl_facet {
 	stl_normal normal;
-	stl_vertex vertex[3];
-	char       extra[2];
+	stl_vertex vertex[STL_VERTICES_PER_FACET];
+	char       extra[2] = { 0, 0 }; // 2 extra bytes per binary STL facet record
 
 	stl_facet  rotated(const Eigen::Quaternion<float, Eigen::DontAlign> &rot) const {
 		stl_facet out;
@@ -80,25 +84,25 @@ typedef enum {binary, ascii, inmemory} stl_type;
 struct stl_neighbors {
   	stl_neighbors() { reset(); }
   	void reset() {
-  		neighbor[0] = -1;
-  		neighbor[1] = -1;
-  		neighbor[2] = -1;
-  		which_vertex_not[0] = -1;
-  		which_vertex_not[1] = -1;
-  		which_vertex_not[2] = -1;
+  		for (int i = 0; i < STL_VERTICES_PER_FACET; ++i) {
+  			neighbor[i]        = -1;
+  			which_vertex_not[i] = -1;
+  		}
   	}
-  	int num_neighbors() const { return 3 - ((this->neighbor[0] == -1) + (this->neighbor[1] == -1) + (this->neighbor[2] == -1)); }
+  	int num_neighbors() const {
+  		return STL_VERTICES_PER_FACET - ((this->neighbor[0] == -1) + (this->neighbor[1] == -1) + (this->neighbor[2] == -1));
+  	}
 
   	// Index of a neighbor facet.
-  	int   neighbor[3];
+  	int   neighbor[STL_VERTICES_PER_FACET];
   	// Index of an opposite vertex at the neighbor face.
-  	char  which_vertex_not[3];
+  	char  which_vertex_not[STL_VERTICES_PER_FACET];
 };
 
 struct stl_stats {
-    stl_stats() { memset(&header, 0, 81); }
+    stl_stats() { memset(&header, 0, sizeof(header)); }
     char          header[81];
-    stl_type      type                      = (stl_type)0;
+    stl_type      type                      = static_cast<stl_type>(0);
     // Should always match the number of facets stored inside stl_file::facet_start.
     uint32_t      number_of_facets          = 0;
     // Bounding box.
@@ -143,7 +147,7 @@ struct stl_stats {
 };
 
 struct stl_file {
-	stl_file() {}
+	stl_file() = default;
 
 	void clear() {
 		this->facet_start.clear();
@@ -155,7 +159,7 @@ struct stl_file {
 		return sizeof(*this) + sizeof(stl_facet) * facet_start.size() + sizeof(stl_neighbors) * neighbors_start.size();
 	}
 
-    char mw_data[256];
+    char mw_data[256] = {};
 	std::vector<stl_facet>     		facet_start;
 	std::vector<stl_neighbors> 		neighbors_start;
 	// Statistics
@@ -182,12 +186,12 @@ struct stl_file {
 
     void from_string(const std::string& str)
     {
-        std::string val_str, area_str;
+        std::string area_str;
         do {
             if (str.empty())
                 break;
 
-            this->type = (EnumFaceTypes)std::atoi(str.c_str());
+            this->type = static_cast<EnumFaceTypes>(std::atoi(str.c_str()));
             if (this->type <= eNormal || this->type >= eMaxNumFaceTypes)
                 break;
 
@@ -233,8 +237,9 @@ struct indexed_triangle_set
       return vertices[indices[facet_idx][vertex_idx]];
   }
   float facet_area(int facet_idx) const {
+      // Cross-product magnitude / 2 = triangle area
       return std::abs((get_vertex(facet_idx, 0) - get_vertex(facet_idx, 1))
-          .cross(get_vertex(facet_idx, 0) - get_vertex(facet_idx, 2)).norm()) / 2;
+          .cross(get_vertex(facet_idx, 0) - get_vertex(facet_idx, 2)).norm()) / 2.f;
   }
 
   FaceProperty& get_property(int face_idx) {
@@ -397,7 +402,7 @@ typedef Eigen::Matrix<float, 3, 1, Eigen::DontAlign> obj_color; // Vec3f
 extern bool its_write_obj(const indexed_triangle_set& its, const std::vector<obj_color> &color, const char* file);
 
 extern bool stl_write_dxf(stl_file *stl, const char *file, char *label);
-inline void stl_calculate_normal(stl_normal &normal, stl_facet *facet) {
+inline void stl_calculate_normal(stl_normal &normal, const stl_facet *facet) {
   normal = (facet->vertex[1] - facet->vertex[0]).cross(facet->vertex[2] - facet->vertex[0]);
 }
 inline void stl_normalize_vector(stl_normal &normal) {

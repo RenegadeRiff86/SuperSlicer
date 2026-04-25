@@ -987,13 +987,11 @@ void MenuFactory::append_menu_items_osx(wxMenu* menu)
     menu->AppendSeparator();
 }
 
-wxMenuItem* MenuFactory::append_menu_item_fix_through_winsdk(wxMenu* menu)
+wxMenuItem* MenuFactory::append_menu_item_repair_model(wxMenu* menu)
 {
-    if (!is_windows10())
-        return nullptr;
-    wxMenuItem* menu_item = append_menu_item(menu, wxID_ANY, _L("Fix by Windows repair algorithm"), "",
-        [](wxCommandEvent&) { obj_list()->fix_through_winsdk(); }, "", menu,
-        []() {return plater()->can_fix_through_winsdk(); }, m_parent);
+    wxMenuItem* menu_item = append_menu_item(menu, wxID_ANY, _L("Repair model"), "",
+        [](wxCommandEvent&) { obj_list()->repair_selection(); }, "", menu,
+        []() {return plater()->can_repair_selection(); }, m_parent);
 
     return menu_item;
 }
@@ -1306,7 +1304,7 @@ void MenuFactory::create_common_object_menu(wxMenu* menu)
     append_menu_item_replace_with_stl(menu);
     append_menu_item_export_stl(menu);
 
-    append_menu_item_fix_through_winsdk(menu);
+    append_menu_item_repair_model(menu);
     append_menu_item_simplify(menu);
     menu->AppendSeparator();
 
@@ -1357,7 +1355,7 @@ void MenuFactory::create_part_menu()
     append_menu_item_reload_from_disk(menu);
     append_menu_item_replace_with_stl(menu);
     append_menu_item_export_stl(menu);
-    append_menu_item_fix_through_winsdk(menu);
+    append_menu_item_repair_model(menu);
     append_menu_item_simplify(menu);
     menu->AppendSeparator();
 
@@ -1374,7 +1372,7 @@ void MenuFactory::create_text_part_menu()
 
     append_menu_item_edit_text(menu);
     append_menu_item_delete(menu);
-    append_menu_item_fix_through_winsdk(menu);
+    append_menu_item_repair_model(menu);
     append_menu_item_simplify(menu);
     menu->AppendSeparator();
 
@@ -1387,7 +1385,7 @@ void MenuFactory::create_svg_part_menu()
 
     append_menu_item_edit_svg(menu);
     append_menu_item_delete(menu);
-    append_menu_item_fix_through_winsdk(menu);
+    append_menu_item_repair_model(menu);
     append_menu_item_simplify(menu);
     menu->AppendSeparator();
 
@@ -1503,7 +1501,7 @@ wxMenu* MenuFactory::multi_selection_menu()
 
     wxMenu* menu = new MenuWithSeparators();
 
-    append_menu_item_fix_through_winsdk(menu);
+    append_menu_item_repair_model(menu);
     append_menu_item_reload_from_disk(menu);
     append_menu_items_convert_unit(menu);
     if (obj_list()->can_merge_to_multipart_object())
@@ -1646,7 +1644,7 @@ void MenuFactory::sys_color_changed(wxMenuBar* menubar)
 #endif
 #endif
     }
-//    menubar->Refresh();
+    menubar->Refresh();
 }
 
 

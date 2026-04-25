@@ -2040,7 +2040,7 @@ Point SeamPlacer::place_seam(const Layer *layer, const ExtrusionLoop &loop, cons
     { // local space for the closest_perimeter_point_index
         Perimeter *closest_perimeter = nullptr;
         ExtrusionLoop::ClosestPathPoint closest_point{0,0,loop.paths[0].polyline.front()};
-        size_t points_count = std::accumulate(loop.paths.begin(), loop.paths.end(), 0, [](size_t acc,const ExtrusionPath& p) {
+        size_t points_count = std::accumulate(loop.paths.begin(), loop.paths.end(), size_t{0}, [](size_t acc,const ExtrusionPath& p) {
            return acc + p.polyline.size();
         });
         for (size_t i = 0; i < points_count; ++i) {

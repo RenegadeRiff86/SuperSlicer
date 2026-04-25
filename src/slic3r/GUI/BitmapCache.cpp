@@ -115,9 +115,7 @@ wxBitmapBundle* BitmapCache::insert_bndl(const std::string& name, const std::vec
             if (bmp.GetWidth() > 0) {
                 if (bmp.GetDepth() == 32) {
                     wxAlphaPixelData data(bmp);
-                    //FIXME The following method is missing from wxWidgets 3.1.1.
-                    // It looks like the wxWidgets 3.0.3 called the wrapped bitmap's UseAlpha().
-                    //data.UseAlpha();
+                    // Current wxAlphaPixelData exposes the source alpha directly; no extra UseAlpha() call is needed.
                     if (data) {
                         for (int r = 0; r < bmp.GetHeight(); ++r) {
                             wxAlphaPixelData::Iterator src(data);

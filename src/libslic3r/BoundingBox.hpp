@@ -116,7 +116,7 @@ public:
         this->min = it->template cast<typename PointType::Scalar>();
         this->max = this->min;
         for (++ it; it != to; ++ it) {
-            auto vec = it->template cast<typename PointType::Scalar>();
+            const auto &vec = it->template cast<typename PointType::Scalar>();
             this->min = this->min.cwiseMin(vec);
             this->max = this->max.cwiseMax(vec);
         }

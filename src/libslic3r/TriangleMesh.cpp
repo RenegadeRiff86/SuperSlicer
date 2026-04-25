@@ -113,8 +113,8 @@ static void trianglemesh_repair_on_import(stl_file &stl)
     
     // checking nearby
     //int last_edges_fixed = 0;
-    float tolerance = (float)stl.stats.shortest_edge;
-    float increment = (float)stl.stats.bounding_diameter / 10000.0f;
+    float tolerance = static_cast<float>(stl.stats.shortest_edge);
+    float increment = static_cast<float>(stl.stats.bounding_diameter) / 10000.0f;
     int iterations = 2;
     if (stl.stats.connected_facets_3_edge < int(stl.stats.number_of_facets)) {
         // Not a manifold, some triangles have unconnected edges.
@@ -137,7 +137,7 @@ static void trianglemesh_repair_on_import(stl_file &stl)
     assert(stl_validate(&stl));
     
     // remove_unconnected
-    if (stl.stats.connected_facets_3_edge < (int)stl.stats.number_of_facets) {
+    if (stl.stats.connected_facets_3_edge < static_cast<int>(stl.stats.number_of_facets)) {
 #ifdef SLIC3R_TRACE_REPAIR
         BOOST_LOG_TRIVIAL(trace) << "\tstl_remove_unconnected_facets";
 #endif /* SLIC3R_TRACE_REPAIR */
@@ -260,9 +260,9 @@ float TriangleMesh::volume()
     return m_stats.volume;
 }
 
-void TriangleMesh::WriteOBJFile(const char* output_file) const
+bool TriangleMesh::WriteOBJFile(const char* output_file) const
 {
-    its_write_obj(this->its, output_file);
+    return its_write_obj(this->its, output_file);
 }
 
 void TriangleMesh::scale(float factor)
@@ -400,7 +400,7 @@ void TriangleMesh::rotate(double angle, Point* center)
     if (angle != 0.) {
         Vec2f c = center->cast<float>();
         this->translate(-c(0), -c(1), 0);
-        its_rotate_z(this->its, (float)angle);
+        its_rotate_z(this->its, static_cast<float>(angle));
         this->translate(c(0), c(1), 0);
     }
 }
@@ -1001,7 +1001,7 @@ indexed_triangle_set its_make_prism(float width, float length, float height)
 indexed_triangle_set its_make_cylinder(double r, double h, double fa)
 {
     indexed_triangle_set mesh;
-    size_t n_steps    = (size_t)ceil(2. * PI / fa);
+    size_t n_steps    = static_cast<size_t>(ceil(2. * PI / fa));
     double angle_step = 2. * PI / n_steps;
 
     auto &vertices = mesh.vertices;
@@ -1024,14 +1024,14 @@ indexed_triangle_set its_make_cylinder(double r, double h, double fa)
         p = Eigen::Rotation2Df(angle_step * i) * Eigen::Vector2f(0, float(r));
         vertices.emplace_back(Vec3f(p(0), p(1), 0.f));
         vertices.emplace_back(Vec3f(p(0), p(1), float(h)));
-        int id = (int)vertices.size() - 1;
+        int id = static_cast<int>(vertices.size()) - 1;
         facets.emplace_back( 0, id - 1, id - 3); // top
         facets.emplace_back(id,      1, id - 2); // bottom
         facets.emplace_back(id, id - 2, id - 3); // upper-right of side
         facets.emplace_back(id, id - 3, id - 1); // bottom-left of side
     }
     // Connect the last set of vertices with the first.
-    int id = (int)vertices.size() - 1;
+    int id = static_cast<int>(vertices.size()) - 1;
     facets.emplace_back( 0, 2, id - 1);
     facets.emplace_back( 3, 1,     id);
     facets.emplace_back(id, 2,      3);
@@ -1043,7 +1043,7 @@ indexed_triangle_set its_make_cylinder(double r, double h, double fa)
 indexed_triangle_set its_make_frustum(double r, double h, double fa)
 {
     indexed_triangle_set mesh;
-    size_t n_steps    = (size_t)ceil(2. * PI / fa);
+    size_t n_steps    = static_cast<size_t>(ceil(2. * PI / fa));
     double angle_step = 2. * PI / n_steps;
 
     auto &vertices = mesh.vertices;
@@ -1069,14 +1069,14 @@ indexed_triangle_set its_make_frustum(double r, double h, double fa)
         vec_botton = Eigen::Rotation2Df(angle_step * i) * Eigen::Vector2f(0, float(r));
         vertices.emplace_back(Vec3f(vec_botton(0), vec_botton(1), 0.f));
         vertices.emplace_back(Vec3f(vec_top(0), vec_top(1), float(h)));
-        int id = (int)vertices.size() - 1;
+        int id = static_cast<int>(vertices.size()) - 1;
         facets.emplace_back( 0, id - 1, id - 3); // top
         facets.emplace_back(id,      1, id - 2); // bottom
         facets.emplace_back(id, id - 2, id - 3); // upper-right of side
         facets.emplace_back(id, id - 3, id - 1); // bottom-left of side
     }
     // Connect the last set of vertices with the first.
-    int id = (int)vertices.size() - 1;
+    int id = static_cast<int>(vertices.size()) - 1;
     facets.emplace_back( 0, 2, id - 1);
     facets.emplace_back( 3, 1,     id);
     facets.emplace_back(id, 2,      3);
@@ -1310,10 +1310,10 @@ indexed_triangle_set its_make_frustum_dowel(double radius, double h, int sectorC
 
 indexed_triangle_set its_make_snap(double r, double h, float space_proportion, float bulge_proportion)
 {
-    const float radius = (float)r;
-    const float height = (float)h;
-    const size_t sectors_cnt = 10; //(float)fa;
-    const float halfPI = 0.5f * (float)PI;
+    const float radius = static_cast<float>(r);
+    const float height = static_cast<float>(h);
+    const size_t sectors_cnt = 10; // Fixed discretization for the snap profile.
+    const float halfPI = 0.5f * static_cast<float>(PI);
 
     const float space_len = space_proportion * radius;
 
@@ -1328,8 +1328,8 @@ indexed_triangle_set its_make_snap(double r, double h, float space_proportion, f
     const float b_angle = acos(space_len/b_len);
     const float t_angle = acos(space_len/t_len);
 
-    const float b_angle_step = b_angle / (float)sectors_cnt;
-    const float t_angle_step = t_angle / (float)sectors_cnt;
+    const float b_angle_step = b_angle / static_cast<float>(sectors_cnt);
+    const float t_angle_step = t_angle / static_cast<float>(sectors_cnt);
 
     const Vec2f b_vec = Eigen::Vector2f(0, b_len);
     const Vec2f t_vec = Eigen::Vector2f(0, t_len);
@@ -1389,7 +1389,7 @@ indexed_triangle_set its_make_snap(double r, double h, float space_proportion, f
             const Vec2f m_vec = Eigen::Vector2f(0, get_m_len(b_angle_start));
             add_side_vertices(vertices, b_angle_start, t_angle_start, m_vec);
 
-            int id = (int)vertices.size() - 1;
+            int id = static_cast<int>(vertices.size()) - 1;
 
             facets.emplace_back(frst_id, id - 2, id - 1);
             facets.emplace_back(frst_id, id - 1, id);
@@ -1404,12 +1404,12 @@ indexed_triangle_set its_make_snap(double r, double h, float space_proportion, f
             const Vec2f m_vec = Eigen::Vector2f(0, get_m_len(b_angle_start));
             add_side_vertices(vertices, b_angle_start, t_angle_start, m_vec);
 
-            add_side_facets(facets, (int)vertices.size(), frst_id, scnd_id);
+            add_side_facets(facets, static_cast<int>(vertices.size()), frst_id, scnd_id);
         }
 
         // add last internal facets to close the mesh
         {
-            int id = (int)vertices.size() - 1;
+            int id = static_cast<int>(vertices.size()) - 1;
 
             facets.emplace_back(frst_id, scnd_id, id);
             facets.emplace_back(frst_id, id, id - 1);

@@ -92,16 +92,61 @@
 
 #pragma comment(lib, "version.lib") // for "VerQueryValue"
 
-#pragma warning(disable : 4826)
-#if _MSC_VER >= 1900
-#pragma warning(disable : 4091)   // For fix unnamed enums from DbgHelp.h
-#endif
+namespace {
+
+bool try_get_os_version(OSVERSIONINFOEXW &version)
+{
+  using RtlGetVersionFn = LONG (WINAPI*)(LPOSVERSIONINFOW);
+
+  ZeroMemory(&version, sizeof(version));
+  version.dwOSVersionInfoSize = sizeof(version);
+
+  const HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+  if (ntdll == nullptr)
+    return false;
+
+  const auto rtl_get_version = reinterpret_cast<RtlGetVersionFn>(GetProcAddress(ntdll, "RtlGetVersion"));
+  if (rtl_get_version == nullptr)
+    return false;
+
+  return rtl_get_version(reinterpret_cast<LPOSVERSIONINFOW>(&version)) == 0;
+}
+
+void narrow_csd_version(const WCHAR *source, char *destination, size_t destination_size)
+{
+  if (destination_size == 0)
+    return;
+
+  if (source == nullptr || source[0] == L'\0') {
+    destination[0] = '\0';
+    return;
+  }
+
+  const int written = WideCharToMultiByte(CP_ACP, 0, source, -1, destination,
+                                          static_cast<int>(destination_size), nullptr, nullptr);
+  if (written == 0)
+    destination[0] = '\0';
+  else
+    destination[destination_size - 1] = '\0';
+}
+
+} // namespace
 
 
 // If VC7 and later, then use the shipped 'dbghelp.h'-file
 #pragma pack(push, 8)
 #if _MSC_VER >= 1300
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4826)
+#if _MSC_VER >= 1900
+#pragma warning(disable : 4091)   // Windows SDK's dbghelp.h still emits unnamed-enum noise on newer MSVC.
+#endif
+#endif
 #include <dbghelp.h>
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 #else
 // inline the important dbghelp.h-declarations...
 typedef enum
@@ -1521,24 +1566,17 @@ void StackWalker::OnSymInit(LPCSTR szSearchPath, DWORD symOptions, LPCSTR szUser
     OnOutput(buffer);
   }
 #else
-  OSVERSIONINFOEXA ver;
-  ZeroMemory(&ver, sizeof(OSVERSIONINFOEXA));
-  ver.dwOSVersionInfoSize = sizeof(ver);
-#if _MSC_VER >= 1900
-#pragma warning(push)
-#pragma warning(disable : 4996)
-#endif
-  if (GetVersionExA((OSVERSIONINFOA*)&ver) != FALSE)
+  OSVERSIONINFOEXW ver;
+  if (try_get_os_version(ver))
   {
+    char csd_version[128];
+    narrow_csd_version(ver.szCSDVersion, csd_version, sizeof(csd_version));
     _snprintf_s(buffer, maxLen, "OS-Version: %d.%d.%d (%s) 0x%x-0x%x\n", ver.dwMajorVersion,
-                ver.dwMinorVersion, ver.dwBuildNumber, ver.szCSDVersion, ver.wSuiteMask,
+                ver.dwMinorVersion, ver.dwBuildNumber, csd_version, ver.wSuiteMask,
                 ver.wProductType);
     buffer[STACKWALK_MAX_NAMELEN - 1] = 0;
     OnOutput(buffer);
   }
-#if _MSC_VER >= 1900
-#pragma warning(pop)
-#endif
 #endif
 }
 

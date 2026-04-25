@@ -54,11 +54,13 @@
 #include <cmath>
 #include <cstdlib>
 #include <chrono>
+#include <limits>
 #include <map>
 #include <unordered_set>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/find.hpp>
@@ -104,6 +106,24 @@ using namespace std::literals::string_view_literals;
 
 
 namespace Slic3r {
+
+template <typename T>
+static int checked_config_int(T value, const char *field_name)
+{
+    static_assert(std::is_integral_v<T>, "checked_config_int requires an integral value");
+
+    if constexpr (std::is_signed_v<T>) {
+        const long long widened_value = static_cast<long long>(value);
+        if (widened_value < std::numeric_limits<int>::min() || widened_value > std::numeric_limits<int>::max())
+            throw RuntimeError(std::string("Value for '") + field_name + "' exceeds the supported integer range.");
+    } else {
+        const unsigned long long widened_value = static_cast<unsigned long long>(value);
+        if (widened_value > static_cast<unsigned long long>(std::numeric_limits<int>::max()))
+            throw RuntimeError(std::string("Value for '") + field_name + "' exceeds the supported integer range.");
+    }
+
+    return static_cast<int>(value);
+}
 
 // Only add a newline in case the current G-code does not end with a newline.
     static inline void check_add_eol(std::string& gcode)
@@ -1805,7 +1825,8 @@ void GCodeGenerator::_do_export(Print& print_mod, GCodeOutputStream &file, Thumb
 
     //misc
     if (config().thumbnails_color.value.length() == 7) {
-        this->placeholder_parser().set("thumbnails_color_int", new ConfigOptionInt((int)strtol(config().thumbnails_color.value.substr(1, 6).c_str(), NULL, 16)));
+        const long thumbnails_color_int = std::strtol(config().thumbnails_color.value.substr(1, 6).c_str(), nullptr, 16);
+        this->placeholder_parser().set("thumbnails_color_int", new ConfigOptionInt(checked_config_int(thumbnails_color_int, "thumbnails_color_int")));
     }
 
     // Enable ooze prevention if configured so.
@@ -1814,16 +1835,17 @@ void GCodeGenerator::_do_export(Print& print_mod, GCodeOutputStream &file, Thumb
     std::string start_gcode ;
     {
         DynamicConfig config;
-        config.set_key_value("start_gcode_bed_temperature", new ConfigOptionInt((int)_compute_first_layer_bed_temperature(print)));
+        config.set_key_value("start_gcode_bed_temperature", new ConfigOptionInt(checked_config_int(_compute_first_layer_bed_temperature(print), "start_gcode_bed_temperature")));
         start_gcode = this->placeholder_parser_process("start_gcode", print.config().start_gcode.value, initial_extruder_id, &config);
     }
     // get the start_filament_gcode to check if M109 or others are inside it
     std::string start_filament_gcode;
     if (!m_config.start_filament_gcode.get_at(initial_extruder_id).empty()) {
         DynamicConfig config;
+        const int initial_extruder_config_id = checked_config_int(initial_extruder_id, "initial_extruder_id");
         config.set_key_value("previous_extruder", new ConfigOptionInt(-1));
-        config.set_key_value("next_extruder", new ConfigOptionInt((int)initial_extruder_id));
-        config.set_key_value("filament_extruder_id", new ConfigOptionInt((int)initial_extruder_id));
+        config.set_key_value("next_extruder", new ConfigOptionInt(initial_extruder_config_id));
+        config.set_key_value("filament_extruder_id", new ConfigOptionInt(initial_extruder_config_id));
         start_filament_gcode = this->placeholder_parser_process("start_filament_gcode", m_config.start_filament_gcode.get_at(initial_extruder_id), initial_extruder_id, &config);
     }
     std::string start_all_gcode = start_gcode + "\"n" + start_filament_gcode;
@@ -2879,14 +2901,24 @@ void GCodeGenerator::print_machine_envelope(GCodeOutputStream &file, const Print
             // Klipper uses SET_VELOCITY_LIMIT for all motion limits.
             // MAX_ACCEL_TO_DECEL was removed in Klipper 20250811; do not emit it.
             // machine_max_jerk_x/y map to SQUARE_CORNER_VELOCITY (mm/s); use the minimum of X and Y.
-            file.write_format(
-                "SET_VELOCITY_LIMIT MAX_VELOCITY=%.1lf MAX_ACCEL=%d SQUARE_CORNER_VELOCITY=%.2lf"
-                " ; sets Klipper velocity/acceleration limits\n",
-                std::min(print.config().machine_max_feedrate_x.get_at(0),
-                         print.config().machine_max_feedrate_y.get_at(0)),
-                int(print.config().machine_max_acceleration_extruding.get_at(0) + 0.5),
-                std::min(print.config().machine_max_jerk_x.get_at(0),
-                         print.config().machine_max_jerk_y.get_at(0)));
+            // MINIMUM_CRUISE_RATIO (Klipper 20240313+) is the modern replacement for ACCEL_TO_DECEL;
+            // emit it only when the user has enabled the optional config field.
+            const double max_velocity = std::min(print.config().machine_max_feedrate_x.get_at(0),
+                                                 print.config().machine_max_feedrate_y.get_at(0));
+            const int max_accel = int(print.config().machine_max_acceleration_extruding.get_at(0) + 0.5);
+            const double sqv = std::min(print.config().machine_max_jerk_x.get_at(0),
+                                        print.config().machine_max_jerk_y.get_at(0));
+            if (print.config().machine_min_cruise_ratio.is_enabled()) {
+                file.write_format(
+                    "SET_VELOCITY_LIMIT VELOCITY=%.1lf ACCEL=%d SQUARE_CORNER_VELOCITY=%.2lf MINIMUM_CRUISE_RATIO=%.3lf"
+                    " ; sets Klipper velocity/acceleration limits\n",
+                    max_velocity, max_accel, sqv, print.config().machine_min_cruise_ratio.value);
+            } else {
+                file.write_format(
+                    "SET_VELOCITY_LIMIT VELOCITY=%.1lf ACCEL=%d SQUARE_CORNER_VELOCITY=%.2lf"
+                    " ; sets Klipper velocity/acceleration limits\n",
+                    max_velocity, max_accel, sqv);
+            }
         } else {
         // some firmware are using mm/sec and some others mm/min for M203 and M566
         int factor = (std::set<uint8_t>{gcfMarlinLegacy, gcfMarlinFirmware, gcfSmoothie}.count(print.config().gcode_flavor.value) > 0) ? 1 : 60;
@@ -4075,8 +4107,10 @@ void GCodeGenerator::emit_milling_commands(std::string& gcode, const ObjectsLaye
             coordf_t previous_print_z = m_layer != nullptr ? m_layer->print_z : 0;
             if (!start_mill_gcode.empty()) {
                 DynamicConfig config;
-                config.set_key_value("previous_extruder", new ConfigOptionInt((int)current_extruder_filament));
-                config.set_key_value("next_extruder", new ConfigOptionInt((int)milling_extruder_id));
+                const int previous_extruder = checked_config_int(current_extruder_filament, "previous_extruder");
+                const int next_extruder     = checked_config_int(milling_extruder_id, "next_extruder");
+                config.set_key_value("previous_extruder", new ConfigOptionInt(previous_extruder));
+                config.set_key_value("next_extruder", new ConfigOptionInt(next_extruder));
                 config.set_key_value("previous_layer_z", new ConfigOptionFloat(previous_print_z));
                 // Process the start_mill_gcode for the new filament.
                 gcode += this->placeholder_parser_process("milling_toolchange_start_gcode", start_mill_gcode,
@@ -4106,8 +4140,10 @@ void GCodeGenerator::emit_milling_commands(std::string& gcode, const ObjectsLaye
             const std::string& end_mill_gcode = m_config.milling_toolchange_end_gcode.get_at(0);
             if (!end_mill_gcode.empty()) {
                 DynamicConfig config;
-                config.set_key_value("previous_extruder", new ConfigOptionInt((int)milling_extruder_id));
-                config.set_key_value("next_extruder", new ConfigOptionInt((int)current_extruder_filament));
+                const int previous_extruder = checked_config_int(milling_extruder_id, "previous_extruder");
+                const int next_extruder     = checked_config_int(current_extruder_filament, "next_extruder");
+                config.set_key_value("previous_extruder", new ConfigOptionInt(previous_extruder));
+                config.set_key_value("next_extruder", new ConfigOptionInt(next_extruder));
                 config.set_key_value("previous_layer_z", new ConfigOptionFloat(previous_print_z));
                 // Process the end_mill_gcode for the new filament.
                 gcode += this->placeholder_parser_process("milling_toolchange_start_gcode", end_mill_gcode,
@@ -8782,8 +8818,10 @@ std::string GCodeGenerator::toolchange(uint16_t extruder_id, double print_z) {
     std::string toolchange_gcode_parsed;
     if (!toolchange_gcode.empty() && m_writer.multiple_extruders) {
         DynamicConfig config;
-        config.set_key_value("previous_extruder", new ConfigOptionInt((int)(m_writer.tool() != nullptr ? m_writer.tool()->id() : -1)));
-        config.set_key_value("next_extruder", new ConfigOptionInt((int)extruder_id));
+        const int previous_extruder = m_writer.tool() != nullptr ? checked_config_int(m_writer.tool()->id(), "previous_extruder") : -1;
+        const int next_extruder     = checked_config_int(extruder_id, "next_extruder");
+        config.set_key_value("previous_extruder", new ConfigOptionInt(previous_extruder));
+        config.set_key_value("next_extruder", new ConfigOptionInt(next_extruder));
         config.set_key_value("toolchange_z", new ConfigOptionFloat(print_z == 0 ? 0 : (print_z)));
         toolchange_gcode_parsed = placeholder_parser_process("toolchange_gcode", toolchange_gcode, extruder_id, &config);
         gcode += toolchange_gcode_parsed;
@@ -8826,10 +8864,11 @@ std::string GCodeGenerator::set_extruder(uint16_t extruder_id, double print_z, b
         const std::string &start_filament_gcode = m_config.start_filament_gcode.get_at(extruder_id);
         if (! start_filament_gcode.empty()) {
             DynamicConfig config;
+            const int extruder_config_id = checked_config_int(extruder_id, "extruder_id");
             assert(is_approx((m_layer == nullptr ? m_last_layer_z : m_layer->print_z), print_z, EPSILON));
-            config.set_key_value("filament_extruder_id", new ConfigOptionInt(int(extruder_id)));
-            config.set_key_value("previous_extruder", new ConfigOptionInt((int)extruder_id));
-            config.set_key_value("next_extruder", new ConfigOptionInt((int)extruder_id));
+            config.set_key_value("filament_extruder_id", new ConfigOptionInt(extruder_config_id));
+            config.set_key_value("previous_extruder", new ConfigOptionInt(extruder_config_id));
+            config.set_key_value("next_extruder", new ConfigOptionInt(extruder_config_id));
             // Process the start_filament_gcode for the new filament.
             gcode += this->placeholder_parser_process("start_filament_gcode", start_filament_gcode, extruder_id, &config);
             check_add_eol(gcode);
@@ -8858,10 +8897,12 @@ std::string GCodeGenerator::set_extruder(uint16_t extruder_id, double print_z, b
         const std::string  &end_filament_gcode  = m_config.end_filament_gcode.get_at(old_extruder_id);
         if (! end_filament_gcode.empty()) {
             DynamicConfig config;
+            const int old_extruder_config_id  = checked_config_int(old_extruder_id, "old_extruder_id");
+            const int next_extruder_config_id = checked_config_int(extruder_id, "extruder_id");
             assert(is_approx((m_layer == nullptr ? m_last_layer_z : m_layer->print_z), print_z, EPSILON));
-            config.set_key_value("filament_extruder_id", new ConfigOptionInt(int(old_extruder_id)));
-            config.set_key_value("previous_extruder", new ConfigOptionInt((int)old_extruder_id));
-            config.set_key_value("next_extruder", new ConfigOptionInt((int)extruder_id));
+            config.set_key_value("filament_extruder_id", new ConfigOptionInt(old_extruder_config_id));
+            config.set_key_value("previous_extruder", new ConfigOptionInt(old_extruder_config_id));
+            config.set_key_value("next_extruder", new ConfigOptionInt(next_extruder_config_id));
             gcode += placeholder_parser_process("end_filament_gcode", end_filament_gcode, old_extruder_id >= 0 ? old_extruder_id : extruder_id, &config);
             check_add_eol(gcode);
         }
@@ -8895,9 +8936,9 @@ std::string GCodeGenerator::set_extruder(uint16_t extruder_id, double print_z, b
     if (!start_filament_gcode.empty()) {
         DynamicConfig config;
         assert(is_approx((m_layer == nullptr ? m_last_layer_z : m_layer->print_z), print_z, EPSILON));
-        config.set_key_value("filament_extruder_id", new ConfigOptionInt(int(extruder_id)));
-        config.set_key_value("previous_extruder", new ConfigOptionInt((int) old_extruder_id));
-        config.set_key_value("next_extruder", new ConfigOptionInt((int) extruder_id));
+        config.set_key_value("filament_extruder_id", new ConfigOptionInt(static_cast<int>(extruder_id)));
+        config.set_key_value("previous_extruder", new ConfigOptionInt(static_cast<int>(old_extruder_id)));
+        config.set_key_value("next_extruder", new ConfigOptionInt(static_cast<int>(extruder_id)));
         // Process the start_filament_gcode for the new filament.
         std::string gcode_start_filament = this->placeholder_parser_process("start_filament_gcode",
                                                                             start_filament_gcode, extruder_id,

@@ -65,7 +65,7 @@ IGL_INLINE bool igl::copyleft::cgal::propagate_winding_numbers(
   Eigen::VectorXi P;
   const size_t num_patches = igl::extract_manifold_patches(F, EMAP, uE2E, P);
 
-  DerivedW per_patch_cells;
+  DerivedW per_patch_cells{};
   const size_t num_cells =
     igl::copyleft::cgal::extract_cells(
         V, F, P, E, uE, uE2E, EMAP, per_patch_cells);
@@ -137,9 +137,9 @@ IGL_INLINE bool igl::copyleft::cgal::propagate_winding_numbers(
   auto save_cell = [&](const std::string& filename, size_t cell_id) -> void{
     std::vector<size_t> faces;
     for (size_t i=0; i<num_patches; i++) {
-      if ((C.row(i).array() == cell_id).any()) {
+      if (C.row(i).array().cwiseEqual(static_cast<typename DerivedC::Scalar>(cell_id)).any()) {
         for (size_t j=0; j<num_faces; j++) {
-          if ((size_t)P[j] == i) {
+          if (static_cast<size_t>(P[j]) == i) {
             faces.push_back(j);
           }
         }
@@ -164,7 +164,7 @@ IGL_INLINE bool igl::copyleft::cgal::propagate_winding_numbers(
     auto trace_parents = [&](size_t idx) -> std::list<size_t> {
       std::list<size_t> path;
       path.push_back(idx);
-      while ((size_t)parents[path.back()] != path.back()) {
+      while (static_cast<size_t>(parents[path.back()]) != path.back()) {
         path.push_back(parents[path.back()]);
       }
       return path;
@@ -220,8 +220,8 @@ IGL_INLINE bool igl::copyleft::cgal::propagate_winding_numbers(
   }
 #endif
 
-  size_t outer_facet;
-  bool flipped;
+  size_t outer_facet = 0;
+  bool flipped = false;
   Eigen::VectorXi I = igl::LinSpaced<Eigen::VectorXi>(num_faces, 0, num_faces-1);
   igl::copyleft::cgal::outer_facet(V, F, I, outer_facet, flipped);
 #ifdef PROPAGATE_WINDING_NUMBER_TIMING
@@ -241,8 +241,8 @@ IGL_INLINE bool igl::copyleft::cgal::propagate_winding_numbers(
       assert(patch_labels[P[i]] == labels[i]);
     }
   }
-  assert((patch_labels.array() != INVALID).all());
-  const size_t num_labels = patch_labels.maxCoeff()+1;
+  assert((patch_labels.array() < INVALID).all());
+  const size_t num_labels = static_cast<size_t>(patch_labels.maxCoeff()) + 1;
 
   Eigen::MatrixXi per_cell_W(num_cells, num_labels);
   per_cell_W.setConstant(INVALID);
@@ -253,13 +253,13 @@ IGL_INLINE bool igl::copyleft::cgal::propagate_winding_numbers(
     size_t curr_cell = Q.front();
     Q.pop();
     for (const auto& neighbor : cell_adj[curr_cell]) {
-      size_t neighbor_cell, patch_idx;
-      bool direction;
+      size_t neighbor_cell = 0, patch_idx = 0;
+      bool direction = false;
       std::tie(neighbor_cell, direction, patch_idx) = neighbor;
-      if ((per_cell_W.row(neighbor_cell).array() == INVALID).any()) {
+      if (per_cell_W.row(neighbor_cell).array().cwiseEqual(INVALID).any()) {
         per_cell_W.row(neighbor_cell) = per_cell_W.row(curr_cell);
         for (size_t i=0; i<num_labels; i++) {
-          int inc = (patch_labels[patch_idx] == (int)i) ?
+          int inc = (patch_labels[patch_idx] == static_cast<int>(i)) ?
             (direction ? -1:1) :0;
           per_cell_W(neighbor_cell, i) =
             per_cell_W(curr_cell, i) + inc;
@@ -275,7 +275,7 @@ IGL_INLINE bool igl::copyleft::cgal::propagate_winding_numbers(
         // best we can do because the problem of computing integer winding
         // number is ill-defined for open and non-orientable surfaces.
         for (size_t i=0; i<num_labels; i++) {
-          if ((int)i == patch_labels[patch_idx]) {
+          if (static_cast<int>(i) == patch_labels[patch_idx]) {
             int inc = direction ? -1:1;
             //assert(per_cell_W(neighbor_cell, i) ==
             //    per_cell_W(curr_cell, i) + inc);

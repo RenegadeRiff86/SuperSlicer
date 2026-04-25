@@ -136,6 +136,7 @@ bool Bed3D::set_shape(const Pointfs& bed_shape, const double max_print_height, c
     const BoundingBox bbox = m_contour.contour.bounding_box();
     if (!bbox.defined)
         throw RuntimeError(std::string("Invalid bed shape"));
+    // Keep a slightly expanded polygon for tolerant edge hit-testing and projection.
     m_polygon = offset(m_contour.contour, (float)bbox.radius() * 1.7f, jtRound, scale_(0.5)).front();
 
     m_triangles.reset();
@@ -154,7 +155,7 @@ bool Bed3D::set_shape(const Pointfs& bed_shape, const double max_print_height, c
     // unregister from picking
     wxGetApp().plater()->canvas3D()->remove_raycasters_for_picking(SceneRaycaster::EType::Bed);
 
-    // Let the calee to update the UI.
+    // Let the caller update the UI.
     return true;
 }
 

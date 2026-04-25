@@ -78,7 +78,7 @@ static void ComputeNormal( GLUtesselator *tess, GLdouble norm[3] )
   GLUvertex *v, *v1, *v2;
   GLdouble c, tLen2, maxLen2;
   GLdouble maxVal[3], minVal[3], d1[3], d2[3], tNorm[3];
-  GLUvertex *maxVert[3], *minVert[3];
+  GLUvertex *maxVert[3] = { NULL, NULL, NULL }, *minVert[3] = { NULL, NULL, NULL };
   GLUvertex *vHead = &tess->mesh->vHead;
   int i;
 

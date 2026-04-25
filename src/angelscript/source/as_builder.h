@@ -60,29 +60,29 @@ struct sGlobalVariableDescription;
 
 struct sFunctionDescription
 {
-	asCScriptCode       *script;
-	asCScriptNode       *node;
+	asCScriptCode       *script = 0;
+	asCScriptNode       *node = 0;
 	asCString            name;
-	asCObjectType       *objType;
+	asCObjectType       *objType = 0;
 	asCArray<asCString>  paramNames;
-	int                  funcId;
-	bool                 isExistingShared;
+	int                  funcId = 0;
+	bool                 isExistingShared = false;
 };
 
 struct sGlobalVariableDescription
 {
-	asCScriptCode     *script;
-	asCScriptNode     *declaredAtNode;
-	asCScriptNode     *initializationNode;
+	asCScriptCode     *script = 0;
+	asCScriptNode     *declaredAtNode = 0;
+	asCScriptNode     *initializationNode = 0;
 	asCString          name;
-	asCGlobalProperty *property;
+	asCGlobalProperty *property = 0;
 	asCDataType        datatype;
-	asSNameSpace      *ns;
-	int                index;
-	bool               isCompiled;
-	bool               isPureConstant;
-	bool               isEnumValue;
-	asQWORD            constantValue;
+	asSNameSpace      *ns = 0;
+	int                index = 0;
+	bool               isCompiled = false;
+	bool               isPureConstant = false;
+	bool               isEnumValue = false;
+	asQWORD            constantValue = 0;
 };
 
 struct sPropertyInitializer
@@ -118,20 +118,20 @@ struct sClassDeclaration
 
 struct sFuncDef
 {
-	asCScriptCode *script;
-	asCScriptNode *node;
+	asCScriptCode *script = 0;
+	asCScriptNode *node = 0;
 	asCString      name;
-	int            idx;
+	int            idx = 0;
 };
 
 #endif // AS_NO_COMPILER
 
 struct sMixinClass
 {
-	asCScriptCode *script;
-	asCScriptNode *node;
+	asCScriptCode *script = 0;
+	asCScriptNode *node = 0;
 	asCString      name;
-	asSNameSpace  *ns;
+	asSNameSpace  *ns = 0;
 };
 
 

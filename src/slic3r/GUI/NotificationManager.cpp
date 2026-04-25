@@ -65,15 +65,14 @@ namespace {
 		// Code taken from desktop_open_datadir_folder()
 
 		// Execute command to open a file explorer, platform dependent.
-		// FIXME: The const_casts aren't needed in wxWidgets 3.1, remove them when we upgrade.
 
 #ifdef _WIN32
 		const wxString widepath = from_u8(path);
 		const wchar_t* argv[] = { L"explorer", widepath.GetData(), nullptr };
-		::wxExecute(const_cast<wchar_t**>(argv), wxEXEC_ASYNC, nullptr);
+		::wxExecute(argv, wxEXEC_ASYNC, nullptr);
 #elif __APPLE__
 		const char* argv[] = { "open", path.data(), nullptr };
-		::wxExecute(const_cast<char**>(argv), wxEXEC_ASYNC, nullptr);
+		::wxExecute(argv, wxEXEC_ASYNC, nullptr);
 #else
 		const char* argv[] = { "xdg-open", path.data(), nullptr };
 
@@ -101,11 +100,11 @@ namespace {
 				exec_env.cwd = std::move(owd);
 			}
 
-			::wxExecute(const_cast<char**>(argv), wxEXEC_ASYNC, nullptr, &exec_env);
+			::wxExecute(argv, wxEXEC_ASYNC, nullptr, &exec_env);
 		}
 		else {
 			// Looks like we're NOT running from AppImage, we'll make no changes to the environment.
-			::wxExecute(const_cast<char**>(argv), wxEXEC_ASYNC, nullptr, nullptr);
+			::wxExecute(argv, wxEXEC_ASYNC, nullptr, nullptr);
 		}
 #endif
 	}
@@ -181,7 +180,7 @@ void NotificationManager::PopNotification::render(GLCanvas3D& canvas, float init
 	imgui.set_next_window_size(m_window_width, m_window_height, ImGuiCond_Always);
 
 	
-	// find if hovered FIXME:  do it only in update state?
+	// Re-evaluate hover from the current mouse position before drawing.
 	if (m_state == EState::Hovered) {
 		m_state = EState::Unknown;
 		init(); 
@@ -749,7 +748,8 @@ void NotificationManager::ExportFinishedNotification::count_spaces()
 		float picture_width = ImGui::CalcTextSize(text.c_str()).x;
 		m_left_indentation = picture_width + m_line_height / 2;
 	}
-	//TODO count this properly
+	// Reserve the standard close-button gutter plus another close-sized slot
+	// when the removable-drive eject action is shown.
 	m_window_width_offset = m_left_indentation + m_line_height * (m_to_removable ? 6.f : 3.f);
 	m_window_width = m_line_height * 25;
 }

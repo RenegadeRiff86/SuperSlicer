@@ -1091,6 +1091,8 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloats,              machine_max_jerk_e))
     ((ConfigOptionFloats,              machine_min_travel_rate))
     ((ConfigOptionFloats,              machine_min_extruding_rate))
+    // Klipper SET_VELOCITY_LIMIT MINIMUM_CRUISE_RATIO (0.0..<1.0); single value, can be disabled.
+    ((ConfigOptionFloat,               machine_min_cruise_ratio))
 )
 
 PRINT_CONFIG_CLASS_DEFINE(

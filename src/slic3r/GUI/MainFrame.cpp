@@ -171,6 +171,12 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_S
     // Load the icon either from the exe, or from the ico file.
     SetIcon(main_frame_icon(wxGetApp().get_app_mode()));
 
+#ifdef __WXMSW__
+    Bind(wxEVT_MENU_CLOSE, [this](wxMenuEvent&) {
+        ::DrawMenuBar(static_cast<HWND>(this->GetHWND()));
+    });
+#endif
+
 	// initialize status bar
 //    m_statusbar = std::make_shared<ProgressStatusBar>(this);
 //    m_statusbar->set_font(GUI::wxGetApp().normal_font());
@@ -2273,8 +2279,14 @@ void MainFrame::repair_stl()
     }
 
     Slic3r::TriangleMesh tmesh;
-    tmesh.ReadSTLFile(input_file.ToUTF8().data());
-    tmesh.WriteOBJFile(output_file.ToUTF8().data());
+    if (! tmesh.ReadSTLFile(input_file.ToUTF8().data())) {
+        show_error(this, _L("The selected STL file could not be read."));
+        return;
+    }
+    if (! tmesh.WriteOBJFile(output_file.ToUTF8().data())) {
+        show_error(this, _L("The repaired OBJ file could not be written."));
+        return;
+    }
     Slic3r::GUI::show_info(this, L("Your file was repaired."), L("Repair"));
 }
 

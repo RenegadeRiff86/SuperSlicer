@@ -82,15 +82,25 @@ BEGIN_AS_NAMESPACE
 //       Instead the compiler should keep track of references in TypeInfo, where it should also state how the reference
 //       is currently stored, i.e. in variable, in register, on stack, etc.
 
-asCCompiler::asCCompiler(asCScriptEngine *engine) : byteCode(engine)
+asCCompiler::asCCompiler(asCScriptEngine *engine) :
+	byteCode(engine),
+	hasCompileErrors(false),
+	nextLabel(0),
+	numLambdas(0),
+	variables(0),
+	builder(0),
+	engine(engine),
+	script(0),
+	outFunc(0),
+	m_isConstructor(false),
+	m_isConstructorCalled(false),
+	m_hasReturned(false),
+	m_classDecl(0),
+	m_globalVar(0),
+	isCompilingDefaultArg(false),
+	isProcessingDeferredParams(false),
+	noCodeOutput(0)
 {
-	builder = 0;
-	script = 0;
-
-	variables = 0;
-	isProcessingDeferredParams = false;
-	isCompilingDefaultArg = false;
-	noCodeOutput = 0;
 }
 
 asCCompiler::~asCCompiler()
@@ -17680,7 +17690,7 @@ void asCCompiler::FilterConst(asCArray<int> &funcs, bool removeConst)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-asCExprValue::asCExprValue()
+asCExprValue::asCExprValue() : dummy(0)
 {
 	isTemporary = false;
 	stackOffset = 0;

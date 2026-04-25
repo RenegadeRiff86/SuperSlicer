@@ -25,7 +25,8 @@ namespace GUI {
 struct Camera;
 
 
-// lm_FIXME: Following class might possibly be replaced by Eigen::Hyperplane
+// Keep this lightweight plane wrapper: GUI code serializes the coefficients,
+// uses DBL_MAX as an inactive sentinel, and passes the 4-vector directly to shaders.
 class ClippingPlane
 {
     std::array<double, 4> m_data;
@@ -46,13 +47,26 @@ public:
     bool operator!=(const ClippingPlane& cp) const { return ! (*this==cp); }
 
     double distance(const Vec3d& pt) const {
-        // FIXME: this fails: assert(is_approx(get_normal().norm(), 1.));
-        return (-get_normal().dot(pt) + m_data[3]);
+        const Vec3d  normal    = get_normal();
+        const double normal_sq = normal.squaredNorm();
+        assert(normal_sq > 0.);
+        if (normal_sq <= 0.)
+            return m_data[3];
+        // Signed distance assumes a unit normal, but serialized coefficients may drift slightly.
+        return (-normal.dot(pt) + m_data[3]) / std::sqrt(normal_sq);
     }
 
     bool is_point_clipped(const Vec3d& point) const { return distance(point) < 0.; }
     void set_normal(const Vec3d& normal) {
-        const Vec3d norm_dir = normal.normalized();
+        const double normal_sq = normal.squaredNorm();
+        assert(normal_sq > 0.);
+        if (normal_sq <= 0.) {
+            m_data[0] = 0.;
+            m_data[1] = 0.;
+            m_data[2] = 1.;
+            return;
+        }
+        const Vec3d norm_dir = normal / std::sqrt(normal_sq);
         m_data[0] = norm_dir.x();
         m_data[1] = norm_dir.y();
         m_data[2] = norm_dir.z();

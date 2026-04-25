@@ -41,6 +41,11 @@ function(add_cmake_project projectname)
     if (_is_multi)
         set(_configs_line "")
     endif ()
+    set(_compat_policy_arg "")
+    if (CMAKE_VERSION VERSION_GREATER_EQUAL 4.2)
+        # Some third-party deps still declare cmake_minimum_required(< 3.5).
+        set(_compat_policy_arg "-DCMAKE_POLICY_VERSION_MINIMUM:STRING=3.5")
+    endif ()
 
     set(_verbose_switch "")
     if (${PROJECT_NAME}_DEP_BUILD_VERBOSE)
@@ -67,6 +72,7 @@ function(add_cmake_project projectname)
             -DCMAKE_CXX_FLAGS_${_build_type_upper}:STRING=${CMAKE_CXX_FLAGS_${_build_type_upper}}
             -DCMAKE_C_FLAGS_${_build_type_upper}:STRING=${CMAKE_C_FLAGS_${_build_type_upper}}
             -DCMAKE_TOOLCHAIN_FILE:STRING=${CMAKE_TOOLCHAIN_FILE}
+            ${_compat_policy_arg}
             -DBUILD_SHARED_LIBS:BOOL=${BUILD_SHARED_LIBS}
             "${_configs_line}"
             ${DEP_CMAKE_OPTS}

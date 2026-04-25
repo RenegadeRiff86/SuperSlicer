@@ -167,9 +167,11 @@ static bool stl_read(stl_file *stl, FILE *fp, int first_facet, bool first)
 			// Read a single facet from an ASCII .STL file
 			// skip solid/endsolid
 			// (in this order, otherwise it won't work when they are paired in the middle of a file)
-			fscanf(fp, " endsolid%*[^\n]\n");
-			fscanf(fp, " solid%*[^\n]\n");  // name might contain spaces so %*s doesn't work and it also can be empty (just "solid")
-			// Leading space in the fscanf format skips all leading white spaces including numerous new lines and tabs.
+			int res_endsolid   = fscanf(fp, " endsolid%*[^\n]\n");
+			int res_solid      = fscanf(fp, " solid%*[^\n]\n");  // name might contain spaces so %*s doesn't work and it also can be empty (just "solid")
+			if (res_endsolid == EOF || res_solid == EOF)
+				return false;
+			// Leading space in the fscanf format skips all leading whitespace including blank lines and tabs.
 			int res_normal     = fscanf(fp, " facet normal %31s %31s %31s", normal_buf[0], normal_buf[1], normal_buf[2]);
 			assert(res_normal == 3);
 			int res_outer_loop = fscanf(fp, " outer loop");
@@ -187,7 +189,9 @@ static bool stl_read(stl_file *stl, FILE *fp, int first_facet, bool first)
 			bool endloop_ok = strncmp(buf, "endloop", 7) == 0 && (buf[7] == '\r' || buf[7] == '\n' || buf[7] == ' ' || buf[7] == '\t');
 			assert(endloop_ok);
 			// Skip the trailing whitespaces and empty lines.
-			fscanf(fp, " ");
+			int res_whitespace = fscanf(fp, " ");
+			if (res_whitespace == EOF)
+				return false;
 			fgets(buf, 2047, fp);
 			bool endfacet_ok = strncmp(buf, "endfacet", 8) == 0 && (buf[8] == '\r' || buf[8] == '\n' || buf[8] == ' ' || buf[8] == '\t');
 			assert(endfacet_ok);

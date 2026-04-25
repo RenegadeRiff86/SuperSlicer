@@ -64,10 +64,11 @@ public:
 
 	struct message_t
 	{
+		message_t() : row(0), col(0), type((asEMsgType)0) {}
 		asCString section;
-		int row;
-		int col;
-		asEMsgType type;
+		int row = 0;
+		int col = 0;
+		asEMsgType type = (asEMsgType)0;
 		asCString msg;
 	};
 

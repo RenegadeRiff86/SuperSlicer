@@ -2,6 +2,26 @@
 ///|/
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
+#include "FixModelByWin10.hpp"
+
+#include <atomic>
+#include <chrono>
+#include <cmath>
+#include <cstdint>
+#include <condition_variable>
+#include <exception>
+#include <functional>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <vector>
+
+#include <boost/thread.hpp>
+
+#include "libslic3r/Model.hpp"
+#include "../GUI/I18N.hpp"
+#include <wx/progdlg.h>
+
 #ifdef HAS_WIN10SDK
 
 #ifndef NOMINMAX
@@ -18,32 +38,17 @@
 #include <winrt/windows.storage.provider.h>
 #include <winrt/windows.graphics.printing3d.h>
 
-#include "FixModelByWin10.hpp"
-
-#include <atomic>
-#include <chrono>
-#include <cstdint>
-#include <condition_variable>
-#include <exception>
-#include <string>
-#include <thread>
-
 #include <boost/filesystem.hpp>
 #include <boost/nowide/convert.hpp>
 #include <boost/nowide/cstdio.hpp>
-#include <boost/thread.hpp>
 
-#include "libslic3r/Model.hpp"
 #include "libslic3r/Print.hpp"
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/Format/3mf.hpp"
-#include "../GUI/GUI.hpp"
-#include "../GUI/I18N.hpp"
-#include "../GUI/MsgDialog.hpp"
 
-#include <wx/msgdlg.h>
-#include <wx/progdlg.h>
+#endif /* HAS_WIN10SDK */
 
+#ifdef HAS_WIN10SDK
 extern "C"{
 	// from rapi.h
 	typedef HRESULT (__stdcall* FunctionRoInitialize)(int);
@@ -54,8 +59,63 @@ extern "C"{
 	typedef HRESULT	(__stdcall* FunctionWindowsCreateString)(LPCWSTR sourceString, UINT32  length, HSTRING *string);
 	typedef HRESULT	(__stdcall* FunctionWindowsDelteString)(HSTRING string);
 }
+#endif /* HAS_WIN10SDK */
 
 namespace Slic3r {
+
+// Progress function, to be called regularly to update the progress.
+typedef std::function<void (const char * /* message */, unsigned /* progress */)> ProgressFn;
+
+// To be called often to test whether to cancel the operation.
+typedef std::function<void ()> ThrowOnCancelFn;
+
+static stl_normal calculate_facet_normal(const stl_facet &facet)
+{
+    stl_normal normal = (facet.vertex[1] - facet.vertex[0]).cross(facet.vertex[2] - facet.vertex[0]);
+    const float length = normal.norm();
+    if (length > 0.f)
+        normal /= length;
+    else
+        normal = stl_normal::Zero();
+    return normal;
+}
+
+static std::vector<stl_facet> triangle_mesh_to_facets(const TriangleMesh &mesh)
+{
+    std::vector<stl_facet> facets;
+    facets.reserve(mesh.its.indices.size());
+    for (const Vec3i32 &face : mesh.its.indices) {
+        stl_facet facet {};
+        facet.vertex[0] = mesh.its.vertices[face(0)];
+        facet.vertex[1] = mesh.its.vertices[face(1)];
+        facet.vertex[2] = mesh.its.vertices[face(2)];
+        facet.normal    = calculate_facet_normal(facet);
+        facets.emplace_back(facet);
+    }
+    return facets;
+}
+
+static TriangleMesh repair_model_volume_locally(const ModelVolume &volume, ProgressFn on_progress, ThrowOnCancelFn throw_on_cancel)
+{
+    throw_on_cancel();
+    on_progress(L("Preparing mesh for repair"), 0);
+
+    const TriangleMesh &source_mesh = volume.mesh();
+    std::vector<stl_facet> facets = triangle_mesh_to_facets(source_mesh);
+
+    throw_on_cancel();
+    on_progress(L("Repairing mesh"), 40);
+
+    TriangleMesh repaired_mesh;
+    repaired_mesh.from_facets(std::move(facets), true);
+    repaired_mesh.set_init_shift(source_mesh.get_init_shift());
+
+    throw_on_cancel();
+    on_progress(L("Finalizing repaired mesh"), 80);
+    return repaired_mesh;
+}
+
+#ifdef HAS_WIN10SDK
 
 HMODULE							s_hRuntimeObjectLibrary  = nullptr;
 FunctionRoInitialize			s_RoInitialize			 = nullptr;
@@ -119,9 +179,6 @@ static HRESULT winrt_get_activation_factory(const std::wstring &class_name, TYPE
 {
 	return winrt_get_activation_factory(class_name, __uuidof(TYPE), reinterpret_cast<void**>(pinst));
 }
-
-// To be called often to test whether to cancel the operation.
-typedef std::function<void ()> ThrowOnCancelFn;
 
 template<typename T>
 static AsyncStatus winrt_async_await(const Microsoft::WRL::ComPtr<T> &asyncAction, ThrowOnCancelFn throw_on_cancel, int blocking_tick_ms = 100)
@@ -209,9 +266,6 @@ bool is_windows10()
 	return false;
 }
 
-// Progress function, to be called regularly to update the progress.
-typedef std::function<void (const char * /* message */, unsigned /* progress */)> ProgressFn;
-
 void fix_model_by_win10_sdk(const std::string &path_src, const std::string &path_dst, ProgressFn on_progress, ThrowOnCancelFn throw_on_cancel)
 {
 	if (! is_windows10())
@@ -245,7 +299,7 @@ void fix_model_by_win10_sdk(const std::string &path_src, const std::string &path
 		unsigned num_meshes = 0;
 		hr = meshes->get_Size(&num_meshes);
 		
-		on_progress(L("Repairing model by Windows repair algorithm"), 40);
+		on_progress(L("Repairing model with Windows repair backend"), 40);
 		
 		Microsoft::WRL::ComPtr<ABI::Windows::Foundation::IAsyncAction>					  repairAsync;
 		hr = model->RepairAsync(repairAsync.GetAddressOf());
@@ -320,15 +374,65 @@ void fix_model_by_win10_sdk(const std::string &path_src, const std::string &path
 	(*s_RoUninitialize)();
 }
 
+static TriangleMesh repair_model_volume_with_win10_sdk(const ModelVolume &volume, ProgressFn on_progress, ThrowOnCancelFn throw_on_cancel)
+{
+    boost::filesystem::path path_src = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
+    path_src += ".3mf";
+
+    Model model;
+    ModelObject *mo = model.add_object();
+    mo->add_volume(volume);
+
+    // store_3mf currently bakes the volume transformation into the mesh itself, so export with identity
+    // and restore the repaired mesh into the original volume that still owns the transform.
+    mo->volumes.back()->set_transformation(Geometry::Transformation());
+
+    mo->add_instance();
+    OptionStore3mf opt3mf;
+    if (! Slic3r::store_3mf(path_src.string().c_str(), &model, nullptr,
+                            opt3mf.set_fullpath_sources(false).set_zip64(false))) {
+        boost::filesystem::remove(path_src);
+        throw Slic3r::RuntimeError("Export of a temporary 3mf file failed");
+    }
+
+    model.clear_objects();
+    model.clear_materials();
+
+    boost::filesystem::path path_dst = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
+    path_dst += ".3mf";
+    fix_model_by_win10_sdk(path_src.string().c_str(), path_dst.string(), on_progress, throw_on_cancel);
+    boost::filesystem::remove(path_src);
+
+    on_progress(L("Loading repaired model"), 80);
+    DynamicPrintConfig config;
+    ConfigSubstitutionContext config_substitutions { ForwardCompatibilitySubstitutionRule::EnableSilent };
+    const bool loaded = Slic3r::load_3mf(path_dst.string().c_str(), config, config_substitutions, &model, false, false);
+    boost::filesystem::remove(path_dst);
+    if (! loaded)
+        throw Slic3r::RuntimeError("Import of the repaired 3mf file failed");
+    if (model.objects.size() == 0)
+        throw Slic3r::RuntimeError("Repaired 3MF file does not contain any object");
+    if (model.objects.size() > 1)
+        throw Slic3r::RuntimeError("Repaired 3MF file contains more than one object");
+    if (model.objects.front()->volumes.size() == 0)
+        throw Slic3r::RuntimeError("Repaired 3MF file does not contain any volume");
+    if (model.objects.front()->volumes.size() > 1)
+        throw Slic3r::RuntimeError("Repaired 3MF file contains more than one volume");
+
+    return std::move(model.objects.front()->volumes.front()->mesh());
+}
+
+#endif /* HAS_WIN10SDK */
+
 class RepairCanceledException : public std::exception {
 public:
    const char* what() const throw() { return "Model repair has been canceled"; }
 };
 
-// returt FALSE, if fixing was canceled
-// fix_result is empty, if fixing finished successfully
-// fix_result containes a message if fixing failed 
-bool fix_model_by_win10_sdk_gui(ModelObject &model_object, int volume_idx, wxProgressDialog& progress_dialog, const wxString& msg_header, std::string& fix_result)
+// Return false if fixing was canceled.
+// fix_result is empty if fixing finished successfully.
+// fix_result contains a message if fixing failed.
+bool fix_model_by_repair_gui(ModelObject &model_object, int volume_idx, wxProgressDialog& progress_dialog, const wxString& msg_header, std::string& fix_result)
 {
     std::mutex mtx;
     std::condition_variable condition;
@@ -362,51 +466,16 @@ bool fix_model_by_win10_sdk_gui(ModelObject &model_object, int volume_idx, wxPro
 			std::vector<TriangleMesh> meshes_repaired;
 			meshes_repaired.reserve(volumes.size());
 			for (; ivolume < volumes.size(); ++ ivolume) {
-				on_progress(L("Exporting source model"), 0);
-				boost::filesystem::path path_src = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
-				path_src += ".3mf";
-				Model model;
-                ModelObject *mo = model.add_object();
-                mo->add_volume(*volumes[ivolume]);
-
-                // We are about to save a 3mf, fix it by winsdk and load the fixed 3mf back.
-                // store_3mf currently bakes the volume transformation into the mesh itself.
-                // If we then loaded the repaired 3mf and pushed the mesh into the original ModelVolume
-                // (which remembers the matrix the whole time), the transformation would be used twice.
-                // We will therefore set the volume transform on the dummy ModelVolume to identity.
-                mo->volumes.back()->set_transformation(Geometry::Transformation());
-
-                mo->add_instance();
-                OptionStore3mf opt3mf;
-                if (!Slic3r::store_3mf(path_src.string().c_str(), &model, nullptr,
-                                       opt3mf.set_fullpath_sources(false).set_zip64(false))) {
-					boost::filesystem::remove(path_src);
-					throw Slic3r::RuntimeError("Export of a temporary 3mf file failed");
-				}
-				model.clear_objects();
-				model.clear_materials();
-				boost::filesystem::path path_dst = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
-				path_dst += ".3mf";
-				fix_model_by_win10_sdk(path_src.string().c_str(), path_dst.string(), on_progress, 
-					[&canceled]() { if (canceled) throw RepairCanceledException(); });
-				boost::filesystem::remove(path_src);
-	            // PresetBundle bundle;
-				on_progress(L("Loading repaired model"), 80);
-				DynamicPrintConfig config;
-				ConfigSubstitutionContext config_substitutions{ ForwardCompatibilitySubstitutionRule::EnableSilent };
-				bool loaded = Slic3r::load_3mf(path_dst.string().c_str(), config, config_substitutions, &model, false, false);
-			    boost::filesystem::remove(path_dst);
-				if (! loaded)
-	 				throw Slic3r::RuntimeError("Import of the repaired 3mf file failed");
-	 			if (model.objects.size() == 0)
-	 				throw Slic3r::RuntimeError("Repaired 3MF file does not contain any object");
-	 			if (model.objects.size() > 1)
-	 				throw Slic3r::RuntimeError("Repaired 3MF file contains more than one object");
-	 			if (model.objects.front()->volumes.size() == 0)
-	 				throw Slic3r::RuntimeError("Repaired 3MF file does not contain any volume");
-				if (model.objects.front()->volumes.size() > 1)
-	 				throw Slic3r::RuntimeError("Repaired 3MF file contains more than one volume");
-	 			meshes_repaired.emplace_back(std::move(model.objects.front()->volumes.front()->mesh()));
+				auto throw_on_cancel = [&canceled]() {
+					if (canceled)
+						throw RepairCanceledException();
+				};
+#ifdef HAS_WIN10SDK
+				if (is_windows10())
+					meshes_repaired.emplace_back(repair_model_volume_with_win10_sdk(*volumes[ivolume], on_progress, throw_on_cancel));
+				else
+#endif
+					meshes_repaired.emplace_back(repair_model_volume_locally(*volumes[ivolume], on_progress, throw_on_cancel));
 			}
 			for (size_t i = 0; i < volumes.size(); ++ i) {
 				volumes[i]->set_mesh(std::move(meshes_repaired[i]));
@@ -451,5 +520,3 @@ bool fix_model_by_win10_sdk_gui(ModelObject &model_object, int volume_idx, wxPro
 }
 
 } // namespace Slic3r
-
-#endif /* HAS_WIN10SDK */
