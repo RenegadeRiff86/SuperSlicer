@@ -22,7 +22,9 @@
 
 #include <windows.h>
 #include <intsafe.h>
+#ifndef _MSC_VER
 #include <ntdef.h>
+#endif
 
 #ifndef _NTDEF_
 typedef _Return_type_success_(return >= 0) LONG NTSTATUS;
