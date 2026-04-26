@@ -231,7 +231,8 @@ static const t_config_enum_values s_keys_map_SupportMaterialStyle {
     { "grid",           smsGrid },
     { "snug",           smsSnug },
     { "tree",           smsTree },
-    { "organic",        smsOrganic }
+    { "organic",        smsOrganic },
+    { "orca_tree",      smsOrcaTree }
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(SupportMaterialStyle)
 
@@ -6771,11 +6772,12 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("Style and shape of the support towers. Projecting the supports into a regular grid "
         "will create more stable supports, while snug support towers will save material and reduce "
         "object scarring."
-        "\nOrganic: create tree support structure, but this algorithm force to synchronize the support layers with object layers, and only allow for one layer height for each object.");
+        "\nTree styles create a branching support structure. These algorithms synchronize support layers with object layers and only allow one layer height for each object.");
     def->set_enum<SupportMaterialStyle>({
         { "grid", L("Grid") }, 
         { "snug", L("Snug") },
-        { "organic", L("Organic") }
+        { "organic", L("Organic") },
+        { "orca_tree", L("Tree (Orca)") }
     });
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionEnum<SupportMaterialStyle>(smsGrid));
@@ -6840,7 +6842,7 @@ void PrintConfigDef::init_fff_params()
     def->label = L("Tip Diameter");
     def->category = OptionCategory::support;
     // TRN PrintSettings: "Organic supports" > "Tip Diameter"
-    def->tooltip = L("Branch tip diameter for organic supports.");
+    def->tooltip = L("Branch tip diameter for tree supports.");
     def->sidetext = L("mm");
     def->min = 0.1f;
     def->max = 100.f;
@@ -6851,7 +6853,7 @@ void PrintConfigDef::init_fff_params()
     def->label = L("Branch Diameter");
     def->category = OptionCategory::support;
     // TRN PrintSettings: "Organic supports" > "Branch Diameter"
-    def->tooltip = L("The diameter of the thinnest branches of organic support. Thicker branches are more sturdy. "
+    def->tooltip = L("The diameter of the thinnest branches of tree support. Thicker branches are more sturdy. "
                      "Branches towards the base will be thicker than this.");
     def->sidetext = L("mm");
     def->min = 0.1f;
@@ -6866,7 +6868,7 @@ void PrintConfigDef::init_fff_params()
     // TRN PrintSettings: "Organic supports" > "Branch Diameter Angle"
     def->tooltip = L("The angle of the branches' diameter as they gradually become thicker towards the bottom. "
                      "An angle of 0 will cause the branches to have uniform thickness over their length. "
-                     "A bit of an angle can increase stability of the organic support.");
+                     "A bit of an angle can increase stability of the tree support.");
     def->sidetext = L("°");
     def->min = 0;
     def->max = 15;

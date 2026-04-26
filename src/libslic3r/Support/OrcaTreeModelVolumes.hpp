@@ -1,7 +1,3 @@
-///|/ Copyright (c) Prusa Research 2022 - 2023 Vojtěch Bubník @bubnikv, Oleksandra Iushchenko @YuSanka
-///|/
-///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
-///|/
 // Tree supports by Thomas Rahm, losely based on Tree Supports by CuraEngine.
 // Original source of Thomas Rahm's tree supports:
 // https://github.com/ThomasRahm/CuraEngine
@@ -10,15 +6,15 @@
 // Copyright (c) 2021 Ultimaker B.V.
 // CuraEngine is released under the terms of the AGPLv3 or higher.
 
-#ifndef slic3r_TreeModelVolumes_hpp
-#define slic3r_TreeModelVolumes_hpp
+#ifndef slic3r_OrcaTreeModelVolumes_hpp
+#define slic3r_OrcaTreeModelVolumes_hpp
 
 #include <mutex>
 #include <unordered_map>
 
 #include <boost/functional/hash.hpp>
 
-#include "TreeSupportCommon.hpp"
+#include "OrcaTreeSupportCommon.hpp"
 
 #include "../Point.hpp"
 #include "../Polygon.hpp"
@@ -30,30 +26,30 @@ namespace Slic3r
 class BuildVolume;
 class PrintObject;
 
-namespace FFFTreeSupport
+namespace OrcaTreeSupport3D
 {
 
 static constexpr const double  SUPPORT_TREE_EXPONENTIAL_FACTOR = 1.5;
-#define SUPPORT_TREE_EXPONENTIAL_THRESHOLD scaled<coord_t>(1. * SUPPORT_TREE_EXPONENTIAL_FACTOR)
-#define SUPPORT_TREE_COLLISION_RESOLUTION scaled<coord_t>(0.5)
+#define SUPPORT_TREE_EXPONENTIAL_THRESHOLD  scaled<coord_t>(1. * SUPPORT_TREE_EXPONENTIAL_FACTOR)
+#define SUPPORT_TREE_COLLISION_RESOLUTION  scaled<coord_t>(0.5)
 static constexpr const bool    SUPPORT_TREE_AVOID_SUPPORT_BLOCKER = true;
 
-class TreeModelVolumes
+class OrcaTreeModelVolumes
 {
 public:
-    TreeModelVolumes() = default;
-    explicit TreeModelVolumes(const PrintObject &print_object, const BuildVolume &build_volume,
+    OrcaTreeModelVolumes() = default;
+    explicit OrcaTreeModelVolumes(const PrintObject &print_object, const BuildVolume &build_volume,
         coord_t max_move, coord_t max_move_slow, size_t current_mesh_idx, 
 #ifdef SLIC3R_TREESUPPORTS_PROGRESS
         double progress_multiplier, 
         double progress_offset, 
 #endif // SLIC3R_TREESUPPORTS_PROGRESS
         const std::vector<Polygons> &additional_excluded_areas = {});
-    TreeModelVolumes(TreeModelVolumes&&) = default;
-    TreeModelVolumes& operator=(TreeModelVolumes&&) = default;
+    OrcaTreeModelVolumes(OrcaTreeModelVolumes&&) = default;
+    OrcaTreeModelVolumes& operator=(OrcaTreeModelVolumes&&) = default;
 
-    TreeModelVolumes(const TreeModelVolumes&) = delete;
-    TreeModelVolumes& operator=(const TreeModelVolumes&) = delete;
+    OrcaTreeModelVolumes(const OrcaTreeModelVolumes&) = delete;
+    OrcaTreeModelVolumes& operator=(const OrcaTreeModelVolumes&) = delete;
 
     void clear() { 
         this->clear_all_but_object_collision();
@@ -171,6 +167,8 @@ public:
             this->ceilRadius(radius + m_current_min_xy_dist_delta) - m_current_min_xy_dist_delta;
     }
 
+    Polygon m_bed_area;
+
 private:
     // Caching polygons for a range of layers.
     class LayerPolygonCache {
@@ -242,21 +240,17 @@ private:
          * \param key RadiusLayerPair of the requested areas. The radius will be calculated up to the provided layer.
          * \return A wrapped optional reference of the requested area (if it was found, an empty optional if nothing was found)
          */
-        std::optional<std::reference_wrapper<const Polygons>> getArea(const TreeModelVolumes::RadiusLayerPair &key) const {
+        std::optional<std::reference_wrapper<const Polygons>> getArea(const OrcaTreeModelVolumes::RadiusLayerPair &key) const {
             std::lock_guard<std::mutex> guard(m_mutex);
-
             if (key.second >= LayerIndex(m_data.size()))
-                return std::nullopt;
-
-            const LayerData &layer = m_data[key.second];
+                return std::optional<std::reference_wrapper<const Polygons>>{};
+            const auto &layer = m_data[key.second];
             auto it = layer.find(key.first);
-            if (it == layer.end())
-                return std::nullopt;
-
-            return std::optional<std::reference_wrapper<const Polygons>>{it->second};
+            return it == layer.end() ? 
+                std::optional<std::reference_wrapper<const Polygons>>{} : std::optional<std::reference_wrapper<const Polygons>>{ it->second };
         }
         // Get a collision area at a given layer for a radius that is a lower or equial to the key radius.
-        std::optional<std::pair<coord_t, std::reference_wrapper<const Polygons>>> get_lower_bound_area(const TreeModelVolumes::RadiusLayerPair &key) const {
+        std::optional<std::pair<coord_t, std::reference_wrapper<const Polygons>>> get_lower_bound_area(const OrcaTreeModelVolumes::RadiusLayerPair &key) const {
             std::lock_guard<std::mutex> guard(m_mutex);
             if (key.second >= LayerIndex(m_data.size()))
                 return {};
@@ -481,7 +475,7 @@ private:
     /*!
      * \brief Storage for layer outlines and the corresponding settings of the meshes grouped by meshes with identical setting.
      */
-    std::vector<std::pair<TreeSupportMeshGroupSettings, std::vector<Polygons>>> m_layer_outlines;
+    std::vector<std::pair<OrcaTreeSupportMeshGroupSettings, std::vector<Polygons>>> m_layer_outlines;
     /*!
      * \brief Storage for areas that should be avoided, like support blocker or previous generated trees.
      */
@@ -538,7 +532,7 @@ private:
         return m_avoidance_cache;
     }
     const RadiusLayerPolygonCache& avoidance_cache(const AvoidanceType type, const bool to_model) const {
-        return const_cast<TreeModelVolumes*>(this)->avoidance_cache(type, to_model);
+        return const_cast<OrcaTreeModelVolumes*>(this)->avoidance_cache(type, to_model);
     }
 
     /*!
@@ -556,7 +550,7 @@ private:
 #endif // SLIC3R_TREESUPPORTS_PROGRESS
 };
 
-} // namespace FFFTreeSupport
+} // namespace OrcaTreeSupport3D
 } // namespace Slic3r
 
-#endif //slic3r_TreeModelVolumes_hpp
+#endif //slic3r_OrcaTreeModelVolumes_hpp
