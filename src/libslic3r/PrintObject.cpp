@@ -28,6 +28,7 @@
 #include "MutablePolygon.hpp"
 #include "PrintBase.hpp"
 #include "PrintConfig.hpp"
+#include "Support/OrcaTreeSupport.hpp"
 #include "Support/SupportMaterial.hpp"
 #include "Support/TreeSupport.hpp"
 #include "Surface.hpp"
@@ -4918,8 +4919,13 @@ void PrintObject::combine_infill()
 
 void PrintObject::_generate_support_material()
 {
-    if (this->has_support() && (m_config.support_material_style.value == smsTree || m_config.support_material_style.value == smsOrganic)) {
-        fff_tree_support_generate(*this, std::function<void()>([this](){ this->throw_if_canceled(); }));
+    const auto style = m_config.support_material_style.value;
+    if (this->has_support() && (style == smsTree || style == smsOrganic || style == smsOrcaTree)) {
+        auto throw_on_cancel = std::function<void()>([this](){ this->throw_if_canceled(); });
+        if (style == smsOrcaTree)
+            orca_tree_support_generate(*this, throw_on_cancel);
+        else
+            fff_tree_support_generate(*this, throw_on_cancel);
     } else {
         // If support style is set to Organic however only raft will be built but no support,
         // build snug raft instead.

@@ -193,8 +193,9 @@ void ConfigManipulation::update_print_fff_config(DynamicPrintConfig* config, con
     }
 
     if (config->opt_bool("wipe_tower") && config->opt_bool("support_material") && 
-        // Organic supports are always synchronized with object layers as of now.
-        config->opt_enum<SupportMaterialStyle>("support_material_style") != smsOrganic) {
+        // Tree supports are always synchronized with object layers as of now.
+        config->opt_enum<SupportMaterialStyle>("support_material_style") != smsOrganic &&
+        config->opt_enum<SupportMaterialStyle>("support_material_style") != smsOrcaTree) {
         // soluble support
         if (((ConfigOptionEnumGeneric*)config->option("support_material_contact_distance_type"))->value == zdNone) {
             if (!config->opt_bool("support_material_synchronize_layers")) {
@@ -546,13 +547,13 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
     toggle_field("support_material_bottom_contact_distance", have_support_material && ! have_support_soluble);
     toggle_field("support_material_closing_radius", have_support_material && support_material_style == smsSnug);
 
-    const bool has_organic_supports = support_material_style == smsOrganic && 
-                                     (config->opt_bool("support_material") || 
-                                      config->opt_int("support_material_enforce_layers") > 0);
+    const bool has_tree_supports = (support_material_style == smsOrganic || support_material_style == smsOrcaTree) && 
+                                   (config->opt_bool("support_material") || 
+                                    config->opt_int("support_material_enforce_layers") > 0);
     for (const std::string& key : { "support_tree_angle", "support_tree_angle_slow", "support_tree_branch_diameter",
                                     "support_tree_branch_diameter_angle", "support_tree_branch_diameter_double_wall", 
                                     "support_tree_tip_diameter", "support_tree_branch_distance", "support_tree_top_rate" })
-        toggle_field(key, has_organic_supports);
+        toggle_field(key, has_tree_supports);
 
     for (auto el : { "support_material_contact_distance", "support_material_bottom_contact_distance" })
         toggle_field(el, have_support_material && !have_support_soluble);
@@ -563,8 +564,8 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
         toggle_field(el, have_support_material && have_support_interface);
     toggle_field("support_material_synchronize_layers", have_support_soluble);
 
-    // organic suport don't use soem fields, force disable them.
-    if (has_organic_supports) {
+    // Tree supports don't use some classic support fields, force disable them.
+    if (has_tree_supports) {
         for (const std::string &key :
              {"support_material_interface_layer_height", "support_material_bottom_interface_pattern",
               "support_material_interface_contact_loops", "support_material_with_sheath", "support_material_pattern",

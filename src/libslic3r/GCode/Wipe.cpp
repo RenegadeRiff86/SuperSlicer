@@ -607,12 +607,13 @@ std::optional<Point> sample_path_point_at_distance_from_start(const ExtrusionPat
                     distance -= sqrt(lsqr);
                 } else {
                     // Circular segment
-                    double angle = Geometry::ArcWelder::arc_angle(prev_point.cast<double>(), point.cast<double>(), double(it->radius));
-                    double len = std::abs(it->radius) * angle;
+                    const coordf_t radius = coordf_t(it->radius);
+                    double angle = Geometry::ArcWelder::arc_angle(prev_point.cast<coordf_t>(), point.cast<coordf_t>(), radius);
+                    double len = std::abs(radius) * angle;
                     if (len > distance) {
                         // Rotate the segment end point in reverse towards the start point.
                         return std::make_optional<Point>(prev_point.rotated(- angle * (distance / len), Point::round(
-                            Geometry::ArcWelder::arc_center(prev_point.cast<double>(), point.cast<double>(), double(it->radius), it->ccw()))));
+                            Geometry::ArcWelder::arc_center(prev_point.cast<coordf_t>(), point.cast<coordf_t>(), radius, it->ccw()).cast<double>())));
                     }
                     distance -= len;
                 }
@@ -646,12 +647,13 @@ std::optional<Point> sample_path_point_at_distance_from_end(const ExtrusionPaths
                 }
                 else {
                     // Circular segment
-                    double angle = Geometry::ArcWelder::arc_angle(prev_point.cast<double>(), point.cast<double>(), double(it->radius));
-                    double len = std::abs(it->radius) * angle;
+                    const coordf_t radius = coordf_t(it->radius);
+                    double angle = Geometry::ArcWelder::arc_angle(prev_point.cast<coordf_t>(), point.cast<coordf_t>(), radius);
+                    double len = std::abs(radius) * angle;
                     if (len > distance) {
                         // Rotate the segment end point in reverse towards the start point.
                         return std::make_optional<Point>(prev_point.rotated(-angle * (distance / len), Point::round(
-                            Geometry::ArcWelder::arc_center(prev_point.cast<double>(), point.cast<double>(), double(it->radius), it->ccw()))));
+                            Geometry::ArcWelder::arc_center(prev_point.cast<coordf_t>(), point.cast<coordf_t>(), radius, it->ccw()).cast<double>())));
                     }
                     distance -= len;
                 }

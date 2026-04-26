@@ -323,6 +323,8 @@ set(SLIC3R_SOURCES
     Arrange/Core/NFP/Kernels/KernelUtils.hpp
     MultiPoint.cpp
     MultiPoint.hpp
+    MinimumSpanningTree.cpp
+    MinimumSpanningTree.hpp
     MutablePriorityQueue.hpp
     NormalUtils.cpp
     NormalUtils.hpp
@@ -400,6 +402,13 @@ set(SLIC3R_SOURCES
     Support/SupportParameters.hpp
     Support/OrganicSupport.cpp
     Support/OrganicSupport.hpp
+    Support/OrcaTreeSupport.cpp
+    Support/OrcaTreeSupport.hpp
+    Support/OrcaTreeSupport3D.cpp
+    Support/OrcaTreeSupport3D.hpp
+    Support/OrcaTreeSupportCommon.hpp
+    Support/OrcaTreeModelVolumes.cpp
+    Support/OrcaTreeModelVolumes.hpp
     Support/TreeSupport.cpp
     Support/TreeSupport.hpp
     Support/TreeSupportCommon.cpp
