@@ -518,7 +518,7 @@ namespace WindowsSupport
 		DWORD CountChars = ::GetFinalPathNameByHandleW(H, (LPWSTR)buffer.data(), (DWORD)buffer.size() - 1, FILE_NAME_NORMALIZED);
 	  	if (CountChars > buffer.size()) {
 	    	// The buffer wasn't big enough, try again.  In this case the return value *does* indicate the size of the null terminator.
-	    	buffer.resize((size_t)CountChars);
+	    	buffer.resize(static_cast<size_t>(CountChars));
 	    	CountChars = ::GetFinalPathNameByHandleW(H, (LPWSTR)buffer.data(), (DWORD)buffer.size() - 1, FILE_NAME_NORMALIZED);
 	  	}
 	  	if (CountChars == 0)
@@ -1110,9 +1110,9 @@ std::string encode_path(const char *src)
     if (wstr_src.length() == 0)
         return std::string();
     // Convert a wide string to a local code page.
-    int size_needed = ::WideCharToMultiByte(0, 0, wstr_src.data(), (int)wstr_src.size(), nullptr, 0, nullptr, nullptr);
+    int size_needed = ::WideCharToMultiByte(0, 0, wstr_src.data(), static_cast<int>(wstr_src.size()), nullptr, 0, nullptr, nullptr);
     std::string str_dst(size_needed, 0);
-    ::WideCharToMultiByte(0, 0, wstr_src.data(), (int)wstr_src.size(), str_dst.data(), size_needed, nullptr, nullptr);
+    ::WideCharToMultiByte(0, 0, wstr_src.data(), static_cast<int>(wstr_src.size()), str_dst.data(), size_needed, nullptr, nullptr);
     return str_dst;
 #else /* WIN32 */
     return src;
@@ -1396,13 +1396,13 @@ std::string format_memsize_MB(size_t n)
         scale *= 1000;
     }
     char buf[8];
-    sprintf(buf, "%d", (int)n);
+    sprintf(buf, "%d", static_cast<int>(n));
     out = buf;
     while (scale != 1) {
         scale /= 1000;
         n = n2 / scale;
         n2 = n2  % scale;
-        sprintf(buf, ",%03d", (int)n);
+        sprintf(buf, ",%03d", static_cast<int>(n));
         out += buf;
     }
     return out + "MB";
@@ -1445,14 +1445,14 @@ std::string log_memory_info(bool ignore_loglevel)
         mach_msg_type_number_t infoCount = MACH_TASK_BASIC_INFO_COUNT;
         out += " Resident memory: ";
         if ( task_info( mach_task_self( ), MACH_TASK_BASIC_INFO, (task_info_t)&info, &infoCount ) == KERN_SUCCESS )
-            out += format_memsize_MB((size_t)info.resident_size);
+            out += format_memsize_MB(static_cast<size_t>(info.resident_size));
         else
             out += "N/A";
     #else // i.e. __linux__
         size_t tSize = 0, resident = 0, share = 0;
         std::ifstream buffer("/proc/self/statm");
         if (buffer && (buffer >> tSize >> resident >> share)) {
-            size_t page_size = (size_t)sysconf(_SC_PAGE_SIZE); // in case x86-64 is configured to use 2MB pages
+            size_t page_size = static_cast<size_t>(sysconf(_SC_PAGE_SIZE)); // in case x86-64 is configured to use 2MB pages
             size_t rss = resident * page_size;
             out += " Resident memory: " + format_memsize_MB(rss);
             out += "; Shared memory: " + format_memsize_MB(share * page_size);
@@ -1466,7 +1466,7 @@ std::string log_memory_info(bool ignore_loglevel)
         rusage memory_info;
         if (getrusage(RUSAGE_SELF, &memory_info) == 0)
         {
-            size_t peak_mem_usage = (size_t)memory_info.ru_maxrss;
+            size_t peak_mem_usage = static_cast<size_t>(memory_info.ru_maxrss);
             #ifdef __linux__
                 peak_mem_usage *= 1024;// getrusage returns the value in kB on linux
             #endif
@@ -1489,14 +1489,14 @@ size_t total_physical_memory()
 	MEMORYSTATUS status;
 	status.dwLength = sizeof(status);
 	GlobalMemoryStatus( &status );
-	return (size_t)status.dwTotalPhys;
+	return static_cast<size_t>(status.dwTotalPhys);
 #elif defined(_WIN32)
 	// Windows. -------------------------------------------------
 	// Use new 64-bit MEMORYSTATUSEX, not old 32-bit MEMORYSTATUS
 	MEMORYSTATUSEX status;
 	status.dwLength = sizeof(status);
 	GlobalMemoryStatusEx( &status );
-	return (size_t)status.ullTotalPhys;
+	return static_cast<size_t>(status.ullTotalPhys);
 #elif defined(__unix__) || defined(__unix) || defined(unix) || (defined(__APPLE__) && defined(__MACH__))
 	// UNIX variants. -------------------------------------------
 	// Prefer sysctl() over sysconf() except sysctl() HW_REALMEM and HW_PHYSMEM
@@ -1512,22 +1512,22 @@ size_t total_physical_memory()
 	int64_t size = 0;               // 64-bit
 	size_t len = sizeof( size );
 	if ( sysctl( mib, 2, &size, &len, NULL, 0 ) == 0 )
-		return (size_t)size;
+		return static_cast<size_t>(size);
 	return 0L;			// Failed?
 
 #elif defined(_SC_AIX_REALMEM)
 	// AIX. -----------------------------------------------------
-	return (size_t)sysconf( _SC_AIX_REALMEM ) * (size_t)1024L;
+	return static_cast<size_t>(sysconf( _SC_AIX_REALMEM )) * static_cast<size_t>(1024L);
 
 #elif defined(_SC_PHYS_PAGES) && defined(_SC_PAGESIZE)
 	// FreeBSD, Linux, OpenBSD, and Solaris. --------------------
-	return (size_t)sysconf( _SC_PHYS_PAGES ) *
-		(size_t)sysconf( _SC_PAGESIZE );
+	return static_cast<size_t>(sysconf( _SC_PHYS_PAGES )) *
+		static_cast<size_t>(sysconf( _SC_PAGESIZE ));
 
 #elif defined(_SC_PHYS_PAGES) && defined(_SC_PAGE_SIZE)
 	// Legacy. --------------------------------------------------
-	return (size_t)sysconf( _SC_PHYS_PAGES ) *
-		(size_t)sysconf( _SC_PAGE_SIZE );
+	return static_cast<size_t>(sysconf( _SC_PHYS_PAGES )) *
+		static_cast<size_t>(sysconf( _SC_PAGE_SIZE ));
 
 #elif defined(CTL_HW) && (defined(HW_PHYSMEM) || defined(HW_REALMEM))
 	// DragonFly BSD, FreeBSD, NetBSD, OpenBSD, and OSX. --------
@@ -1541,7 +1541,7 @@ size_t total_physical_memory()
 	unsigned int size = 0;		// 32-bit
 	size_t len = sizeof( size );
 	if ( sysctl( mib, 2, &size, &len, NULL, 0 ) == 0 )
-		return (size_t)size;
+		return static_cast<size_t>(size);
 	return 0L;			// Failed?
 #endif // sysctl and sysconf variants
 

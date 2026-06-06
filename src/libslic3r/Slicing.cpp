@@ -251,7 +251,7 @@ std::shared_ptr<SlicingParameters> SlicingParameters::create_from_config(
                 Flow reference_flow = Flow::new_from_config_width(frInfill,
                                                                   default_region_config.infill_extrusion_width,
                                                                   default_region_config.infill_extrusion_spacing,
-                                                                  nzd_solid_infill, (float) params.layer_height, 1);
+                                                                   nzd_solid_infill, static_cast<float>(params.layer_height), 1);
                 double diameter = sqrt(4 * reference_flow.mm3_per_mm() / PI);
                 params.gap_raft_object += diameter - params.layer_height;
             } /*else if (default_region_config.bridge_type == BridgeType::btFromHeight) {
@@ -273,7 +273,7 @@ std::shared_ptr<SlicingParameters> SlicingParameters::create_from_config(
     }
 
     if (params.base_raft_layers > 0) {
-        params.interface_raft_layers = std::min(params.base_raft_layers - 1, (size_t)std::max(1, object_config.support_material_interface_layers.value));
+        params.interface_raft_layers = std::min(params.base_raft_layers - 1, static_cast<size_t>(std::max(1, object_config.support_material_interface_layers.value)));
         params.base_raft_layers -= params.interface_raft_layers;
         assert(params.base_raft_layers > 0);
 
@@ -508,7 +508,7 @@ std::vector<double> layer_height_profile_adaptive(const SlicingParameters& slici
         }
 #endif
         cusp_height = check_z_step(cusp_height, slicing_params.z_step);
-        height = std::min((double)cusp_height, height);
+        height = std::min(static_cast<double>(cusp_height), height);
 
         // apply z-gradation
         /*
@@ -555,13 +555,13 @@ std::vector<double> smooth_height_profile(const std::vector<double>& profile, co
             ret.reserve(size);
 
             // Reworked from static inline int getGaussianKernelSize(float sigma) taken from opencv-4.1.2\modules\features2d\src\kaze\AKAZEFeatures.cpp
-            double sigma = 0.3 * (double)(radius - 1) + 0.8;
+            double sigma = 0.3 * static_cast<double>(radius - 1) + 0.8;
             double two_sq_sigma = 2.0 * sigma * sigma;
             double inv_root_two_pi_sq_sigma = 1.0 / ::sqrt(M_PI * two_sq_sigma);
 
             for (unsigned int i = 0; i < size; ++i)
             {
-                double x = (double)i - (double)radius;
+                double x = static_cast<double>(i) - static_cast<double>(radius);
                 ret.push_back(inv_root_two_pi_sq_sigma * ::exp(-x * x / two_sq_sigma));
             }
 
@@ -572,12 +572,12 @@ std::vector<double> smooth_height_profile(const std::vector<double>& profile, co
         size_t skip_count = slicing_params.first_object_layer_height_fixed() ? 4 : 0;
 
         // not enough data to smmoth
-        if ((int)profile.size() - (int)skip_count < 6)
+        if (static_cast<int>(profile.size()) - static_cast<int>(skip_count) < 6)
             return profile;
         
         unsigned int radius = std::max(smoothing_params.radius, (unsigned int)1);
         std::vector<double> kernel = gauss_kernel(radius);
-        int two_radius = 2 * (int)radius;
+        int two_radius = 2 * static_cast<int>(radius);
 
         std::vector<double> ret;
         size_t size = profile.size();
@@ -595,7 +595,7 @@ std::vector<double> smooth_height_profile(const std::vector<double>& profile, co
         double delta_h = slicing_params.max_layer_height - slicing_params.min_layer_height;
         double inv_delta_h = (delta_h != 0.0) ? 1.0 / delta_h : 1.0;
 
-        double max_dz_band = (double)radius * slicing_params.layer_height;
+        double max_dz_band = static_cast<double>(radius) * slicing_params.layer_height;
         for (size_t i = skip_count; i < size; i += 2)
         {
             double zi = profile[i];
@@ -604,12 +604,12 @@ std::vector<double> smooth_height_profile(const std::vector<double>& profile, co
             ret.push_back(zi);
             ret.push_back(0.0);
             double& height = ret.back();
-            int begin = std::max((int)i - two_radius, (int)skip_count);
-            int end = std::min((int)i + two_radius, (int)size - 2);
+            int begin = std::max(static_cast<int>(i) - two_radius, static_cast<int>(skip_count));
+            int end = std::min(static_cast<int>(i) + two_radius, static_cast<int>(size) - 2);
             double weight_total = 0.0;
             for (int j = begin; j <= end; j += 2)
             {
-                int kernel_id = radius + (j - (int)i) / 2;
+                int kernel_id = radius + (j - static_cast<int>(i)) / 2;
                 double dz = std::abs(zi - profile[j]);
                 if (dz * slicing_params.layer_height <= max_dz_band)
                 {
@@ -893,9 +893,9 @@ std::vector<double> generate_object_layers(
         // while (diffZ > EPSILON || diffZ < -EPSILON && idx_layer >= 0){
             // float newH = out[idx_layer * 2 + 1] - out[idx_layer * 2];
             // if (diffZ > 0){
-                // newH = std::min((float)slicing_params.max_layer_height, newH + diffZ);
+                // newH = std::min(static_cast<float>(slicing_params.max_layer_height), newH + diffZ);
             // } else{
-                // newH = std::max((float)slicing_params.min_layer_height, newH + diffZ);
+                // newH = std::max(static_cast<float>(slicing_params.min_layer_height), newH + diffZ);
             // }
             // out[idx_layer * 2 + 1] = neededPrintZ;
             // out[idx_layer * 2] = neededPrintZ - newH;
@@ -1014,10 +1014,10 @@ int generate_layer_height_texture(
             int col = cell - row * (cols - 1);
 			assert(row >= 0 && row < rows);
 			assert(col >= 0 && col < cols);
-            unsigned char *ptr = (unsigned char*)data + (row * cols + col) * 4;
-            ptr[0] = (unsigned char)std::clamp(int(floor(color(0) + 0.5)), 0, 255);
-            ptr[1] = (unsigned char)std::clamp(int(floor(color(1) + 0.5)), 0, 255);
-            ptr[2] = (unsigned char)std::clamp(int(floor(color(2) + 0.5)), 0, 255);
+            unsigned char *ptr = reinterpret_cast<unsigned char*>(data) + (row * cols + col) * 4;
+            ptr[0] = static_cast<unsigned char>(std::clamp(int(floor(color(0) + 0.5)), 0, 255));
+            ptr[1] = static_cast<unsigned char>(std::clamp(int(floor(color(1) + 0.5)), 0, 255));
+            ptr[2] = static_cast<unsigned char>(std::clamp(int(floor(color(2) + 0.5)), 0, 255));
             ptr[3] = 255;
             if (col == 0 && row > 0) {
                 // Duplicate the first value in a row as a last value of the preceding row.
@@ -1047,9 +1047,9 @@ int generate_layer_height_texture(
     			assert(row >= 0 && row < rows/2);
     			assert(col >= 0 && col < cols/2);
                 unsigned char *ptr = data1 + (row * cols1 + col) * 4;
-                ptr[0] = (unsigned char)std::clamp(int(floor(color(0) + 0.5)), 0, 255);
-                ptr[1] = (unsigned char)std::clamp(int(floor(color(1) + 0.5)), 0, 255);
-                ptr[2] = (unsigned char)std::clamp(int(floor(color(2) + 0.5)), 0, 255);
+                ptr[0] = static_cast<unsigned char>(std::clamp(int(floor(color(0) + 0.5)), 0, 255));
+                ptr[1] = static_cast<unsigned char>(std::clamp(int(floor(color(1) + 0.5)), 0, 255));
+                ptr[2] = static_cast<unsigned char>(std::clamp(int(floor(color(2) + 0.5)), 0, 255));
                 ptr[3] = 255;
                 if (col == 0 && row > 0) {
                     // Duplicate the first value in a row as a last value of the preceding row.

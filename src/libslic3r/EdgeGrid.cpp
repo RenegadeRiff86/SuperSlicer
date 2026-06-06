@@ -705,8 +705,8 @@ void EdgeGrid::Grid::calculate_sdf()
 	float search_radius = float(m_resolution<<1);
 	m_signed_distance_field.assign(nrows * ncols, search_radius);
 	// For each cell:
-	for (int r = 0; r < (int)m_rows; ++ r) {
-		for (int c = 0; c < (int)m_cols; ++ c) {
+	for (int r = 0; r < static_cast<int>(m_rows); ++ r) {
+		for (int c = 0; c < static_cast<int>(m_cols); ++ c) {
 			const Cell &cell = m_cells[r * m_cols + c];
 			// For each segment in the cell:
 			for (size_t i = cell.begin; i != cell.end; ++ i) {
@@ -723,11 +723,11 @@ void EdgeGrid::Grid::calculate_sdf()
 				// For each corner of this cell and its 1 ring neighbours:
 				for (int corner_y = -1; corner_y < 3; ++ corner_y) {
 					coord_t corner_r = r + corner_y;
-					if (corner_r < 0 || (size_t)corner_r >= nrows)
+					if (corner_r < 0 || static_cast<size_t>(corner_r) >= nrows)
 						continue;
 					for (int corner_x = -1; corner_x < 3; ++ corner_x) {
 						coord_t corner_c = c + corner_x;
-						if (corner_c < 0 || (size_t)corner_c >= ncols)
+						if (corner_c < 0 || static_cast<size_t>(corner_c) >= ncols)
 							continue;
 						float  &d_min = m_signed_distance_field[corner_r * ncols + corner_c];
 						Slic3r::Point pt(m_bbox.min(0) + corner_c * m_resolution, m_bbox.min(1) + corner_r * m_resolution);
@@ -776,10 +776,10 @@ void EdgeGrid::Grid::calculate_sdf()
 								float linv = float(d_seg) / float(l2_seg);
 								l[0] = std::abs(float(v_seg(1)) * linv);
 								l[1] = std::abs(float(v_seg(0)) * linv);
-								#ifdef _DEBUG
-									double dabs2 = sqrt(l[0]*l[0]+l[1]*l[1]);
-									assert(std::abs(dabs-dabs2) <= 1e-4 * std::max(dabs, dabs2));
-								#endif /* _DEBUG */
+							#ifdef _DEBUG
+								double dabs2 = sqrt(l[0]*l[0]+l[1]*l[1]);
+								assert(std::abs(dabs-dabs2) <= 1e-4 * std::max(dabs, dabs2));
+							#endif /* _DEBUG */
 								signs[corner_r * ncols + corner_c] = ((d_seg < 0) ? 1 : 0) | 2;
 							}
 						}
@@ -1075,9 +1075,9 @@ EdgeGrid::Grid::ClosestPointResult EdgeGrid::Grid::closest_point_signed_distance
 		return result;
 	bbox.max(0) /= m_resolution;
 	bbox.max(1) /= m_resolution;
-	if ((size_t)bbox.max(0) >= m_cols)
+	if (static_cast<size_t>(bbox.max(0)) >= m_cols)
 		bbox.max(0) = m_cols - 1;
-	if ((size_t)bbox.max(1) >= m_rows)
+	if (static_cast<size_t>(bbox.max(1)) >= m_rows)
 		bbox.max(1) = m_rows - 1;
 	// Lower boundary, round to grid and test validity.
 	bbox.min(0) -= search_radius;
@@ -1207,9 +1207,9 @@ bool EdgeGrid::Grid::signed_distance_edges(const Point &pt, coord_t search_radiu
 		return false;
 	bbox.max(0) /= m_resolution;
 	bbox.max(1) /= m_resolution;
-	if ((size_t)bbox.max(0) >= m_cols)
+	if (static_cast<size_t>(bbox.max(0)) >= m_cols)
 		bbox.max(0) = m_cols - 1;
-	if ((size_t)bbox.max(1) >= m_rows)
+	if (static_cast<size_t>(bbox.max(1)) >= m_rows)
 		bbox.max(1) = m_rows - 1;
 	// Lower boundary, round to grid and test validity.
 	bbox.min(0) -= search_radius;
@@ -1438,8 +1438,8 @@ std::vector<std::pair<EdgeGrid::Grid::ContourEdge, EdgeGrid::Grid::ContourEdge>>
 {
 	std::vector<std::pair<ContourEdge, ContourEdge>> out;
 	// For each cell:
-	for (int r = 0; r < (int)m_rows; ++ r) {
-		for (int c = 0; c < (int)m_cols; ++ c) {
+	for (int r = 0; r < static_cast<int>(m_rows); ++ r) {
+		for (int c = 0; c < static_cast<int>(m_cols); ++ c) {
 			const Cell &cell = m_cells[r * m_cols + c];
 			// For each pair of segments in the cell:
 			for (size_t i = cell.begin; i != cell.end; ++ i) {
@@ -1475,8 +1475,8 @@ std::vector<std::pair<EdgeGrid::Grid::ContourEdge, EdgeGrid::Grid::ContourEdge>>
 bool EdgeGrid::Grid::has_intersecting_edges() const
 {
 	// For each cell:
-	for (int r = 0; r < (int)m_rows; ++ r) {
-		for (int c = 0; c < (int)m_cols; ++ c) {
+	for (int r = 0; r < static_cast<int>(m_rows); ++ r) {
+		for (int c = 0; c < static_cast<int>(m_cols); ++ c) {
 			const Cell &cell = m_cells[r * m_cols + c];
 			// For each pair of segments in the cell:
 			for (size_t i = cell.begin; i != cell.end; ++ i) {
@@ -1562,9 +1562,9 @@ void EdgeGrid::save_png(const EdgeGrid::Grid &grid, const BoundingBox &bbox, coo
 				if (d < 1.f) {
 					// Less than 1 pixel from the grid point.
 					float t = 0.5f + 0.5f * d;
-					pxl[0] = (unsigned char)(t * pxl[0]);
-					pxl[1] = (unsigned char)(t * pxl[1]);
-					pxl[2] = (unsigned char)(t * pxl[2]);
+					pxl[0] = static_cast<unsigned char>(t * pxl[0]);
+					pxl[1] = static_cast<unsigned char>(t * pxl[1]);
+					pxl[2] = static_cast<unsigned char>(t * pxl[2]);
 				}
 			}
 
@@ -1574,9 +1574,9 @@ void EdgeGrid::save_png(const EdgeGrid::Grid &grid, const BoundingBox &bbox, coo
 			if (dgrid < 1.f) {
 				// Less than 1 pixel from the grid point.
 				float t = 0.5f + 0.5f * dgrid;
-				pxl[0] = (unsigned char)(t * pxl[0]);
-				pxl[1] = (unsigned char)(t * pxl[1]);
-				pxl[2] = (unsigned char)(t * pxl[2]);
+				pxl[0] = static_cast<unsigned char>(t * pxl[0]);
+				pxl[1] = static_cast<unsigned char>(t * pxl[1]);
+				pxl[2] = static_cast<unsigned char>(t * pxl[2]);
 				if (igrid > 0.f) {
 					// Other than zero iso contour.
 					int g = int(pxl[1] + 255.f * (1.f - t));

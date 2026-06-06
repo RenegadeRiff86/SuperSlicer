@@ -1424,7 +1424,7 @@ indexed_triangle_set its_make_snap(double r, double h, float space_proportion, f
     mesh.indices.reserve(2 * (6 * 2 * sectors_cnt + 6));
 
     add_sub_mesh(mesh, -space_len, halfPI    , 0);
-    add_sub_mesh(mesh,  space_len, 3 * halfPI, (int)mesh.vertices.size());
+    add_sub_mesh(mesh,  space_len, 3 * halfPI, static_cast<int>(mesh.vertices.size()));
 
     return mesh;
 }
@@ -1443,14 +1443,14 @@ indexed_triangle_set its_convex_hull(const std::vector<Vec3f> &pts)
     #endif
         try {
     #if REALfloat
-            qhull.runQhull("", 3, (int)pts.size(), (const realT*)(pts.front().data()), "Qt");
+            qhull.runQhull("", 3, static_cast<int>(pts.size()), reinterpret_cast<const realT*>(pts.front().data()), "Qt");
     #else
             src_vertices.reserve(pts.size() * 3);
             // We will now fill the vector with input points for computation:
             for (const stl_vertex &v : pts)
                 for (int i = 0; i < 3; ++ i)
                     src_vertices.emplace_back(v(i));
-            qhull.runQhull("", 3, (int)src_vertices.size() / 3, src_vertices.data(), "Qt");
+            qhull.runQhull("", 3, static_cast<int>(src_vertices.size()) / 3, src_vertices.data(), "Qt");
     #endif
         } catch (...) {
             BOOST_LOG_TRIVIAL(error) << "its_convex_hull: Unable to create convex hull";

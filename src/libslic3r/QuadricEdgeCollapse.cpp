@@ -211,7 +211,7 @@ void Slic3r::its_quadric_edge_collapse(
     uint32_t count_triangle_to_reduce = actual_triangle_count - triangle_count;
     auto increase_status = [&]() { 
         double reduced = (actual_triangle_count - triangle_count) /
-                         (double) count_triangle_to_reduce;
+                         static_cast<double>(count_triangle_to_reduce);
         double status = status_init_size + (100 - status_init_size) *
                         (1. - reduced);            
         status_fn(static_cast<int>(std::round(status)));

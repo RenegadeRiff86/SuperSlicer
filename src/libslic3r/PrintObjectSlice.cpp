@@ -1112,7 +1112,7 @@ void PrintObject::_max_overhang_threshold() {
 Polygons create_polyholes(const Point center, const coord_t radius, const coord_t nozzle_diameter, bool multiple)
 {
     // n = max(round(2 * d), 3); // for 0.4mm nozzle
-    size_t nb_edges = (int)std::max(3, (int)std::round(4.0 * unscaled(radius) * 0.4 / unscaled(nozzle_diameter)));
+    size_t nb_edges = static_cast<size_t>(std::max(3, static_cast<int>(std::round(4.0 * unscaled(radius) * 0.4 / unscaled(nozzle_diameter)))));
     // cylinder(h = h, r = d / cos (180 / n), $fn = n);
     //create x polyholes by rotation if multiple
     int nb_polyhole = 1;
@@ -1128,7 +1128,7 @@ Polygons create_polyholes(const Point center, const coord_t radius, const coord_
         Polygon& pts = (((i_poly % 2) == 0) ? list[i_poly / 2] : list[(nb_polyhole + 1) / 2 + i_poly / 2]);
         const float new_radius = radius / float(std::cos(PI / nb_edges));
         for (size_t i_edge = 0; i_edge < nb_edges; ++i_edge) {
-            float angle = rotation * i_poly + (float(PI) * 2 * (float)i_edge) / nb_edges;
+            float angle = rotation * i_poly + (float(PI) * 2 * static_cast<float>(i_edge)) / nb_edges;
             pts.points.emplace_back(center.x() + new_radius * cos(angle), center.y() + new_radius * sin(angle));
         }
         pts.make_clockwise();
@@ -1559,7 +1559,7 @@ Polygon _smooth_curve(Polygon& p, double max_angle, double min_angle_convex, dou
         Point bp = p[idx] + ((!angle1_ok) ? vec_bc.cast<coord_t>() : vec_b_tang.cast<coord_t>());
         Point cp = p[idx + 1] + ((!angle2_ok) ? vec_cb.cast<coord_t>() : vec_c_tang.cast<coord_t>());
         for (int idx_np = 0; idx_np < nb_add; idx_np++) {
-            const float percent_np = (idx_np + 1) / (float)(nb_add + 1);
+            const float percent_np = (idx_np + 1) / static_cast<float>(nb_add + 1);
             const float inv_percent_np = 1 - percent_np;
             pout.points.emplace_back();
             Point& new_p = pout.points.back();

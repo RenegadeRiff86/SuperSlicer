@@ -712,7 +712,7 @@ bool ensure_valid(Polygon &polygon, coord_t resolution) {
 }
 
 void Polygon::remove_point_too_close(coord_t tolerance) {
-    const double tolerance_sq = tolerance * (double)tolerance;
+    const double tolerance_sq = tolerance * static_cast<double>(tolerance);
     size_t id = 1;
     while (id < this->points.size() - 1) {
         coord_t d_prev = this->points[id].distance_to_square(this->points[id - 1]);

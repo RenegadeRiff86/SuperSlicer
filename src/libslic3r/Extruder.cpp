@@ -37,7 +37,7 @@ Mill::Mill(uint16_t mill_id, GCodeConfig &config) :
     Tool(mill_id, config)
 {
     m_mill_id = mill_id;
-    m_id = mill_id + (uint16_t)config.retract_length.size();
+    m_id = mill_id + static_cast<uint16_t>(config.retract_length.size());
 }
 
 std::pair<double, double> Tool::extrude(double dE)

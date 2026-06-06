@@ -180,7 +180,7 @@ std::vector<float> contour_distance(const EdgeGrid::Grid &grid, const size_t idx
 #endif /* CONTOUR_DISTANCE_DEBUG_SVG */
 
 			for (int i = - num_rays + 1; i < num_rays; ++ i) {
-				double angle = a * i / (int)num_rays;
+				double angle = a * i / static_cast<int>(num_rays);
 				double c = cos(angle);
 				double s = sin(angle);
 				Vec2d  v = c * dir + s * dir_perp;

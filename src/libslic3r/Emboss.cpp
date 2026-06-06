@@ -1507,7 +1507,7 @@ std::string Emboss::create_range_text(const std::string &text,
 double Emboss::get_text_shape_scale(const FontProp &fp, const FontFile &ff)
 {
     const FontFile::Info &info = get_font_info(ff, fp);
-    double scale  = fp.size_in_mm / (double) info.unit_per_em;
+    double scale  = fp.size_in_mm / static_cast<double>(info.unit_per_em);
     // Shape is scaled for store point coordinate as integer
     return scale * SHAPE_SCALE;
 }

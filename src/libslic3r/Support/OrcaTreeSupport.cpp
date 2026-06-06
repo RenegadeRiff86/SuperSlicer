@@ -798,7 +798,7 @@ void OrcaTreeSupport::detect_overhangs(bool check_support_necessity/* = false*/)
                 }
 
                 Layer* lower_layer = layer->lower_layer;
-                coordf_t lower_layer_offset = layer_nr < enforce_support_layers ? -0.15 * extrusion_width : (float)lower_layer->height / tan(threshold_rad);
+                coordf_t lower_layer_offset = layer_nr < enforce_support_layers ? -0.15 * extrusion_width : static_cast<float>(lower_layer->height) / tan(threshold_rad);
                 //lower_layer_offset = std::min(lower_layer_offset, extrusion_width);
                 coordf_t support_offset_scaled = scale_(lower_layer_offset);
                 ExPolygons& curr_polys = layer->lslices_extrudable;
@@ -1321,7 +1321,7 @@ void OrcaTreeSupport::generate_toolpaths()
 
     // Check if set to zero, use default if so.
     if (support_extrusion_width <= 0.0)
-        support_extrusion_width = Flow::auto_extrusion_width(FlowRole::frSupportMaterial, (float)nozzle_diameter);
+        support_extrusion_width = Flow::auto_extrusion_width(FlowRole::frSupportMaterial, static_cast<float>(nozzle_diameter));
 
     // coconut: use same intensity settings as SupportMaterial.cpp
     auto m_support_material_interface_flow = support_material_interface_flow(m_object, float(m_slicing_params.layer_height));
@@ -1926,9 +1926,9 @@ void OrcaTreeSupport::draw_circles()
     {
         double angle;
         if (SQUARE_SUPPORT)
-            angle = (double) i / CIRCLE_RESOLUTION * TAU + PI / 4.0 + nodes_angle;
+            angle = static_cast<double>(i) / CIRCLE_RESOLUTION * TAU + PI / 4.0 + nodes_angle;
         else
-            angle = (double) i / CIRCLE_RESOLUTION * TAU;
+            angle = static_cast<double>(i) / CIRCLE_RESOLUTION * TAU;
         branch_circle.append(Point(cos(angle) * branch_radius_scaled, sin(angle) * branch_radius_scaled));
     }
 
@@ -3037,7 +3037,7 @@ std::vector<LayerHeightData> OrcaTreeSupport::plan_layer_heights()
         bounds[m_object->get_layer(0)->print_z] = {m_object->get_layer(0)->height};
         std::vector<float> obj_layer_zs;
         obj_layer_zs.reserve(m_object->layer_count());
-        for (const Layer *l : m_object->layers()) obj_layer_zs.emplace_back((float) l->print_z);
+        for (const Layer *l : m_object->layers()) obj_layer_zs.emplace_back(static_cast<float>(l->print_z));
         z_heights[m_object->get_layer(0)->print_z] = m_object->get_layer(0)->height;
         // Collect top contact layers
         for (int layer_nr = 1; layer_nr < contact_nodes.size(); layer_nr++) {
@@ -3483,7 +3483,7 @@ void OrcaTreeSupportData::clear_nodes()
 
 coordf_t OrcaTreeSupportData::ceil_radius(coordf_t radius) const
 {
-    size_t factor = (size_t)(radius / m_radius_sample_resolution);
+    size_t factor = static_cast<size_t>(radius / m_radius_sample_resolution);
     coordf_t remains = radius - m_radius_sample_resolution * factor;
     if (remains > EPSILON) {
         return radius + m_radius_sample_resolution - remains;

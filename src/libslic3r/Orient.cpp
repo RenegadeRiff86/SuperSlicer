@@ -242,7 +242,7 @@ public:
         std::vector<PAIR> align_counts(alignments.begin(), alignments.end());
         sort(align_counts.begin(), align_counts.end(), [](const PAIR& p1, const PAIR& p2) {return p1.second > p2.second; });
 
-        num_directions = std::min((size_t)num_directions, align_counts.size());
+        num_directions = std::min(static_cast<size_t>(num_directions), align_counts.size());
         for (size_t i = 0; i < num_directions; i++)
         {
             orientations.push_back(align_counts[i].first);
@@ -274,7 +274,7 @@ public:
         std::vector<PAIR> align_counts(alignments_.begin(), alignments_.end());
         sort(align_counts.begin(), align_counts.end(), [](const PAIR& p1, const PAIR& p2) {return p1.second.first[1] > p2.second.first[1]; });
 
-        num_directions = std::min((size_t)num_directions, align_counts.size());
+        num_directions = std::min(static_cast<size_t>(num_directions), align_counts.size());
         for (size_t i = 0; i < num_directions; i++)
         {
             orientations.push_back(align_counts[i].second.second);

@@ -1131,8 +1131,8 @@ Flow Print::brim_flow(size_t extruder_id, const PrintObjectConfig& brim_config) 
         frPerimeter,
         *Flow::extrusion_width_option("brim", tempConf),
         *Flow::extrusion_spacing_option("brim", tempConf),
-        (float)m_config.nozzle_diameter.get_at(extruder_id),
-        (float)get_min_first_layer_height(),
+        static_cast<float>(m_config.nozzle_diameter.get_at(extruder_id)),
+        static_cast<float>(get_min_first_layer_height()),
         (extruder_id < m_config.nozzle_diameter.size()) ? brim_config.get_computed_value("filament_max_overlap", extruder_id) : 1
     );
 }
@@ -1163,8 +1163,8 @@ Flow Print::skirt_flow(size_t extruder_id, bool first_layer/*=false*/) const
         frPerimeter,
         *Flow::extrusion_width_option("skirt", m_default_region_config),
         *Flow::extrusion_spacing_option("skirt", m_default_region_config),
-        (float)max_nozzle_diam,
-        (float)get_min_first_layer_height(),
+        static_cast<float>(max_nozzle_diam),
+        static_cast<float>(get_min_first_layer_height()),
         1 // hard to say what extruder we have here(many) m_default_region_config.get_computed_value("filament_max_overlap", extruder -1),
     );
     
@@ -1796,7 +1796,7 @@ void Print::_make_skirt(const PrintObjectPtrs &objects, ExtrusionEntityCollectio
             Flow   flow = this->skirt_flow(extruder_id);
             double mm3_per_mm = flow.mm3_per_mm();
             extruders.push_back(extruder_id);
-            extruders_e_per_mm.push_back(Extruder((unsigned int)extruder_id, m_config).e_per_mm(mm3_per_mm));
+            extruders_e_per_mm.push_back(Extruder(static_cast<unsigned int>(extruder_id), m_config).e_per_mm(mm3_per_mm));
         }
     }
 
@@ -2280,7 +2280,7 @@ void Print::_make_wipe_tower()
         wipe_tower.set_extruder(i);
 
     m_wipe_tower_data.priming = Slic3r::make_unique<std::vector<WipeTower::ToolChangeResult>>(
-        wipe_tower.prime((float)get_min_first_layer_height(), m_wipe_tower_data.tool_ordering.all_extruders(), false));
+        wipe_tower.prime(static_cast<float>(get_min_first_layer_height()), m_wipe_tower_data.tool_ordering.all_extruders(), false));
 
     // Lets go through the wipe tower layers and determine pairs of extruder changes for each
     // to pass to wipe_tower (so that it can use it for planning the layout of the tower)
@@ -2289,7 +2289,7 @@ void Print::_make_wipe_tower()
         for (auto &layer_tools : m_wipe_tower_data.tool_ordering.layer_tools()) { // for all layers
             if (!layer_tools.has_wipe_tower) continue;
             bool first_layer = &layer_tools == &m_wipe_tower_data.tool_ordering.front();
-            wipe_tower.plan_toolchange((float)layer_tools.print_z, (float)layer_tools.wipe_tower_layer_height, current_extruder_id, current_extruder_id, false);
+            wipe_tower.plan_toolchange(static_cast<float>(layer_tools.print_z), static_cast<float>(layer_tools.wipe_tower_layer_height), current_extruder_id, current_extruder_id, false);
             for (const auto extruder_id : layer_tools.extruders) {
                 if ((first_layer && extruder_id == m_wipe_tower_data.tool_ordering.all_extruders().back()) || extruder_id != current_extruder_id) {
                     double volume_to_wipe = wipe_volumes[current_extruder_id][extruder_id];             // total volume to wipe after this toolchange
@@ -2328,16 +2328,16 @@ void Print::_make_wipe_tower()
                     // END filament_wipe_advanced_pigment
                     
                     // Not all of that can be used for infill purging:
-                    volume_to_wipe -= (float)m_config.filament_minimal_purge_on_wipe_tower.get_at(extruder_id);
+                    volume_to_wipe -= static_cast<float>(m_config.filament_minimal_purge_on_wipe_tower.get_at(extruder_id));
 
                     // try to assign some infills/objects for the wiping:
                     volume_to_wipe = layer_tools.wiping_extrusions_nonconst().mark_wiping_extrusions(*this, layer_tools, current_extruder_id, extruder_id, volume_to_wipe);
 
                     // add back the minimal amount toforce on the wipe tower:
-                    volume_to_wipe += (float)m_config.filament_minimal_purge_on_wipe_tower.get_at(extruder_id);
+                    volume_to_wipe += static_cast<float>(m_config.filament_minimal_purge_on_wipe_tower.get_at(extruder_id));
 
                     // request a toolchange at the wipe tower with at least volume_to_wipe purging amount
-                    wipe_tower.plan_toolchange((float)layer_tools.print_z, (float)layer_tools.wipe_tower_layer_height,
+                    wipe_tower.plan_toolchange(static_cast<float>(layer_tools.print_z), static_cast<float>(layer_tools.wipe_tower_layer_height),
                                                current_extruder_id, extruder_id, volume_to_wipe);
                     current_extruder_id = extruder_id;
                 }
@@ -2373,7 +2373,7 @@ void Print::_make_wipe_tower()
         wipe_tower.set_layer(float(m_wipe_tower_data.tool_ordering.back().print_z), float(layer_height), 0, false, true);
     }
     m_wipe_tower_data.final_purge = Slic3r::make_unique<WipeTower::ToolChangeResult>(
-        wipe_tower.tool_change((unsigned int)(-1)));
+        wipe_tower.tool_change(static_cast<unsigned int>(-1)));
 
     m_wipe_tower_data.used_filament_until_layer = wipe_tower.get_used_filament_until_layer();
     m_wipe_tower_data.number_of_toolchanges = wipe_tower.get_number_of_toolchanges();

@@ -268,8 +268,8 @@ ModelObject* Model::add_object(const char *name, const char *path, const Triangl
     ModelVolume *new_volume = new_object->add_volume(mesh);
     new_volume->name = name;
     new_volume->source.input_file = path;
-    new_volume->source.object_idx = (int)this->objects.size() - 1;
-    new_volume->source.volume_idx = (int)new_object->volumes.size() - 1;
+    new_volume->source.object_idx = static_cast<int>(this->objects.size()) - 1;
+    new_volume->source.volume_idx = static_cast<int>(new_object->volumes.size()) - 1;
     new_object->invalidate_bounding_box();
     return new_object;
 }
@@ -283,8 +283,8 @@ ModelObject* Model::add_object(const char *name, const char *path, TriangleMesh 
     ModelVolume *new_volume = new_object->add_volume(std::move(mesh));
     new_volume->name = name;
     new_volume->source.input_file = path;
-    new_volume->source.object_idx = (int)this->objects.size() - 1;
-    new_volume->source.volume_idx = (int)new_object->volumes.size() - 1;
+    new_volume->source.object_idx = static_cast<int>(this->objects.size()) - 1;
+    new_volume->source.volume_idx = static_cast<int>(new_object->volumes.size()) - 1;
     new_object->invalidate_bounding_box();
     return new_object;
 }
@@ -469,7 +469,7 @@ void Model::duplicate_objects_grid(size_t x, size_t y, coordf_t dist)
     for (size_t x_copy = 1; x_copy <= x; ++x_copy) {
         for (size_t y_copy = 1; y_copy <= y; ++y_copy) {
             ModelInstance* instance = object->add_instance();
-            instance->set_offset(Vec3d(ext_size(0) * (double)(x_copy - 1), ext_size(1) * (double)(y_copy - 1), 0.0));
+            instance->set_offset(Vec3d(ext_size(0) * static_cast<double>(x_copy - 1), ext_size(1) * static_cast<double>(y_copy - 1), 0.0));
         }
     }
 }
@@ -1322,7 +1322,7 @@ void ModelObject::convert_units(ModelObjectPtrs& new_objects, ConversionType con
             assert(vol->config.id() != volume->config.id());
             vol->set_material(volume->material_id(), *volume->material());
             vol->source.input_file = volume->source.input_file;
-            vol->source.object_idx = (int)new_objects.size();
+            vol->source.object_idx = static_cast<int>(new_objects.size());
             vol->source.volume_idx = vol_idx;
             vol->source.is_converted_from_inches = volume->source.is_converted_from_inches;
             vol->source.is_converted_from_meters = volume->source.is_converted_from_meters;
@@ -1853,11 +1853,11 @@ void ModelVolume::center_geometry_after_creation(bool update_source_offset)
     if (!shift.isApprox(Vec3d::Zero()))
     {
     	if (m_mesh) {
-        	const_cast<TriangleMesh*>(m_mesh.get())->translate(-(float)shift(0), -(float)shift(1), -(float)shift(2));
+        	const_cast<TriangleMesh*>(m_mesh.get())->translate(-static_cast<float>(shift(0)), -static_cast<float>(shift(1)), -static_cast<float>(shift(2)));
             const_cast<TriangleMesh*>(m_mesh.get())->set_init_shift(shift);
         }
         if (m_convex_hull)
-			const_cast<TriangleMesh*>(m_convex_hull.get())->translate(-(float)shift(0), -(float)shift(1), -(float)shift(2));
+			const_cast<TriangleMesh*>(m_convex_hull.get())->translate(-static_cast<float>(shift(0)), -static_cast<float>(shift(1)), -static_cast<float>(shift(2)));
         translate(shift);
     }
 

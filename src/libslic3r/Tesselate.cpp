@@ -36,7 +36,7 @@ public:
                 num_coords += poly.points.size();
             coords.reserve(num_coords * 3);
         }
-        gluTessBeginPolygon(m_tesselator, (void*)this);
+        gluTessBeginPolygon(m_tesselator, static_cast<void*>(this));
         gluTessBeginContour(m_tesselator);
         for (const Point &pt : expoly.contour.points) {
             coords.emplace_back(unscale<double>(pt[0]));
@@ -77,7 +77,7 @@ public:
             coords.assign(num_coords * 3, 0);
         }
         for (const ExPolygon &expoly : expolygons) {
-            gluTessBeginPolygon(m_tesselator, (void*)this);
+            gluTessBeginPolygon(m_tesselator, static_cast<void*>(this));
             gluTessBeginContour(m_tesselator);
             size_t idx = 0;
             for (const Point &pt : expoly.contour.points) {
@@ -170,7 +170,7 @@ private:
     {
 //        const GLubyte *errorStr;
 //        errorStr = gluErrorString(errorCode);
-//        printf("Error: %s\n", (const char*)errorStr);
+//        printf("Error: %s\n", reinterpret_cast<const char*>(errorStr));
     }
 
     // Instance owned over the life time of this wrapper.

@@ -3320,13 +3320,13 @@ static float randomFloatFromSeed(uint32_t x)
     boost::random::mt19937 rng(x);
     boost::random::uniform_real_distribution<> dist;
 
-    return (float) dist(rng);
+    return static_cast<float>(dist(rng));
 }
 
 float FillScatteredRectilinear::_layer_angle(size_t idx) const
 {
     // Angle chosen at random using the layer index as a key
-    return randomFloatFromSeed((uint32_t) idx) * (float) M_PI;
+    return randomFloatFromSeed(static_cast<uint32_t>(idx)) * static_cast<float>(M_PI);
 }
 
 coord_t FillScatteredRectilinear::_line_spacing_for_density(const FillParams& params) const
@@ -3344,7 +3344,7 @@ Polylines FillScatteredRectilinear::fill_surface(const Surface *surface, const F
     Polylines polylines_out;
 
     // Offset the pattern randomly using the current layer index as the generator
-    float offset = (float)randomFloatFromSeed((uint32_t) layer_id) * 0.5f * this->get_spacing();
+    float offset = randomFloatFromSeed(static_cast<uint32_t>(layer_id)) * 0.5f * this->get_spacing();
 
     if (!fill_surface_by_lines(surface, params, 0.f, offset, polylines_out)) {
         printf("FillScatteredRectilinear::fill_surface() failed to fill a region.\n");
@@ -3357,7 +3357,7 @@ std::vector<SegmentedIntersectionLine> FillScatteredRectilinear::_vert_lines_for
     std::vector<SegmentedIntersectionLine> segs = FillRectilinear::_vert_lines_for_polygon(poly_with_offset, bounding_box, params, line_spacing);
 
     if (!params.full_infill()) {
-        boost::random::mt19937 rng((uint32_t) layer_id);
+        boost::random::mt19937 rng(static_cast<uint32_t>(layer_id));
         boost::random::uniform_real_distribution<> dist;
 
         // Remove generated lines with a probability that'll achieve the required density on average
@@ -3405,7 +3405,7 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
                                                         false));
             ExtrusionPath3D *current_extrusion = &(extrusions->paths.back());
             const Points &pts = poly.points;
-            coord_t next_zhop = tooth_spacing_min + (coord_t)abs((safe_rand() / (float)RAND_MAX) * (tooth_spacing_max - tooth_spacing_min));
+            coord_t next_zhop = tooth_spacing_min + (coord_t)abs((safe_rand() / static_cast<float>(RAND_MAX)) * (tooth_spacing_max - tooth_spacing_min));
             size_t idx = 1;
 
             current_extrusion->push_back(pts[0], 0);
@@ -3416,9 +3416,9 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
                 //go next hop line
                 //do not use the "return" line nor the tangent ones.
                 while (idx < poly.size() && maxLength > tooth_spacing_min && (next_zhop >= line_length || line_length < clearance
-                    || (std::abs(std::abs((int)(this->angle * 180 / PI) % 180) - 90) > 45 ? pts[idx].y() < pts[idx - 1].y() : pts[idx].x() < pts[idx - 1].x()))) {
+                    || (std::abs(std::abs(static_cast<int>(this->angle * 180 / PI) % 180) - 90) > 45 ? pts[idx].y() < pts[idx - 1].y() : pts[idx].x() < pts[idx - 1].x()))) {
                     if (line_length < clearance 
-                        || (std::abs(std::abs((int)(this->angle * 180 / PI) % 180) - 90) > 45 ? pts[idx].y() < pts[idx - 1].y() : pts[idx].x() < pts[idx - 1].x())) {
+                        || (std::abs(std::abs(static_cast<int>(this->angle * 180 / PI) % 180) - 90) > 45 ? pts[idx].y() < pts[idx - 1].y() : pts[idx].x() < pts[idx - 1].x())) {
                         // not becasue of next_zhop too big, so don't reduce it.
                     } else {
                         next_zhop -= line_length;
@@ -3437,7 +3437,7 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
                     //keep some room for the mouv
                     if (next_zhop > line_length - scaled_nozzle_diam * 2) 
                         next_zhop = line_length - scaled_nozzle_diam * 2.5;
-                    last = last.interpolate(next_zhop / (double)line_length, pts[idx]);
+                    last = last.interpolate(next_zhop / static_cast<double>(line_length), pts[idx]);
                     //Create point at pos
                     if (last != pts[idx - 1]) {
                         current_extrusion->push_back(last, 0);
@@ -3463,7 +3463,7 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
                     current_extrusion->push_back(last, tooth_zhop);
                     //add next point at scaled_nozzle_diam distance
                     line_length = (coord_t)last.distance_to(pts[idx]);
-                    last = last.interpolate(scaled_nozzle_diam / (double)line_length, pts[idx]);
+                    last = last.interpolate(scaled_nozzle_diam / static_cast<double>(line_length), pts[idx]);
                     current_extrusion->push_back(last, tooth_zhop);
 
                     // add new extrusion that go down with no nozzle_flow / sqrt(2)
@@ -3476,7 +3476,7 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
                     current_extrusion->push_back(last, tooth_zhop);
                     //add next point at scaled_nozzle_diam distance
                     line_length = (coord_t)last.distance_to(pts[idx]);
-                    last = last.interpolate(scaled_nozzle_diam / (double)line_length, pts[idx]);
+                    last = last.interpolate(scaled_nozzle_diam / static_cast<double>(line_length), pts[idx]);
                     current_extrusion->push_back(last, 0);
 
                     // now go back to normal flow
@@ -3491,7 +3491,7 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
                     line_length = (coord_t)last.distance_to(pts[idx]);
 
                     //re-init
-                    next_zhop = tooth_spacing_min + (coord_t)abs((safe_rand() / (float)RAND_MAX) * (tooth_spacing_max - tooth_spacing_min));
+                    next_zhop = tooth_spacing_min + (coord_t)abs((safe_rand() / static_cast<float>(RAND_MAX)) * (tooth_spacing_max - tooth_spacing_min));
                 }
             }
             while (idx < poly.size()) {

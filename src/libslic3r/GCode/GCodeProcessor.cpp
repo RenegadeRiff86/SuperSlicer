@@ -2823,12 +2823,12 @@ void GCodeProcessor::process_G0(const GCodeReader::GCodeLine& line)
 void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line)
 {
     std::array<std::optional<double>, 4> g1_axes = { std::nullopt, std::nullopt, std::nullopt, std::nullopt };
-    if (line.has_x()) g1_axes[X] = (double)line.x();
-    if (line.has_y()) g1_axes[Y] = (double)line.y();
-    if (line.has_z()) g1_axes[Z] = (double)line.z();
-    if (line.has_e()) g1_axes[E] = (double)line.e();
+    if (line.has_x()) g1_axes[X] = static_cast<double>(line.x());
+    if (line.has_y()) g1_axes[Y] = static_cast<double>(line.y());
+    if (line.has_z()) g1_axes[Z] = static_cast<double>(line.z());
+    if (line.has_e()) g1_axes[E] = static_cast<double>(line.e());
     std::optional<double> g1_feedrate = std::nullopt;
-    if (line.has_f()) g1_feedrate = (double)line.f();
+    if (line.has_f()) g1_feedrate = static_cast<double>(line.f());
     //reprap thingy, ignore
     if (line.has('R') || line.has('H'))
         return;
@@ -3002,7 +3002,7 @@ void GCodeProcessor::process_G1(const std::array<std::optional<double>, 4>& axes
 
     // time estimate section
     auto move_length = [](const AxisCoords& delta_pos) {
-        float sq_xyz_length = (float)sqr(delta_pos[X]) + (float)sqr(delta_pos[Y]) + (float)sqr(delta_pos[Z]);
+        float sq_xyz_length = static_cast<float>(sqr(delta_pos[X])) + static_cast<float>(sqr(delta_pos[Y])) + static_cast<float>(sqr(delta_pos[Z]));
         return (sq_xyz_length > 0.0f) ? std::sqrt(sq_xyz_length) : std::abs(delta_pos[E]);
     };
 
@@ -3257,10 +3257,10 @@ void GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line, bool cloc
         if (!line.has_value('R', raw_radius) || raw_radius == 0.0f)
             return;
 #ifndef NDEBUG
-        radius = (double)std::abs(raw_radius);
+        radius = static_cast<double>(std::abs(raw_radius));
 #endif // NDEBUG
-        const Vec2f start_pos((float)m_start_position[X], (float)m_start_position[Y]);
-        const Vec2f end_pos((float)end_position[X], (float)end_position[Y]);
+        const Vec2f start_pos(static_cast<float>(m_start_position[X]), static_cast<float>(m_start_position[Y]));
+        const Vec2f end_pos(static_cast<float>(end_position[X]), static_cast<float>(end_position[Y]));
         const Vec2f c = Geometry::ArcWelder::arc_center(start_pos, end_pos, raw_radius, !clockwise);
         rel_center.x() = c.x() - m_start_position[X];
         rel_center.y() = c.y() - m_start_position[Y];
@@ -3883,7 +3883,7 @@ void GCodeProcessor::process_M221(const GCodeReader::GCodeLine& line)
         float value_t = 0;
         if (!line.has_value('T', value_t))
             if (!line.has_value('D', value_t)) {
-                value_t = (float)m_extruder_id;
+                value_t = static_cast<float>(m_extruder_id);
             }
         value_s *= 0.01f;
         uint16_t extruder = std::min(uint16_t(1000), std::max(uint16_t(0), uint16_t(value_t)));
@@ -4198,9 +4198,9 @@ void GCodeProcessor::post_process()
         const float time_left_seconds = total_time_seconds - time_elapsed_seconds;
         // P Percent in normal mode ; R Time remaining in normal mode(minutes) ; C Time to change / pause / user interaction
         if ((machine.remaining_times_type & rtM73) != 0 || (machine.remaining_times_type & rtM73_Quiet) != 0 ) {
-            int32_t& last_time_elapsed = machine_TO_last_time_elapsed[rtM73][(size_t)machine.time_mode];
-            int32_t& last_time_left = machine_TO_last_time_left[rtM73][(size_t)machine.time_mode];
-            int32_t& last_next_interaction = machine_TO_last_next_interaction[rtM73][(size_t)machine.time_mode];
+            int32_t& last_time_elapsed = machine_TO_last_time_elapsed[rtM73][static_cast<size_t>(machine.time_mode)];
+            int32_t& last_time_left = machine_TO_last_time_left[rtM73][static_cast<size_t>(machine.time_mode)];
+            int32_t& last_next_interaction = machine_TO_last_next_interaction[rtM73][static_cast<size_t>(machine.time_mode)];
             auto m73_pr = (machine.remaining_times_type & rtM73) != 0 ? "M73 P%1% R%2%\n" : "M73 Q%1% S%2%\n";
             auto m73_c = (machine.remaining_times_type & rtM73) != 0 ? "M73 C%1%\n" : "M73 D%1%\n";
             int32_t time_elapsed = total_time_seconds == 0 ? 0 : int32_t(time_elapsed_seconds * 100 / total_time_seconds);
@@ -4221,9 +4221,9 @@ void GCodeProcessor::post_process()
             }
         }
         if ((machine.remaining_times_type & rtM117) != 0) {
-            int32_t& last_time_elapsed = machine_TO_last_time_elapsed[rtM117][(size_t)machine.time_mode];
-            int32_t& last_time_left = machine_TO_last_time_left[rtM117][(size_t)machine.time_mode];
-            int32_t& last_next_interaction = machine_TO_last_next_interaction[rtM117][(size_t)machine.time_mode];
+            int32_t& last_time_elapsed = machine_TO_last_time_elapsed[rtM117][static_cast<size_t>(machine.time_mode)];
+            int32_t& last_time_left = machine_TO_last_time_left[rtM117][static_cast<size_t>(machine.time_mode)];
+            int32_t& last_next_interaction = machine_TO_last_next_interaction[rtM117][static_cast<size_t>(machine.time_mode)];
             if (time_left_seconds <= 0 || total_time_seconds == 0) {
                 ret.push_back("M117 Time Left 0s\n");
             } else {
@@ -4517,7 +4517,7 @@ void GCodeProcessor::post_process()
         void write_to_file(FilePtr& out, const std::string& out_string, GCodeProcessorResult& result, const std::string& out_path) {
             if (!out_string.empty()) {
                 if (!m_binarizer.is_enabled()) {
-                    fwrite((const void*)out_string.c_str(), 1, out_string.length(), out.f);
+                    fwrite(static_cast<const void*>(out_string.c_str()), 1, out_string.length(), out.f);
                     if (ferror(out.f)) {
                         out.close();
                         boost::nowide::remove(out_path.c_str());
@@ -4708,7 +4708,7 @@ void GCodeProcessor::post_process()
             int tool_number = -1;
             ss >> tool_number;
             if (tool_number != -1) {
-                if (tool_number < 0 || (int)m_extruder_temps_config.size() <= tool_number) {
+                if (tool_number < 0 || static_cast<int>(m_extruder_temps_config.size()) <= tool_number) {
                     // found an invalid value, clamp it to a valid one
                     tool_number = std::clamp<int>(0, m_extruder_temps_config.size() - 1, tool_number);
                     // emit warning

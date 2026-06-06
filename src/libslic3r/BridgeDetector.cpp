@@ -393,10 +393,10 @@ stop_fake_bridge_test: ;
         double ratio_anchored = c.total_length_anchored / (c.total_length_anchored + c.total_length_free);
         c.coverage = 70 * ratio_anchored;
         //median is 15% (and need to invert it)
-        double ratio_median = 1 - double(c.median_length_anchor - min_median_length) / (double)std::max(1., max_median_length - min_median_length);
+        double ratio_median = 1 - double(c.median_length_anchor - min_median_length) / static_cast<double>(std::max(1., max_median_length - min_median_length));
         c.coverage += 15 * ratio_median;
         //max is 15 % (and need to invert it)
-        double ratio_max = 1 - double(c.max_length_anchored - min_max_length) / (double)std::max(1., max_max_length - min_max_length);
+        double ratio_max = 1 - double(c.max_length_anchored - min_max_length) / static_cast<double>(std::max(1., max_max_length - min_max_length));
         c.coverage += 15 * ratio_max;
         //bonus for perimeter dir
         if (c.along_perimeter_length > 0)
@@ -419,7 +419,7 @@ stop_fake_bridge_test: ;
         this->angle -= PI;
 
     #ifdef SLIC3R_DEBUG
-    printf("  Optimal infill angle is %d degrees\n", (int)Slic3r::Geometry::rad2deg(this->angle));
+    printf("  Optimal infill angle is %d degrees\n", static_cast<int>(Slic3r::Geometry::rad2deg(this->angle)));
     #endif
 
     return true;
@@ -440,7 +440,7 @@ std::vector<BridgeDetector::BridgeDirection> BridgeDetector::bridge_direction_ca
         float mean_sqr_size = 0;
         if (lines.size() > 200) {
             for (int i = 0; i < 200; i++) {
-                mean_sqr_size += (float)lines[i].a.distance_to_square(lines[i].b);
+                mean_sqr_size += static_cast<float>(lines[i].a.distance_to_square(lines[i].b));
             }
             mean_sqr_size /= 200;
             for (Lines::const_iterator line = lines.begin(); line != lines.end(); ++line) {

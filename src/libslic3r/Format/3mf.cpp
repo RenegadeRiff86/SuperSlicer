@@ -1206,8 +1206,8 @@ namespace Slic3r {
     void _3MF_Importer::_extract_cut_information_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat, ConfigSubstitutionContext& config_substitutions)
     {
         if (stat.m_uncomp_size > 0) {
-            std::string buffer((size_t)stat.m_uncomp_size, 0);
-            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, (void*)buffer.data(), (size_t)stat.m_uncomp_size, 0);
+            std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
+            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, static_cast<void*>(buffer.data()), static_cast<size_t>(stat.m_uncomp_size), 0);
             if (res == 0) {
                 add_error("Error while reading cut information data to buffer");
                 return;
@@ -1270,8 +1270,8 @@ namespace Slic3r {
         const std::string& archive_filename)
     {
         if (stat.m_uncomp_size > 0) {
-            std::string buffer((size_t)stat.m_uncomp_size, 0);
-            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, (void*)buffer.data(), (size_t)stat.m_uncomp_size, 0);
+            std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
+            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, static_cast<void*>(buffer.data()), static_cast<size_t>(stat.m_uncomp_size), 0);
             if (res == 0) {
                 add_error("Error while reading config data to buffer");
                 return;
@@ -1291,8 +1291,8 @@ namespace Slic3r {
     void _3MF_Importer::_extract_layer_heights_profile_config_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat)
     {
         if (stat.m_uncomp_size > 0) {
-            std::string buffer((size_t)stat.m_uncomp_size, 0);
-            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, (void*)buffer.data(), (size_t)stat.m_uncomp_size, 0);
+            std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
+            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, static_cast<void*>(buffer.data()), static_cast<size_t>(stat.m_uncomp_size), 0);
             if (res == 0) {
                 add_error("Error while reading layer heights profile data to buffer");
                 return;
@@ -1353,8 +1353,8 @@ namespace Slic3r {
     void _3MF_Importer::_extract_layer_config_ranges_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat, ConfigSubstitutionContext& config_substitutions)
     {
         if (stat.m_uncomp_size > 0) {
-            std::string buffer((size_t)stat.m_uncomp_size, 0);
-            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, (void*)buffer.data(), (size_t)stat.m_uncomp_size, 0);
+            std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
+            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, static_cast<void*>(buffer.data()), static_cast<size_t>(stat.m_uncomp_size), 0);
             if (res == 0) {
                 add_error("Error while reading layer config ranges data to buffer");
                 return;
@@ -1420,8 +1420,8 @@ namespace Slic3r {
     void _3MF_Importer::_extract_sla_support_points_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat)
     {
         if (stat.m_uncomp_size > 0) {
-            std::string buffer((size_t)stat.m_uncomp_size, 0);
-            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, (void*)buffer.data(), (size_t)stat.m_uncomp_size, 0);
+            std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
+            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, static_cast<void*>(buffer.data()), static_cast<size_t>(stat.m_uncomp_size), 0);
             if (res == 0) {
                 add_error("Error while reading sla support points data to buffer");
                 return;
@@ -1503,7 +1503,7 @@ namespace Slic3r {
     {
         if (stat.m_uncomp_size > 0) {
             std::string buffer(size_t(stat.m_uncomp_size), 0);
-            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, (void*)buffer.data(), (size_t)stat.m_uncomp_size, 0);
+            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, static_cast<void*>(buffer.data()), static_cast<size_t>(stat.m_uncomp_size), 0);
             if (res == 0) {
                 add_error("Error while reading sla support points data to buffer");
                 return;
@@ -1587,7 +1587,7 @@ namespace Slic3r {
     void _3MF_Importer::_extract_embossed_svg_shape_file(const std::string &filename, mz_zip_archive &archive, const mz_zip_archive_file_stat &stat){
         assert(m_path_to_emboss_shape_files.find(filename) == m_path_to_emboss_shape_files.end());
         auto file = std::make_unique<std::string>(stat.m_uncomp_size, '\0');
-        mz_bool res  = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, (void *) file->data(), stat.m_uncomp_size, 0);
+        mz_bool res  = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, static_cast<void*>(file->data()), stat.m_uncomp_size, 0);
         if (res == 0) {
             add_error("Error while reading svg shape for emboss");
             return;
@@ -1625,24 +1625,24 @@ namespace Slic3r {
             return false;
         }
 
-        XML_SetUserData(m_xml_parser, (void*)this);
+        XML_SetUserData(m_xml_parser, static_cast<void*>(this));
         XML_SetElementHandler(m_xml_parser, _3MF_Importer::_handle_start_config_xml_element, _3MF_Importer::_handle_end_config_xml_element);
 
-        void* parser_buffer = XML_GetBuffer(m_xml_parser, (int)stat.m_uncomp_size);
+        void* parser_buffer = XML_GetBuffer(m_xml_parser, static_cast<int>(stat.m_uncomp_size));
         if (parser_buffer == nullptr) {
             add_error("Unable to create buffer");
             return false;
         }
 
-        mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, parser_buffer, (size_t)stat.m_uncomp_size, 0);
+        mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, parser_buffer, static_cast<size_t>(stat.m_uncomp_size), 0);
         if (res == 0) {
             add_error("Error while reading config data to buffer");
             return false;
         }
 
-        if (!XML_ParseBuffer(m_xml_parser, (int)stat.m_uncomp_size, 1)) {
+        if (!XML_ParseBuffer(m_xml_parser, static_cast<int>(stat.m_uncomp_size), 1)) {
             std::string error_msg = std::string("Error (") + std::string(XML_ErrorString(XML_GetErrorCode(m_xml_parser))) +
-                                   std::string(") while parsing xml file at line ") + std::to_string((int)XML_GetCurrentLineNumber(m_xml_parser));
+                                   std::string(") while parsing xml file at line ") + std::to_string(static_cast<int>(XML_GetCurrentLineNumber(m_xml_parser)));
             add_error(error_msg);
             return false;
         }
@@ -1653,8 +1653,8 @@ namespace Slic3r {
     void _3MF_Importer::_extract_custom_gcode_per_print_z_from_archive(::mz_zip_archive &archive, const mz_zip_archive_file_stat &stat)
     {
         if (stat.m_uncomp_size > 0) {
-            std::string buffer((size_t)stat.m_uncomp_size, 0);
-            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, (void*)buffer.data(), (size_t)stat.m_uncomp_size, 0);
+            std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
+            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, static_cast<void*>(buffer.data()), static_cast<size_t>(stat.m_uncomp_size), 0);
             if (res == 0) {
                 add_error("Error while reading custom Gcodes per height data to buffer");
                 return;
@@ -1715,7 +1715,7 @@ namespace Slic3r {
             return;
 
         bool res = true;
-        unsigned int num_attributes = (unsigned int)XML_GetSpecifiedAttributeCount(m_xml_parser);
+        unsigned int num_attributes = static_cast<unsigned int>(XML_GetSpecifiedAttributeCount(m_xml_parser));
 
         if (::strcmp(MODEL_TAG, name) == 0)
             res = _handle_start_model(attributes, num_attributes);
@@ -1797,7 +1797,7 @@ namespace Slic3r {
             return;
 
         bool res = true;
-        unsigned int num_attributes = (unsigned int)XML_GetSpecifiedAttributeCount(m_xml_parser);
+        unsigned int num_attributes = static_cast<unsigned int>(XML_GetSpecifiedAttributeCount(m_xml_parser));
 
         if (::strcmp(CONFIG_TAG, name) == 0)
             res = _handle_start_config(attributes, num_attributes);
@@ -1895,7 +1895,7 @@ namespace Slic3r {
 
         if (is_valid_object_type(get_attribute_value_string(attributes, num_attributes, TYPE_ATTR))) {
             // create new object (it may be removed later if no instances are generated from it)
-            m_curr_object.model_object_idx = (int)m_model->objects.size();
+            m_curr_object.model_object_idx = static_cast<int>(m_model->objects.size());
             m_curr_object.object = m_model->add_object();
             if (m_curr_object.object == nullptr) {
                 add_error("Unable to create object");
@@ -2130,7 +2130,7 @@ namespace Slic3r {
     bool _3MF_Importer::_handle_end_metadata()
     {
         if (m_curr_metadata_name == SLIC3RPE_3MF_VERSION) {
-            m_version = (unsigned int)atoi(m_curr_characters.c_str());
+            m_version = static_cast<unsigned int>(atoi(m_curr_characters.c_str()));
             if (m_check_version && (m_version > VERSION_3MF_COMPATIBLE)) {
                 // std::string msg = _u8L("The selected 3mf file has been saved with a newer version of " + std::string(SLIC3R_APP_NAME) + " and is not compatible.");
                 // throw version_error(msg.c_str());
@@ -2145,15 +2145,15 @@ namespace Slic3r {
             if (boost::starts_with(m_curr_characters, "PrusaSlicer-"))
                 m_prusaslicer_generator_version = Semver::parse(m_curr_characters.substr(12));
         } else if (m_curr_metadata_name == SLIC3RPE_FDM_SUPPORTS_PAINTING_VERSION) {
-            m_fdm_supports_painting_version = (unsigned int) atoi(m_curr_characters.c_str());
+            m_fdm_supports_painting_version = static_cast<unsigned int>(atoi(m_curr_characters.c_str()));
             check_painting_version(m_fdm_supports_painting_version, FDM_SUPPORTS_PAINTING_VERSION,
                 (boost::format(_u8L("The selected 3MF contains FDM supports painted object using a newer version of %1% and is not compatible.")) % SLIC3R_APP_NAME).str());
         } else if (m_curr_metadata_name == SLIC3RPE_SEAM_PAINTING_VERSION) {
-            m_seam_painting_version = (unsigned int) atoi(m_curr_characters.c_str());
+            m_seam_painting_version = static_cast<unsigned int>(atoi(m_curr_characters.c_str()));
             check_painting_version(m_seam_painting_version, SEAM_PAINTING_VERSION,
                 (boost::format(_u8L("The selected 3MF contains seam painted object using a newer version of %1% and is not compatible.")) % SLIC3R_APP_NAME).str());
         } else if (m_curr_metadata_name == SLIC3RPE_MM_PAINTING_VERSION) {
-            m_mm_painting_version = (unsigned int) atoi(m_curr_characters.c_str());
+            m_mm_painting_version = static_cast<unsigned int>(atoi(m_curr_characters.c_str()));
             check_painting_version(m_mm_painting_version, MM_PAINTING_VERSION,
                 (boost::format(_u8L("The selected 3MF contains multi-material painted object using a newer version of %1% and is not compatible.")) % SLIC3R_APP_NAME).str());
         }
@@ -2358,10 +2358,10 @@ namespace Slic3r {
             return false;
         }
 
-        m_curr_config.volume_id = (int)object->second.volumes.size();
+        m_curr_config.volume_id = static_cast<int>(object->second.volumes.size());
 
-        unsigned int first_triangle_id = (unsigned int)get_attribute_value_int(attributes, num_attributes, FIRST_TRIANGLE_ID_ATTR);
-        unsigned int last_triangle_id = (unsigned int)get_attribute_value_int(attributes, num_attributes, LAST_TRIANGLE_ID_ATTR);
+        unsigned int first_triangle_id = static_cast<unsigned int>(get_attribute_value_int(attributes, num_attributes, FIRST_TRIANGLE_ID_ATTR));
+        unsigned int last_triangle_id = static_cast<unsigned int>(get_attribute_value_int(attributes, num_attributes, LAST_TRIANGLE_ID_ATTR));
 
         object->second.volumes.emplace_back(first_triangle_id, last_triangle_id);
         return true;
@@ -2443,7 +2443,7 @@ namespace Slic3r {
             return false;
         }
 
-        unsigned int geo_tri_count = (unsigned int)geometry.triangles.size();
+        unsigned int geo_tri_count = static_cast<unsigned int>(geometry.triangles.size());
         unsigned int renamed_volumes_count = 0;
 
         for (const ObjectMetadata::VolumeMetadata& volume_data : volumes) {
@@ -2936,7 +2936,7 @@ namespace Slic3r {
 
         std::string out = stream.str();
 
-        if (!mz_zip_writer_add_mem(&archive, CONTENT_TYPES_FILE.c_str(), (const void*)out.data(), out.length(), MZ_DEFAULT_COMPRESSION)) {
+        if (!mz_zip_writer_add_mem(&archive, CONTENT_TYPES_FILE.c_str(), static_cast<const void*>(out.data()), out.length(), MZ_DEFAULT_COMPRESSION)) {
             add_error("Unable to add content types file to archive");
             return false;
         }
@@ -2949,9 +2949,9 @@ namespace Slic3r {
         bool res = false;
 
         size_t png_size = 0;
-        void* png_data = tdefl_write_image_to_png_file_in_memory_ex((const void*)thumbnail_data.pixels.data(), thumbnail_data.width, thumbnail_data.height, 4, &png_size, MZ_DEFAULT_LEVEL, 1);
+        void* png_data = tdefl_write_image_to_png_file_in_memory_ex(static_cast<const void*>(thumbnail_data.pixels.data()), thumbnail_data.width, thumbnail_data.height, 4, &png_size, MZ_DEFAULT_LEVEL, 1);
         if (png_data != nullptr) {
-            res = mz_zip_writer_add_mem(&archive, THUMBNAIL_FILE.c_str(), (const void*)png_data, png_size, MZ_DEFAULT_COMPRESSION);
+            res = mz_zip_writer_add_mem(&archive, THUMBNAIL_FILE.c_str(), static_cast<const void*>(png_data), png_size, MZ_DEFAULT_COMPRESSION);
             mz_free(png_data);
         }
 
@@ -2972,7 +2972,7 @@ namespace Slic3r {
 
         std::string out = stream.str();
 
-        if (!mz_zip_writer_add_mem(&archive, RELATIONSHIPS_FILE.c_str(), (const void*)out.data(), out.length(), MZ_DEFAULT_COMPRESSION)) {
+        if (!mz_zip_writer_add_mem(&archive, RELATIONSHIPS_FILE.c_str(), static_cast<const void*>(out.data()), out.length(), MZ_DEFAULT_COMPRESSION)) {
             add_error("Unable to add relationships file to archive");
             return false;
         }
@@ -3223,7 +3223,7 @@ namespace Slic3r {
                 return false;
             }
 
-            vertices_count += (int)its.vertices.size();
+            vertices_count += static_cast<int>(its.vertices.size());
 
             const Transform3d& matrix = volume->get_matrix();
             for (const auto& vertex: its.vertices) {
@@ -3267,7 +3267,7 @@ namespace Slic3r {
 
             // updates triangle offsets
             volume_it->second.first_triangle_id = triangles_count;
-            triangles_count += (int)its.indices.size();
+            triangles_count += static_cast<int>(its.indices.size());
             volume_it->second.last_triangle_id = triangles_count - 1;
 
             for (int i = 0; i < int(its.indices.size()); ++ i) {
@@ -3414,7 +3414,7 @@ namespace Slic3r {
         }
 
         if (!out.empty()) {
-            if (!mz_zip_writer_add_mem(&archive, CUT_INFORMATION_FILE.c_str(), (const void*)out.data(), out.length(), MZ_DEFAULT_COMPRESSION)) {
+            if (!mz_zip_writer_add_mem(&archive, CUT_INFORMATION_FILE.c_str(), static_cast<const void*>(out.data()), out.length(), MZ_DEFAULT_COMPRESSION)) {
                 add_error("Unable to add cut information file to archive");
                 return false;
             }
@@ -3446,7 +3446,7 @@ namespace Slic3r {
         }
 
         if (!out.empty()) {
-            if (!mz_zip_writer_add_mem(&archive, LAYER_HEIGHTS_PROFILE_FILE.c_str(), (const void*)out.data(), out.length(), MZ_DEFAULT_COMPRESSION)) {
+            if (!mz_zip_writer_add_mem(&archive, LAYER_HEIGHTS_PROFILE_FILE.c_str(), static_cast<const void*>(out.data()), out.length(), MZ_DEFAULT_COMPRESSION)) {
                 add_error("Unable to add layer heights profile file to archive");
                 return false;
             }
@@ -3557,16 +3557,16 @@ namespace Slic3r {
         }
 
         if (!default_out.empty()) {
-            if (!mz_zip_writer_add_mem(&archive, SLIC3R_LAYER_CONFIG_RANGES_FILE.c_str(), (const void*)default_out.data(), default_out.length(), MZ_DEFAULT_COMPRESSION))
+            if (!mz_zip_writer_add_mem(&archive, SLIC3R_LAYER_CONFIG_RANGES_FILE.c_str(), static_cast<const void*>(default_out.data()), default_out.length(), MZ_DEFAULT_COMPRESSION))
             {
                 add_error("Unable to add layer heights profile file to archive");
                 return false;
             }
-            if (!mz_zip_writer_add_mem(&archive, SUPER_LAYER_CONFIG_RANGES_FILE.c_str(), (const void*)default_out.data(), default_out.length(), MZ_DEFAULT_COMPRESSION)) {
+            if (!mz_zip_writer_add_mem(&archive, SUPER_LAYER_CONFIG_RANGES_FILE.c_str(), static_cast<const void*>(default_out.data()), default_out.length(), MZ_DEFAULT_COMPRESSION)) {
                 add_error("Unable to add layer heights profile file to archive");
                 return false;
             }
-            if (!prusa_out.empty() && !mz_zip_writer_add_mem(&archive, PRUSA_LAYER_CONFIG_RANGES_FILE.c_str(), (const void*)prusa_out.data(), prusa_out.length(), MZ_DEFAULT_COMPRESSION)) {
+            if (!prusa_out.empty() && !mz_zip_writer_add_mem(&archive, PRUSA_LAYER_CONFIG_RANGES_FILE.c_str(), static_cast<const void*>(prusa_out.data()), prusa_out.length(), MZ_DEFAULT_COMPRESSION)) {
                 add_error("Unable to add layer heights profile file to archive");
                 return false;
             }
@@ -3591,7 +3591,7 @@ namespace Slic3r {
 
                 // Store the layer height profile as a single space separated list.
                 for (size_t i = 0; i < sla_support_points.size(); ++i) {
-                    sprintf(buffer, (i==0 ? "%f %f %f %f %f" : " %f %f %f %f %f"),  sla_support_points[i].pos(0), sla_support_points[i].pos(1), sla_support_points[i].pos(2), sla_support_points[i].head_front_radius, (float)sla_support_points[i].is_new_island);
+                    sprintf(buffer, (i==0 ? "%f %f %f %f %f" : " %f %f %f %f %f"),  sla_support_points[i].pos(0), sla_support_points[i].pos(1), sla_support_points[i].pos(2), sla_support_points[i].head_front_radius, static_cast<float>(sla_support_points[i].is_new_island));
                     out += buffer;
                 }
                 out += "\n";
@@ -3602,7 +3602,7 @@ namespace Slic3r {
             // Adds version header at the beginning:
             out = std::string("support_points_format_version=") + std::to_string(support_points_format_version) + std::string("\n") + out;
 
-            if (!mz_zip_writer_add_mem(&archive, SLA_SUPPORT_POINTS_FILE.c_str(), (const void*)out.data(), out.length(), MZ_DEFAULT_COMPRESSION)) {
+            if (!mz_zip_writer_add_mem(&archive, SLA_SUPPORT_POINTS_FILE.c_str(), static_cast<const void*>(out.data()), out.length(), MZ_DEFAULT_COMPRESSION)) {
                 add_error("Unable to add sla support points file to archive");
                 return false;
             }
@@ -3682,7 +3682,7 @@ namespace Slic3r {
         }
 
         if (!out.empty()) {
-            if (!mz_zip_writer_add_mem(&archive, config_name.c_str(), (const void*)out.data(), out.length(), MZ_DEFAULT_COMPRESSION)) {
+            if (!mz_zip_writer_add_mem(&archive, config_name.c_str(), static_cast<const void*>(out.data()), out.length(), MZ_DEFAULT_COMPRESSION)) {
                 add_error("Unable to add print config file to archive");
                 return false;
             }
@@ -3990,7 +3990,7 @@ namespace Slic3r {
 
         std::string out = stream.str();
 
-        if (!mz_zip_writer_add_mem(&archive, file_path.c_str(), (const void*)out.data(), out.length(), MZ_DEFAULT_COMPRESSION)) {
+        if (!mz_zip_writer_add_mem(&archive, file_path.c_str(), static_cast<const void*>(out.data()), out.length(), MZ_DEFAULT_COMPRESSION)) {
             add_error("Unable to add model config file to archive");
             return false;
         }
@@ -4042,7 +4042,7 @@ bool _3MF_Exporter::_add_custom_gcode_per_print_z_file_to_archive( mz_zip_archiv
     } 
 
     if (!out.empty()) {
-        if (!mz_zip_writer_add_mem(&archive, CUSTOM_GCODE_PER_PRINT_Z_FILE.c_str(), (const void*)out.data(), out.length(), MZ_DEFAULT_COMPRESSION)) {
+        if (!mz_zip_writer_add_mem(&archive, CUSTOM_GCODE_PER_PRINT_Z_FILE.c_str(), static_cast<const void*>(out.data()), out.length(), MZ_DEFAULT_COMPRESSION)) {
             add_error("Unable to add custom Gcodes per print_z file to archive");
             return false;
         }
@@ -4409,7 +4409,7 @@ bool to_xml(std::stringstream &stream, const EmbossShape::SvgFile &svg, const Mo
     const std::string &file_data_str = *file_data; 
 
     return mz_zip_writer_add_mem(&archive, svg.path_in_3mf.c_str(), 
-        (const void *) file_data_str.c_str(), file_data_str.size(), MZ_DEFAULT_COMPRESSION);
+        static_cast<const void*>(file_data_str.c_str()), file_data_str.size(), MZ_DEFAULT_COMPRESSION);
 }
 
 } // namespace

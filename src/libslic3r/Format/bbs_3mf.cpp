@@ -81,9 +81,9 @@ struct ZipUnicodePathExtraField
             extra.push_back('\x75');
             extra.push_back('\x70');
             boost::uint16_t len = 5 + u8path.length();
-            extra.push_back((char)(len & 0xff));
-            extra.push_back((char)(len >> 8));
-            auto crc = mz_crc32(0, (unsigned char *) path.c_str(), path.length());
+            extra.push_back(static_cast<char>(len & 0xff));
+            extra.push_back(static_cast<char>(len >> 8));
+            auto crc = mz_crc32(0, reinterpret_cast<const unsigned char *>(path.c_str()), path.length());
             extra.push_back('\x01'); // version 1
             extra.append((char *)&crc, (char *)&crc + 4); // Little Endian
             extra.append(u8path);
@@ -599,7 +599,7 @@ Slic3r::Transform3d bbs_get_transform_from_3mf_specs_string(const std::string& m
     std::vector<std::string> mat_elements_str;
     boost::split(mat_elements_str, mat_str, boost::is_any_of(" "), boost::token_compress_on);
 
-    unsigned int size = (unsigned int)mat_elements_str.size();
+    unsigned int size = static_cast<unsigned int>(mat_elements_str.size());
     if (size != 12)
         // invalid data, return identity matrix
         return ret;
@@ -626,7 +626,7 @@ Slic3r::Vec3d bbs_get_offset_from_3mf_specs_string(const std::string& vec_str)
     std::vector<std::string> vec_elements_str;
     boost::split(vec_elements_str, vec_str, boost::is_any_of(" "), boost::token_compress_on);
 
-    unsigned int size = (unsigned int)vec_elements_str.size();
+    unsigned int size = static_cast<unsigned int>(vec_elements_str.size());
     if (size != 3)
         // invalid data, return zero offset
         return ofs2ass;
@@ -1489,7 +1489,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         is.seekg(file_ofs, std::istream::beg);
         if (!is)
             return 0;
-        is.read((char *)pBuf, n);
+        is.read(reinterpret_cast<char *>(pBuf), n);
         return is.gcount();
     }
 
@@ -2118,7 +2118,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 // config data not found, this model was not saved using slic3r pe
 
                 // add the entire geometry as the single volume to generate
-                //volumes.emplace_back(0, (int)obj_geometry->second.triangles.size() - 1);
+                //volumes.emplace_back(0, static_cast<int>(obj_geometry->second.triangles.size()) - 1);
                 for (int k = 0; k < object_id_list.size(); k++)
                 {
                     Id object_id = object_id_list[k].object_id;
@@ -2434,25 +2434,25 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             return false;
         }
 
-        XML_SetUserData(m_xml_parser, (void*)this);
+        XML_SetUserData(m_xml_parser, static_cast<void*>(this));
         XML_SetElementHandler(m_xml_parser, start_handler, end_handler);
         XML_SetCharacterDataHandler(m_xml_parser, _BBS_3MF_Importer::_handle_xml_characters);
 
-        void* parser_buffer = XML_GetBuffer(m_xml_parser, (int)stat.m_uncomp_size);
+        void* parser_buffer = XML_GetBuffer(m_xml_parser, static_cast<int>(stat.m_uncomp_size));
         if (parser_buffer == nullptr) {
             add_error("Unable to create buffer");
             return false;
         }
 
-        mz_bool res = mz_zip_reader_extract_file_to_mem(&archive, stat.m_filename, parser_buffer, (size_t)stat.m_uncomp_size, 0);
+        mz_bool res = mz_zip_reader_extract_file_to_mem(&archive, stat.m_filename, parser_buffer, static_cast<size_t>(stat.m_uncomp_size), 0);
         if (res == 0) {
             add_error("Error while reading config data to buffer");
             return false;
         }
 
-        if (!XML_ParseBuffer(m_xml_parser, (int)stat.m_uncomp_size, 1)) {
+        if (!XML_ParseBuffer(m_xml_parser, static_cast<int>(stat.m_uncomp_size), 1)) {
             char error_buf[1024];
-            ::snprintf(error_buf, 1024, "Error (%s) while parsing xml file at line %d", XML_ErrorString(XML_GetErrorCode(m_xml_parser)), (int)XML_GetCurrentLineNumber(m_xml_parser));
+            ::snprintf(error_buf, 1024, "Error (%s) while parsing xml file at line %d", XML_ErrorString(XML_GetErrorCode(m_xml_parser)), static_cast<int>(XML_GetCurrentLineNumber(m_xml_parser)));
             add_error(error_buf);
             return false;
         }
@@ -2475,7 +2475,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             return false;
         }
 
-        XML_SetUserData(m_xml_parser, (void*)this);
+        XML_SetUserData(m_xml_parser, static_cast<void*>(this));
         XML_SetElementHandler(m_xml_parser, _BBS_3MF_Importer::_handle_start_model_xml_element, _BBS_3MF_Importer::_handle_end_model_xml_element);
         XML_SetCharacterDataHandler(m_xml_parser, _BBS_3MF_Importer::_handle_xml_characters);
 
@@ -2496,9 +2496,9 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         {
             mz_file_write_func callback = [](void* pOpaque, mz_uint64 file_ofs, const void* pBuf, size_t n)->size_t {
                 CallbackData* data = (CallbackData*)pOpaque;
-                if (!XML_Parse(data->parser, (const char*)pBuf, (int)n, (file_ofs + n == data->stat.m_uncomp_size) ? 1 : 0) || data->importer.parse_error()) {
+                if (!XML_Parse(data->parser, reinterpret_cast<const char*>(pBuf), static_cast<int>(n), (file_ofs + n == data->stat.m_uncomp_size) ? 1 : 0) || data->importer.parse_error()) {
                     char error_buf[1024];
-                    ::snprintf(error_buf, 1024, "Error (%s) while parsing '%s' at line %d", data->importer.parse_error_message(), data->stat.m_filename, (int)XML_GetCurrentLineNumber(data->parser));
+                    ::snprintf(error_buf, 1024, "Error (%s) while parsing '%s' at line %d", data->importer.parse_error_message(), data->stat.m_filename, static_cast<int>(XML_GetCurrentLineNumber(data->parser)));
                     throw Slic3r::FileIOError(error_buf);
                 }
                 return n;
@@ -2528,8 +2528,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
     void _BBS_3MF_Importer::_extract_cut_information_from_archive(mz_zip_archive &archive, const mz_zip_archive_file_stat &stat, ConfigSubstitutionContext &config_substitutions)
     {
         if (stat.m_uncomp_size > 0) {
-            std::string buffer((size_t)stat.m_uncomp_size, 0);
-            mz_bool res = mz_zip_reader_extract_file_to_mem(&archive, stat.m_filename, (void *) buffer.data(), (size_t) stat.m_uncomp_size, 0);
+            std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
+            mz_bool res = mz_zip_reader_extract_file_to_mem(&archive, stat.m_filename, static_cast<void*>(buffer.data()), static_cast<size_t>(stat.m_uncomp_size), 0);
             if (res == 0) {
                 add_error("Error while reading cut information data to buffer");
                 return;
@@ -2587,8 +2587,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
     void _BBS_3MF_Importer::_extract_print_config_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat, DynamicPrintConfig& config, ConfigSubstitutionContext& config_substitutions, const std::string& archive_filename)
     {
         if (stat.m_uncomp_size > 0) {
-            std::string buffer((size_t)stat.m_uncomp_size, 0);
-            mz_bool res = mz_zip_reader_extract_file_to_mem(&archive, stat.m_filename, (void*)buffer.data(), (size_t)stat.m_uncomp_size, 0);
+            std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
+            mz_bool res = mz_zip_reader_extract_file_to_mem(&archive, stat.m_filename, static_cast<void*>(buffer.data()), static_cast<size_t>(stat.m_uncomp_size), 0);
             if (res == 0) {
                 add_error("Error while reading config data to buffer");
                 return;
@@ -2793,8 +2793,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
     void _BBS_3MF_Importer::_extract_layer_heights_profile_config_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat)
     {
         if (stat.m_uncomp_size > 0) {
-            std::string buffer((size_t)stat.m_uncomp_size, 0);
-            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, (void*)buffer.data(), (size_t)stat.m_uncomp_size, 0);
+            std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
+            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, static_cast<void*>(buffer.data()), static_cast<size_t>(stat.m_uncomp_size), 0);
             if (res == 0) {
                 add_error("Error while reading layer heights profile data to buffer");
                 return;
@@ -2855,8 +2855,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
     void _BBS_3MF_Importer::_extract_layer_config_ranges_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat, ConfigSubstitutionContext& config_substitutions)
     {
         if (stat.m_uncomp_size > 0) {
-            std::string buffer((size_t)stat.m_uncomp_size, 0);
-            mz_bool res = mz_zip_reader_extract_file_to_mem(&archive, stat.m_filename, (void*)buffer.data(), (size_t)stat.m_uncomp_size, 0);
+            std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
+            mz_bool res = mz_zip_reader_extract_file_to_mem(&archive, stat.m_filename, static_cast<void*>(buffer.data()), static_cast<size_t>(stat.m_uncomp_size), 0);
             if (res == 0) {
                 add_error("Error while reading layer config ranges data to buffer");
                 return;
@@ -2917,8 +2917,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
     void _BBS_3MF_Importer::_extract_sla_support_points_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat)
     {
         if (stat.m_uncomp_size > 0) {
-            std::string buffer((size_t)stat.m_uncomp_size, 0);
-            mz_bool res = mz_zip_reader_extract_file_to_mem(&archive, stat.m_filename, (void*)buffer.data(), (size_t)stat.m_uncomp_size, 0);
+            std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
+            mz_bool res = mz_zip_reader_extract_file_to_mem(&archive, stat.m_filename, static_cast<void*>(buffer.data()), static_cast<size_t>(stat.m_uncomp_size), 0);
             if (res == 0) {
                 add_error("Error while reading sla support points data to buffer");
                 return;
@@ -3000,7 +3000,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
     {
         if (stat.m_uncomp_size > 0) {
             std::string buffer(size_t(stat.m_uncomp_size), 0);
-            mz_bool res = mz_zip_reader_extract_file_to_mem(&archive, stat.m_filename, (void*)buffer.data(), (size_t)stat.m_uncomp_size, 0);
+            mz_bool res = mz_zip_reader_extract_file_to_mem(&archive, stat.m_filename, static_cast<void*>(buffer.data()), static_cast<size_t>(stat.m_uncomp_size), 0);
             if (res == 0) {
                 add_error("Error while reading sla support points data to buffer");
                 return;
@@ -3084,7 +3084,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
     void _BBS_3MF_Importer::_extract_embossed_svg_shape_file(const std::string &filename, mz_zip_archive &archive, const mz_zip_archive_file_stat &stat){
         assert(m_path_to_emboss_shape_files.find(filename) == m_path_to_emboss_shape_files.end());
         auto file = std::make_unique<std::string>(stat.m_uncomp_size, '\0');
-        mz_bool res  = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, (void *) file->data(), stat.m_uncomp_size, 0);
+        mz_bool res  = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, static_cast<void*>(file->data()), stat.m_uncomp_size, 0);
         if (res == 0) {
             add_error("Error while reading svg shape for emboss");
             return;
@@ -3111,8 +3111,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
     {
         //BBS: add plate tree related logic
         if (stat.m_uncomp_size > 0) {
-            std::string buffer((size_t)stat.m_uncomp_size, 0);
-            mz_bool res = mz_zip_reader_extract_file_to_mem(&archive, stat.m_filename, (void*)buffer.data(), (size_t)stat.m_uncomp_size, 0);
+            std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
+            mz_bool res = mz_zip_reader_extract_file_to_mem(&archive, stat.m_filename, static_cast<void*>(buffer.data()), static_cast<size_t>(stat.m_uncomp_size), 0);
             if (res == 0) {
                 add_error("Error while reading custom Gcodes per height data to buffer");
                 return;
@@ -3199,7 +3199,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             return;
 
         bool res = true;
-        unsigned int num_attributes = (unsigned int)XML_GetSpecifiedAttributeCount(m_xml_parser);
+        unsigned int num_attributes = static_cast<unsigned int>(XML_GetSpecifiedAttributeCount(m_xml_parser));
 
         if (::strcmp(MODEL_TAG, name) == 0)
             res = _handle_start_model(attributes, num_attributes);
@@ -3289,7 +3289,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             return;
 
         bool res = true;
-        unsigned int num_attributes = (unsigned int)XML_GetSpecifiedAttributeCount(m_xml_parser);
+        unsigned int num_attributes = static_cast<unsigned int>(XML_GetSpecifiedAttributeCount(m_xml_parser));
 
         if (::strcmp(CONFIG_TAG, name) == 0)
             res = _handle_start_config(attributes, num_attributes);
@@ -3432,7 +3432,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             if (!m_curr_object) {
                 m_curr_object = new CurrentObject();
                 // create new object (it may be removed later if no instances are generated from it)
-                /*m_curr_object->model_object_idx = (int)m_model->objects.size();
+                /*m_curr_object->model_object_idx = static_cast<int>(m_model->objects.size());
                 m_curr_object.object = m_model->add_object();
                 if (m_curr_object.object == nullptr) {
                     add_error("Unable to create object");
@@ -3780,7 +3780,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
     {
         if ((m_curr_metadata_name == BBS_3MF_VERSION)||(m_curr_metadata_name == BBS_3MF_VERSION1)) {
             //m_is_bbl_3mf = true;
-            m_version = (unsigned int)atoi(m_curr_characters.c_str());
+            m_version = static_cast<unsigned int>(atoi(m_curr_characters.c_str()));
             /*if (m_check_version && (m_version > VERSION_BBS_3MF_COMPATIBLE)) {
                 // std::string msg = _(L("The selected 3mf file has been saved with a newer version of " + std::string(SLIC3R_APP_NAME) + " and is not compatible."));
                 // throw version_error(msg.c_str());
@@ -3800,15 +3800,15 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             }
         //TODO: currently use version 0, no need to load&&save this string
         /*} else if (m_curr_metadata_name == BBS_FDM_SUPPORTS_PAINTING_VERSION) {
-            m_fdm_supports_painting_version = (unsigned int) atoi(m_curr_characters.c_str());
+            m_fdm_supports_painting_version = static_cast<unsigned int>(atoi(m_curr_characters.c_str()));
             check_painting_version(m_fdm_supports_painting_version, FDM_SUPPORTS_PAINTING_VERSION,
                 _(L("The selected 3MF contains FDM supports painted object using a newer version of OrcaSlicer and is not compatible.")));
         } else if (m_curr_metadata_name == BBS_SEAM_PAINTING_VERSION) {
-            m_seam_painting_version = (unsigned int) atoi(m_curr_characters.c_str());
+            m_seam_painting_version = static_cast<unsigned int>(atoi(m_curr_characters.c_str()));
             check_painting_version(m_seam_painting_version, SEAM_PAINTING_VERSION,
                 _(L("The selected 3MF contains seam painted object using a newer version of OrcaSlicer and is not compatible.")));
         } else if (m_curr_metadata_name == BBS_MM_PAINTING_VERSION) {
-            m_mm_painting_version = (unsigned int) atoi(m_curr_characters.c_str());
+            m_mm_painting_version = static_cast<unsigned int>(atoi(m_curr_characters.c_str()));
             check_painting_version(m_mm_painting_version, MM_PAINTING_VERSION,
                 _(L("The selected 3MF contains multi-material painted object using a newer version of OrcaSlicer and is not compatible.")));*/
         } else if (m_curr_metadata_name == BBL_MODEL_ID_TAG) {
@@ -3992,7 +3992,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         if (object_item == m_objects.end()) {
             //add object
             CurrentObject& current_object = it->second;
-            int object_index =  (int)m_model->objects.size();
+            int object_index = static_cast<int>(m_model->objects.size());
             ModelObject* model_object = m_model->add_object();
             if (model_object == nullptr) {
                 add_error("Unable to create object for builditem, id " + std::to_string(object_id));
@@ -4129,10 +4129,10 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             return false;
         }
 
-        m_curr_config.volume_id = (int)object->second.volumes.size();
+        m_curr_config.volume_id = static_cast<int>(object->second.volumes.size());
 
-        unsigned int first_triangle_id = (unsigned int)bbs_get_attribute_value_int(attributes, num_attributes, FIRST_TRIANGLE_ID_ATTR);
-        unsigned int last_triangle_id = (unsigned int)bbs_get_attribute_value_int(attributes, num_attributes, LAST_TRIANGLE_ID_ATTR);
+        unsigned int first_triangle_id = static_cast<unsigned int>(bbs_get_attribute_value_int(attributes, num_attributes, FIRST_TRIANGLE_ID_ATTR));
+        unsigned int last_triangle_id = static_cast<unsigned int>(bbs_get_attribute_value_int(attributes, num_attributes, LAST_TRIANGLE_ID_ATTR));
 
         //BBS: refine the part type logic
         std::string subtype_str = bbs_get_attribute_value_string(attributes, num_attributes, SUBTYPE_ATTR);
@@ -4587,7 +4587,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             return;
 
         bool res = true;
-        unsigned int num_attributes = (unsigned int)XML_GetSpecifiedAttributeCount(m_xml_parser);
+        unsigned int num_attributes = static_cast<unsigned int>(XML_GetSpecifiedAttributeCount(m_xml_parser));
 
         if (::strcmp(RELATIONSHIP_TAG, name) == 0)
             res = _handle_start_relationship(attributes, num_attributes);
@@ -4660,7 +4660,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             return false;
         }
 
-        //unsigned int geo_tri_count = (unsigned int)geometry.triangles.size();
+        //unsigned int geo_tri_count = static_cast<unsigned int>(geometry.triangles.size());
         unsigned int renamed_volumes_count = 0;
 
         for (unsigned int index = 0; index < sub_objects.size(); index++)
@@ -4906,7 +4906,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             return false;
         }
 
-        unsigned int geo_tri_count = (unsigned int)geometry.triangles.size();
+        unsigned int geo_tri_count = static_cast<unsigned int>(geometry.triangles.size());
         unsigned int renamed_volumes_count = 0;
 
         for (const ObjectMetadata::VolumeMetadata& volume_data : volumes) {
@@ -5385,7 +5385,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             return;
 
         bool res = true;
-        unsigned int num_attributes = (unsigned int)XML_GetSpecifiedAttributeCount(object_xml_parser);
+        unsigned int num_attributes = static_cast<unsigned int>(XML_GetSpecifiedAttributeCount(object_xml_parser));
 
         if (::strcmp(MODEL_TAG, name) == 0)
             res = _handle_object_start_model(attributes, num_attributes);
@@ -5495,7 +5495,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             return false;
         }
 
-        XML_SetUserData(object_xml_parser, (void*)this);
+        XML_SetUserData(object_xml_parser, static_cast<void*>(this));
         XML_SetElementHandler(object_xml_parser, _BBS_3MF_Importer::ObjectImporter::_handle_object_start_model_xml_element, _BBS_3MF_Importer::ObjectImporter::_handle_object_end_model_xml_element);
         XML_SetCharacterDataHandler(object_xml_parser, _BBS_3MF_Importer::ObjectImporter::_handle_object_xml_characters);
 
@@ -5515,10 +5515,10 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         try
         {
             mz_file_write_func callback = [](void* pOpaque, mz_uint64 file_ofs, const void* pBuf, size_t n)->size_t {
-                CallbackData* data = (CallbackData*)pOpaque;
-                if (!XML_Parse(data->parser, (const char*)pBuf, (int)n, (file_ofs + n == data->stat.m_uncomp_size) ? 1 : 0) || data->importer.object_parse_error()) {
+                CallbackData* data = static_cast<CallbackData*>(pOpaque);
+                if (!XML_Parse(data->parser, static_cast<const char*>(pBuf), static_cast<int>(n), (file_ofs + n == data->stat.m_uncomp_size) ? 1 : 0) || data->importer.object_parse_error()) {
                     char error_buf[1024];
-                    ::snprintf(error_buf, 1024, "Error (%s) while parsing '%s' at line %d", data->importer.object_parse_error_message(), data->stat.m_filename, (int)XML_GetCurrentLineNumber(data->parser));
+                    ::snprintf(error_buf, 1024, "Error (%s) while parsing '%s' at line %d", data->importer.object_parse_error_message(), data->stat.m_filename, static_cast<int>(XML_GetCurrentLineNumber(data->parser)));
                     throw Slic3r::FileIOError(error_buf);
                 }
                 return n;
@@ -8816,7 +8816,7 @@ bool is_project_bambu_3mf(const std::string& filename)
 //    const std::string &file_data_str = *file_data; 
 //
 //    return mz_zip_writer_add_mem(&archive, svg.path_in_3mf.c_str(), 
-//        (const void *) file_data_str.c_str(), file_data_str.size(), MZ_DEFAULT_COMPRESSION);
+//        static_cast<const void*>(file_data_str.c_str()), file_data_str.size(), MZ_DEFAULT_COMPRESSION);
 //}
 //
 //} // namespace

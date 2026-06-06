@@ -186,8 +186,8 @@ arrange(size_t total_parts, const Vec2d &part_size, coordf_t dist, const Boundin
     }
     
     // this is how many cells we have available into which to put parts
-    size_t cellw = (size_t)( floor((area(0) + dist) / part(0)) );
-    size_t cellh = (size_t)( floor((area(1) + dist) / part(1)) );
+    size_t cellw = static_cast<size_t>( floor((area(0) + dist) / part(0)) );
+    size_t cellh = static_cast<size_t>( floor((area(1) + dist) / part(1)) );
     if (total_parts > (cellw * cellh))
         return false;
     
@@ -737,7 +737,7 @@ Transform3d transform3d_from_string(const std::string& transform_str)
         std::vector<std::string> mat_elements_str;
         boost::split(mat_elements_str, transform_str, boost::is_any_of(" "), boost::token_compress_on);
 
-        const unsigned int size = (unsigned int)mat_elements_str.size();
+        const unsigned int size = static_cast<unsigned int>(mat_elements_str.size());
         if (size == 16) {
             unsigned int i = 0;
             for (unsigned int r = 0; r < 4; ++r) {

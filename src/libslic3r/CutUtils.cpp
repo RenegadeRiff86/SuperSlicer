@@ -598,7 +598,7 @@ const ModelObjectPtrs& Cut::perform_with_groove(const Groove& groove, const Tran
 
     // apply tolerance to the middle part
     {
-        const double h_groove_shift_tolerance = groove_half_depth - (double)groove.depth_tolerance;
+        const double h_groove_shift_tolerance = groove_half_depth - static_cast<double>(groove.depth_tolerance);
 
         const Transform3d cut_matrix_lower_tolerance = translation_transform(rotation_m * (-h_groove_shift_tolerance * Vec3d::UnitZ())) * m_cut_matrix;
         cut(tmp_object, cut_matrix_lower_tolerance, ModelObjectCutAttribute::KeepUpper, tmp_model_for_cut);

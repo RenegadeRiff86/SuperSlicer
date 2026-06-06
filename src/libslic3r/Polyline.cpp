@@ -1369,7 +1369,7 @@ Polyline ArcPolyline::to_polyline(coord_t deviation/*=0*/) const {
                 } else {
                     Points pts = Geometry::ArcWelder::arc_discretize(poly_out.back(), seg.point, seg.radius,
                                                             seg.orientation == Geometry::ArcWelder::Orientation::CCW,
-                                                            (double) deviation);
+                                                            static_cast<double>(deviation));
                     if (!pts.empty() && !poly_out.empty() && pts.front().coincides_with_epsilon(poly_out.back())) {
                         poly_out.append(pts.begin() + 1, pts.end());
                     } else {

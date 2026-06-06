@@ -132,14 +132,14 @@ MedialAxis::polyline_from_voronoi(const ExPolygon& voronoi_polygon, ThickPolylin
         const edge_t* edge = *edges.begin();
         //if (thickness[edge].first > this->m_max_width * 1.001) {
             //std::cerr << "Error, edge.first has a thickness of " << unscaled(this->thickness[edge].first) << " > " << unscaled(this->max_width) << "\n";
-            //(void)this->edges.erase(edge);
-            //(void)this->edges.erase(edge->twin());
+            //static_cast<void>(this->edges.erase(edge));
+            //static_cast<void>(this->edges.erase(edge->twin()));
             //continue;
         //}
         //if (thickness[edge].second > this->m_max_width * 1.001) {
             //std::cerr << "Error, edge.second has a thickness of " << unscaled(this->thickness[edge].second) << " > " << unscaled(this->max_width) << "\n";
-            //(void)this->edges.erase(edge);
-            //(void)this->edges.erase(edge->twin());
+            //static_cast<void>(this->edges.erase(edge));
+            //static_cast<void>(this->edges.erase(edge->twin()));
             //continue;
         //}
 
@@ -151,8 +151,8 @@ MedialAxis::polyline_from_voronoi(const ExPolygon& voronoi_polygon, ThickPolylin
         polyline.points_width.push_back(thickness[edge].second);
 
         // remove this edge and its twin from the available edges
-        (void)edges.erase(edge);
-        (void)edges.erase(edge->twin());
+        static_cast<void>(edges.erase(edge));
+        static_cast<void>(edges.erase(edge->twin()));
 
         // get next points
         this->process_edge_neighbors(edge, &polyline, edges, valid_edges, thickness);
@@ -222,8 +222,8 @@ MedialAxis::process_edge_neighbors(const VD::edge_type* edge, ThickPolyline* pol
             polyline->points.push_back(new_point);
             polyline->points_width.push_back(thickness[neighbor].second);
 
-            (void)edges.erase(neighbor);
-            (void)edges.erase(neighbor->twin());
+            static_cast<void>(edges.erase(neighbor));
+            static_cast<void>(edges.erase(neighbor->twin()));
             edge = neighbor;
         } else if (neighbors.size() == 0) {
             polyline->endpoints.second = true;
@@ -838,7 +838,7 @@ MedialAxis::extends_line(ThickPolyline& polyline, const ExPolygons& anchors, con
         // prevent the line from touching on the other side, otherwise intersection() might return that solution
         if (polyline.points.size() == 2 && this->m_expolygon.contains(line.midpoint())) line.a = line.midpoint();
 
-        line.extend_end((double)this->m_max_width);
+        line.extend_end(static_cast<double>(this->m_max_width));
         Point new_back;
         if (has_boundary_point(this->m_expolygon.contour, polyline.points.back())) {
             new_back = polyline.points.back();
@@ -934,7 +934,7 @@ MedialAxis::extends_line(ThickPolyline& polyline, const ExPolygons& anchors, con
             p_obj.y() /= 2;
             Line l2 = Line(new_back, p_obj);
             l2.extend_end((coordf_t)this->m_max_width);
-            (void)this->m_bounds->contour.first_intersection(l2, &new_bound);
+            static_cast<void>(this->m_bounds->contour.first_intersection(l2, &new_bound));
         }
         if (new_bound.coincides_with_epsilon(new_back))
             return;
@@ -1052,7 +1052,7 @@ MedialAxis::main_fusion(ThickPolylines& pp)
                 //compute angle to see if it's better than previous ones (straighter = better).
                 //we need to add how strait we are from our main.
                 assert(polyline.size() > 1 && other.size() > 1);
-                float test_dot = (float)(dot(Line(polyline.front(),polyline.points[1]), Line(other.front(), other.points[1])));
+                float test_dot = static_cast<float>(dot(Line(polyline.front(),polyline.points[1]), Line(other.front(), other.points[1])));
 
                 // Get the branch/line in wich we may merge, if possible
                 // with that, we can decide what is important, and how we can merge that.
@@ -1110,7 +1110,7 @@ MedialAxis::main_fusion(ThickPolylines& pp)
                     if (dot_poly_branch_test < 0) dot_poly_branch_test = 0;
                     if (dot_candidate_branch_test < 0) dot_candidate_branch_test = 0;
                     if (pp[biggest_main_branch_id].points_width.back() > 0)
-                        test_dot += 2 * (float)dot_poly_branch;
+                        test_dot += 2 * static_cast<float>(dot_poly_branch);
                     //std::cout << "compute dot "<< dot_poly_branch_test<<" & "<< dot_candidate_branch_test <<"\n";
                 }
                 //test if it's useful to merge or not
@@ -2512,7 +2512,7 @@ unsafe_variable_width(const ThickPolyline& polyline, const ExtrusionRole role, c
 #endif
 
     coordf_t saved_line_len = 0;
-    for (int i = 0; i < (int)lines.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(lines.size()); ++i) {
         ThickLine& line = lines[i];
 
         for (int j = 0; j < i; j++) {
@@ -2531,13 +2531,13 @@ unsafe_variable_width(const ThickPolyline& polyline, const ExtrusionRole role, c
         // split lines ?
         if (resolution_internal < line_len) {
             if (thickness_delta > tolerance && ceil(float(thickness_delta) / float(tolerance)) > 2) {
-                const uint16_t segments = 1 + (uint16_t)std::min((uint32_t)16000, (uint32_t)ceil(float(thickness_delta) / float(tolerance)));
+                const uint16_t segments = 1 + static_cast<uint16_t>(std::min(static_cast<uint32_t>(16000), static_cast<uint32_t>(ceil(float(thickness_delta) / float(tolerance)))));
                 Points pp;
                 std::vector<coordf_t> width;
                 {
                     for (size_t j = 0; j < segments; ++j) {
-                        pp.push_back(line.a.interpolate(((double)j) / segments, line.b));
-                        double percent_width = ((double)j) / (segments - 1);
+                        pp.push_back(line.a.interpolate(static_cast<double>(j) / segments, line.b));
+                        double percent_width = static_cast<double>(j) / (segments - 1);
                         width.push_back(line.a_width * (1 - percent_width) + line.b_width * percent_width);
                     }
                     pp.push_back(line.b);
@@ -2688,7 +2688,7 @@ unsafe_variable_width(const ThickPolyline& polyline, const ExtrusionRole role, c
         assert(lines[idx-1].b == (lines[idx].a));
 #endif
 
-    for (int i = 0; i < (int)lines.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(lines.size()); ++i) {
         ThickLine& line = lines[i];
 
         //gapfill : we want to be able to fill the voids (touching the perimeters), so the spacing is what we want.
@@ -2721,9 +2721,9 @@ unsafe_variable_width(const ThickPolyline& polyline, const ExtrusionRole role, c
         if (path.polyline.empty()) {
             if (wanted_width != current_flow.width()) {
                 if (current_flow.bridge()) {
-                    current_flow = Flow::bridging_flow(current_flow.height(), (float) wanted_width);
+                    current_flow = Flow::bridging_flow(current_flow.height(), static_cast<float>(wanted_width));
                 } else {
-                    current_flow = current_flow.with_width((float) wanted_width);
+                    current_flow = current_flow.with_width(static_cast<float>(wanted_width));
                 }
             }
             assert(!std::isnan(current_flow.mm3_per_mm()));
@@ -2746,9 +2746,9 @@ unsafe_variable_width(const ThickPolyline& polyline, const ExtrusionRole role, c
                 paths.push_back(path);
                 if (wanted_width != current_flow.width()) {
                     if (current_flow.bridge()) {
-                        current_flow = Flow::bridging_flow(current_flow.height(), (float) wanted_width);
+                        current_flow = Flow::bridging_flow(current_flow.height(), static_cast<float>(wanted_width));
                     } else {
-                        current_flow = current_flow.with_width((float) wanted_width);
+                        current_flow = current_flow.with_width(static_cast<float>(wanted_width));
                     }
                 }
                 assert(!std::isnan(current_flow.mm3_per_mm()));

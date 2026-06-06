@@ -25,7 +25,7 @@ uint16_t PrintRegion::extruder(FlowRole role, const PrintObject& object) const
         extruder = object.config().support_material_interface_extruder;
     else
         throw Slic3r::InvalidArgument("Unknown role");
-    return (uint16_t)extruder;
+    return static_cast<uint16_t>(extruder);
 }
 
 Flow PrintRegion::flow(const PrintObject &object, FlowRole role, double layer_height, size_t layer_id) const
@@ -105,9 +105,9 @@ Flow PrintRegion::flow(const PrintObject &object, FlowRole role, double layer_he
     // Get the configured nozzle_diameter for the extruder associated to the flow role requested.
     // Here this->extruder(role) - 1 may underflow to MAX_INT, but then the get_at() will follback to zero'th element, so everything is all right.
     double nozzle_diameter = object.print()->config().nozzle_diameter.get_at(this->extruder(role, object) - 1);
-    Flow flow = Flow::new_from_config_width(role, config_width, config_spacing,(float)nozzle_diameter, (float)layer_height,
-        (float)std::min(overlap, this->config().get_computed_value("filament_max_overlap", this->extruder(role, object) - 1)) );
-        //bridge ? (float)m_config.bridge_flow_ratio.get_abs_value(1) : 0.0f);
+    Flow flow = Flow::new_from_config_width(role, config_width, config_spacing, static_cast<float>(nozzle_diameter), static_cast<float>(layer_height),
+        static_cast<float>(std::min(overlap, this->config().get_computed_value("filament_max_overlap", this->extruder(role, object) - 1))) );
+        //bridge ? static_cast<float>(m_config.bridge_flow_ratio.get_abs_value(1)) : 0.0f);
     if (value_oddlayer > 0) {
         flow = flow.with_spacing(is_ratio_oddlayer ? flow.spacing() * value_oddlayer : value_oddlayer);
     }
@@ -171,7 +171,7 @@ coordf_t PrintRegion::nozzle_dmr_avg(const PrintConfig &print_config) const
 void PrintRegion::collect_object_printing_extruders(const PrintConfig &print_config, const PrintObjectConfig &object_config, const PrintRegionConfig &region_config, std::set<uint16_t> &object_extruders)
 {
     // These checks reflect the same logic used in the GUI for enabling/disabling extruder selection fields.
-    auto num_extruders = (int) print_config.nozzle_diameter.size();
+    auto num_extruders = static_cast<int>(print_config.nozzle_diameter.size());
     auto emplace_extruder = [num_extruders, &object_extruders](int extruder_id) {
         int i = std::max(0, extruder_id - 1);
         object_extruders.insert((i >= num_extruders) ? 0 : i);

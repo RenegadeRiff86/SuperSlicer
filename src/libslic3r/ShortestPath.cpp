@@ -42,7 +42,7 @@ std::vector<std::pair<size_t, bool>> chain_segments_closest_point(std::vector<En
 	//now switch to the other end of the segment
 	size_t this_idx = first_point_idx ^ 1;
 	//add all other segments
-	for (int iter = (int)num_segments - 2; iter >= 0; -- iter) {
+	for (int iter = static_cast<int>(num_segments) - 2; iter >= 0; -- iter) {
 		EndPointType &this_point = end_points[this_idx];
 		//set the current point as taken
 		this_point.chain_id = 1;

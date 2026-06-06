@@ -184,13 +184,13 @@ void SVG::draw(const Polygons &polygons, std::string fill)
         this->draw(*it, fill);
 }
 
-void SVG::draw(const Polyline &polyline, std::string stroke, coordf_t stroke_width)
+void SVG::draw(const Polyline &polyline, const std::string &stroke, coordf_t stroke_width)
 {
     this->stroke = stroke;
     this->path(this->get_path_d(polyline, false), false, stroke_width, 1.f);
 }
 
-void SVG::draw(const Polylines &polylines, std::string stroke, coordf_t stroke_width)
+void SVG::draw(const Polylines &polylines, const std::string &stroke, coordf_t stroke_width)
 {
     for (Polylines::const_iterator it = polylines.begin(); it != polylines.end(); ++it)
         this->draw(*it, stroke, stroke_width);
@@ -233,7 +233,7 @@ void SVG::draw(const ThickPolylines &thickpolylines, const std::string &fill, co
         draw(it->thicklines(), fill, stroke, stroke_width);
 }
 
-void SVG::draw(const Point &point, std::string fill, coord_t iradius)
+void SVG::draw(const Point &point, const std::string &fill, coord_t iradius)
 {
     float radius = (iradius == 0) ? 3.f : to_svg_coord(iradius);
     std::ostringstream svg;
@@ -244,31 +244,31 @@ void SVG::draw(const Point &point, std::string fill, coord_t iradius)
     fprintf(this->f, "%s\n", svg.str().c_str());
 }
 
-void SVG::draw(const Points &points, std::string fill, coord_t radius)
+void SVG::draw(const Points &points, const std::string &fill, coord_t radius)
 {
     for (Points::const_iterator it = points.begin(); it != points.end(); ++it)
         this->draw(*it, fill, radius);
 }
 
-void SVG::draw(const ClipperLib::Path &polygon, double scale, std::string stroke, coordf_t stroke_width)
+void SVG::draw(const ClipperLib::Path &polygon, double scale, const std::string &stroke, coordf_t stroke_width)
 {
     this->stroke = stroke;
     this->path(this->get_path_d(polygon, scale, true), false, stroke_width, 1.f);
 }
 
-void SVG::draw(const ClipperLib::Paths &polygons, double scale, std::string stroke, coordf_t stroke_width)
+void SVG::draw(const ClipperLib::Paths &polygons, double scale, const std::string &stroke, coordf_t stroke_width)
 {
     for (ClipperLib::Paths::const_iterator it = polygons.begin(); it != polygons.end(); ++ it)
         draw(*it, scale, stroke, stroke_width);
 }
 
-void SVG::draw_outline(const Polygon &polygon, std::string stroke, coordf_t stroke_width)
+void SVG::draw_outline(const Polygon &polygon, const std::string &stroke, coordf_t stroke_width)
 {
     this->stroke = stroke;
     this->path(this->get_path_d(polygon, true), false, stroke_width, 1.f);
 }
 
-void SVG::draw_outline(const Polygons &polygons, std::string stroke, coordf_t stroke_width)
+void SVG::draw_outline(const Polygons &polygons, const std::string &stroke, coordf_t stroke_width)
 {
     for (Polygons::const_iterator it = polygons.begin(); it != polygons.end(); ++ it)
         draw_outline(*it, stroke, stroke_width);
@@ -350,7 +350,7 @@ void SVG::Close()
 //    printf("SVG written to %s\n", this->filename.c_str());
 }
 
-void SVG::export_expolygons(const char *path, const BoundingBox &bbox, const Slic3r::ExPolygons &expolygons, std::string stroke_outer, std::string stroke_holes, coordf_t stroke_width)
+void SVG::export_expolygons(const char *path, const BoundingBox &bbox, const Slic3r::ExPolygons &expolygons, const std::string &stroke_outer, const std::string &stroke_holes, coordf_t stroke_width)
 {
     SVG svg(path, bbox);
     svg.draw(expolygons);
@@ -402,9 +402,9 @@ void SVG::export_expolygons(const char *path, const std::vector<std::pair<Slic3r
         }
     }
     for (const auto &exp_with_attr : expolygons_with_attributes)
-    	if (exp_with_attr.second.radius_points > 0)
-			for (const ExPolygon &expoly : exp_with_attr.first)
-    			svg.draw(to_points(expoly), exp_with_attr.second.color_points, exp_with_attr.second.radius_points);
+        if (exp_with_attr.second.radius_points > 0)
+            for (const ExPolygon &expoly : exp_with_attr.first)
+                svg.draw(to_points(expoly), exp_with_attr.second.color_points, exp_with_attr.second.radius_points);
 
     // Export legend.
     // 1st row

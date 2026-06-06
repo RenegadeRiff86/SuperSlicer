@@ -22,8 +22,8 @@ Linef3 transform(const Linef3& line, const Transform3d& t)
     typedef Eigen::Matrix<double, 3, 2> LineInMatrixForm;
 
     LineInMatrixForm world_line;
-    ::memcpy((void*)world_line.col(0).data(), (const void*)line.a.data(), 3 * sizeof(double));
-    ::memcpy((void*)world_line.col(1).data(), (const void*)line.b.data(), 3 * sizeof(double));
+    ::memcpy(reinterpret_cast<void*>(world_line.col(0).data()), reinterpret_cast<const void*>(line.a.data()), 3 * sizeof(double));
+    ::memcpy(reinterpret_cast<void*>(world_line.col(1).data()), reinterpret_cast<const void*>(line.b.data()), 3 * sizeof(double));
 
     LineInMatrixForm local_line = t * world_line.colwise().homogeneous();
     return Linef3(Vec3d(local_line(0, 0), local_line(1, 0), local_line(2, 0)), Vec3d(local_line(0, 1), local_line(1, 1), local_line(2, 1)));

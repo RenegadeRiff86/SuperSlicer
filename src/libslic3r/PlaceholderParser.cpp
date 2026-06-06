@@ -1051,7 +1051,7 @@ namespace client
 			int idx = opt_index->get_int();
 			if (idx < 0)
                 ctx->throw_exception("Negative vector index", opt_key);
-            if (idx >= (int)vec->size())
+            if (idx >= static_cast<int>(vec->size()))
                 idx = 0;
 			output = vec->serialize_at(idx);
         }
@@ -2721,7 +2721,7 @@ bool PlaceholderParser::evaluate_boolean_expression(const std::string &templ, co
 }
 
 
-void PlaceholderParser::append_custom_variables(std::map<std::string, std::vector<std::string>> name2var_array, uint16_t nb_extruders) {
+void PlaceholderParser::append_custom_variables(const std::map<std::string, std::vector<std::string>> &name2var_array, uint16_t nb_extruders) {
 
     bool is_array = nb_extruders > 0;
     if (!is_array) nb_extruders = 1;

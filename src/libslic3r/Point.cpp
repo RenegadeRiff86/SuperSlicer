@@ -21,39 +21,39 @@ namespace Slic3r {
 
 std::vector<Vec3f> transform(const std::vector<Vec3f>& points, const Transform3f& t)
 {
-    unsigned int vertices_count = (unsigned int)points.size();
+    unsigned int vertices_count = static_cast<unsigned int>(points.size());
     if (vertices_count == 0)
         return std::vector<Vec3f>();
 
     unsigned int data_size = 3 * vertices_count * sizeof(float);
 
     Eigen::MatrixXf src(3, vertices_count);
-    ::memcpy((void*)src.data(), (const void*)points.data(), data_size);
+    ::memcpy(reinterpret_cast<void*>(src.data()), reinterpret_cast<const void*>(points.data()), data_size);
 
     Eigen::MatrixXf dst(3, vertices_count);
     dst = t * src.colwise().homogeneous();
 
     std::vector<Vec3f> ret_points(vertices_count, Vec3f::Zero());
-    ::memcpy((void*)ret_points.data(), (const void*)dst.data(), data_size);
+    ::memcpy(reinterpret_cast<void*>(ret_points.data()), reinterpret_cast<const void*>(dst.data()), data_size);
     return ret_points;
 }
 
 Pointf3s transform(const Pointf3s& points, const Transform3d& t)
 {
-    unsigned int vertices_count = (unsigned int)points.size();
+    unsigned int vertices_count = static_cast<unsigned int>(points.size());
     if (vertices_count == 0)
         return Pointf3s();
 
     unsigned int data_size = 3 * vertices_count * sizeof(double);
 
     Eigen::MatrixXd src(3, vertices_count);
-    ::memcpy((void*)src.data(), (const void*)points.data(), data_size);
+    ::memcpy(static_cast<void*>(src.data()), static_cast<const void*>(points.data()), data_size);
 
     Eigen::MatrixXd dst(3, vertices_count);
     dst = t * src.colwise().homogeneous();
 
     Pointf3s ret_points(vertices_count, Vec3d::Zero());
-    ::memcpy((void*)ret_points.data(), (const void*)dst.data(), data_size);
+    ::memcpy(static_cast<void*>(ret_points.data()), static_cast<const void*>(dst.data()), data_size);
     return ret_points;
 }
 
@@ -163,9 +163,9 @@ Point Point::projection_onto(const Point &line_a, const Point &line_b) const
         If theta is outside the interval [0,1], then one of the Line_Segment's endpoints
         must be closest to calling Point.
     */
-    double lx    = (double) (line_b(0) - line_a(0));
-    double ly    = (double) (line_b(1) - line_a(1));
-    double theta = ((double) (line_b(0) - (*this) (0)) * lx + (double) (line_b(1) - (*this) (1)) * ly) /
+    double lx    = static_cast<double>(line_b(0) - line_a(0));
+    double ly    = static_cast<double>(line_b(1) - line_a(1));
+    double theta = (static_cast<double>(line_b(0) - (*this) (0)) * lx + static_cast<double>(line_b(1) - (*this) (1)) * ly) /
                    (sqr(lx) + sqr(ly));
 
     if (0.0 <= theta && theta <= 1.0) {

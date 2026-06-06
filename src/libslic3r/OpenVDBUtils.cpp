@@ -63,7 +63,7 @@ public:
 
     size_t polygonCount() const { return its.indices.size(); }
     size_t pointCount() const   { return its.vertices.size(); }
-    size_t vertexCount(size_t) const { return 3; }
+    size_t vertexCount(size_t /*polygon_idx*/) const { return 3; }
 
     // Return position pos in local grid index space for polygon n and vertex v
     // The actual mesh will appear to openvdb as scaled uniformly by voxel_size

@@ -665,7 +665,7 @@ ExtrusionEntityCollection make_brim(const Print &print, PrintTryCancel try_cance
 				size_t input_idx = 0;
 				for (const ClipperLib_Z::IntPoint &pt : path)
 					if (pt.z() > 0) {
-						input_idx = (size_t)pt.z();
+						input_idx = static_cast<size_t>(pt.z());
 						break;
 					}
 				assert(input_idx != 0);
@@ -739,7 +739,7 @@ void extrude_brim_from_tree(const Print& print, std::vector<std::vector<BrimLoop
     for (int d = loops.size() - 1; d >= 1; --d) {
         std::vector<BrimLoop>& contours_d = loops[d];
         // loop through all contours having depth == d
-        for (int i = 0; i < (int)contours_d.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(contours_d.size()); ++i) {
             const BrimLoop& loop = contours_d[i];
             // find the contour loop that contains it
             for (int t = d - 1; t >= 0; --t) {
@@ -1467,7 +1467,7 @@ void make_brim_interior(const Print& print, const Flow& flow, const PrintObjectP
             brimmable_areas.emplace_back();
             brimmable_areas.back().contour = hole;
             brimmable_areas.back().contour.make_counter_clockwise();
-            for (Polygon poly : offset(brimmable_areas.back().contour, -flow.scaled_width() * (double)num_loops, jtSquare)) {
+            for (Polygon poly : offset(brimmable_areas.back().contour, -flow.scaled_width() * static_cast<double>(num_loops), jtSquare)) {
                 brimmable_areas.back().holes.push_back(poly);
                 brimmable_areas.back().holes.back().make_clockwise();
             }

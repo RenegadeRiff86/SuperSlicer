@@ -641,7 +641,7 @@ static inline double calc_total_edge_length(const VD::edge_type &starting_edge)
             Vec2d  second_line_vec_n = mk_vector_vec2d(current).normalized();
             double angle             = ::acos(std::clamp(first_line_vec_n.dot(second_line_vec_n), -1.0, 1.0));
             if (Slic3r::cross2(first_line_vec_n, second_line_vec_n) < 0.0)
-                angle = 2.0 * (double) PI - angle;
+                angle = 2.0 * static_cast<double>(PI) - angle;
 
             if (std::abs(angle - PI) >= (PI / 12))
                 continue;

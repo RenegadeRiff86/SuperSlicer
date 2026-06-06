@@ -106,7 +106,7 @@ void SlicingAdaptive::prepare(const ModelObject &object)
 // returns height of the next layer.
 float SlicingAdaptive::next_layer_height(const float print_z, float quality_factor, size_t &current_facet)
 {
-	float  height = (float)m_slicing_params->max_layer_height;
+	float  height = static_cast<float>(m_slicing_params->max_layer_height);
 
 	float  max_surface_deviation;
 
@@ -213,8 +213,8 @@ float SlicingAdaptive::horizontal_facet_distance(float z)
 	}
 	
 	// objects maximum?
-	return (z + (float)m_slicing_params->max_layer_height > (float)m_slicing_params->object_print_z_height()) ? 
-		std::max((float)m_slicing_params->object_print_z_height() - z, 0.f) : (float)m_slicing_params->max_layer_height;
+	return (z + static_cast<float>(m_slicing_params->max_layer_height) > static_cast<float>(m_slicing_params->object_print_z_height())) ? 
+		std::max(static_cast<float>(m_slicing_params->object_print_z_height()) - z, 0.f) : static_cast<float>(m_slicing_params->max_layer_height);
 }
 
 }; // namespace Slic3r

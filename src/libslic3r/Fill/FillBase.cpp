@@ -467,8 +467,8 @@ void Fill::fill_surface_extrusion(const Surface *surface, const FillParams &para
             extrusion_entities_append_paths(*eec, std::move(simple_polylines),
                                             ExtrusionAttributes{good_role,
                                                                 ExtrusionFlow{params.flow.mm3_per_mm() * params.flow_mult * mult_flow,
-                                                                              (float) (params.flow.width() * params.flow_mult * mult_flow),
-                                                                              (float) params.flow.height()}},
+                                                                              static_cast<float>(params.flow.width() * params.flow_mult * mult_flow),
+                                                                              static_cast<float>(params.flow.height())}},
                                             !params.monotonic);
 #ifdef _DEBUGINFO
             eec->visit(LoopAssertVisitor());
@@ -523,8 +523,8 @@ Fill::do_gap_fill(const ExPolygons& gapfill_areas, const FillParams& params, Ext
     // collapse 
     //be sure we don't gapfill where the perimeters are already touching each other (negative spacing).
     min = std::max(min,
-                   Flow::new_from_spacing((float) EPSILON, (float) params.flow.nozzle_diameter(),
-                                          (float) params.flow.height(), 1, false)
+                   Flow::new_from_spacing(static_cast<float>(EPSILON), static_cast<float>(params.flow.nozzle_diameter()),
+                                          static_cast<float>(params.flow.height()), 1, false)
                        .scaled_width());
     ExPolygons gapfill_areas_collapsed = offset2_ex(gapfill_areas, double(-min / 2), double(+min / 2));
     for (const ExPolygon& ex : gapfill_areas_collapsed) {
@@ -636,7 +636,7 @@ void cut_polygon(Polyline& poly, size_t idx_1, Point p1, Point p2) {
 bool collision(const Points& pts_to_check, const Polylines& polylines_blocker, const coord_t width) {
     //check if it's not too close to a polyline
     //convert to double to allow ² operation 
-    double min_dist_square = (double)width * (double)width * 0.9 - SCALED_EPSILON;
+    double min_dist_square = static_cast<double>(width) * static_cast<double>(width) * 0.9 - SCALED_EPSILON;
     Polyline better_polylines(pts_to_check);
     Points better_pts = better_polylines.equally_spaced_points(double(width / 2));
     for (const Point& p : better_pts) {
