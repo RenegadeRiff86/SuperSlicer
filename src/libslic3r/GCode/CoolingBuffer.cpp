@@ -1157,6 +1157,7 @@ std::string CoolingBuffer::apply_layer_cooldown(
         const char *line_start  = gcode.c_str() + line->line_start;
         const char *line_end    = gcode.c_str() + line->line_end;
         bool fan_need_set = false;
+        bool force_min_fan_set = false;
         if (line_start > pos) {
             new_gcode.append(pos, line_start - pos);
             const char *fpos = strstr(new_gcode.data() + new_gcode.size() - (line_start - pos), " F");
@@ -1184,6 +1185,7 @@ std::string CoolingBuffer::apply_layer_cooldown(
         } else if (line->type & CoolingLine::TYPE_SET_MIN_FAN_SPEED) {
             override_min_fan_speed = std::clamp(line->fan_speed, fan_speed_limits.first, fan_speed_limits.second);
             fan_need_set = true;
+            force_min_fan_set = true;
         } else if (line->type & CoolingLine::TYPE_RESET_MIN_FAN_SPEED){
             override_min_fan_speed = -1;
             fan_need_set = true;
@@ -1352,7 +1354,8 @@ std::string CoolingBuffer::apply_layer_cooldown(
                     //if(override_min_fan_speed > 0 && extrude_tree[i] == GCodeExtrusionRole::OverhangPerimeter)
                     //    continue;
                     if (fan_control[uint8_t(extrude_tree[i])]) {
-                        if (std::max(override_min_fan_speed, fan_speeds[uint8_t(extrude_tree[i])]) != current_fan_speed) {
+                        if ((force_min_fan_set && override_min_fan_speed > fan_speeds[uint8_t(extrude_tree[i])]) ||
+                            std::max(override_min_fan_speed, fan_speeds[uint8_t(extrude_tree[i])]) != current_fan_speed) {
                             if (fan_speeds[uint8_t(extrude_tree[i])] >= 0) {
                                 current_fan_speed = fan_speeds[uint8_t(extrude_tree[i])];
                             }
@@ -1373,7 +1376,8 @@ std::string CoolingBuffer::apply_layer_cooldown(
                     }
                 }
                 if (!fan_set && m_fan_speed >= 0) {
-                    if (std::max(override_min_fan_speed, m_fan_speed) != current_fan_speed &&
+                    if (((force_min_fan_set && override_min_fan_speed > m_fan_speed) ||
+                         std::max(override_min_fan_speed, m_fan_speed) != current_fan_speed) &&
                         (default_fan_speed[0] >= 0 || current_fan_speed > 0)) {
                         current_fan_speed = m_fan_speed;
                         std::string comment;
