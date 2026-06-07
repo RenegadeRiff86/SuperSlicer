@@ -310,6 +310,7 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
     std::string cmd(line.cmd());
     double time = 0;
     int16_t fan_speed = -1;
+    bool reassert_moved_fan = false;
     if (cmd.length() > 1) {
         if (::toupper(cmd[0]) == 'G') {
             assert(!line.has_f() || line.f() > 0);
@@ -439,6 +440,7 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                                 }
                                 m_front_buffer_fan_speed = fan_speed;
                             }
+                            reassert_moved_fan = true;
                         } else {
                             if (kickstart <= 0) {
                                 //nothing to do
@@ -506,9 +508,22 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                     }
                 }
             }
+            const std::string_view overhang_fan_prefix = "; overhang speed : SET_MIN_FAN_SPEED";
+            if (line.raw().rfind(overhang_fan_prefix, 0) == 0) {
+                int overhang_fan_speed = 0;
+                if (parse_number(std::string_view(line.raw()).substr(overhang_fan_prefix.size()), overhang_fan_speed)
+                    && overhang_fan_speed > m_front_buffer_fan_speed) {
+                    put_in_buffer(BufferData(_set_fan(overhang_fan_speed, "set override fan"), 0, overhang_fan_speed, true));
+                    // Emit the marker reassert before the following overhang extrusion, not after the buffer delay.
+                    need_flush = true;
+                }
+            }
         }
     }
 
+    if (reassert_moved_fan) {
+        put_in_buffer(BufferData(std::string(line.raw()), 0, fan_speed, true));
+    }
     if (time >= 0) {
         BufferData& new_data = put_in_buffer(BufferData(line.raw(), time, fan_speed));
         if (line.has(Axis::X)) {
