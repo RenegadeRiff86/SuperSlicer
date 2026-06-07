@@ -196,15 +196,16 @@ void FanMover::_print_in_middle_G1(BufferData& line_to_split, float nb_sec_from_
     }
 }
 
-void FanMover::_remove_slow_fan(int16_t min_speed, float past_sec) {
+void FanMover::_remove_slow_fan(int16_t min_speed, float past_sec, bool include_kickstart_targets) {
     //erase fan in the buffer -> don't slowdown if you are in the process of step-up.
     //we began at the "recent" side , and remove as long as we don't push past_sec to 0
     auto it = m_buffer.begin();
     while (it != m_buffer.end() && past_sec > 0) {
         past_sec -= it->time;
-        // Never remove kickstart-target markers: they terminate a previous kickstart and
-        // must be preserved even during a new kickstart's clearing sweep.
-        if (it->fan_speed >= 0 && it->fan_speed < min_speed && !it->is_kickstart){
+        // Kickstart-target markers normally terminate a kickstart and must survive the
+        // kickstart setup sweep. A later higher fan command, however, may supersede a
+        // queued lower kickstart end so it does not drop the fan during an overhang.
+        if (it->fan_speed >= 0 && it->fan_speed < min_speed && (include_kickstart_targets || !it->is_kickstart)){
             //found something that is lower than us
             it = remove_from_buffer(it);
 
@@ -393,7 +394,7 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                                 } else {
                                     //if kickstart
                                     // first erase everything lower than that value
-                                    _remove_slow_fan(fan_speed, m_buffer_time_size + 1);
+                                    _remove_slow_fan(fan_speed, m_buffer_time_size + 1, true);
                                     // then erase everything lower that kickstart
                                     _remove_slow_fan(fan_baseline, kickstart);
                                     // print me
@@ -428,7 +429,7 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                                 }
                             } else {
                                 // first erase everything lower than that value
-                                _remove_slow_fan(fan_speed, m_buffer_time_size + 1);
+                                _remove_slow_fan(fan_speed, m_buffer_time_size + 1, true);
                                 // then write the fan command
                                 if (!m_buffer.empty() && (m_buffer_time_size - m_buffer.front().time * 0.1) > nb_seconds_delay) {
                                     _print_in_middle_G1(m_buffer.front(), m_buffer_time_size - nb_seconds_delay, line.raw());
