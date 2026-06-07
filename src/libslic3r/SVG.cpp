@@ -172,13 +172,13 @@ SVG::draw_outline(const SurfacesConstPtr& surfaces, std::string stroke_outer, st
 }
 
 void
-SVG::draw(const Polygon &polygon, std::string fill)
+SVG::draw(const Polygon &polygon, const std::string &fill)
 {
     this->fill = fill;
     this->path(this->get_path_d(polygon, true), !fill.empty(), 0, 1.f);
 }
 
-void SVG::draw(const Polygons &polygons, std::string fill)
+void SVG::draw(const Polygons &polygons, const std::string &fill)
 {
     for (Polygons::const_iterator it = polygons.begin(); it != polygons.end(); ++it)
         this->draw(*it, fill);
