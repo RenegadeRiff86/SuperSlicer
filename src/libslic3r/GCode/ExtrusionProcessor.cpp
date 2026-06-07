@@ -242,7 +242,6 @@ float calculate_overhang_speed(const ExtrusionAttributes &attributes,
     if (!attributes.overhang_attributes.has_value())
         return -1;
     float speed_ratio = 0; // 0: overhangs speed, 1= perimeter/externalperimeter speed.
-    float fan_speed = -1;
     if (config.overhangs_dynamic_speed.is_enabled()) {
         assert(config.overhangs);
         float max_dynamic_distance =

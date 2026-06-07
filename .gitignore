@@ -25,3 +25,5 @@ CMakeUserPresets.json
 # MacOS Ignores
 .DS_Store
 
+githubtoken.ini
+releases/

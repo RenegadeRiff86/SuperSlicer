@@ -3,6 +3,7 @@ import configparser
 import shutil
 import os
 import sys
+import pathlib
 
 # list of repositories to download for each release.
 all_repositories= [
@@ -19,6 +20,8 @@ out_resources = "./"+sys.argv[1]
 if not os.path.exists(out_resources):
 	print("error, the path "+out_resources+" doesn't exists")
 	sys.exit(1)
+
+os.makedirs(out_resources+"/profiles", exist_ok=True)
 
 for url in all_repositories:
 	print(f"Cloning {url}...")
@@ -49,6 +52,7 @@ for url in all_repositories:
 		continue
 
 	# copy into our resources
+	print(f"copy from: '{vendor_ini_source}' to '{out_resources}/profiles/{vendor_id}.ini'")
 	shutil.copy(vendor_ini_source, out_resources+"/profiles/"+vendor_id+".ini");
 	#copy the icon directory
 	if os.path.exists(out_resources+"/profiles/"+vendor_id):

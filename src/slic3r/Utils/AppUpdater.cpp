@@ -397,14 +397,14 @@ void AppUpdater::priv::parse_version_string(const std::string &constbody) {
     std::regex matcher("[0-9]+\\.[0-9]+(\\.[0-9]+)*(-[A-Za-z0-9]+)?(\\+[A-Za-z0-9]+)?");
 
     Semver current_version(SLIC3R_VERSION_FULL);
-    Semver best_pre(1, 0, 0, 0);
-    Semver best_release(1, 0, 0, 0);
+    Semver best_pre(0, 0, 0, 0);
+    Semver best_release(0, 0, 0, 0);
     std::string best_pre_url;
     std::string best_pre_assets_url;
     std::string best_release_url;
     std::string best_release_assets_url;
     const std::regex reg_num("([0-9]+)");
-    bool not_found = true;
+    bool not_found = true; // not found -> nightly
     for (auto json_version : root) {
         std::string tag = json_version.second.get<std::string>("tag_name");
         for (std::regex_iterator it = std::sregex_iterator(tag.begin(), tag.end(), reg_num);
@@ -430,13 +430,17 @@ void AppUpdater::priv::parse_version_string(const std::string &constbody) {
     }
     // for testing:
     //best_release = Semver { 3, 0, 0, 0 };
+    std::string opt = GUI::wxGetApp().app_config->get("notify_release");
     // if release is more recent than beta, use release anyway
     if (best_pre < best_release) {
         best_pre = best_release;
         best_pre_url = best_release_url;
-    } else if (not_found && best_pre > best_release) {
+    } else if ( (not_found || current_version.prerelease()) && best_pre > best_release) {
         // I am not found, so I should be an experimental / nightly build.
         i_am_pre = true;
+    } else if (opt == "all") {
+        // use prelease if more recent
+        i_am_pre = best_pre > best_release;
     }
     // if we're the most recent, don't do anything
     if ((i_am_pre ? best_pre : best_release) <= current_version)
@@ -455,9 +459,9 @@ void AppUpdater::priv::parse_version_string(const std::string &constbody) {
     set_app_data(new_data);
     // send
     BOOST_LOG_TRIVIAL(info) << format("Got %1% online version: `%2%`. Sending to GUI thread...", SLIC3R_APP_NAME,
-                                      new_data.version->to_string());
+                                      new_data.version.to_string());
     wxCommandEvent *evt = new wxCommandEvent(EVT_SLIC3R_VERSION_ONLINE);
-    evt->SetString(new_data.version->to_string());
+    evt->SetString(new_data.version.to_string());
     GUI::wxGetApp().QueueEvent(evt);
 }
 #endif
@@ -533,7 +537,7 @@ void AppUpdater::priv::parse_version_string(const std::string& body)
 						BOOST_LOG_TRIVIAL(error) << format("Received invalid contents from version file: Not a correct semver: `%1%`", version);
 						return;
 					}
-					new_data.version = release_version;
+					new_data.version = release_version ? *release_version : Semver();
 					// Send after all data is read
 					/*
 					BOOST_LOG_TRIVIAL(info) << format("Got %1% online version: `%2%`. Sending to GUI thread...", SLIC3R_APP_NAME, version);
@@ -555,7 +559,7 @@ void AppUpdater::priv::parse_version_string(const std::string& body)
 			std::string				version_string;
 			for (const std::string& ver_string : prerelease_versions) {
 				std::optional<Semver> ver = Semver::parse(ver_string);
-				if (ver && *new_data.version < *ver && ((recent_version && *recent_version < *ver) || !recent_version)) {
+				if (ver && new_data.version < *ver && ((recent_version && *recent_version < *ver) || !recent_version)) {
 					recent_version = ver;
 					version_string = ver_string;
 				}
@@ -739,14 +743,14 @@ bool replace_me(DownloadAppData input_data, const boost::filesystem::path &archi
 
         mz_zip_archive_file_stat file_stat;
 
-        std::string archive_name = archive_path.stem().string();
+        boost::filesystem::path archive_name = archive_path.stem();
 
         // we first loop the entries to read from the archive the .model file only, in order to extract the version from it
         bool found_model = false;
         for (mz_uint i = 0; i < num_entries; ++i) {
             if (mz_zip_reader_file_stat(&zip.archive, i, &file_stat)) {
                 boost::filesystem::path name(file_stat.m_filename);
-                boost::filesystem::path out = name.lexically_relative(archive_path.stem());
+                boost::filesystem::path out = name.lexically_relative(archive_name);
                 if (file_stat.m_is_directory) {
                     boost::filesystem::create_directories(out);
                 } else {
@@ -787,6 +791,7 @@ bool replace_me(DownloadAppData input_data, const boost::filesystem::path &archi
 }
 
 void fix_replace_me() {
+#ifdef _WIN32
     //get our directory
     boost::filesystem::path my_dir = binary_file().parent_path();
     boost::filesystem::path temp_dir = my_dir / SLIC3R_VERSION_FULL ".old";
@@ -799,10 +804,17 @@ void fix_replace_me() {
         }
     }
     if (boost::filesystem::exists(temp_dir / "resources")) {
+        if (boost::filesystem::exists(my_dir / "resources")) {
+            boost::filesystem::remove_all(my_dir / "resources");
+        }
         boost::filesystem::rename(temp_dir / "resources", my_dir / "resources");
     }
-
+#else
+    assert(false);
+#endif
 }
+
+
 
 AppUpdater::AppUpdater()
 	:p(new priv())
@@ -816,6 +828,21 @@ AppUpdater::~AppUpdater()
 		p->m_cancel = true;
 		p->m_thread.join();
 	}
+}
+
+//clean "old" after a in-place upgrade
+void AppUpdater::clean() {
+#ifdef _WIN32
+    //get our directory
+    boost::filesystem::path my_dir = binary_file().parent_path();
+    // rename back all dll & exe
+    for (const boost::filesystem::directory_entry& file_entry : boost::filesystem::directory_iterator(my_dir)) {
+        if (file_entry.status().type() == boost::filesystem::file_type::regular_file
+                && file_entry.path().extension() == ".old") {
+            boost::filesystem::remove(file_entry.path());
+        }
+    }
+#endif
 }
 
 void AppUpdater::sync_download()
@@ -844,15 +871,21 @@ void AppUpdater::sync_download()
         1024 * 1024
         // on_progress
         ,
-        [](Http::Progress progress) { return true; }
+        [](Http::Progress progress) {
+            return true;
+        }
         // on_complete
         ,
         [&](std::string body, std::string &error_message) {
             boost::trim(body);
+            bool ok = false;
 
             boost::property_tree::ptree root;
             std::stringstream json_stream(body);
             boost::property_tree::read_json(json_stream, root);
+            if (input_data.version != Semver()) {
+                GUI::wxGetApp().app_config->set("version_online_seen", input_data.version.to_string());
+            }
             for (auto json_asset : root) {
                 std::string name = json_asset.second.get<std::string>("name");
 #ifdef _WIN32
@@ -885,6 +918,7 @@ void AppUpdater::sync_download()
 
 
                     //download
+                    ok = true;
                     p->m_thread = std::thread([this, input_data]() {
                         p->m_download_ongoing = true;
                         if (boost::filesystem::path dest_path = p->download_file(input_data);
@@ -923,7 +957,11 @@ void AppUpdater::sync_download()
                     });
                 }
             }
-            return true;
+            if (!ok) {
+                error_message = GUI::format(
+                    _u8L("Can't find a suitable file to download. You have to download it manually at %1%"), input_data.url);
+            }
+            return ok;
         },
         error_message);
     // lm:In case the internet is not available, it will report no updates if run by user.
@@ -934,11 +972,9 @@ void AppUpdater::sync_download()
         std::string message = GUI::format("Downloading %1% assets file has failed:\n%2%", SLIC3R_APP_NAME,
                                           error_message);
         BOOST_LOG_TRIVIAL(error) << message;
-        if (p->m_triggered_by_user) {
-            wxCommandEvent *evt = new wxCommandEvent(EVT_SLIC3R_APP_DOWNLOAD_FAILED);
-            evt->SetString(message);
-            GUI::wxGetApp().QueueEvent(evt);
-        }
+        wxCommandEvent *evt = new wxCommandEvent(EVT_SLIC3R_APP_DOWNLOAD_FAILED);
+        evt->SetString(message);
+        GUI::wxGetApp().QueueEvent(evt);
     }
 
 #endif

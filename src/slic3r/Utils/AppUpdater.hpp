@@ -26,7 +26,7 @@ struct DownloadAppData
     std::string             asset_name;
     bool                    start_after;
     bool                    replace_current;
-    std::optional<Semver>   version;
+    Semver                  version;
     size_t                  size;
 	boost::filesystem::path target_path;
 };
@@ -47,6 +47,8 @@ public:
 	void sync_version(const std::string& version_check_url, bool from_user);
 	void cancel();
 	bool cancel_callback();
+
+    static void clean();
 
 	std::string get_default_dest_folder();
 

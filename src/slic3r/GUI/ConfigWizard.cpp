@@ -1790,7 +1790,7 @@ PageVendors::PageVendors(ConfigWizard *parent)
         /*const*/ bool enabled;
         {
             std::lock_guard<std::recursive_mutex> lk(appconfig.config_lock);
-            const VendorMap &acvendors = appconfig.vendors();
+            const AppConfig::VendorMap &acvendors = appconfig.vendors();
             enabled = acvendors.find(vendor->id) != acvendors.end();
         }
         if (enabled) {
@@ -3362,7 +3362,10 @@ bool ConfigWizard::priv::apply_config(AppConfig *app_config, PresetBundle *prese
 
     app_config->set_vendors(appconfig_new);
 
-    app_config->set("notify_release", page_update->version_check ? "all" : "none");
+    if (app_config->get("notify_release") != std::string(page_update->version_check ? "release" : "none")) {
+        app_config->set("notify_release", page_update->version_check ? "release" : "none");
+        app_config->set("version_online_seen", "");
+    }
     app_config->set("preset_update", page_update->preset_update ? "1" : "0");
     app_config->set("export_sources_full_pathnames", page_reload_from_disk->full_pathnames ? "1" : "0");
 
