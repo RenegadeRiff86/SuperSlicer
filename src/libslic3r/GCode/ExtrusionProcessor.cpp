@@ -141,16 +141,11 @@ ExtrusionPaths calculate_and_split_overhanging_extrusions(const ExtrusionPath   
     // remain consistent even on short perimeter fragments.
     for (ExtrusionPath &res_path : result) {
         assert(res_path.attributes().overhang_attributes);
-<<<<<<< HEAD
         if (res_path.attributes().overhang_attributes.has_value() &&
             res_path.role().is_perimeter() &&
             !res_path.role().is_overhang()) {
             res_path.set_role(res_path.role() | ExtrusionRoleModifier::ERM_Bridge);
         }
-=======
-        //res_path.attributes_mutable().role = (res_path.role() & ExtrusionRoleModifier(~ExtrusionRoleModifier::ERM_Bridge));
-        //assert(res_path.role() == ExtrusionRole::Perimeter || res_path.role() == ExtrusionRole::ExternalPerimeter);
->>>>>>> f2c9dd0d8c (Fix overhangs speed & fan speed:)
     }
 #ifdef _DEBUG
     for (auto &path : result) {
@@ -247,12 +242,11 @@ float calculate_overhang_speed(const ExtrusionAttributes &attributes,
     if (!attributes.overhang_attributes.has_value())
         return -1;
     float speed_ratio = 0; // 0: overhangs speed, 1= perimeter/externalperimeter speed.
-<<<<<<< HEAD
     float fan_speed = -1;
     if (config.overhangs_dynamic_speed.is_enabled()) {
         assert(config.overhangs);
         float max_dynamic_distance =
-            (float) (config.overhangs_width_speed.is_enabled() ?
+            static_cast<float>(config.overhangs_width_speed.is_enabled() ?
                          config.overhangs_width_speed.get_abs_value(config.nozzle_diameter.get_at(extruder_id)) :
                          config.overhangs_width.get_abs_value(config.nozzle_diameter.get_at(extruder_id)));
         GraphData graph = config.overhangs_dynamic_speed.value;
@@ -260,52 +254,6 @@ float calculate_overhang_speed(const ExtrusionAttributes &attributes,
         if (graph.graph_points[graph.begin_idx].x() != 0) {
             graph.graph_points.insert(graph.graph_points.begin() + graph.begin_idx, {0, 0});
             graph.end_idx++;
-=======
-    // enforce config.overhangs_width_speed.is_enabled() to be able to compute overhangs_dynamic_speed, for simplicity sake.
-    if (config.overhangs_width_speed.is_enabled() && config.overhangs_dynamic_speed.is_enabled()) {
-        if (attributes.overhang_attributes->start_distance_from_prev_layer == 0 &&
-            attributes.overhang_attributes->end_distance_from_prev_layer == 0) {
-            speed_ratio = 1;
-        } else {
-            assert(config.overhangs);
-            float max_dynamic_distance =
-                (float) (config.overhangs_width_speed.is_enabled() ?
-                             config.overhangs_width_speed.get_abs_value(config.nozzle_diameter.get_at(extruder_id)) :
-                             config.overhangs_width.get_abs_value(config.nozzle_diameter.get_at(extruder_id)));
-            GraphData graph = config.overhangs_dynamic_speed.value;
-            // ensure it start at 0%, and ensure it ends at 100%
-            if (graph.graph_points[graph.begin_idx].x() != 0) {
-                graph.graph_points.insert(graph.graph_points.begin() + graph.begin_idx, {0, 0});
-                graph.end_idx++;
-            }
-            if (graph.graph_points[graph.end_idx - 1].x() != 100) {
-                graph.graph_points.insert(graph.graph_points.begin() + graph.end_idx, {100, 100});
-                graph.end_idx++;
-            }
-            graph.graph_points[graph.begin_idx].x() = 0;
-            graph.graph_points[graph.end_idx - 1].y() = 100;
-            // interpolate
-            assert(attributes.overhang_attributes->start_distance_from_prev_layer >= 0);
-            assert(attributes.overhang_attributes->end_distance_from_prev_layer >= 0);
-            float extrusion_ratio =
-                std::min(graph.interpolate(
-                             100 -
-                             100 *
-                                 std::min(1.f,
-                                          attributes.overhang_attributes->start_distance_from_prev_layer /
-                                              max_dynamic_distance)),
-                         graph.interpolate(100 -
-                                           100 *
-                                               std::min(1.f,
-                                                        attributes.overhang_attributes->end_distance_from_prev_layer /
-                                                            max_dynamic_distance)));
-            assert(attributes.width * attributes.overhang_attributes->proximity_to_curled_lines >= 0 &&
-                   attributes.width * attributes.overhang_attributes->proximity_to_curled_lines <= 1);
-            float curled_extrusion_ratio = graph.interpolate(
-                100 - 100 * attributes.overhang_attributes->proximity_to_curled_lines);
-            speed_ratio = std::min(extrusion_ratio, curled_extrusion_ratio) / 100.0;
-            assert(speed_ratio >= 0 && speed_ratio <= 1);
->>>>>>> f2c9dd0d8c (Fix overhangs speed & fan speed:)
         }
         if (graph.graph_points[graph.end_idx - 1].x() != 100) {
             graph.graph_points.insert(graph.graph_points.begin() + graph.end_idx, {100, 100});
