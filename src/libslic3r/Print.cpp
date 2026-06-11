@@ -139,6 +139,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "fan_kickstart",
         "fan_speedup_overhangs",
         "fan_speedup_time",
+        "overhangs_fan_speedup_slowdown",
         "feature_gcode",
         "fan_percentage",
         "fan_printer_min_speed",

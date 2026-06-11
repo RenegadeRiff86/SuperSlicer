@@ -1091,6 +1091,7 @@ static std::vector<std::string> s_Preset_printer_options {
     "fan_kickstart",
     "fan_speedup_overhangs",
     "fan_speedup_time",
+    "overhangs_fan_speedup_slowdown",
     "fan_percentage",
     "fan_printer_min_speed",
     "gcode_ascii",

@@ -28,6 +28,10 @@
 
 #include <fast_float/fast_float.h>
 
+// TEMP DEBUG: disable optimization so the debugger shows real locals/state
+// while stepping through the cooling/fan logic. Remove before committing.
+#pragma optimize("", off)
+
 namespace Slic3r {
 
 CoolingBuffer::CoolingBuffer(GCodeGenerator &gcodegen) : m_config(gcodegen.config()), m_current_extruder(0)

@@ -40,6 +40,14 @@ private:
     const bool relative_e;
     const bool only_overhangs;
     const float kickstart; // in s
+    // When true, instead of pre-starting the overhang fan early, keep the fan command at
+    // the overhang and slow the approach moves so the fan reaches target speed in time.
+    const bool slowdown_for_fan;
+    // Floor for the approach slowdown (= overhangs_speed). If percent, it is a fraction of
+    // the approach move's own speed; otherwise an absolute mm/s value. The approach is never
+    // slowed below this.
+    const float overhang_speed_value;
+    const bool overhang_speed_percent;
 
     GCodeReader m_parser{};
     const GCodeWriter& m_writer;
@@ -54,9 +62,17 @@ private:
     // variable for when you add a line (front of the buffer)
     int m_front_buffer_fan_speed = 1;
     int m_back_buffer_fan_speed = 1;
+    int m_output_fan_speed = 1;
     int m_last_overhang_min_fan_speed = -1;
     int m_overhang_fan_hold_speed = -1;
     bool m_overhang_fan_hold_until_extrusion = false;
+    // Fan target suppressed by the overhang hold (a fan decrease that arrived during the
+    // post-overhang transition gap, before the next extrusion). It is deferred and re-applied
+    // when extrusion resumes so the fan drops to the intended feature speed instead of being
+    // lost -- losing it left the fan pinned at the overhang speed for the whole next feature
+    // (e.g. a 100% dynamic-overhang override smearing 100% fan across normal print).
+    int m_overhang_fan_hold_pending_speed = -1;
+    std::string m_overhang_fan_hold_pending_raw;
     BufferData m_current_kickstart{"",-1,0};
     float m_current_kickstart_duration = 0;
 
@@ -70,11 +86,13 @@ private:
 
 public:
     FanMover(const GCodeWriter& writer, const float nb_seconds_delay, const bool with_D_option, const bool relative_e,
-        const bool only_overhangs, const float kickstart)
+        const bool only_overhangs, const float kickstart, const bool slowdown_for_fan = false,
+        const float overhang_speed_value = 0.f, const bool overhang_speed_percent = false)
         : regex_fan_speed("S[0-9]+"), 
         nb_seconds_delay(nb_seconds_delay>0 ? std::max(0.01f,nb_seconds_delay) : 0),
         with_D_option(with_D_option)
-        , relative_e(relative_e), only_overhangs(only_overhangs), kickstart(kickstart), m_writer(writer){}
+        , relative_e(relative_e), only_overhangs(only_overhangs), kickstart(kickstart), slowdown_for_fan(slowdown_for_fan)
+        , overhang_speed_value(overhang_speed_value), overhang_speed_percent(overhang_speed_percent), m_writer(writer){}
 
     // Adds the gcode contained in the given string to the analysis and returns it after removing the workcodes
     const std::string& process_gcode(const std::string& gcode, bool flush);

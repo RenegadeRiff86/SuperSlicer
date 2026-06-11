@@ -2491,7 +2491,10 @@ void GCodeGenerator::process_layers(
                 config.fan_speedup_time.value > 0,
                 config.use_relative_e_distances.value,
                 config.fan_speedup_overhangs.value,
-                (float)config.fan_kickstart.value));
+                (float)config.fan_kickstart.value,
+                config.overhangs_fan_speedup_slowdown.value,
+                (float)config.overhangs_speed.value,
+                config.overhangs_speed.percent));
         //flush as it's a whole layer
         this->m_throw_if_canceled();
         return fan_mover->process_gcode(in, true);
@@ -2639,7 +2642,10 @@ void GCodeGenerator::process_layers(
                 config.fan_speedup_time.value > 0,
                 config.use_relative_e_distances.value,
                 config.fan_speedup_overhangs.value,
-                (float)config.fan_kickstart.value));
+                (float)config.fan_kickstart.value,
+                config.overhangs_fan_speedup_slowdown.value,
+                (float)config.overhangs_speed.value,
+                config.overhangs_speed.percent));
         this->m_throw_if_canceled();
         //flush as it's a whole layer
         return fan_mover->process_gcode(in, true);

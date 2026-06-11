@@ -1343,6 +1343,7 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
     ((ConfigOptionString,               output_filename_format))
     ((ConfigOptionGraphs,               overhangs_dynamic_fan_speed))
     ((ConfigOptionInts,                 overhangs_fan_speed))
+    ((ConfigOptionBool,                 overhangs_fan_speedup_slowdown))
     ((ConfigOptionInts,                 perimeter_fan_speed))
     ((ConfigOptionStrings,              post_process))
     ((ConfigOptionPoint,                priming_position))

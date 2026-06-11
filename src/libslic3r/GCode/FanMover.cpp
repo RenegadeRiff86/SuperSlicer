@@ -3,11 +3,16 @@
 #include "GCodeReader.hpp"
 #include "LocalesUtils.hpp"
 
+#include <cstdlib>
+#include <fstream>
 #include <iomanip>
 #include <vector>
 
 #include <boost/log/trivial.hpp>
 
+// TEMP DEBUG: disable optimization in this file so the debugger shows real
+// locals/state while stepping. Remove before committing.
+#pragma optimize("", off)
 
 namespace Slic3r {
 
@@ -35,8 +40,15 @@ const std::string& FanMover::process_gcode(const std::string& gcode, bool flush)
         }
         // check if there isn't a kickstart still in operation, if so terminate it.
         if (m_current_kickstart.time > 0) {
-            _append_fan_command(_set_fan(m_current_kickstart.fan_speed, "end fan kickstart"), m_current_kickstart.fan_speed);
-            m_front_buffer_fan_speed = m_current_kickstart.fan_speed;
+            if (m_current_kickstart.fan_speed < m_output_fan_speed) {
+                // Kickstart target is lower than the current output fan speed (raised
+                // by an overhang override).  Suppress the "end fan kickstart" emit to
+                // avoid dropping the fan mid-print; the next regular M106 from
+                // CoolingBuffer will lower it at the right time.
+            } else {
+                _append_fan_command(_set_fan(m_current_kickstart.fan_speed, "end fan kickstart"), m_current_kickstart.fan_speed);
+                m_front_buffer_fan_speed = m_current_kickstart.fan_speed;
+            }
             m_current_kickstart.time = -1;
         }
         _drop_immediate_lower_fan_commands();
@@ -58,6 +70,7 @@ void FanMover::_append_fan_command(const std::string& gcode, int16_t fan_speed)
             m_process_output.erase(line_begin);
     }
     m_process_output += gcode + (gcode.empty() || gcode.back() == '\n' ? "" : "\n");
+    m_output_fan_speed = fan_speed;
 }
 
 void FanMover::_append_gcode_line(const std::string& gcode)
@@ -136,6 +149,18 @@ void FanMover::_drop_immediate_lower_fan_commands()
         m_pending_output_fan_command = default_fan_off;
         m_process_output.erase(m_process_output.size() - default_fan_off.size());
     }
+
+    int16_t last_output_fan_speed = m_output_fan_speed;
+    for (size_t begin = 0; begin < m_process_output.size();) {
+        size_t end = m_process_output.find('\n', begin);
+        if (end == std::string::npos)
+            end = m_process_output.size();
+        const int16_t speed = fan_speed(std::string_view(m_process_output.data() + begin, end - begin));
+        if (speed >= 0)
+            last_output_fan_speed = speed;
+        begin = end == m_process_output.size() ? end : end + 1;
+    }
+    m_output_fan_speed = last_output_fan_speed;
 }
 
 bool is_end_of_word(char c) {
@@ -440,6 +465,15 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                 if (m_overhang_fan_hold_until_extrusion && line.has(Axis::E)) {
                     m_overhang_fan_hold_until_extrusion = false;
                     m_overhang_fan_hold_speed = -1;
+                    // Extrusion resumed: re-apply the fan target that was suppressed during the hold
+                    // so the fan drops to the intended feature speed right as printing restarts.
+                    // Queue it in the buffer (not straight to output) so it stays aligned with this
+                    // extrusion through the delay pipeline instead of firing nb_seconds_delay early.
+                    if (m_overhang_fan_hold_pending_speed >= 0) {
+                        put_in_buffer(BufferData(m_overhang_fan_hold_pending_raw, 0, int16_t(m_overhang_fan_hold_pending_speed)));
+                        m_overhang_fan_hold_pending_speed = -1;
+                        m_overhang_fan_hold_pending_raw.clear();
+                    }
                 }
             } else if (::atoi(&cmd[1]) == 2 || ::atoi(&cmd[1]) == 3) {
                 // TODO: compute real dist
@@ -463,6 +497,12 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                 fan_speed = 100 * fan_speed / fan_baseline;
                 if (!m_is_custom_gcode) {
                     if (m_overhang_fan_hold_until_extrusion && fan_speed < m_overhang_fan_hold_speed) {
+                        // Keep the fan high through the post-overhang transition, but remember this
+                        // lower target (the next feature's intended fan) so it can be re-applied when
+                        // extrusion resumes (see the G1-with-E release above). Dropping it outright
+                        // left the fan stuck at the overhang speed for the whole next feature.
+                        m_overhang_fan_hold_pending_raw = line.raw();
+                        m_overhang_fan_hold_pending_speed = fan_speed;
                         time = -1;
                         fan_speed = -1;
                         break;
@@ -626,9 +666,106 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                 if (parse_number(std::string_view(line.raw()).substr(overhang_fan_prefix.size()), overhang_fan_speed)) {
                     m_last_overhang_min_fan_speed = overhang_fan_speed;
                     if (overhang_fan_speed > 0) {
-                        put_in_buffer(BufferData(_set_fan(overhang_fan_speed, "set override fan"), 0, overhang_fan_speed, true));
-                        // Emit the marker reassert before the following overhang extrusion, not after the buffer delay.
-                        need_flush = true;
+                        if (const char *trace_path = std::getenv("SUPERSLICER_FANMOVER_TRACE")) {
+                            int lower_buffer_fan_count = 0;
+                            for (const BufferData &data : m_buffer) {
+                                if (data.fan_speed >= 0 && data.fan_speed < overhang_fan_speed)
+                                    ++lower_buffer_fan_count;
+                            }
+                            std::ofstream trace(trace_path, std::ios::app);
+                            trace << "z=" << reader.z()
+                                  << " marker=" << line.raw()
+                                  << " want=" << overhang_fan_speed
+                                  << " output=" << m_output_fan_speed
+                                  << " front=" << m_front_buffer_fan_speed
+                                  << " back=" << m_back_buffer_fan_speed
+                                  << " buffer_time=" << m_buffer_time_size
+                                  << " lower_buffer_fans=" << lower_buffer_fan_count
+                                  << '\n';
+                        }
+                        bool slowdown_placed = false;
+                        if (slowdown_for_fan && overhang_fan_speed > m_output_fan_speed) {
+                            // Fan-readiness slowdown mode: instead of pre-starting the fan early
+                            // (which paints high fan onto the normal approach moves), keep the fan
+                            // command next to the overhang and slow the contiguous extruding approach
+                            // down to the overhang's own speed (overhangs_speed) so the fan has time
+                            // to spin up before the overhang prints.
+                            const float approach_speed = (float) m_current_speed; // mm/s at the marker
+                            const float v_floor = overhang_speed_percent
+                                ? approach_speed * overhang_speed_value / 100.f
+                                : overhang_speed_value;
+                            const float t_req = nb_seconds_delay * float(overhang_fan_speed - m_output_fan_speed) / 100.f;
+                            std::list<BufferData>::iterator window_start = m_buffer.end();
+                            if (v_floor > 0.f && approach_speed > 0.f && v_floor < approach_speed && t_req > 0.f) {
+                                float window_time = 0.f;
+                                auto it = m_buffer.end();
+                                while (it != m_buffer.begin() && window_time < t_req) {
+                                    --it;
+                                    const std::string &r = it->raw;
+                                    const bool is_move = r.size() > 2 && r[0] == 'G'
+                                        && (r[1] == '1' || r[1] == '0') && r[2] == ' ';
+                                    if (is_move && it->de > 0 && it->time > 0) {
+                                        // Contiguous extruding approach move: slow it to v_floor.
+                                        const float dist = std::sqrt(it->dx*it->dx + it->dy*it->dy + it->dz*it->dz);
+                                        if (dist > 0) {
+                                            const float cur_speed = dist / it->time;
+                                            const float new_speed = std::min(cur_speed, v_floor);
+                                            const float new_time = dist / new_speed;
+                                            m_buffer_time_size += (new_time - it->time);
+                                            it->time = new_time;
+                                            // Always write an explicit F so a slowed move's speed does
+                                            // not leak (via sticky F) into the next move in the window.
+                                            if (r.find(" F") != std::string::npos)
+                                                change_axis_value(it->raw, 'F', new_speed * 60.f, 1);
+                                            else
+                                                it->raw += " F" + to_string_nozero(new_speed * 60.f, 1);
+                                            window_time += it->time;
+                                            window_start = it;
+                                        }
+                                    } else if (is_move) {
+                                        break; // travel / retract / Z move: end of the contiguous approach
+                                    } else if (it->fan_speed >= 0) {
+                                        break; // another fan command: don't cross it
+                                    } // else: comment line, skip over it and keep walking
+                                }
+                            }
+                            // Place the fan command: at the start of the slowed window if we found a
+                            // contiguous approach, otherwise right before the overhang (no pre-start,
+                            // so it never smears into the previous layer). Mark it as a kickstart entry
+                            // so write_buffer_data() suppresses it if, by emit time, the output fan has
+                            // already climbed above this target -- this prevents dropping the fan.
+                            const std::list<BufferData>::iterator insert_at =
+                                (window_start != m_buffer.end()) ? window_start : m_buffer.end();
+                            m_buffer.insert(insert_at,
+                                BufferData(_set_fan(overhang_fan_speed, "set override fan (slowdown)"), 0, overhang_fan_speed, true));
+                            m_back_buffer_fan_speed = overhang_fan_speed;
+                            slowdown_placed = true;
+                        }
+                        if (!slowdown_placed && !slowdown_for_fan) {
+                            // Original pre-start behaviour (feature off). In slowdown mode we never
+                            // fall back to this: the fan is either placed by the slowdown branch above
+                            // or already high enough, so we must not emit an early/late override here
+                            // (which could drop the fan when the output has already climbed higher).
+                            // Strip lower fan commands from the whole current delay buffer. The buffer
+                            // may be slightly longer than nb_seconds_delay, and any queued drop before
+                            // this marker would undo the pre-start before the overhang reaches output.
+                            _remove_slow_fan(overhang_fan_speed, m_buffer_time_size + 1, true);
+                            if (overhang_fan_speed > m_output_fan_speed) {
+                                const std::string fan_gcode = _set_fan(overhang_fan_speed, "set override fan");
+                                // Match normal M106 placement: if the delay buffer is deep enough, split
+                                // the front move and place the override exactly fan_speedup_time before the
+                                // overhang.  If the buffer is already shorter than the configured delay,
+                                // emit immediately; without slowdown or a pause, that is the earliest safe
+                                // point left in the stream.
+                                if (!m_buffer.empty() && (m_buffer_time_size - m_buffer.front().time * 0.1) > nb_seconds_delay) {
+                                    _print_in_middle_G1(m_buffer.front(), m_buffer_time_size - nb_seconds_delay, fan_gcode);
+                                    remove_from_buffer(m_buffer.begin());
+                                } else {
+                                    _append_fan_command(fan_gcode, overhang_fan_speed);
+                                }
+                                m_front_buffer_fan_speed = overhang_fan_speed;
+                            }
+                        }
                     }
                 }
             }
@@ -723,13 +860,13 @@ void FanMover::write_buffer_data()
     }
     if (frontdata.fan_speed < 0 || frontdata.fan_speed != m_front_buffer_fan_speed || frontdata.is_kickstart) {
         // if kickstart-end command, emit it
-        if (frontdata.is_kickstart && frontdata.fan_speed < m_front_buffer_fan_speed) {
+        if (frontdata.is_kickstart && frontdata.fan_speed < m_output_fan_speed) {
             // The kickstart target speed is lower than the current output fan speed.
             // This typically means an overhang fan override (SET_MIN_FAN_SPEED) has already
-            // raised m_front_buffer_fan_speed above this kickstart's target while the entry
-            // was sitting in the delay buffer.  Emitting "end fan kickstart" here would
+            // raised the emitted fan speed above this kickstart's target while the entry
+            // was sitting in the delay buffer. Emitting "end fan kickstart" here would
             // incorrectly drop the fan from the overhang-boosted level back to the cooling
-            // layer speed mid-overhang.  Suppress it instead: the overhang-boosted speed
+            // layer speed mid-overhang. Suppress it instead: the overhang-boosted speed
             // remains in the output, and the next regular M106 from CoolingBuffer will
             // reduce the fan after the overhang section ends.
         } else {

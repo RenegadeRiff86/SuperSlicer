@@ -4060,6 +4060,18 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->set_default_value(new ConfigOptionBool(true));
 
+    def = this->add("overhangs_fan_speedup_slowdown", coBool);
+    def->label = L("Slow down for fan spin-up on overhangs");
+    def->category = OptionCategory::firmware;
+    def->tooltip = L("Instead of moving the overhang fan command earlier (the 'Fan startup delay' behaviour, which raises the fan on the normal moves before the overhang),"
+        " keep the fan command at the overhang and slow down the approach moves so the fan has time to reach the target speed before the overhang prints."
+        "\nThe approach is never slowed below the overhang's own print speed ('Overhangs speed')."
+        " If 'Overhangs speed' is 100% (no overhang slowdown) this option has little effect; lower 'Overhangs speed' to give the fan room to spin up."
+        "\nUses the 'Fan startup delay' value as the fan spin-up time. The print-time estimate does not account for this extra slowdown."
+        "\nRequires 'Fan startup delay' > 0.");
+    def->mode = comAdvancedE | comSuSi;
+    def->set_default_value(new ConfigOptionBool(false));
+
     def = this->add("binary_gcode", coBool);
     def->label = L("Supports binary G-code");
     def->tooltip = L("Enable, if the firmware supports binary G-code format (bgcode). "
