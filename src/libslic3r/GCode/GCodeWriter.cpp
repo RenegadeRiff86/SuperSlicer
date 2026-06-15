@@ -208,7 +208,18 @@ std::string GCodeWriter::postamble() const
 }
 
 
+// Largest pressure-advance value we emit for Klipper; higher values can overload its MCU
+// motion planner. Shared by set_pressure_advance() and write_pressure_advance() so the
+// "current" and "last emitted" values stay consistent (see issue #34).
+static constexpr double KLIPPER_PA_SANE_MAX = 2.0;
+
 void GCodeWriter::set_pressure_advance(double pa) {
+    // Clamp up front for Klipper so m_current_pressure_advance matches the value
+    // write_pressure_advance() will actually emit. Otherwise an out-of-range request keeps
+    // m_current != m_last forever and _write_pressure_advance() re-emits the (clamped)
+    // command on every path. Negative (disabled) values pass through unchanged.
+    if (pa > KLIPPER_PA_SANE_MAX && (FLAVOR_IS(gcfKlipper)))
+        pa = KLIPPER_PA_SANE_MAX;
     m_current_pressure_advance = pa;
 }
 
@@ -219,8 +230,7 @@ void GCodeWriter::_write_pressure_advance(std::string &gcode) {
 }
 
 std::string GCodeWriter::write_pressure_advance(double pa) {
-    static constexpr double KLIPPER_PA_SANE_MAX = 2.0;
-
+    // KLIPPER_PA_SANE_MAX is defined at file scope (shared with set_pressure_advance, #34).
     if (pa < 0)
         return "";
     std::string gcode;
