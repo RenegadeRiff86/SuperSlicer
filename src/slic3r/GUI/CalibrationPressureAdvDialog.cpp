@@ -20,8 +20,6 @@
 #include <array>
 #include <unordered_map>
 
-#pragma optimize("", off)
-
 #define enable_27_fixes
 
 #undef NDEBUG
@@ -1181,38 +1179,6 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
     }
 }
 
-/*
-double CalibrationPressureAdvDialog::magical_scaling(double nozzle_diameter, double er_width, double filament_max_overlap, double perimeter_overlap, double external_perimeter_overlap, double base_layer_height, double er_spacing) {
-    
-    assert(er_width > 1.0 && "er_width should be above 1.0 as it's a percentage value");
-    double xyzScale = nozzle_diameter / 0.4;
-    double er_width_decimal = er_width * nozzle_diameter / 100.0;//models are generated to be default width of x4 lines for the walls ie; 0.4mm nozzle is 1.6mm thick walls + extra for ER role widths
-    double er_width_to_scale = 1.0;
-    double overlap_ratio = 1;
-    double offset_width_under = 0.0;
-    if (filament_max_overlap) {
-        overlap_ratio = filament_max_overlap;
-    }
-    if (er_width < 100){//if er widths are under 100% this gives models gap fill, shink model again a little to 'fix'
-        offset_width_under = 0.02;
-    }
-
-    perimeter_overlap = std::min(overlap_ratio * 0.5f, external_perimeter_overlap / 2.0);
-    double new_scale_spacing = er_width_decimal - base_layer_height * float(1.0 - 0.25 * PI) * perimeter_overlap;
-    double spacing_value = std::round((new_scale_spacing / nozzle_diameter) * 100); //spacing_value = Round((Spacing / Max Nozzle Diameter) * 100)
-    er_spacing = (std::round(spacing_value * 10000) / 10000) * 0.01;
-
-
-    if (xyzScale > 4) {
-        er_width_to_scale = 1.0;
-    } else {
-        er_width_to_scale = er_spacing - (nozzle_diameter / 2 * 0.01);//need to scale slightly under to help with models being correct TODO: test more configurations of nozzle sizes/layer heights
-        //if use has the 'wrong' min layer height for a nozzle size, the model will get filled with "gapfill" not a normal extrusion, need to test more for what variables 'break' it                          
-    }
-
-    return er_width_to_scale - offset_width_under;
-}*/
-
 double CalibrationPressureAdvDialog::magical_scaling(double nozzle_diameter, double er_width, double filament_max_overlap, double perimeter_overlap, double external_perimeter_overlap, double base_layer_height, double er_spacing) {
 
     const DynamicPrintConfig* print_config = this->gui_app->get_tab(Preset::TYPE_FFF_PRINT)->get_config();//i should pass this over instead...
@@ -1226,8 +1192,9 @@ double CalibrationPressureAdvDialog::magical_scaling(double nozzle_diameter, dou
     //                                        [ curved cap ] ---flat--- [ curved cap ]                                     [ curved cap ] ---flat--- [ curved cap ]
 
     //this can obviously be cleaned up alot... kept it all expanded since i'm not sure if there SHOULD be a gap/overlap between extrusions 2/3
-    // er_width is currently collected with get_abs_value(), so it is already expressed in mm.
-    // Keep a fallback for any legacy callsites still passing percentages.
+    // er_width arrives as a percentage of the nozzle diameter (e.g. 112 == 112%); the guard
+    // below converts it to an absolute mm width. A value already <= 3x the nozzle diameter is
+    // treated as mm directly, as a fallback for any legacy callsite that passes mm.
     double extrusion_width = er_width;
     if (er_width > nozzle_diameter * 3.0)
         extrusion_width = nozzle_diameter * (er_width / 100.0);
@@ -1668,4 +1635,3 @@ void CalibrationPressureAdvDialog::close_me_wrapper(wxCommandEvent& event) {// f
 }
 } // namespace GUI
 } // namespace Slic3r
-#pragma optimize("", on)
