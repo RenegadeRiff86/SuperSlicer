@@ -2414,7 +2414,7 @@ void PrintConfigDef::init_fff_params()
     def = this->add("filament_first_layer_pa", coFloats);
     def->label = L("First layer");
     def->category = OptionCategory::filament;
-    def->tooltip = L("Pressure advance for first layer sections. When enabled, uses this value (capped to the feature PA). When disabled, inherits the base PA value.");
+    def->tooltip = L("Pressure advance for first layer sections. When enabled, uses this value for the first layer (overriding the feature PA). When disabled, inherits the base PA value.");
     def->mode = comExpert | comSuSi;
     def->is_vector_extruder = true;
     def->min = 0;

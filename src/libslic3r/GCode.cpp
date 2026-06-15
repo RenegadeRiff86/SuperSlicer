@@ -7619,7 +7619,9 @@ std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const Extrus
         }
 
         if (this->on_first_layer() && m_config.filament_first_layer_pa.is_enabled(m_writer.tool()->id())) {
-            pa = std::min(pa, m_config.filament_first_layer_pa.get_at(m_writer.tool()->id()));
+            // First-layer PA is an explicit override (not a cap): honour the configured
+            // value even when it is higher than the feature PA. Mirrors the over-raft branch.
+            pa = m_config.filament_first_layer_pa.get_at(m_writer.tool()->id());
         } else if (this->object_layer_over_raft() && m_config.filament_first_layer_pa_over_raft.is_enabled(m_writer.tool()->id())) {
             pa = m_config.filament_first_layer_pa_over_raft.get_at(m_writer.tool()->id());
         }
