@@ -3500,7 +3500,7 @@ void TabFilament::toggle_options()
         "filament_top_solid_infill_pa", "filament_support_material_pa", "filament_support_material_interface_pa",
         "filament_brim_pa", "filament_bridge_pa", "filament_bridge_internal_pa", "filament_overhangs_pa",
         "filament_gap_fill_pa", "filament_thin_walls_pa", "filament_ironing_pa", "filament_travel_pa",
-        "filament_first_layer_pa", "filament_first_layer_pa_over_raft"}) {
+        "filament_first_layer_pa", "filament_first_layer_pa_over_raft", "filament_pressure_advance_smooth_time"}) {
         toggle_option(field_name, use_pa, 0);
     }
 

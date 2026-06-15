@@ -2371,6 +2371,20 @@ void PrintConfigDef::init_fff_params()
     def->set_default_value(disable_default_option(new ConfigOptionFloats({0.02})));
     def->aliases = {"filament_default_pa"};
 
+    def = this->add("filament_pressure_advance_smooth_time", coFloats);
+    def->label = L("Smooth time");
+    def->tooltip = L("Klipper only: the SMOOTH_TIME parameter of SET_PRESSURE_ADVANCE. It sets the"
+        " time window over which Klipper smooths extruder pressure changes (smaller = sharper"
+        " response, larger = smoother). When enabled, ' SMOOTH_TIME=x' is appended to the"
+        " emitted SET_PRESSURE_ADVANCE; when disabled, Klipper keeps its own configured value.");
+    def->category = OptionCategory::filament;
+    def->sidetext = L("s");
+    def->min = 0;
+    def->can_be_disabled = true;
+    def->mode = comExpert | comSuSi;
+    def->is_vector_extruder = true;
+    def->set_default_value(disable_default_option(new ConfigOptionFloats({0.04})));
+
     def = this->add("filament_bridge_pa", coFloats);
     def->label = L("Bridge");
     def->category = OptionCategory::filament;

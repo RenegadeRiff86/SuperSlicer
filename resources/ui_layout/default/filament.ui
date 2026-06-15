@@ -35,6 +35,8 @@ group:Print speed override
 group:Pressure/Linear advance
 	line:Default
 		setting:id$0:width$4:filament_pressure_advance
+	line:Smooth time
+		setting:id$0:width$4:filament_pressure_advance_smooth_time
 	line:Perimeter pa
 		setting:id$0:width$4:filament_perimeter_pa
 		setting:id$0:width$4:filament_external_perimeter_pa

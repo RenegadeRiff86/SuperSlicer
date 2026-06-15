@@ -1170,6 +1170,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloats,              filament_dip_insertion_speed))
     ((ConfigOptionFloats,              filament_dip_extraction_speed)) /* SKINNYDIP OPTIONS END */
     ((ConfigOptionFloats,              filament_pressure_advance))
+    ((ConfigOptionFloats,              filament_pressure_advance_smooth_time))
     ((ConfigOptionFloats,              filament_solid_infill_pa))
     ((ConfigOptionBools,               filament_soluble))
     ((ConfigOptionFloats,              filament_support_material_pa))

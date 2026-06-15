@@ -256,6 +256,12 @@ std::string GCodeWriter::write_pressure_advance(double pa) {
             } else {
                 gcode += std::string(" EXTRUDER=extruder");
         }
+        // Optional Klipper SMOOTH_TIME: when set, smooths pressure changes over this window.
+        const int st_idx = tool_id >= 0 ? tool_id : 0;
+        if (this->config.filament_pressure_advance_smooth_time.is_enabled(st_idx)) {
+            gcode += std::string(" SMOOTH_TIME=")
+                + to_string_nozero(this->config.filament_pressure_advance_smooth_time.get_at(st_idx), 4);
+        }
     } else {
         // if (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfMarlinLegacy))
         gcode += "M900 K" + to_string_nozero(pa, 4);
