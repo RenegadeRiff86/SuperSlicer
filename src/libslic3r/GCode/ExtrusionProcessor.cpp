@@ -288,14 +288,32 @@ float calculate_overhang_fan_speed(const ExtrusionAttributes &attributes,
     std::vector<std::pair<int, ConfigOptionInts>> overhang_with_fan_speeds = {{100, ConfigOptionInts{0}}};
     if (config.overhangs_dynamic_fan_speed.is_enabled(extruder_id)) {
         GraphData graph = config.overhangs_dynamic_fan_speed.get_at(extruder_id);
+        // Anchor both ends by extending the nearest configured point's fan value.
+        // x=0 is full overhang (0% overlap with previous layer, max cooling); x=100 is
+        // no overhang (100% overlap). The fan % is taken from the profile graph -- never
+        // hard-coded -- so an undefined x=0 end holds the FIRST point's y (e.g. a 0..33%
+        // overlap plateau at its configured speed) instead of collapsing to 0% fan on the
+        // worst overhang. (unlike speed graphs, fan curves may decrease at high overhang).
+        if (graph.graph_points[graph.begin_idx].x() != 0) {
+            const float begin_y = graph.graph_points[graph.begin_idx].y();
+            graph.graph_points.insert(graph.graph_points.begin() + graph.begin_idx, {0, begin_y});
+            graph.end_idx++;
+        }
+        if (graph.graph_points[graph.end_idx - 1].x() != 100) {
+            const float end_y = graph.graph_points[graph.end_idx - 1].y();
+            graph.graph_points.insert(graph.graph_points.begin() + graph.end_idx, {100, end_y});
+            graph.end_idx++;
+        }
+        graph.graph_points[graph.begin_idx].x() = 0;
         assert((attributes.overhang_attributes->start_distance_from_prev_layer >= 0 &&
                 attributes.overhang_attributes->start_distance_from_prev_layer <= 1) ||
                attributes.overhang_attributes->start_distance_from_prev_layer == 2);
         assert((attributes.overhang_attributes->end_distance_from_prev_layer >= 0 &&
                 attributes.overhang_attributes->end_distance_from_prev_layer <= 1) ||
                attributes.overhang_attributes->end_distance_from_prev_layer == 2);
-        // Graph x-axis convention: x=0 → fully supported (no overhang, min fan), x=100 → at boundary (max fan).
-        // Same direction as speed graph: 100 - 100*distance/max.
+        // Graph x-axis convention (overlap %, matching the profile's x_label):
+        // x=0 -> full overhang (0% overlap, most cooling), x=100 -> no overhang (100% overlap).
+        // overlap% = 100 - 100*distance/max  (distance=0 sits on the previous layer = full overlap).
         float max_dynamic_distance_fan =
             (float) config.overhangs_width.get_abs_value(config.nozzle_diameter.get_at(extruder_id));
         if (max_dynamic_distance_fan <= 0)

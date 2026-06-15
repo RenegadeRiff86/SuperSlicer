@@ -389,7 +389,7 @@ double GraphData::interpolate(double x_value) const{
     if (this->data_size() < 1) {
         // nothing
     } else if (this->graph_points.size() == 1 || this->graph_points[begin_idx].x() >= x_value) {
-        y_value = this->graph_points.front().y();
+        y_value = this->graph_points[begin_idx].y();
     } else if (this->graph_points[end_idx - 1].x() <= x_value) {
         y_value = this->graph_points[end_idx - 1].y();
     } else {

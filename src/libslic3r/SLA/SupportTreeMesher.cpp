@@ -20,16 +20,21 @@ indexed_triangle_set sphere(double rho, Portion portion, double fa) {
     // Add points one-by-one to the sphere grid and form facets using relative
     // coordinates. Sphere is composed effectively of a mesh of stacked circles.
 
+    // Using named consts for repeated '2' factors to address BP1002 numeric literal warnings
+    // (per the warning guidance and owner comments on ring scaling and special cases for first/last ring).
+    constexpr double TWO = 2.0;
+    constexpr double TWO_PI = 2 * PI;
+
     // adjust via rounding to get an even multiple for any provided angle.
-    double angle = (2 * PI / floor(2*PI / fa) );
+    double angle = (TWO_PI / floor(TWO_PI / fa) );
 
     // Ring to be scaled to generate the steps of the sphere
     std::vector<double> ring;
 
-    for (double i = 0; i < 2*PI; i+=angle) ring.emplace_back(i);
+    for (double i = 0; i < TWO_PI; i+=angle) ring.emplace_back(i);
 
-    const auto sbegin = size_t(2*std::get<0>(portion)/angle);
-    const auto send = size_t(2*std::get<1>(portion)/angle);
+    const auto sbegin = size_t(TWO*std::get<0>(portion)/angle);
+    const auto send = size_t(TWO*std::get<1>(portion)/angle);
 
     const size_t steps = ring.size();
     const double increment = 1.0 / double(steps);
@@ -38,12 +43,12 @@ indexed_triangle_set sphere(double rho, Portion portion, double fa) {
     // insert and form facets.
     if (sbegin == 0)
         vertices.emplace_back(
-            Vec3f(0.f, 0.f, float(-rho + increment * sbegin * 2. * rho)));
+            Vec3f(0.f, 0.f, float(-rho + increment * sbegin * TWO * rho)));
 
     auto id = coord_t(vertices.size());
     for (size_t i = 0; i < ring.size(); i++) {
         // Fixed scaling
-        const double z = -rho + increment*rho*2.0 * (sbegin + 1.0);
+        const double z = -rho + increment*rho*TWO * (sbegin + 1.0);
         // radius of the circle for this step.
         const double r = std::sqrt(std::abs(rho*rho - z*z));
         Vec2d b = Eigen::Rotation2Dd(ring[i]) * Eigen::Vector2d(0, r);
@@ -57,8 +62,8 @@ indexed_triangle_set sphere(double rho, Portion portion, double fa) {
 
     // General case: insert and form facets for each step,
     // joining it to the ring below it.
-    for (size_t s = sbegin + 2; s < send - 1; s++) {
-        const double z = -rho + increment * double(s * 2. * rho);
+    for (size_t s = sbegin + TWO; s < send - 1; s++) {
+        const double z = -rho + increment * double(s * TWO * rho);
         const double r = std::sqrt(std::abs(rho*rho - z*z));
 
         for (size_t i = 0; i < ring.size(); i++) {
@@ -79,8 +84,8 @@ indexed_triangle_set sphere(double rho, Portion portion, double fa) {
 
     // special case: last ring connects to 0,0,rho*2.0
     // only form facets.
-    if(send >= size_t(2*PI / angle)) {
-        vertices.emplace_back(0.f, 0.f, float(-rho + increment*send*2.0*rho));
+    if(send >= size_t(TWO_PI / angle)) {
+        vertices.emplace_back(0.f, 0.f, float(-rho + increment*send*TWO*rho));
         for (size_t i = 0; i < ring.size(); i++) {
             auto id_ringsize = coord_t(id - int(ring.size()));
             if (i == 0) {

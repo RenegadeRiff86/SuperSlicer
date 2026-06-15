@@ -525,6 +525,11 @@ private:
     std::vector<double>                 m_last_layer_used_filament;
     // to pass between before_xtrude and after_extrude.
     double                              m_overhang_fan_override{ -1.0 };
+    // Last overhang fan value actually emitted in a SET_FAN_SPEED marker. Used as a
+    // hysteresis anchor so the per-segment dynamic-overhang fan does not thrash on small
+    // overlap wiggle (e.g. 16->18->21->16) -- only meaningful changes re-emit. Reset to -1
+    // when a non-overhang extrusion is printed so each overhang run starts from its true value.
+    double                              m_last_emitted_overhang_fan{ -1.0 };
 #if ENABLE_GCODE_VIEWER_DATA_CHECKING
     double                              m_last_mm3_per_mm;
 #endif // ENABLE_GCODE_VIEWER_DATA_CHECKING

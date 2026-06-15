@@ -2484,7 +2484,9 @@ void GCodeGenerator::process_layers(
             [this, &fan_mover = this->m_fan_mover, &config = this->config(), &writer = this->m_writer](std::string in)->std::string {
         CNumericLocalesSetter locales_setter;
 
-        if (fan_mover.get() == nullptr)
+        if (fan_mover.get() == nullptr) {
+            const bool slowdown_overhang_fan = config.overhangs_fan_speedup_slowdown.value
+                || (config.fan_kickstart.value > 0 && config.fan_speedup_time.value != 0);
             fan_mover.reset(new Slic3r::FanMover(
                 writer,
                 std::abs((float)config.fan_speedup_time.value),
@@ -2492,9 +2494,10 @@ void GCodeGenerator::process_layers(
                 config.use_relative_e_distances.value,
                 config.fan_speedup_overhangs.value,
                 (float)config.fan_kickstart.value,
-                config.overhangs_fan_speedup_slowdown.value,
+                slowdown_overhang_fan,
                 (float)config.overhangs_speed.value,
                 config.overhangs_speed.percent));
+        }
         //flush as it's a whole layer
         this->m_throw_if_canceled();
         return fan_mover->process_gcode(in, true);
@@ -2635,7 +2638,9 @@ void GCodeGenerator::process_layers(
 
     const auto fan_mover = tbb::make_filter<std::string, std::string>(slic3r_tbb_filtermode::serial_in_order,
         [this, &fan_mover = this->m_fan_mover, &config = this->config(), &writer = this->m_writer](std::string in)->std::string {
-        if (fan_mover.get() == nullptr)
+        if (fan_mover.get() == nullptr) {
+            const bool slowdown_overhang_fan = config.overhangs_fan_speedup_slowdown.value
+                || (config.fan_kickstart.value > 0 && config.fan_speedup_time.value != 0);
             fan_mover.reset(new Slic3r::FanMover(
                 writer,
                 std::abs((float)config.fan_speedup_time.value),
@@ -2643,9 +2648,10 @@ void GCodeGenerator::process_layers(
                 config.use_relative_e_distances.value,
                 config.fan_speedup_overhangs.value,
                 (float)config.fan_kickstart.value,
-                config.overhangs_fan_speedup_slowdown.value,
+                slowdown_overhang_fan,
                 (float)config.overhangs_speed.value,
                 config.overhangs_speed.percent));
+        }
         this->m_throw_if_canceled();
         //flush as it's a whole layer
         return fan_mover->process_gcode(in, true);
@@ -7777,8 +7783,31 @@ std::string GCodeGenerator::_before_extrude(const ExtrusionPath &path, const std
             m_check_markers++;
         }
         if (m_overhang_fan_override >= 0) {
-            gcode += "; overhang speed : SET_MIN_FAN_SPEED" + std::to_string(int(m_overhang_fan_override)) + "\n";
-            gcode += ";_SET_MIN_FAN_SPEED" + std::to_string(int(m_overhang_fan_override)) + "\n";
+            // Hysteresis to stop per-segment overhang-fan thrashing: the dynamic curve produces
+            // a value for every tiny perimeter segment, so the overlap wiggle (e.g. 16->18->21->16)
+            // and 99<->100 churn used to emit an M106 on every step. Only re-emit when the value
+            // moves a meaningful amount from the last emitted overhang fan; otherwise reuse it so
+            // consecutive segments coalesce. Genuine transitions (e.g. 16 -> 100 bridge tip) still pass.
+            // Two damping rules, evaluated against the last emitted overhang fan:
+            //  - value hysteresis: ignore small overlap wiggle (e.g. 16->18->21, 99<->100).
+            //  - minimum length: ignore a brief deep-overhang spike (e.g. one <1mm segment at 40%
+            //    between 16% regions) -- the fan physically cannot spin up and back over that
+            //    distance, so emitting it just thrashes. The first segment of a run (anchor == -1)
+            //    always emits so each overhang run still establishes its baseline value.
+            const double overhang_fan_hysteresis = 10.0;          // percentage points
+            const double min_overhang_fan_change_len = scale_(1.); // 1 mm of extrusion
+            const bool small_change = std::abs(m_overhang_fan_override - m_last_emitted_overhang_fan) < overhang_fan_hysteresis;
+            const bool too_short    = double(path.length()) < min_overhang_fan_change_len;
+            if (m_last_emitted_overhang_fan >= 0 && (small_change || too_short)) {
+                m_overhang_fan_override = m_last_emitted_overhang_fan;
+            } else {
+                m_last_emitted_overhang_fan = m_overhang_fan_override;
+            }
+            gcode += "; overhang fan : SET_FAN_SPEED" + std::to_string(int(m_overhang_fan_override)) + "\n";
+            gcode += ";_SET_FAN_SPEED" + std::to_string(int(m_overhang_fan_override)) + "\n";
+        } else {
+            // Non-overhang extrusion: forget the anchor so the next overhang run emits its true value.
+            m_last_emitted_overhang_fan = -1.0;
         }
         // comment to be on the same line as the speed command.
         cooling_marker_setspeed_comments = GCodeGenerator::_cooldown_marker_speed[uint8_t(grole)];
@@ -7794,8 +7823,8 @@ std::string GCodeGenerator::_after_extrude(const ExtrusionPath &path) {
     std::string gcode;
     if (m_enable_cooling_markers) {
         if (m_overhang_fan_override >= 0) {
-            gcode += "; end of overhang speed\n";
-            gcode += ";_RESET_MIN_FAN_SPEED\n";
+            gcode += "; end of overhang fan\n";
+            gcode += ";_RESET_FAN_SPEED\n";
             m_overhang_fan_override = -1.;
         }
         {

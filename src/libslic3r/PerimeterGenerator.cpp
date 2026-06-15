@@ -1380,6 +1380,7 @@ void PerimeterGenerator::_sort_overhangs(const Parameters &params,
     const double min_length = dynamic_enabled ? params.perimeter_flow.scaled_width() / 2 :
                                           params.perimeter_flow.scaled_width();
     const double ok_length = params.perimeter_flow.scaled_width() * 2;
+    const int dynamic_overhang_height = overhang_params.overhang_type_2_lh[OverhangType::DYNAMIC_OVERHANG];
 
 #ifdef _DEBUG_OVERHANGS
     export_debug_overhangs_svg("%d_sort2_overhangs_%d_%d.svg");
@@ -1518,7 +1519,7 @@ void PerimeterGenerator::_sort_overhangs(const Parameters &params,
 
         // now, there shouldn't be any paths below min_length.
         // for length
-        foreach (paths, [ok_length, &params](ExtrusionPath &prev, ExtrusionPath &curr, ExtrusionPath &next) {
+        foreach (paths, [ok_length, dynamic_overhang_height, &params](ExtrusionPath &prev, ExtrusionPath &curr, ExtrusionPath &next) {
             if (curr.length() < ok_length) {
                 if (params.m_mm3_per_mm_overhang == curr.mm3_per_mm()) {
                     // flow
@@ -1574,7 +1575,7 @@ void PerimeterGenerator::_sort_overhangs(const Parameters &params,
                             next.polyline.swap(curr.polyline);
                         }
                         return true;
-                    } else {
+                    } else if (int(curr.height()) != dynamic_overhang_height) {
                         // merge to lower one if encircled
                         if (prev.height() == curr.height() - 1 && prev.height() == next.height()) {
                             if (prev.length() < next.length()) {
@@ -1683,6 +1684,25 @@ void PerimeterGenerator::_sort_overhangs(const Parameters &params,
     }
     for (int i = 1; i < paths.size(); i++) {
         assert(paths[i - 1].last_point().coincides_with_epsilon(paths[i].first_point()));
+    }
+
+    if (overhang_params.is_external && overhang_params.has_dynamic && dynamic_overhang_height >= 0) {
+        bool has_dynamic_path = false;
+        for (const ExtrusionPath &path : paths) {
+            if (int(path.height()) == dynamic_overhang_height) {
+                has_dynamic_path = true;
+                break;
+            }
+        }
+        const int normal_height = overhang_params.overhang_type_2_lh[OverhangType::NOT_OVERHANG];
+        if (has_dynamic_path && normal_height >= 0) {
+            for (ExtrusionPath &path : paths) {
+                if (int(path.height()) == normal_height) {
+                    path.attributes_mutable().role = path.role() | ExtrusionRoleModifier::ERM_Bridge;
+                    path.overhang_attributes_mutable() = OverhangAttributes{1, 1, 0, false, true, true, false};
+                }
+            }
+        }
     }
 
     //now that very small paths has been merge, remove useless points

@@ -1014,9 +1014,19 @@ std::string CoolingBuffer::apply_layer_cooldown(
     default_fan_speed[ uint8_t(GCodeExtrusionRole::OverhangPerimeter)] = FAN_CONFIG(overhangs_fan_speed);
     default_fan_speed[ uint8_t(GCodeExtrusionRole::GapFill)] = FAN_CONFIG(gap_fill_fan_speed);
     if (m_config.overhangs_dynamic_fan_speed.is_enabled(m_current_extruder)) {
-        const GraphData graph = m_config.overhangs_dynamic_fan_speed.get_at(m_current_extruder);
-        // x=100 is the full-overhang end (boundary) in the current convention; use it for extreme overhang perimeters.
-        default_fan_speed[ uint8_t(GCodeExtrusionRole::OverhangPerimeter)] = (int)graph.data().back().y();
+        GraphData graph = m_config.overhangs_dynamic_fan_speed.get_at(m_current_extruder);
+        if (graph.graph_points[graph.begin_idx].x() != 0) {
+            graph.graph_points.insert(graph.graph_points.begin() + graph.begin_idx, {0, 0});
+            graph.end_idx++;
+        }
+        if (graph.graph_points[graph.end_idx - 1].x() != 100) {
+            const float end_y = graph.graph_points[graph.end_idx - 1].y();
+            graph.graph_points.insert(graph.graph_points.begin() + graph.end_idx, {100, end_y});
+            graph.end_idx++;
+        }
+        graph.graph_points[graph.begin_idx].x() = 0;
+        // x=100 is the full-overhang end (boundary) in the current convention.
+        default_fan_speed[ uint8_t(GCodeExtrusionRole::OverhangPerimeter)] = (int) graph.interpolate(100);
     }
     // if disabled, and default is not default
     if (default_fan_speed[uint8_t(GCodeExtrusionRole::TopSolidInfill)] < 0) {
@@ -1162,6 +1172,7 @@ std::string CoolingBuffer::apply_layer_cooldown(
         const char *line_end    = gcode.c_str() + line->line_end;
         bool fan_need_set = false;
         bool force_min_fan_set = false;
+        bool defer_fan_emit = false;
         if (line_start > pos) {
             new_gcode.append(pos, line_start - pos);
             const char *fpos = strstr(new_gcode.data() + new_gcode.size() - (line_start - pos), " F");
@@ -1192,13 +1203,23 @@ std::string CoolingBuffer::apply_layer_cooldown(
             force_min_fan_set = true;
         } else if (line->type & CoolingLine::TYPE_RESET_MIN_FAN_SPEED){
             override_min_fan_speed = -1;
+            force_min_fan_set = false;
+            // RESET fires before _EXTRUDE_END; drop the overhang role now so fan restore
+            // uses the base perimeter/external role instead of the overhang default.
+            if (!extrude_tree.empty() && extrude_tree.back() == GCodeExtrusionRole::OverhangPerimeter)
+                extrude_tree.pop_back();
             fan_need_set = true;
         } else if (line->type & CoolingLine::TYPE_SET_FAN_SPEED) {
             override_fan_speed = std::clamp(line->fan_speed, fan_speed_limits.first, fan_speed_limits.second);
             fan_need_set = true;
+            defer_fan_emit = m_config.fan_speedup_time.value != 0;
         } else if (line->type & CoolingLine::TYPE_RESET_FAN_SPEED){
             override_fan_speed = -1;
+            force_min_fan_set = false;
+            if (!extrude_tree.empty() && extrude_tree.back() == GCodeExtrusionRole::OverhangPerimeter)
+                extrude_tree.pop_back();
             fan_need_set = true;
+            defer_fan_emit = m_config.fan_speedup_time.value != 0;
         } else if (line->type & CoolingLine::TYPE_EXTRUDE_END) {
             assert(extrude_tree.size() > 0);
             if (extrude_tree.size() > 0) {
@@ -1345,18 +1366,22 @@ std::string CoolingBuffer::apply_layer_cooldown(
             new_gcode.append(line_start, line_end - line_start);
         }
         if (fan_need_set) {
-            if (override_fan_speed >= 0 && override_fan_speed > current_fan_speed) {
+            if (defer_fan_emit) {
+                if (override_fan_speed >= 0)
+                    current_fan_speed = override_fan_speed;
+            } else if (override_fan_speed >= 0 && override_fan_speed != current_fan_speed) {
                 current_fan_speed = override_fan_speed;
                 new_gcode += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, current_fan_speed,
                                                   EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage,
                                                   "set override fan");
-            } else {
+            } else if (override_fan_speed < 0) {
                 //use the most current fan
                 bool fan_set = false;
                 for (size_t i = extrude_tree.size() - 1; i < extrude_tree.size(); --i) {
-                    // if not overhangs, then get the previous one (perimeter or external perimeter)
-                    //if(override_min_fan_speed > 0 && extrude_tree[i] == GCodeExtrusionRole::OverhangPerimeter)
-                    //    continue;
+                    // OverhangPerimeter stays on the stack until _EXTRUDE_END, but RESET_FAN_SPEED
+                    // fires first — skip it and use the base perimeter/external role underneath.
+                    if (extrude_tree[i] == GCodeExtrusionRole::OverhangPerimeter)
+                        continue;
                     if (fan_control[uint8_t(extrude_tree[i])]) {
                         if ((force_min_fan_set && override_min_fan_speed > fan_speeds[uint8_t(extrude_tree[i])]) ||
                             std::max(override_min_fan_speed, fan_speeds[uint8_t(extrude_tree[i])]) != current_fan_speed) {
@@ -1380,9 +1405,8 @@ std::string CoolingBuffer::apply_layer_cooldown(
                     }
                 }
                 if (!fan_set && m_fan_speed >= 0) {
-                    if (((force_min_fan_set && override_min_fan_speed > m_fan_speed) ||
-                         std::max(override_min_fan_speed, m_fan_speed) != current_fan_speed) &&
-                        (default_fan_speed[0] >= 0 || current_fan_speed > 0)) {
+                    if ((force_min_fan_set && override_min_fan_speed > m_fan_speed) ||
+                         std::max(override_min_fan_speed, m_fan_speed) != current_fan_speed) {
                         current_fan_speed = m_fan_speed;
                         std::string comment;
                         if (override_min_fan_speed > current_fan_speed) {

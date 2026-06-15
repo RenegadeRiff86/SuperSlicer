@@ -46,7 +46,7 @@ indexed_triangle_set create_support_tree(const SupportableMesh &sm,
             break;
         }
         case SupportTreeType::Organic: {
-            // TODO
+            // TODO: implement Organic support tree (stub for future; see create_default_tree and create_branching_tree for patterns)
         }
         default:;
         }

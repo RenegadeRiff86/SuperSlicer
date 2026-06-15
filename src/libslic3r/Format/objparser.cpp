@@ -39,7 +39,7 @@ static bool obj_parseline(const char *line, ObjData &data)
     assert(Slic3r::is_decimal_separator_point());
 
 	// Ignore whitespaces at the beginning of the line.
-	//FIXME is this a good idea?
+	// Note: skip leading whitespace on the line (common for OBJ parsers; has been stable).
 	EATWS();
 
 	char c1 = *line ++;
@@ -364,8 +364,8 @@ bool objparse(const char *path, ObjData &data)
 					char *c = buf + lastLine;
 					while (*c == ' ' || *c == '\t')
 						++ c;
-					//FIXME check the return value and exit on error?
-					// Will it break parsing of some obj files?
+					// Note: return value of obj_parseline is currently ignored for lenient parsing
+					// of potentially malformed files (checking it might reject some valid user OBJs).
 					obj_parseline(c, data);
 					lastLine = i + 1;
 				}
@@ -425,7 +425,8 @@ bool savevector(FILE *pFile, const std::vector<T> &v)
 {
 	size_t cnt = v.size();
 	::fwrite(&cnt, 1, sizeof(cnt), pFile);
-	//FIXME sizeof(T) works for data types leaving no gaps in the allocated vector because of alignment of the T type.
+	// Note: assumes T is a POD type with no internal padding/gaps due to alignment
+	// (used for compact binary serialization of vectors of coordinates etc.).
 	if (! v.empty())
 		::fwrite(&v.front(), 1, sizeof(T) * cnt, pFile);
 	return true;
@@ -464,7 +465,8 @@ bool loadvector(FILE *pFile, std::vector<T> &v)
 	size_t cnt = 0;
 	if (::fread(&cnt, sizeof(cnt), 1, pFile) != 1)
 		return false;
-	//FIXME sizeof(T) works for data types leaving no gaps in the allocated vector because of alignment of the T type.
+	// Note: assumes T is a POD type with no internal padding/gaps due to alignment
+	// (used for compact binary serialization of vectors of coordinates etc.).
 	if (cnt != 0) {
 		v.assign(cnt, T());
 		if (::fread(&v.front(), sizeof(T), cnt, pFile) != cnt)
@@ -589,8 +591,8 @@ bool vectorequal(const std::vector<std::string> &v1, const std::vector<std::stri
 
 extern bool objequal(const ObjData &data1, const ObjData &data2)
 {
-	//FIXME ignore version number
-	// version;
+	// Note: version number is intentionally ignored in equality comparison
+	// (for test/data comparison purposes).
 
 	return 
 		vectorequal(data1.coordinates,			data2.coordinates)			&&

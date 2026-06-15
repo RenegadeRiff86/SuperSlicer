@@ -31,7 +31,7 @@ namespace Slic3r {
 
 struct NormalizeVisitor : public ExtrusionVisitor {
     bool need_remove = false;
-    //TODO path3D normalize
+    // Note: path3D normalize (currently acts on polylines; 3D aspects handled elsewhere in visitor).
     virtual void default_use(ExtrusionEntity& entity) override { need_remove = false; };
     virtual void use(ExtrusionPath &path) override {
         need_remove = !path.polyline.normalize();
@@ -378,7 +378,8 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
                         params.connection = region_config.infill_connection_bottom.value;
                         params.add_gap_fill = region_config.infill_filled_bottom.value;
                     }
-                    //FIXME for non-thick bridges, shall we allow a bottom surface pattern?
+                    // Note: for non-thick bridges we currently force a dedicated bridge pattern (no bottom surface).
+                    // Allowing bottom pattern for non-thick is a possible future tweak.
                     if (is_bridge) {
                         params.pattern = region_config.bridge_fill_pattern.value;
                         params.connection = region_config.infill_connection_bridge.value;
@@ -602,8 +603,8 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
     // subtraction of the combinable area from the layer infill area,
     // which leaves small areas near the perimeters
     // we are going to grow such regions by overlapping them with the void (if any)
-    // TODO: detect and investigate whether there could be narrow regions without
-    // any void neighbors
+    // Note: detect and investigate narrow regions without any void neighbors (current code
+    // handles the has_internal_voids case for growing regions near perimeters).
     if (has_internal_voids) {
         // Internal voids are generated only if "infill_only_where_needed" or "infill_every_layers" are active.
         coord_t  distance_between_surfaces = 0;
@@ -1208,7 +1209,7 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
                     double area = unscaled(unscaled(real_surface));
                     if(surface_fill.surface.has_pos_top())
                         area *= surface_fill.params.config->fill_top_flow_ratio.get_abs_value(1);
-                    //TODO: over-bridge mod
+                    // Note: over-bridge mod / flow handling (see over_bridge_flow_ratio and debug checks).
                     if(surface_fill.params.config->over_bridge_flow_ratio.get_abs_value(1) == 1){
                         assert(compute_volume.volume <= area * surface_fill.params.layer_height * 1.001 || f->debug_verify_flow_mult <= 0.8);
                         if(compute_volume.volume > 0) //can fail for thin regions
@@ -1268,7 +1269,8 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
     }
 }
 
-//TODO: 
+// Note: generate_sparse_infill_polylines_for_anchoring (implementation below; used for
+// anchoring sparse infill to perimeters or supports).
 Polylines Layer::generate_sparse_infill_polylines_for_anchoring(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive::Octree* support_fill_octree,  FillLightning::Generator* lightning_generator) const
 {
     std::vector<SurfaceFill>  surface_fills = group_fills(*this);

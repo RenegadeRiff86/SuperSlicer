@@ -21,13 +21,15 @@ public:
     float time;
     int16_t fan_speed;
     bool is_kickstart;
+    bool force_emit;
     // start position
     float x = 0, y = 0, z = 0, e = 0;
     // delta to go to end position
     float dx = 0, dy = 0, dz = 0, de = 0;
-    BufferData(std::string line, float time = 0, int16_t fan_speed = 0, float is_kickstart = false) : raw(line), time(time), fan_speed(fan_speed), is_kickstart(is_kickstart){
+    BufferData(const std::string& line, float time = 0, int16_t fan_speed = 0, bool is_kickstart = false, bool force_emit = false)
+        : raw(line), time(time), fan_speed(fan_speed), is_kickstart(is_kickstart), force_emit(force_emit) {
         //avoid double \n
-        if(!line.empty() && line.back() == '\n') line.pop_back();
+        if(!raw.empty() && raw.back() == '\n') raw.pop_back();
     }
 };
 
@@ -52,7 +54,7 @@ private:
     GCodeReader m_parser{};
     const GCodeWriter& m_writer;
 
-    //current value (at the back of the buffer), when parsing a new line
+    //current value (at the back of the buffer), when parsing a fresh line
     GCodeExtrusionRole current_role = GCodeExtrusionRole::Custom;
     // in unit/second
     double m_current_speed = 1000 / 60.0;
@@ -75,6 +77,15 @@ private:
     std::string m_overhang_fan_hold_pending_raw;
     BufferData m_current_kickstart{"",-1,0};
     float m_current_kickstart_duration = 0;
+    // Continues an overhang fan-readiness slowdown on moves after the SET_FAN_SPEED marker
+    // when the delay buffer does not contain enough approach distance.
+    float m_fan_slowdown_remaining = 0.f;
+    float m_fan_slowdown_total     = 0.f;
+    float m_fan_slowdown_approach_speed = 0.f;
+    float m_fan_slowdown_v_floor   = 0.f;
+    // True after the first step-up fan command in the current ;TYPE:Overhang perimeter block.
+    // Adaptive graph markers after that always emit at the marker; approach F-slowdown runs once.
+    bool m_overhang_block_approach_slowdown_done = false;
 
     //buffer
     std::list<BufferData> m_buffer;
@@ -118,6 +129,8 @@ private:
     void _process_gcode_line(GCodeReader& reader, const GCodeReader::GCodeLine& line);
     void _process_ACTIVATE_EXTRUDER(const std::string_view command);
     void _process_T(const std::string_view command);
+    void _handle_g_command(GCodeReader& reader, const GCodeReader::GCodeLine& line, double& time, int16_t& fan_speed);
+    void _handle_m_command(GCodeReader& reader, const GCodeReader::GCodeLine& line, double& time, int16_t& fan_speed, bool& need_flush);
     void _put_in_middle_G1(std::list<BufferData>::iterator item_to_split, float nb_sec, BufferData&& line_to_write, float max_time);
     void _print_in_middle_G1(BufferData& line_to_split, float nb_sec, const std::string& line_to_write);
     void _remove_slow_fan(int16_t min_speed, float past_sec, bool include_kickstart_targets = false);
@@ -125,7 +138,26 @@ private:
     void _append_gcode_line(const std::string& gcode);
     void _drop_immediate_lower_fan_commands();
     void write_buffer_data();
+    void _coalesce_redundant_buffer_fans();
+    void _insert_buffered_fan(std::list<BufferData>::iterator pos, BufferData &&data);
+    void _queue_fan_at_marker(const std::string &gcode, int16_t fan_speed, bool force_emit = false);
     std::string _set_fan(int16_t speed, std::string_view comment);
+    int16_t _fan_speed_percent(const std::string &gcode) const;
+    bool _apply_active_fan_slowdown(BufferData &data);
+    float _fan_slowdown_target_speed(float elapsed) const;
+    // Seconds needed for the fan to spin from from_speed to to_speed, derived from
+    // fan_speedup_time and fan_kickstart (both scale with the speed delta).
+    float _fan_spinup_time_seconds(int16_t from_speed, int16_t to_speed) const;
+    int16_t _kickstart_min_delta() const;
+
+    // Member functions extracted from _process_gcode_line to address BP1013 (long 'if' 362 lines / 'switch' 216 lines)
+    // and BP1015 (nesting 7 levels). The G case (move dist/time calc + overhang hold re-apply) and
+    // the entire M fan processing (kickstart thresholds to avoid noise, slowdowns, hold pending for
+    // extrusion alignment via buffer, erase lower fans, cherry-pick, "can't place in buffer -> current_kickstart")
+    // are now in focused helpers. All owner comments inside were read for intent and preserved.
+    // See the original local lambda comments and the detailed kickstart/hold comments for rationale.
+    void _handle_g_command(const std::string& cmd, GCodeReader& reader, const GCodeReader::GCodeLine& line, double& time);
+    void _handle_m_command(const std::string& cmd, const GCodeReader::GCodeLine& line, int16_t& fan_speed, double& time, bool& need_flush);
 };
 
 } // namespace Slic3r

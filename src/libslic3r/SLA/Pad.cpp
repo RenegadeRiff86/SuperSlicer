@@ -120,7 +120,7 @@ void breakstick_holes(Points& pts,
         out.emplace_back(b);
     }
 
-    // move the new points
+    // move the points
     out.shrink_to_fit();
     pts.swap(out);
 }
@@ -193,20 +193,20 @@ PadSkeleton divide_blueprint(const ExPolygons &bp)
     return ret;
 }
 
-// A helper class for storing polygons and maintaining a spatial index of their
-// bounding boxes.
-class Intersector {
-    BoxIndex       m_index;
-    ExPolygons     m_polys;
+    // A helper class for storing polygons and maintaining a spatial index of their
+    // bounding boxes.
+    class Intersector {
+        BoxIndex       m_index;
+        ExPolygons     m_polys;
 
-public:
+    public:
 
-    // Add a new polygon to the index
-    void add(const ExPolygon &ep)
-    {
-        m_polys.emplace_back(ep);
-        m_index.insert(get_extents(ep), unsigned(m_index.size()));
-    }
+        // Add a polygon to the index
+        void add(const ExPolygon &ep)
+        {
+            m_polys.emplace_back(ep);
+            m_index.insert(get_extents(ep), unsigned(m_index.size()));
+        }
 
     // Check an arbitrary polygon for intersection with the indexed polygons
     bool intersects(const ExPolygon &poly)
