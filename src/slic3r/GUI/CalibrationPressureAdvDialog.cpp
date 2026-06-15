@@ -352,20 +352,19 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
     std::vector < std::vector<ModelObject*>> pressure_tower;
     bool smooth_time = false;
 
-    std::string nozzle_diameter_str = std::to_string(nozzle_diameter);
-    nozzle_diameter_str.erase(nozzle_diameter_str.find_last_not_of('0') + 2, std::string::npos);
-
-    
-    if (nozzle_diameter_str.back() == '.') {//if nozzle_diameter_str broke fix it by adding '0' to end, prob not needed?
-        nozzle_diameter_str += '0';
-    }
-
-    /*size_t decimal_pos = nozzle_diameter_str.find('.');
-    // some users might have 0.0x nozzle size. if that's the case then they should just need to create the file and it should load. ie; 90_bend_0.450.3mf
-    if (decimal_pos != std::string::npos) {
-        size_t non_zero_pos = nozzle_diameter_str.find_first_not_of('0', decimal_pos + 2);
-        nozzle_diameter_str.erase(non_zero_pos, std::string::npos);
-    }*/
+    // The bend-90 calibration meshes exist only in 0.10 mm steps from 0.10 to 2.00
+    // (resources/calibration/filament_pressure/scaled_with_nozzle_size). Snap the nozzle
+    // diameter to the nearest available model and format with two decimals, so whole-mm
+    // nozzles (1.0 -> "1.00") and odd nozzles (0.25 -> "0.20") resolve to a real file
+    // instead of "1.0"/"0.250" which do not exist. The mesh is still XY-scaled by
+    // magical_scaling() using the real nozzle diameter, so snapping only affects the
+    // starting mesh, never the final geometry.
+    double snapped_nozzle = std::round(nozzle_diameter / 0.1) * 0.1;
+    if (snapped_nozzle < 0.10) snapped_nozzle = 0.10;
+    if (snapped_nozzle > 2.00) snapped_nozzle = 2.00;
+    char nozzle_diameter_buf[16];
+    snprintf(nozzle_diameter_buf, sizeof(nozzle_diameter_buf), "%.2f", snapped_nozzle);
+    std::string nozzle_diameter_str = nozzle_diameter_buf;
 
     std::string bend_90_nozzle_size_3mf = "90_bend_" + nozzle_diameter_str + ".3mf";
     std::string selected_extrusion_role = dynamicExtrusionRole[0]->GetValue().ToStdString();
