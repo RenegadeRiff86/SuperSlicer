@@ -588,7 +588,12 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         //-- magical scaling 
         pressure_tower.emplace_back();
 
-        double z_scaled_model_height = initial_model_height * (first_layer_height / initial_model_height); //mm
+        // Z CENTER for the embossed numbers/points. Their span is first_layer_height + base_layer_height
+        // so the digits always slice into the first layer plus >= 1 base layer and render regardless of
+        // the first/base layer-height relationship. Previously this was tied to first_layer_height alone,
+        // which collapsed the digits and made them not render when first_layer_height <= base_layer_height
+        // (e.g. both 0.02). See #38.
+        double z_scaled_model_height = (first_layer_height + base_layer_height) / 2.0; //mm
         double xy_scaled_90_bend_x = initial_90_bend_x * er_width_to_scale;             // mm
         double xy_scaled_90_bend_y = initial_90_bend_y * er_width_to_scale;             // mm
         //double first_layer_xy_scaled_90_bend_x = initial_90_bend_x * er_width_to_scale_first_layer; // mm for 90_bend width scaled for first_layer prob not needed?
@@ -607,6 +612,9 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         double z_90_bend_pos = (first_layer_height + (base_layer_height * 4)) / 2;
         double z_scale_others = first_layer_height / initial_model_height;
         double z_others_pos = first_layer_height / 2;
+        // Z scale that prints the number/point models (native height initial_model_height) at
+        // first_layer_height + base_layer_height tall, matching z_scaled_model_height's span. See #38.
+        double z_scale_numbers = (first_layer_height + base_layer_height) / initial_model_height;
         for (int nb_90_bends = 0; nb_90_bends < count_increments; nb_90_bends++) {
             std::string er_role = selected_extrusion_role;
             double y_offset = 0.0;
@@ -741,7 +749,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                 if (id_item < 10){ //will break if max test count goes higher. ie currentTestCount
                     add_part(model.objects[objs_idx[id_item]],(boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / (std::to_string(id_item) + std::string(".3mf"))).string(),
                         Vec3d{ number_pos_mid.x(), bend_pos_first.y() - (xy_scaled_90_bend_y / 2) + (xy_scaled_number_y / 2), z_scaled_model_height },
-                            /*scale*/Vec3d{ xyzScale * er_width_to_scale, xyzScale * er_width_to_scale, z_scale_others * 2 }, false);count_borders++;      // currentTestCount identifer
+                            /*scale*/Vec3d{ xyzScale * er_width_to_scale, xyzScale * er_width_to_scale, z_scale_numbers }, false);count_borders++;      // currentTestCount identifer
                 }
             }
 
@@ -780,14 +788,14 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
 
                         add_part(model.objects[objs_idx[id_item]],(boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / "point.3mf").string(),
                             Vec3d{ point_xpos, ypos - (xy_scaled_number_y / 2) + (xy_scaled_point_y / 2), z_scaled_model_height },//FIXED: // point gets moved to wrong position on all nozzle_sizes, guessing it's exported offset position doesn't get scaled with the model.
-                                /*scale*/Vec3d{ xyzScale * er_width_to_scale, (xyzScale + (xyzScale / 2)) * er_width_to_scale, z_scale_others * 2 }, false);
+                                /*scale*/Vec3d{ xyzScale * er_width_to_scale, (xyzScale + (xyzScale / 2)) * er_width_to_scale, z_scale_numbers }, false);
                         number_positions.push_back(Eigen::Vector3d(point_xpos, ypos - (xy_scaled_number_y / 2) + (xy_scaled_point_y / 2), z_scaled_model_height));
                         xpos -= (xy_scaled_number_x / 2);
 
                     } else if (std::isdigit(pa_values_string[j])) {
                         add_part(model.objects[objs_idx[id_item]],(boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / (pa_values_string[j] + std::string(".3mf"))).string(),
                             Vec3d{ xpos, ypos, z_scaled_model_height },
-                                /*scale*/Vec3d{ xyzScale * er_width_to_scale, xyzScale * er_width_to_scale, z_scale_others * 2 }, false);//TOCHECK: if any numbers get gapfill
+                                /*scale*/Vec3d{ xyzScale * er_width_to_scale, xyzScale * er_width_to_scale, z_scale_numbers }, false);//TOCHECK: if any numbers get gapfill
                         number_positions.push_back(Eigen::Vector3d(xpos, ypos, z_scaled_model_height));
                         xpos = number_positions.back().x();
                     }
@@ -1575,14 +1583,17 @@ std::pair<std::vector<double>, int> CalibrationPressureAdvDialog::calc_PA_values
     //maybe? will need to load in the correct 'acsii' character based on localization then swap ?
     //any point idiot profing the input to stop crashing ? nothing stopping users typing in letters to force a crash...
 
+    // Parse with ToCDouble (C locale, '.' decimal) after the comma->dot normalization above,
+    // so input parses correctly regardless of the user's system locale. Plain ToDouble uses
+    // the current locale and rejects "0.02" under comma-decimal locales (see #38).
     double first_pa = 0.0;
-    bool first_pa_ok = firstPaValue.ToDouble(&first_pa);
+    bool first_pa_ok = firstPaValue.ToCDouble(&first_pa);
     double start_pa = 0.0;
-    bool start_pa_ok = startPaValue.ToDouble(&start_pa);
+    bool start_pa_ok = startPaValue.ToCDouble(&start_pa);
     double end_pa = 0.0;
-    bool end_pa_ok = endPaValue.ToDouble(&end_pa);
+    bool end_pa_ok = endPaValue.ToCDouble(&end_pa);
     double pa_increment = 0.0;
-    bool pa_increment_ok = paIncrementValue.ToDouble(&pa_increment);
+    bool pa_increment_ok = paIncrementValue.ToCDouble(&pa_increment);
 
     if (!first_pa_ok || !start_pa_ok || !end_pa_ok || !pa_increment_ok) {
         show_input_error(_L("Please enter numeric values for first PA, start PA, end PA, and PA increment."));
