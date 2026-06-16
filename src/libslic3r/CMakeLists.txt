@@ -168,6 +168,8 @@ set(SLIC3R_SOURCES
     GCode/ThumbnailData.hpp
     GCode/Thumbnails.cpp
     GCode/Thumbnails.hpp
+    GCode/AdaptivePressureAdvance.cpp
+    GCode/AdaptivePressureAdvance.hpp
     GCode/ConflictChecker.cpp
     GCode/ConflictChecker.hpp
     GCode/CoolingBuffer.cpp
