@@ -638,26 +638,12 @@ Line OptionsGroup::create_single_option_line(const Option& option, const std::st
 }
 
 void OptionsGroup::on_change_OG(const OptionKeyIdx& opt_key_idx, bool enabled, const boost::any& value) {
-    auto it = m_options.find(opt_key_idx);
-    if (it != m_options.end() && it->second.opt.is_script && it->second.script) {
-        it->second.script->call_script_function_set(it->second.opt, value);
-    }else if (m_on_change != nullptr)
+    if (m_on_change != nullptr)
         m_on_change(opt_key_idx, enabled, value);
 }
 
+// update_script_presets was for AngelScript scripted widgets (removed)
 void OptionsGroup::update_script_presets(bool init) {
-    for (auto& key_opt : m_options) {
-        if (key_opt.second.opt.is_script) {
-            if (init || get_field(key_opt.first)) {
-                boost::any val = key_opt.second.script->call_script_function_get_value(key_opt.second.opt);
-                if (val.empty()) {
-                    MessageDialog(nullptr, "Error, can't find the script to get the value for the widget '" + key_opt.first.key + "'", _L("Error"), wxOK | wxICON_ERROR).ShowModal();
-                } else {
-                    this->set_value(key_opt.first, val, true, false);
-                }
-            } //if not, it will set at ConfigOptionsGroup::reload_config()
-        }
-    }
 }
 bool ConfigOptionsGroup::has_option_def(const OptionKeyIdx &opt_key_idx)
 {
@@ -738,53 +724,6 @@ void ConfigOptionsGroup::back_to_config_value(const DynamicPrintConfig& config, 
     } else if (opt_key_idx.key == "milling_count") {
         auto *milling_diameter = dynamic_cast<const ConfigOptionFloats *>(config.option("milling_diameter"));
         value = int(milling_diameter->size());
-    } else if (it_opt != m_options.end() && it_opt->second.opt.is_script) {
-        // when a scripted key is reset, reset its deps
-        // call the reset function if it exits
-        if (!it_opt->second.script->call_script_function_reset(it_opt->second.opt)) {
-            // Fucntion doesn't exists, reset the fields from the 'depends'
-            // reset in all tabs
-            // first set_key_value
-            PrinterTechnology printer_technology = wxGetApp().get_current_printer_technology();
-            std::vector<Tab*> tab_list = wxGetApp().tabs_list;
-            std::set<size_t> modified_tabs_idx;
-            for (const std::string& dep_key : it_opt->second.opt.depends_on) {
-                for (const PresetCollection* preset_collection : wxGetApp().get_active_preset_collections())
-                    for (size_t tab_idx = 0; tab_idx < tab_list.size(); tab_idx++) {
-                    Tab* tab = tab_list[tab_idx];
-                    if (tab != nullptr && tab->completed() && tab->supports_printer_technology(printer_technology)) {
-                        const DynamicPrintConfig& initial_conf = tab->m_presets->get_selected_preset().config;
-                        DynamicPrintConfig& edited_conf = tab->m_presets->get_edited_preset().config;
-                        if (initial_conf.has(dep_key) && edited_conf.has(dep_key)) {
-                            ConfigOption* conf_opt = initial_conf.option(dep_key)->clone();
-                            //set the conf
-                            edited_conf.set_key_value(dep_key, conf_opt);
-                            modified_tabs_idx.insert(tab_idx);
-                        }
-                    }
-                }
-            }
-            // now that all keys are set, call the on_value_change to propagate the changes in one go.
-            for (const std::string& dep_key : it_opt->second.opt.depends_on) {
-                for (size_t tab_idx : modified_tabs_idx) {
-                    Tab* tab = tab_list[tab_idx];
-                    const DynamicPrintConfig& initial_conf = tab->m_presets->get_selected_preset().config;
-                    DynamicPrintConfig& edited_conf = tab->m_presets->get_edited_preset().config;
-                    if (initial_conf.has(dep_key) && edited_conf.has(dep_key)) {
-                        const ConfigOption* conf_opt = initial_conf.option(dep_key);
-                        assert(conf_opt->is_scalar());
-                        // update the field
-                        tab->set_value(OptionKeyIdx::scalar(dep_key), conf_opt->get_any(), conf_opt->is_enabled());
-                        tab->on_value_change(OptionKeyIdx::scalar(dep_key), conf_opt->get_any());
-                    }
-                }
-            }
-            for (size_t tab_idx : modified_tabs_idx) {
-                // update the decorations
-                tab_list[tab_idx]->update_changed_ui();
-            }
-        }
-        return;
     } else if (it_opt_set == m_opt_set.end() ||
                // This option doesn't have corresponded field
              is_option_without_field(opt_key_idx.key) ) {

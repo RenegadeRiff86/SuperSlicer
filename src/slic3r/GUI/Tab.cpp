@@ -133,16 +133,6 @@ Tab::Tab(wxBookCtrlBase* parent, const wxString& title, Preset::Type type) :
     }));
 
     m_highlighter.set_timer_owner(this, 0);
-    
-    std::string tab_key = Preset::type_name(type);
-    try {
-        m_script_exec.init(tab_key, this);
-    }
-    catch (script::ScriptError ex) {
-        m_script_exec.disable();
-        BOOST_LOG_TRIVIAL(error) << format("An error has occured when compiling %1%/%2%.as ; The scripted widgets for this tab won't be built.", Slic3r::GUI::get_app_config()->layout_config_path().string(), tab_key);
-    }
-}
 
 // sub new
 void Tab::create_preset_tab()
@@ -1494,24 +1484,6 @@ void Tab::on_value_change(const OptionKeyIdx& opt_key_idx, const boost::any& val
             } else {
                 script_tab = wxGetApp().get_tab(tabtype_presetid.first, false);
             }
-            if (script_tab && script_tab->m_script_exec.is_intialized()) {
-                for (PageShp &page : script_tab->m_pages) {
-                    Field *field = page->get_field(tabtype_presetid.second, -1);
-                    if (field) {
-                        boost::any script_val = script_tab->m_script_exec.call_script_function_get_value(field->m_opt);
-                        if (!script_val.empty())
-                            field->set_any_value(script_val, false);
-                    }
-                }
-                if((script_tab->type() & Preset::Type::TYPE_FREQUENT) != 0) { // also check freq changed params
-                    Field *field = og_freq_chng_params->get_field({tabtype_presetid.second, -1});
-                    if (field) {
-                        boost::any script_val = script_tab->m_script_exec.call_script_function_get_value(field->m_opt);
-                        if (!script_val.empty())
-                            field->set_any_value(script_val, false);
-                    }
-                }
-            }
         }
     }
 
@@ -2253,20 +2225,15 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(std::string setting_type_nam
             boost::split(params, full_line, boost::is_any_of(":"));
             for (std::string& str : params) {
                 while (str.size() > 1 && (str.front() == ' ' || str.front() == '\t')) str = str.substr(1, str.size() - 1);
-                while (str.size() > 1 && (str.back() == ' ' || str.back() == '\t')) str = str.substr(0, str.size() - 1);
+                while (str.size() > 1 && (str.back() == ' ' || str.back() == '	')) str = str.substr(0, str.size() - 1);
                 boost::replace_all(str, "¤", ":");
             }
 
-            bool is_script = std::find(params.begin(), params.end(), "script") != params.end();
-
-            if (is_script && !this->m_script_exec.is_intialized()) {
-                BOOST_LOG_TRIVIAL(error) << "Error: trying to creater a scripted widget for '"<< setting_type_name << "' but the .as file doesn't exist or can't be parsed";
-                continue;
-            }
+            bool is_script = false; // dummy - scripted widgets support removed
             std::string setting_id = "";
             if (params.size() > 1) setting_id = params.back();
             if (setting_id.size() < 2) continue;
-            if (!m_config_base->has(setting_id) && !is_script) {
+            if (!m_config_base->has(setting_id)) {
                 std::cerr << "No " << setting_id << " in ConfigOptionsGroup config, tab " << setting_type_name << ".\n";
                 continue;
             }
@@ -2291,16 +2258,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(std::string setting_type_nam
                 continue;
             }
 
-            Option option = is_script ? 
-                Option(ConfigOptionDef{setting_id, coBool}) : 
-                current_group->create_option_from_def(setting_id, id);
-            if (is_script) {
-                option.opt.label = setting_id;
-                //option.opt.set_default_value(new ConfigOptionBool(false));
-                option.opt.gui_type = ConfigOptionDef::GUIType::undefined;
-                option.opt.is_script = true;
-                option.script = &this->m_script_exec;
-            }
+            Option option = current_group->create_option_from_def(setting_id, id);
             if (current_group->label_width >= 0)
                 option.opt.label_width = current_group->label_width;
             if (current_group->sidetext_width >= 0)
@@ -2376,10 +2334,10 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(std::string setting_type_nam
                 else if (boost::starts_with(params[i], "label$"))
                 {
                     // store current label into full_label if no full_label to prevent rpoblem in the rest of the gui (all empty).
-                    if (option.opt.full_label.empty() && !is_script)
+                    if (option.opt.full_label.empty())
                         option.opt.full_label = option.opt.label;
                     option.opt.label = (params[i].substr(strlen("label$")));
-                    if (is_script && option.opt.full_label.empty()) 
+                    if (option.opt.full_label.empty()) 
                         option.opt.full_label = option.opt.label;
                     need_to_notified_search = true;
                 }
@@ -2436,7 +2394,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(std::string setting_type_nam
                         option.opt.max_literal = { boost::lexical_cast<double>(
                             params[i].substr(strlen("max_literal$")).c_str()), false };
 
-                } else if (is_script) {
+                } else if (false /* is_script support removed */) {
                     //be careful, "floatX" has to deteted before "float".
                     // TODO: set default value
                     if (params[i] == "bools") {
@@ -2494,7 +2452,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(std::string setting_type_nam
                             values_2_labels.emplace_back(enum_strs[idx], enum_strs[idx + 1]);
                         }
                         // create enum_def in option.opt
-                        option.opt.set_enum_as_closed_for_scripted_enum(values_2_labels); // fake closed
+                        option.opt.set_enum_values(GUIType::select_close, values_2_labels);
                         // set the first value as default
                         ConfigOption* default_opt = option.opt.create_default_option();
                         default_opt->set_enum_int(0); // should be generic_enum, set to first.

@@ -531,10 +531,7 @@ wxString any_to_wxstring(const boost::any &value, const ConfigOptionDef &opt, co
         break;
     }
     case coBool: {
-        if (opt.is_script)
-            text_value = boost::any_cast<uint8_t>(value) != 0 ? "true" : "false";
-        else
-            text_value = boost::any_cast<bool>(value) ? "true" : "false";
+        text_value = boost::any_cast<bool>(value) ? "true" : "false";
     }
     case coInts: {
         if (opt_idx < 0) {
@@ -626,7 +623,7 @@ void TextField::get_value_by_opt_type(wxString &str, const bool check_value /* =
     case coBool: {
         wxString lower = str;
         lower.LowerCase();
-        if (m_opt.is_script || m_opt.type == coBools) {
+        if (m_opt.type == coBools) {
             m_value = (lower == "true" || lower == "1") ? uint8_t(1) : uint8_t(0);
         } else {
             m_value = lower == "true" || lower == "1";
@@ -1098,10 +1095,7 @@ bool TextCtrl::value_was_changed()
             return boost::any_cast<uint8_t>(m_value) != boost::any_cast<uint8_t>(val);
         }
     case coBool:
-        if(m_opt.is_script)
-            return boost::any_cast<uint8_t>(m_value) != boost::any_cast<uint8_t>(val);
-        else
-            return boost::any_cast<bool>(m_value) != boost::any_cast<bool>(val);
+        return boost::any_cast<bool>(m_value) != boost::any_cast<bool>(val);
     default:
         return true;
     }
@@ -1296,7 +1290,7 @@ void CheckBox::BUILD() {
         false;
 
     // Set Label as a string of at least one space simbol to correct system scaling of a CheckBox
-    window = GetNewWin(m_parent); //m_opt.is_script ? wxCHK_3STATE : wxCHK_2STATE);
+    window = GetNewWin(m_parent);
     wxGetApp().UpdateDarkUI(window);
 	window->SetFont(wxGetApp().normal_font());
 	if (!wxOSX) 
@@ -1342,13 +1336,7 @@ void CheckBox::set_internal_any_value(const boost::any& value, bool change_event
 {
     //can be coBool and coBools (with idx)
     assert(m_opt.type == coBool || (m_opt.type == coBools && m_opt_key_idx.idx >= 0));
-    if (m_opt.is_script) {
-        uint8_t val = boost::any_cast<uint8_t>(value);
-        if (val == uint8_t(2) && dynamic_cast<wxCheckBox*>(window) != nullptr) // dead code, no more wxCheckBox. have to modify the custom button state to retreive that.
-            dynamic_cast<wxCheckBox*>(window)->Set3StateValue(wxCheckBoxState::wxCHK_UNDETERMINED);
-        else
-            CheckBox::SetValue(window, boost::any_cast<bool>(val != 0));
-    } else if (m_opt.type == coBools) {
+    if (m_opt.type == coBools) {
         CheckBox::SetValue(window, boost::any_cast<uint8_t>(value) != 0);
     } else {
         assert(m_opt.type == coBool);

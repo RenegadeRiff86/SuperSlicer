@@ -147,8 +147,6 @@ void CopyrightsDialog::fill_entries()
                             , "Brad Hochgesang"                             , "https://github.com/FormerLurker/ArcWelderLib/" },
         { "BambuStudio"
                             , "bambulab"                                    , "https://github.com/bambulab/BambuStudio" },
-        { "AngelScript"
-                            , "Andreas Jönsson"                             , "https://www.angelcode.com/angelscript/" },
         { "JSON for Modern C++"
                             , "Niels Lohmann"                               , "https://github.com/nlohmann/json" },
         { "Orca Slicer"

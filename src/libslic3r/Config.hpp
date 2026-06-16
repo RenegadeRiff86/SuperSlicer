@@ -2755,10 +2755,6 @@ public:
     // Initialized by ConfigOptionEnum<xxx>::get_enum_values()
     std::shared_ptr<GraphSettings>      graph_settings;
 
-    // for scripted gui widgets
-    // true if it's not a real option but a simplified/composite one that use angelscript for interaction.
-    bool                                is_script = false;
-    boost::any                          default_script_value;
     // list of opt_key#idx strings that changes our computed value
     std::vector<std::string>            depends_on; // from Option
 
@@ -2785,8 +2781,6 @@ protected:
 
 public:
     void set_enum_values(GUIType gui_type, const std::initializer_list<const char*> il);
-
-    void set_enum_as_closed_for_scripted_enum(const std::vector<std::pair<std::string, std::string>> il);
 
     void set_enum_values(GUIType gui_type, const std::initializer_list<std::pair<std::string_view, std::string_view>> il);
 

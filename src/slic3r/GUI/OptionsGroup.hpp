@@ -47,9 +47,6 @@ class OG_CustomCtrl;
 /// Widget type describes a function object that returns a wxWindow (our widget) and accepts a wxWidget (parent window).
 using widget_t = std::function<wxSizer*(wxWindow*)>;//!std::function<wxWindow*(wxWindow*)>;
 
-namespace script {
-	class ScriptContainer;
-}
 /// Wraps a ConfigOptionDef and adds function object for creating a side_widget.
 struct Option
 {
@@ -58,8 +55,6 @@ struct Option
     int32_t             opt_idx;
     widget_t side_widget{nullptr};
     bool readonly{false};
-    // for fake config
-    script::ScriptContainer *script = nullptr;
     // std::vector<std::string> depends_on; // moved to configoptiondef
 
     bool operator==(const Option &rhs) const { return (rhs.opt_key == this->opt_key && rhs.opt_idx == this->opt_idx); }
@@ -369,7 +364,6 @@ private:
     ModelConfig                *m_modelconfig{nullptr};
     // this contains all the option key used to create options, even if not added to a line.
     //TODO: investigate more the diff between m_opt_set and m_options
-    // scripted are in m_options but not in m_opt_set
     std::set<OptionKeyIdx>      m_opt_set;
     wxString                    m_config_category;
     int                         m_config_type = 0;

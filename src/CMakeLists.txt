@@ -1,11 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 project(Slic3r-native)
 
-# fix macos-15-intel's clang bug with angelscript
-if(APPLE AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-    add_compile_definitions(AS_MAX_PORTABILITY)
-endif()
-
 add_subdirectory(build-utils)
 if (NOT APPLE)
     add_subdirectory(test-utils)
@@ -45,8 +40,6 @@ if (SLIC3R_GUI)
     include_directories(hidapi/include)
     add_subdirectory(exif)
     include_directories(exif/include)
-    add_subdirectory(angelscript)
-    # include_directories(angelscript/include)
 
     if(WIN32)
         message(STATUS "WXWIN environment set to: $ENV{WXWIN}")

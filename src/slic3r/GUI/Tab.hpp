@@ -51,7 +51,6 @@
 #include "GUI_Tags.hpp"
 #include "ConfigManipulation.hpp"
 #include "OptionsGroup.hpp"
-#include "ScriptExecutor.hpp"
 #include "libslic3r/Preset.hpp"
 
 class CheckBox;
@@ -322,28 +321,17 @@ protected:
 	wxString			m_tt_value_unlock;
 	// The following text points to either m_tt_value_unlock or m_ttg_white_bullet_ns, depending on whether the current preset has a parent preset.
 	wxString			*m_tt_non_system;
-	// Tooltip text to be shown on the "Undo user changes" button next to each input field.
-	wxString			m_tt_white_bullet;
-	wxString			m_tt_value_revert;
-	// Tooltip for script reset icon/button
-	wxString			m_tt_value_lock_script;
-	wxString			m_tt_value_unlock_script;
-	wxString			m_tt_white_bullet_script;
-	wxString			m_tt_value_revert_script;
-	wxString			*m_tt_non_system_script;
+  // Tooltip text to be shown on the "Undo user changes" button next to each input field.
+  wxString			m_tt_white_bullet;
+  wxString			m_tt_value_revert;
 
-	int					m_icon_count;
-	std::map<std::string, size_t>	m_icon_index;		// Map from an icon file name to its index
-	std::map<wxString, std::string>	m_category_icon;	// Map from a category name to an icon file name
-	std::vector<PageShp>			m_pages;
-	Page*				m_active_page {nullptr};
-	bool				m_disable_tree_sel_changed_event {false};
-	bool				m_show_incompatible_presets;
-
-    script::ScriptContainer     m_script_exec;
-    static inline std::unordered_map<std::string, std::vector<std::pair<Preset::Type, std::string>>> depsid_2_tabtype_scriptids;
-    //static void register_setting_dependency(Tab &tab_script, std::string opt_id, Preset::Type dep_type, std::string dependency_opt_id);
-    //static void emit_dependency(Tab &tab_opt_changed, std::string opt_changed);
+  int					m_icon_count;
+  std::map<std::string, size_t>	m_icon_index;		// Map from an icon file name to its index
+  std::map<wxString, std::string>	m_category_icon;	// Map from a category name to an icon file name
+  std::vector<PageShp>			m_pages;
+  Page*				m_active_page {nullptr};
+  bool				m_disable_tree_sel_changed_event {false};
+  bool				m_show_incompatible_presets;
 
     std::vector<Preset::Type>	m_dependent_tabs;
     enum OptStatus : uint16_t {
@@ -357,7 +345,6 @@ protected:
     //typedef std::tuple<t_config_option_key, int, int /*OptStatus*/> t_opt_tuple
 
     std::map<OptionKeyIdx, uint16_t/*OptStatus*/> m_options_list;
-    std::map<std::string, uint16_t/*OptStatus*/> m_options_script;
     std::set<OptionKeyIdx> m_options_dirty;
     uint16_t m_opt_status_value = 0;
 

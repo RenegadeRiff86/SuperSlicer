@@ -298,8 +298,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/DesktopIntegrationDialog.hpp
     GUI/HintNotification.cpp
     GUI/HintNotification.hpp
-    GUI/ScriptExecutor.cpp
-    GUI/ScriptExecutor.hpp
     GUI/Widgets/BitmapToggleButton.cpp
     GUI/Widgets/BitmapToggleButton.hpp
     GUI/Widgets/Button.cpp

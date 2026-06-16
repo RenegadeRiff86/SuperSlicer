@@ -446,11 +446,9 @@ void FreqChangedParams::init()
                                 {
                                     assert(enabled); //TODO fix & test
                                     const Option *opt_def = this->m_og->get_option_def(opt_key_idx);
-                                    if (opt_def && !opt_def->opt.is_script) {
-                                        tab_freq_fff->update_dirty();
-                                        tab_freq_fff->reload_config();
-                                        static_cast<TabFrequent *>(tab_freq_fff)->update_changed_setting(opt_key_idx.key);
-                                    }
+                                    tab_freq_fff->update_dirty();
+                                    tab_freq_fff->reload_config();
+                                    static_cast<TabFrequent *>(tab_freq_fff)->update_changed_setting(opt_key_idx.key);
                                 });
             assert(tab_freq_fff->get_page_count() == 1);
             assert(tab_freq_fff->get_page(0)->m_optgroups.size() == 1);
@@ -542,12 +540,9 @@ void FreqChangedParams::init()
                                 [tab_freq_sla, this](const OptionKeyIdx &opt_key_idx, bool enabled,
                                                      const boost::any &value) {
                 assert(enabled);
-                Option opt = this->m_og_other[ptSLA]->create_option_from_def(opt_key_idx.key, opt_key_idx.idx);
-                if (!opt.opt.is_script) {
-                    tab_freq_sla->update_dirty();
-                    tab_freq_sla->reload_config();
-                    static_cast<TabFrequent *>(tab_freq_sla)->update_changed_setting(opt_key_idx.key);
-                }
+                tab_freq_sla->update_dirty();
+                tab_freq_sla->reload_config();
+                static_cast<TabFrequent *>(tab_freq_sla)->update_changed_setting(opt_key_idx.key);
             });
             assert(tab_freq_sla->get_page_count() == 1);
             assert(tab_freq_sla->get_page(0)->m_optgroups.size() == 1);

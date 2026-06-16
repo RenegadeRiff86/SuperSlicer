@@ -1027,20 +1027,6 @@ void ConfigOptionDef::set_enum_values(GUIType gui_type, const std::initializer_l
     this->set_enum_values(gui_type, std::vector<std::string>(il.begin(), il.end()));
 }
 
-void ConfigOptionDef::set_enum_as_closed_for_scripted_enum(const std::vector<std::pair<std::string, std::string>> il)
-{
-    set_enum_values(il);
-    gui_type                                     = GUIType::undefined; // closed enum
-    enum_def->m_enum_names                       = &enum_def->m_values;
-    enum_def->m_enum_keys_map_storage_for_script = std::make_unique<t_config_enum_values>();
-    enum_def->m_enum_keys_map                    = enum_def->m_enum_keys_map_storage_for_script.get();
-    for (size_t i = 0; i < enum_def->m_values.size(); i++) {
-        (*enum_def->m_enum_keys_map_storage_for_script)[enum_def->m_values[i]] = i;
-    }
-    enum_def->finalize_closed_enum();
-    assert(enum_def->m_values_ordinary);
-}
-
 void ConfigOptionDef::set_enum_values(GUIType gui_type, const std::initializer_list<std::pair<std::string_view, std::string_view>> il)
 {
     this->enum_def_new();
