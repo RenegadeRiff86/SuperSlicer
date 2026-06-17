@@ -41,30 +41,37 @@ std::string SpiralVase::process_layer(const std::string &gcode)
         GCodeReader r = m_reader;  // clone
         bool set_z = false;
         bool milling = false;
-        r.parse_buffer(gcode, [&total_layer_length, &layer_height, &z, &set_z, &height_str, &milling]
+        // Extracted to reduce nesting in the stats/tag parsing lambda (BP1015).
+        auto update_layer_stats = [&](const GCodeReader::GCodeLine &line, GCodeReader &reader) {
+            if (line.cmd_is("G1")) {
+                if (line.extruding(reader)) {
+                    total_layer_length += line.dist_XY(reader);
+                } else if (line.has(Z)) {
+                    layer_height += line.dist_Z(reader);
+                    if (!set_z) {
+                        z = line.new_Z(reader);
+                        set_z = true;
+                    }
+                }
+            }
+        };
+        auto check_height_tag = [&](const GCodeReader::GCodeLine &line) {
+            const std::string& comment = line.raw();
+            if (comment.length() > 2 && comment.front() == ';') {
+                std::string comment_str = comment.substr(1);
+                if (boost::starts_with(comment_str, GCodeProcessor::reserved_tag(GCodeProcessor::ETags::Height))) {
+                    height_str = comment_str.substr(GCodeProcessor::reserved_tag(GCodeProcessor::ETags::Height).size());
+                }
+            }
+        };
+
+        r.parse_buffer(gcode, [&total_layer_length, &layer_height, &z, &set_z, &height_str, &milling, &update_layer_stats, &check_height_tag]
             (GCodeReader &reader, const GCodeReader::GCodeLine &line) {
             if (boost::starts_with(line.comment(), " milling"))
                 milling = true;
             if (!milling) {
-                if (line.cmd_is("G1")) {
-                    if (line.extruding(reader)) {
-                        total_layer_length += line.dist_XY(reader);
-                    } else if (line.has(Z)) {
-                        layer_height += line.dist_Z(reader);
-                        if (!set_z) {
-                            z = line.new_Z(reader);
-                            set_z = true;
-                        }
-                    }
-                } else {
-                    const std::string& comment = line.raw();
-                    if (comment.length() > 2 && comment.front() == ';') {
-                        std::string comment_str = comment.substr(1);
-                        if (boost::starts_with(comment_str, GCodeProcessor::reserved_tag(GCodeProcessor::ETags::Height))) {
-                            height_str = comment_str.substr(GCodeProcessor::reserved_tag(GCodeProcessor::ETags::Height).size());
-                        }
-                    }
-                }
+                update_layer_stats(line, reader);
+                check_height_tag(line);
             }
         });
     }

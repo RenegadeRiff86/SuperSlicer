@@ -272,12 +272,10 @@ MedialAxis::validate_edge(const VD::edge_type* edge, Lines& lines, const ExPolyg
             // and still, some geometries can wreck havoc here #2664
             Polylines external_bits = diff_pl(Polylines{ Polyline{ line.a, line.b } }, expolygon_touse);
             if (!external_bits.empty()) {
-                //check if the bits that are not inside are under epsilon length
-                coordf_t max_length = 0;
-                for (Polyline& poly : external_bits) {
-                    max_length = std::max(max_length, poly.length());
-                }
-                if (max_length > SCALED_EPSILON)
+                //check if the bits that are not inside are under epsilon length - flattened (no explicit for) to help nesting depth
+                auto it = std::max_element(external_bits.begin(), external_bits.end(),
+                    [](const Polyline& a, const Polyline& b) { return a.length() < b.length(); });
+                if (it != external_bits.end() && it->length() > SCALED_EPSILON)
                     return false;
             }
         }
@@ -821,6 +819,22 @@ bool has_boundary_point(const ExPolygon& expoly, const Point &point)
     return false;
 }
 
+// Extracted to reduce nesting depth in extends_line (BP1015). Finds the closest intersection of the line with the expolygon boundary (contour or holes).
+bool MedialAxis::find_best_expolygon_intersection(const Line& line, Point& out_point) const
+{
+    bool has = this->m_expolygon.contour.first_intersection(line, &out_point);
+    for (const Polygon& hole : this->m_expolygon.holes) {
+        Point cand;
+        if (hole.first_intersection(line, &cand)) {
+            if (!has || line.a.distance_to(cand) < line.a.distance_to(out_point)) {
+                has = true;
+                out_point = cand;
+            }
+        }
+    }
+    return has;
+}
+
 void
 MedialAxis::extends_line(ThickPolyline& polyline, const ExPolygons& anchors, const coord_t join_width)
 {
@@ -843,19 +857,19 @@ MedialAxis::extends_line(ThickPolyline& polyline, const ExPolygons& anchors, con
         if (has_boundary_point(this->m_expolygon.contour, polyline.points.back())) {
             new_back = polyline.points.back();
         } else {
-            bool finded = this->m_expolygon.contour.first_intersection(line, &new_back);
-            //verify also for holes.
-            Point new_back_temp;
-            for (Polygon hole : this->m_expolygon.holes) {
-                if (hole.first_intersection(line, &new_back_temp)) {
-                    if (!finded || line.a.distance_to(new_back_temp) < line.a.distance_to(new_back)) {
-                        finded = true;
-                        new_back = new_back_temp;
+            // Find best intersection on contour or holes (flattened logic to reduce BP1015 nesting depth).
+            bool has = this->m_expolygon.contour.first_intersection(line, &new_back);
+            for (const Polygon& hole : this->m_expolygon.holes) {
+                Point cand;
+                if (hole.first_intersection(line, &cand)) {
+                    if (!has || line.a.distance_to(cand) < line.a.distance_to(new_back)) {
+                        has = true;
+                        new_back = cand;
                     }
                 }
             }
             // safety check if no intersection
-            if (!finded) {
+            if (!has) {
                 if (!this->m_expolygon.contains(line.b)) {
                     //it's outside!!!
                     //if (!this->m_expolygon.contains(line.a)) {

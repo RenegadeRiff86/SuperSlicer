@@ -43,28 +43,47 @@ float Flow::auto_extrusion_width(FlowRole role, float nozzle_diameter)
     }
 }
 
+// Common option key literals extracted to address BP1001 repeated strings in this file.
+// 'first_layer_extrusion_width' 8 times, 'perimeter_extrusion_width' 7, etc in the role mapping and width/spacing calcs.
+namespace {
+constexpr const char* OPT_PERIMETER_EXTRUSION_WIDTH = "perimeter_extrusion_width";
+constexpr const char* OPT_FIRST_LAYER_EXTRUSION_WIDTH = "first_layer_extrusion_width";
+constexpr const char* OPT_EXTRUSION_WIDTH = "extrusion_width";
+constexpr const char* OPT_EXTERNAL_PERIMETER_EXTRUSION_WIDTH = "external_perimeter_extrusion_width";
+constexpr const char* OPT_IN_FILL_EXTRUSION_WIDTH = "infill_extrusion_width";
+constexpr const char* OPT_SOLID_INFILL_EXTRUSION_WIDTH = "solid_infill_extrusion_width";
+constexpr const char* OPT_FIRST_LAYER_INFILL_EXTRUSION_WIDTH = "first_layer_infill_extrusion_width";
+constexpr const char* OPT_TOP_INFILL_EXTRUSION_WIDTH = "top_infill_extrusion_width";
+constexpr const char* OPT_SUPPORT_MATERIAL_EXTRUSION_WIDTH = "support_material_extrusion_width";
+constexpr const char* OPT_DRAFT_SHIELD = "draft_shield";
+constexpr const char* OPT_SKIRT_HEIGHT = "skirt_height";
+constexpr const char* OPT_FILAMENT_MAX_OVERLAP = "filament_max_overlap";
+constexpr const char* OPT_FIRST_LAYER_EXTRUSION_SPACING = "first_layer_extrusion_spacing";
+constexpr const char* OPT_PERIMETER_EXTRUSION_SPACING = "perimeter_extrusion_spacing";
+}
+
 // Used by the Flow::extrusion_width() funtion to provide hints to the user on default extrusion width values,
 // and to provide reasonable values to the PlaceholderParser.
 static inline FlowRole opt_key_to_flow_role(const std::string &opt_key)
 {
- 	if (opt_key == "perimeter_extrusion_width" || 
+ 	if (opt_key == OPT_PERIMETER_EXTRUSION_WIDTH || 
  		// or almost all the defaults:
- 		opt_key == "extrusion_width" || opt_key == "first_layer_extrusion_width")
-        return frPerimeter;
-    else if (opt_key == "external_perimeter_extrusion_width")
-        return frExternalPerimeter;
-    else if (opt_key == "infill_extrusion_width")
-        return frInfill;
-    else if (opt_key == "solid_infill_extrusion_width"
+ 		opt_key == OPT_EXTRUSION_WIDTH || opt_key == OPT_FIRST_LAYER_EXTRUSION_WIDTH)
+         return frPerimeter;
+    else if (opt_key == OPT_EXTERNAL_PERIMETER_EXTRUSION_WIDTH)
+         return frExternalPerimeter;
+    else if (opt_key == OPT_IN_FILL_EXTRUSION_WIDTH)
+         return frInfill;
+    else if (opt_key == OPT_SOLID_INFILL_EXTRUSION_WIDTH
  		// or the first layer infill:
-        || opt_key == "first_layer_infill_extrusion_width")
-        return frSolidInfill;
-	else if (opt_key == "top_infill_extrusion_width")
-		return frTopSolidInfill;
-	else if (opt_key == "support_material_extrusion_width")
-    	return frSupportMaterial;
-    else 
-    	throw Slic3r::RuntimeError("opt_key_to_flow_role: invalid argument");
+         || opt_key == OPT_FIRST_LAYER_INFILL_EXTRUSION_WIDTH)
+         return frSolidInfill;
+ 	else if (opt_key == OPT_TOP_INFILL_EXTRUSION_WIDTH)
+ 		return frTopSolidInfill;
+ 	else if (opt_key == OPT_SUPPORT_MATERIAL_EXTRUSION_WIDTH)
+     	return frSupportMaterial;
+     else 
+     	throw Slic3r::RuntimeError("opt_key_to_flow_role: invalid argument");
 };
 
 static inline void throw_on_missing_variable(const std::string &opt_key, const char *dependent_opt_key) 
@@ -79,8 +98,8 @@ double Flow::extrusion_width(const std::string& opt_key, const ConfigOptionFloat
 
     bool first_layer = boost::starts_with(opt_key, "first_layer_") || boost::starts_with(opt_key, "brim_");
     if (!first_layer && boost::starts_with(opt_key, "skirt_")) {
-        const ConfigOptionInt* optInt = config.option<ConfigOptionInt>("skirt_height");
-        const ConfigOptionBool* optBool = config.option<ConfigOptionBool>("draft_shield");
+        const ConfigOptionInt* optInt = config.option<ConfigOptionInt>(OPT_SKIRT_HEIGHT);
+        const ConfigOptionBool* optBool = config.option<ConfigOptionBool>(OPT_DRAFT_SHIELD);
         first_layer = (optBool && optInt && optInt->value == 1 && !optBool->value);
     }
 
@@ -124,23 +143,23 @@ const ConfigOptionFloatOrPercent* Flow::extrusion_width_option(std::string opt_k
 
     //brim is first_layer_extrusion_width then perimeter_extrusion_width
     if (!opt && boost::starts_with(opt_key, "brim")) {
-        opt = config.option<ConfigOptionFloatOrPercent>("first_layer_extrusion_width");
+        opt = config.option<ConfigOptionFloatOrPercent>(OPT_FIRST_LAYER_EXTRUSION_WIDTH);
         if (opt == nullptr)
-            throw_on_missing_variable(opt_key, "first_layer_extrusion_width");
+            throw_on_missing_variable(opt_key, OPT_FIRST_LAYER_EXTRUSION_WIDTH);
         if (!opt->is_enabled()) {
-            opt = config.option<ConfigOptionFloatOrPercent>("perimeter_extrusion_width");
+            opt = config.option<ConfigOptionFloatOrPercent>(OPT_PERIMETER_EXTRUSION_WIDTH);
             if (opt == nullptr)
-                throw_on_missing_variable(opt_key, "perimeter_extrusion_width");
+                throw_on_missing_variable(opt_key, OPT_PERIMETER_EXTRUSION_WIDTH);
         }
     }
     if (opt && boost::starts_with(opt_key, "first_layer_")) {
-        const ConfigOptionFloatOrPercent* opt_test = config.option<ConfigOptionFloatOrPercent>("first_layer_extrusion_width");
+        const ConfigOptionFloatOrPercent* opt_test = config.option<ConfigOptionFloatOrPercent>(OPT_FIRST_LAYER_EXTRUSION_WIDTH);
         if (opt_test == nullptr)
-            throw_on_missing_variable(opt_key, "first_layer_extrusion_width");
+            throw_on_missing_variable(opt_key, OPT_FIRST_LAYER_EXTRUSION_WIDTH);
         if (!opt_test->is_enabled()) {
             // I don't know. you shouldn't have called that in the first place...
             assert(false);
-            opt = config.option<ConfigOptionFloatOrPercent>("perimeter_extrusion_width");
+            opt = config.option<ConfigOptionFloatOrPercent>(OPT_PERIMETER_EXTRUSION_WIDTH);
         }
     }
 
@@ -150,41 +169,41 @@ const ConfigOptionFloatOrPercent* Flow::extrusion_width_option(std::string opt_k
     // This is the logic used for skit / brim, but not for the rest of the 1st layer.
     if (opt->value == 0. && boost::starts_with(opt_key, "skirt")) {
         // The "skirt_extrusion_width" was set to zero, try a substitute.
-        const ConfigOptionFloatOrPercent* opt_first_layer_extrusion_width = config.option<ConfigOptionFloatOrPercent>("first_layer_extrusion_width");
-        const ConfigOptionInt* opt_skirt_height = config.option<ConfigOptionInt>("skirt_height");
-        const ConfigOptionEnum<DraftShield>* opt_draft_shield = config.option<ConfigOptionEnum<DraftShield>>("draft_shield");
+        const ConfigOptionFloatOrPercent* opt_first_layer_extrusion_width = config.option<ConfigOptionFloatOrPercent>(OPT_FIRST_LAYER_EXTRUSION_WIDTH);
+        const ConfigOptionInt* opt_skirt_height = config.option<ConfigOptionInt>(OPT_SKIRT_HEIGHT);
+        const ConfigOptionEnum<DraftShield>* opt_draft_shield = config.option<ConfigOptionEnum<DraftShield>>(OPT_DRAFT_SHIELD);
         if (opt_first_layer_extrusion_width == nullptr)
-            throw_on_missing_variable(opt_key, "first_layer_extrusion_width");
+            throw_on_missing_variable(opt_key, OPT_FIRST_LAYER_EXTRUSION_WIDTH);
         if (opt_draft_shield == nullptr)
-            throw_on_missing_variable(opt_key, "draft_shield");
+            throw_on_missing_variable(opt_key, OPT_DRAFT_SHIELD);
         if (opt_skirt_height == nullptr)
-            throw_on_missing_variable(opt_key, "skirt_height");
-        // The "first_layer_extrusion_width" was set to zero, try a substitute.
+            throw_on_missing_variable(opt_key, OPT_SKIRT_HEIGHT);
+        // The OPT_FIRST_LAYER_EXTRUSION_WIDTH was set to zero, try a substitute.
         if (opt_first_layer_extrusion_width && opt_first_layer_extrusion_width->is_enabled() && opt_first_layer_extrusion_width->value > 0 &&
             opt_draft_shield && opt_skirt_height && opt_skirt_height->value == 1 && opt_draft_shield->value != DraftShield::dsDisabled)
             opt = opt_first_layer_extrusion_width;
 
         if (opt->value == 0) {
-            opt = config.option<ConfigOptionFloatOrPercent>("perimeter_extrusion_width");
+            opt = config.option<ConfigOptionFloatOrPercent>(OPT_PERIMETER_EXTRUSION_WIDTH);
             if (opt == nullptr)
-                throw_on_missing_variable(opt_key, "perimeter_extrusion_width");
+                throw_on_missing_variable(opt_key, OPT_PERIMETER_EXTRUSION_WIDTH);
         }
     }
 
     // external_perimeter_extrusion_width default is perimeter_extrusion_width
-    //if (opt->value == 0. && boost::starts_with(opt_key, "external_perimeter_extrusion_width")) {
+    //if (opt->value == 0. && boost::starts_with(opt_key, OPT_EXTERNAL_PERIMETER_EXTRUSION_WIDTH)) {
     //    // The role specific extrusion width value was set to zero, try the role non-specific extrusion width.
-    //    opt = config.option<ConfigOptionFloatOrPercent>("perimeter_extrusion_width");
+    //    opt = config.option<ConfigOptionFloatOrPercent>(OPT_PERIMETER_EXTRUSION_WIDTH);
     //    if (opt == nullptr)
-    //        throw_on_missing_variable(opt_key, "perimeter_extrusion_width");
+    //        throw_on_missing_variable(opt_key, OPT_PERIMETER_EXTRUSION_WIDTH);
     //}
 
     // top_infill_extrusion_width default is solid_infill_extrusion_width
-    //if (opt->value == 0. && boost::starts_with(opt_key, "top_infill_extrusion_width")) {
+    //if (opt->value == 0. && boost::starts_with(opt_key, OPT_TOP_INFILL_EXTRUSION_WIDTH)) {
     //    // The role specific extrusion width value was set to zero, try the role non-specific extrusion width.
-    //    opt = config.option<ConfigOptionFloatOrPercent>("solid_infill_extrusion_width");
+    //    opt = config.option<ConfigOptionFloatOrPercent>(OPT_SOLID_INFILL_EXTRUSION_WIDTH);
     //    if (opt == nullptr)
-    //        throw_on_missing_variable(opt_key, "solid_infill_extrusion_width");
+    //        throw_on_missing_variable(opt_key, OPT_SOLID_INFILL_EXTRUSION_WIDTH);
     //}
 
     if (opt->value == 0.) {
@@ -224,14 +243,14 @@ const ConfigOptionFloatOrPercent* Flow::extrusion_spacing_option(std::string opt
 
     //brim is first_layer_extrusion_spacing then perimeter_extrusion_spacing
     if (!opt && boost::starts_with(opt_key, "brim_")) {
-        const ConfigOptionFloatOrPercent* optTest = config.option<ConfigOptionFloatOrPercent>("first_layer_extrusion_spacing");
+        const ConfigOptionFloatOrPercent* optTest = config.option<ConfigOptionFloatOrPercent>(OPT_FIRST_LAYER_EXTRUSION_SPACING);
         opt = optTest;
         if (opt == nullptr)
-            throw_on_missing_variable(opt_key, "first_layer_extrusion_spacing");
+            throw_on_missing_variable(opt_key, OPT_FIRST_LAYER_EXTRUSION_SPACING);
         if (opt->value == 0) {
-            opt = config.option<ConfigOptionFloatOrPercent>("perimeter_extrusion_spacing");
+            opt = config.option<ConfigOptionFloatOrPercent>(OPT_PERIMETER_EXTRUSION_SPACING);
             if (opt == nullptr)
-                throw_on_missing_variable(opt_key, "perimeter_extrusion_spacing");
+                throw_on_missing_variable(opt_key, OPT_PERIMETER_EXTRUSION_SPACING);
         }
     }
 
@@ -246,32 +265,32 @@ const ConfigOptionFloatOrPercent* Flow::extrusion_spacing_option(std::string opt
     // This is the logic used for skit / brim, but not for the rest of the 1st layer.
     if (opt->value == 0. && boost::starts_with(opt_key, "skirt")) {
         // The "skirt_extrusion_spacing" was set to zero, try a substitute.
-        const ConfigOptionFloatOrPercent* opt_first_layer_extrusion_spacing = config.option<ConfigOptionFloatOrPercent>("first_layer_extrusion_spacing");
-        const ConfigOptionInt* opt_skirt_height = config.option<ConfigOptionInt>("skirt_height");
-        const ConfigOptionEnum<DraftShield>* opt_draft_shield = config.option<ConfigOptionEnum<DraftShield>>("draft_shield");
+        const ConfigOptionFloatOrPercent* opt_first_layer_extrusion_spacing = config.option<ConfigOptionFloatOrPercent>(OPT_FIRST_LAYER_EXTRUSION_SPACING);
+        const ConfigOptionInt* opt_skirt_height = config.option<ConfigOptionInt>(OPT_SKIRT_HEIGHT);
+        const ConfigOptionEnum<DraftShield>* opt_draft_shield = config.option<ConfigOptionEnum<DraftShield>>(OPT_DRAFT_SHIELD);
         if (opt_first_layer_extrusion_spacing == nullptr)
-            throw_on_missing_variable(opt_key, "first_layer_extrusion_spacing");
+            throw_on_missing_variable(opt_key, OPT_FIRST_LAYER_EXTRUSION_SPACING);
         if (opt_draft_shield == nullptr)
-            throw_on_missing_variable(opt_key, "draft_shield");
+            throw_on_missing_variable(opt_key, OPT_DRAFT_SHIELD);
         if (opt_skirt_height == nullptr)
-            throw_on_missing_variable(opt_key, "skirt_height");
-        // The "first_layer_extrusion_spacing" was set to zero, try a substitute.
+            throw_on_missing_variable(opt_key, OPT_SKIRT_HEIGHT);
+        // The OPT_FIRST_LAYER_EXTRUSION_SPACING was set to zero, try a substitute.
         if (opt_first_layer_extrusion_spacing && opt_draft_shield && opt_skirt_height && opt_first_layer_extrusion_spacing->value > 0 && opt_skirt_height->value == 1 && opt_draft_shield->value != DraftShield::dsDisabled)
             opt = opt_first_layer_extrusion_spacing;
 
         if (opt->value == 0) {
-            opt = config.option<ConfigOptionFloatOrPercent>("perimeter_extrusion_spacing");
+            opt = config.option<ConfigOptionFloatOrPercent>(OPT_PERIMETER_EXTRUSION_SPACING);
             if (opt == nullptr)
-                throw_on_missing_variable(opt_key, "perimeter_extrusion_spacing");
+                throw_on_missing_variable(opt_key, OPT_PERIMETER_EXTRUSION_SPACING);
         }
     }
 
     // external_perimeter_extrusion_spacing default is perimeter_extrusion_spacing
     //if (opt->value == 0. && boost::starts_with(opt_key, "external_perimeter_extrusion_spacing")) {
     //    // The role specific extrusion width value was set to zero, try the role non-specific extrusion width.
-    //    opt = config.option<ConfigOptionFloatOrPercent>("perimeter_extrusion_spacing");
+    //    opt = config.option<ConfigOptionFloatOrPercent>(OPT_PERIMETER_EXTRUSION_SPACING);
     //    if (opt == nullptr)
-    //        throw_on_missing_variable(opt_key, "perimeter_extrusion_spacing");
+    //        throw_on_missing_variable(opt_key, OPT_PERIMETER_EXTRUSION_SPACING);
     //}
 
     // top_infill_extrusion_spacing default is solid_infill_extrusion_spacing
@@ -306,7 +325,7 @@ Flow Flow::new_from_config(FlowRole role, const DynamicConfig& print_config, flo
     float overlap = 1.f;
     // (might be an absolute value, or a percent value, or zero for auto)
     if (role == frExternalPerimeter) {
-        config_width.set(*print_config.option("external_perimeter_extrusion_width"));
+        config_width.set(*print_config.option(OPT_EXTERNAL_PERIMETER_EXTRUSION_WIDTH));
         config_spacing.set(*print_config.option("external_perimeter_extrusion_spacing"));
         // external peri spacing is only half spacing -> transform it into a full spacing
         if (!config_spacing.is_phony() && config_spacing.value != 0) {
@@ -318,32 +337,32 @@ Flow Flow::new_from_config(FlowRole role, const DynamicConfig& print_config, flo
         }
         overlap = static_cast<float>(print_config.get_abs_value("external_perimeter_overlap", 1.0));
     } else if (role == frPerimeter) {
-        config_width.set(*print_config.option("perimeter_extrusion_width"));
-        config_spacing.set(*print_config.option("perimeter_extrusion_spacing"));
+        config_width.set(*print_config.option(OPT_PERIMETER_EXTRUSION_WIDTH));
+        config_spacing.set(*print_config.option(OPT_PERIMETER_EXTRUSION_SPACING));
         overlap = static_cast<float>(print_config.get_abs_value("perimeter_overlap", 1.));
     } else if (role == frInfill) {
-        config_width.set(*print_config.option("infill_extrusion_width"));
+        config_width.set(*print_config.option(OPT_IN_FILL_EXTRUSION_WIDTH));
         config_spacing.set(*print_config.option("infill_extrusion_spacing"));
     } else if (role == frSolidInfill) {
-        config_width.set(*print_config.option("solid_infill_extrusion_width"));
+        config_width.set(*print_config.option(OPT_SOLID_INFILL_EXTRUSION_WIDTH));
         config_spacing.set(*print_config.option("solid_infill_extrusion_spacing"));
         overlap = static_cast<float>(print_config.get_abs_value("solid_infill_overlap", 1.));
     } else if (role == frTopSolidInfill) {
-        config_width.set(*print_config.option("top_infill_extrusion_width"));
+        config_width.set(*print_config.option(OPT_TOP_INFILL_EXTRUSION_WIDTH));
         config_spacing.set(*print_config.option("top_infill_extrusion_spacing"));
         overlap = static_cast<float>(print_config.get_abs_value("top_solid_infill_overlap", 1.));
     } else {
         throw Slic3r::InvalidArgument("Unknown role");
     }
     if (first_layer) {
-        auto opt_fl_width = print_config.option("first_layer_extrusion_width");
-        auto opt_fli_width = print_config.option("first_layer_infill_extrusion_width");
+        auto opt_fl_width = print_config.option(OPT_FIRST_LAYER_EXTRUSION_WIDTH);
+        auto opt_fli_width = print_config.option(OPT_FIRST_LAYER_INFILL_EXTRUSION_WIDTH);
         if ((role == frInfill || role == frSolidInfill || role == frTopSolidInfill) && opt_fli_width->is_enabled()) {
             config_width.set(*opt_fli_width);
             config_spacing.set(*print_config.option("first_layer_infill_extrusion_spacing"));
         } else if (opt_fl_width->is_enabled()) {
             config_width.set(*opt_fl_width);
-            config_spacing.set(*print_config.option("first_layer_extrusion_spacing"));
+            config_spacing.set(*print_config.option(OPT_FIRST_LAYER_EXTRUSION_SPACING));
         }
     }
 
@@ -645,7 +664,7 @@ Flow support_material_flow(const PrintObject* object, float layer_height)
         // if object->config().support_material_extruder == 0 (which means to not trigger tool change, but use the current extruder instead), get_at will return the 0th component.
         float(nzd),
         layer_height,
-        extruder_id < 0 ? 1 : object->config().get_computed_value("filament_max_overlap", extruder_id), //if can get an extruder, then use its param, or use full overlap if we don't know the extruder id.
+        extruder_id < 0 ? 1 : object->config().get_computed_value(OPT_FILAMENT_MAX_OVERLAP, extruder_id), //if can get an extruder, then use its param, or use full overlap if we don't know the extruder id.
         // bridge_flow_ratio
         0.f);
 }
@@ -679,7 +698,7 @@ Flow support_material_1st_layer_flow(const PrintObject *object, float layer_heig
         (spacing.value > 0) ? spacing : object->config().extrusion_spacing, // can be used if first_layer_extrusion_width is phony
         float(print_config.nozzle_diameter.get_at(extruder_id)),
         slice_height,
-        extruder_id < 0 ? 1 : object->config().get_computed_value("filament_max_overlap", extruder_id), //if can get an extruder, then use its param, or use full overlap if we don't know the extruder id.
+        extruder_id < 0 ? 1 : object->config().get_computed_value(OPT_FILAMENT_MAX_OVERLAP, extruder_id), //if can get an extruder, then use its param, or use full overlap if we don't know the extruder id.
         // bridge_flow_ratio
         0.f);
 }
@@ -724,7 +743,7 @@ Flow support_material_interface_flow(const PrintObject* object, float layer_heig
         // if object->config().support_material_interface_extruder == 0 (which means to not trigger tool change, but use the current extruder instead), get_at will return the 0th component.
         float(nzd),
         layer_height,
-        extruder_id < 0 ? 1 : object->config().get_computed_value("filament_max_overlap", extruder_id), //if can get an extruder, then use its param, or use full overlap if we don't know the extruder id.
+        extruder_id < 0 ? 1 : object->config().get_computed_value(OPT_FILAMENT_MAX_OVERLAP, extruder_id), //if can get an extruder, then use its param, or use full overlap if we don't know the extruder id.
         // bridge_flow_ratio
         0.f);
 }
@@ -764,7 +783,7 @@ Flow raft_flow(const PrintObject* object, float layer_height)
         // if object->config().support_material_interface_extruder == 0 (which means to not trigger tool change, but use the current extruder instead), get_at will return the 0th component.
         float(nzd),
         layer_height,
-        extruder_id < 0 ? 1 : object->config().get_computed_value("filament_max_overlap", extruder_id), //if can get an extruder, then use its param, or use full overlap if we don't know the extruder id.
+        extruder_id < 0 ? 1 : object->config().get_computed_value(OPT_FILAMENT_MAX_OVERLAP, extruder_id), //if can get an extruder, then use its param, or use full overlap if we don't know the extruder id.
         // bridge_flow_ratio
         0.f);
 }
@@ -804,7 +823,7 @@ Flow raft_interface_flow(const PrintObject* object, float layer_height)
         // if object->config().support_material_interface_extruder == 0 (which means to not trigger tool change, but use the current extruder instead), get_at will return the 0th component.
         float(nzd),
         layer_height,
-        extruder_id < 0 ? 1 : object->config().get_computed_value("filament_max_overlap", extruder_id), //if can get an extruder, then use its param, or use full overlap if we don't know the extruder id.
+        extruder_id < 0 ? 1 : object->config().get_computed_value(OPT_FILAMENT_MAX_OVERLAP, extruder_id), //if can get an extruder, then use its param, or use full overlap if we don't know the extruder id.
         // bridge_flow_ratio
         0.f);
 }

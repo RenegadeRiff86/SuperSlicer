@@ -165,13 +165,13 @@ GroundingLocation Layer::getBestGroundingLocation
                     const auto  it_range           = tree_node_locator.equal_range(local_grid_addr);
                     for (auto it = it_range.first; it != it_range.second; ++it) {
                         const NodeSPtr candidate_sub_tree = it->second.lock();
-                        if ((candidate_sub_tree && candidate_sub_tree != exclude_tree) &&
-                            !(exclude_tree && exclude_tree->hasOffspring(candidate_sub_tree)) &&
-                            !polygonCollidesWithLineSegment(unsupported_location, candidate_sub_tree->getLocation(), outline_locator)) {
-                            if (const coord_t candidate_dist = candidate_sub_tree->getWeightedDistance(unsupported_location, supporting_radius); candidate_dist < local_current_dist) {
-                                local_current_dist = candidate_dist;
-                                local_sub_tree     = candidate_sub_tree;
-                            }
+                        // Guard clauses to reduce nesting in the parallel grid cell search (BP1015).
+                        if (!candidate_sub_tree || candidate_sub_tree == exclude_tree) continue;
+                        if (exclude_tree && exclude_tree->hasOffspring(candidate_sub_tree)) continue;
+                        if (polygonCollidesWithLineSegment(unsupported_location, candidate_sub_tree->getLocation(), outline_locator)) continue;
+                        if (const coord_t candidate_dist = candidate_sub_tree->getWeightedDistance(unsupported_location, supporting_radius); candidate_dist < local_current_dist) {
+                            local_current_dist = candidate_dist;
+                            local_sub_tree     = candidate_sub_tree;
                         }
                     }
                     // To always get the same result in a parallel version as in a non-parallel version,

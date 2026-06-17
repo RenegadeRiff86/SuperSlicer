@@ -41,6 +41,15 @@ struct NormalizeVisitor : public ExtrusionVisitor {
             assert(!poly.get_point(i - 1).coincides_with_epsilon(poly.get_point(i)));
 #endif
     }
+    // Helper extracted to reduce nesting and duplication in the normalize visitor (BP1015).
+    static void ensure_continuity(ExtrusionPath& prev, const Point& pt) {
+        if (prev.last_point().coincides_with_epsilon(pt)) {
+            prev.polyline.set_back(pt);
+        } else {
+            prev.polyline.append(pt);
+        }
+    }
+
     virtual void use(ExtrusionLoop &loop) override {
 #ifdef _DEBUG
         for (size_t idx = 0; idx < loop.paths.size(); idx++) {
@@ -55,11 +64,7 @@ struct NormalizeVisitor : public ExtrusionVisitor {
                 if (idx_p + 1 < loop.paths.size()) {
                     loop.paths[idx_p + 1].polyline.append_before(path.first_point());
                 } else if (idx_p > 0) {
-                    if (loop.paths[idx_p - 1].last_point().coincides_with_epsilon(path.last_point())) {
-                        loop.paths[idx_p - 1].polyline.set_back(path.last_point());
-                    } else {
-                        loop.paths[idx_p - 1].polyline.append(path.last_point());
-                    }
+                    ensure_continuity(loop.paths[idx_p - 1], path.last_point());
                 }
                 // remove
                 loop.paths.erase(loop.paths.begin() + idx_p);
@@ -87,11 +92,7 @@ struct NormalizeVisitor : public ExtrusionVisitor {
                 if (idx_p + 1 < multipath.paths.size()) {
                     multipath.paths[idx_p + 1].polyline.append_before(path.first_point());
                 } else if (idx_p > 0) {
-                    if (multipath.paths[idx_p - 1].last_point().coincides_with_epsilon(path.last_point())) {
-                        multipath.paths[idx_p - 1].polyline.set_back(path.last_point());
-                    } else {
-                        multipath.paths[idx_p - 1].polyline.append(path.last_point());
-                    }
+                    ensure_continuity(multipath.paths[idx_p - 1], path.last_point());
                 }
                 // remove
                 multipath.paths.erase(multipath.paths.begin() + idx_p);

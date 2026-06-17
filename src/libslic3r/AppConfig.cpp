@@ -59,6 +59,15 @@ const std::string AppConfig::SECTION_FILAMENTS = "materials";
 const std::string AppConfig::SECTION_MATERIALS = "sla_materials";
 const std::string AppConfig::SECTION_EMBOSS_STYLE = "font";
 
+// Common app config key literals extracted to address BP1001 repeated strings.
+// 'freecad_path' 7, splash screens 7, etc in get/set, defaults, and UI logic.
+constexpr const char* APP_FREECAD_PATH = "freecad_path";
+constexpr const char* APP_SPLASH_SCREEN_EDITOR = "splash_screen_editor";
+constexpr const char* APP_SPLASH_SCREEN_GCODEVIEWER = "splash_screen_gcodeviewer";
+constexpr const char* APP_DATE_IN_CONFIG_FILE = "date_in_config_file";
+constexpr const char* APP_CONFIG_PATH = "config_path";
+constexpr const char* APP_UI_LAYOUT = "ui_layout";
+
 void AppConfig::reset()
 {
     m_storage.clear();
@@ -137,8 +146,8 @@ void AppConfig::set_defaults()
         if (get("drop_project_action").empty())
             set("drop_project_action", "1");
 
-        if (get("freecad_path").empty() || get("freecad_path") == ".") {
-            set("freecad_path", ".");
+        if (get(APP_FREECAD_PATH).empty() || get(APP_FREECAD_PATH) == ".") {
+            set(APP_FREECAD_PATH, ".");
             //try to find it
 #ifdef _WIN32
             //windows
@@ -154,19 +163,19 @@ void AppConfig::set_defaults()
                 }
             }
             if (!freecad_path.empty())
-                set("freecad_path", freecad_path.string());
+                set(APP_FREECAD_PATH, freecad_path.string());
 #else
 #ifdef __APPLE__
             //apple
             if (boost::filesystem::exists("/Applications/FreeCAD.app/Contents/Frameworks/FreeCAD/lib"))
-                set("freecad_path", "/Applications/FreeCAD.app/Contents/Frameworks/FreeCAD");
+                set(APP_FREECAD_PATH, "/Applications/FreeCAD.app/Contents/Frameworks/FreeCAD");
 
 #else
             // linux
             if (boost::filesystem::exists("/usr/lib/freecad/lib"))
-                set("freecad_path", "/usr/lib/freecad");
+                set(APP_FREECAD_PATH, "/usr/lib/freecad");
             else if (boost::filesystem::exists("/usr/local/bin/FreeCAD/lib"))
-                set("freecad_path", "/usr/local/bin/FreeCAD");
+                set(APP_FREECAD_PATH, "/usr/local/bin/FreeCAD");
 #endif
 #endif
         }
@@ -244,9 +253,9 @@ void AppConfig::set_defaults()
         if (get("remember_output_path_removable").empty())
             set("remember_output_path_removable", "1");
 
-        if (get("date_in_config_file").empty())
-            set("date_in_config_file", "1");
-        set_header_generate_with_date(get("date_in_config_file") == "1");
+        if (get(APP_DATE_IN_CONFIG_FILE).empty())
+            set(APP_DATE_IN_CONFIG_FILE, "1");
+        set_header_generate_with_date(get(APP_DATE_IN_CONFIG_FILE) == "1");
 
         if (get("check_material_export").empty())
             set("check_material_export", "0");
@@ -451,10 +460,10 @@ void AppConfig::load_installed_repo(const boost::filesystem::path &directory) {
                                                                                     .get_value<std::string>();
                 }
                 std::map<std::string, std::string> &entries = m_all_slic3r_installed.back().other_keys;
-                assert(entries.find("config_path") != entries.end());
+                assert(entries.find(APP_CONFIG_PATH) != entries.end());
                 assert(entries.find("exe_path") != entries.end());
                 assert(entries.find("version") != entries.end());
-                m_all_slic3r_installed.back().config_path = entries["config_path"];
+                m_all_slic3r_installed.back().config_path = entries[APP_CONFIG_PATH];
                 m_all_slic3r_installed.back().exe_path = entries["exe_path"];
                 m_all_slic3r_installed.back().version = Semver(entries["version"]);
             }
@@ -483,10 +492,10 @@ void AppConfig::load_installed_repo(const boost::filesystem::path &directory) {
                 data.version = Semver("1.0.0.0");
             }
             data.other_keys["installed_name"] = data.installed_name = first_line;
-            data.other_keys["config_path"] = (data.config_path = directory).string();
+            data.other_keys[APP_CONFIG_PATH] = (data.config_path = directory).string();
             data.other_keys["config_path_relative"] = "0";
             data.other_keys["exe_path"] = (data.exe_path = "").string();
-            data.other_keys["config_path"] = data.version.to_string();
+            data.other_keys[APP_CONFIG_PATH] = data.version.to_string();
             data.other_keys["legacy"] = "1";
         }
     }
@@ -551,7 +560,7 @@ void AppConfig::save_installed_repo()
     m_dirty = false;
 
     // ensure some options are in sync
-    set_header_generate_with_date(get("date_in_config_file") == "1");
+    set_header_generate_with_date(get(APP_DATE_IN_CONFIG_FILE) == "1");
 }
 
 boost::filesystem::path AppConfig::ConfigurationEntry::get_config_path(const std::string &data_dir_root) const {
@@ -571,7 +580,7 @@ bool AppConfig::init_root_data_dir(const std::string &default_app_data_path) {
     if (has_data_dir()) {
         // set by command line arg 'datadir'
         m_data_dir.other_keys["installed_name"] = m_data_dir.installed_name = "command_line";
-        m_data_dir.other_keys["config_path"] = (m_data_dir.config_path = data_dir()).string();
+        m_data_dir.other_keys[APP_CONFIG_PATH] = (m_data_dir.config_path = data_dir()).string();
         m_data_dir.other_keys["config_path_relative"] = "0";
         m_data_dir.other_keys["exe_path"] = (m_data_dir.exe_path = install_path()).string();
         m_data_dir.other_keys["exe_path_relative"] = "0";
@@ -633,7 +642,7 @@ void AppConfig::set_new_installation(ConfigurationEntry new_install){
 
 void AppConfig::init_ui_layout() {
     assert(has_data_dir());
-    boost::filesystem::path resources_dir_path = boost::filesystem::path(resources_dir()) / "ui_layout";
+    boost::filesystem::path resources_dir_path = boost::filesystem::path(resources_dir()) / APP_UI_LAYOUT;
     if (!boost::filesystem::is_directory(resources_dir_path)) {
         //Error
         throw new RuntimeError("error, can't find datadir '" + resources_dir_path.string() + "'");
@@ -671,13 +680,13 @@ void AppConfig::init_ui_layout() {
     //init
     m_ui_layout.clear();
 
-    //get all boost::filesystem::path(resources_dir()) / "ui_layout" / XXX / "version.ini"
+    //get all boost::filesystem::path(resources_dir()) / APP_UI_LAYOUT / XXX / "version.ini"
     std::map<std::string, LayoutEntry> resources_map;
     get_versions(resources_dir_path, resources_map);
 
-    //get all boost::filesystem::path(Slic3r::data_dir()) / "ui_layout" / XXX / "version.ini"
+    //get all boost::filesystem::path(Slic3r::data_dir()) / APP_UI_LAYOUT / XXX / "version.ini"
     std::map<std::string, LayoutEntry> datadir_map;
-    boost::filesystem::path data_dir_path = boost::filesystem::path(Slic3r::data_dir()) / "ui_layout";
+    boost::filesystem::path data_dir_path = boost::filesystem::path(Slic3r::data_dir()) / APP_UI_LAYOUT;
     if (!boost::filesystem::is_directory(data_dir_path)) {
         //note: called before the data_dir() is created
         boost::filesystem::create_directories(data_dir_path);
@@ -688,7 +697,7 @@ void AppConfig::init_ui_layout() {
 
 
     //copy all resources that aren't in datadir or newer
-    std::string current_name = get("ui_layout");
+    std::string current_name = get(APP_UI_LAYOUT);
     bool find_current = false;
     std::string error_message;
     for (const auto& layout : resources_map) {
@@ -713,7 +722,7 @@ void AppConfig::init_ui_layout() {
             default_layout = datadir_map.begin();
         }
         if (default_layout != datadir_map.end()) {
-            set("ui_layout", default_layout->first);
+            set(APP_UI_LAYOUT, default_layout->first);
         } else {
             throw new RuntimeError("Error, cannot find any layout for the gui.");
         }
@@ -787,8 +796,8 @@ void AppConfig::init_ui_layout() {
 
     {
         // try to load splashscreen from ui file
-        std::map<std::string, std::string> key2splashscreen = {{"splash_screen_editor", ""},
-                                                               {"splash_screen_gcodeviewer", ""}};
+        std::map<std::string, std::string> key2splashscreen = {{APP_SPLASH_SCREEN_EDITOR, ""},
+                                                               {APP_SPLASH_SCREEN_GCODEVIEWER, ""}};
         boost::property_tree::ptree tree_splashscreen;
         boost::filesystem::path path_colors = boost::filesystem::path(layout_config_path()) / "colors.ini";
         try {
@@ -809,20 +818,20 @@ void AppConfig::init_ui_layout() {
             BOOST_LOG_TRIVIAL(error) << "Failed loading the splashscreen file. Reason: " << err.what()
                                      << ". \nFrom path: " << path_colors.string();
         }
-        m_default_splashscreen = {key2splashscreen["splash_screen_editor"],
-                                  key2splashscreen["splash_screen_gcodeviewer"]};
+        m_default_splashscreen = {key2splashscreen[APP_SPLASH_SCREEN_EDITOR],
+                                  key2splashscreen[APP_SPLASH_SCREEN_GCODEVIEWER]};
 
-        if (get("splash_screen_editor").empty())
-            set("splash_screen_editor", "default");
+        if (get(APP_SPLASH_SCREEN_EDITOR).empty())
+            set(APP_SPLASH_SCREEN_EDITOR, "default");
 
-        if (get("splash_screen_gcodeviewer").empty())
-            set("splash_screen_gcodeviewer", "default");
+        if (get(APP_SPLASH_SCREEN_GCODEVIEWER).empty())
+            set(APP_SPLASH_SCREEN_GCODEVIEWER, "default");
 
         bool switch_to_random = get("show_splash_screen_random") == "1";
-        if (switch_to_random || key2splashscreen["splash_screen_editor"].empty())
-            set("splash_screen_editor", "random");
-        if (switch_to_random || key2splashscreen["splash_screen_gcodeviewer"].empty())
-            set("splash_screen_gcodeviewer", "random");
+        if (switch_to_random || key2splashscreen[APP_SPLASH_SCREEN_EDITOR].empty())
+            set(APP_SPLASH_SCREEN_EDITOR, "random");
+        if (switch_to_random || key2splashscreen[APP_SPLASH_SCREEN_GCODEVIEWER].empty())
+            set(APP_SPLASH_SCREEN_GCODEVIEWER, "random");
         if (switch_to_random)
             set("show_splash_screen_random", "0");
     }
@@ -1026,7 +1035,7 @@ void AppConfig::save()
     std::string path_pid = (boost::format("%1%.%2%") % path % get_current_pid()).str();
 
     std::stringstream config_ss;
-    set_header_generate_with_date(get("date_in_config_file") == "1");
+    set_header_generate_with_date(get(APP_DATE_IN_CONFIG_FILE) == "1");
     if (m_mode == EAppMode::Editor)
         config_ss << "# " << Slic3r::header_slic3r_generated() << std::endl;
     else
@@ -1088,7 +1097,7 @@ void AppConfig::save()
     m_dirty = false;
 
     // ensure some options are in sync
-    set_header_generate_with_date(get("date_in_config_file") == "1");
+    set_header_generate_with_date(get(APP_DATE_IN_CONFIG_FILE) == "1");
 }
 
 bool AppConfig::erase(const std::string &section, const std::string &key)
@@ -1344,7 +1353,7 @@ boost::filesystem::path AppConfig::layout_config_path()
 }
 AppConfig::LayoutEntry AppConfig::get_ui_layout()
 {
-    std::string layout_name = get("ui_layout");
+    std::string layout_name = get(APP_UI_LAYOUT);
     for (const AppConfig::LayoutEntry& layout : get_ui_layouts()) {
         if (layout_name == layout.name)
             return layout;
@@ -1357,8 +1366,8 @@ AppConfig::LayoutEntry AppConfig::get_ui_layout()
 std::string AppConfig::splashscreen(bool is_editor) {
 
     std::string file_name = is_editor
-        ? get("splash_screen_editor")
-        : get("splash_screen_gcodeviewer");
+        ? get(APP_SPLASH_SCREEN_EDITOR)
+        : get(APP_SPLASH_SCREEN_GCODEVIEWER);
 
     if (file_name == "default") {
         file_name = is_editor ? m_default_splashscreen.first : m_default_splashscreen.second;

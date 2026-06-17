@@ -159,10 +159,25 @@ std::vector<float> raycast_visibility(const AABBTreeIndirect::Tree<3, float> &ra
 
     bool model_contains_negative_parts = negative_volumes_start_index < triangles.indices.size();
 
+    // Helper to reduce nesting in visibility raycast (addresses BP1015 deep nesting in negative volume CSG hit counting).
+    auto compute_negative_volume_counter = [&](const std::vector<igl::Hit>& hits, const Vec3f& ray_dir, bool from_negative) -> int {
+        int counter = 0;
+        for (int hit_index = int(hits.size()) - 1; hit_index >= 0; --hit_index) {
+            Vec3f face_normal = its_face_normal(triangles, hits[hit_index].id);
+            if (hits[hit_index].id >= int(negative_volumes_start_index)) { //negative volume hit
+                counter -= sgn(face_normal.dot(ray_dir)); // if volume face aligns with ray dir, we are leaving negative space
+                // which in reverse hit analysis means, that we are entering negative space :) and vice versa
+            } else {
+                counter += sgn(face_normal.dot(ray_dir));
+            }
+        }
+        return counter;
+    };
+
     std::vector<float> result(samples.positions.size());
     tbb::parallel_for(tbb::blocked_range<size_t>(0, result.size()),
             [&triangles, &precomputed_sample_directions, model_contains_negative_parts, negative_volumes_start_index,
-                    &raycasting_tree, &result, &samples, deactivate](tbb::blocked_range<size_t> r) {
+                    &raycasting_tree, &result, &samples, deactivate, &compute_negative_volume_counter](tbb::blocked_range<size_t> r) {
                 // Maintaining hits memory outside of the loop, so it does not have to be reallocated for each query.
                 std::vector<igl::Hit> hits;
                 for (size_t s_idx = r.begin(); s_idx < r.end(); ++s_idx) {
@@ -206,18 +221,7 @@ std::vector<float> raycast_visibility(const AABBTreeIndirect::Tree<3, float> &ra
                                     triangles.indices, raycasting_tree,
                                     ray_origin_d, final_ray_dir_d, hits);
                             if (some_hit) {
-                                int counter = 0;
-                                // NOTE: iterating in reverse, from the last hit for one simple reason: We know the state of the ray at that point;
-                                //  It cannot be inside model, and it cannot be inside negative volume
-                                for (int hit_index = int(hits.size()) - 1; hit_index >= 0; --hit_index) {
-                                    Vec3f face_normal = its_face_normal(triangles, hits[hit_index].id);
-                                    if (hits[hit_index].id >= int(negative_volumes_start_index)) { //negative volume hit
-                                        counter -= sgn(face_normal.dot(final_ray_dir)); // if volume face aligns with ray dir, we are leaving negative space
-                                        // which in reverse hit analysis means, that we are entering negative space :) and vice versa
-                                    } else {
-                                        counter += sgn(face_normal.dot(final_ray_dir));
-                                    }
-                                }
+                                int counter = compute_negative_volume_counter(hits, final_ray_dir, casting_from_negative_volume);
                                 if (counter == 0) {
                                     result[s_idx] -= decrease_step;
                                 }
@@ -1473,7 +1477,7 @@ std::vector<std::pair<size_t, size_t>> SeamPlacer::find_seam_string(const PrintO
 // clusters already chosen seam points into strings across multiple layers, and then
 // aligns the strings via polynomial fit
 // Does not change the positions of the SeamCandidates themselves, instead stores
-// the new aligned position into the shared Perimeter structure of each perimeter
+// the aligned position into the shared Perimeter structure of each perimeter
 // Note that this position does not necesarilly lay on the perimeter.
 void SeamPlacer::align_seam_points(const PrintObject *po, const SeamPlacerImpl::SeamComparator &comparator) {
     using namespace SeamPlacerImpl;
@@ -2110,7 +2114,7 @@ Point SeamPlacer::place_seam(const Layer *layer, const ExtrusionLoop &loop, cons
                     depth = loop.paths[projected_point.path_idx].width() * 5;
                     if(depth < 0) depth = (-depth);
                 }
-                // There are some nice geometric identities in determination of the correct depth of new seam point.
+                // There are some nice geometric identities in determination of the correct depth of the seam point.
                 //overshoot the target depth, in concave angles it will correctly snap to the corner; TODO: find out why such big overshoot is needed.
                 Vec2f final_pos = perimeter_point.position.head<2>() + depth * dir_to_middle;
                 assert(std::abs(final_pos.x()) < 1000);

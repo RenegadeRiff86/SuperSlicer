@@ -151,6 +151,8 @@ private:
     void extends_line_extra(ThickPolylines& pp);
     /// extends the polylines inside bounds (anchors)
     void extends_line(ThickPolyline& polyline, const ExPolygons& anchors, const coord_t join_width);
+    /// find the closest intersection of the line with the expolygon boundary (contour or holes); used by extends_line. Returns false if none.
+    bool find_best_expolygon_intersection(const Line& line, Point& out_point) const;
     /// remove too thin bits at start & end of polylines
     void remove_too_thin_extrusion(ThickPolylines& pp);
     void remove_too_thick_extrusion(ThickPolylines& pp);

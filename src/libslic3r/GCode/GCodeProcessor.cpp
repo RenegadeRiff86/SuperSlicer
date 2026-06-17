@@ -571,20 +571,27 @@ bool GCodeProcessor::contains_reserved_tags(const std::string& gcode, unsigned i
     CNumericLocalesSetter locales_setter;
 
     GCodeReader parser;
-    parser.parse_buffer(gcode, [&ret, &found_tag, max_count](GCodeReader& parser, const GCodeReader::GCodeLine& line) {
-        std::string comment = line.raw();
-        if (comment.length() > 2 && comment.front() == ';') {
-            comment = comment.substr(1);
+    // Extracted tag check to reduce nesting in the parser callback (BP1015).
+    auto check_for_reserved = [&](const std::string& raw_line) -> bool {
+        if (raw_line.length() > 2 && raw_line.front() == ';') {
+            std::string comment = raw_line.substr(1);
             for (const std::string& s : Reserved_Tags) {
                 if (boost::starts_with(comment, s)) {
                     ret = true;
                     found_tag.push_back(comment);
                     if (found_tag.size() == max_count) {
-                        parser.quit_parsing();
-                        return;
+                        return true;
                     }
                 }
             }
+        }
+        return false;
+    };
+
+    parser.parse_buffer(gcode, [&ret, &found_tag, max_count, &check_for_reserved](GCodeReader& parser, const GCodeReader::GCodeLine& line) {
+        if (check_for_reserved(line.raw())) {
+            parser.quit_parsing();
+            return;
         }
         });
 
@@ -1599,26 +1606,19 @@ void GCodeProcessor::apply_config_kissslicer(const std::string& filename)
         auto detect_flavor = [this](const std::string_view comment) {
             static const std::string search_str = "firmware_type";
             const size_t pos = comment.find(search_str);
-            if (pos != comment.npos) {
-                std::vector<std::string> elements;
-                boost::split(elements, comment, boost::is_any_of("="));
-                if (elements.size() == 2) {
-                    try
-                    {
-                        switch (std::stoi(elements[1]))
-                        {
-                        default: { break; }
-                        case 1:
-                        case 2:
-                        case 3: { m_flavor = gcfMarlinLegacy; break; }
-                        }
-                        return true;
-                    }
-                    catch (...)
-                    {
-                        // invalid data, do nothing
-                    }
+            if (pos == comment.npos) return false;
+            std::vector<std::string> elements;
+            boost::split(elements, comment, boost::is_any_of("="));
+            if (elements.size() != 2) return false;
+            try {
+                int v = std::stoi(elements[1]);
+                if (v == 1 || v == 2 || v == 3) {
+                    m_flavor = gcfMarlinLegacy;
                 }
+                return true;
+            }
+            catch (...) {
+                // invalid data, do nothing
             }
             return false;
         };

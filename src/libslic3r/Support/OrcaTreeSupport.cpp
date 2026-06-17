@@ -316,30 +316,17 @@ static bool move_inside_expoly(const ExPolygon &polygon, Point& from, double dis
             continue;
         }
         double dot_prod = dot_with_unscale(ab, ap);
+
+        Point x;
+        bool has_candidate = false;
+
         if (dot_prod <= 0) // x is projected to before ab
         {
             if (projected_p_beyond_prev_segment)
-            { //  case which looks like:   > .
+            {
                 projected_p_beyond_prev_segment = false;
-                Point& x = p1;
-
-                double dist2 = vsize2_with_unscale(x - p);
-                if (dist2 < bestDist2)
-                {
-                    bestDist2 = dist2;
-                    if (distance == 0)
-                    {
-                        ret = x;
-                    }
-                    else
-                    {
-                        // TODO: check whether it needs scale_()
-                        Point inward_dir = turn90_ccw(normal(ab, 10.0) + normal(p1 - p0, 10.0)); // inward direction irrespective of sign of [distance]
-                        // MM2INT(10.0) to retain precision for the eventual normalization
-                        ret = x + normal(inward_dir, scale_(distance));
-                        is_already_on_correct_side_of_boundary = dot_with_unscale(inward_dir, p - x) * distance >= 0;
-                    }
-                }
+                x = p1;
+                has_candidate = true;
             }
             else
             {
@@ -357,10 +344,14 @@ static bool move_inside_expoly(const ExPolygon &polygon, Point& from, double dis
             continue;
         }
         else
-        { // x is projected to a point properly on the line segment (not onto a vertex). The case which looks like | .
+        { // x is projected to a point properly on the line segment (not onto a vertex).
             projected_p_beyond_prev_segment = false;
-            Point x = a + ab * (dot_prod / ab_length2);
+            x = a + ab * (dot_prod / ab_length2);
+            has_candidate = true;
+        }
 
+        if (has_candidate)
+        {
             double dist2 = vsize2_with_unscale(p - x);
             if (dist2 < bestDist2)
             {
@@ -371,9 +362,20 @@ static bool move_inside_expoly(const ExPolygon &polygon, Point& from, double dis
                 }
                 else
                 {
-                    Point inward_dir = turn90_ccw(normal(ab, scale_(distance))); // inward or outward depending on the sign of [distance]
-                    ret = x + inward_dir;
-                    is_already_on_correct_side_of_boundary = dot_with_unscale(inward_dir, p - x) >= 0;
+                    Point inward_dir;
+                    if (dot_prod <= 0)
+                    {
+                        // TODO: check whether it needs scale_()
+                        inward_dir = turn90_ccw(normal(ab, 10.0) + normal(p1 - p0, 10.0));
+                        ret = x + normal(inward_dir, scale_(distance));
+                        is_already_on_correct_side_of_boundary = dot_with_unscale(inward_dir, p - x) * distance >= 0;
+                    }
+                    else
+                    {
+                        inward_dir = turn90_ccw(normal(ab, scale_(distance)));
+                        ret = x + inward_dir;
+                        is_already_on_correct_side_of_boundary = dot_with_unscale(inward_dir, p - x) >= 0;
+                    }
                 }
             }
         }

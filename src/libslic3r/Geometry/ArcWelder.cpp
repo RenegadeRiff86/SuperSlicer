@@ -241,23 +241,24 @@ double arc_fit_max_deviation(const Point &start_pos, const Point &end_pos, const
 
     double max_deviation        = 0;
     double max_signed_deviation = 0;
+    // Extracted update to reduce nesting/duplication in the deviation loop (BP1015).
+    auto update_max = [&](double deviation, double signed_deviation) {
+        if (deviation > max_deviation) {
+            max_deviation = deviation;
+            max_signed_deviation = signed_deviation;
+        }
+    };
     for (auto it = begin; std::next(it) != end; ++ it) {
         if (it != begin) {
             double signed_deviation = it->distance_to(center) - r;
             double deviation = std::abs(signed_deviation);
-            if (deviation > max_deviation) {
-                max_deviation = deviation;
-                max_signed_deviation = signed_deviation;
-            }
+            update_max(deviation, signed_deviation);
         }
         Point closest_point;
         if (foot_pt_on_segment(*it, *std::next(it), center, closest_point)) {
             double signed_deviation = closest_point.distance_to(center) - r;
             double deviation = std::abs(signed_deviation);
-            if (deviation > max_deviation) {
-                max_deviation = deviation;
-                max_signed_deviation = signed_deviation;
-            }
+            update_max(deviation, signed_deviation);
         }
     }
     return max_signed_deviation;
@@ -632,7 +633,7 @@ float arc_length(const Vec2f &start_pos, const Vec2f &end_pos, Vec2f &center_pos
 }
 
 // Reduces polyline in the <begin, end) range in place,
-// returns the new end iterator.
+// returns the resulting end iterator.
 static inline Segments::iterator douglas_peucker_in_place(Segments::iterator begin, Segments::iterator end, const double tolerance)
 {
     return douglas_peucker_impl(begin, end, begin, tolerance, [](const Segment &s) { return s.point; });
@@ -655,7 +656,7 @@ Path fit_path(const Points &src_in, double tolerance, double fit_circle_percent_
         std::transform(src_in.begin(), src_in.end(), std::back_inserter(out), [](const Point &p) -> Segment { return { p }; });
         out.erase(douglas_peucker_in_place(out.begin(), out.end(), tolerance), out.end());
     } else {
-//TODO: to improve complexity, instead of trying from stratch evrytime, keep best circle and try to add a new point to it.
+//TODO: to improve complexity, instead of trying from scratch every time, keep best circle and try to add an additional point to it.
 // if outside of tolerance, then try to pull/push/wiggle it a bit (depending of the current angle, orientation & radius) if not possible, then this point can't be added and stop here. 
         // Simplify the polyline first using a fine threshold.
         Points src = douglas_peucker(src_in, tolerance_fine);
@@ -692,15 +693,15 @@ Path fit_path(const Points &src_in, double tolerance, double fit_circle_percent_
                                     inside_arc_wedge_vectors(v1, v2,
                                         arc->radius > 0, arc->direction == Orientation::CCW,
                                         next_end->cast<int64_t>() - arc->center.cast<int64_t>()))
-                                    // Cannot extend the current arc with this new point.
+                                    // Cannot extend the current arc with this additional point.
                                     break;
                             } while (++ next_end != src.end());
                         }
                         if (next_end == end)
                             // No additional point could be added to a current arc.
                             break;
-                        // Try to fit a new arc to the extended set of points.
-                        // last_tested_failed set to invalid value, no test failed yet.
+                        // Try to fit another arc to the extended set of points.
+                        // last_tested_failed set to invalid value, no test failed yet;
                         auto last_tested_failed = src.begin();
                         for (;;) {
                             this_arc = try_create_arc(
@@ -764,7 +765,7 @@ Path fit_path(const Points &src_in, double tolerance, double fit_circle_percent_
 #endif
             if (arc) {
                 // printf("Arc radius: %lf, length: %lf\n", unscaled<double>(arc->radius), arc_length(arc->start_point.cast<double>(), arc->end_point.cast<double>(), arc->radius));
-                // If there is a trailing polyline, decimate it first before saving a new arc.
+                // If there is a trailing polyline, decimate it first before saving the arc.
                 if (out.size() - begin_pl_idx > 2) {
                     // Decimating linear segmens only.
                     assert(std::all_of(out.begin() + begin_pl_idx + 1, out.end(), [](const Segment &seg) { return seg.linear(); }));
@@ -820,11 +821,11 @@ Path fit_path(const Points &src_in, double tolerance, double fit_circle_percent_
                 }
 
 
-                // Save the index of an end of the new circle segment, which may become the first point of a possible future polyline.
+                 // Save the index of an end of the circle segment, which may become the first point of a possible future polyline.
                 begin_pl_idx = int(out.size());
                 // This will be the next point to try to add.
                 it = end;
-                // Add the new arc.
+                // Add the arc.
                 out.push_back({arc->end_point, float(arc->radius), arc->radius == 0 ? Orientation::Unknown : arc->direction});
 #if 0
                 // Verify that all the source points are at tolerance distance from the interpolated path.
@@ -1145,7 +1146,7 @@ PathSegmentProjection point_to_path_projection(const Path &path, const Point &po
                 best_idx = path.size() - 1;
             }
         }
-        // If a new closes point was found, it is closer than search_radius2.
+        // If a closer point was found, it is closer than search_radius2.
         assert((min_point_it == path.cbegin()) == (out.distance2 == search_radius2));
         // Output is not valid yet.
         assert(! out.valid());
