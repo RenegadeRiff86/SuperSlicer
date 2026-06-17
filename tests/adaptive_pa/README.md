@@ -10,7 +10,7 @@ builds and runs in a couple of seconds.
 ## Run
 
 ```
-tests\adaptive_pa\build.bat
+tests\adaptive_pa\run_tests.bat
 ```
 
 It sets up the MSVC environment (VS 2026 / VS 18 `vcvars64.bat`), compiles

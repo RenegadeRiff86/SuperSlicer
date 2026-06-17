@@ -1,7 +1,7 @@
 // Standalone, zero-dependency test harness for AdaptivePAModel (issue #39).
 //
 // AdaptivePressureAdvance.{hpp,cpp} only depend on the C++ standard library, so this
-// builds in ~2 seconds without the rest of libslic3r. Build + run with build.ps1 in
+// builds in ~2 seconds without the rest of libslic3r. Build + run with run_tests.bat in
 // this directory. Add new cases by writing another test_* function and calling it from
 // main(); use CHECK / CHECK_NEAR for assertions.
 
