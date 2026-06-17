@@ -2073,6 +2073,8 @@ void MainFrame::init_menubar_as_editor()
             [this](wxCommandEvent&) { wxGetApp().calibration_pressureadv_dialog(); });
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Adaptive pressure advance calibration")), _(L("Create a flow x acceleration grid to build a per-filament adaptive pressure advance model.")),
             [this](wxCommandEvent&) { wxGetApp().calibration_pressureadv_adaptive_dialog(); });
+        append_menu_item(m_calibration_menu, wxID_ANY, _(L("Adaptive pressure advance results")), _(L("After printing the grid, enter the best pressure advance per box to build the adaptive PA model.")),
+            [this](wxCommandEvent&) { wxGetApp().calibration_pressureadv_adaptive_results_dialog(); });
         m_calibration_menu->AppendSeparator();
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Bridge flow calibration")), _(L("Create a test print to help you to set your bridge flow ratio.")),
             [this](wxCommandEvent&) { wxGetApp().bridge_tuning_dialog(); });

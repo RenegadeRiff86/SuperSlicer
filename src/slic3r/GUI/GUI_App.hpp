@@ -306,6 +306,7 @@ public:
     void            calibration_retraction_dialog();
     void            calibration_pressureadv_dialog();
     void            calibration_pressureadv_adaptive_dialog();
+    void            calibration_pressureadv_adaptive_results_dialog();
     void            freecad_script_dialog();
     void            tiled_canvas_dialog();
     //void            support_tuning(); //have to do multiple, in a submenu

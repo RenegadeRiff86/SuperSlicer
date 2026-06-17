@@ -2773,6 +2773,10 @@ void GUI_App::calibration_pressureadv_adaptive_dialog()
 {
     change_calibration_dialog(nullptr, new CalibrationPressureAdvAdaptiveDialog(this, mainframe));
 }
+void GUI_App::calibration_pressureadv_adaptive_results_dialog()
+{
+    change_calibration_dialog(nullptr, new CalibrationPressureAdvAdaptiveDialog(this, mainframe, /*results_mode*/ true));
+}
 void GUI_App::freecad_script_dialog()
 {
     change_calibration_dialog(nullptr, new FreeCADDialog(this, mainframe));
