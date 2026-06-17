@@ -1171,6 +1171,9 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloats,              filament_dip_extraction_speed)) /* SKINNYDIP OPTIONS END */
     ((ConfigOptionFloats,              filament_pressure_advance))
     ((ConfigOptionFloats,              filament_pressure_advance_smooth_time))
+    ((ConfigOptionBools,               filament_adaptive_pressure_advance))
+    ((ConfigOptionStrings,             filament_adaptive_pressure_advance_model))
+    ((ConfigOptionBools,               filament_adaptive_pressure_advance_overhangs))
     ((ConfigOptionFloats,              filament_solid_infill_pa))
     ((ConfigOptionBools,               filament_soluble))
     ((ConfigOptionFloats,              filament_support_material_pa))
@@ -1867,7 +1870,7 @@ Points get_bed_shape(const SLAPrinterConfig &cfg);
 std::string get_sla_suptree_prefix(const DynamicPrintConfig &config);
 
 // ModelConfig is a wrapper around DynamicPrintConfig with an addition of a timestamp.
-// Each change of ModelConfig is tracked by assigning a new timestamp from a global counter.
+// Each change of ModelConfig is tracked by assigning a timestamp from a global counter.
 // The counter is used for faster synchronization of the background slicing thread
 // with the front end by skipping synchronization of equal config dictionaries.
 // The global counter is also used for avoiding unnecessary serialization of config

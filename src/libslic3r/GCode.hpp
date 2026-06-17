@@ -15,6 +15,7 @@
 #ifndef slic3r_GCode_hpp_
 #define slic3r_GCode_hpp_
 
+#include "GCode/AdaptivePressureAdvance.hpp"
 #include "GCode/ExtrusionProcessor.hpp"
 #include "JumpPointSearch.hpp"
 #include "libslic3r.h"
@@ -408,6 +409,9 @@ private:
     Vec2d                               m_origin;
     FullPrintConfig                     m_config;
     GCodeWriter                         m_writer;
+    // Per-extruder adaptive pressure advance models, built on first use from
+    // filament_adaptive_pressure_advance_model. Empty entry => use static PA.
+    std::map<int, AdaptivePAModel>      m_adaptive_pa_models;
 
     struct PlaceholderParserIntegration {
         void reset();
@@ -603,7 +607,9 @@ private:
     std::string               _travel_before_extrude(const ExtrusionPath &path, const std::string_view description, double speed_mm_s = -1);
     double_t                  _compute_speed_mm_per_sec(const ExtrusionPath &path_attrs, const double speed, double &fan_speed, std::string *comment) const;
     std::pair<double, double> _compute_acceleration(const ExtrusionPath &path);
-    std::pair<double, double> _compute_pressure_advance(const ExtrusionPath &path);
+    std::pair<double, double> _compute_pressure_advance(const ExtrusionPath &path, double speed_mm_s);
+    // Lazily-built per-extruder adaptive pressure advance models, keyed by extruder id.
+    const AdaptivePAModel&    adaptive_pa_model(int extruder_id);
     std::string               _after_extrude(const ExtrusionPath &path);
     void print_machine_envelope(GCodeOutputStream &file, const Print &print);
     int32_t _compute_first_layer_bed_temperature(const Print &print);

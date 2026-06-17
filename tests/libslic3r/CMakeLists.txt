@@ -46,6 +46,7 @@ set(_LIBSLIC3R_TEST_SOURCES
     ../data/prusaparts.cpp
     ../data/prusaparts.hpp
      test_static_map.cpp
+    test_adaptive_pressure_advance.cpp
 	)
 
 if (WIN32)
@@ -53,6 +54,7 @@ if (WIN32)
 	# Keep a smoke target on Windows while the individual cases are being ported.
 	set(_LIBSLIC3R_TEST_SOURCES
 		${_TEST_NAME}_tests.cpp
+		test_adaptive_pressure_advance.cpp
 	)
 endif()
 

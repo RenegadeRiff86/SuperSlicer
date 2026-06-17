@@ -37,6 +37,10 @@ group:Pressure/Linear advance
 		setting:id$0:width$4:filament_pressure_advance
 	line:Smooth time
 		setting:id$0:width$4:filament_pressure_advance_smooth_time
+	line:Adaptive
+		setting:id$0:filament_adaptive_pressure_advance
+		setting:id$0:filament_adaptive_pressure_advance_overhangs
+	setting:id$0:full_width$1:filament_adaptive_pressure_advance_model
 	line:Perimeter pa
 		setting:id$0:width$4:filament_perimeter_pa
 		setting:id$0:width$4:filament_external_perimeter_pa

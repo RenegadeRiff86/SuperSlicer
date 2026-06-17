@@ -58,6 +58,7 @@ class CheckBox;
 namespace Slic3r {
 namespace GUI {
 
+class Tab;
 class TabPresetComboBox;
 class OG_CustomCtrl;
 

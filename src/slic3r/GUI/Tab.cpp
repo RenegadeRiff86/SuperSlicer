@@ -94,7 +94,7 @@ namespace GUI {
 
 
 Tab::Tab(wxBookCtrlBase* parent, const wxString& title, Preset::Type type) :
-    m_parent(parent), m_type(type), m_title(title), m_script_exec()
+    m_parent(parent), m_type(type), m_title(title)
 {
     Create(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBK_LEFT | wxTAB_TRAVERSAL/*, name*/);
     this->SetFont(Slic3r::GUI::wxGetApp().normal_font());
@@ -133,6 +133,7 @@ Tab::Tab(wxBookCtrlBase* parent, const wxString& title, Preset::Type type) :
     }));
 
     m_highlighter.set_timer_owner(this, 0);
+}
 
 // sub new
 void Tab::create_preset_tab()
@@ -464,7 +465,6 @@ void Tab::load_initial_data()
     m_bmp_non_system = has_parent ? &m_bmp_value_unlock : &m_bmp_white_bullet;
     m_ttg_non_system = has_parent ? &m_ttg_value_unlock : &m_ttg_white_bullet_ns;
     m_tt_non_system  = has_parent ? &m_tt_value_unlock  : &m_ttg_white_bullet_ns;
-    m_tt_non_system_script = has_parent ? &m_tt_value_unlock_script : &m_ttg_white_bullet_ns;
 }
 
 int Tab::get_icon_id(const wxString& title, const std::string& icon)
@@ -740,60 +740,6 @@ void Tab::decorate()
             field->set_enable_bitmap_hover(&m_bmp_on_focused, &m_bmp_off_focused);
             field->set_enable_tooltip(_L("This Setting can be disabled/enabled by clicking on this checkbox."));
         }
-    }
-    for (const auto& opt_key2id : this->m_options_script) {
-        Field* field = get_field(opt_key2id.first);
-        if (!field)
-            continue;
-
-        bool is_nonsys_value = false;
-        bool is_modified_value = true;
-        const ScalableBitmap* sys_icon = &m_bmp_value_lock;
-        const ScalableBitmap* icon = &m_bmp_value_revert;
-
-        const wxColour* color = m_is_default_preset ? &m_default_label_clr : &m_sys_label_clr;
-
-        const wxString* sys_tt = &m_tt_value_lock_script;
-        const wxString* tt = &m_tt_value_revert_script;
-
-        //get the values of the other ones
-        bool is_not_sys = false;
-        bool is_not_initial = false;
-        for (const std::string &dep_opt_key_id : field->m_opt.depends_on) {
-            assert(dep_opt_key_id.find("#") == std::string::npos);
-            auto it = m_options_list.find(OptionKeyIdx::scalar(dep_opt_key_id));
-            if (it != m_options_list.end()) {
-                is_not_sys |= ((it->second & osSystemValue) == 0);
-                is_not_initial |= ((it->second & osInitValue) == 0);
-            }
-        }
-
-        // value isn't equal to system value
-        if (is_not_sys) {
-            is_nonsys_value = true;
-            sys_icon = m_bmp_non_system;
-            sys_tt = m_tt_non_system_script;
-            // value is equal to last saved
-            if (!is_not_initial)
-                color = &m_default_label_clr;
-            // value is modified
-            else
-                color = &m_modified_label_clr;
-        }
-        if (!is_not_initial)
-        {
-            is_modified_value = false;
-            icon = &m_bmp_white_bullet;
-            tt = &m_tt_white_bullet_script;
-        }
-
-        field->m_is_nonsys_value = is_nonsys_value;
-        field->m_is_modified_value = is_modified_value;
-        field->set_undo_bitmap(icon);
-        field->set_undo_to_sys_bitmap(sys_icon);
-        field->set_undo_tooltip(tt);
-        field->set_undo_to_sys_tooltip(sys_tt);
-        field->set_label_colour(color);
     }
 
     if (m_active_page)
@@ -1473,19 +1419,6 @@ void Tab::on_value_change(const OptionKeyIdx& opt_key_idx, const boost::any& val
     PrinterTechnology pt = get_printer_technology();
     ConfigOptionsGroup* og_freq_chng_params = wxGetApp().sidebar().og_freq_chng_params(pt);
     
-
-    // script presets
-    auto it = Tab::depsid_2_tabtype_scriptids.find(opt_key_idx.key);
-    if (it != Tab::depsid_2_tabtype_scriptids.end()) {
-        for (const std::pair<Preset::Type, std::string> &tabtype_presetid : it->second) {
-            Tab *script_tab;
-            if (this->type() == tabtype_presetid.first) {
-                script_tab = this;
-            } else {
-                script_tab = wxGetApp().get_tab(tabtype_presetid.first, false);
-            }
-        }
-    }
 
     // update unscripted freq params
     Field* field = og_freq_chng_params->get_field(opt_key_idx);
@@ -2452,7 +2385,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(std::string setting_type_nam
                             values_2_labels.emplace_back(enum_strs[idx], enum_strs[idx + 1]);
                         }
                         // create enum_def in option.opt
-                        option.opt.set_enum_values(GUIType::select_close, values_2_labels);
+                        option.opt.set_enum_values(ConfigOptionDef::GUIType::select_close, values_2_labels);
                         // set the first value as default
                         ConfigOption* default_opt = option.opt.create_default_option();
                         default_opt->set_enum_int(0); // should be generic_enum, set to first.
@@ -2484,7 +2417,6 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(std::string setting_type_nam
                         std::vector<std::string> depends_str;
                         boost::split(depends_str, params[i], boost::is_any_of("$"));
                         for (size_t idx = 1; idx < depends_str.size(); ++idx) {
-                            Tab::depsid_2_tabtype_scriptids[depends_str[idx]].emplace_back(this->type(), option.opt.opt_key);
                             option.opt.depends_on.push_back(depends_str[idx]);
                         }
                     }
@@ -2497,8 +2429,6 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(std::string setting_type_nam
             //    Search::OptionsSearcher::register_label_override(option.opt.opt_key, option.opt.label, option.opt.full_label, option.opt.tooltip);
 
             if (is_script) {
-                //register on tab to get the icons
-                this->m_options_script[option.opt.opt_key] = 0;
                 //register for research
                 wxGetApp().sidebar().get_searcher().append_script_option(option.opt, type_override, id);
             }
@@ -2948,21 +2878,6 @@ void TabFrequent::build()
 
 void TabFrequent::toggle_options()
 {
-
-    // toogle scripted fields
-    // TODO: shouldn't work with arrays. fix it
-    for (auto [key, id] : this->m_options_script) {
-        for (const ConfigOptionsGroupShp &optgrp : m_active_page->m_optgroups) {
-            if (optgrp) {
-                const Option *opt = optgrp->get_option_def(OptionKeyIdx::scalar(key));
-                if (opt && opt->opt.is_script && opt->script) {
-                    Field *field = optgrp->get_field(OptionKeyIdx::scalar(key));
-                    if (field)
-                        field->toggle_widget_enable(opt->script->call_script_function_is_enable(opt->opt));
-                }
-            }
-        }
-    }
 }
 
 void TabFrequent::update_changed_setting(const t_config_option_key& opt_key)
@@ -3032,21 +2947,7 @@ void TabPrint::toggle_options()
     if (!m_active_page) return;
 
     m_config_manipulation.toggle_print_fff_options(m_config);
-    
-    // toogle scripted fields
-    // TODO: shouldn't work with arrays. fix it
-    for (auto [key, id] : this->m_options_script) {
-        for (const ConfigOptionsGroupShp &optgrp : m_active_page->m_optgroups) {
-            if (optgrp) {
-                const Option *opt = optgrp->get_option_def(OptionKeyIdx::scalar(key));
-                if (opt && opt->opt.is_script && opt->script) {
-                    Field *field = optgrp->get_field(OptionKeyIdx::scalar(key));
-                    if (field)
-                        field->toggle_widget_enable(opt->script->call_script_function_is_enable(opt->opt));
-                }
-            }
-        }
-    }
+
 }
 
 void TabPrint::update()
@@ -3458,9 +3359,14 @@ void TabFilament::toggle_options()
         "filament_top_solid_infill_pa", "filament_support_material_pa", "filament_support_material_interface_pa",
         "filament_brim_pa", "filament_bridge_pa", "filament_bridge_internal_pa", "filament_overhangs_pa",
         "filament_gap_fill_pa", "filament_thin_walls_pa", "filament_ironing_pa", "filament_travel_pa",
-        "filament_first_layer_pa", "filament_first_layer_pa_over_raft", "filament_pressure_advance_smooth_time"}) {
+        "filament_first_layer_pa", "filament_first_layer_pa_over_raft", "filament_pressure_advance_smooth_time",
+        "filament_adaptive_pressure_advance"}) {
         toggle_option(field_name, use_pa, 0);
     }
+    // The adaptive PA model + overhang toggle only matter when adaptive PA itself is on.
+    bool use_adaptive_pa = use_pa && m_config->opt_bool("filament_adaptive_pressure_advance", 0);
+    toggle_option("filament_adaptive_pressure_advance_model", use_adaptive_pa, 0);
+    toggle_option("filament_adaptive_pressure_advance_overhangs", use_adaptive_pa, 0);
 
     //if (m_active_page->title() == "Advanced")
     {
@@ -4208,7 +4114,6 @@ void Tab::update_ui_items_related_on_parent_preset(const Preset* selected_preset
     m_bmp_non_system = selected_preset_parent ? &m_bmp_value_unlock : &m_bmp_white_bullet;
     m_ttg_non_system = selected_preset_parent ? &m_ttg_value_unlock : &m_ttg_white_bullet_ns;
     m_tt_non_system  = selected_preset_parent ? &m_tt_value_unlock  : &m_ttg_white_bullet_ns;
-    m_tt_non_system_script = selected_preset_parent ? &m_tt_value_unlock_script : &m_ttg_white_bullet_ns;
 }
 
 // Initialize the UI from the current preset
@@ -6068,14 +5973,6 @@ void Tab::set_tooltips_text()
     m_tt_white_bullet =		_(L("WHITE BULLET icon indicates that the value is the same as in the last saved preset."));
     m_tt_value_revert =		_(L("BACK ARROW icon indicates that the value was changed and is not equal to the last saved preset.\n"
                                 "Click to reset current value to the last saved preset."));
-    // Text for scripted gitwget icon/button
-    m_tt_value_lock_script = _(L("LOCKED LOCK icon indicates that the values this widget control are all the same as the system (or default) values."));
-    m_tt_value_unlock_script = _(L("UNLOCKED LOCK icon indicates that the values this widget control were changed and at least one is not equal "
-        "to the system (or default) value.\n"
-        "Click to reset current all values to the system (or default) values."));
-    m_tt_white_bullet_script = _(L("WHITE BULLET icon indicates that the values this widget control are all the same as in the last saved preset."));
-    m_tt_value_revert_script = _(L("BACK ARROW icon indicates that the values this widget control were changed and at least one is not equal to the last saved preset.\n"
-        "Click to reset current all values to the last saved preset."));
 }
 
 bool Tab::select_preset_by_name(const std::string &name_w_suffix, bool force)
