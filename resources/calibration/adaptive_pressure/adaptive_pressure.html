@@ -1,0 +1,20 @@
+<html>
+<body bgcolor="#ffffff">
+<font size="4">
+<b>Adaptive pressure advance calibration</b><br/>
+<br/>
+This generates a grid of small test patches: each <b>column</b> is printed at a different
+speed (and therefore a different volumetric flow), and each <b>row</b> at a different
+acceleration. The whole grid prints at one <b>fixed</b> pressure advance value (adaptive
+PA is disabled for the calibration print).<br/>
+<br/>
+<b>How to use:</b><br/>
+1. Set the speed and acceleration ranges and a fixed PA, then generate and print.<br/>
+2. Re-print at a few PA values to bracket the best result.<br/>
+3. For each cell, note the speed&times;height (volumetric flow), the acceleration and the
+PA that looked best. Each cube is named <i>s&lt;speed&gt;_a&lt;accel&gt;</i>.<br/>
+4. Paste the resulting <i>PA, volumetric_flow(mm3/s), acceleration(mm/s2)</i> rows into the
+filament's <i>Adaptive PA measurements</i> field (Filament &rarr; Pressure/Linear advance).<br/>
+</font>
+</body>
+</html>

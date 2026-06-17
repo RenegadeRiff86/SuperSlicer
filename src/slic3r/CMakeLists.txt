@@ -53,6 +53,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/CalibrationRetractionDialog.hpp
     GUI/CalibrationPressureAdvDialog.cpp
     GUI/CalibrationPressureAdvDialog.hpp
+    GUI/CalibrationPressureAdvAdaptiveDialog.cpp
+    GUI/CalibrationPressureAdvAdaptiveDialog.hpp
     GUI/ConfigSnapshotDialog.cpp
     GUI/ConfigSnapshotDialog.hpp
     GUI/CreateMMUTiledCanvas.cpp
