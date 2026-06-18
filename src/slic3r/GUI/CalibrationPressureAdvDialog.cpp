@@ -1020,7 +1020,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         const CalibrationStyle style = m_selected_style;
         const bool use_segmented_line_sweep = (style == CalibrationStyle::SegmentedLineSweep);
         if (selected_extrusion_role != ROLE_CHECK_ALL) {//don't apply layer ranges to the main object for CheckAll mode(option isn't supported.and it needs to be!!)
-            if(style == CalibrationStyle::ClassicLineSweep){// Tracked in #49: clearing the plate can loop in ObjectDataViewModel.
+            if(style == CalibrationStyle::ClassicLineSweep){// #49: the layer-range/tree mismatch set up here once hung clear-plate; ObjectDataViewModel::Delete is now guarded against the loop.
 
                 if (infill_every_layers > 1 && selected_extrusion_role == ROLE_INTERNAL_INFILL && infill_dense == false) {
                     ModelConfig range_conf;

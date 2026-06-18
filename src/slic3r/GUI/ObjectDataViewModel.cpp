@@ -815,8 +815,16 @@ wxDataViewItem ObjectDataViewModel::Delete(const wxDataViewItem &item)
             // Delete all sub-items
             int i = m_objects[id]->GetChildCount() - 1;
             while (i >= 0) {
+                const int before = m_objects[id]->GetChildCount();
                 Delete(wxDataViewItem(m_objects[id]->GetNthChild(i)));
-                i = m_objects[id]->GetChildCount() - 1;
+                const int after = m_objects[id]->GetChildCount();
+                // Guard against a malformed subtree (e.g. layer ranges left out of sync with the
+                // model by a calibration generator, #49) where a child's deletion fails to remove
+                // it: without this the loop re-deletes the same node forever and the UI hangs on
+                // "Clear plate". Any children left when we stop are freed by `delete node` below.
+                if (after >= before)
+                    break;
+                i = after - 1;
             }
 			m_objects.erase(it);
         }
