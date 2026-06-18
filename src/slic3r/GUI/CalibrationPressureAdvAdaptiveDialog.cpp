@@ -207,6 +207,18 @@ void CalibrationPressureAdvAdaptiveDialog::create_geometry(wxCommandEvent& event
     new_filament_config.set_key_value("filament_adaptive_pressure_advance", new ConfigOptionBools({ false }));
     new_filament_config.set_key_value("filament_pressure_advance",
         (new ConfigOptionFloats({ double(test_pa) }))->set_can_be_disabled(false));
+    // Force a single uniform PA across the whole grid: disable every per-role PA override so all
+    // roles fall back to filament_pressure_advance (= test_pa). Otherwise a preset's per-role values
+    // (e.g. external_perimeter_pa, overhangs_pa, first_layer_pa) leak through and the cubes print at
+    // mixed PA, so cells differ by more than just speed/acceleration and aren't comparable.
+    for (const char* pa_key : { "filament_perimeter_pa", "filament_external_perimeter_pa",
+            "filament_overhangs_pa", "filament_first_layer_pa", "filament_first_layer_pa_over_raft",
+            "filament_infill_pa", "filament_solid_infill_pa", "filament_top_solid_infill_pa",
+            "filament_bridge_pa", "filament_bridge_internal_pa", "filament_gap_fill_pa",
+            "filament_thin_walls_pa", "filament_ironing_pa", "filament_brim_pa", "filament_travel_pa",
+            "filament_support_material_pa", "filament_support_material_interface_pa" }) {
+        new_filament_config.set_key_value(pa_key, (new ConfigOptionFloats({ 0. }))->set_can_be_disabled(true));
+    }
 
     /// --- per-object config: one cube per (speed, acceleration) cell ---
     int idx = 0;
