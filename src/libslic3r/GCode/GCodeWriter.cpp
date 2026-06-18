@@ -224,9 +224,19 @@ void GCodeWriter::set_pressure_advance(double pa) {
 }
 
 void GCodeWriter::_write_pressure_advance(std::string &gcode) {
-    if (m_current_pressure_advance != m_last_pressure_advance && m_current_pressure_advance >= 0) {
-        gcode += write_pressure_advance(m_current_pressure_advance);
-    }
+    // Skip if disabled or unchanged from the last emitted value.
+    if (m_current_pressure_advance < 0 || m_current_pressure_advance == m_last_pressure_advance)
+        return;
+    // On Klipper every SET_PRESSURE_ADVANCE flushes the motion planner, so emitting a new value
+    // before each feature (when per-feature PA differs only slightly) causes excessive flushes and
+    // visible artifacts (issue #3). Skip changes whose magnitude is at or below
+    // pressure_advance_min_delta. The comparison is against m_last_pressure_advance (the value last
+    // actually written, not requested), so a run of sub-threshold steps still triggers an update
+    // once they accumulate past the threshold. A delta of 0 keeps emit-on-any-change behaviour.
+    const double min_delta = config.pressure_advance_min_delta.value;
+    if (min_delta > 0 && std::abs(m_current_pressure_advance - m_last_pressure_advance) <= min_delta)
+        return;
+    gcode += write_pressure_advance(m_current_pressure_advance);
 }
 
 std::string GCodeWriter::write_pressure_advance(double pa) {

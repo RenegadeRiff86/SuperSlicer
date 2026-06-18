@@ -4384,6 +4384,19 @@ void PrintConfigDef::init_fff_params()
     def->can_be_disabled = true;
     def->set_default_value(disable_default_option(new ConfigOptionFloat(1500)));
 
+    def = this->add("pressure_advance_min_delta", coFloat);
+    def->label = L("Pressure advance minimum change");
+    def->category = OptionCategory::firmware;
+    def->tooltip = L("Only emit a new pressure advance command (SET_PRESSURE_ADVANCE / M900 / M572) when the value "
+        "differs from the last emitted one by more than this amount. On Klipper every pressure advance change "
+        "flushes the motion planner, so when per-feature pressure advance values differ only slightly this avoids "
+        "a flush before nearly every extrusion. The comparison is against the value last written, so small steps "
+        "still take effect once they accumulate past this threshold."
+        "\nSet to 0 to emit on every change.");
+    def->min = 0;
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloat(0.005));
+
     def = this->add("max_fan_speed", coInts);
     def->label = L("Max");
     def->full_label = L("Max fan speed");
@@ -10703,6 +10716,7 @@ KEY_OVERHANGS_WIDTH_SPEED,
 "perimeter_reverse",
 "perimeter_round_corners",
 "perimeters_hole",
+"pressure_advance_min_delta",
 "priming_position",
 "print_bed_temperature",
 "print_extrusion_multiplier",

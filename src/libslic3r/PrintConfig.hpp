@@ -1212,6 +1212,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat,               max_volumetric_extrusion_rate_slope_negative))
     ((ConfigOptionFloats,              milling_z_lift))
     ((ConfigOptionFloat,               parking_pos_retraction))
+    ((ConfigOptionFloat,               pressure_advance_min_delta))
     ((ConfigOptionInt,                 print_bed_temperature))
     ((ConfigOptionInt,                 print_first_layer_bed_temperature))
     ((ConfigOptionBool,                remaining_times))

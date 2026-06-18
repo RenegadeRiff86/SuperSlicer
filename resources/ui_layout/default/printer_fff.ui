@@ -39,6 +39,9 @@ group:silent_mode_event:filename_format_event:Firmware
 		setting:max_gcode_per_second
 #		setting:gcode_command_buffer
 	end_line
+	line:Pressure advance
+		setting:pressure_advance_min_delta
+	end_line
 	line:G2/G3 generation
 		setting:arc_fitting
 		setting:arc_fitting_ignore_holes
