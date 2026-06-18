@@ -259,7 +259,7 @@ std::string GCodeWriter::write_pressure_advance(double pa) {
     } else if (FLAVOR_IS(gcfKlipper)) {
         pa = std::clamp(pa, 0.0, KLIPPER_PA_SANE_MAX);
         gcode = std::string("SET_PRESSURE_ADVANCE ADVANCE=") + to_string_nozero(pa, 4);
-        if (this->config.tool_name.size() > tool_id && !this->config.tool_name.get_at(tool_id).empty()) {
+        if (tool_id >= 0 && size_t(tool_id) < this->config.tool_name.size() && !this->config.tool_name.get_at(tool_id).empty()) {
             gcode += std::string(" EXTRUDER=") + this->config.tool_name.get_at(tool_id);
             } else if(tool_id > 0){
                 gcode += std::string(" EXTRUDER=extruder") + std::to_string(tool_id);
@@ -269,8 +269,11 @@ std::string GCodeWriter::write_pressure_advance(double pa) {
         // Optional Klipper SMOOTH_TIME: when set, smooths pressure changes over this window.
         const int st_idx = tool_id >= 0 ? tool_id : 0;
         if (this->config.filament_pressure_advance_smooth_time.is_enabled(st_idx)) {
-            gcode += std::string(" SMOOTH_TIME=")
-                + to_string_nozero(this->config.filament_pressure_advance_smooth_time.get_at(st_idx), 4);
+            // Klipper hard-limits SMOOTH_TIME to 200ms and rejects the command above that, so
+            // clamp before emitting (the config option itself is not capped). See issue #36.
+            const double smooth_time = std::clamp(
+                this->config.filament_pressure_advance_smooth_time.get_at(st_idx), 0.0, 0.2);
+            gcode += std::string(" SMOOTH_TIME=") + to_string_nozero(smooth_time, 4);
         }
     } else {
         // if (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfMarlinLegacy))
