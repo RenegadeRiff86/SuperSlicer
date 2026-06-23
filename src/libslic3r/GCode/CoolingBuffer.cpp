@@ -1,3 +1,4 @@
+///|/ Modified 2026 by Stan Elston (RenegadeRiff86) -- see git history.
 ///|/ Copyright (c) Prusa Research 2017 - 2023 Lukáš Matěna @lukasmatena, Pavel Mikuš @Godrak, Vojtěch Bubník @bubnikv
 ///|/ Copyright (c) Slic3r 2016 Alessandro Ranellucci @alranel
 ///|/

@@ -1,4 +1,5 @@
 ///|/ Adaptive Pressure Advance model (issue #39)
+///|/ Copyright (c) 2026 Stan Elston (RenegadeRiff86)
 ///|/
 ///|/ PrusaSlicer/SuperSlicer is released under the terms of the AGPLv3 or higher
 ///|/

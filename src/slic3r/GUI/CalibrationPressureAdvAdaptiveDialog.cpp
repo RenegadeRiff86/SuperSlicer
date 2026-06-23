@@ -1,3 +1,7 @@
+///|/ Copyright (c) 2026 Stan Elston (RenegadeRiff86)
+///|/
+///|/ SuperSlicer is released under the terms of the AGPLv3 or higher.
+///|/
 #include "CalibrationPressureAdvAdaptiveDialog.hpp"
 #include "I18N.hpp"
 #include "libslic3r/AppConfig.hpp"

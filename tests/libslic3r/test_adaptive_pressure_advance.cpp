@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Stan Elston (RenegadeRiff86)
+//
+// SuperSlicer is released under the terms of the AGPLv3 or higher.
+//
 #include <catch2/catch.hpp>
 
 #include <libslic3r/GCode/AdaptivePressureAdvance.hpp>

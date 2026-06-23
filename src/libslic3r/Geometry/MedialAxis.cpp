@@ -1,3 +1,4 @@
+///|/ Modified 2026 by Stan Elston (RenegadeRiff86) -- see git history.
 ///|/ Copyright (c) superslicer 2021 - 2023 Durand Rémi @supermerill
 ///// Copyright (c) Prusa Research 2021 - 2022 Vojtěch Bubník @bubnikv
 ///|/

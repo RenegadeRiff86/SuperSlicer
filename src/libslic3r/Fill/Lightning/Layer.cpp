@@ -1,3 +1,4 @@
+// Modified 2026 by Stan Elston (RenegadeRiff86) -- see git history.
 //Copyright (c) 2021 Ultimaker B.V.
 //CuraEngine is released under the terms of the AGPLv3 or higher.
 

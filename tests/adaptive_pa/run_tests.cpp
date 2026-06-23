@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Stan Elston (RenegadeRiff86)
+//
+// SuperSlicer is released under the terms of the AGPLv3 or higher.
+//
 // Standalone, zero-dependency test harness for AdaptivePAModel (issue #39).
 //
 // AdaptivePressureAdvance.{hpp,cpp} only depend on the C++ standard library, so this

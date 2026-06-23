@@ -1,3 +1,5 @@
+# Modified 2026 by Stan Elston (RenegadeRiff86) -- see git history.
+# SuperSlicer is released under the terms of the AGPLv3 or higher.
 #note: all settings are id$0 as the slicer consider there is only one value in the arrays in the gui.
 page:Filament:spool
 group:filament_spool_weight_event:Filament

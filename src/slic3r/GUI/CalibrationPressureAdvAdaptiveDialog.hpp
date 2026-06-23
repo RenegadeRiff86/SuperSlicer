@@ -1,3 +1,7 @@
+///|/ Copyright (c) 2026 Stan Elston (RenegadeRiff86)
+///|/
+///|/ SuperSlicer is released under the terms of the AGPLv3 or higher.
+///|/
 #ifndef slic3r_GUI_CalibrationPressureAdvAdaptiveDialog_hpp_
 #define slic3r_GUI_CalibrationPressureAdvAdaptiveDialog_hpp_
 

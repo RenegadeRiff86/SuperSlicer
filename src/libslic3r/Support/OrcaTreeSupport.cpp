@@ -1,3 +1,7 @@
+///|/ Modified 2026 by Stan Elston (RenegadeRiff86) -- see git history.
+///|/
+///|/ SuperSlicer is released under the terms of the AGPLv3 or higher.
+///|/
 #include <chrono>
 #include <math.h>
 
