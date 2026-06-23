@@ -808,6 +808,11 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                 Eigen::Vector3d bend_pos_first = bend_90_positions[0];
                 Eigen::Vector3d bend_pos_mid = bend_90_positions[count_increments/2];
                 Eigen::Vector3d bend_pos_last = bend_90_positions[count_increments-1];
+                // True vertical centre of the bend stack. The left/right borders must be centred
+                // here, NOT on bend_pos_mid (the middle-INDEX bend): that index only equals the
+                // centre for odd counts. For even counts it sits half a bend-pitch high, shifting
+                // the side borders up and leaving the bottom border disconnected (#46).
+                const double tower_center_y = (bend_pos_first.y() + bend_pos_last.y()) / 2.0;
 
                 Eigen::Vector3d number_pos_first = number_positions[0];
                 Eigen::Vector3d number_pos_mid = number_positions[0];
@@ -850,11 +855,11 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
 
 
                 add_part(model.objects[objs_idx[id_item]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / "pa_border.3mf").string(),
-                        Vec3d{ left_border_x_pos , bend_pos_mid.y(), z_others_pos },
+                        Vec3d{ left_border_x_pos , tower_center_y, z_others_pos },
                         /*scale*/Vec3d{ scaled_l_border_x_percentage, scaled_lr_border_y_percentage, z_scale_others }, false);count_borders++;         //Left border
                 
                 add_part(model.objects[objs_idx[id_item]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / "pa_border.3mf").string(),
-                    Vec3d{ right_border_x_pos , bend_pos_mid.y(), z_others_pos },
+                    Vec3d{ right_border_x_pos , tower_center_y, z_others_pos },
                         /*scale*/Vec3d{ scaled_r_border_x_percentage , scaled_lr_border_y_percentage , z_scale_others}, false);count_borders++;        //right border
                 
 
@@ -868,10 +873,15 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                 //  scale model in percentage from original models xy values!
 
 
-                if (id_item < 10){ //will break if max test count goes higher. ie currentTestCount
+                // Only label the run with its ID when there is more than one run to tell apart.
+                // For a single run the ID "0" is redundant and collides with the PA=0 value label (#47).
+                if (currentTestCount > 1 && id_item < 10){ //will break if max test count goes higher. ie currentTestCount
                     add_part(model.objects[objs_idx[id_item]],(boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / (std::to_string(id_item) + std::string(".3mf"))).string(),
                         Vec3d{ number_pos_mid.x(), bend_pos_first.y() - (xy_scaled_90_bend_y / 2) + (xy_scaled_number_y / 2), z_scaled_model_height },
                             /*scale*/Vec3d{ xyzScale * er_width_to_scale, xyzScale * er_width_to_scale, z_scale_numbers }, false);count_borders++;      // currentTestCount identifer
+                    // Record the run-ID digit so the number base plate (sized from number_positions
+                    // below) extends to cover it, instead of leaving it orphaned on the border (#47).
+                    number_positions.push_back(Eigen::Vector3d(number_pos_mid.x(), bend_pos_first.y() - (xy_scaled_90_bend_y / 2) + (xy_scaled_number_y / 2), z_scaled_model_height));
                 }
             }
 
@@ -916,6 +926,38 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                         xpos = number_positions.back().x();
                     }
                 }
+            }
+        }
+
+        // First-layer base under the number column (#47). The embossed digits otherwise
+        // print as loose characters straight on the bed, with a tiny first-layer footprint, so
+        // they adhere poorly and are a pain to remove. Add one flat plate sized from the actual
+        // digit positions, one layer tall: it merges into the digits' own first layer, so the
+        // raised upper layers still show the numbers but the whole label strip lifts off as one
+        // attached piece. Sits to the right of the bends (over the number column only), so it
+        // does not touch the test geometry. Skipped for CheckAll (no per-bend numbers there).
+        if (selected_extrusion_role != ROLE_CHECK_ALL && number_positions.size() > 1) {
+            double nx_min = number_positions[0].x(), nx_max = number_positions[0].x();
+            double ny_min = number_positions[0].y(), ny_max = number_positions[0].y();
+            for (const Eigen::Vector3d& np : number_positions) {
+                nx_min = std::min(nx_min, np.x()); nx_max = std::max(nx_max, np.x());
+                ny_min = std::min(ny_min, np.y()); ny_max = std::max(ny_max, np.y());
+            }
+            // Extra room to the left/right of the digits so they aren't flush with the pad edge.
+            const double base_margin_x = nozzle_diameter * 8;
+            const double base_margin_y = nozzle_diameter * 3;
+            const double base_size_x = (nx_max - nx_min) + xy_scaled_number_x + base_margin_x;
+            const double base_size_y = (ny_max - ny_min) + xy_scaled_number_y + base_margin_y;
+            add_part(model.objects[objs_idx[id_item]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / "pa_border.3mf").string(),
+                Vec3d{ (nx_min + nx_max) / 2.0, (ny_min + ny_max) / 2.0, z_others_pos },
+                /*scale*/Vec3d{ base_size_x / initial_border_x, base_size_y / initial_border_y, z_scale_others }, false);count_borders++;       //number base plate
+            // The pad only needs to tie the digits together for handling, so print it with the
+            // lightest fill: sparse infill, no solid top/bottom shells, a single perimeter.
+            if (ModelVolume* base_vol = model.objects[objs_idx[id_item]]->volumes.back()) {
+                base_vol->config.set_key_value("bottom_solid_layers", new ConfigOptionInt(0));
+                base_vol->config.set_key_value("top_solid_layers", new ConfigOptionInt(0));
+                base_vol->config.set_key_value("perimeters", new ConfigOptionInt(1));
+                base_vol->config.set_key_value("fill_density", new ConfigOptionPercent(80));
             }
         }
     }
