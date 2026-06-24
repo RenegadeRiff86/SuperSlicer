@@ -101,7 +101,6 @@ enum ConfigMenuIDs {
     ConfigMenuDesktopIntegration,
     ConfigMenuPreferences,
     ConfigMenuLanguage,
-    ConfigMenuFlashFirmware,
     ConfigMenuWifiConfigFile,
     ConfigMenuCnt,
     //ConfigMenuModeSimple,

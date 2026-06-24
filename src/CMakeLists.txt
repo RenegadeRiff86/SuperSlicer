@@ -6,7 +6,6 @@ if (NOT APPLE)
     add_subdirectory(test-utils)
 endif ()
 add_subdirectory(admesh)
-add_subdirectory(avrdude)
 # boost/nowide
 add_subdirectory(boost)
 add_subdirectory(clipper)
