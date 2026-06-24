@@ -33,6 +33,15 @@
 namespace Slic3r {
 namespace FillAdaptive {
 
+// An octree node subdivides its cube into 8 children (a 2x2x2 grid); this count
+// drives the child arrays, traversal orders, and per-child loops below.
+static constexpr size_t OctreeChildrenCount = 8;
+
+// Positional tolerance in scaled coordinates, used when merging collinear infill
+// line segments and when validating intersection points (as a distance, and as a
+// squared distance via the product below). SCALED_EPSILON (100) proved too tight.
+static constexpr double InfillLineTolScaled = 1000.;
+
 // Derived from https://github.com/juj/MathGeoLib/blob/master/src/Geometry/Triangle.cpp
 // The AABB-Triangle test implementation is based on the pseudo-code in
 // Christer Ericson's Real-Time Collision Detection, pp. 169-172. It is
@@ -164,79 +173,18 @@ bool triangle_AABB_intersects(const Vector &a, const Vector &b, const Vector &c,
     return true;
 }
 
-//    static double dist2_to_triangle(const Vec3d &a, const Vec3d &b, const Vec3d &c, const Vec3d &p)
-//    {
-//        double out = std::numeric_limits<double>::max();
-//        const Vec3d v1 = b - a;
-//        auto        l1 = v1.squaredNorm();
-//        const Vec3d v2 = c - b;
-//        auto        l2 = v2.squaredNorm();
-//        const Vec3d v3 = a - c;
-//        auto        l3 = v3.squaredNorm();
-
-//        // Is the triangle valid?
-//        if (l1 > 0. && l2 > 0. && l3 > 0.)
-//        {
-//            // 1) Project point into the plane of the triangle.
-//            const Vec3d n = v1.cross(v2);
-//            double d = (p - a).dot(n);
-//            const Vec3d foot_pt = p - n * d / n.squaredNorm();
-
-//            // 2) Maximum projection of n.
-//            int proj_axis;
-//            n.array().cwiseAbs().maxCoeff(&proj_axis);
-
-//            // 3) Test whether the foot_pt is inside the triangle.
-//            {
-//                auto inside_triangle = [](const Vec2d& v1, const Vec2d& v2, const Vec2d& v3, const Vec2d& pt) {
-//                    const double d1 = cross2(v1, pt);
-//                    const double d2 = cross2(v2, pt);
-//                    const double d3 = cross2(v3, pt);
-//                    // Testing both CCW and CW orientations.
-//                    return (d1 >= 0. && d2 >= 0. && d3 >= 0.) || (d1 <= 0. && d2 <= 0. && d3 <= 0.);
-//                };
-//                bool inside;
-//                switch (proj_axis) {
-//                case 0:
-//                    inside = inside_triangle({v1.y(), v1.z()}, {v2.y(), v2.z()}, {v3.y(), v3.z()}, {foot_pt.y(), foot_pt.z()}); break;
-//                case 1:
-//                    inside = inside_triangle({v1.z(), v1.x()}, {v2.z(), v2.x()}, {v3.z(), v3.x()}, {foot_pt.z(), foot_pt.x()}); break;
-//                default:
-//                    assert(proj_axis == 2);
-//                    inside = inside_triangle({v1.x(), v1.y()}, {v2.x(), v2.y()}, {v3.x(), v3.y()}, {foot_pt.x(), foot_pt.y()}); break;
-//                }
-//                if (inside)
-//                    return (p - foot_pt).squaredNorm();
-//            }
-
-//            // 4) Find minimum distance to triangle vertices and edges.
-//            out = std::min((p - a).squaredNorm(), std::min((p - b).squaredNorm(), (p - c).squaredNorm()));
-//            auto t = (p - a).dot(v1);
-//            if (t > 0. && t < l1)
-//                out = std::min(out, (a + v1 * (t / l1) - p).squaredNorm());
-//            t = (p - b).dot(v2);
-//            if (t > 0. && t < l2)
-//                out = std::min(out, (b + v2 * (t / l2) - p).squaredNorm());
-//            t = (p - c).dot(v3);
-//            if (t > 0. && t < l3)
-//                out = std::min(out, (c + v3 * (t / l3) - p).squaredNorm());
-//        }
-
-//        return out;
-//    }
-
 // Ordering of children cubes.
-static const std::array<Vec3d, 8> child_centers {
+static const std::array<Vec3d, OctreeChildrenCount> child_centers {
     Vec3d(-1, -1, -1), Vec3d( 1, -1, -1), Vec3d(-1,  1, -1), Vec3d( 1,  1, -1),
     Vec3d(-1, -1,  1), Vec3d( 1, -1,  1), Vec3d(-1,  1,  1), Vec3d( 1,  1,  1)
 };
 
 // Traversal order of octree children cells for three infill directions,
 // so that a single line will be discretized in a strictly monotonic order.
-static constexpr std::array<std::array<int, 8>, 3> child_traversal_order {
-    std::array<int, 8>{ 2, 3, 0, 1, 6, 7, 4, 5 },
-    std::array<int, 8>{ 4, 0, 6, 2, 5, 1, 7, 3 },
-    std::array<int, 8>{ 1, 5, 0, 4, 3, 7, 2, 6 },
+static constexpr std::array<std::array<int, OctreeChildrenCount>, 3> child_traversal_order {
+    std::array<int, OctreeChildrenCount>{ 2, 3, 0, 1, 6, 7, 4, 5 },
+    std::array<int, OctreeChildrenCount>{ 4, 0, 6, 2, 5, 1, 7, 3 },
+    std::array<int, OctreeChildrenCount>{ 1, 5, 0, 4, 3, 7, 2, 6 },
 };
 
 struct Cube
@@ -245,7 +193,7 @@ struct Cube
 #ifndef NDEBUG
     Vec3d center_octree;
 #endif // NDEBUG
-    std::array<Cube*, 8> children {}; // initialized to nullptrs
+    std::array<Cube*, OctreeChildrenCount> children {}; // initialized to nullptrs
     Cube(const Vec3d &center) : center(center) {}
 };
 
@@ -389,7 +337,7 @@ struct FillContext
     // Top of the current layer.
     const double                        z_position;
     // Order of traversal for this line direction.
-    const std::array<int, 8>            traversal_order;
+    const std::array<int, OctreeChildrenCount> traversal_order;
     // Rotation of the generated line for this line direction.
     const double                        cos_a;
     const double                        sin_a;
@@ -423,9 +371,9 @@ static bool verify_traversal_order(
     const Vec2d  &line_from,
     const Vec2d  &line_to)
 {
-    std::array<Vec3d, 8> c;
+    std::array<Vec3d, OctreeChildrenCount> c;
     Eigen::Quaterniond to_world = transform_to_world();
-    for (int i = 0; i < 8; ++i) {
+    for (size_t i = 0; i < OctreeChildrenCount; ++i) {
         int j = context.traversal_order[i];
         Vec3d cntr = to_world * (cube->center_octree + (child_centers[j] * (context.cubes_properties[depth].edge_length / 4.)));
         assert(!cube->children[j] || cube->children[j]->center.isApprox(cntr));
@@ -487,7 +435,7 @@ static void generate_infill_lines_recursive(
         Line  new_line(Point::new_scale(from), Point::new_scale(to));
         if (last_line.a.x() == std::numeric_limits<coord_t>::max()) {
             last_line.a = new_line.a;
-        } else if ((new_line.a - last_line.b).cwiseAbs().maxCoeff() > 1000) { // SCALED_EPSILON is 100 and it is not enough
+        } else if ((new_line.a - last_line.b).cwiseAbs().maxCoeff() > InfillLineTolScaled) {
             context.output_lines.emplace_back(last_line);
             last_line.a = new_line.a;
         }
@@ -689,7 +637,7 @@ static void add_hook(
         const double t  = va.dot(v) / l2;
         assert(t > 0. && t < 1.);
         const double          d  = (t * v - va).norm();
-        assert(d < 1000.);
+        assert(d < InfillLineTolScaled);
     }
 #endif // NDEBUG
 
@@ -791,7 +739,7 @@ bool validate_intersection_t_joint(const Intersection &intersection)
     const double t = va.dot(v);
     assert(t > SCALED_EPSILON && t < l2 - SCALED_EPSILON);
     const double d = ((t / l2) * v - va).norm();
-    assert(d < 1000.);
+    assert(d < InfillLineTolScaled);
     return true;
 }
 bool validate_intersections(const std::vector<Intersection> &intersections)
@@ -931,11 +879,11 @@ static Polylines connect_lines_using_hooks(Polylines &&lines, const ExPolygon &b
                             const auto &seg = closest.front().first;
                             struct Linef { Vec2d a; Vec2d b; };
                             Linef l { { bg::get<0, 0>(seg), bg::get<0, 1>(seg) }, { bg::get<1, 0>(seg), bg::get<1, 1>(seg) } };
-                            assert(line_alg::distance_to_squared(l, Vec2d(pt.cast<double>())) > 1000 * 1000);
+                            assert(line_alg::distance_to_squared(l, Vec2d(pt.cast<double>())) > InfillLineTolScaled * InfillLineTolScaled);
     #endif // NDEBUG
                         } else if (pl.size() >= 2 && 
                             //FIXME Hoping that pl is really a line, trimmed by a polygon using ClipperUtils. Sometimes Clipper leaves some additional collinear points on the polyline, let's hope it is all right.
-                            Line{ pl.front(), pl.back() }.distance_to_squared(pt) <= 1000 * 1000)
+                            Line{ pl.front(), pl.back() }.distance_to_squared(pt) <= InfillLineTolScaled * InfillLineTolScaled)
                             out = closest.front().second;
                     }
                     return out;
@@ -1301,7 +1249,7 @@ bool has_no_collinear_lines(const Polylines &polylines)
         auto assert_not_collinear = [&closest_end_point_lookup](const LineEnd &line_start) {
             std::vector<std::pair<const LineEnd*, double>> hits = closest_end_point_lookup.find_all(line_start.point());
             for (const std::pair<const LineEnd*, double> &hit : hits)
-                if ((line_start.point() - hit.first->point()).cwiseAbs().maxCoeff() <= 1000) {
+                if ((line_start.point() - hit.first->point()).cwiseAbs().maxCoeff() <= InfillLineTolScaled) {
                     // End points of the two lines are very close, they should have been merged together if they are collinear.
                     Vec2d v1 = line_start.vec();
                     Vec2d v2 = hit.first->vec();
@@ -1531,7 +1479,7 @@ void Octree::insert_triangle(const Vec3d &a, const Vec3d &b, const Vec3d &c, Cub
     // Squared radius of a sphere around the child cube.
     // const double r2_cube = Slic3r::sqr(0.5 * this->cubes_properties[depth].height + EPSILON);
 
-    for (size_t i = 0; i < 8; ++ i) {
+    for (size_t i = 0; i < OctreeChildrenCount; ++ i) {
         const Vec3d &child_center_dir = child_centers[i];
         // Calculate a slightly expanded bounding box of a child cube to cope with triangles touching a cube wall and other numeric errors.
         // We will rather densify the octree a bit more than necessary instead of missing a triangle.

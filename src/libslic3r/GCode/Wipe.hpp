@@ -49,14 +49,6 @@ public:
     static double calc_xy_to_e_ratio(const GCodeWriter &writer, unsigned int extruder_id) 
         { return 0.95 * floor(writer.gcode_config().retract_speed.get_at(extruder_id) + 0.5) / calc_wipe_speed(writer).first; }
     
-    //superslicer method to update the wipe 
-    //void            append(const Point &p);
-    //void            append(const Polyline &p);
-    //void            set(const Polyline &p);
-    //void            reverse() { path.reverse(); }
-    //void            clip_start(coord_t dist) { path.clip_start(dist); }
-    //void            translate(const Point &trsl) { path.translate(trsl); } // replaced by offset_path
-
 private:
     bool    m_enabled{ false };
     // Maximum length of a path to accumulate. Only wipes shorter than this threshold will be requested.

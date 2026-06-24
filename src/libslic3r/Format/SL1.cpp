@@ -233,7 +233,7 @@ void SL1Archive::export_print(Zipper               &zipper,
     }
 }
 
-void SL1Archive::export_print(const std::string     fname,
+void SL1Archive::export_print(const std::string    &fname,
                               const SLAPrint       &print,
                               const ThumbnailsList &thumbnails,
                               const std::string    &prjname)

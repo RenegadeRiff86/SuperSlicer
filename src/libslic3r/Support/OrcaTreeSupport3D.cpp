@@ -402,9 +402,9 @@ static std::vector<std::pair<OrcaTreeSupportSettings, std::vector<size_t>>> grou
                     }
                     if (config.dont_support_bridges) {
                         for (const LayerRegion *layerm : current_layer.regions())
-                            remove_bridges_from_contacts(print_config, lower_layer, *layerm,
-                                                         float(layerm->flow(frExternalPerimeter).scaled_width()),
-                                                         overhangs);
+                            FFFSupport::remove_bridges_from_contacts(print_config, lower_layer, *layerm,
+                                                                     float(layerm->flow(frExternalPerimeter).scaled_width()),
+                                                                     overhangs);
                     }
                 }
 

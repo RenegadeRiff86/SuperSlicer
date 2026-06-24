@@ -217,7 +217,7 @@ Integrals operator+(const Integrals &a, const Integrals &b)
     return Integrals{a.area + b.area, a.x_i + b.x_i, a.x_i_squared + b.x_i_squared, a.xy + b.xy};
 }
 
-SliceConnection estimate_slice_connection(size_t slice_idx, const Layer *layer)
+static SliceConnection estimate_slice_connection(size_t slice_idx, const Layer *layer)
 {
     SliceConnection connection;
 
@@ -255,7 +255,7 @@ SliceConnection estimate_slice_connection(size_t slice_idx, const Layer *layer)
 };
 
 using PrecomputedSliceConnections = std::vector<std::vector<SliceConnection>>;
-PrecomputedSliceConnections precompute_slices_connections(const PrintObject *po)
+static PrecomputedSliceConnections precompute_slices_connections(const PrintObject *po)
 {
     PrecomputedSliceConnections result{};
     for (size_t lidx = 0; lidx < po->layer_count(); lidx++) {
@@ -277,7 +277,7 @@ PrecomputedSliceConnections precompute_slices_connections(const PrintObject *po)
     return result;
 };
 
-float get_flow_width(const LayerRegion *region, ExtrusionRole role)
+static float get_flow_width(const LayerRegion *region, ExtrusionRole role)
 {
     if (role == ExtrusionRole::BridgeInfill) return region->flow(FlowRole::frExternalPerimeter).width();
     if (role == ExtrusionRole::ExternalPerimeter) return region->flow(FlowRole::frExternalPerimeter).width();
@@ -290,7 +290,7 @@ float get_flow_width(const LayerRegion *region, ExtrusionRole role)
     return region->flow(FlowRole::frPerimeter).width();
 }
 
-float estimate_curled_up_height(
+static float estimate_curled_up_height(
     float distance, float curvature, float layer_height, float flow_width, float prev_line_curled_height, Params params)
 {
     float curled_up_height = 0;
@@ -329,7 +329,7 @@ float estimate_curled_up_height(
     return curled_up_height;
 }
 
-std::vector<ExtrusionLine> check_extrusion_entity_stability(const ExtrusionEntity                      *entity,
+static std::vector<ExtrusionLine> check_extrusion_entity_stability(const ExtrusionEntity                      *entity,
                                                             const LayerRegion                          *layer_region,
                                                             const LD                                   &prev_layer_lines,
                                                             const AABBTreeLines::LinesDistancer<Linef> &prev_layer_boundary,
@@ -776,7 +776,7 @@ std::tuple<float, SupportPointCause> ObjectPart::is_stable_while_extruding(const
     }
 }
 
-std::vector<const ExtrusionEntityCollection*> gather_extrusions(const LayerSlice& slice, const Layer* layer) {
+static std::vector<const ExtrusionEntityCollection*> gather_extrusions(const LayerSlice& slice, const Layer* layer) {
     // TODO reserve might be good, benchmark
     std::vector<const ExtrusionEntityCollection*> result;
 
@@ -803,12 +803,12 @@ std::vector<const ExtrusionEntityCollection*> gather_extrusions(const LayerSlice
     return result;
 }
 
-bool has_brim(const Layer* layer, const Params& params) {
+static bool has_brim(const Layer* layer, const Params& params) {
     return layer->id() == 0 && layer->object()->has_brim();
 }
 
 
-Polygons get_brim(const Layer* layer, const size_t slice_idx, const float brim_width_outer, const float brim_width_inner) {
+static Polygons get_brim(const Layer* layer, const size_t slice_idx, const float brim_width_outer, const float brim_width_inner) {
     const ExPolygon& slice_polygon = layer->lslices()[slice_idx];
     // TODO: The algorithm here should take into account that multiple slices may
     // have coliding Brim areas and the final brim area is smaller,
@@ -902,7 +902,7 @@ public:
 
 // Function that is used when new support point is generated. It will update the ObjectPart stability, weakest conneciton info,
 // and the support presence grid and add the point to the issues.
-void reckon_new_support_point(ObjectPart        &part,
+static void reckon_new_support_point(ObjectPart        &part,
                               SliceConnection   &weakest_conn,
                               SupportPoints     &supp_points,
                               SupportGridFilter &supports_presence_grid,
@@ -948,7 +948,7 @@ struct EnitityToCheck
 };
 
 // TODO DRY: Very similar to gather extrusions.
-std::vector<EnitityToCheck> gather_entities_to_check(const Layer* layer) {
+static std::vector<EnitityToCheck> gather_entities_to_check(const Layer* layer) {
     auto get_flat_entities = [](const ExtrusionEntity *e) {
         std::vector<const ExtrusionEntity *> entities;
         std::vector<const ExtrusionEntity *> queue{e};
@@ -992,7 +992,7 @@ std::vector<EnitityToCheck> gather_entities_to_check(const Layer* layer) {
     return entities_to_check;
 }
 
-LocalSupports compute_local_supports(
+static LocalSupports compute_local_supports(
     const std::vector<EnitityToCheck>& entities_to_check,
     const std::optional<Linesf>& previous_layer_boundary,
     const LD& prev_layer_ext_perim_lines,
@@ -1045,7 +1045,7 @@ struct SliceMappings
     std::unordered_map<size_t, SliceConnection> index_to_weakest_connection;
 };
 
-std::optional<PartialObject> to_partial_object(const ObjectPart& part) {
+static std::optional<PartialObject> to_partial_object(const ObjectPart& part) {
     if (part.volume > EPSILON) {
         return PartialObject{part.volume_centroid_accumulator / part.volume, part.volume,
                                      part.connected_to_bed};
@@ -1053,7 +1053,7 @@ std::optional<PartialObject> to_partial_object(const ObjectPart& part) {
     return {};
 }
 
-SliceMappings update_active_object_parts(const Layer                        *layer,
+static SliceMappings update_active_object_parts(const Layer                        *layer,
                                          const Params                       &params,
                                          const std::vector<SliceConnection> &precomputed_slice_connections,
                                          const SliceMappings                &previous_slice_mappings,
@@ -1148,7 +1148,7 @@ SliceMappings update_active_object_parts(const Layer                        *lay
     return new_slice_mappings;
 }
 
-void reckon_global_supports(const tbb::concurrent_vector<ExtrusionLine> &external_perimeter_lines,
+static void reckon_global_supports(const tbb::concurrent_vector<ExtrusionLine> &external_perimeter_lines,
                             const coordf_t                               layer_bottom_z,
                             const Params                                &params,
                             ObjectPart                                  &part,
@@ -1178,7 +1178,7 @@ void reckon_global_supports(const tbb::concurrent_vector<ExtrusionLine> &externa
     }
 }
 
-std::tuple<SupportPoints, PartialObjects> check_stability(const PrintObject                 *po,
+static std::tuple<SupportPoints, PartialObjects> check_stability(const PrintObject                 *po,
                                                           const PrecomputedSliceConnections &precomputed_slices_connections,
                                                           const PrintTryCancel              &cancel_func,
                                                           const Params                      &params)
@@ -1244,7 +1244,7 @@ std::tuple<SupportPoints, PartialObjects> check_stability(const PrintObject     
 }
 
 #ifdef DEBUG_FILES
-void debug_export(const SupportPoints& support_points,const PartialObjects& objects, std::string file_name)
+static void debug_export(const SupportPoints& support_points,const PartialObjects& objects, const std::string &file_name)
 {
     Slic3r::CNumericLocalesSetter locales_setter;
     {

@@ -30,18 +30,17 @@ namespace nowide {
             return 0;
         buffer_size --;
         while(source_begin!=source_end) {
-            using namespace boost::locale::utf;
-            code_point c = utf_traits<CharIn>::template decode<CharIn const *>(source_begin,source_end);
-            if(c==illegal || c==incomplete) {
+            boost::locale::utf::code_point c = boost::locale::utf::utf_traits<CharIn>::template decode<CharIn const *>(source_begin,source_end);
+            if(c==boost::locale::utf::illegal || c==boost::locale::utf::incomplete) {
                 rv = 0;
                 break;
             }
-            size_t width = utf_traits<CharOut>::width(c);
+            size_t width = boost::locale::utf::utf_traits<CharOut>::width(c);
             if(buffer_size < width) {
                 rv=0;
                 break;
             }
-            buffer = utf_traits<CharOut>::template encode<CharOut *>(c,buffer);
+            buffer = boost::locale::utf::utf_traits<CharOut>::template encode<CharOut *>(c,buffer);
             buffer_size -= width;
         }
         *buffer++ = 0;

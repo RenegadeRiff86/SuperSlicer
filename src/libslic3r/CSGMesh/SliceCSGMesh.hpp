@@ -56,7 +56,8 @@ std::vector<ExPolygons> slice_csgmesh_ex(
     const MeshSlicingParamsEx   &params,
     const std::function<void()> &throw_on_cancel = [] {})
 {
-    using namespace detail;
+    using detail::collect_nonempty_indices;
+    using detail::merge_slices;
 
     struct Frame { CSGType op; std::vector<ExPolygons> slices; };
 

@@ -62,7 +62,7 @@ template<class It>
 VoxelGridPtr voxelize_csgmesh(const Range<It>      &csgrange,
                               const VoxelizeParams &params = {})
 {
-    using namespace detail;
+    using detail::perform_csg;
 
     VoxelGridPtr ret;
 

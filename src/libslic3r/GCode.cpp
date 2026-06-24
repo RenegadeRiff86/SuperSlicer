@@ -6292,18 +6292,17 @@ void GCodeGenerator::extrude_perimeters(const ExtrudeArgs &print_args, const Lay
     m_region = &print.get_print_region(layerm.region().print_region_id());
     bool first = true;
     ExtrusionEntityCollection to_extrude(true, true);
-//
-//#ifdef _DEBUG
-//    struct OverhangAssertVisitor : public ExtrusionVisitorRecursiveConst {
-//        virtual void default_use(const ExtrusionEntity& entity) override {};
-//        virtual void use(const ExtrusionPath &path) override {
-//            if (path.role().has(ExtrusionRole::OverhangPerimeter))
-//                assert(path.attributes().overhang_attributes.has_value());
-//        }
-//    };
-//    OverhangAssertVisitor visitor;
-//    layerm.perimeters().visit(visitor);
-//#endif
+#ifdef _DEBUG
+    struct OverhangAssertVisitor : public ExtrusionVisitorRecursiveConst {
+        void default_use(const ExtrusionEntity &) override {}
+        void use(const ExtrusionPath &path) override {
+            if (path.role().is_overhang())
+                assert(path.attributes().overhang_attributes.has_value());
+        }
+    };
+    OverhangAssertVisitor visitor;
+    layerm.perimeters().visit(visitor);
+#endif
     for (uint32_t perimeter_id : island.perimeters) {
         // Extrusions inside islands are expected to be ordered already.
         // Don't reorder them. (supermerill: it's reordered afterwards by the chain_extrusion_references)

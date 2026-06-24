@@ -50,7 +50,7 @@ public:
     }
 
     // Export the print into an archive using the provided filename.
-    virtual void export_print(const std::string     fname,
+    virtual void export_print(const std::string    &fname,
                               const SLAPrint       &print,
                               const ThumbnailsList &thumbnails,
                               const std::string    &projectname = "") = 0;

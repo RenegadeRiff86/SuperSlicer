@@ -108,7 +108,7 @@ void fill_slicerconf(ConfMap &m, const SLAPrint &print)
 
 } // namespace
 
-void MaskedCWSArchive::export_print(const std::string     fname,
+void MaskedCWSArchive::export_print(const std::string    &fname,
                               const SLAPrint       &print,
                               const ThumbnailsList &thumbnails,
                               const std::string &prjname)

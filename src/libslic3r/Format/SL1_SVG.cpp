@@ -154,8 +154,6 @@ public:
 
     void draw(const ExPolygon& poly) override
     {
-        auto cpoly = poly;
-
         double tol = std::min(m_bb.size().x() / double(m_res.width_px),
                               m_bb.size().y() / double(m_res.height_px));
 
@@ -204,10 +202,10 @@ std::unique_ptr<sla::RasterBase> SL1_SVGArchive::create_raster() const
     auto res_x = size_t(std::round(scale_d(w) / precision_nm));
     auto res_y = size_t(std::round(scale_d(h) / precision_nm));
 
-    std::array<bool, 2> mirror;
-
-    mirror[X] = cfg().display_mirror_x.value;
-    mirror[Y] = cfg().display_mirror_y.value;
+    std::array<bool, 2> mirror{
+        cfg().display_mirror_x.value,
+        cfg().display_mirror_y.value
+    };
 
     auto ro = cfg().display_orientation.value;
     sla::RasterBase::Orientation orientation =
@@ -234,7 +232,7 @@ sla::RasterEncoder SL1_SVGArchive::get_encoder() const
     return nullptr;
 }
 
-void SL1_SVGArchive::export_print(const std::string     fname,
+void SL1_SVGArchive::export_print(const std::string    &fname,
                                   const SLAPrint       &print,
                                   const ThumbnailsList &thumbnails,
                                   const std::string    &projectname)
@@ -292,7 +290,7 @@ ConfigSubstitutions SL1_SVGReader::read(std::vector<ExPolygons> &slices,
             for (NSVGpath *path = shape->paths; path != nullptr; path = path->next) {
                 Polygon p;
                 for (int i = 0; i < path->npts; ++i) {
-                    size_t c = 2 * i;
+                    size_t c = size_t(2) * size_t(i);
                     p.points.emplace_back(scaled(Vec2f(path->pts[c], path->pts[c + 1])));
                 }
                 polys.emplace_back(p);

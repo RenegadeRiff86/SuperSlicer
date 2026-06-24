@@ -49,23 +49,23 @@ public:
     bool open(const std::string &filename, const BoundingBox &bbox, const coord_t bbox_offset = scale_(1.), bool flipY = true)
         { return open(filename.c_str(), bbox, bbox_offset, flipY); }
 
-    void draw(const Line &line, std::string stroke = "black", coordf_t stroke_width = 0);
+    void draw(const Line &line, const std::string &stroke = "black", coordf_t stroke_width = 0);
     void draw(const ThickLine &line, const std::string &fill, const std::string &stroke, coordf_t stroke_width = 0);
-    void draw(const Lines &lines, std::string stroke = "black", coordf_t stroke_width = 0);
+    void draw(const Lines &lines, const std::string &stroke = "black", coordf_t stroke_width = 0);
     
-    void draw(const ExPolygon &expolygon, std::string fill = "grey", const float fill_opacity=1.f);
-    void draw_outline(const ExPolygon &polygon, std::string stroke_outer = "black", std::string stroke_holes = "blue", coordf_t stroke_width = 0);
-    void draw(const ExPolygons &expolygons, std::string fill = "grey", const float fill_opacity=1.f);
-    void draw_outline(const ExPolygons &polygons, std::string stroke_outer = "black", std::string stroke_holes = "blue", coordf_t stroke_width = 0);
+    void draw(const ExPolygon &expolygon, const std::string &fill = "grey", const float fill_opacity=1.f);
+    void draw_outline(const ExPolygon &polygon, const std::string &stroke_outer = "black", const std::string &stroke_holes = "blue", coordf_t stroke_width = 0);
+    void draw(const ExPolygons &expolygons, const std::string &fill = "grey", const float fill_opacity=1.f);
+    void draw_outline(const ExPolygons &polygons, const std::string &stroke_outer = "black", const std::string &stroke_holes = "blue", coordf_t stroke_width = 0);
 
-    void draw(const Surface &surface, std::string fill = "grey", const float fill_opacity=1.f);
-    void draw_outline(const Surface &surface, std::string stroke_outer = "black", std::string stroke_holes = "blue", coordf_t stroke_width = 0);
-    void draw(const Surfaces &surfaces, std::string fill = "grey", const float fill_opacity=1.f);
-    void draw_outline(const Surfaces &surfaces, std::string stroke_outer = "black", std::string stroke_holes = "blue", coordf_t stroke_width = 0);
+    void draw(const Surface &surface, const std::string &fill = "grey", const float fill_opacity=1.f);
+    void draw_outline(const Surface &surface, const std::string &stroke_outer = "black", const std::string &stroke_holes = "blue", coordf_t stroke_width = 0);
+    void draw(const Surfaces &surfaces, const std::string &fill = "grey", const float fill_opacity=1.f);
+    void draw_outline(const Surfaces &surfaces, const std::string &stroke_outer = "black", const std::string &stroke_holes = "blue", coordf_t stroke_width = 0);
     //void draw(const SurfacesPtr& surfaces, std::string fill = "grey", const float fill_opacity = 1.f);
     //void draw_outline(const SurfacesPtr& surfaces, std::string stroke_outer = "black", std::string stroke_holes = "blue", coordf_t stroke_width = 0);
-    void draw(const SurfacesConstPtr& surfaces, std::string fill = "grey", const float fill_opacity = 1.f);
-    void draw_outline(const SurfacesConstPtr& surfaces, std::string stroke_outer = "black", std::string stroke_holes = "blue", coordf_t stroke_width = 0);
+    void draw(const SurfacesConstPtr& surfaces, const std::string &fill = "grey", const float fill_opacity = 1.f);
+    void draw_outline(const SurfacesConstPtr& surfaces, const std::string &stroke_outer = "black", const std::string &stroke_holes = "blue", coordf_t stroke_width = 0);
  
     void draw(const Polygon &polygon, const std::string &fill = "grey");
     void draw_outline(const Polygon &polygon, const std::string &stroke = "black", coordf_t stroke_width = 0);

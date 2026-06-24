@@ -18,7 +18,7 @@ public:
     explicit MaskedCWSArchive(const SLAPrinterConfig &cfg): SL1Archive(cfg) {}
     explicit MaskedCWSArchive(SLAPrinterConfig &&cfg): SL1Archive(std::move(cfg)) {}
     // Export the print into an archive using the provided filename.
-    void export_print(const std::string     fname,
+    void export_print(const std::string    &fname,
                               const SLAPrint       &print,
                               const ThumbnailsList &thumbnails,
                               const std::string    &projectname = "") override;

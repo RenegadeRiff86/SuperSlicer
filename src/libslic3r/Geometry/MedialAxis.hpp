@@ -149,33 +149,33 @@ private:
     void fusion_corners(ThickPolylines& pp);
     /// extends the polylines inside bounds, use extends_line on both end
     void extends_line_both_side(ThickPolylines& pp);
-    void extends_line_extra(ThickPolylines& pp);
+    void extends_line_extra(ThickPolylines& pp) const;
     /// extends the polylines inside bounds (anchors)
     void extends_line(ThickPolyline& polyline, const ExPolygons& anchors, const coord_t join_width);
     /// find the closest intersection of the line with the expolygon boundary (contour or holes); used by extends_line. Returns false if none.
     bool find_best_expolygon_intersection(const Line& line, Point& out_point) const;
     /// remove too thin bits at start & end of polylines
-    void remove_too_thin_extrusion(ThickPolylines& pp);
-    void remove_too_thick_extrusion(ThickPolylines& pp);
+    void remove_too_thin_extrusion(ThickPolylines& pp) const;
+    void remove_too_thick_extrusion(ThickPolylines& pp) const;
     /// when we have a too small polyline, try to see if we can't concatenate it at a crossing to keep it.
-    void concatenate_small_polylines(ThickPolylines& pp);
+    void concatenate_small_polylines(ThickPolylines& pp) const;
     /// instead of keeping polyline split at each corssing, we try to create long strait polylines that can cross each other.
     void concatenate_polylines_with_crossing(ThickPolylines& pp);
     /// remove bits around points that are too thin (can be inside the polyline)
-    void remove_too_thin_points(ThickPolylines& pp);
-    void remove_too_thick_points(ThickPolylines& pp);
+    void remove_too_thin_points(ThickPolylines& pp) const;
+    void remove_too_thick_points(ThickPolylines& pp) const;
     /// delete polylines that are too short (below the this->min_length)
-    void remove_too_short_polylines(ThickPolylines& pp);
+    void remove_too_short_polylines(ThickPolylines& pp) const;
     /// be sure we didn't try to push more plastic than the volume defined by surface * height can receive. If overextruded, reduce all widths by the correct %.
     void ensure_not_overextrude(ThickPolylines& pp);
     /// if nozzle_diameter > min_width, grow bits that are < width(nozzle_diameter) to width(nozzle_diameter) (don't activate that for gapfill)
-    void grow_to_nozzle_diameter(ThickPolylines& pp, const ExPolygons& anchors);
+    void grow_to_nozzle_diameter(ThickPolylines& pp, const ExPolygons& anchors) const;
     /// taper the ends of polylines (don't activate that for gapfill)
     void taper_ends(ThickPolylines& pp);
     //cleaning method
-    void check_width(ThickPolylines& pp, coord_t max_width, std::string msg);
+    void check_width(ThickPolylines& pp, coord_t max_width, const std::string &msg);
     //removing small extrusion that won't be useful and will harm print. A bit like fusion_corners but more lenient and with just del.
-    void remove_bits(ThickPolylines& pp);
+    void remove_bits(ThickPolylines& pp) const;
 };
 
 /// create a ExtrusionEntitiesPtr from ThickPolylines, discretizing the variable width into little sections (of 4*SCALED_RESOLUTION length) where needed. Please delete all ptr if not used.

@@ -381,59 +381,6 @@ void init()
     key_translation_map["use_relative_e_distances"]            = "use_relative_e_distances";
     key_translation_map["wipe"]                                = "wipe";
 
-//    'physical_printer' => {
-    //    host_type                    => 1,
-    //    print_host                   => 1,
-    //    printer_technology           => 1,
-    //    printhost_apikey             => 1,
-    //    printhost_authorization_type => 1,
-    //    printhost_cafile             => 1,
-    //    printhost_password           => 1,
-    //    printhost_port               => 1,
-    //    printhost_ssl_ignore_revoke  => 1,
-    //    printhost_user               => 1,
-    //}
-
-//#Printer parameters that may be comma - separated lists
-//my %multivalue_params = (
-//key_translation_map["single"]="max_layer_height";
-//key_translation_map["single"]="min_layer_height";
-//key_translation_map["single"]="deretract_speed";
-//key_translation_map["single"]="default_filament_profile";
-//key_translation_map["array"]="machine_max_acceleration_e";
-//key_translation_map["array"]="machine_max_acceleration_extruding";
-//key_translation_map["array"]="machine_max_acceleration_extruding";
-//key_translation_map["array"]="machine_max_acceleration_retracting";
-//key_translation_map["array"]="machine_max_acceleration_travel";
-//key_translation_map["array"]="machine_max_acceleration_x";
-//key_translation_map["array"]="machine_max_acceleration_y";
-//key_translation_map["array"]="machine_max_acceleration_z";
-//key_translation_map["array"]="machine_max_feedrate_e";
-//key_translation_map["array"]="machine_max_feedrate_x";
-//key_translation_map["array"]="machine_max_feedrate_y";
-//key_translation_map["array"]="machine_max_feedrate_z";
-//key_translation_map["array"]="machine_max_jerk_e";
-//key_translation_map["array"]="machine_max_jerk_x";
-//key_translation_map["array"]="machine_max_jerk_y";
-//key_translation_map["array"]="machine_max_jerk_z";
-//key_translation_map["array"]="machine_min_extruding_rate";
-//key_translation_map["array"]="machine_min_travel_rate";
-//key_translation_map["single"]="nozzle_diameter";
-//key_translation_map["array"]="bed_shape";
-//key_translation_map["single"]="retract_before_wipe";
-//key_translation_map["single"]="retract_length_toolchange";
-//key_translation_map["single"]="retract_restart_extra_toolchange";
-//key_translation_map["single"]="retract_restart_extra";
-//key_translation_map["single"]="retract_layer_change";
-//key_translation_map["single"]="retract_length";
-//key_translation_map["single"]="retract_lift";
-//key_translation_map["single"]="retract_before_travel";
-//key_translation_map["single"]="retract_speed";
-//key_translation_map["array"]="thumbnails";
-//key_translation_map["single"]="extruder_offset";
-//key_translation_map["single"]="retract_lift_above";
-//key_translation_map["single"]="retract_lift_below";
-//key_translation_map["single"]="wipe";
     //pattern
     value_translation_map["fill_pattern"]["monotonicline"] = "monotoniclines"; //2.7
     value_translation_map["fill_pattern"]["zig-zag"] = "rectilinear";

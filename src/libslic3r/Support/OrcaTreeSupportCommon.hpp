@@ -15,14 +15,17 @@
 
 #include <string_view>
 
-using namespace Slic3r::FFFSupport;
-
 namespace Slic3r
 {
     // The number of vertices in each circle.
     static constexpr const size_t SUPPORT_TREE_CIRCLE_RESOLUTION = 25;
 namespace OrcaTreeSupport3D
 {
+using FFFSupport::SupporLayerType;
+using FFFSupport::SupportGeneratorLayer;
+using FFFSupport::SupportGeneratorLayerStorage;
+using FFFSupport::SupportGeneratorLayersPtr;
+using FFFSupport::SupportParameters;
 using LayerIndex = int;
 
 enum class InterfacePreference

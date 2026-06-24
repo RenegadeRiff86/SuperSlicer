@@ -540,32 +540,7 @@ int avrdude_main(int argc, char * argv [])
   safemode      = 1;       /* Safemode on by default */
   silentsafe    = 0;       /* Ask by default */
   is_open       = 0;
-  // logfile       = NULL;
-
-// #if defined(WIN32NATIVE)
-
-//   win_sys_config_set(sys_config);
-//   win_usr_config_set(usr_config);
-
-// #else
-
-//   strcpy(sys_config, CONFIG_DIR);
-//   i = strlen(sys_config);
-//   if (i && (sys_config[i-1] != '/'))
-//     strcat(sys_config, "/");
-//   strcat(sys_config, "avrdude.conf");
-
   usr_config[0] = 0;
-//   homedir = getenv("HOME");
-//   if (homedir != NULL) {
-//     strcpy(usr_config, homedir);
-//     i = strlen(usr_config);
-//     if (i && (usr_config[i-1] != '/'))
-//       strcat(usr_config, "/");
-//     strcat(usr_config, ".avrduderc");
-//   }
-
-// #endif
 
   len = (int)strlen(progname) + 2;
   for (i=0; i<len; i++)

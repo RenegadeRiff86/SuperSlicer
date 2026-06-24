@@ -19,14 +19,17 @@
 
 #include <string_view>
 
-using namespace Slic3r::FFFSupport;
-
 namespace Slic3r
 {
 
 namespace FFFTreeSupport
 {
 
+using FFFSupport::SupporLayerType;
+using FFFSupport::SupportGeneratorLayer;
+using FFFSupport::SupportGeneratorLayerStorage;
+using FFFSupport::SupportGeneratorLayersPtr;
+using FFFSupport::SupportParameters;
 using LayerIndex = int;
 
 enum class InterfacePreference

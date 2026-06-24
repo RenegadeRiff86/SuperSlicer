@@ -93,7 +93,8 @@ void perform_csgmesh_booleans(MeshBoolean::cgal::CGALMeshPtr &cgalm,
 {
     using MeshBoolean::cgal::CGALMesh;
     using MeshBoolean::cgal::CGALMeshPtr;
-    using namespace detail_cgal;
+    using detail_cgal::get_cgalptrs;
+    using detail_cgal::perform_csg;
 
     struct Frame {
         CSGType op; CGALMeshPtr cgalptr;
@@ -139,7 +140,7 @@ void perform_csgmesh_booleans(MeshBoolean::cgal::CGALMeshPtr &cgalm,
 template<class It, class Visitor>
 It check_csgmesh_booleans(const Range<It> &csgrange, Visitor &&vfn)
 {
-    using namespace detail_cgal;
+    using detail_cgal::CGALMeshPtr;
 
     std::vector<CGALMeshPtr> cgalmeshes(csgrange.size());
     auto check_part = [&csgrange, &cgalmeshes](size_t i)

@@ -56,7 +56,7 @@ bool SVG::open(const char* afilename, const BoundingBox &bbox, const coord_t bbo
     return true;
 }
 
-void SVG::draw(const Line &line, std::string stroke, coordf_t stroke_width)
+void SVG::draw(const Line &line, const std::string &stroke, coordf_t stroke_width)
 {
     fprintf(this->f,
         "   <line x1=\"%f\" y1=\"%f\" x2=\"%f\" y2=\"%f\" style=\"stroke: %s; stroke-width: %f\"",
@@ -87,13 +87,13 @@ void SVG::draw(const ThickLine &line, const std::string &fill, const std::string
         (stroke_width == 0) ? 1.f : to_svg_coord(stroke_width));
 }
 
-void SVG::draw(const Lines &lines, std::string stroke, coordf_t stroke_width)
+void SVG::draw(const Lines &lines, const std::string &stroke, coordf_t stroke_width)
 {
     for (const Line &l : lines)
         this->draw(l, stroke, stroke_width);
 }
 
-void SVG::draw(const ExPolygon &expolygon, std::string fill, const float fill_opacity)
+void SVG::draw(const ExPolygon &expolygon, const std::string &fill, const float fill_opacity)
 {
     this->fill = fill;
     
@@ -103,7 +103,7 @@ void SVG::draw(const ExPolygon &expolygon, std::string fill, const float fill_op
     this->path(d, true, 0, fill_opacity);
 }
 
-void SVG::draw_outline(const ExPolygon &expolygon, std::string stroke_outer, std::string stroke_holes, coordf_t stroke_width)
+void SVG::draw_outline(const ExPolygon &expolygon, const std::string &stroke_outer, const std::string &stroke_holes, coordf_t stroke_width)
 {
     draw_outline(expolygon.contour, stroke_outer, stroke_width);
     for (Polygons::const_iterator it = expolygon.holes.begin(); it != expolygon.holes.end(); ++ it) {
@@ -111,35 +111,35 @@ void SVG::draw_outline(const ExPolygon &expolygon, std::string stroke_outer, std
     }
 }
 
-void SVG::draw(const ExPolygons &expolygons, std::string fill, const float fill_opacity)
+void SVG::draw(const ExPolygons &expolygons, const std::string &fill, const float fill_opacity)
 {
     for (ExPolygons::const_iterator it = expolygons.begin(); it != expolygons.end(); ++it)
         this->draw(*it, fill, fill_opacity);
 }
 
-void SVG::draw_outline(const ExPolygons &expolygons, std::string stroke_outer, std::string stroke_holes, coordf_t stroke_width)
+void SVG::draw_outline(const ExPolygons &expolygons, const std::string &stroke_outer, const std::string &stroke_holes, coordf_t stroke_width)
 {
     for (ExPolygons::const_iterator it = expolygons.begin(); it != expolygons.end(); ++ it)
         draw_outline(*it, stroke_outer, stroke_holes, stroke_width);
 }
 
-void SVG::draw(const Surface &surface, std::string fill, const float fill_opacity)
+void SVG::draw(const Surface &surface, const std::string &fill, const float fill_opacity)
 {
     draw(surface.expolygon, fill, fill_opacity);
 }
 
-void SVG::draw_outline(const Surface &surface, std::string stroke_outer, std::string stroke_holes, coordf_t stroke_width)
+void SVG::draw_outline(const Surface &surface, const std::string &stroke_outer, const std::string &stroke_holes, coordf_t stroke_width)
 {
     draw_outline(surface.expolygon, stroke_outer, stroke_holes, stroke_width);
 }
 
-void SVG::draw(const Surfaces &surfaces, std::string fill, const float fill_opacity)
+void SVG::draw(const Surfaces &surfaces, const std::string &fill, const float fill_opacity)
 {
     for (Surfaces::const_iterator it = surfaces.begin(); it != surfaces.end(); ++it)
         this->draw(*it, fill, fill_opacity);
 }
 
-void SVG::draw_outline(const Surfaces &surfaces, std::string stroke_outer, std::string stroke_holes, coordf_t stroke_width)
+void SVG::draw_outline(const Surfaces &surfaces, const std::string &stroke_outer, const std::string &stroke_holes, coordf_t stroke_width)
 {
     for (Surfaces::const_iterator it = surfaces.begin(); it != surfaces.end(); ++ it)
         draw_outline(*it, stroke_outer, stroke_holes, stroke_width);
@@ -158,14 +158,14 @@ void SVG::draw_outline(const Surfaces &surfaces, std::string stroke_outer, std::
 //}
 
 void
-SVG::draw(const SurfacesConstPtr& surfaces, std::string fill, const float fill_opacity)
+SVG::draw(const SurfacesConstPtr& surfaces, const std::string &fill, const float fill_opacity)
 {
     for (SurfacesConstPtr::const_iterator it = surfaces.begin(); it != surfaces.end(); ++it)
         this->draw(*(*it), fill, fill_opacity);
 }
 
 void
-SVG::draw_outline(const SurfacesConstPtr& surfaces, std::string stroke_outer, std::string stroke_holes, coordf_t stroke_width)
+SVG::draw_outline(const SurfacesConstPtr& surfaces, const std::string &stroke_outer, const std::string &stroke_holes, coordf_t stroke_width)
 {
     for (SurfacesConstPtr::const_iterator it = surfaces.begin(); it != surfaces.end(); ++it)
         draw_outline(*(*it), stroke_outer, stroke_holes, stroke_width);

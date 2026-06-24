@@ -196,15 +196,12 @@
 // applications work. To keep an app-wide insert mode, update/copy the
 // "insert_mode" field of STB_TexteditState before/after calling API functions.
 //
-// API
+// API entry points
 //
-//    void stb_textedit_initialize_state(STB_TexteditState *state, int is_single_line)
-//
-//    void stb_textedit_click(STB_TEXTEDIT_STRING *str, STB_TexteditState *state, float x, float y)
-//    void stb_textedit_drag(STB_TEXTEDIT_STRING *str, STB_TexteditState *state, float x, float y)
-//    int  stb_textedit_cut(STB_TEXTEDIT_STRING *str, STB_TexteditState *state)
-//    int  stb_textedit_paste(STB_TEXTEDIT_STRING *str, STB_TexteditState *state, STB_TEXTEDIT_CHARTYPE *text, int len)
-//    void stb_textedit_key(STB_TEXTEDIT_STRING *str, STB_TexteditState *state, STB_TEXEDIT_KEYTYPE key)
+//    stb_textedit_initialize_state initializes an editor state.
+//    stb_textedit_click and stb_textedit_drag update the cursor and selection.
+//    stb_textedit_cut and stb_textedit_paste modify the string.
+//    stb_textedit_key processes a text-editing key.
 //
 //    Each of these functions potentially updates the string and updates the
 //    state.

@@ -611,8 +611,11 @@ bool GraphData::deserialize(const std::string &str)
 }
 
 //TODO: replace ConfigOptionDef* by ConfigOptionDef&
-ConfigSubstitution::ConfigSubstitution(const ConfigOptionDef *def, std::string old, ConfigOptionUniquePtr &&new_v)
+ConfigSubstitution::ConfigSubstitution(const ConfigOptionDef *def, const std::string &old, ConfigOptionUniquePtr &&new_v)
     : opt_def(def), old_name(def->opt_key), old_value(old), new_value(std::move(new_v)) { assert(def); }
+
+ConfigSubstitution::ConfigSubstitution(const ConfigOptionDef *def, std::string &&old, ConfigOptionUniquePtr &&new_v)
+    : opt_def(def), old_name(def->opt_key), old_value(std::move(old)), new_value(std::move(new_v)) { assert(def); }
 
 std::optional<ConfigSubstitution> ConfigSubstitutionContext::find(const std::string &old_name) {
     for (const ConfigSubstitution & conf: m_substitutions) {
@@ -621,7 +624,7 @@ std::optional<ConfigSubstitution> ConfigSubstitutionContext::find(const std::str
     }
     return {};
 }
-bool ConfigSubstitutionContext::erase(std::string old_name) {
+bool ConfigSubstitutionContext::erase(const std::string &old_name) {
     for (size_t idx_susbst = 0; idx_susbst < m_substitutions.size(); ++idx_susbst) {
         if (old_name == m_substitutions[idx_susbst].old_name) {
             m_substitutions.erase(m_substitutions.begin() + idx_susbst);

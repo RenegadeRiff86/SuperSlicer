@@ -36,7 +36,7 @@ public:
     explicit SL1Archive(const SLAPrinterConfig &cfg): m_cfg(cfg) {}
     explicit SL1Archive(SLAPrinterConfig &&cfg): m_cfg(std::move(cfg)) {}
 
-    void export_print(const std::string     fname,
+    void export_print(const std::string    &fname,
                       const SLAPrint       &print,
                       const ThumbnailsList &thumbnails,
                       const std::string    &projectname = "") override;

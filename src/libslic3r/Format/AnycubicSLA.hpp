@@ -44,7 +44,7 @@ public:
     explicit AnycubicSLAArchive(SLAPrinterConfig &&cfg, uint16_t version):
         m_cfg(std::move(cfg)), m_version(version) {}
 
-    void export_print(const std::string     fname,
+    void export_print(const std::string    &fname,
                       const SLAPrint       &print,
                       const ThumbnailsList &thumbnails,
                       const std::string    &projectname = "") override;

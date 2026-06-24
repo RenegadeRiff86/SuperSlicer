@@ -40,6 +40,12 @@
 
 namespace Slic3r {
 
+// Failsafe clamp for the auto-computed gap-fill flow multiplier: the corrective
+// flow factor is limited to [0.8, 1.3] (-20% .. +30%) so a bad volume estimate
+// cannot grossly over- or under-extrude.
+static constexpr double GapFillFlowMultMax = 1.3;
+static constexpr double GapFillFlowMultMin = 0.8;
+
 Fill* Fill::new_from_type(const InfillPattern type)
 {
     switch (type) {
@@ -315,10 +321,10 @@ void Fill::fill_surface_extrusion_with_gap_fill(const Surface *surface,
             if (extruded_volume != 0 && polyline_volume != 0)
                 mult_flow = polyline_volume / extruded_volume;
             // failsafe, it can happen
-            if (mult_flow > 1.3)
-                mult_flow = 1.3;
-            if (mult_flow < 0.8)
-                mult_flow = 0.8;
+            if (mult_flow > GapFillFlowMultMax)
+                mult_flow = GapFillFlowMultMax;
+            if (mult_flow < GapFillFlowMultMin)
+                mult_flow = GapFillFlowMultMin;
             BOOST_LOG_TRIVIAL(debug) << "Solid Infill (with gapfill) process extrude "
                                     << extruded_volume << " mm3 for a volume of " << polyline_volume
                                     << " mm3 : we mult the flow by " << mult_flow;
@@ -401,8 +407,8 @@ void Fill::fill_surface_extrusion(const Surface *surface, const FillParams &para
                 double polyline_volume = compute_unscaled_volume_to_fill(surface, params);
                 if (extruded_volume != 0 && polyline_volume != 0) mult_flow *= polyline_volume / extruded_volume;
                 //failsafe, it can happen
-                if (mult_flow > 1.3) mult_flow = 1.3;
-                if (mult_flow < 0.8) mult_flow = 0.8;
+                if (mult_flow > GapFillFlowMultMax) mult_flow = GapFillFlowMultMax;
+                if (mult_flow < GapFillFlowMultMin) mult_flow = GapFillFlowMultMin;
                 BOOST_LOG_TRIVIAL(info) << "Layer " << layer_id << ": Arachne Fill process extrude " << extruded_volume << " mm3 for a volume of " << polyline_volume << " mm3 : we mult the flow by " << mult_flow;
             }
             mult_flow *= params.flow_mult;
@@ -447,8 +453,8 @@ void Fill::fill_surface_extrusion(const Surface *surface, const FillParams &para
                 double polyline_volume = compute_unscaled_volume_to_fill(surface, params);
                 if (extruded_volume != 0 && polyline_volume != 0) mult_flow *= polyline_volume / extruded_volume;
                 //failsafe, it can happen
-                if (mult_flow > 1.3) mult_flow = 1.3;
-                if (mult_flow < 0.8) mult_flow = 0.8;
+                if (mult_flow > GapFillFlowMultMax) mult_flow = GapFillFlowMultMax;
+                if (mult_flow < GapFillFlowMultMin) mult_flow = GapFillFlowMultMin;
                 BOOST_LOG_TRIVIAL(info) << "Layer " << layer_id << ": Fill process extrude " << extruded_volume << " mm3 for a volume of " << polyline_volume << " mm3 : we mult the flow by " << mult_flow;
             }
 #if _DEBUG
@@ -2623,15 +2629,15 @@ BoundaryInfillGraph create_boundary_infill_graph(const Polylines &infill_ordered
                     // Add these points to the destination contour.
                     const Polyline  &infill_line = infill_ordered[it->second / 2];
                     const Point     &pt          = (it->second & 1) ? infill_line.points.back() : infill_line.points.front();
-//#ifndef NDEBUG
-//                    {
-//                      const Vec2d pt1 = ipt.cast<double>();
-//                      const Vec2d pt2 = (idx_point + 1 == contour_src.size() ? contour_src.points.front() : contour_src.points[idx_point + 1]).cast<double>();
-//                      const Vec2d ptx = lerp(pt1, pt2, it->first.t);
-//                      assert(std::abs(ptx.x() - pt.x()) < SCALED_EPSILON);
-//                      assert(std::abs(ptx.y() - pt.y()) < SCALED_EPSILON);
-//                    }
-//#endif // NDEBUG
+#ifndef NDEBUG
+                    {
+                        const Vec2d pt1 = ipt.cast<double>();
+                        const Vec2d pt2 = (idx_point + 1 == contour_src.size() ? contour_src.points.front() : contour_src.points[idx_point + 1]).cast<double>();
+                        const Vec2d ptx = lerp(pt1, pt2, it->first.t);
+                        assert(std::abs(ptx.x() - pt.x()) < SCALED_EPSILON);
+                        assert(std::abs(ptx.y() - pt.y()) < SCALED_EPSILON);
+                    }
+#endif // NDEBUG
                     size_t idx_tjoint_pt = 0;
                     if (idx_point + 1 < contour_src.size() || pt != contour_dst.front()) {
                         if (pt != contour_dst.back())
@@ -3946,10 +3952,10 @@ void FillWithPerimeter::fill_surface_extrusion(const Surface *surface,
             if (extruded_volume != 0 && polyline_volume != 0)
                 mult_flow = polyline_volume / extruded_volume;
             // failsafe, it can happen
-            if (mult_flow > 1.3)
-                mult_flow = 1.3;
-            if (mult_flow < 0.8)
-                mult_flow = 0.8;
+            if (mult_flow > GapFillFlowMultMax)
+                mult_flow = GapFillFlowMultMax;
+            if (mult_flow < GapFillFlowMultMin)
+                mult_flow = GapFillFlowMultMin;
             BOOST_LOG_TRIVIAL(info) << "rectilinear/monotonic Infill (with gapfil) process extrude "
                                     << extruded_volume << " mm3 for a volume of " << polyline_volume
                                     << " mm3 : we mult the flow by " << mult_flow;

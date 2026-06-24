@@ -9,10 +9,7 @@
 #include "MedialAxis.hpp"
 
 #include "clipper.hpp"
-#include "../ClipperUtils.hpp"
 #include "ClipperUtils.hpp"
-
-#include <boost/log/trivial.hpp>
 
 namespace Slic3r { namespace Geometry {
 
@@ -381,7 +378,7 @@ MedialAxis::retrieve_endpoint(const VD::cell_type* cell, Lines& lines) const
 
 
 /// remove point that are at SCALED_EPSILON * 2 distance.
-void
+static void
 remove_point_too_near(ThickPolyline* to_reduce)
 {
     const coord_t smallest = (coord_t)SCALED_EPSILON * 2;
@@ -406,7 +403,7 @@ remove_point_too_near(ThickPolyline* to_reduce)
 
 /// add points  from pattern to to_modify at the same % of the length
 /// so not add if an other point is present at the correct position
-void
+static void
 add_point_same_percent(ThickPolyline* pattern, ThickPolyline* to_modify)
 {
     const coordf_t to_modify_length = to_modify->length();
@@ -447,7 +444,7 @@ add_point_same_percent(ThickPolyline* pattern, ThickPolyline* to_modify)
 /// return 1 for an angle of 90° and 0 for an angle of 0° or 180°
 /// find the nearest angle in the contour (or 2 nearest if it's difficult to choose) 
 /// return 1 for an angle of 90° and 0 for an angle of 0° or 180°
-double
+static double
 get_coeff_from_angle_countour(Point& point, const ExPolygon& contour, coord_t min_dist_between_point) {
     coordf_t nearest_dist = point.distance_to(contour.contour.points.front());
     Point point_nearest = contour.contour.points.front();
@@ -517,7 +514,7 @@ get_coeff_from_angle_countour(Point& point, const ExPolygon& contour, coord_t mi
     return 1 - (angle / (PI / 2));
 }
 
-double
+static double
 dot(Line l1, Line l2)
 {
     Vec2d v_1(l1.b.x() - l1.a.x(), l1.b.y() - l1.a.y());
@@ -637,7 +634,7 @@ MedialAxis::fusion_curve(ThickPolylines& pp)
 }
 
 void
-MedialAxis::remove_bits(ThickPolylines& pp)
+MedialAxis::remove_bits(ThickPolylines& pp) const
 {
 
     //remove small bits that stick out of the path
@@ -805,13 +802,13 @@ MedialAxis::extends_line_both_side(ThickPolylines& pp) {
     }
 }
 
-bool has_boundary_point(const MultiPoint& contour, const Point &point)
+static bool has_boundary_point(const MultiPoint& contour, const Point &point)
 {
     
     double dist = (contour.point_projection(point).first - point).cast<double>().norm();
     return dist < SCALED_EPSILON;
 }
-bool has_boundary_point(const ExPolygon& expoly, const Point &point)
+static bool has_boundary_point(const ExPolygon& expoly, const Point &point)
 {
     if (has_boundary_point(expoly.contour, point)) return true;
     for (Polygons::const_iterator h = expoly.holes.begin(); h != expoly.holes.end(); ++h) {
@@ -961,7 +958,7 @@ MedialAxis::extends_line(ThickPolyline& polyline, const ExPolygons& anchors, con
 }
 
 void
-MedialAxis::extends_line_extra(ThickPolylines& pp) {
+MedialAxis::extends_line_extra(ThickPolylines& pp) const {
     // opening : offset2-+
     for (size_t i = 0; i < pp.size(); ++i) {
         ThickPolyline& polyline = pp[i];
@@ -1306,7 +1303,7 @@ MedialAxis::main_fusion(ThickPolylines& pp)
 }
 
 void
-MedialAxis::remove_too_thin_extrusion(ThickPolylines& pp)
+MedialAxis::remove_too_thin_extrusion(ThickPolylines& pp) const
 {
     // remove too thin extrusion at start & end of polylines
     bool changes = false;
@@ -1317,7 +1314,8 @@ MedialAxis::remove_too_thin_extrusion(ThickPolylines& pp)
         while (polyline.points.size() > 1 && polyline.points_width.front() < this->m_min_width && polyline.endpoints.first) {
             //try to split if possible
             if (polyline.points_width[1] > this->m_min_width) {
-                double percent_can_keep = (this->m_min_width - polyline.points_width[0]) / (polyline.points_width[1] - polyline.points_width[0]);
+                double percent_can_keep = double(this->m_min_width - polyline.points_width[0]) /
+                                          double(polyline.points_width[1] - polyline.points_width[0]);
                 if (polyline.points.front().distance_to(polyline.points[1]) * (1 - percent_can_keep) > coordf_t(this->m_resolution)) {
                     //Can split => move the first point and assign a new weight.
                     //the update of endpoints wil be performed in concatThickPolylines
@@ -1340,7 +1338,8 @@ MedialAxis::remove_too_thin_extrusion(ThickPolylines& pp)
         while (polyline.points.size() > 1 && polyline.points_width.back() < this->m_min_width && polyline.endpoints.second) {
             //try to split if possible
             if (polyline.points_width[polyline.points.size() - 2] > this->m_min_width) {
-                double percent_can_keep = (this->m_min_width - polyline.points_width.back()) / (polyline.points_width[polyline.points.size() - 2] - polyline.points_width.back());
+                double percent_can_keep = double(this->m_min_width - polyline.points_width.back()) /
+                                          double(polyline.points_width[polyline.points.size() - 2] - polyline.points_width.back());
                 if (polyline.points.back().distance_to(polyline.points[polyline.points.size() - 2]) * (1 - percent_can_keep) > coordf_t(this->m_resolution)) {
                     //Can split => move the first point and assign a new weight.
                     //the update of endpoints wil be performed in concatThickPolylines
@@ -1371,7 +1370,7 @@ MedialAxis::remove_too_thin_extrusion(ThickPolylines& pp)
 }
 
 void
-MedialAxis::remove_too_thick_extrusion(ThickPolylines& pp)
+MedialAxis::remove_too_thick_extrusion(ThickPolylines& pp) const
 {
     if (this->m_biggest_width <= 0) return;
     // remove too thin extrusion at start & end of polylines
@@ -1383,7 +1382,8 @@ MedialAxis::remove_too_thick_extrusion(ThickPolylines& pp)
         while (polyline.points.size() > 1 && polyline.points_width.front() > this->m_biggest_width && polyline.endpoints.first) {
             //try to split if possible
             if (polyline.points_width[1] < this->m_biggest_width) {
-                double percent_can_keep = (this->m_biggest_width - polyline.points_width[0]) / (polyline.points_width[1] - polyline.points_width[0]);
+                double percent_can_keep = double(this->m_biggest_width - polyline.points_width[0]) /
+                                          double(polyline.points_width[1] - polyline.points_width[0]);
                 if (polyline.points.front().distance_to(polyline.points[1]) * (1 - percent_can_keep) > coordf_t(this->m_resolution)) {
                     //Can split => move the first point and assign a new weight.
                     //the update of endpoints wil be performed in concatThickPolylines
@@ -1406,7 +1406,8 @@ MedialAxis::remove_too_thick_extrusion(ThickPolylines& pp)
         while (polyline.points.size() > 1 && polyline.points_width.back() > this->m_biggest_width && polyline.endpoints.second) {
             //try to split if possible
             if (polyline.points_width[polyline.points.size() - 2] < this->m_biggest_width) {
-                double percent_can_keep = (this->m_biggest_width - polyline.points_width.back()) / (polyline.points_width[polyline.points.size() - 2] - polyline.points_width.back());
+                double percent_can_keep = double(this->m_biggest_width - polyline.points_width.back()) /
+                                          double(polyline.points_width[polyline.points.size() - 2] - polyline.points_width.back());
                 if (polyline.points.back().distance_to(polyline.points[polyline.points.size() - 2]) * (1 - percent_can_keep) > coordf_t(this->m_resolution)) {
                     //Can split => move the first point and assign a new weight.
                     //the update of endpoints wil be performed in concatThickPolylines
@@ -1436,17 +1437,17 @@ MedialAxis::remove_too_thick_extrusion(ThickPolylines& pp)
     if (changes) concatThickPolylines(pp);
 }
 
-Vector get_front_vector(const ThickPolyline &poly) {
+static Vector get_front_vector(const ThickPolyline &poly) {
     assert(poly.size()>1);
     return Line(poly.front(), poly.points[1]).vector();
 }
-Vector get_back_vector(const ThickPolyline &poly) {
+static Vector get_back_vector(const ThickPolyline &poly) {
     assert(poly.size()>1);
     return Line(poly.points[poly.size()-2], poly.back()).vector();
 }
 
 void
-MedialAxis::concatenate_small_polylines(ThickPolylines& pp)
+MedialAxis::concatenate_small_polylines(ThickPolylines& pp) const
 {
     /*
      new goal: ensure that if there is a too short segment, it will be connected with a sufficiently long one, to save it
@@ -1630,7 +1631,7 @@ MedialAxis::concatenate_polylines_with_crossing(ThickPolylines& pp)
 }
 
 void
-MedialAxis::remove_too_thin_points(ThickPolylines& pp)
+MedialAxis::remove_too_thin_points(ThickPolylines& pp) const
 {
     //remove too thin polylines points (inside a polyline : split it)
     for (size_t i = 0; i < pp.size(); ++i) {
@@ -1685,7 +1686,7 @@ MedialAxis::remove_too_thin_points(ThickPolylines& pp)
 }
 
 void
-MedialAxis::remove_too_thick_points(ThickPolylines& pp)
+MedialAxis::remove_too_thick_points(ThickPolylines& pp) const
 {
     if (m_biggest_width <= 0) return;
     //remove too thin polylines points (inside a polyline : split it)
@@ -1741,7 +1742,7 @@ MedialAxis::remove_too_thick_points(ThickPolylines& pp)
 }
 
 void
-MedialAxis::remove_too_short_polylines(ThickPolylines& pp)
+MedialAxis::remove_too_short_polylines(ThickPolylines& pp) const
 {
     // reduce the flow at the intersection ( + ) points
     //FIXME: TODO: note that crossings are unnafected right now. they may need a different codepath directly in their method
@@ -1816,7 +1817,7 @@ MedialAxis::remove_too_short_polylines(ThickPolylines& pp)
             // know how long will the endpoints be extended since it depends on polygon thickness
             // which is variable - extension will be <= m_max_width/2 on each side) 
             if ((polyline.endpoints.first || polyline.endpoints.second)) {
-                coordf_t local_min_length = this->m_max_width / 2;
+                coordf_t local_min_length = coordf_t(this->m_max_width) / 2.;
                 for (coordf_t w : polyline.points_width)
                     local_min_length = std::max(local_min_length, w - SCALED_EPSILON);
                 local_min_length = std::max(local_min_length, shortest_size);
@@ -1869,7 +1870,7 @@ MedialAxis::remove_too_short_polylines(ThickPolylines& pp)
 }
 
 void
-MedialAxis::check_width(ThickPolylines& pp, coord_t local_max_width, std::string msg)
+MedialAxis::check_width(ThickPolylines& pp, coord_t local_max_width, const std::string &msg)
 {
     //remove empty polyline
     int nb = 0;
@@ -1972,7 +1973,7 @@ MedialAxis::simplify_polygon_frontier()
 /// Grow the extrusion to at least nozzle_diameter*1.05 (lowest safe extrusion width)
 /// Do not grow points inside the anchor.
 void
-MedialAxis::grow_to_nozzle_diameter(ThickPolylines& pp, const ExPolygons& anchors)
+MedialAxis::grow_to_nozzle_diameter(ThickPolylines& pp, const ExPolygons& anchors) const
 {
     //compute the min width
     coord_t min_width = this->m_nozzle_diameter;
@@ -2044,7 +2045,7 @@ MedialAxis::taper_ends(ThickPolylines& pp)
     }
 }
 
-double
+static double
 check_circular(ExPolygon& expolygon, coord_t max_variation) {
     if (expolygon.holes.size() > 0) return 0;
 
@@ -2120,8 +2121,10 @@ MedialAxis::build(ThickPolylines& polylines_out)
     {
         double ori_area = 0;
         for (ThickPolyline& tp : pp) {
-            for (int i = 1; i < tp.points.size(); i++) {
-                ori_area += (tp.points_width[i - 1] + tp.points_width[i]) * tp.points[i - 1].distance_to(tp.points[i]) / 2;
+            for (size_t i = 1; i < tp.points.size(); ++i) {
+                const double width_sum = double(tp.points_width[i - 1]) + double(tp.points_width[i]);
+                const double segment_length = double(tp.points[i - 1].distance_to(tp.points[i]));
+                ori_area += width_sum * segment_length * 0.5;
             }
         }
         double area = this->m_expolygon.area();
@@ -2138,9 +2141,10 @@ MedialAxis::build(ThickPolylines& polylines_out)
                     this->polyline_from_voronoi(fixPoly, &pp_stopgap);
                     double fix_area = 0;
                     for (ThickPolyline &tp : pp_stopgap) {
-                        for (int i = 1; i < tp.points.size(); i++) {
-                            fix_area += (tp.points_width[i - 1] + tp.points_width[i]) *
-                                tp.points[i - 1].distance_to(tp.points[i]) / 2;
+                        for (size_t i = 1; i < tp.points.size(); ++i) {
+                            const double width_sum = double(tp.points_width[i - 1]) + double(tp.points_width[i]);
+                            const double segment_length = double(tp.points[i - 1].distance_to(tp.points[i]));
+                            fix_area += width_sum * segment_length * 0.5;
                         }
                     }
                     double fix_ratio_area = fix_area / area;
@@ -2612,7 +2616,7 @@ unsafe_variable_width(const ThickPolyline& polyline, const ExtrusionRole role, c
                 line.b_width = line.a_width;
                 continue;
             }
-            ThickLine& prev_line = lines[i - 1];
+            ThickLine& prev_line = lines[size_t(i) - 1];
             const coordf_t sum_length = prev_line_len + line_len;
             const coordf_t new_length = prev_line.a.distance_to(line.b);
             assert(sum_length - new_length > -0.0000000001);

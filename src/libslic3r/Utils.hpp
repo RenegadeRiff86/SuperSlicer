@@ -11,6 +11,7 @@
 #include <functional>
 #include <type_traits>
 #include <system_error>
+#include <string_view>
 #include <cmath>
 
 #include <boost/filesystem.hpp>
@@ -91,8 +92,8 @@ bool has_data_dir();
 // Writes out the output path prefix to the console for the first time the function is called,
 // so the user knows where to search for the debugging output.
 std::string debug_out_path(const char *name, ...);
-//this one add an extra unique id as the last parameter. You NEED to have a %i or %d to capture it.
-std::string debug_out_path_uniqueid(std::string name, ...);
+// Insert a monotonically increasing ID before the extension, then format any remaining placeholders.
+std::string debug_out_path_uniqueid(const char *name_format, ...);
 
 // A special type for strings encoded in the local Windows 8-bit code page.
 // This type is only needed for Perl bindings to relay to Perl that the string is raw, not UTF-8 encoded.
@@ -300,8 +301,8 @@ inline typename CONTAINER_TYPE::value_type& next_value_modulo(typename CONTAINER
 	return container[next_idx_modulo(idx, container.size())];
 }
 
-extern std::string xml_escape(std::string text, bool is_marked = false);
-extern std::string xml_escape_double_quotes_attribute_value(std::string text);
+extern std::string xml_escape(std::string_view text, bool is_marked = false);
+extern std::string xml_escape_double_quotes_attribute_value(std::string_view text);
 
 
 #if defined __GNUC__ && __GNUC__ < 5 && !defined __clang__

@@ -19,6 +19,9 @@
 #include "libslic3r.h"
 
 #ifdef WIN32
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
 	#include <windows.h>
 	#include <psapi.h>
 #else
@@ -163,7 +166,7 @@ void enforce_thread_count(const std::size_t count)
 #endif // TBB_HAS_GLOBAL_CONTROL
 }
 
-boost::filesystem::path clean_absolute_path(const boost::filesystem::path &path)
+static boost::filesystem::path clean_absolute_path(const boost::filesystem::path &path)
 {
     assert(path.is_absolute());
     // make sure the path is well formed for the os.
@@ -193,7 +196,7 @@ boost::filesystem::path clean_absolute_path(const boost::filesystem::path &path)
     return fixpath;
 }
 
-std::string clean_dir(const std::string &dir_name)
+static std::string clean_dir(const std::string &dir_name)
 {
     // make sure the path is well formed for the os.
     boost::filesystem::path fixpath(dir_name);
@@ -304,7 +307,7 @@ const std::string& sys_shapes_dir()
 	return g_sys_shapes_dir;
 }
 
-const boost::filesystem::path& sys_shapes_path()
+static const boost::filesystem::path& sys_shapes_path()
 {
 	return g_sys_shapes_path;
 }
@@ -369,7 +372,8 @@ std::string debug_out_path(const char *name, ...)
     va_end(args);
     return std::string(SLIC3R_DEBUG_OUT_PATH_PREFIX) + std::string(buffer);
 }
-std::string debug_out_path_uniqueid(std::string name, ...) {
+std::string debug_out_path_uniqueid(const char *name_format, ...) {
+    std::string name(name_format);
     static int uniqueid = 0;
     //search for .svg
     size_t dot_pos = name.find_last_of('.');
@@ -388,7 +392,7 @@ std::string debug_out_path_uniqueid(std::string name, ...) {
     }
     char buffer[2048];
     va_list args;
-    va_start(args, name);
+    va_start(args, name_format);
     //name = debug_out_path(name.c_str(), args);
     std::vsnprintf(buffer, 2048, name.c_str(), args);
     va_end(args);
@@ -434,7 +438,7 @@ namespace WindowsSupport
 
 	typedef ScopedHandle<CommonHandleTraits> ScopedFileHandle;
 
-	std::error_code map_windows_error(unsigned windows_error_code)
+	static std::error_code map_windows_error(unsigned windows_error_code)
 	{
 		#define MAP_ERR_TO_COND(x, y) case x: return std::make_error_code(std::errc::y)
 		switch (windows_error_code) {
@@ -528,7 +532,7 @@ namespace WindowsSupport
 	  	return std::error_code();
 	}
 
-	std::error_code rename(const std::string &from, const std::string &to)
+	static std::error_code rename(const std::string &from, const std::string &to)
 	{
 		// Convert to utf-16.
 		std::wstring wide_from = boost::nowide::widen(from);
@@ -662,24 +666,9 @@ boost::filesystem::path find_full_path(const boost::filesystem::path filename, c
     if (filename.empty()) return return_fail;
     boost::filesystem::path ret = filename;
     if (!boost::filesystem::exists(filename)) {
-        // try from our install directory 
-#ifdef WIN32
-        wchar_t wpath_exe[_MAX_PATH + 1];
-        ::GetModuleFileNameW(nullptr, wpath_exe, _MAX_PATH);
-        boost::filesystem::path local_dir = boost::filesystem::path(wpath_exe).parent_path();
-#else
-        char result[PATH_MAX + 1];
-        boost::filesystem::path local_dir(".");
-#ifdef __APPLE__
-        uint32_t count = uint32_t(PATH_MAX + 1);
-        if (_NSGetExecutablePath(result, &count) == 0) {
-#else
-        int32_t count = readlink("/proc/self/exe", result, sizeof(result) - 1);
-        if (count != -1) {
-#endif
-            local_dir = boost::filesystem::path(std::string(result, (count > 0) ? count : 0)).parent_path();
-        }
-#endif
+        // Try from the configured executable directory.
+        boost::filesystem::path local_dir = binary_file().empty() ?
+            boost::filesystem::path(".") : binary_file().parent_path();
         if (!boost::filesystem::exists(local_dir / filename)) {
             //try with configuration directory
             local_dir = boost::filesystem::path(Slic3r::data_dir());
@@ -704,24 +693,10 @@ boost::filesystem::path find_full_path(const boost::filesystem::path filename, c
 boost::filesystem::path shorten_path(const boost::filesystem::path filename) {
     if (filename.empty()) return filename;
     std::string current_filename = filename.generic_string();
-    // try from our install directory 
-#ifdef WIN32
-    wchar_t wpath_exe[_MAX_PATH + 1];
-    ::GetModuleFileNameW(nullptr, wpath_exe, _MAX_PATH);
-    std::string local_dir = boost::filesystem::path(wpath_exe).parent_path().generic_string();
-#else
-    char result[PATH_MAX + 1];
-    std::string local_dir = ".";
-#ifdef __APPLE__
-    uint32_t count = uint32_t(PATH_MAX + 1);
-    if (_NSGetExecutablePath(result, &count) == 0) {
-#else
-    int32_t count = readlink("/proc/self/exe", result, sizeof(result) - 1);
-    if (count != -1) {
-#endif
-        local_dir = boost::filesystem::path(std::string(result, (count > 0) ? count : 0)).parent_path().generic_string();
-    }
-#endif
+    // Try from the configured executable directory.
+    const boost::filesystem::path binary_dir = binary_file().empty() ?
+        boost::filesystem::path(".") : binary_file().parent_path();
+    std::string local_dir = binary_dir.generic_string();
     if (boost::starts_with(current_filename, local_dir)) {
         return boost::filesystem::path(current_filename.substr(local_dir.size() + 1));
     }
@@ -757,7 +732,7 @@ std::error_code rename_file(const std::string &from, const std::string &to)
 #ifdef __linux__
 // Copied from boost::filesystem. 
 // Called by copy_file_linux() in case linux sendfile() API is not supported.
-int copy_file_linux_read_write(int infile, int outfile, uintmax_t file_size)
+static int copy_file_linux_read_write(int infile, int outfile, uintmax_t file_size)
 {
     std::vector<char> buf(
 	    // Prefer the buffer to be larger than the file size so that we don't have
@@ -806,7 +781,7 @@ int copy_file_linux_read_write(int infile, int outfile, uintmax_t file_size)
 // for example ChromeOS Linux integration or FlashAIR WebDAV.
 // Copied and simplified from boost::filesystem::detail::copy_file() with option = overwrite_if_exists and with just the Linux path kept,
 // and only features supported by Linux 3.10 (on our build server with CentOS 7) are kept, namely sendfile with ranges and statx() are not supported.
-bool copy_file_linux(const boost::filesystem::path &from, const boost::filesystem::path &to, boost::system::error_code &ec)
+static bool copy_file_linux(const boost::filesystem::path &from, const boost::filesystem::path &to, boost::system::error_code &ec)
 {
 	using namespace boost::filesystem;
 
@@ -1093,13 +1068,6 @@ bool is_shapes_dir(const std::string& dir)
 
 } // namespace Slic3r
 
-#ifdef WIN32
-    #ifndef NOMINMAX
-    # define NOMINMAX
-    #endif
-    #include <windows.h>
-#endif /* WIN32 */
-
 namespace Slic3r {
 
 // Encode an UTF-8 string to the local code page.
@@ -1273,8 +1241,9 @@ unsigned get_current_pid()
 }
 
 //FIXME this has potentially O(n^2) time complexity!
-std::string xml_escape(std::string text, bool is_marked/* = false*/)
+std::string xml_escape(std::string_view input, bool is_marked/* = false*/)
 {
+    std::string text(input);
     std::string::size_type pos = 0;
     for (;;)
     {
@@ -1303,8 +1272,9 @@ std::string xml_escape(std::string text, bool is_marked/* = false*/)
 // Definition of escape symbols https://www.w3.org/TR/REC-xml/#AVNormalize
 // During the read of xml attribute normalization of white spaces is applied
 // Soo for not lose white space character it is escaped before store
-std::string xml_escape_double_quotes_attribute_value(std::string text)
+std::string xml_escape_double_quotes_attribute_value(std::string_view input)
 {
+    std::string text(input);
     std::string::size_type pos = 0;
     for (;;) {
         pos = text.find_first_of("\"&<\r\n\t", pos);
@@ -1434,7 +1404,7 @@ std::string log_memory_info(bool ignore_loglevel)
         } PROCESS_MEMORY_COUNTERS_EX, *PPROCESS_MEMORY_COUNTERS_EX;
     #endif /* PROCESS_MEMORY_COUNTERS_EX */
 
-        PROCESS_MEMORY_COUNTERS_EX pmc;
+        PROCESS_MEMORY_COUNTERS_EX pmc{};
         if (GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc)))
             out = " WorkingSet: " + format_memsize_MB(pmc.WorkingSetSize) + "; PrivateBytes: " + format_memsize_MB(pmc.PrivateUsage) + "; Pagefile(peak): " + format_memsize_MB(pmc.PagefileUsage) + "(" + format_memsize_MB(pmc.PeakPagefileUsage) + ")";
         else
@@ -1494,9 +1464,10 @@ size_t total_physical_memory()
 #elif defined(_WIN32)
 	// Windows. -------------------------------------------------
 	// Use new 64-bit MEMORYSTATUSEX, not old 32-bit MEMORYSTATUS
-	MEMORYSTATUSEX status;
+	MEMORYSTATUSEX status{};
 	status.dwLength = sizeof(status);
-	GlobalMemoryStatusEx( &status );
+	if (!GlobalMemoryStatusEx(&status))
+		return 0;
 	return static_cast<size_t>(status.ullTotalPhys);
 #elif defined(__unix__) || defined(__unix) || defined(unix) || (defined(__APPLE__) && defined(__MACH__))
 	// UNIX variants. -------------------------------------------

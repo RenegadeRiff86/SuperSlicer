@@ -129,8 +129,9 @@ double Flow::extrusion_width(const std::string& opt_key, const ConfigOptionFloat
 }
 
 //used to get brim & skirt extrusion config
-const ConfigOptionFloatOrPercent* Flow::extrusion_width_option(std::string opt_key, const ConfigOptionResolver& config)
+const ConfigOptionFloatOrPercent* Flow::extrusion_width_option(const std::string &opt_key_input, const ConfigOptionResolver& config)
 {
+    std::string opt_key = opt_key_input;
     if (boost::ends_with(opt_key, "_extrusion_spacing")) {
         assert(false);
         opt_key = opt_key.substr(0,opt_key.size() - 7);
@@ -218,8 +219,9 @@ const ConfigOptionFloatOrPercent* Flow::extrusion_width_option(std::string opt_k
 }
 
 //used to get brim & skirt extrusion config
-const ConfigOptionFloatOrPercent* Flow::extrusion_spacing_option(std::string opt_key, const ConfigOptionResolver& config)
+const ConfigOptionFloatOrPercent* Flow::extrusion_spacing_option(const std::string &opt_key_input, const ConfigOptionResolver& config)
 {
+    std::string opt_key = opt_key_input;
     std::string opt_key_width;
     if (boost::starts_with(opt_key, "skirt")) {
         //skirt have only width setting

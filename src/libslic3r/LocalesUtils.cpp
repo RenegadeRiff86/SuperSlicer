@@ -114,29 +114,7 @@ std::string to_string_nozero(double value, int32_t max_precision) {
 
 std::string float_to_string_decimal_point(double value, int precision/* = -1*/)
 {
-    // merill: this fail on 'float_to_string_decimal_point(0.2)' because the 0.2 is a 0.200000001 (from a float->double conversion probably)
-    // so i  revert this to my slow but trusty to_string_nozero
-//    // Our Windows build server fully supports C++17 std::to_chars. Let's use it.
-//    // Other platforms are behind, fall back to slow stringstreams for now.
-//#ifdef _WIN32
-//    constexpr size_t SIZE = 20;
-//    char out[SIZE] = "";
-//    std::to_chars_result res;
-//    if (precision >=0)
-//        res = std::to_chars(out, out+SIZE, value, std::chars_format::fixed, precision);
-//    else
-//        res = std::to_chars(out, out+SIZE, value, std::chars_format::general, 6);
-//    if (res.ec == std::errc::value_too_large)
-//        throw std::invalid_argument("float_to_string_decimal_point conversion failed.");
-//    return std::string(out, res.ptr - out);
-//#else
-//    std::stringstream buf;
-//    if (precision >= 0)
-//        buf << std::fixed << std::setprecision(precision);
-//    buf << value;
-//    return buf.str();
-//#endif
-
+    // Keep the established formatting behavior consistent across platforms.
     return to_string_nozero(value, precision < 0 ? 6 : precision);
 }
 

@@ -138,8 +138,8 @@ public:
     // on active extruder etc. Therefore the value calculated by this function shall be used as a hint only.
 	static double extrusion_width(const std::string &opt_key, const ConfigOptionFloatOrPercent *opt, const ConfigOptionResolver &config, const unsigned int first_printing_extruder = 0);
 	static double extrusion_width(const std::string &opt_key, const ConfigOptionResolver &config, const unsigned int first_printing_extruder = 0);
-    static const ConfigOptionFloatOrPercent* extrusion_width_option(std::string opt_key, const ConfigOptionResolver& config);
-    static const ConfigOptionFloatOrPercent* extrusion_spacing_option(std::string opt_key, const ConfigOptionResolver& config);
+    static const ConfigOptionFloatOrPercent* extrusion_width_option(const std::string &opt_key, const ConfigOptionResolver& config);
+    static const ConfigOptionFloatOrPercent* extrusion_spacing_option(const std::string &opt_key, const ConfigOptionResolver& config);
 
     // like PrintRegion::flow() but with print settings from a DynamicConfig
     static Flow new_from_config(FlowRole role, const DynamicConfig& print_config, float nozzle_diameter, float layer_height, float filament_max_overlap, bool first_layer);

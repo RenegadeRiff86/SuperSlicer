@@ -537,7 +537,8 @@ struct ConfigSubstitution {
     std::string              old_value;
     ConfigOptionUniquePtr    new_value;
     ConfigSubstitution() = default;
-    ConfigSubstitution(const ConfigOptionDef* def, std::string old, ConfigOptionUniquePtr&& new_v);
+    ConfigSubstitution(const ConfigOptionDef* def, const std::string &old, ConfigOptionUniquePtr&& new_v);
+    ConfigSubstitution(const ConfigOptionDef* def, std::string &&old, ConfigOptionUniquePtr&& new_v);
     ConfigSubstitution(std::string bad_key, std::string value) : opt_def(nullptr), old_name(bad_key), old_value(value), new_value() {}
 };
 
@@ -560,7 +561,7 @@ struct ConfigSubstitutionContext
     void clear() { m_substitutions.clear(); }
     void sort_and_remove_duplicates() { sort_remove_duplicates(m_substitutions); }
     std::optional<ConfigSubstitution> find(const std::string &old_name);
-    bool erase(std::string old_name);
+    bool erase(const std::string &old_name);
 
 private:
     ConfigSubstitutions					    m_substitutions;

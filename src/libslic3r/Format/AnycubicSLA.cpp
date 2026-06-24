@@ -497,7 +497,7 @@ static void anycubicsla_write_layer(std::ofstream &out, anycubicsla_format_layer
     anycubicsla_write_float(out, l.layer48);
 }
 
-void AnycubicSLAArchive::export_print(const std::string     fname,
+void AnycubicSLAArchive::export_print(const std::string    &fname,
                                const SLAPrint       &print,
                                const ThumbnailsList &thumbnails,
                                const std::string    &/*projectname*/)

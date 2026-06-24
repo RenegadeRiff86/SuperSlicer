@@ -65,7 +65,9 @@ public:
 		boost::filesystem::path path;
 		Semver version;
 		LayoutEntry() {}
-		LayoutEntry(std::string name, std::string description, boost::filesystem::path path, Semver version) : name(name), description(description), path(path), version(version) {}
+		LayoutEntry(const std::string &name, const std::string &description, const boost::filesystem::path &path, const Semver &version)
+			: name(name), description(description), path(path), version(version)
+		{}
 	};
 	struct Tag {
 		ConfigOptionMode tag{};
@@ -73,7 +75,9 @@ public:
 		std::string description;
 		std::string color_hash; // with the hash, '#' + 6 digits.
 		Tag() {}
-		Tag(std::string name, std::string description, ConfigOptionMode tag, std::string color_hash) : name(name), description(description), tag(tag), color_hash(color_hash) {}
+		Tag(const std::string &name, const std::string &description, ConfigOptionMode tag, const std::string &color_hash)
+			: tag(tag), name(name), description(description), color_hash(color_hash)
+		{}
 	};
 
     struct ConfigurationEntry
@@ -98,7 +102,7 @@ public:
     void                set_defaults();
     void                init_ui_layout();
     ConfigurationEntry  get_installation() { return m_data_dir; }
-    boost::filesystem::path data_dir() { return m_data_dir.config_path; }
+    boost::filesystem::path data_dir() const { return m_data_dir.config_path; }
     // return false if already init
     bool                init_root_data_dir(const std::string &default_app_data_path);
     std::string         get_root_data_dir() { return m_data_dir_root; }
@@ -228,7 +232,7 @@ public:
     std::string              splashscreen(bool is_editor);
 
     // Hardware
-    HardwareType			 hardware() { return m_hardware; }
+    HardwareType			 hardware() const { return m_hardware; }
     void					 set_hardware_type(HardwareType hard);
 
 	// Returns true if the user's data directory comes from before Slic3r 1.40.0 (no updating)
