@@ -32,6 +32,9 @@
 
 #include "libslic3r/LocalesUtils.hpp"
 
+// A triangular facet always has 3 vertices / edges / neighbors.
+static constexpr int VERTICES_PER_FACET = 3;
+
 static bool close_output_file(FILE* fp, const char* file, const char* operation, bool write_ok)
 {
     if (!write_ok || ferror(fp)) {
@@ -63,7 +66,7 @@ void stl_generate_shared_vertices(stl_file *stl, indexed_triangle_set &its)
 	std::vector<unsigned int> fan_traversal_facet_visited(stl->stats.number_of_facets, 0);
 
 	for (uint32_t facet_idx = 0; facet_idx < stl->stats.number_of_facets; ++ facet_idx) {
-		for (int j = 0; j < 3; ++ j) {
+		for (int j = 0; j < VERTICES_PER_FACET; ++ j) {
 			if (its.indices[facet_idx][j] != -1)
 				// Shared vertex was already assigned.
 				continue;
@@ -73,7 +76,7 @@ void stl_generate_shared_vertices(stl_file *stl, indexed_triangle_set &its)
 			int  facet_in_fan_idx 	= facet_idx;
 			bool edge_direction 	= false;
 			bool traversal_reversed = false;
-			int  vnot      			= (j + 2) % 3;
+			int  vnot      			= (j + 2) % VERTICES_PER_FACET;
 			// Increase the 
 			++ fan_traversal_stamp;
 			for (;;) {
@@ -85,20 +88,20 @@ void stl_generate_shared_vertices(stl_file *stl, indexed_triangle_set &its)
 					// The edge of facet_in_fan_idx opposite to vnot is equally oriented, therefore
 					// the neighboring facet is flipped.
 			  		if (! edge_direction) {
-			    		pivot_vertex = (vnot + 2) % 3;
+			    		pivot_vertex = (vnot + 2) % VERTICES_PER_FACET;
 			    		next_edge    = pivot_vertex;			    		
 			  		} else {
-			    		pivot_vertex = (vnot + 1) % 3;
-			    		next_edge    = vnot % 3;
+			    		pivot_vertex = (vnot + 1) % VERTICES_PER_FACET;
+			    		next_edge    = vnot % VERTICES_PER_FACET;
 			  		}
 			  		edge_direction = ! edge_direction;
 				} else {
 					// The neighboring facet is correctly oriented.
 			  		if (! edge_direction) {
-			    		pivot_vertex = (vnot + 1) % 3;
+			    		pivot_vertex = (vnot + 1) % VERTICES_PER_FACET;
 			    		next_edge    = vnot;
 			  		} else {
-			    		pivot_vertex = (vnot + 2) % 3;
+			    		pivot_vertex = (vnot + 2) % VERTICES_PER_FACET;
 			    		next_edge    = pivot_vertex;
 			  		}
 				}
@@ -115,7 +118,7 @@ void stl_generate_shared_vertices(stl_file *stl, indexed_triangle_set &its)
 					} else {
 						// Reached the first limit. Now try to reverse and traverse up to the other limit.
 					    edge_direction        = true;
-					    vnot 	         	  = (j + 1) % 3;
+					    vnot 	         	  = (j + 1) % VERTICES_PER_FACET;
 					    traversal_reversed    = true;
 				    	facet_in_fan_idx      = facet_idx;
 					}
@@ -266,26 +269,26 @@ bool stl_validate(const stl_file *stl, const indexed_triangle_set &its)
     for (int facet_idx = 0; facet_idx < static_cast<int>(stl->stats.number_of_facets); ++ facet_idx) {
         const stl_neighbors &nbr 		= stl->neighbors_start[facet_idx];
         const int 			*vertices 	= its.indices.empty() ? nullptr : its.indices[facet_idx].data();
-        for (int nbr_idx = 0; nbr_idx < 3; ++ nbr_idx) {
+        for (int nbr_idx = 0; nbr_idx < VERTICES_PER_FACET; ++ nbr_idx) {
             int nbr_face = stl->neighbors_start[facet_idx].neighbor[nbr_idx];
             assert(nbr_face < static_cast<int>(stl->stats.number_of_facets));
             if (nbr_face != -1) {
             	int nbr_vnot = nbr.which_vertex_not[nbr_idx];
 				assert(nbr_vnot >= 0 && nbr_vnot < 6);
 				// Neighbor of the neighbor is the original face.
-				assert(stl->neighbors_start[nbr_face].neighbor[(nbr_vnot + 1) % 3] == facet_idx);
-				int vnot_back = stl->neighbors_start[nbr_face].which_vertex_not[(nbr_vnot + 1) % 3];
+				assert(stl->neighbors_start[nbr_face].neighbor[(nbr_vnot + 1) % VERTICES_PER_FACET] == facet_idx);
+				int vnot_back = stl->neighbors_start[nbr_face].which_vertex_not[(nbr_vnot + 1) % VERTICES_PER_FACET];
 				assert(vnot_back >= 0 && vnot_back < 6);
-				assert((nbr_vnot < 3) == (vnot_back < 3));
-				assert(vnot_back % 3 == (nbr_idx + 2) % 3);
+				assert((nbr_vnot < VERTICES_PER_FACET) == (vnot_back < VERTICES_PER_FACET));
+				assert(vnot_back % VERTICES_PER_FACET == (nbr_idx + 2) % VERTICES_PER_FACET);
 				if (vertices != nullptr) {
 					// Has shared vertices.
-	            	if (nbr_vnot < 3) {
+	            	if (nbr_vnot < VERTICES_PER_FACET) {
 	            		// Faces facet_idx and nbr_face share two vertices accross the common edge. Faces are correctly oriented.
-						assert((its.indices[nbr_face][(nbr_vnot + 1) % 3] == vertices[(nbr_idx + 1) % 3] && its.indices[nbr_face][(nbr_vnot + 2) % 3] == vertices[nbr_idx]));
+						assert((its.indices[nbr_face][(nbr_vnot + 1) % VERTICES_PER_FACET] == vertices[(nbr_idx + 1) % VERTICES_PER_FACET] && its.indices[nbr_face][(nbr_vnot + 2) % VERTICES_PER_FACET] == vertices[nbr_idx]));
 					} else {
 	            		// Faces facet_idx and nbr_face share two vertices accross the common edge. Faces are incorrectly oriented, one of them is flipped.
-						assert((its.indices[nbr_face][(nbr_vnot + 2) % 3] == vertices[(nbr_idx + 1) % 3] && its.indices[nbr_face][(nbr_vnot + 1) % 3] == vertices[nbr_idx]));
+						assert((its.indices[nbr_face][(nbr_vnot + 2) % VERTICES_PER_FACET] == vertices[(nbr_idx + 1) % VERTICES_PER_FACET] && its.indices[nbr_face][(nbr_vnot + 1) % VERTICES_PER_FACET] == vertices[nbr_idx]));
 					}
 				}
             }

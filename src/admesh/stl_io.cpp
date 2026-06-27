@@ -31,6 +31,11 @@
 
 static constexpr const char* kForWriting = " for writing";
 
+// Coordinate axis indices into an stl_vertex / Eigen vector.
+static constexpr int X_AXIS = 0;
+static constexpr int Y_AXIS = 1;
+static constexpr int Z_AXIS = 2;
+
 static bool close_output_file(FILE* fp, const char* file, const char* operation, bool write_ok)
 {
 	if (!write_ok || ferror(fp)) {
@@ -61,9 +66,9 @@ void stl_stats_out(stl_file *stl, FILE *file, char *input_file)
     	fprintf(file, "File type          : ASCII STL file\n");
   	fprintf(file, "Header             : %s\n", stl->stats.header);
   	fprintf(file, "============== Size ==============\n");
-  	fprintf(file, "Min X = % f, Max X = % f\n", stl->stats.min(0), stl->stats.max(0));
-  	fprintf(file, "Min Y = % f, Max Y = % f\n", stl->stats.min(1), stl->stats.max(1));
-  	fprintf(file, "Min Z = % f, Max Z = % f\n", stl->stats.min(2), stl->stats.max(2));
+  	fprintf(file, "Min X = % f, Max X = % f\n", stl->stats.min(X_AXIS), stl->stats.max(X_AXIS));
+  	fprintf(file, "Min Y = % f, Max Y = % f\n", stl->stats.min(Y_AXIS), stl->stats.max(Y_AXIS));
+  	fprintf(file, "Min Z = % f, Max Z = % f\n", stl->stats.min(Z_AXIS), stl->stats.max(Z_AXIS));
   	fprintf(file, "========= Facet Status ========== Original ============ Final ====\n");
   	fprintf(file, "Number of facets                 : %5d               %5d\n", stl->stats.original_num_facets, stl->stats.number_of_facets);
   	fprintf(file, "Facets with 1 disconnected edge  : %5d               %5d\n", 
@@ -96,11 +101,11 @@ bool stl_write_ascii(stl_file *stl, const char *file, const char *label)
 	bool write_ok = fprintf(fp, "solid  %s\n", label) >= 0;
 
 	for (uint32_t i = 0; i < stl->stats.number_of_facets && write_ok; ++ i) {
-		write_ok = fprintf(fp, "  facet normal % .8E % .8E % .8E\n", stl->facet_start[i].normal(0), stl->facet_start[i].normal(1), stl->facet_start[i].normal(2)) >= 0 &&
+		write_ok = fprintf(fp, "  facet normal % .8E % .8E % .8E\n", stl->facet_start[i].normal(X_AXIS), stl->facet_start[i].normal(Y_AXIS), stl->facet_start[i].normal(Z_AXIS)) >= 0 &&
 		           fprintf(fp, "    outer loop\n") >= 0 &&
-		           fprintf(fp, "      vertex % .8E % .8E % .8E\n", stl->facet_start[i].vertex[0](0), stl->facet_start[i].vertex[0](1), stl->facet_start[i].vertex[0](2)) >= 0 &&
-		           fprintf(fp, "      vertex % .8E % .8E % .8E\n", stl->facet_start[i].vertex[1](0), stl->facet_start[i].vertex[1](1), stl->facet_start[i].vertex[1](2)) >= 0 &&
-		           fprintf(fp, "      vertex % .8E % .8E % .8E\n", stl->facet_start[i].vertex[2](0), stl->facet_start[i].vertex[2](1), stl->facet_start[i].vertex[2](2)) >= 0 &&
+		           fprintf(fp, "      vertex % .8E % .8E % .8E\n", stl->facet_start[i].vertex[0](X_AXIS), stl->facet_start[i].vertex[0](Y_AXIS), stl->facet_start[i].vertex[0](Z_AXIS)) >= 0 &&
+		           fprintf(fp, "      vertex % .8E % .8E % .8E\n", stl->facet_start[i].vertex[1](X_AXIS), stl->facet_start[i].vertex[1](Y_AXIS), stl->facet_start[i].vertex[1](Z_AXIS)) >= 0 &&
+		           fprintf(fp, "      vertex % .8E % .8E % .8E\n", stl->facet_start[i].vertex[2](X_AXIS), stl->facet_start[i].vertex[2](Y_AXIS), stl->facet_start[i].vertex[2](Z_AXIS)) >= 0 &&
 		           fprintf(fp, "    endloop\n") >= 0 &&
 		           fprintf(fp, "  endfacet\n") >= 0;
 	}
@@ -181,9 +186,9 @@ bool stl_write_binary(stl_file *stl, const char *file, const char *label)
 void stl_write_vertex(stl_file *stl, int facet, int vertex)
 {
   	printf("  vertex %d/%d % .8E % .8E % .8E\n", vertex, facet,
-         stl->facet_start[facet].vertex[vertex](0),
-         stl->facet_start[facet].vertex[vertex](1),
-         stl->facet_start[facet].vertex[vertex](2));
+         stl->facet_start[facet].vertex[vertex](X_AXIS),
+         stl->facet_start[facet].vertex[vertex](Y_AXIS),
+         stl->facet_start[facet].vertex[vertex](Z_AXIS));
 }
 
 void stl_write_facet(stl_file *stl, char *label, int facet)
@@ -228,10 +233,10 @@ bool stl_write_quad_object(stl_file *stl, char *file)
     		case 2:  color = uncon_1_color; break;
   		case 3:  color = connect_color; break;
 	    }
-	    fprintf(fp, "%f %f %f    %1.1f %1.1f %1.1f 1\n", stl->facet_start[i].vertex[0](0), stl->facet_start[i].vertex[0](1), stl->facet_start[i].vertex[0](2), color(0), color(1), color(2));
-    	fprintf(fp, "%f %f %f    %1.1f %1.1f %1.1f 1\n", stl->facet_start[i].vertex[1](0), stl->facet_start[i].vertex[1](1), stl->facet_start[i].vertex[1](2), color(0), color(1), color(2));
-    	fprintf(fp, "%f %f %f    %1.1f %1.1f %1.1f 1\n", stl->facet_start[i].vertex[2](0), stl->facet_start[i].vertex[2](1), stl->facet_start[i].vertex[2](2), color(0), color(1), color(2));
-    	fprintf(fp, "%f %f %f    %1.1f %1.1f %1.1f 1\n", stl->facet_start[i].vertex[2](0), stl->facet_start[i].vertex[2](1), stl->facet_start[i].vertex[2](2), color(0), color(1), color(2));
+	    fprintf(fp, "%f %f %f    %1.1f %1.1f %1.1f 1\n", stl->facet_start[i].vertex[0](X_AXIS), stl->facet_start[i].vertex[0](Y_AXIS), stl->facet_start[i].vertex[0](Z_AXIS), color(X_AXIS), color(Y_AXIS), color(Z_AXIS));
+    	fprintf(fp, "%f %f %f    %1.1f %1.1f %1.1f 1\n", stl->facet_start[i].vertex[1](X_AXIS), stl->facet_start[i].vertex[1](Y_AXIS), stl->facet_start[i].vertex[1](Z_AXIS), color(X_AXIS), color(Y_AXIS), color(Z_AXIS));
+    	fprintf(fp, "%f %f %f    %1.1f %1.1f %1.1f 1\n", stl->facet_start[i].vertex[2](X_AXIS), stl->facet_start[i].vertex[2](Y_AXIS), stl->facet_start[i].vertex[2](Z_AXIS), color(X_AXIS), color(Y_AXIS), color(Z_AXIS));
+    	fprintf(fp, "%f %f %f    %1.1f %1.1f %1.1f 1\n", stl->facet_start[i].vertex[2](X_AXIS), stl->facet_start[i].vertex[2](Y_AXIS), stl->facet_start[i].vertex[2](Z_AXIS), color(X_AXIS), color(Y_AXIS), color(Z_AXIS));
   }
   fclose(fp);
   return true;
@@ -255,10 +260,10 @@ bool stl_write_dxf(stl_file *stl, const char *file, char *label)
 
 	for (uint32_t i = 0; i < stl->stats.number_of_facets; ++ i) {
 		fprintf(fp, "0\n3DFACE\n8\n0\n");
-		fprintf(fp, "10\n%f\n20\n%f\n30\n%f\n", stl->facet_start[i].vertex[0](0), stl->facet_start[i].vertex[0](1), stl->facet_start[i].vertex[0](2));
-		fprintf(fp, "11\n%f\n21\n%f\n31\n%f\n", stl->facet_start[i].vertex[1](0), stl->facet_start[i].vertex[1](1), stl->facet_start[i].vertex[1](2));
-		fprintf(fp, "12\n%f\n22\n%f\n32\n%f\n", stl->facet_start[i].vertex[2](0), stl->facet_start[i].vertex[2](1), stl->facet_start[i].vertex[2](2));
-		fprintf(fp, "13\n%f\n23\n%f\n33\n%f\n", stl->facet_start[i].vertex[2](0), stl->facet_start[i].vertex[2](1), stl->facet_start[i].vertex[2](2));
+		fprintf(fp, "10\n%f\n20\n%f\n30\n%f\n", stl->facet_start[i].vertex[0](X_AXIS), stl->facet_start[i].vertex[0](Y_AXIS), stl->facet_start[i].vertex[0](Z_AXIS));
+		fprintf(fp, "11\n%f\n21\n%f\n31\n%f\n", stl->facet_start[i].vertex[1](X_AXIS), stl->facet_start[i].vertex[1](Y_AXIS), stl->facet_start[i].vertex[1](Z_AXIS));
+		fprintf(fp, "12\n%f\n22\n%f\n32\n%f\n", stl->facet_start[i].vertex[2](X_AXIS), stl->facet_start[i].vertex[2](Y_AXIS), stl->facet_start[i].vertex[2](Z_AXIS));
+		fprintf(fp, "13\n%f\n23\n%f\n33\n%f\n", stl->facet_start[i].vertex[2](X_AXIS), stl->facet_start[i].vertex[2](Y_AXIS), stl->facet_start[i].vertex[2](Z_AXIS));
 	}
 
   	fprintf(fp, "0\nENDSEC\n0\nEOF\n");

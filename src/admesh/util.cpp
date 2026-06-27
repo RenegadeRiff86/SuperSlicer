@@ -29,12 +29,20 @@
 
 #include "stl.h"
 
+// A triangular facet always has 3 vertices / edges.
+static constexpr int VERTICES_PER_FACET = 3;
+// Coordinate axis indices into an stl_vertex / Eigen vector.
+static constexpr int X_AXIS = 0;
+static constexpr int Y_AXIS = 1;
+static constexpr int Z_AXIS = 2;
+static constexpr int AXIS_COUNT = 3; // number of spatial axes (X, Y, Z)
+
 void stl_verify_neighbors(stl_file *stl)
 {
 	stl->stats.backwards_edges = 0;
 
 	for (uint32_t i = 0; i < stl->stats.number_of_facets; ++ i) {
-		for (int j = 0; j < 3; ++ j) {
+		for (int j = 0; j < VERTICES_PER_FACET; ++ j) {
 			struct stl_edge {
 				stl_vertex p1;
 				stl_vertex p2;
@@ -42,19 +50,19 @@ void stl_verify_neighbors(stl_file *stl)
 			};
 			stl_edge edge_a;
 			edge_a.p1 = stl->facet_start[i].vertex[j];
-			edge_a.p2 = stl->facet_start[i].vertex[(j + 1) % 3];
+			edge_a.p2 = stl->facet_start[i].vertex[(j + 1) % VERTICES_PER_FACET];
 			int neighbor = stl->neighbors_start[i].neighbor[j];
 			if (neighbor == -1)
 				continue; // this edge has no neighbor... Continue.
 			int vnot = stl->neighbors_start[i].which_vertex_not[j];
 			stl_edge edge_b;
-			if (vnot < 3) {
-				edge_b.p1 = stl->facet_start[neighbor].vertex[(vnot + 2) % 3];
-				edge_b.p2 = stl->facet_start[neighbor].vertex[(vnot + 1) % 3];
+			if (vnot < VERTICES_PER_FACET) {
+				edge_b.p1 = stl->facet_start[neighbor].vertex[(vnot + 2) % VERTICES_PER_FACET];
+				edge_b.p2 = stl->facet_start[neighbor].vertex[(vnot + 1) % VERTICES_PER_FACET];
 			} else {
 				stl->stats.backwards_edges += 1;
-				edge_b.p1 = stl->facet_start[neighbor].vertex[(vnot + 1) % 3];
-				edge_b.p2 = stl->facet_start[neighbor].vertex[(vnot + 2) % 3];
+				edge_b.p1 = stl->facet_start[neighbor].vertex[(vnot + 1) % VERTICES_PER_FACET];
+				edge_b.p2 = stl->facet_start[neighbor].vertex[(vnot + 2) % VERTICES_PER_FACET];
 			}
 			if (edge_a.p1 != edge_b.p1 || edge_a.p2 != edge_b.p2) {
 				// These edges should match but they don't.  Print results.
@@ -71,7 +79,7 @@ void stl_translate(stl_file *stl, float x, float y, float z)
 	stl_vertex new_min(x, y, z);
 	stl_vertex shift = new_min - stl->stats.min;
 	for (uint32_t i = 0; i < stl->stats.number_of_facets; ++ i)
-		for (int j = 0; j < 3; ++ j)
+		for (int j = 0; j < VERTICES_PER_FACET; ++ j)
 	  		stl->facet_start[i].vertex[j] += shift;
 	stl->stats.min = new_min;
 	stl->stats.max += shift;
@@ -82,7 +90,7 @@ void stl_translate_relative(stl_file *stl, float x, float y, float z)
 {
 	stl_vertex shift(x, y, z);
 	for (uint32_t i = 0; i < stl->stats.number_of_facets; ++ i)
-		for (int j = 0; j < 3; ++ j)
+		for (int j = 0; j < VERTICES_PER_FACET; ++ j)
 	  		stl->facet_start[i].vertex[j] += shift;
 	stl->stats.min += shift;
 	stl->stats.max += shift;
@@ -98,10 +106,10 @@ void stl_scale_versor(stl_file *stl, const stl_vertex &versor)
 	stl->stats.size.array() *= s;
 	// Scale volume.
 	if (stl->stats.volume > 0.0)
-		stl->stats.volume *= versor(0) * versor(1) * versor(2);
+		stl->stats.volume *= versor(X_AXIS) * versor(Y_AXIS) * versor(Z_AXIS);
 	// Scale the mesh.
 	for (uint32_t i = 0; i < stl->stats.number_of_facets; ++ i)
-		for (int j = 0; j < 3; ++ j)
+		for (int j = 0; j < VERTICES_PER_FACET; ++ j)
 	  		stl->facet_start[i].vertex[j].array() *= s;
 }
 
@@ -123,67 +131,70 @@ static inline void rotate_point_2d(float &x, float &y, const double c, const dou
 	y = float(s * xold + c * yold);
 }
 
+// Degrees in a half turn (? radians); used to convert a degree angle to radians.
+static constexpr double HALF_CIRCLE_DEGREES = 180.0;
+
 void stl_rotate_x(stl_file *stl, float angle)
 {
-	double radian_angle = (angle / 180.0) * M_PI;
+	double radian_angle = (angle / HALF_CIRCLE_DEGREES) * M_PI;
 	double c = cos(radian_angle);
 	double s = sin(radian_angle);
   	for (uint32_t i = 0; i < stl->stats.number_of_facets; ++ i)
-    	for (int j = 0; j < 3; ++ j)
-      		rotate_point_2d(stl->facet_start[i].vertex[j](1), stl->facet_start[i].vertex[j](2), c, s);
+    	for (int j = 0; j < VERTICES_PER_FACET; ++ j)
+      		rotate_point_2d(stl->facet_start[i].vertex[j](Y_AXIS), stl->facet_start[i].vertex[j](Z_AXIS), c, s);
   	stl_get_size(stl);
   	calculate_normals(stl);
 }
 
 void stl_rotate_y(stl_file *stl, float angle)
 {
-	double radian_angle = (angle / 180.0) * M_PI;
+	double radian_angle = (angle / HALF_CIRCLE_DEGREES) * M_PI;
 	double c = cos(radian_angle);
 	double s = sin(radian_angle);
   	for (uint32_t i = 0; i < stl->stats.number_of_facets; ++ i)
-    	for (int j = 0; j < 3; ++ j)
-			rotate_point_2d(stl->facet_start[i].vertex[j](2), stl->facet_start[i].vertex[j](0), c, s);
+    	for (int j = 0; j < VERTICES_PER_FACET; ++ j)
+			rotate_point_2d(stl->facet_start[i].vertex[j](Z_AXIS), stl->facet_start[i].vertex[j](X_AXIS), c, s);
   	stl_get_size(stl);
   	calculate_normals(stl);
 }
 
 void stl_rotate_z(stl_file *stl, float angle)
 {
-	double radian_angle = (angle / 180.0) * M_PI;
+	double radian_angle = (angle / HALF_CIRCLE_DEGREES) * M_PI;
 	double c = cos(radian_angle);
 	double s = sin(radian_angle);
   	for (uint32_t i = 0; i < stl->stats.number_of_facets; ++ i)
-    	for (int j = 0; j < 3; ++ j)
-      		rotate_point_2d(stl->facet_start[i].vertex[j](0), stl->facet_start[i].vertex[j](1), c, s);
+    	for (int j = 0; j < VERTICES_PER_FACET; ++ j)
+      		rotate_point_2d(stl->facet_start[i].vertex[j](X_AXIS), stl->facet_start[i].vertex[j](Y_AXIS), c, s);
   	stl_get_size(stl);
   	calculate_normals(stl);
 }
 
 void its_rotate_x(indexed_triangle_set &its, float angle)
 {
-	double radian_angle = (angle / 180.0) * M_PI;
+	double radian_angle = (angle / HALF_CIRCLE_DEGREES) * M_PI;
 	double c = cos(radian_angle);
 	double s = sin(radian_angle);
 	for (stl_vertex &v : its.vertices)
-		rotate_point_2d(v(1), v(2), c, s);
+		rotate_point_2d(v(Y_AXIS), v(Z_AXIS), c, s);
 }
 
 void its_rotate_y(indexed_triangle_set& its, float angle)
 {
-	double radian_angle = (angle / 180.0) * M_PI;
+	double radian_angle = (angle / HALF_CIRCLE_DEGREES) * M_PI;
 	double c = cos(radian_angle);
 	double s = sin(radian_angle);
 	for (stl_vertex& v : its.vertices)
-		rotate_point_2d(v(2), v(0), c, s);
+		rotate_point_2d(v(Z_AXIS), v(X_AXIS), c, s);
 }
 
 void its_rotate_z(indexed_triangle_set& its, float angle)
 {
-	double radian_angle = (angle / 180.0) * M_PI;
+	double radian_angle = (angle / HALF_CIRCLE_DEGREES) * M_PI;
 	double c = cos(radian_angle);
 	double s = sin(radian_angle);
 	for (stl_vertex& v : its.vertices)
-		rotate_point_2d(v(0), v(1), c, s);
+		rotate_point_2d(v(X_AXIS), v(Y_AXIS), c, s);
 }
 
 void stl_get_size(stl_file *stl)
@@ -194,7 +205,7 @@ void stl_get_size(stl_file *stl)
   	stl->stats.max = stl->stats.min;
   	for (uint32_t i = 0; i < stl->stats.number_of_facets; ++ i) {
   		const stl_facet &face = stl->facet_start[i];
-    	for (int j = 0; j < 3; ++ j) {
+    	for (int j = 0; j < VERTICES_PER_FACET; ++ j) {
       		stl->stats.min = stl->stats.min.cwiseMin(face.vertex[j]);
       		stl->stats.max = stl->stats.max.cwiseMax(face.vertex[j]);
     	}
@@ -203,16 +214,20 @@ void stl_get_size(stl_file *stl)
   	stl->stats.bounding_diameter = stl->stats.size.norm();
 }
 
+// Reflection factor: multiplying a coordinate by this mirrors the mesh across the
+// plane perpendicular to that axis (used by the stl_mirror_* helpers below).
+static constexpr float MIRROR_SCALE = -1.0f;
+
 void stl_mirror_xy(stl_file *stl)
 {
   	for (uint32_t i = 0; i < stl->stats.number_of_facets; ++ i)
-    	for (int j = 0; j < 3; ++ j)
-      		stl->facet_start[i].vertex[j](2) *= -1.0;
-	float temp_size = stl->stats.min(2);
-	stl->stats.min(2) = stl->stats.max(2);
-	stl->stats.max(2) = temp_size;
-	stl->stats.min(2) *= -1.0;
-	stl->stats.max(2) *= -1.0;
+    	for (int j = 0; j < VERTICES_PER_FACET; ++ j)
+      		stl->facet_start[i].vertex[j](Z_AXIS) *= MIRROR_SCALE;
+	float temp_size = stl->stats.min(Z_AXIS);
+	stl->stats.min(Z_AXIS) = stl->stats.max(Z_AXIS);
+	stl->stats.max(Z_AXIS) = temp_size;
+	stl->stats.min(Z_AXIS) *= MIRROR_SCALE;
+	stl->stats.max(Z_AXIS) *= MIRROR_SCALE;
 	stl_reverse_all_facets(stl);
 	stl->stats.facets_reversed -= stl->stats.number_of_facets;  /* for not altering stats */
 }
@@ -220,13 +235,13 @@ void stl_mirror_xy(stl_file *stl)
 void stl_mirror_yz(stl_file *stl)
 {
   	for (uint32_t i = 0; i < stl->stats.number_of_facets; ++ i)
-    	for (int j = 0; j < 3; j++)
-      		stl->facet_start[i].vertex[j](0) *= -1.0;
-	float temp_size = stl->stats.min(0);
-	stl->stats.min(0) = stl->stats.max(0);
-	stl->stats.max(0) = temp_size;
-	stl->stats.min(0) *= -1.0;
-	stl->stats.max(0) *= -1.0;
+    	for (int j = 0; j < VERTICES_PER_FACET; j++)
+      		stl->facet_start[i].vertex[j](X_AXIS) *= MIRROR_SCALE;
+	float temp_size = stl->stats.min(X_AXIS);
+	stl->stats.min(X_AXIS) = stl->stats.max(X_AXIS);
+	stl->stats.max(X_AXIS) = temp_size;
+	stl->stats.min(X_AXIS) *= MIRROR_SCALE;
+	stl->stats.max(X_AXIS) *= MIRROR_SCALE;
 	stl_reverse_all_facets(stl);
 	stl->stats.facets_reversed -= stl->stats.number_of_facets;  /* for not altering stats */
 }
@@ -234,13 +249,13 @@ void stl_mirror_yz(stl_file *stl)
 void stl_mirror_xz(stl_file *stl)
 {
 	for (uint32_t i = 0; i < stl->stats.number_of_facets; ++ i)
-		for (int j = 0; j < 3; ++ j)
-			stl->facet_start[i].vertex[j](1) *= -1.0;
-	float temp_size = stl->stats.min(1);
-	stl->stats.min(1) = stl->stats.max(1);
-	stl->stats.max(1) = temp_size;
-	stl->stats.min(1) *= -1.0;
-	stl->stats.max(1) *= -1.0;
+		for (int j = 0; j < VERTICES_PER_FACET; ++ j)
+			stl->facet_start[i].vertex[j](Y_AXIS) *= MIRROR_SCALE;
+	float temp_size = stl->stats.min(Y_AXIS);
+	stl->stats.min(Y_AXIS) = stl->stats.max(Y_AXIS);
+	stl->stats.max(Y_AXIS) = temp_size;
+	stl->stats.min(Y_AXIS) *= MIRROR_SCALE;
+	stl->stats.max(Y_AXIS) *= MIRROR_SCALE;
 	stl_reverse_all_facets(stl);
 	stl->stats.facets_reversed -= stl->stats.number_of_facets;  // for not altering stats
 }
@@ -250,20 +265,23 @@ static float get_area(const stl_facet *facet)
 	/* cast to double before calculating cross product because large coordinates
 	 can result in overflowing product
 	(bad area is responsible for bad volume and bad facets reversal) */
-	double cross[3][3] = {};
-	for (int i = 0; i < 3; i++) {
-		cross[i][0]=((static_cast<double>(facet->vertex[i](1)) * static_cast<double>(facet->vertex[(i + 1) % 3](2))) -
-	             	 (static_cast<double>(facet->vertex[i](2)) * static_cast<double>(facet->vertex[(i + 1) % 3](1))));
-		cross[i][1]=((static_cast<double>(facet->vertex[i](2)) * static_cast<double>(facet->vertex[(i + 1) % 3](0))) -
-	             	 (static_cast<double>(facet->vertex[i](0)) * static_cast<double>(facet->vertex[(i + 1) % 3](2))));
-		cross[i][2]=((static_cast<double>(facet->vertex[i](0)) * static_cast<double>(facet->vertex[(i + 1) % 3](1))) -
-	             	 (static_cast<double>(facet->vertex[i](1)) * static_cast<double>(facet->vertex[(i + 1) % 3](0))));
+	double cross[VERTICES_PER_FACET][AXIS_COUNT] = {};
+	for (int i = 0; i < VERTICES_PER_FACET; i++) {
+		cross[i][X_AXIS]=((static_cast<double>(facet->vertex[i](Y_AXIS)) * static_cast<double>(facet->vertex[(i + 1) % VERTICES_PER_FACET](Z_AXIS))) -
+	             	 (static_cast<double>(facet->vertex[i](Z_AXIS)) * static_cast<double>(facet->vertex[(i + 1) % VERTICES_PER_FACET](Y_AXIS))));
+		cross[i][Y_AXIS]=((static_cast<double>(facet->vertex[i](Z_AXIS)) * static_cast<double>(facet->vertex[(i + 1) % VERTICES_PER_FACET](X_AXIS))) -
+	             	 (static_cast<double>(facet->vertex[i](X_AXIS)) * static_cast<double>(facet->vertex[(i + 1) % VERTICES_PER_FACET](Z_AXIS))));
+		cross[i][Z_AXIS]=((static_cast<double>(facet->vertex[i](X_AXIS)) * static_cast<double>(facet->vertex[(i + 1) % VERTICES_PER_FACET](Y_AXIS))) -
+	             	 (static_cast<double>(facet->vertex[i](Y_AXIS)) * static_cast<double>(facet->vertex[(i + 1) % VERTICES_PER_FACET](X_AXIS))));
 	}
 
-	stl_normal sum;
-	sum(0) = cross[0][0] + cross[1][0] + cross[2][0];
-	sum(1) = cross[0][1] + cross[1][1] + cross[2][1];
-	sum(2) = cross[0][2] + cross[1][2] + cross[2][2];
+	// Sum each axis component of the per-vertex cross products.
+	stl_normal sum = stl_normal::Zero();
+	for (int v = 0; v < VERTICES_PER_FACET; ++v) {
+		sum(X_AXIS) += cross[v][X_AXIS];
+		sum(Y_AXIS) += cross[v][Y_AXIS];
+		sum(Z_AXIS) += cross[v][Z_AXIS];
+	}
 
 	// Recompute a normalized geometric normal in case facet->normal is stale.
 	// The accumulated sum still carries the signed area magnitude.
