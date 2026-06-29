@@ -198,7 +198,7 @@ static void draw_contours_and_nodes_to_svg
     const std::vector<SupportNode*>& layer_nodes,
     const std::vector<SupportNode*>& lower_layer_nodes,
     std::vector<std::string> legends = { "overhang","avoid","outlines" },
-	std::vector<std::string> colors = { "blue","red","yellow" }
+    std::vector<std::string> colors = { "blue","red","yellow" }
 )
 {
     BoundingBox bbox = get_extents(overhangs);
@@ -226,7 +226,7 @@ static void draw_contours_and_nodes_to_svg
     svg.draw_outline(outlines_below, colors[2]);
 
     // draw legend
-	svg.draw_text(bbox.min + Point(scale_(0), scale_(0)), format("nPoints: %1%->%2%",layer_nodes.size(), lower_layer_nodes.size()).c_str(), "green", 2);
+    svg.draw_text(bbox.min + Point(scale_(0), scale_(0)), format("nPoints: %1%->%2%",layer_nodes.size(), lower_layer_nodes.size()).c_str(), "green", 2);
     svg.draw_text(bbox.min + Point(scale_(0), scale_(2)), legends[0].c_str(), colors[0].c_str(), 2);
     svg.draw_text(bbox.min + Point(scale_(0), scale_(4)), legends[1].c_str(), colors[1].c_str(), 2);
     svg.draw_text(bbox.min + Point(scale_(0), scale_(6)), legends[2].c_str(), colors[2].c_str(), 2);
@@ -838,9 +838,9 @@ void OrcaTreeSupport::detect_overhangs(bool check_support_necessity/* = false*/)
 
                             has_sharp_tails = true;
 #ifdef SUPPORT_TREE_DEBUG_TO_SVG
-							SVG::export_expolygons(debug_out_path("sharp_tail_orig_%.02f.svg", layer->print_z), { expoly });
+                            SVG::export_expolygons(debug_out_path("sharp_tail_orig_%.02f.svg", layer->print_z), { expoly });
 #endif
-						}
+                        }
                     }
                 }
 
@@ -1064,7 +1064,7 @@ void OrcaTreeSupport::detect_overhangs(bool check_support_necessity/* = false*/)
             m_object->remove_bridges_from_contacts(lower_layer, layer, extrusion_width_scaled, &layer->loverhangs, max_bridge_length, break_bridge);
         }
 
-		int nDetected = layer->loverhangs.size();
+        int nDetected = layer->loverhangs.size();
         // enforcers now follow same logic as normal support. See STUDIO-3692
         if (layer_nr < enforcers.size() && lower_layer) {
             ExPolygons enforced_overhangs   = intersection_ex(diff_ex(layer->lslices_extrudable, lower_layer->lslices_extrudable), enforcers[layer_nr]);
@@ -3199,7 +3199,7 @@ void OrcaTreeSupport::generate_contact_points()
   //  // Note: normal support uses print_z, but tree support uses integer layers, so we need to subtract layer_height
   //  if (!m_slicing_params.soluble_interface && m_object_config->thick_bridges) {
   //      z_distance_top += m_object->layers()[0]->regions()[0]->region().bridging_height_avg(m_object->print()->config()) - layer_height;
-		//}
+        //}
   //  }
     const int z_distance_top_layers = round_up_divide(scale_(z_distance_top), scale_(layer_height)) + 1; //Support must always be 1 layer below overhang.
     int gap_layers = z_distance_top == 0 ? 0 : 1;

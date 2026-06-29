@@ -67,13 +67,13 @@ PresetBundle::PresetBundle() :
     this->filaments.default_preset().config.option<ConfigOptionStrings>("filament_settings_id", true)->set({""});
     this->filaments.default_preset().compatible_printers_condition();
     this->filaments.default_preset().inherits();
-	// Disable all the optionals values.
-	this->filaments.default_preset().config.disable_optionals();
+    // Disable all the optionals values.
+    this->filaments.default_preset().config.disable_optionals();
 
     this->sla_materials.default_preset().config.optptr("sla_material_settings_id", true);
     this->sla_materials.default_preset().compatible_printers_condition();
     this->sla_materials.default_preset().inherits();
-	// Disable all the optionals values.
+    // Disable all the optionals values.
     this->sla_materials.default_preset().config.disable_optionals();
 
     this->sla_prints.default_preset().config.optptr("sla_print_settings_id", true);
@@ -84,8 +84,8 @@ PresetBundle::PresetBundle() :
     this->printers.add_default_preset(Preset::sla_printer_options(), static_cast<const SLAMaterialConfig&>(SLAFullPrintConfig::defaults()), "- default SLA -");
     this->printers.preset(1).printer_technology_ref() = ptSLA;
     for (size_t i = 0; i < 2; ++ i) {
-		// The following ugly switch is to avoid printers.preset(0) to return the edited instance, as the 0th default is the current one.
-		Preset &preset = this->printers.default_preset(i);
+        // The following ugly switch is to avoid printers.preset(0) to return the edited instance, as the 0th default is the current one.
+        Preset &preset = this->printers.default_preset(i);
         for (const char *key : { 
             "printer_settings_id", "printer_vendor", "printer_model", "printer_variant", "thumbnails",
             //FIXME the following keys are only created here for compatibility to be able to parse legacy Printer profiles.
@@ -164,7 +164,7 @@ void PresetBundle::setup_directories()
     boost::filesystem::path data_dir = boost::filesystem::path(Slic3r::data_dir());
     std::initializer_list<boost::filesystem::path> paths = { 
         data_dir,
-		data_dir / "vendor",
+        data_dir / "vendor",
         data_dir / "cache",
         data_dir / "cache" / "vendor",
         data_dir / "shapes",
@@ -188,7 +188,7 @@ void PresetBundle::setup_directories()
 #endif
     };
     for (const boost::filesystem::path &path : paths) {
-		boost::filesystem::path subdir = path;
+        boost::filesystem::path subdir = path;
         subdir.make_preferred();
         if (! boost::filesystem::is_directory(subdir) && 
             ! boost::filesystem::create_directory(subdir))
@@ -372,11 +372,11 @@ std::pair<PresetsConfigSubstitutions, std::string> PresetBundle::load_system_pre
             }
         }
     if (first) {
-		// No config bundle loaded, reset.
-		this->reset(false);
-	}
+        // No config bundle loaded, reset.
+        this->reset(false);
+    }
 
-	this->update_system_maps();
+    this->update_system_maps();
     return std::make_pair(std::move(substitutions), errors_cummulative);
 }
 
@@ -389,11 +389,11 @@ std::vector<std::string> PresetBundle::merge_presets(PresetBundle &&other)
     std::vector<std::string> duplicate_filaments     = this->filaments    .merge_presets(std::move(other.filaments),     this->vendors);
     std::vector<std::string> duplicate_sla_materials = this->sla_materials.merge_presets(std::move(other.sla_materials), this->vendors);
     std::vector<std::string> duplicate_printers      = this->printers     .merge_presets(std::move(other.printers),      this->vendors);
-	append(this->obsolete_presets.fff_prints,    std::move(other.obsolete_presets.fff_prints));
-	append(this->obsolete_presets.sla_prints,    std::move(other.obsolete_presets.sla_prints));
-	append(this->obsolete_presets.filaments,     std::move(other.obsolete_presets.filaments));
+    append(this->obsolete_presets.fff_prints,    std::move(other.obsolete_presets.fff_prints));
+    append(this->obsolete_presets.sla_prints,    std::move(other.obsolete_presets.sla_prints));
+    append(this->obsolete_presets.filaments,     std::move(other.obsolete_presets.filaments));
     append(this->obsolete_presets.sla_materials, std::move(other.obsolete_presets.sla_materials));
-	append(this->obsolete_presets.printers,      std::move(other.obsolete_presets.printers));
+    append(this->obsolete_presets.printers,      std::move(other.obsolete_presets.printers));
     append(duplicate_fff_prints, std::move(duplicate_sla_prints));
     append(duplicate_fff_prints, std::move(duplicate_filaments));
     append(duplicate_fff_prints, std::move(duplicate_sla_materials));
@@ -433,7 +433,7 @@ static inline std::string remove_ini_suffix(const std::string &name)
 // If the "vendor" section is missing, enable all models and variants of the particular vendor.
 void PresetBundle::load_installed_printers(const AppConfig &config)
 {
-	this->update_system_maps();
+    this->update_system_maps();
     for (auto &preset : printers)
         preset.set_visible_from_appconfig(config);
 }
@@ -557,18 +557,18 @@ bool PresetBundle::transfer_and_save(Preset::Type type, const std::string& prese
 void PresetBundle::load_installed_filaments(AppConfig &config)
 {
     if (! config.has_section(AppConfig::SECTION_FILAMENTS)) {
-		// Compatibility with the PrusaSlicer 2.1.1 and older, where the filament profiles were not installable yet.
-		// Find all filament profiles, which are compatible with installed printers, and act as if these filament profiles
-		// were installed.
+        // Compatibility with the PrusaSlicer 2.1.1 and older, where the filament profiles were not installable yet.
+        // Find all filament profiles, which are compatible with installed printers, and act as if these filament profiles
+        // were installed.
         std::unordered_set<const Preset*> compatible_filaments;
         for (const Preset &printer : printers)
             if (printer.is_visible && printer.printer_technology() == ptFFF) {
-				const PresetWithVendorProfile printer_with_vendor_profile = printers.get_preset_with_vendor_profile(printer);
-				for (const Preset &filament : filaments)
-					if (filament.is_system && is_compatible_with_printer(filaments.get_preset_with_vendor_profile(filament), printer_with_vendor_profile))
-						compatible_filaments.insert(&filament);
-			}
-		// and mark these filaments as installed, therefore this code will not be executed at the next start of the application.
+                const PresetWithVendorProfile printer_with_vendor_profile = printers.get_preset_with_vendor_profile(printer);
+                for (const Preset &filament : filaments)
+                    if (filament.is_system && is_compatible_with_printer(filaments.get_preset_with_vendor_profile(filament), printer_with_vendor_profile))
+                        compatible_filaments.insert(&filament);
+            }
+        // and mark these filaments as installed, therefore this code will not be executed at the next start of the application.
         for (const auto &filament: compatible_filaments)
             config.set(AppConfig::SECTION_FILAMENTS, filament->name, "1");
     }
@@ -581,18 +581,18 @@ void PresetBundle::load_installed_sla_materials(AppConfig &config)
 {
     if (! config.has_section(AppConfig::SECTION_MATERIALS)) {
         std::unordered_set<const Preset*> comp_sla_materials;
-		// Compatibility with the PrusaSlicer 2.1.1 and older, where the SLA material profiles were not installable yet.
-		// Find all SLA material profiles, which are compatible with installed printers, and act as if these SLA material profiles
-		// were installed.
+        // Compatibility with the PrusaSlicer 2.1.1 and older, where the SLA material profiles were not installable yet.
+        // Find all SLA material profiles, which are compatible with installed printers, and act as if these SLA material profiles
+        // were installed.
         for (const Preset &printer : printers)
             if (printer.is_visible && printer.printer_technology() == ptSLA) {
-				const PresetWithVendorProfile printer_with_vendor_profile = printers.get_preset_with_vendor_profile(printer);
-				for (const Preset &material : sla_materials)
-					if (material.is_system && is_compatible_with_printer(sla_materials.get_preset_with_vendor_profile(material), printer_with_vendor_profile))
-						comp_sla_materials.insert(&material);
-			}
-		// and mark these SLA materials as installed, therefore this code will not be executed at the next start of the application.
-		for (const auto &material: comp_sla_materials)
+                const PresetWithVendorProfile printer_with_vendor_profile = printers.get_preset_with_vendor_profile(printer);
+                for (const Preset &material : sla_materials)
+                    if (material.is_system && is_compatible_with_printer(sla_materials.get_preset_with_vendor_profile(material), printer_with_vendor_profile))
+                        comp_sla_materials.insert(&material);
+            }
+        // and mark these SLA materials as installed, therefore this code will not be executed at the next start of the application.
+        for (const auto &material: comp_sla_materials)
             config.set(AppConfig::SECTION_MATERIALS, material->name, "1");
     }
 
@@ -604,8 +604,8 @@ void PresetBundle::load_installed_sla_materials(AppConfig &config)
 // This is done on application start up or after updates are applied.
 void PresetBundle::load_selections(AppConfig &config, const PresetPreferences& preferred_selection/* = PresetPreferences()*/)
 {
-	// Update visibility of presets based on application vendor / model / variant configuration.
-	this->load_installed_printers(config);
+    // Update visibility of presets based on application vendor / model / variant configuration.
+    this->load_installed_printers(config);
 
     // Update visibility of filament and sla material presets
     this->load_installed_filaments(config);
@@ -616,7 +616,7 @@ void PresetBundle::load_selections(AppConfig &config, const PresetPreferences& p
     std::string initial_sla_print_profile_name    = remove_ini_suffix(config.get("presets", "sla_print"));
     std::string initial_filament_profile_name     = remove_ini_suffix(config.get("presets", "filament"));
     std::string initial_sla_material_profile_name = remove_ini_suffix(config.get("presets", "sla_material"));
-	std::string initial_printer_profile_name      = remove_ini_suffix(config.get("presets", "printer"));
+    std::string initial_printer_profile_name      = remove_ini_suffix(config.get("presets", "printer"));
 
     // Activate print / filament / printer profiles from either the config,
     // or from the preferred_model_id suggestion passed in by ConfigWizard.
@@ -632,7 +632,7 @@ void PresetBundle::load_selections(AppConfig &config, const PresetPreferences& p
     // Selects the profile, leaves it to -1 if the initial profile name is empty or if it was not found.
     fff_prints.select_preset_by_name_strict(initial_print_profile_name);
     filaments.select_preset_by_name_strict(initial_filament_profile_name);
-	sla_prints.select_preset_by_name_strict(initial_sla_print_profile_name);
+    sla_prints.select_preset_by_name_strict(initial_sla_print_profile_name);
     sla_materials.select_preset_by_name_strict(initial_sla_material_profile_name);
 
     // Load the names of the other filament profiles selected for a multi-material printer.
@@ -688,7 +688,7 @@ void PresetBundle::load_selections(AppConfig &config, const PresetPreferences& p
 // Export selections (current print, current filaments, current printer) into config.ini
 void PresetBundle::export_selections(AppConfig &config)
 {
-	assert(this->printers.get_edited_preset().printer_technology() != ptFFF || extruders_filaments.size() >= 1);
+    assert(this->printers.get_edited_preset().printer_technology() != ptFFF || extruders_filaments.size() >= 1);
     // #ysFIXME_delete_after_test !All filament selections are always saved in extruder_filaments (for MM and SM printers),
     // so there is no need to control a correspondence between filaments and extruders_filaments
     //assert(this->printers.get_edited_preset().printer_technology() != ptFFF || extruders_filaments.size() > 1 || filaments.get_selected_preset().alias == extruders_filaments.front().get_selected_preset()->alias);
@@ -732,8 +732,8 @@ DynamicPrintConfig PresetBundle::full_fff_config() const
     out.apply(FullPrintConfig::defaults());
     out.apply(this->fff_prints.get_edited_preset().config);
     // Add the default filament preset to have the "filament_preset_id" defined.
-	out.apply(this->filaments.default_preset().config);
-	out.apply(this->printers.get_edited_preset().config);
+    out.apply(this->filaments.default_preset().config);
+    out.apply(this->printers.get_edited_preset().config);
     out.apply(this->project_config);
 
     auto   *nozzle_diameter = dynamic_cast<const ConfigOptionFloats*>(out.option("nozzle_diameter"));
@@ -757,7 +757,7 @@ DynamicPrintConfig PresetBundle::full_fff_config() const
         std::vector<const DynamicPrintConfig*> filament_configs;
         for (const auto& extr_filaments : this->extruders_filaments)
             filament_configs.emplace_back(&this->filaments.find_preset(extr_filaments.get_selected_preset_name(), true)->config);
-		while (filament_configs.size() < num_extruders)
+        while (filament_configs.size() < num_extruders)
             filament_configs.emplace_back(&this->filaments.first_visible().config);
         for (const DynamicPrintConfig *cfg : filament_configs) {
             // The compatible_prints/printers_condition() returns a reference to configuration key, which may not yet exist.
@@ -770,8 +770,8 @@ DynamicPrintConfig PresetBundle::full_fff_config() const
         std::vector<const ConfigOption*> filament_opts(num_extruders, nullptr);
         // loop through options and apply them to the resulting config.
         for (const t_config_option_key &key : this->filaments.default_preset().config.keys()) {
-			if (key == "compatible_prints" || key == "compatible_printers")
-				continue;
+            if (key == "compatible_prints" || key == "compatible_printers")
+                continue;
             // Get a destination option.
             ConfigOption *opt_dst = out.option(key, false);
             if (opt_dst->is_scalar()) {
@@ -789,7 +789,7 @@ DynamicPrintConfig PresetBundle::full_fff_config() const
         }
     }
 
-	// Don't store the "compatible_printers_condition" for the printer profile, there is none.
+    // Don't store the "compatible_printers_condition" for the printer profile, there is none.
     inherits.emplace_back(this->printers.get_edited_preset().inherits());
 
     // These value types clash between the print and filament profiles. They should be renamed.
@@ -841,7 +841,7 @@ DynamicPrintConfig PresetBundle::full_fff_config() const
     add_if_some_non_empty(std::move(compatible_prints_condition),   "compatible_prints_condition_cummulative");
     add_if_some_non_empty(std::move(inherits),                      "inherits_cummulative");
 
-	out.option<ConfigOptionEnumGeneric>("printer_technology", true)->value = ptFFF;
+    out.option<ConfigOptionEnumGeneric>("printer_technology", true)->value = ptFFF;
     return out;
 }
 
@@ -857,12 +857,12 @@ DynamicPrintConfig PresetBundle::full_sla_config() const
 
     // Collect the "compatible_printers_condition" and "inherits" values over all presets (sla_prints, sla_materials, printers) into a single vector.
     std::vector<std::string> compatible_printers_condition;
-	std::vector<std::string> compatible_prints_condition;
+    std::vector<std::string> compatible_prints_condition;
     std::vector<std::string> inherits;
     compatible_printers_condition.emplace_back(this->sla_prints.get_edited_preset().compatible_printers_condition());
-	inherits					 .emplace_back(this->sla_prints.get_edited_preset().inherits());
+    inherits					 .emplace_back(this->sla_prints.get_edited_preset().inherits());
     compatible_printers_condition.emplace_back(this->sla_materials.get_edited_preset().compatible_printers_condition());
-	compatible_prints_condition  .emplace_back(this->sla_materials.get_edited_preset().compatible_prints_condition());
+    compatible_prints_condition  .emplace_back(this->sla_materials.get_edited_preset().compatible_prints_condition());
     inherits                     .emplace_back(this->sla_materials.get_edited_preset().inherits());
     inherits                     .emplace_back(this->printers.get_edited_preset().inherits());
 
@@ -897,8 +897,8 @@ DynamicPrintConfig PresetBundle::full_sla_config() const
     add_if_some_non_empty(std::move(compatible_prints_condition),   "compatible_prints_condition_cummulative");
     add_if_some_non_empty(std::move(inherits),                      "inherits_cummulative");
 
-	out.option<ConfigOptionEnumGeneric>("printer_technology", true)->value = ptSLA;
-	return out;
+    out.option<ConfigOptionEnumGeneric>("printer_technology", true)->value = ptSLA;
+    return out;
 }
 
 // Load an external config file containing the print, filament and printer presets.
@@ -907,7 +907,7 @@ DynamicPrintConfig PresetBundle::full_sla_config() const
 // If the file is loaded successfully, its print / filament / printer profiles will be activated.
 ConfigSubstitutions PresetBundle::load_config_file(const std::string &path, ForwardCompatibilitySubstitutionRule compatibility_rule, bool from_prusa /*= false*/)
 {
-	if (is_gcode_file(path)) {
+    if (is_gcode_file(path)) {
         FILE* file = boost::nowide::fopen(path.c_str(), "rb");
         if (file == nullptr)
             throw Slic3r::RuntimeError(format("Error opening file %1%", path));
@@ -915,16 +915,16 @@ ConfigSubstitutions PresetBundle::load_config_file(const std::string &path, Forw
         const bool is_binary = bgcode::core::is_valid_binary_gcode(*file, true, cs_buffer.data(), cs_buffer.size()) == bgcode::core::EResult::Success;
         fclose(file);
 
-		DynamicPrintConfig config;
-		config.apply(FullPrintConfig::defaults());
+        DynamicPrintConfig config;
+        config.apply(FullPrintConfig::defaults());
         ConfigSubstitutions config_substitutions = is_binary ? config.load_from_binary_gcode_file(path, compatibility_rule) :
             config.load_from_gcode_file(path, compatibility_rule);
         Preset::normalize(config);
         if(from_prusa)
             config.convert_from_prusa(true);
-		load_config_file_config(path, true, std::move(config));
-		return config_substitutions;
-	}
+        load_config_file_config(path, true, std::move(config));
+        return config_substitutions;
+    }
 
     // 1) Try to load the config file into a boost property tree.
     boost::property_tree::ptree tree;
@@ -935,7 +935,7 @@ ConfigSubstitutions PresetBundle::load_config_file(const std::string &path, Forw
         throw Slic3r::RuntimeError(std::string("The Config Bundle cannot be loaded: ") + path + "\n\tReason: " + err.what());
     } catch (const boost::property_tree::file_parser_error &err) {
         throw Slic3r::RuntimeError(format("Failed loading the Config Bundle \"%1%\": %2% at line %3%",
-        	err.filename(), err.message(), err.line()));
+            err.filename(), err.message(), err.line()));
     } catch (const std::runtime_error &err) {
         throw Slic3r::RuntimeError(std::string("Failed loading the preset file: ") + path + "\n\tReason: " + err.what());
     }
@@ -949,17 +949,17 @@ ConfigSubstitutions PresetBundle::load_config_file(const std::string &path, Forw
             throw Slic3r::RuntimeError(std::string("Unknown configuration file type: ") + path);   
         case CONFIG_FILE_TYPE_APP_CONFIG:
             throw Slic3r::RuntimeError(std::string("Invalid configuration file: ") + path + ". This is an application config file.");
-    	case CONFIG_FILE_TYPE_CONFIG:
-    	{
-    		// Initialize a config from full defaults.
-    		DynamicPrintConfig config;
-    		config.apply(FullPrintConfig::defaults());
+        case CONFIG_FILE_TYPE_CONFIG:
+        {
+            // Initialize a config from full defaults.
+            DynamicPrintConfig config;
+            config.apply(FullPrintConfig::defaults());
             config_substitutions = config.load(tree, compatibility_rule);
-    		Preset::normalize(config);
+            Preset::normalize(config);
             if (from_prusa) {
                 config.convert_from_prusa(true);
             }
-    		load_config_file_config(path, true, std::move(config));
+            load_config_file_config(path, true, std::move(config));
             return config_substitutions;
         }
         case CONFIG_FILE_TYPE_CONFIG_BUNDLE:
@@ -996,7 +996,7 @@ void PresetBundle::load_config_file_config(const std::string &name_or_path, bool
     size_t num_extruders = (printer_technology == ptFFF) ?
         std::min(config.option<ConfigOptionFloats>("nozzle_diameter"  )->size(), 
                  config.option<ConfigOptionFloats>("filament_diameter")->size()) :
-		// 1 SLA material
+        // 1 SLA material
         1;
     // Make a copy of the "compatible_printers_condition_cummulative" and "inherits_cummulative" vectors, which 
     // accumulate values over all presets (print, filaments, printers).
@@ -1011,17 +1011,17 @@ void PresetBundle::load_config_file_config(const std::string &name_or_path, bool
     compatible_prints_condition_values.resize(num_extruders, std::string());
     inherits_values.resize(num_extruders + 2, std::string());
     // The "default_filament_profile" will be later extracted into the printer profile.
-	switch (printer_technology) {
-	case ptFFF:
-		config.option<ConfigOptionString>("default_print_profile", true);
+    switch (printer_technology) {
+    case ptFFF:
+        config.option<ConfigOptionString>("default_print_profile", true);
         config.option<ConfigOptionStrings>("default_filament_profile", true);
-		break;
-	case ptSLA:
-		config.option<ConfigOptionString>("default_sla_print_profile", true);
-		config.option<ConfigOptionString>("default_sla_material_profile", true);
-		break;
+        break;
+    case ptSLA:
+        config.option<ConfigOptionString>("default_sla_print_profile", true);
+        config.option<ConfigOptionString>("default_sla_material_profile", true);
+        break;
     default: break;
-	}
+    }
 
     // 1) Create a name from the file name.
     // Keep the suffix (.ini, .gcode, .amf, .3mf etc) to differentiate it from the normal profiles.
@@ -1033,25 +1033,25 @@ void PresetBundle::load_config_file_config(const std::string &name_or_path, bool
     // First load the print and printer presets.
 
     std::set<std::string>& tmp_installed_presets_ref = tmp_installed_presets;
-	auto load_preset = 
-		[&config, &inherits, &inherits_values, 
+    auto load_preset = 
+        [&config, &inherits, &inherits_values, 
          &compatible_printers_condition, &compatible_printers_condition_values, 
          &compatible_prints_condition, &compatible_prints_condition_values, 
          is_external, &name, &name_or_path, &tmp_installed_presets_ref]
-		(PresetCollection &presets, size_t idx, const std::string &key) {
-		// Split the "compatible_printers_condition" and "inherits" values one by one from a single vector to the print & printer profiles.
-		inherits = inherits_values[idx];
-		compatible_printers_condition = compatible_printers_condition_values[idx];
+        (PresetCollection &presets, size_t idx, const std::string &key) {
+        // Split the "compatible_printers_condition" and "inherits" values one by one from a single vector to the print & printer profiles.
+        inherits = inherits_values[idx];
+        compatible_printers_condition = compatible_printers_condition_values[idx];
         if (idx > 0 && idx - 1 < compatible_prints_condition_values.size())
             compatible_prints_condition = compatible_prints_condition_values[idx - 1];
-		if (is_external) {
-			ExternalPreset ext_preset = presets.load_external_preset(name_or_path, name, config.opt_string(key, true), config);
-			if (ext_preset.is_installed)
-				tmp_installed_presets_ref.emplace(ext_preset.preset->name);
-		}
-		else
-			presets.load_preset(presets.path_from_name(name), name, config).save();
-	};
+        if (is_external) {
+            ExternalPreset ext_preset = presets.load_external_preset(name_or_path, name, config.opt_string(key, true), config);
+            if (ext_preset.is_installed)
+                tmp_installed_presets_ref.emplace(ext_preset.preset->name);
+        }
+        else
+            presets.load_preset(presets.path_from_name(name), name, config).save();
+    };
 
     switch (Preset::printer_technology(config)) {
     case ptFFF:
@@ -1061,15 +1061,15 @@ void PresetBundle::load_config_file_config(const std::string &name_or_path, bool
 
         // 3) Now load the filaments. If there are multiple filament presets, split them and load them.
         auto old_filament_profile_names = config.option<ConfigOptionStrings>("filament_settings_id", true);
-    	old_filament_profile_names->resize(num_extruders, std::string());
+        old_filament_profile_names->resize(num_extruders, std::string());
 
         this->extruders_filaments.clear();
         if (num_extruders <= 1) {
             // Split the "compatible_printers_condition" and "inherits" from the cummulative vectors to separate filament presets.
             inherits                      = inherits_values[1];
             compatible_printers_condition = compatible_printers_condition_values[1];
-			compatible_prints_condition   = compatible_prints_condition_values.front();
-			Preset                *loaded = nullptr;
+            compatible_prints_condition   = compatible_prints_condition_values.front();
+            Preset                *loaded = nullptr;
             if (is_external) {
                 assert(!old_filament_profile_names->empty());
                 ExternalPreset ext_preset = this->filaments.load_external_preset(name_or_path, name, old_filament_profile_names->get_at(0), config);
@@ -1078,10 +1078,10 @@ void PresetBundle::load_config_file_config(const std::string &name_or_path, bool
                     tmp_installed_presets.emplace(ext_preset.preset->name);
             } else {
                 // called from Config Wizard.
-				loaded= &this->filaments.load_preset(this->filaments.path_from_name(name), name, config);
-				loaded->save();
-			}
-			this->extruders_filaments.emplace_back(ExtruderFilaments(&filaments));
+                loaded= &this->filaments.load_preset(this->filaments.path_from_name(name), name, config);
+                loaded->save();
+            }
+            this->extruders_filaments.emplace_back(ExtruderFilaments(&filaments));
         } else {
             assert(is_external);
             // Split the filament presets, load each of them separately.
@@ -1144,7 +1144,7 @@ void PresetBundle::load_config_file_config(const std::string &name_or_path, bool
         break;
     }
 
-	this->update_compatible(PresetSelectCompatibleType::Never);
+    this->update_compatible(PresetSelectCompatibleType::Never);
 
     const std::string &physical_printer = config.option<ConfigOptionString>("physical_printer_settings_id", true)->value;
     if (this->printers.get_edited_preset().is_external || physical_printer.empty()) {
@@ -1289,11 +1289,11 @@ static void flatten_configbundle_hierarchy(boost::property_tree::ptree &tree, co
         // Iterate in a reverse order, so the last change will be placed first in merged.
         for (auto it_inherits = prst->inherits.rbegin(); it_inherits != prst->inherits.rend(); ++ it_inherits)
             for (auto it = (*it_inherits)->node->begin(); it != (*it_inherits)->node->end(); ++ it)
-				if (it->first == "renamed_from") {
-            		// Don't inherit "renamed_from" flag, it does not make sense. The "renamed_from" flag only makes sense for a concrete preset.
-            		if (boost::starts_with((*it_inherits)->name, "*"))
-			            BOOST_LOG_TRIVIAL(error) << boost::format("Nonpublic intermediate preset %1% contains a \"renamed_from\" field, which is ignored") % (*it_inherits)->name;
-				} else if (prst->node->find(it->first) == prst->node->not_found())
+                if (it->first == "renamed_from") {
+                    // Don't inherit "renamed_from" flag, it does not make sense. The "renamed_from" flag only makes sense for a concrete preset.
+                    if (boost::starts_with((*it_inherits)->name, "*"))
+                        BOOST_LOG_TRIVIAL(error) << boost::format("Nonpublic intermediate preset %1% contains a \"renamed_from\" field, which is ignored") % (*it_inherits)->name;
+                } else if (prst->node->find(it->first) == prst->node->not_found())
                     prst->node->add_child(it->first, it->second);
     }
 
@@ -1592,19 +1592,19 @@ std::pair<PresetsConfigSubstitutions, size_t> PresetBundle::load_configbundle(
             // Derive the profile logical name aka alias from the preset name if the alias was not stated explicitely.
             if (alias_name.empty()) {
                 size_t end_pos = preset_name.find_first_of("@");
-	            if (end_pos != std::string::npos) {
-	                alias_name = preset_name.substr(0, end_pos);
-	                if (renamed_from.empty())
-	                	// Add the preset name with the '@' character removed into the "renamed_from" list.
-	                	renamed_from.emplace_back(alias_name + preset_name.substr(end_pos + 1));
+                if (end_pos != std::string::npos) {
+                    alias_name = preset_name.substr(0, end_pos);
+                    if (renamed_from.empty())
+                        // Add the preset name with the '@' character removed into the "renamed_from" list.
+                        renamed_from.emplace_back(alias_name + preset_name.substr(end_pos + 1));
                     boost::trim_right(alias_name);
-	            }
-	        }
-	        if (alias_name.empty())
-	        	loaded.alias = preset_name;
-	        else 
-	         	loaded.alias = std::move(alias_name);
-	        loaded.renamed_from = std::move(renamed_from);
+                }
+            }
+            if (alias_name.empty())
+                loaded.alias = preset_name;
+            else 
+                loaded.alias = std::move(alias_name);
+            loaded.renamed_from = std::move(renamed_from);
             if (! substitution_context.empty())
                 substitutions.push_back({preset_name, presets->type(), PresetConfigSubstitutions::Source::ConfigBundle,
                                          std::string(), std::move(substitution_context).data()});
@@ -1752,7 +1752,7 @@ void PresetBundle::update_multi_material_filament_presets()
                 else
                     new_matrix.push_back( i==j ? 0. : extruders[2*i]+extruders[2*j+1]); // so it matches new extruder volumes
             }
-		this->project_config.option<ConfigOptionFloats>("wiping_volumes_matrix")->set(new_matrix);
+        this->project_config.option<ConfigOptionFloats>("wiping_volumes_matrix")->set(new_matrix);
     }
 }
 
@@ -1866,7 +1866,7 @@ void PresetBundle::update_filaments_compatible(PresetSelectCompatibleType select
 void PresetBundle::update_compatible(PresetSelectCompatibleType select_other_print_if_incompatible, PresetSelectCompatibleType select_other_filament_if_incompatible)
 {
     const Preset					&printer_preset					    = this->printers.get_edited_preset();
-	const PresetWithVendorProfile    printer_preset_with_vendor_profile = this->printers.get_preset_with_vendor_profile(printer_preset);
+    const PresetWithVendorProfile    printer_preset_with_vendor_profile = this->printers.get_preset_with_vendor_profile(printer_preset);
 
     class PreferedProfileMatch
     {
@@ -1920,11 +1920,11 @@ void PresetBundle::update_compatible(PresetSelectCompatibleType select_other_pri
         double m_prefered_layer_height;
     };
 
-	switch (printer_preset.printer_technology()) {
+    switch (printer_preset.printer_technology()) {
     case ptFFF:
     {
-		assert(printer_preset.config.has("default_print_profile"));
-		assert(printer_preset.config.has("default_filament_profile"));
+        assert(printer_preset.config.has("default_print_profile"));
+        assert(printer_preset.config.has("default_filament_profile"));
 
         this->fff_prints.update_compatible(printer_preset_with_vendor_profile, nullptr, select_other_print_if_incompatible,
             PreferedPrintProfileMatch(this->fff_prints.get_selected_idx() == size_t(-1) ? nullptr : &this->fff_prints.get_edited_preset(), printer_preset.config.opt_string("default_print_profile")));
@@ -1932,19 +1932,19 @@ void PresetBundle::update_compatible(PresetSelectCompatibleType select_other_pri
         // Update compatibility for all currently existent extruder_filaments.
         update_filaments_compatible(select_other_filament_if_incompatible);
 
-		break;
+        break;
     }
     case ptSLA:
     {
-		assert(printer_preset.config.has("default_sla_print_profile"));
-		assert(printer_preset.config.has("default_sla_material_profile"));
-		this->sla_prints.update_compatible(printer_preset_with_vendor_profile, nullptr, select_other_print_if_incompatible,
+        assert(printer_preset.config.has("default_sla_print_profile"));
+        assert(printer_preset.config.has("default_sla_material_profile"));
+        this->sla_prints.update_compatible(printer_preset_with_vendor_profile, nullptr, select_other_print_if_incompatible,
             PreferedPrintProfileMatch(this->sla_prints.get_selected_idx() == size_t(-1) ? nullptr : &this->sla_prints.get_edited_preset(), printer_preset.config.opt_string("default_sla_print_profile")));
         const PresetWithVendorProfile sla_print_preset_with_vendor_profile = this->sla_prints.get_edited_preset_with_vendor_profile();
-		this->sla_materials.update_compatible(printer_preset_with_vendor_profile, &sla_print_preset_with_vendor_profile, select_other_filament_if_incompatible,
+        this->sla_materials.update_compatible(printer_preset_with_vendor_profile, &sla_print_preset_with_vendor_profile, select_other_filament_if_incompatible,
             PreferedProfileMatch(this->sla_materials.get_selected_idx() == size_t(-1) ? std::string() : this->sla_materials.get_edited_preset().alias, printer_preset.config.opt_string("default_sla_material_profile")));
-		break;
-	}
+        break;
+    }
     default: break;
     }
 }
@@ -1959,10 +1959,10 @@ void PresetBundle::export_configbundle(const std::string &path, bool export_syst
 
     // Export the print, filament and printer profiles.
 
-	for (const PresetCollection *presets : { 
-		(const PresetCollection*)&this->fff_prints, (const PresetCollection*)&this->filaments, 
-		(const PresetCollection*)&this->sla_prints, (const PresetCollection*)&this->sla_materials, 
-		(const PresetCollection*)&this->printers }) {
+    for (const PresetCollection *presets : { 
+        (const PresetCollection*)&this->fff_prints, (const PresetCollection*)&this->filaments, 
+        (const PresetCollection*)&this->sla_prints, (const PresetCollection*)&this->sla_materials, 
+        (const PresetCollection*)&this->printers }) {
         for (const Preset &preset : (*presets)()) {
             if (preset.is_default || preset.is_external || (preset.is_system && ! export_system_settings))
                 // Only export the common presets, not external files or the default preset.

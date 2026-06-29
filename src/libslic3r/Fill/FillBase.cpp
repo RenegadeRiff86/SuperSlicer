@@ -144,7 +144,7 @@ std::pair<float, Point> Fill::_infill_direction(const Surface *surface) const
     // set infill angle
     float out_angle = this->angle;
 
-	if (out_angle == FLT_MAX) {
+    if (out_angle == FLT_MAX) {
         assert(false);
         BOOST_LOG_TRIVIAL(error) << "Using undefined infill angle";
         out_angle = 0.f;
@@ -2137,19 +2137,19 @@ bool validate_boundary_intersections(const std::vector<std::vector<ContourInters
 // Mark the segments of split boundary as consumed if they are very close to some of the infill line.
 void mark_boundary_segments_touching_infill(
     // Boundary contour, along which the perimeter extrusions will be drawn.
-	const std::vector<Points>                              &boundary,
+    const std::vector<Points>                              &boundary,
     // Parametrization of boundary with Euclidian length.
-	const std::vector<std::vector<double>>                 &boundary_parameters,
+    const std::vector<std::vector<double>>                 &boundary_parameters,
     // Intersections (T-joints) of the infill lines with the boundary.
     std::vector<std::vector<ContourIntersectionPoint*>>    &boundary_intersections,
     // Bounding box around the boundary.
-	const BoundingBox 		                               &boundary_bbox,
+    const BoundingBox 		                               &boundary_bbox,
     // Infill lines, either completely inside the boundary, or touching the boundary.
-	const Polylines 		                               &infill,
+    const Polylines 		                               &infill,
     // How much of the infill ends should be ignored when marking the boundary segments?
-	const double			                                clip_distance,
+    const double			                                clip_distance,
     // Roughly width of the infill line.
-	const double 				                            distance_colliding)
+    const double 				                            distance_colliding)
 {
     assert(boundary.size() == boundary_parameters.size());
 #ifndef NDEBUG
@@ -2166,41 +2166,41 @@ void mark_boundary_segments_touching_infill(
     Polylines perimeter_overlaps;
 #endif // INFILL_DEBUG_OUTPUT
 
-	EdgeGrid::Grid grid;
+    EdgeGrid::Grid grid;
     // Make sure that the the grid is big enough for queries against the thick segment.
-	grid.set_bbox(boundary_bbox.inflated(distance_colliding * 1.43));
-	// Inflate the bounding box by a thick line width.
-	grid.create(boundary, coord_t(std::max(clip_distance, distance_colliding) + scale_(10.)));
+    grid.set_bbox(boundary_bbox.inflated(distance_colliding * 1.43));
+    // Inflate the bounding box by a thick line width.
+    grid.create(boundary, coord_t(std::max(clip_distance, distance_colliding) + scale_(10.)));
 
     // Visitor for the EdgeGrid to trim boundary_intersections with existing infill lines.
-	struct Visitor {
-		Visitor(const EdgeGrid::Grid &grid,
+    struct Visitor {
+        Visitor(const EdgeGrid::Grid &grid,
                 const std::vector<Points> &boundary, const std::vector<std::vector<double>> &boundary_parameters, std::vector<std::vector<ContourIntersectionPoint*>> &boundary_intersections,
                 const double radius) :
-			grid(grid), boundary(boundary), boundary_parameters(boundary_parameters), boundary_intersections(boundary_intersections), radius(radius), trim_l_threshold(0.5 * radius) {}
+            grid(grid), boundary(boundary), boundary_parameters(boundary_parameters), boundary_intersections(boundary_intersections), radius(radius), trim_l_threshold(0.5 * radius) {}
 
         // Init with a segment of an infill line.
-		void init(const Vec2d &infill_pt1, const Vec2d &infill_pt2) {
-			this->infill_pt1 = &infill_pt1;
-			this->infill_pt2 = &infill_pt2;
+        void init(const Vec2d &infill_pt1, const Vec2d &infill_pt2) {
+            this->infill_pt1 = &infill_pt1;
+            this->infill_pt2 = &infill_pt2;
             this->infill_bbox.reset();
             this->infill_bbox.merge(infill_pt1);
             this->infill_bbox.merge(infill_pt2);
             this->infill_bbox.offset(this->radius + SCALED_EPSILON);
         }
 
-		bool operator()(coord_t iy, coord_t ix) {
-			// Called with a row and colum of the grid cell, which is intersected by a line.
-			auto cell_data_range = this->grid.cell_data_range(iy, ix);
-			for (auto it_contour_and_segment = cell_data_range.first; it_contour_and_segment != cell_data_range.second; ++ it_contour_and_segment) {
-				// End points of the line segment and their vector.
-				auto segment = this->grid.segment(*it_contour_and_segment);
+        bool operator()(coord_t iy, coord_t ix) {
+            // Called with a row and colum of the grid cell, which is intersected by a line.
+            auto cell_data_range = this->grid.cell_data_range(iy, ix);
+            for (auto it_contour_and_segment = cell_data_range.first; it_contour_and_segment != cell_data_range.second; ++ it_contour_and_segment) {
+                // End points of the line segment and their vector.
+                auto segment = this->grid.segment(*it_contour_and_segment);
                 std::vector<ContourIntersectionPoint*> &intersections = boundary_intersections[it_contour_and_segment->first];
                 if (intersections.empty())
                     // There is no infil line touching this contour, thus effort will be saved to calculate overlap with other infill lines.
                     continue;
-				const Vec2d seg_pt1 = segment.first.cast<double>();
-				const Vec2d seg_pt2 = segment.second.cast<double>();
+                const Vec2d seg_pt1 = segment.first.cast<double>();
+                const Vec2d seg_pt2 = segment.second.cast<double>();
                 std::pair<double, double> interval;
                 BoundingBoxf bbox_seg;
                 bbox_seg.merge(seg_pt1);
@@ -2214,7 +2214,7 @@ void mark_boundary_segments_touching_infill(
                     // 1) Find the Euclidian parameters of seg_pt1 and seg_pt2 on its boundary contour.
                     const std::vector<double> &contour_parameters = boundary_parameters[it_contour_and_segment->first];
                     const double contour_length = contour_parameters.back();
-					const double param_seg_pt1  = contour_parameters[it_contour_and_segment->second];
+                    const double param_seg_pt1  = contour_parameters[it_contour_and_segment->second];
                     const double param_seg_pt2  = contour_parameters[it_contour_and_segment->second + 1];
 #ifdef INFILL_DEBUG_OUTPUT
                     this->perimeter_overlaps.push_back({ Point((seg_pt1 + (seg_pt2 - seg_pt1).normalized() * interval.first).cast<coord_t>()),
@@ -2261,24 +2261,24 @@ void mark_boundary_segments_touching_infill(
                     //FIXME mark point as consumed?
                     //FIXME verify the sequence between prev and next?
 #ifdef INFILL_DEBUG_OUTPUT
-					{
+                    {
 #if 0
                         static size_t iRun = 0;
-						ExPolygon expoly(Polygon(*grid.contours().front()));
-						for (size_t i = 1; i < grid.contours().size(); ++i)
-							expoly.holes.emplace_back(Polygon(*grid.contours()[i]));
-						SVG svg(debug_out_path("%s-%d.svg", "FillBase-mark_boundary_segments_touching_infill", iRun ++).c_str(), get_extents(expoly));
-						svg.draw(expoly, "green");
-						svg.draw(Line(segment.first, segment.second), "red");
-						svg.draw(Line(this->infill_pt1->cast<coord_t>(), this->infill_pt2->cast<coord_t>()), "magenta");
+                        ExPolygon expoly(Polygon(*grid.contours().front()));
+                        for (size_t i = 1; i < grid.contours().size(); ++i)
+                            expoly.holes.emplace_back(Polygon(*grid.contours()[i]));
+                        SVG svg(debug_out_path("%s-%d.svg", "FillBase-mark_boundary_segments_touching_infill", iRun ++).c_str(), get_extents(expoly));
+                        svg.draw(expoly, "green");
+                        svg.draw(Line(segment.first, segment.second), "red");
+                        svg.draw(Line(this->infill_pt1->cast<coord_t>(), this->infill_pt2->cast<coord_t>()), "magenta");
 #endif
                     }
 #endif // INFILL_DEBUG_OUTPUT
-				}
-			}
-			// Continue traversing the grid along the edge.
-			return true;
-		}
+                }
+            }
+            // Continue traversing the grid along the edge.
+            return true;
+        }
 
         const EdgeGrid::Grid                                &grid;
         const std::vector<Points>                           &boundary;
@@ -2711,7 +2711,7 @@ BoundaryInfillGraph create_boundary_infill_graph(const Polylines &infill_ordered
 
 void connect_infill(Polylines &&infill_ordered, const std::vector<const Polygon*> &boundary_src, const BoundingBox &bbox, Polylines &polylines_out, const coord_t spacing, const FillParams &params)
 {
-	assert(! infill_ordered.empty());
+    assert(! infill_ordered.empty());
     assert(params.anchor_length     >= 0.);
     assert(params.anchor_length_max >= 0.01f);
     assert(params.anchor_length_max >= params.anchor_length);
@@ -2786,8 +2786,8 @@ void connect_infill(Polylines &&infill_ordered, const std::vector<const Polygon*
     std::sort(connections_sorted.begin(), connections_sorted.end(), [](const ConnectionCost& l, const ConnectionCost& r) { return l.cost < r.cost; });
 
     for (ConnectionCost &connection_cost : connections_sorted) {
-		ContourIntersectionPoint *cp1    = &graph.map_infill_end_point_to_boundary[connection_cost.idx_first * 2 + 1];
-		ContourIntersectionPoint *cp2    = &graph.map_infill_end_point_to_boundary[(connection_cost.idx_first + 1) * 2];
+        ContourIntersectionPoint *cp1    = &graph.map_infill_end_point_to_boundary[connection_cost.idx_first * 2 + 1];
+        ContourIntersectionPoint *cp2    = &graph.map_infill_end_point_to_boundary[(connection_cost.idx_first + 1) * 2];
         assert(cp1 != cp2);
         assert(cp1->contour_idx == cp2->contour_idx && cp1->contour_idx != boundary_idx_unconnected);
         if (cp1->consumed || cp2->consumed)
@@ -2830,7 +2830,7 @@ void connect_infill(Polylines &&infill_ordered, const std::vector<const Polygon*
             take_limited(infill_ordered[idx_first],  graph.boundary[cp1->contour_idx], graph.boundary_params[cp1->contour_idx], cp1, cp2, connection_cost.reversed, anchor_length, line_half_width);
             take_limited(infill_ordered[idx_second], graph.boundary[cp1->contour_idx], graph.boundary_params[cp1->contour_idx], cp2, cp1, ! connection_cost.reversed, anchor_length, line_half_width);
         }
-	}
+    }
 #endif
 
     struct Arc {
@@ -2950,9 +2950,9 @@ void connect_infill(Polylines &&infill_ordered, const std::vector<const Polygon*
         }
 
     polylines_out.reserve(polylines_out.size() + std::count_if(infill_ordered.begin(), infill_ordered.end(), [](const Polyline &pl) { return ! pl.empty(); }));
-	for (Polyline &pl : infill_ordered)
-		if (! pl.empty())
-			polylines_out.emplace_back(std::move(pl));
+    for (Polyline &pl : infill_ordered)
+        if (! pl.empty())
+            polylines_out.emplace_back(std::move(pl));
 }
 
 // Extend the infill lines along the perimeters, this is mainly useful for grid aligned support, where a perimeter line may be nearly

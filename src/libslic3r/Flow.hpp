@@ -32,8 +32,8 @@ enum FlowRole {
 class FlowError : public Slic3r::InvalidArgument
 {
 public:
-	FlowError(const std::string& what_arg) : Slic3r::InvalidArgument(what_arg) {}
-	FlowError(const char* what_arg) : Slic3r::InvalidArgument(what_arg) {}
+    FlowError(const std::string& what_arg) : Slic3r::InvalidArgument(what_arg) {}
+    FlowError(const char* what_arg) : Slic3r::InvalidArgument(what_arg) {}
 };
 
 class FlowErrorNegativeSpacing : public FlowError
@@ -136,8 +136,8 @@ public:
     // Extrusion width from full config, taking into account the defaults (when set to zero) and ratios (percentages).
     // Precise value depends on layer index (1st layer vs. other layers vs. variable layer height),
     // on active extruder etc. Therefore the value calculated by this function shall be used as a hint only.
-	static double extrusion_width(const std::string &opt_key, const ConfigOptionFloatOrPercent *opt, const ConfigOptionResolver &config, const unsigned int first_printing_extruder = 0);
-	static double extrusion_width(const std::string &opt_key, const ConfigOptionResolver &config, const unsigned int first_printing_extruder = 0);
+    static double extrusion_width(const std::string &opt_key, const ConfigOptionFloatOrPercent *opt, const ConfigOptionResolver &config, const unsigned int first_printing_extruder = 0);
+    static double extrusion_width(const std::string &opt_key, const ConfigOptionResolver &config, const unsigned int first_printing_extruder = 0);
     static const ConfigOptionFloatOrPercent* extrusion_width_option(const std::string &opt_key, const ConfigOptionResolver& config);
     static const ConfigOptionFloatOrPercent* extrusion_spacing_option(const std::string &opt_key, const ConfigOptionResolver& config);
 

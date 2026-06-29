@@ -570,7 +570,7 @@ std::string GCodeWriter::toolchange_prefix() const
 std::string GCodeWriter::toolchange(uint16_t tool_id)
 {
     // set the new extruder
-	/*auto it_extruder = Slic3r::lower_bound_by_predicate(m_extruders.begin(), m_extruders.end(), [tool_id](const Extruder &e) { return e.id() < tool_id; });
+    /*auto it_extruder = Slic3r::lower_bound_by_predicate(m_extruders.begin(), m_extruders.end(), [tool_id](const Extruder &e) { return e.id() < tool_id; });
     assert(it_extruder != m_extruders.end() && it_extruder->id() == extruder_id);*/
     //less optimized but it's easier to modify and it's not needed, as it's not called often.
     bool found = false;

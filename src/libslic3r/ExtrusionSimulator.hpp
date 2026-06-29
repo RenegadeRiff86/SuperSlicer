@@ -51,11 +51,11 @@ public:
     const void* image_ptr() const;
 
 private:
-	Point					    	image_size;
-	BoundingBox				    	viewport;
-	BoundingBox 					bbox;
+    Point					    	image_size;
+    BoundingBox				    	viewport;
+    BoundingBox 					bbox;
 
-	ExtrusionSimulatorImpl		   *pimpl;
+    ExtrusionSimulatorImpl		   *pimpl;
 };
 
 }

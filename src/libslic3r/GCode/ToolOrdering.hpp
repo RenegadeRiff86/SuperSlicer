@@ -91,7 +91,7 @@ public:
     uint16_t perimeter_extruder(const PrintRegion &region) const;
     uint16_t infill_extruder(const PrintRegion &region) const;
     uint16_t solid_infill_extruder(const PrintRegion &region) const;
-	// Returns a zero based extruder this eec should be printed with, according to PrintRegion config or extruder_override if overriden.
+    // Returns a zero based extruder this eec should be printed with, according to PrintRegion config or extruder_override if overriden.
     uint16_t extruder(const ExtrusionEntityCollection &extrusions, const PrintRegion &region) const;
 
     double                      print_z = 0.;
@@ -151,10 +151,10 @@ public:
     void 				clear() { m_layer_tools.clear(); }
 
     // Only valid for non-sequential print:
-	// Assign a pointer to a custom G-code to the respective ToolOrdering::LayerTools.
-	// Ignore color changes, which are performed on a layer and for such an extruder, that the extruder will not be printing above that layer.
-	// If multiple events are planned over a span of a single layer, use the last one.
-	void 				assign_custom_gcodes(const Print &print);
+    // Assign a pointer to a custom G-code to the respective ToolOrdering::LayerTools.
+    // Ignore color changes, which are performed on a layer and for such an extruder, that the extruder will not be printing above that layer.
+    // If multiple events are planned over a span of a single layer, use the last one.
+    void 				assign_custom_gcodes(const Print &print);
 
     // Get the first extruder printing, including the extruder priming areas, returns -1 if there is no layer printed.
     unsigned int   		first_extruder() const { return m_first_printing_extruder; }

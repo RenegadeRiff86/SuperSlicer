@@ -33,14 +33,14 @@
    the <termios.h> already included by Boost.ASIO. */
 #define K_NCCS 19
 struct termios2 {
-	tcflag_t c_iflag;
-	tcflag_t c_oflag;
-	tcflag_t c_cflag;
-	tcflag_t c_lflag;
-	cc_t c_line;
-	cc_t c_cc[K_NCCS];
-	speed_t c_ispeed;
-	speed_t c_ospeed;
+    tcflag_t c_iflag;
+    tcflag_t c_oflag;
+    tcflag_t c_cflag;
+    tcflag_t c_lflag;
+    cc_t c_line;
+    cc_t c_cc[K_NCCS];
+    speed_t c_ispeed;
+    speed_t c_ospeed;
 };
 #define BOTHER CBAUDEX
 
@@ -151,13 +151,13 @@ GCodeSender::set_baud_rate(unsigned int baud_rate)
         ios.c_cc[VTIME] = 1;
         if (ioctl(handle, TCSETS2, &ios))
             printf("Error in TCSETS2: %s\n", strerror(errno));
-		
+        
 #elif __OpenBSD__
-		struct termios ios;
-		::tcgetattr(handle, &ios);
-		::cfsetspeed(&ios, baud_rate);
-		if (::tcsetattr(handle, TCSAFLUSH, &ios) != 0)
-			printf("Failed to set baud rate: %s\n", strerror(errno));
+        struct termios ios;
+        ::tcgetattr(handle, &ios);
+        ::cfsetspeed(&ios, baud_rate);
+        if (::tcsetattr(handle, TCSAFLUSH, &ios) != 0)
+            printf("Failed to set baud rate: %s\n", strerror(errno));
 #else
         //throw Slic3r::InvalidArgument("OS does not currently support custom bauds");
 #endif

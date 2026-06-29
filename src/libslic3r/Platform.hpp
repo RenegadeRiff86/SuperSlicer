@@ -11,17 +11,17 @@ namespace Slic3r {
 
 enum class Platform
 {
-	Uninitialized,
-	Unknown,
-	Windows,
-	OSX,
-	Linux,
-	BSDUnix,
+    Uninitialized,
+    Unknown,
+    Windows,
+    OSX,
+    Linux,
+    BSDUnix,
 };
 
 enum class PlatformFlavor
 {
-	Uninitialized,
+    Uninitialized,
     Unknown,
     Generic,         // For Windows and OSX, until we need to be more specific.
     GenericLinux,    // For Platform::Linux

@@ -48,7 +48,7 @@ Flow PrintRegion::flow(const PrintObject &object, FlowRole role, double layer_he
             value_oddlayer = m_config.external_perimeter_extrusion_change_odd_layers.get_abs_value(1.);
         }
 
-		overlap = this->config().external_perimeter_overlap.get_abs_value(1);
+        overlap = this->config().external_perimeter_overlap.get_abs_value(1);
     } else if (role == frPerimeter) {
         config_width = m_config.perimeter_extrusion_width;
         config_spacing = m_config.perimeter_extrusion_spacing;
@@ -58,7 +58,7 @@ Flow PrintRegion::flow(const PrintObject &object, FlowRole role, double layer_he
             value_oddlayer = m_config.perimeter_extrusion_change_odd_layers.get_abs_value(1.);
         }
 
-		overlap = this->config().perimeter_overlap.get_abs_value(1);
+        overlap = this->config().perimeter_overlap.get_abs_value(1);
     } else if (role == frInfill) {
         config_width = m_config.infill_extrusion_width;
         config_spacing = m_config.infill_extrusion_spacing;

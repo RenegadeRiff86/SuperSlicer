@@ -118,19 +118,19 @@ PrintObject::PrintObject(Print* print, ModelObject* model_object, const Transfor
     // Compute centering offet to be applied to our meshes so that we work with smaller coordinates
     // requiring less bits to represent Clipper coordinates.
 
-	// Snug bounding box of a rotated and scaled object by the 1st instantion, without the instance translation applied.
-	// All the instances share the transformation matrix with the exception of translation in XY and rotation by Z,
-	// therefore a bounding box from 1st instance of a ModelObject is good enough for calculating the object center,
-	// snug height and an approximate bounding box in XY.
+    // Snug bounding box of a rotated and scaled object by the 1st instantion, without the instance translation applied.
+    // All the instances share the transformation matrix with the exception of translation in XY and rotation by Z,
+    // therefore a bounding box from 1st instance of a ModelObject is good enough for calculating the object center,
+    // snug height and an approximate bounding box in XY.
     BoundingBoxf3  bbox        = model_object->raw_bounding_box();
     Vec3d 		   bbox_center = bbox.center();
-	// We may need to rotate the bbox / bbox_center from the original instance to the current instance.
+    // We may need to rotate the bbox / bbox_center from the original instance to the current instance.
     double z_diff = Geometry::rotation_diff_z(model_object->instances.front()->get_matrix(), instances.front().model_instance->get_matrix());
     if (std::abs(z_diff) > EPSILON) {
-		auto z_rot  = Eigen::AngleAxisd(z_diff, Vec3d::UnitZ());
-		bbox 		= bbox.transformed(Transform3d(z_rot));
-		bbox_center = (z_rot * bbox_center).eval();
-	}
+        auto z_rot  = Eigen::AngleAxisd(z_diff, Vec3d::UnitZ());
+        bbox 		= bbox.transformed(Transform3d(z_rot));
+        bbox_center = (z_rot * bbox_center).eval();
+    }
 
     // Center of the transformed mesh (without translation).
     m_center_offset = Point::new_scale(bbox_center.x(), bbox_center.y());
@@ -1759,11 +1759,11 @@ bool PrintObject::invalidate_state_by_config_options(
 
 bool PrintObject::invalidate_step(PrintObjectStep step)
 {
-	bool invalidated = Inherited::invalidate_step(step);
+    bool invalidated = Inherited::invalidate_step(step);
     
     // propagate to dependent steps
     if (step == posPerimeters) {
-		invalidated |= this->invalidate_steps({ posPrepareInfill, posInfill, posIroning,
+        invalidated |= this->invalidate_steps({ posPrepareInfill, posInfill, posIroning,
             posSupportSpotsSearch, posEstimateCurledExtrusions, posCalculateOverhangingPerimeters, posSimplifyPath });
         invalidated |= m_print->invalidate_steps({ psSkirtBrim });
     } else if (step == posPrepareInfill) {
@@ -1796,11 +1796,11 @@ bool PrintObject::invalidate_step(PrintObjectStep step)
 
 bool PrintObject::invalidate_all_steps()
 {
-	// First call the "invalidate" functions, which may cancel background processing.
+    // First call the "invalidate" functions, which may cancel background processing.
     bool result = Inherited::invalidate_all_steps() | m_print->invalidate_all_steps();
-	// Then reset some of the depending values.
-	m_slicing_params->valid = false;
-	return result;
+    // Then reset some of the depending values.
+    m_slicing_params->valid = false;
+    return result;
 }
 
 // Called on main thread with stopped or paused background processing to let PrintObject release data for its milestones that were invalidated or canceled.
@@ -2265,10 +2265,10 @@ void PrintObject::detect_surfaces_type()
 
         Slic3r::parallel_for(size_t(0), 
             spiral_vase ?
-            		// In spiral vase mode, reserve the last layer for the top surface if more than 1 layer is planned for the vase bottom.
-            		((num_layers > 1) ? num_layers - 1 : num_layers) :
-            		// In non-spiral vase mode, go over all layers.
-            		m_layers.size(),
+                    // In spiral vase mode, reserve the last layer for the top surface if more than 1 layer is planned for the vase bottom.
+                    ((num_layers > 1) ? num_layers - 1 : num_layers) :
+                    // In non-spiral vase mode, go over all layers.
+                    m_layers.size(),
             [this, region_id, interface_shells, &surfaces_new, has_bridges, surface_type_bottom_other, scaled_resolution]
                 (const size_t idx_layer) {
                     PRINT_OBJECT_TIME_LIMIT_MILLIS(PRINT_OBJECT_TIME_LIMIT_DEFAULT);
@@ -2537,8 +2537,8 @@ void PrintObject::process_external_surfaces(bool old)
             const Layer* layer = m_layers[layer_idx];
             bool expansions = false;
             bool voids = false;
-	    	for (const LayerRegion *layerm : layer->regions()) {
-	    		for (const Surface &surface : layerm->fill_surfaces()) {
+            for (const LayerRegion *layerm : layer->regions()) {
+                for (const Surface &surface : layerm->fill_surfaces()) {
                     if (surface.surface_type == (stPosInternal | stDensSparse))
                         voids = true;
                     else
@@ -2870,7 +2870,7 @@ void PrintObject::discover_vertical_shells()
                     m_print->throw_if_canceled();
 #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
                     static size_t debug_idx = 0;
-        			++ debug_idx;
+                    ++ debug_idx;
 #endif /* SLIC3R_DEBUG_SLICE_PROCESSING */
 
                     Layer       	        *layer          = m_layers[idx_layer];
@@ -2902,13 +2902,13 @@ void PrintObject::discover_vertical_shells()
 #if 0
 // #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
                     {
-        				Slic3r::SVG svg_cummulative(debug_out_path("discover_vertical_shells-perimeters-before-union-run%d.svg", debug_idx), this->bounding_box());
+                        Slic3r::SVG svg_cummulative(debug_out_path("discover_vertical_shells-perimeters-before-union-run%d.svg", debug_idx), this->bounding_box());
                         for (int n = (int)idx_layer - n_extra_bottom_layers; n <= (int)idx_layer + n_extra_top_layers; ++ n) {
                             if (n < 0 || n >= (int)m_layers.size())
                                 continue;
                             ExPolygons &expolys = m_layers[n]->perimeter_expolygons;
                             for (size_t i = 0; i < expolys.size(); ++ i) {
-        						Slic3r::SVG svg(debug_out_path("discover_vertical_shells-perimeters-before-union-run%d-layer%d-expoly%d.svg", debug_idx, n, i), get_extents(expolys[i]));
+                                Slic3r::SVG svg(debug_out_path("discover_vertical_shells-perimeters-before-union-run%d-layer%d-expoly%d.svg", debug_idx, n, i), get_extents(expolys[i]));
                                 svg.draw(expolys[i]);
                                 svg.draw_outline(expolys[i].contour, "black", scale_(0.05));
                                 svg.draw_outline(expolys[i].holes, "blue", scale_(0.05));
@@ -2939,17 +2939,17 @@ void PrintObject::discover_vertical_shells()
                         }
                     };
                     static constexpr const bool one_more_layer_below_top_bottom_surfaces = false;
-			        if (int n_top_layers = region_config.top_solid_layers.value; n_top_layers > 0) {
+                    if (int n_top_layers = region_config.top_solid_layers.value; n_top_layers > 0) {
                             // Gather top regions projected to this layer.
                             coordf_t print_z = layer->print_z;
                         int i = int(idx_layer) + 1;
                         int itop = int(idx_layer) + n_top_layers;
                         bool at_least_one_top_projected = false;
-	                    for (; i < int(cache_top_botom_regions.size()) &&
-	                         (i < itop || m_layers[i]->print_z - print_z < region_config.top_solid_min_thickness - EPSILON);
-	                        ++ i) {
+                        for (; i < int(cache_top_botom_regions.size()) &&
+                             (i < itop || m_layers[i]->print_z - print_z < region_config.top_solid_min_thickness - EPSILON);
+                            ++ i) {
                             at_least_one_top_projected = true;
-	                        const DiscoverVerticalShellsCacheEntry &cache = cache_top_botom_regions[i];
+                            const DiscoverVerticalShellsCacheEntry &cache = cache_top_botom_regions[i];
                             if (region_config.ensure_vertical_shell_thickness.value != EnsureVerticalShellThickness::Partial) {
                                 combine_holes(cache.holes);
                             }
@@ -2978,18 +2978,18 @@ void PrintObject::discover_vertical_shells()
                             if (i < int(cache_top_botom_regions.size()) &&
                                 (i <= itop || m_layers[i]->bottom_z() - print_z < region_config.top_solid_min_thickness - EPSILON))
                                 combine_holes(cache_top_botom_regions[i].holes);
-	                }
-	                if (int n_bottom_layers = region_config.bottom_solid_layers.value; n_bottom_layers > 0) {
+                    }
+                    if (int n_bottom_layers = region_config.bottom_solid_layers.value; n_bottom_layers > 0) {
                         // Gather bottom regions projected to this layer.
                         coordf_t bottom_z = layer->bottom_z();
                         int i = int(idx_layer) - 1;
                         int ibottom = int(idx_layer) - n_bottom_layers;
                         bool at_least_one_bottom_projected = false;
-	                    for (; i >= 0 &&
-	                         (i > ibottom || bottom_z - m_layers[i]->bottom_z() < region_config.bottom_solid_min_thickness - EPSILON);
-	                        -- i) {
+                        for (; i >= 0 &&
+                             (i > ibottom || bottom_z - m_layers[i]->bottom_z() < region_config.bottom_solid_min_thickness - EPSILON);
+                            -- i) {
                             at_least_one_bottom_projected = true;
-	                        const DiscoverVerticalShellsCacheEntry &cache = cache_top_botom_regions[i];
+                            const DiscoverVerticalShellsCacheEntry &cache = cache_top_botom_regions[i];
                             if (region_config.ensure_vertical_shell_thickness.value != EnsureVerticalShellThickness::Partial) {
                                 combine_holes(cache.holes);
                             }
@@ -3004,7 +3004,7 @@ void PrintObject::discover_vertical_shells()
                                     max_perimeter_shell = union_ex(max_perimeter_shell);
                                 }
                             }
-	                    }
+                        }
 
                         if (!at_least_one_bottom_projected && i >= 0) {
                             ExPolygons anchor_area = intersection_ex(expand(cache_top_botom_regions[idx_layer].bottom_surfaces,
@@ -3017,10 +3017,10 @@ void PrintObject::discover_vertical_shells()
                             if (i >= 0 &&
                                 (i > ibottom || bottom_z - m_layers[i]->print_z < region_config.bottom_solid_min_thickness - EPSILON))
                                 combine_holes(cache_top_botom_regions[i].holes);
-	                }
+                    }
 #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
                     {
-        				Slic3r::SVG svg(debug_out_path("discover_vertical_shells-perimeters-before-union-%d.svg", debug_idx), get_extents(shell));
+                        Slic3r::SVG svg(debug_out_path("discover_vertical_shells-perimeters-before-union-%d.svg", debug_idx), get_extents(shell));
                         svg.draw(shell);
                         svg.draw_outline(to_polygons(shell), "black", scale_(0.05));
                         svg.Close(); 
@@ -3201,9 +3201,9 @@ void PrintObject::discover_vertical_shells()
 
 #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
             for (size_t idx_layer = 0; idx_layer < m_layers.size(); ++idx_layer) {
-			LayerRegion *layerm = m_layers[idx_layer]->get_region(region_id);
-			layerm->export_region_slices_to_svg_debug("3_discover_vertical_shells-final");
-			layerm->export_region_fill_surfaces_to_svg_debug("3_discover_vertical_shells-final");
+            LayerRegion *layerm = m_layers[idx_layer]->get_region(region_id);
+            layerm->export_region_slices_to_svg_debug("3_discover_vertical_shells-final");
+            layerm->export_region_fill_surfaces_to_svg_debug("3_discover_vertical_shells-final");
             }
 #endif /* SLIC3R_DEBUG_SLICE_PROCESSING */
         } // for each region
@@ -4315,7 +4315,7 @@ PrintRegionConfig region_config_from_model_volume(const PrintRegionConfig &defau
     if (layer_range_config != nullptr) {
         // Not applicable to modifiers.
         assert(volume.is_model_part());
-    	apply_to_print_region_config(config, *layer_range_config);
+        apply_to_print_region_config(config, *layer_range_config);
     }
     apply_to_print_region_config(config, volume.config.get());
     if (! volume.material_id().empty())
@@ -4344,14 +4344,14 @@ void PrintObject::update_slicing_parameters()
 
 std::shared_ptr<SlicingParameters> PrintObject::slicing_parameters(const DynamicPrintConfig& full_config, const ModelObject& model_object, float object_max_z)
 {
-	PrintConfig         print_config;
-	PrintObjectConfig   object_config;
-	PrintRegionConfig   default_region_config;
-	print_config.apply(full_config, true);
-	object_config.apply(full_config, true);
-	default_region_config.apply(full_config, true);
-	size_t              num_extruders = print_config.nozzle_diameter.size();
-	object_config = object_config_from_model_object(object_config, model_object, num_extruders);
+    PrintConfig         print_config;
+    PrintObjectConfig   object_config;
+    PrintRegionConfig   default_region_config;
+    print_config.apply(full_config, true);
+    object_config.apply(full_config, true);
+    default_region_config.apply(full_config, true);
+    size_t              num_extruders = print_config.nozzle_diameter.size();
+    object_config = object_config_from_model_object(object_config, model_object, num_extruders);
 
     std::set<uint16_t> object_extruders;
     for (const ModelVolume* model_volume : model_object.volumes)
@@ -4847,12 +4847,12 @@ void PrintObject::combine_infill()
         for (size_t layer_idx = 0; layer_idx < m_layers.size(); ++ layer_idx) {
             m_print->throw_if_canceled();
             size_t num_layers = combine[layer_idx];
-			if (num_layers <= 1)
+            if (num_layers <= 1)
                 continue;
             // Get all the LayerRegion objects to be combined.
             std::vector<LayerRegion*> layerms;
             layerms.reserve(num_layers);
-			for (size_t i = layer_idx + 1 - num_layers; i <= layer_idx; ++ i)
+            for (size_t i = layer_idx + 1 - num_layers; i <= layer_idx; ++ i)
                 layerms.emplace_back(m_layers[i]->regions()[region_id]);
             // We need to perform a multi-layer intersection, so let's split it in pairs.
             // Initialize the intersection with the candidates of the lowest layer.

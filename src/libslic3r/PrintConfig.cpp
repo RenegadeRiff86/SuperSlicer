@@ -915,7 +915,7 @@ void PrintConfigDef::init_fff_params()
     def->label = L_CONTEXT("Bottom", "Layers");
     def->category = OptionCategory::perimeter;
     def->tooltip = L("The number of bottom solid layers is increased above bottom_solid_layers if necessary to satisfy "
-    				 "minimum thickness of bottom shell.");
+                     "minimum thickness of bottom shell.");
     def->full_label = L("Minimum bottom shell thickness");
     def->sidetext = L("mm");
     def->min = 0;
@@ -11142,7 +11142,7 @@ const PrintConfigDef print_config_def;
 
 DynamicPrintConfig DynamicPrintConfig::full_print_config()
 {
-	return DynamicPrintConfig((const PrintRegionConfig&)FullPrintConfig::defaults());
+    return DynamicPrintConfig((const PrintRegionConfig&)FullPrintConfig::defaults());
 }
 
 DynamicPrintConfig::DynamicPrintConfig(const StaticPrintConfig& rhs) : DynamicConfig(rhs, rhs.keys_ref())

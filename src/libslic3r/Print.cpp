@@ -79,9 +79,9 @@ void Print::clear()
     std::scoped_lock<std::mutex> lock(this->state_mutex());
     // The following call should stop background processing if it is running.
     this->invalidate_all_steps();
-	for (PrintObject *object : m_objects)
-		delete object;
-	m_objects.clear();
+    for (PrintObject *object : m_objects)
+        delete object;
+    m_objects.clear();
     m_print_regions.clear();
     m_model.clear_objects();
 }
@@ -440,7 +440,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
 
 bool Print::invalidate_step(PrintStep step)
 {
-	bool invalidated = Inherited::invalidate_step(step);
+    bool invalidated = Inherited::invalidate_step(step);
     // Propagate to dependent steps.
     if (step != psGCodeExport)
         invalidated |= Inherited::invalidate_step(psGCodeExport);
@@ -615,22 +615,22 @@ bool Print::sequential_print_horizontal_clearance_valid(const Print &print, Poly
     }
     std::vector<size_t> intersecting_idxs;
 
-	std::map<ObjectID, Polygon> map_model_object_to_convex_hull;
+    std::map<ObjectID, Polygon> map_model_object_to_convex_hull;
     const double dist_grow = min_object_distance(static_cast<const ConfigBase*>(&print.full_print_config()), 0);
-	for (const PrintObject *print_object : print.objects()) {
+    for (const PrintObject *print_object : print.objects()) {
         const double object_grow = (print.config().complete_objects && !print_object->config().brim_per_object) ? dist_grow : std::max(dist_grow, print_object->config().brim_width.value);
-	    assert(! print_object->model_object()->instances.empty());
-	    assert(! print_object->instances().empty());
-	    ObjectID model_object_id = print_object->model_object()->id();
-	    auto it_convex_hull = map_model_object_to_convex_hull.find(model_object_id);
+        assert(! print_object->model_object()->instances.empty());
+        assert(! print_object->instances().empty());
+        ObjectID model_object_id = print_object->model_object()->id();
+        auto it_convex_hull = map_model_object_to_convex_hull.find(model_object_id);
         // Get convex hull of all printable volumes assigned to this print object.
         ModelInstance *model_instance0 = print_object->model_object()->instances.front();
-	      if (it_convex_hull == map_model_object_to_convex_hull.end()) {
-	          // Calculate the convex hull of a printable object. 
-	          // Grow convex hull with the clearance margin.
-	          // FIXME: Arrangement has different parameters for offsetting (jtMiter, limit 2)
-	          // which causes that the warning will be showed after arrangement with the
-	          // appropriate object distance. Even if I set this to jtMiter the warning still shows up.
+          if (it_convex_hull == map_model_object_to_convex_hull.end()) {
+              // Calculate the convex hull of a printable object. 
+              // Grow convex hull with the clearance margin.
+              // FIXME: Arrangement has different parameters for offsetting (jtMiter, limit 2)
+              // which causes that the warning will be showed after arrangement with the
+              // appropriate object distance. Even if I set this to jtMiter the warning still shows up.
             Geometry::Transformation trafo = model_instance0->get_transformation();
             trafo.set_offset(Vec3d{ 0.0, 0.0, model_instance0->get_offset().z() });
             Polygon ch2d = print_object->model_object()->convex_hull_2d(trafo.get_matrix());
@@ -686,13 +686,13 @@ bool Print::sequential_print_horizontal_clearance_valid(const Print &print, Poly
 
 static inline bool sequential_print_vertical_clearance_valid(const Print &print)
 {
-	std::vector<const PrintInstance*> print_instances_ordered = sort_object_instances_by_model_order(print);
-	// Ignore the last instance printed.
-	print_instances_ordered.pop_back();
-	// Find the other highest instance.
-	auto it = std::max_element(print_instances_ordered.begin(), print_instances_ordered.end(), [](auto l, auto r) {
-		return l->print_object->height() < r->print_object->height();
-	});
+    std::vector<const PrintInstance*> print_instances_ordered = sort_object_instances_by_model_order(print);
+    // Ignore the last instance printed.
+    print_instances_ordered.pop_back();
+    // Find the other highest instance.
+    auto it = std::max_element(print_instances_ordered.begin(), print_instances_ordered.end(), [](auto l, auto r) {
+        return l->print_object->height() < r->print_object->height();
+    });
     return it == print_instances_ordered.end() || (*it)->print_object->height() <= scale_(print.config().extruder_clearance_height.value);
 }
 
@@ -755,7 +755,7 @@ std::pair<PrintBase::PrintValidationError, std::string> Print::validate(std::vec
         return { PrintBase::PrintValidationError::pveNoPrint, _u8L("The supplied settings will cause an empty print.") };
 
     if (m_config.complete_objects /*|| m_config.parallel_objects_step > 0*/) {
-    	if (! sequential_print_horizontal_clearance_valid(*this, const_cast<Polygons*>(&m_sequential_print_clearance_contours)))
+        if (! sequential_print_horizontal_clearance_valid(*this, const_cast<Polygons*>(&m_sequential_print_clearance_contours)))
             return { PrintBase::PrintValidationError::pveWrongPosition, _u8L("Some objects are too close; your extruder will collide with them.") };
         if (m_config.complete_objects && ! sequential_print_vertical_clearance_valid(*this))
             return { PrintBase::PrintValidationError::pveWrongPosition,_u8L("Some objects are too tall and cannot be printed without extruder collisions.") };
@@ -910,15 +910,15 @@ std::pair<PrintBase::PrintValidationError, std::string> Print::validate(std::vec
         }
     }
     
-	{
-		// Find the smallest used nozzle diameter and the number of unique nozzle diameters.
-		double min_nozzle_diameter = std::numeric_limits<double>::max();
-		double max_nozzle_diameter = 0;
-		for (uint16_t extruder_id : extruders) {
-			double dmr = m_config.nozzle_diameter.get_at(extruder_id);
-			min_nozzle_diameter = std::min(min_nozzle_diameter, dmr);
-			max_nozzle_diameter = std::max(max_nozzle_diameter, dmr);
-		}
+    {
+        // Find the smallest used nozzle diameter and the number of unique nozzle diameters.
+        double min_nozzle_diameter = std::numeric_limits<double>::max();
+        double max_nozzle_diameter = 0;
+        for (uint16_t extruder_id : extruders) {
+            double dmr = m_config.nozzle_diameter.get_at(extruder_id);
+            min_nozzle_diameter = std::min(min_nozzle_diameter, dmr);
+            max_nozzle_diameter = std::max(max_nozzle_diameter, dmr);
+        }
 
 #if 0
         // We currently allow one to assign extruders with a higher index than the number
@@ -1837,10 +1837,10 @@ void Print::_make_skirt(const PrintObjectPtrs &objects, ExtrusionEntityCollectio
             Polygons loops = offset(convex_hull, distance, ClipperLib::jtRound, float(flow.scaled_width()) / 10.f);
             //make sure the skirt is simple enough
             Geometry::simplify_polygons(loops, flow.scaled_width() / 10.0, &loops);
-			if (loops.empty())
-				break;
+            if (loops.empty())
+                break;
             assert(loops.size() == 1);
-			loop = loops.front();
+            loop = loops.front();
         }
         distance += float(scale_(spacing / 2));
         // Extrude the skirt loop.

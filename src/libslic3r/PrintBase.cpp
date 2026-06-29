@@ -30,22 +30,22 @@ void PrintBase::update_object_placeholders(DynamicConfig &config, const std::str
     std::vector<std::string> v_scale;
     int num_objects = 0;
     int num_instances = 0;
-	for (const ModelObject *model_object : m_model.objects) {
-		ModelInstance *printable = nullptr;
-		for (ModelInstance *model_instance : model_object->instances)
-			if (model_instance->is_printable()) {
-				printable = model_instance;
-				++ num_instances;
-			}
-		if (printable) {
+    for (const ModelObject *model_object : m_model.objects) {
+        ModelInstance *printable = nullptr;
+        for (ModelInstance *model_instance : model_object->instances)
+            if (model_instance->is_printable()) {
+                printable = model_instance;
+                ++ num_instances;
+            }
+        if (printable) {
             ++ num_objects;
-	        // CHECK_ME -> Is the following correct ?
-			v_scale.push_back("x:" + boost::lexical_cast<std::string>(printable->get_scaling_factor(X) * 100) +
-				"% y:" + boost::lexical_cast<std::string>(printable->get_scaling_factor(Y) * 100) +
-				"% z:" + boost::lexical_cast<std::string>(printable->get_scaling_factor(Z) * 100) + "%");
-	        if (input_file.empty())
-	            input_file = model_object->name.empty() ? model_object->input_file : model_object->name;
-	    }
+            // CHECK_ME -> Is the following correct ?
+            v_scale.push_back("x:" + boost::lexical_cast<std::string>(printable->get_scaling_factor(X) * 100) +
+                "% y:" + boost::lexical_cast<std::string>(printable->get_scaling_factor(Y) * 100) +
+                "% z:" + boost::lexical_cast<std::string>(printable->get_scaling_factor(Z) * 100) + "%");
+            if (input_file.empty())
+                input_file = model_object->name.empty() ? model_object->input_file : model_object->name;
+        }
     }
     
     config.set_key_value("num_objects", new ConfigOptionInt(num_objects));
@@ -67,13 +67,13 @@ std::string PrintBase::output_filename(const std::string &format, const std::str
 {
     DynamicConfig cfg;
     if (config_override != nullptr)
-    	cfg = *config_override;
+        cfg = *config_override;
     cfg.set_key_value("version", new ConfigOptionString(std::string(SLIC3R_VERSION)));
     PlaceholderParser::update_timestamp(cfg);
     this->update_object_placeholders(cfg, default_ext);
     if (! filename_base.empty()) {
 //		cfg.set_key_value("input_filename", new ConfigOptionString(filename_base + default_ext));
-		cfg.set_key_value("input_filename_base", new ConfigOptionString(filename_base));
+        cfg.set_key_value("input_filename_base", new ConfigOptionString(filename_base));
     }
     try {
         uint16_t extruder_initial = config_override->option("initial_extruder") != nullptr && config_override->option("initial_extruder")->type() == coInt ? config_override->option("initial_extruder")->get_int() : 0;
@@ -158,12 +158,12 @@ void PrintBase::status_update_warnings(int step, PrintStateBase::WarningLevel /*
 
 std::mutex& PrintObjectBase::state_mutex(PrintBase *print)
 { 
-	return print->state_mutex();
+    return print->state_mutex();
 }
 
 std::function<void()> PrintObjectBase::cancel_callback(PrintBase *print)
 { 
-	return print->cancel_callback();
+    return print->cancel_callback();
 }
 
 void PrintObjectBase::status_update_warnings(PrintBase *print, int step, PrintStateBase::WarningLevel warning_level, const std::string &message)

@@ -2275,19 +2275,19 @@ static float montonous_region_path_length(const MonotonicRegion& region, bool di
 
 static void connect_monotonic_regions(std::vector<MonotonicRegion> &regions, const ExPolygonWithOffset &poly_with_offset, std::vector<SegmentedIntersectionLine> &segs)
 {
-	// Map from low intersection to left / right side of a monotonic region.
-	using MapType = std::pair<SegmentIntersection*, MonotonicRegion*>;
-	std::vector<MapType> map_intersection_to_region_start;
-	std::vector<MapType> map_intersection_to_region_end;
-	map_intersection_to_region_start.reserve(regions.size());
-	map_intersection_to_region_end.reserve(regions.size());
-	for (MonotonicRegion &region : regions) {
-		map_intersection_to_region_start.emplace_back(&segs[region.left.vline].intersections[region.left.low], &region);
-		map_intersection_to_region_end.emplace_back(&segs[region.right.vline].intersections[region.right.low], &region);
-	}
-	auto intersections_lower = [](const MapType &l, const MapType &r){ return l.first < r.first ; };
+    // Map from low intersection to left / right side of a monotonic region.
+    using MapType = std::pair<SegmentIntersection*, MonotonicRegion*>;
+    std::vector<MapType> map_intersection_to_region_start;
+    std::vector<MapType> map_intersection_to_region_end;
+    map_intersection_to_region_start.reserve(regions.size());
+    map_intersection_to_region_end.reserve(regions.size());
+    for (MonotonicRegion &region : regions) {
+        map_intersection_to_region_start.emplace_back(&segs[region.left.vline].intersections[region.left.low], &region);
+        map_intersection_to_region_end.emplace_back(&segs[region.right.vline].intersections[region.right.low], &region);
+    }
+    auto intersections_lower = [](const MapType &l, const MapType &r){ return l.first < r.first ; };
     std::sort(map_intersection_to_region_start.begin(), map_intersection_to_region_start.end(), intersections_lower);
-	std::sort(map_intersection_to_region_end.begin(), map_intersection_to_region_end.end(), intersections_lower);
+    std::sort(map_intersection_to_region_end.begin(), map_intersection_to_region_end.end(), intersections_lower);
 
     // Scatter links to neighboring regions.
     for (MonotonicRegion& region : regions) {
@@ -2436,14 +2436,14 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
     best_path.reserve(regions.size());
     float best_path_length = std::numeric_limits<float>::max();
 
-	struct NextCandidate {
+    struct NextCandidate {
         MonotonicRegion    *region = nullptr;
         AntPath  	        *link;
         AntPath  	        *link_flipped;
         float                probability;
         bool 		         dir = false;
-	};
-	std::vector<NextCandidate> next_candidates;
+    };
+    std::vector<NextCandidate> next_candidates;
 
     [[maybe_unused]]auto validate_unprocessed =
 #ifdef NDEBUG
@@ -2453,7 +2453,7 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
             std::vector<unsigned char> regions_processed(regions.size(), false);
             std::vector<unsigned char> regions_in_queue(regions.size(), false);
             for (const MonotonicRegion *region : queue) {
-            	// This region is not processed yet, his predecessors are processed.
+                // This region is not processed yet, his predecessors are processed.
                 assert(left_neighbors_unprocessed[region - regions.data()] == 1);
                 regions_in_queue[region - regions.data()] = true;
             }
@@ -2479,7 +2479,7 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
                     for (const MonotonicRegion* left : region.left_neighbors) {
                         size_t iprev = left - regions.data();
                         if (regions_processed[iprev]) {
-                        	assert(left_neighbors_unprocessed[iprev] == 0);
+                            assert(left_neighbors_unprocessed[iprev] == 0);
                             if (left == path.back().region) {
                                 // This region should actually be on queue, but to optimize the queue management
                                 // this item will be processed in the next round by traversing path.back().region->right_neighbors before processing the queue.
@@ -2488,11 +2488,11 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
                                 ++ num_predecessors_unprocessed;
                             }
                         } else {
-                        	if (regions_in_queue[iprev])
-	                    		assert(left_neighbors_unprocessed[iprev] == 1);
-	                    	else 
-	                    		assert(left_neighbors_unprocessed[iprev] > 1);
-	                    	++ num_predecessors_unprocessed;
+                            if (regions_in_queue[iprev])
+                                assert(left_neighbors_unprocessed[iprev] == 1);
+                            else 
+                                assert(left_neighbors_unprocessed[iprev] > 1);
+                            ++ num_predecessors_unprocessed;
                         }
                     }
                     assert(num_predecessors_unprocessed > 0);
@@ -2503,23 +2503,23 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
         };
 #endif /* NDEBUG */
 
-	// How many times to repeat the ant simulation (number of ant generations).
-	constexpr int const   num_rounds = 25;
-	// After how many rounds without an improvement to exit?
-	constexpr int const   num_rounds_no_change_exit = 8;
-	// With how many ants each of the run will be performed?
-	const int             num_ants = std::min(int(regions.size()), 10);
-	// Base (initial) pheromone level. This value will be adjusted based on the length of the first greedy path found.
-	float                 pheromone_initial_deposit = 0.5f;
-	// Evaporation rate of pheromones.
-	constexpr float const pheromone_evaporation = 0.1f;
+    // How many times to repeat the ant simulation (number of ant generations).
+    constexpr int const   num_rounds = 25;
+    // After how many rounds without an improvement to exit?
+    constexpr int const   num_rounds_no_change_exit = 8;
+    // With how many ants each of the run will be performed?
+    const int             num_ants = std::min(int(regions.size()), 10);
+    // Base (initial) pheromone level. This value will be adjusted based on the length of the first greedy path found.
+    float                 pheromone_initial_deposit = 0.5f;
+    // Evaporation rate of pheromones.
+    constexpr float const pheromone_evaporation = 0.1f;
     // Evaporation rate to diversify paths taken by individual ants.
     constexpr float const pheromone_diversification = 0.1f;
-	// Probability at which to take the next best path. Otherwise take the the path based on the cost distribution.
-	constexpr float const probability_take_best = 0.9f;
-	// Exponents of the cost function.
-	constexpr float const pheromone_alpha = 1.f; // pheromone exponent
-	constexpr float const pheromone_beta  = 2.f; // attractiveness weighted towards edge length
+    // Probability at which to take the next best path. Otherwise take the the path based on the cost distribution.
+    constexpr float const probability_take_best = 0.9f;
+    // Exponents of the cost function.
+    constexpr float const pheromone_alpha = 1.f; // pheromone exponent
+    constexpr float const pheromone_beta  = 2.f; // attractiveness weighted towards edge length
 
     AntPathMatrix path_matrix(regions, poly_with_offset, segs, pheromone_initial_deposit);
 
@@ -2537,14 +2537,14 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
         float total_length = path_end.region->length(false);
         while (!queue.empty() || !path_end.region->right_neighbors.empty()) {
             // Chain.
-			MonotonicRegion 		    &region = *path_end.region;
-			bool 			  			 dir    = path_end.flipped;
-			NextCandidate 				 next_candidate;
-			next_candidate.probability = 0;
-			for (MonotonicRegion *next : region.right_neighbors) {
+            MonotonicRegion 		    &region = *path_end.region;
+            bool 			  			 dir    = path_end.flipped;
+            NextCandidate 				 next_candidate;
+            next_candidate.probability = 0;
+            for (MonotonicRegion *next : region.right_neighbors) {
                 assert(left_neighbors_unprocessed[next - regions.data()] > 1);
-				if (left_neighbors_unprocessed[next - regions.data()] == 2) {
-					// Dependencies of the successive blocks are satisfied.
+                if (left_neighbors_unprocessed[next - regions.data()] == 2) {
+                    // Dependencies of the successive blocks are satisfied.
                     AntPath &path1 = path_matrix(region, dir, *next, false);
                     AntPath &path2 = path_matrix(region, dir, *next, true);
                     if (path1.visibility > next_candidate.probability)
@@ -2575,10 +2575,10 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
                 *it = queue.back();
                 queue.pop_back();
             }
-			// Extend the path.
+            // Extend the path.
             assert(next_candidate.region);
-			MonotonicRegion *next_region = next_candidate.region;
-			bool              next_dir    = next_candidate.dir;
+            MonotonicRegion *next_region = next_candidate.region;
+            bool              next_dir    = next_candidate.dir;
             total_length += next_region->length(next_dir) + path_matrix(*path_end.region, path_end.flipped, *next_region, next_dir).length;
             path_end = { next_region, next_dir };
             assert(left_neighbors_unprocessed[next_region - regions.data()] == 1);
@@ -2591,14 +2591,14 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
     }
 
     // Probability (unnormalized) of traversing a link between two monotonic regions.
-	auto path_probability = [
+    auto path_probability = [
 #if !defined(__APPLE__) && !defined(__clang__)
         // clang complains when capturing constexpr constants.
         pheromone_alpha, pheromone_beta
 #endif // __APPLE__
         ](AntPath &path) {
-		return pow(path.pheromone, pheromone_alpha) * pow(path.visibility, pheromone_beta);
-	};
+        return pow(path.pheromone, pheromone_alpha) * pow(path.visibility, pheromone_beta);
+    };
 
 #ifdef SLIC3R_DEBUG_ANTS
     static int irun = 0;
@@ -2905,7 +2905,7 @@ static void polylines_from_paths(const std::vector<MonotonicRegionLink>& path, c
                 &vertical_run_top(vline_right, vline_right.intersections[iright]) : &vertical_run_bottom(vline_right, vline_right.intersections[iright]);
             i_intersection = int(right - vline_right.intersections.data());
 
-	        if (inext == i_intersection && it->next_on_contour_quality == SegmentIntersection::LinkQuality::Valid) {
+            if (inext == i_intersection && it->next_on_contour_quality == SegmentIntersection::LinkQuality::Valid) {
                 // Emit a horizontal connection contour.
                 emit_perimeter_prev_next_segment(poly_with_offset, segs, i_vline, it->iContour, it - vline.intersections.data(), inext, *polyline, true);
             } else {

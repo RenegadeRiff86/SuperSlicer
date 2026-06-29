@@ -54,8 +54,8 @@ public:
     PresetCollection            sla_materials;
     PresetCollection&           prints(PrinterTechnology pt)          { return pt == ptFFF ? this->fff_prints : this->sla_prints; }
     const PresetCollection&     prints(PrinterTechnology pt)    const { return pt == ptFFF ? this->fff_prints : this->sla_prints; }
-	PresetCollection& 			materials(PrinterTechnology pt)       { return pt == ptFFF ? this->filaments : this->sla_materials; }
-	const PresetCollection& 	materials(PrinterTechnology pt) const { return pt == ptFFF ? this->filaments : this->sla_materials; }
+    PresetCollection& 			materials(PrinterTechnology pt)       { return pt == ptFFF ? this->filaments : this->sla_materials; }
+    const PresetCollection& 	materials(PrinterTechnology pt) const { return pt == ptFFF ? this->filaments : this->sla_materials; }
     PrinterPresetCollection     printers;
     PhysicalPrinterCollection   physical_printers;
 

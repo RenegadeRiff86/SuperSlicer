@@ -18,8 +18,8 @@ void MultiPoint::scale(double factor_x, double factor_y)
 {
     for (Point &pt : points)
     {
-		pt(0) = coord_t(pt(0) * factor_x);
-		pt(1) = coord_t(pt(1) * factor_y);
+        pt(0) = coord_t(pt(0) * factor_x);
+        pt(1) = coord_t(pt(1) * factor_y);
     }
 }
 
@@ -185,10 +185,10 @@ Points MultiPoint::visivalingam(const Points &pts, const double tolerance)
         const Point& prev = pts[prev_pt_idx];
         const Point& next = pts[next_pt_idx];
         // Use point objects as vector-distances
-		const Vec2d curr_to_next = (next - curr).cast<double>();
-		const Vec2d prev_to_next = (prev - curr).cast<double>();
+        const Vec2d curr_to_next = (next - curr).cast<double>();
+        const Vec2d prev_to_next = (prev - curr).cast<double>();
         // Take cross product of these two vector distances
-		return 0.50 * abs(cross2(curr_to_next, prev_to_next));
+        return 0.50 * abs(cross2(curr_to_next, prev_to_next));
     };
      // We store the effective areas for each node
     std::vector<coordf_t> areas;

@@ -29,7 +29,7 @@
     #ifdef _MSC_VER
        #define environ _environ
     #else
-     	extern char **environ;
+        extern char **environ;
     #endif
 #endif
 
@@ -109,9 +109,9 @@ void PlaceholderParser::update_timestamp(DynamicConfig &config)
 
 static inline bool opts_equal(const DynamicConfig &config_old, const DynamicConfig &config_new, const std::string &opt_key)
 {
-	const ConfigOption *opt_old = config_old.option(opt_key);
-	const ConfigOption *opt_new = config_new.option(opt_key);
-	assert(opt_new != nullptr);
+    const ConfigOption *opt_old = config_old.option(opt_key);
+    const ConfigOption *opt_new = config_new.option(opt_key);
+    assert(opt_new != nullptr);
     return opt_old != nullptr && *opt_new == *opt_old;
 }
 
@@ -135,7 +135,7 @@ bool PlaceholderParser::apply_config(const DynamicPrintConfig &rhs)
     bool modified = false;
     for (const t_config_option_key &opt_key : rhs.keys()) {
         if (! opts_equal(m_config, rhs, opt_key)) {
-			this->set(opt_key, rhs.option(opt_key)->clone());
+            this->set(opt_key, rhs.option(opt_key)->clone());
             modified = true;
         }
     }
@@ -150,7 +150,7 @@ void PlaceholderParser::apply_only(const DynamicPrintConfig &rhs, const std::vec
 
 void PlaceholderParser::apply_config(DynamicPrintConfig &&rhs)
 {
-	m_config += std::move(rhs);
+    m_config += std::move(rhs);
 }
 
 void PlaceholderParser::apply_env_variables()
@@ -308,22 +308,22 @@ namespace client
             case TYPE_EMPTY:
                 // Inside an if / else block to be skipped.
                 break;
-			case TYPE_BOOL:   out = this->b() ? "true" : "false"; break;
+            case TYPE_BOOL:   out = this->b() ? "true" : "false"; break;
             case TYPE_INT:    out = std::to_string(this->i()); break;
             case TYPE_DOUBLE: 
 #if 0
                 // The default converter produces trailing zeros after the decimal point.
-				out = std::to_string(data.d);
+                out = std::to_string(data.d);
 #else
                 // ostringstream default converter produces no trailing zeros after the decimal point.
                 // It seems to be doing what the old boost::to_string() did.
-				{
-					std::ostringstream ss;
-					ss << this->d();
-					out = ss.str();
-				}
+                {
+                    std::ostringstream ss;
+                    ss << this->d();
+                    out = ss.str();
+                }
 #endif
-				break;
+                break;
             case TYPE_STRING: out = this->s(); break;
             default:          break;
             }
@@ -804,7 +804,7 @@ namespace client
 
     struct MyContext : public ConfigOptionResolver {
         // Config provided as a parameter to PlaceholderParser invocation, overriding PlaceholderParser stored config.
-    	const DynamicConfig     *external_config        = nullptr;
+        const DynamicConfig     *external_config        = nullptr;
         // Config stored inside PlaceholderParser.
         const DynamicConfig     *config                 = nullptr;
         // Config provided as a parameter to PlaceholderParser invocation, evaluated after the two configs above.
@@ -1048,12 +1048,12 @@ namespace client
                 ctx->throw_exception("Variable does not exist", opt_key);
             if (opt_index->type() != coInt)
                 ctx->throw_exception("Indexing variable has to be integer", opt_key);
-			int idx = opt_index->get_int();
-			if (idx < 0)
+            int idx = opt_index->get_int();
+            if (idx < 0)
                 ctx->throw_exception("Negative vector index", opt_key);
             if (idx >= static_cast<int>(vec->size()))
                 idx = 0;
-			output = vec->serialize_at(idx);
+            output = vec->serialize_at(idx);
         }
 
         static void resolve_variable(
@@ -1154,39 +1154,39 @@ namespace client
             case coFloatOrPercent:
             {
                 if (boost::ends_with(opt_key, "extrusion_width")) {
-                	// Extrusion width use the first nozzle diameter
+                    // Extrusion width use the first nozzle diameter
                     output.set_d(Flow::extrusion_width(opt_key, *ctx, static_cast<unsigned int>(ctx->current_extruder_id)));
                 } else if (! static_cast<const ConfigOptionFloatOrPercent*>(opt.opt)->percent) {
                     // Not a percent, just return the value.
                     output.set_d(opt.opt->get_float());
                 } else {
-                	// Resolve dependencies using the "ratio_over" link to a parent value.
+                    // Resolve dependencies using the "ratio_over" link to a parent value.
                     const ConfigOptionDef  *opt_def = print_config_def.get(opt_key);
-			        assert(opt_def != nullptr);
-			        double v = opt.opt->get_float() * 0.01; // percent to ratio
+                    assert(opt_def != nullptr);
+                    double v = opt.opt->get_float() * 0.01; // percent to ratio
                     if (opt_def) for (;;) {
-			        	const ConfigOption *opt_parent = opt_def->ratio_over.empty() ? nullptr : ctx->resolve_symbol(opt_def->ratio_over);
-			        	if (opt_parent == nullptr)
-			                ctx->throw_exception("FloatOrPercent variable failed to resolve the \"ratio_over\" dependencies", opt.it_range);
-			            if (boost::ends_with(opt_def->ratio_over, "extrusion_width")) {
-                			// Extrusion width supports defaults and a dependency over nozzle diameter
+                        const ConfigOption *opt_parent = opt_def->ratio_over.empty() ? nullptr : ctx->resolve_symbol(opt_def->ratio_over);
+                        if (opt_parent == nullptr)
+                            ctx->throw_exception("FloatOrPercent variable failed to resolve the \"ratio_over\" dependencies", opt.it_range);
+                        if (boost::ends_with(opt_def->ratio_over, "extrusion_width")) {
+                            // Extrusion width supports defaults and a dependency over nozzle diameter
                             assert(opt_parent->type() == coFloatOrPercent);
-                    		v *= Flow::extrusion_width(opt_def->ratio_over, static_cast<const ConfigOptionFloatOrPercent*>(opt_parent), *ctx, static_cast<unsigned int>(ctx->current_extruder_id));
-                    		break;
-                    	}
+                            v *= Flow::extrusion_width(opt_def->ratio_over, static_cast<const ConfigOptionFloatOrPercent*>(opt_parent), *ctx, static_cast<unsigned int>(ctx->current_extruder_id));
+                            break;
+                        }
                         double val = ctx->get_computed_value(opt_def->ratio_over);
                         v *= val;
                         break;
             //        	if (opt_parent->type() == coFloat || opt_parent->type() == coFloatOrPercent) {
-			        	//	v *= opt_parent->get_float();
-			        	//	if (opt_parent->type() == coFloat || ! static_cast<const ConfigOptionFloatOrPercent*>(opt_parent)->percent)
-			        	//		break;
-			        	//	v *= 0.01; // percent to ratio
-			        	//}
-		        		//// Continue one level up in the "ratio_over" hierarchy.
-				        //opt_def = print_config_def.get(opt_def->ratio_over);
-				        //assert(opt_def != nullptr);
-			        }
+                        //	v *= opt_parent->get_float();
+                        //	if (opt_parent->type() == coFloat || ! static_cast<const ConfigOptionFloatOrPercent*>(opt_parent)->percent)
+                        //		break;
+                        //	v *= 0.01; // percent to ratio
+                        //}
+                        //// Continue one level up in the "ratio_over" hierarchy.
+                        //opt_def = print_config_def.get(opt_def->ratio_over);
+                        //assert(opt_def != nullptr);
+                    }
                     output.set_d(v);
                 }
                 break;
@@ -2258,8 +2258,8 @@ namespace client
             spirit::int_type            int_;
             spirit::double_type         double_;
             spirit_encoding::string_type string;
-			spirit::eoi_type			eoi;
-			spirit::repository::qi::iter_pos_type iter_pos;
+            spirit::eoi_type			eoi;
+            spirit::repository::qi::iter_pos_type iter_pos;
             auto                        kw = spirit::repository::qi::distinct(qi::copy(alnum | '_'));
 
             qi::_val_type               _val;
@@ -2281,7 +2281,7 @@ namespace client
             start =
                 (       (eps(px::bind(&MyContext::evaluate_full_macro, _r1)) > text_block(_r1) [_val=_1])
                     |   conditional_expression(_r1) [ px::bind(&expr::evaluate_boolean_to_string, _1, _val) ]
-				) > eoi;
+                ) > eoi;
             start.name("start");
             qi::on_error<qi::fail>(start, px::bind(&MyContext::process_error_message, _r1, _4, _1, _2, _3));
 
@@ -2688,7 +2688,7 @@ static std::string process_macro(const std::string &templ, client::MyContext &co
 {
     std::string output;
     phrase_parse(templ.begin(), templ.end(), g_macro_processor_instance(&context), client::skipper{}, output);
-	if (! context.error_message.empty()) {
+    if (! context.error_message.empty()) {
         if (context.error_message.back() != '\n' && context.error_message.back() != '\r')
             context.error_message += '\n';
         throw Slic3r::PlaceholderParserError(context.error_message);

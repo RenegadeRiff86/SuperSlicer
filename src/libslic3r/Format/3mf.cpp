@@ -1479,7 +1479,7 @@ namespace Slic3r {
                     for (unsigned int i=0; i<object_data_points.size(); i+=3)
                     sla_support_points.emplace_back(float(std::atof(object_data_points[i+0].c_str())),
                                                     float(std::atof(object_data_points[i+1].c_str())),
-													float(std::atof(object_data_points[i+2].c_str())),
+                                                    float(std::atof(object_data_points[i+2].c_str())),
                                                     0.4f,
                                                     false);
                 }
@@ -1489,7 +1489,7 @@ namespace Slic3r {
                                                     float(std::atof(object_data_points[i+1].c_str())),
                                                     float(std::atof(object_data_points[i+2].c_str())),
                                                     float(std::atof(object_data_points[i+3].c_str())),
-													//FIXME storing boolean as 0 / 1 and importing it as float.
+                                                    //FIXME storing boolean as 0 / 1 and importing it as float.
                                                     std::abs(std::atof(object_data_points[i+4].c_str()) - 1.) < EPSILON);
                 }
 
@@ -3102,7 +3102,7 @@ namespace Slic3r {
         reset_stream(stream);
         unsigned int id = 0;
         for (const ModelInstance* instance : object.instances) {
-			assert(instance != nullptr);
+            assert(instance != nullptr);
             if (instance == nullptr)
                 continue;
 
@@ -3718,7 +3718,7 @@ namespace Slic3r {
         std::stringstream stream;
         // Store mesh transformation in full precision, as the volumes are stored transformed and they need to be transformed back
         // when loaded as accurately as possible.
-		stream << std::setprecision(std::numeric_limits<double>::max_digits10);
+        stream << std::setprecision(std::numeric_limits<double>::max_digits10);
         stream << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
         stream << "<" << CONFIG_TAG << ">\n";
 

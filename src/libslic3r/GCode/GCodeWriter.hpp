@@ -138,7 +138,7 @@ protected:
     void _extrude_e(GCodeFormatter &w, double dE);
 
 private:
-	// Extruders are sorted by their ID, so that binary search is possible.
+    // Extruders are sorted by their ID, so that binary search is possible.
     std::vector<Extruder> m_extruders;
     std::vector<Mill> m_millers;
     std::string     m_extrusion_axis = "E";

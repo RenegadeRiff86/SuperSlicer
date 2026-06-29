@@ -1182,7 +1182,7 @@ namespace DoExport {
         PrintStatistics              &print_statistics,
         bool                         export_binary_data,
         bgcode::binarize::BinaryData &binary_data)
-	{
+    {
         std::string filament_stats_string_out;
 
         print_statistics.clear();
@@ -1685,7 +1685,7 @@ void GCodeGenerator::_do_export(Print& print_mod, GCodeOutputStream &file, Thumb
         // We don't allow switching of extruders per layer by Model::custom_gcode_per_print_z in sequential mode.
         // Use the extruder IDs collected from Regions.
         std::set<uint16_t> extruder_set = print.extruders();
-    	this->set_extruders(std::vector<uint16_t>(extruder_set.begin(), extruder_set.end()));
+        this->set_extruders(std::vector<uint16_t>(extruder_set.begin(), extruder_set.end()));
         if(has_milling)
             m_writer.set_mills(std::vector<uint16_t>() = { 0 });
     } else {
@@ -2898,13 +2898,13 @@ static bool custom_gcode_sets_temperature(const std::string &gcode, const int mc
                     (mgcode == 10) :
                 // M104/M109 or M140/M190 found.
                     (mgcode == mcode_set_temp_dont_wait || mgcode == mcode_set_temp_and_wait))) {
-				ptr = endptr;
+                ptr = endptr;
                 if (! is_gcode)
                     // Let the caller know that the custom M-code sets the temperature.
                 temp_set_by_gcode = true;
                 // Now try to parse the temperature value.
-				// While not at the end of the line:
-				while (strchr(";\r\n\0", *ptr) == nullptr) {
+                // While not at the end of the line:
+                while (strchr(";\r\n\0", *ptr) == nullptr) {
                     // Skip whitespaces.
                     for (; *ptr == ' ' || *ptr == '\t'; ++ ptr);
                     if (*ptr == 'S') {
@@ -2913,26 +2913,26 @@ static bool custom_gcode_sets_temperature(const std::string &gcode, const int mc
                         // Parse an int.
                         endptr = nullptr;
                         long temp_parsed = strtol(ptr, &endptr, 10);
-						if (endptr > ptr) {
-							ptr = endptr;
-							temp_out = temp_parsed;
+                        if (endptr > ptr) {
+                            ptr = endptr;
+                            temp_out = temp_parsed;
                             // Let the caller know that the custom G-code sets the temperature
                             // Only do this after successfully parsing temperature since G10
                             // can be used for other reasons
                             temp_set_by_gcode = true;
-						}
+                        }
                     } else {
                         // Skip this word.
-						for (; strchr(" \t;\r\n\0", *ptr) == nullptr; ++ ptr);
+                        for (; strchr(" \t;\r\n\0", *ptr) == nullptr; ++ ptr);
                     }
                 }
             }
         }
         // Skip the rest of the line.
         for (; *ptr != 0 && *ptr != '\r' && *ptr != '\n'; ++ ptr);
-		// Skip the end of line indicators.
+        // Skip the end of line indicators.
         for (; *ptr == '\r' || *ptr == '\n'; ++ ptr);
-	}
+    }
     return temp_set_by_gcode;
 }
 
@@ -3198,10 +3198,10 @@ void GCodeGenerator::_print_first_layer_extruder_temperatures(std::string &out, 
 
 std::vector<GCodeGenerator::InstanceToPrint> GCodeGenerator::sort_print_object_instances(
     const std::vector<ObjectLayerToPrint>       &object_layers,
-	// Ordering must be defined for normal (non-sequential print).
-	const std::vector<const PrintInstance*> 	*ordering,
-	// For sequential print, the instance of the object to be printing has to be defined.
-	const size_t                     		 	 single_object_instance_idx)
+    // Ordering must be defined for normal (non-sequential print).
+    const std::vector<const PrintInstance*> 	*ordering,
+    // For sequential print, the instance of the object to be printing has to be defined.
+    const size_t                     		 	 single_object_instance_idx)
 {
     std::vector<InstanceToPrint> out;
 
@@ -3216,21 +3216,21 @@ std::vector<GCodeGenerator::InstanceToPrint> GCodeGenerator::sort_print_object_i
         for (const ObjectLayerToPrint &object : object_layers)
             if (const PrintObject* print_object = object.object(); print_object)
                 sorted.emplace_back(print_object, &object - object_layers.data());
-		std::sort(sorted.begin(), sorted.end());
+        std::sort(sorted.begin(), sorted.end());
 
-		if (! sorted.empty()) {
-		    out.reserve(sorted.size());
-		    for (const PrintInstance *instance : *ordering) {
-		    	const PrintObject &print_object = *instance->print_object;
-		    	std::pair<const PrintObject*, size_t> key(&print_object, 0);
-		    	auto it = std::lower_bound(sorted.begin(), sorted.end(), key);
-		    	if (it != sorted.end() && it->first == &print_object)
-		    		// ObjectLayerToPrint for this PrintObject was found.
-					out.emplace_back(it->second, print_object, instance - print_object.instances().data());
-		    }
-		}
-	}
-	return out;
+        if (! sorted.empty()) {
+            out.reserve(sorted.size());
+            for (const PrintInstance *instance : *ordering) {
+                const PrintObject &print_object = *instance->print_object;
+                std::pair<const PrintObject*, size_t> key(&print_object, 0);
+                auto it = std::lower_bound(sorted.begin(), sorted.end(), key);
+                if (it != sorted.end() && it->first == &print_object)
+                    // ObjectLayerToPrint for this PrintObject was found.
+                    out.emplace_back(it->second, print_object, instance - print_object.instances().data());
+            }
+        }
+    }
+    return out;
 }
 
 namespace ProcessLayer
@@ -3375,15 +3375,15 @@ namespace ProcessLayer
 } // namespace ProcessLayer
 
 namespace Skirt {
-	static void skirt_loops_per_extruder_all_printing(const Print &print, const LayerTools &layer_tools, std::map<uint16_t, std::pair<size_t, size_t>> &skirt_loops_per_extruder_out)
-	{
+    static void skirt_loops_per_extruder_all_printing(const Print &print, const LayerTools &layer_tools, std::map<uint16_t, std::pair<size_t, size_t>> &skirt_loops_per_extruder_out)
+    {
         // Prime all extruders printing over the 1st layer over the skirt lines.
         size_t n_loops = print.skirt().entities().size();
         size_t n_tools = layer_tools.extruders.size();
         size_t lines_per_extruder = (n_loops + n_tools - 1) / n_tools;
         for (size_t i = 0; i < n_loops; i += lines_per_extruder)
             skirt_loops_per_extruder_out[layer_tools.extruders[i / lines_per_extruder]] = std::pair<size_t, size_t>(i, std::min(i + lines_per_extruder, n_loops));
-	}
+    }
 
     static std::map<uint16_t, std::pair<size_t, size_t>> make_skirt_loops_per_extruder_1st_layer(
         const Print             				&print,

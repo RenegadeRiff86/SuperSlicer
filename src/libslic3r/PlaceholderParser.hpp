@@ -55,11 +55,11 @@ public:
     void set(const std::string &key, double value)              { this->set(key, new ConfigOptionFloat(value)); }
     void set(const std::string &key, const std::vector<std::string> &values) { this->set(key, new ConfigOptionStrings(values)); }
     void set(const std::string &key, ConfigOption *opt)         { m_config.set_key_value(key, opt); }
-	DynamicConfig&			config_writable()					{ return m_config; }
-	const DynamicConfig&    config() const                      { return m_config; }
+    DynamicConfig&			config_writable()					{ return m_config; }
+    const DynamicConfig&    config() const                      { return m_config; }
     const ConfigOption*     option(const std::string &key) const { return m_config.option(key); }
     // External config is not owned by PlaceholderParser. It has a lowest priority when looking up an option.
-	const DynamicConfig*	external_config() const  			{ return m_external_config; }
+    const DynamicConfig*	external_config() const  			{ return m_external_config; }
 
     // Fill in the template using a macro processing language.
     // Throws Slic3r::PlaceholderParserError on syntax or runtime error.
@@ -86,7 +86,7 @@ public:
 private:
     void append_custom_variables(const std::map<std::string, std::vector<std::string>> &name2var_array, uint16_t nb_extruders);
 
-	// config has a higher priority than external_config when looking up a symbol.
+    // config has a higher priority than external_config when looking up a symbol.
     DynamicConfig 			 m_config;
     const DynamicConfig 	*m_external_config;
 };

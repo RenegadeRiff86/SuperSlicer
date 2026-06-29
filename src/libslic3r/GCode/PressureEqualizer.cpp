@@ -225,7 +225,7 @@ bool PressureEqualizer::process_line(const char *line, const char *line_end, GCo
     buf.volumetric_extrusion_rate_end = 0.f;
     buf.max_volumetric_extrusion_rate_slope_positive = 0.f;
     buf.max_volumetric_extrusion_rate_slope_negative = 0.f;
-	buf.extrusion_role = m_current_extrusion_role;
+    buf.extrusion_role = m_current_extrusion_role;
 
     std::string str_line(line, line_end);
     const bool found_extrude_set_speed_tag = boost::contains(str_line, EXTRUDE_SET_SPEED_TAG);
@@ -549,7 +549,7 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
             comment = nullptr;
             memcpy(line.pos_start, line.pos_end, sizeof(float)*5);
         }
-		if (l_steady > 0.f && accelerating) {
+        if (l_steady > 0.f && accelerating) {
             for (int i = 0; i < 4; ++ i) {
                 line.pos_end[i] = pos_end2[i];
                 line.pos_provided[i] = true;

@@ -923,11 +923,11 @@ void LayerRegion::process_external_surfaces_old(const Layer *lower_layer, const 
             // Remove voids from fill_boundaries, that are not supported by the layer below.
             if (lower_layer_covered == nullptr) {
                 lower_layer_covered = &lower_layer_covered_tmp;
-            	lower_layer_covered_tmp = to_polygons(lower_layer->lslices());
+                lower_layer_covered_tmp = to_polygons(lower_layer->lslices());
             }
             if (! lower_layer_covered->empty())
                 // Allow the top / bottom surfaces to expand into the voids of this layer if supported by the layer below.
-            	voids = diff(voids, *lower_layer_covered);
+                voids = diff(voids, *lower_layer_covered);
             if (! voids.empty())
                 fill_boundaries = diff_ex(fill_boundaries, voids);
         }
@@ -1414,7 +1414,7 @@ void LayerRegion::simplify_extrusion_entity()
     if (scaled_resolution == 0) scaled_resolution = enable_arc_fitting != ArcFittingType::Disabled ? SCALED_EPSILON * 2 : SCALED_EPSILON;
     scaled_resolution = std::max(double(SCALED_EPSILON), scaled_resolution);
 
-	//Ligne 652:     SimplifyVisitor(coordf_t scaled_resolution, ArcFittingType use_arc_fitting, const ConfigOptionFloatOrPercent *arc_fitting_tolearance)
+    //Ligne 652:     SimplifyVisitor(coordf_t scaled_resolution, ArcFittingType use_arc_fitting, const ConfigOptionFloatOrPercent *arc_fitting_tolearance)
     //call simplify for all paths
     Slic3r::SimplifyVisitor visitor{scaled_resolution, enable_arc_fitting,
                                     print_config.arc_fitting_ignore_holes,

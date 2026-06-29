@@ -213,7 +213,7 @@ public:
         return *this;
     }
 
-	ExtrusionEntity* clone() const override { return new ExtrusionPath(*this); }
+    ExtrusionEntity* clone() const override { return new ExtrusionPath(*this); }
     // Create a new object, initialize it with this object using the move semantics.
     virtual ExtrusionPath* clone_move() override { return new ExtrusionPath(std::move(*this)); }
     void reverse() override { this->polyline.reverse(); }
@@ -583,12 +583,12 @@ public:
     virtual void visit(ExtrusionVisitorConst &visitor) const override { visitor.use(*this); };
 
 #ifndef NDEBUG
-	bool validate() const {
-		assert(this->first_point() == this->paths.back().polyline.back());
-		for (size_t i = 1; i < paths.size(); ++ i)
-			assert(this->paths[i - 1].polyline.back() == this->paths[i].polyline.front());
-		return true;
-	}
+    bool validate() const {
+        assert(this->first_point() == this->paths.back().polyline.back());
+        for (size_t i = 1; i < paths.size(); ++ i)
+            assert(this->paths[i - 1].polyline.back() == this->paths[i].polyline.front());
+        return true;
+    }
 #endif /* NDEBUG */
 
 private:

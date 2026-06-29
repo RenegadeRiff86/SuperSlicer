@@ -806,88 +806,88 @@ static LayerIsland *get_fill_island(Layer &layer,
 
 static void insert_ironings_into_islands(Layer &layer, uint32_t layer_region_id, uint32_t ironing_idx_begin, uint32_t ironing_idx_end)
 {
-	if (ironing_idx_begin < ironing_idx_end) {
-    	// Sort the extrusion range into its LayerIsland.
-	    // Traverse the slices in an increasing order of bounding box size, so that the islands inside another islands are tested first,
-	    // so we can just test a point inside ExPolygon::contour and we may skip testing the holes.
+    if (ironing_idx_begin < ironing_idx_end) {
+        // Sort the extrusion range into its LayerIsland.
+        // Traverse the slices in an increasing order of bounding box size, so that the islands inside another islands are tested first,
+        // so we can just test a point inside ExPolygon::contour and we may skip testing the holes.
         // That is because layer.lslices() is topologically sorted. 
-	    auto point_inside_surface = [&layer](const size_t lslice_idx, const Point &point) {
-	        const BoundingBox &bbox = layer.lslices_ex[lslice_idx].bbox;
-	        return point.x() >= bbox.min.x() && point.x() < bbox.max.x() &&
-	               point.y() >= bbox.min.y() && point.y() < bbox.max.y() &&
-	               layer.lslices()[lslice_idx].contour.contains(point);
-	    };
-	    Point point = layer.get_region(layer_region_id)->ironings().entities()[ironing_idx_begin]->first_point();
-	    int lslice_idx = int(layer.lslices_ex.size()) - 1;
-	    for (; lslice_idx >= 0; -- lslice_idx)
-	        if (point_inside_surface(lslice_idx, point))
-	        	break;
-	    assert(lslice_idx >= 0);
-	    if (lslice_idx >= 0) {
-	    	LayerSlice &lslice = layer.lslices_ex[lslice_idx];
-	    	// Find an island.
-	    	LayerIsland *island = nullptr;
-	    	if (lslice.islands.size() == 1) {
-	    		// Cool, just save the extrusions in there.
-	    		island = &lslice.islands.front();
-	    	} else {
-	    		// The infill was created for one of the infills.
-	    		// In case of ironing, the infill may not fall into any of the infill expolygons either.
-	    		// In case of some numerical error, the infill may not fall into any of the infill expolygons either.
-	    		// 1) Try an exact test, it should be cheaper than a closest region test.
-	    		for (LayerIsland &li : lslice.islands) {
-	    			const BoundingBoxes &bboxes     = li.fill_expolygons_composite() ?
-	    				layer.get_region(li.perimeters.region())->fill_expolygons_composite_bboxes() :
-	    				layer.get_region(li.fill_region_id)->fill_expolygons_bboxes();
-	    			const ExPolygons 	&expolygons = li.fill_expolygons_composite() ? 
-	    				layer.get_region(li.perimeters.region())->fill_expolygons_composite() :
-	    				layer.get_region(li.fill_region_id)->fill_expolygons();
-	    			for (uint32_t fill_expolygon_id : li.fill_expolygons)
-	    				if (bboxes[fill_expolygon_id].contains(point) && expolygons[fill_expolygon_id].contains(point)) {
-	    					island = &li;
-	    					goto found;
-	    				}
-	    		}
-	    		// 2) Find closest fill_expolygon, branch and bound by distance to bounding box.
-				{
-					struct Island {
-						uint32_t island_idx;
-						uint32_t expolygon_idx;
-						double   distance2;
-					};
-	    			std::vector<Island> islands_sorted;
-	    			for (uint32_t island_idx = 0; island_idx < uint32_t(lslice.islands.size()); ++ island_idx) {
-	    				const LayerIsland   &li     = lslice.islands[island_idx];
-	    				const BoundingBoxes &bboxes = li.fill_expolygons_composite() ?
-	    					layer.get_region(li.perimeters.region())->fill_expolygons_composite_bboxes() :
-	    					layer.get_region(li.fill_region_id)->fill_expolygons_bboxes();
-	    				for (uint32_t fill_expolygon_id : li.fill_expolygons)
-							islands_sorted.push_back({ island_idx, fill_expolygon_id, bbox_point_distance_squared(bboxes[fill_expolygon_id], point) });
-	    			}
-	    			std::sort(islands_sorted.begin(), islands_sorted.end(), [](auto &l, auto &r){ return l.distance2 < r.distance2; });
-	    			auto dist_min2 = std::numeric_limits<double>::max();
-	    			for (uint32_t sorted_bbox_idx = 0; sorted_bbox_idx < uint32_t(islands_sorted.size()); ++ sorted_bbox_idx) {
-	    				const Island &isl = islands_sorted[sorted_bbox_idx];
-	    				if (isl.distance2 > dist_min2)
-							// Branch & bound condition.
-	    					break;
-	    				LayerIsland		  &li         = lslice.islands[isl.island_idx];
-	    				const ExPolygons  &expolygons = li.fill_expolygons_composite() ?
-	    					layer.get_region(li.perimeters.region())->fill_expolygons_composite() :
-	    					layer.get_region(li.fill_region_id)->fill_expolygons();
-	    				double d2 = (expolygons[isl.expolygon_idx].point_projection(point) - point).cast<double>().squaredNorm();
-	    				if (d2 < dist_min2) {
-	    					dist_min2 = d2;
-	    					island = &li;
-	    				}
-	    			}
-				}
-	    	found:;
-	    	}
-	    	assert(island);
-	    	if (island)
-	    		island->add_ironing_range(LayerExtrusionRange{ layer_region_id, { ironing_idx_begin, ironing_idx_end }});
-	    }
+        auto point_inside_surface = [&layer](const size_t lslice_idx, const Point &point) {
+            const BoundingBox &bbox = layer.lslices_ex[lslice_idx].bbox;
+            return point.x() >= bbox.min.x() && point.x() < bbox.max.x() &&
+                   point.y() >= bbox.min.y() && point.y() < bbox.max.y() &&
+                   layer.lslices()[lslice_idx].contour.contains(point);
+        };
+        Point point = layer.get_region(layer_region_id)->ironings().entities()[ironing_idx_begin]->first_point();
+        int lslice_idx = int(layer.lslices_ex.size()) - 1;
+        for (; lslice_idx >= 0; -- lslice_idx)
+            if (point_inside_surface(lslice_idx, point))
+                break;
+        assert(lslice_idx >= 0);
+        if (lslice_idx >= 0) {
+            LayerSlice &lslice = layer.lslices_ex[lslice_idx];
+            // Find an island.
+            LayerIsland *island = nullptr;
+            if (lslice.islands.size() == 1) {
+                // Cool, just save the extrusions in there.
+                island = &lslice.islands.front();
+            } else {
+                // The infill was created for one of the infills.
+                // In case of ironing, the infill may not fall into any of the infill expolygons either.
+                // In case of some numerical error, the infill may not fall into any of the infill expolygons either.
+                // 1) Try an exact test, it should be cheaper than a closest region test.
+                for (LayerIsland &li : lslice.islands) {
+                    const BoundingBoxes &bboxes     = li.fill_expolygons_composite() ?
+                        layer.get_region(li.perimeters.region())->fill_expolygons_composite_bboxes() :
+                        layer.get_region(li.fill_region_id)->fill_expolygons_bboxes();
+                    const ExPolygons 	&expolygons = li.fill_expolygons_composite() ? 
+                        layer.get_region(li.perimeters.region())->fill_expolygons_composite() :
+                        layer.get_region(li.fill_region_id)->fill_expolygons();
+                    for (uint32_t fill_expolygon_id : li.fill_expolygons)
+                        if (bboxes[fill_expolygon_id].contains(point) && expolygons[fill_expolygon_id].contains(point)) {
+                            island = &li;
+                            goto found;
+                        }
+                }
+                // 2) Find closest fill_expolygon, branch and bound by distance to bounding box.
+                {
+                    struct Island {
+                        uint32_t island_idx;
+                        uint32_t expolygon_idx;
+                        double   distance2;
+                    };
+                    std::vector<Island> islands_sorted;
+                    for (uint32_t island_idx = 0; island_idx < uint32_t(lslice.islands.size()); ++ island_idx) {
+                        const LayerIsland   &li     = lslice.islands[island_idx];
+                        const BoundingBoxes &bboxes = li.fill_expolygons_composite() ?
+                            layer.get_region(li.perimeters.region())->fill_expolygons_composite_bboxes() :
+                            layer.get_region(li.fill_region_id)->fill_expolygons_bboxes();
+                        for (uint32_t fill_expolygon_id : li.fill_expolygons)
+                            islands_sorted.push_back({ island_idx, fill_expolygon_id, bbox_point_distance_squared(bboxes[fill_expolygon_id], point) });
+                    }
+                    std::sort(islands_sorted.begin(), islands_sorted.end(), [](auto &l, auto &r){ return l.distance2 < r.distance2; });
+                    auto dist_min2 = std::numeric_limits<double>::max();
+                    for (uint32_t sorted_bbox_idx = 0; sorted_bbox_idx < uint32_t(islands_sorted.size()); ++ sorted_bbox_idx) {
+                        const Island &isl = islands_sorted[sorted_bbox_idx];
+                        if (isl.distance2 > dist_min2)
+                            // Branch & bound condition.
+                            break;
+                        LayerIsland		  &li         = lslice.islands[isl.island_idx];
+                        const ExPolygons  &expolygons = li.fill_expolygons_composite() ?
+                            layer.get_region(li.perimeters.region())->fill_expolygons_composite() :
+                            layer.get_region(li.fill_region_id)->fill_expolygons();
+                        double d2 = (expolygons[isl.expolygon_idx].point_projection(point) - point).cast<double>().squaredNorm();
+                        if (d2 < dist_min2) {
+                            dist_min2 = d2;
+                            island = &li;
+                        }
+                    }
+                }
+            found:;
+            }
+            assert(island);
+            if (island)
+                island->add_ironing_range(LayerExtrusionRange{ layer_region_id, { ironing_idx_begin, ironing_idx_end }});
+        }
     }
 }
 
@@ -898,16 +898,16 @@ void Layer::clear_fills()
         layerm->set_ironings().clear();
     }
     for (LayerSlice &lslice : lslices_ex) {
-		for (LayerIsland &island : lslice.islands) {
-			island.fills.clear();
-			island.ironings.clear();
+        for (LayerIsland &island : lslice.islands) {
+            island.fills.clear();
+            island.ironings.clear();
         }
     }
 }
 
 void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive::Octree* support_fill_octree, FillLightning::Generator* lightning_generator)
 {
-	this->clear_fills();
+    this->clear_fills();
 
 #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
     this->export_region_fill_surfaces_to_svg_debug("10_fill-initial");
@@ -1234,40 +1234,40 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
     // add thin fill regions
     // i.e, move from layerm.m_thin_fills to layerm.m_fills
     // note: if some need to be ordered, please put them into an unsaortable collection before.
-	for (LayerSlice &lslice : this->lslices_ex) {
-		for (LayerIsland &island : lslice.islands) {
-			if (! island.thin_fills.empty()) {
-				// Copy thin fills into fills packed as a collection.
-				// Fills are always stored as collections, the rest of the pipeline (wipe into infill, G-code generator) relies on it.
-				LayerRegion				  &layerm	  = *this->get_region(island.perimeters.region());
-				ExtrusionEntityCollection &collection = *(new ExtrusionEntityCollection());
-				layerm.set_fills().set_entities().push_back(&collection);
+    for (LayerSlice &lslice : this->lslices_ex) {
+        for (LayerIsland &island : lslice.islands) {
+            if (! island.thin_fills.empty()) {
+                // Copy thin fills into fills packed as a collection.
+                // Fills are always stored as collections, the rest of the pipeline (wipe into infill, G-code generator) relies on it.
+                LayerRegion				  &layerm	  = *this->get_region(island.perimeters.region());
+                ExtrusionEntityCollection &collection = *(new ExtrusionEntityCollection());
+                layerm.set_fills().set_entities().push_back(&collection);
                 collection.set_entities().reserve(island.thin_fills.size());
                 for (uint32_t fill_id : island.thin_fills) {
                     collection.set_entities().push_back(layerm.thin_fills().entities()[fill_id]->clone());
                     // normalize result, just in case the filling algorihtm is messing things up (some are).
                     collection.set_entities().back()->visit(normalize_visitor);
                 }
-				island.add_fill_range({ island.perimeters.region(), { uint32_t(layerm.fills().entities().size() - 1), uint32_t(layerm.fills().entities().size()) } });
-			}
-			// Sort the fills by region ID.
-			std::sort(island.fills.begin(), island.fills.end(), [](auto &l, auto &r){ return l.region() < r.region() || (l.region() == r.region() && *l.begin() < *r.begin()); });
-			// Compress continuous fill ranges of the same region.
-			{
-				size_t k = 0;
-				for (size_t i = 0; i < island.fills.size();) {
-					uint32_t region_id = island.fills[i].region();
-					uint32_t begin     = *island.fills[i].begin();
-					uint32_t end       = *island.fills[i].end();
-					size_t   j         = i + 1;
-					for (; j < island.fills.size() && island.fills[j].region() == region_id && *island.fills[j].begin() == end; ++ j)
-						end = *island.fills[j].end();
-					island.fills[k ++] = { region_id, { begin, end } };
-					i = j;
-				}
-				island.fills.erase(island.fills.begin() + k, island.fills.end());
-			}
-		}
+                island.add_fill_range({ island.perimeters.region(), { uint32_t(layerm.fills().entities().size() - 1), uint32_t(layerm.fills().entities().size()) } });
+            }
+            // Sort the fills by region ID.
+            std::sort(island.fills.begin(), island.fills.end(), [](auto &l, auto &r){ return l.region() < r.region() || (l.region() == r.region() && *l.begin() < *r.begin()); });
+            // Compress continuous fill ranges of the same region.
+            {
+                size_t k = 0;
+                for (size_t i = 0; i < island.fills.size();) {
+                    uint32_t region_id = island.fills[i].region();
+                    uint32_t begin     = *island.fills[i].begin();
+                    uint32_t end       = *island.fills[i].end();
+                    size_t   j         = i + 1;
+                    for (; j < island.fills.size() && island.fills[j].region() == region_id && *island.fills[j].begin() == end; ++ j)
+                        end = *island.fills[j].end();
+                    island.fills[k ++] = { region_id, { begin, end } };
+                    i = j;
+                }
+                island.fills.erase(island.fills.begin() + k, island.fills.end());
+            }
+        }
     }
 }
 
@@ -1461,9 +1461,9 @@ void Layer::make_ironing()
                    this->angle == rhs.angle && this->type == rhs.type;
         }
 
-		LayerRegion *layerm;
+        LayerRegion *layerm;
         // id of the region into the layer where the fill is made.
-		uint32_t     layer_region_id;
+        uint32_t     layer_region_id;
 
         // IdeaMaker: ironing
         // ironing flowrate (5% percent)
@@ -1529,11 +1529,11 @@ void Layer::make_ironing()
     FillRectilinear 	fill;
     FillParams             fill_params;
     fill.set_bounding_box(this->object()->bounding_box());
-	// Layer ID is used for orienting the infill in alternating directions.
-	// Layer::id() returns layer ID including raft layers, subtract them to make the infill direction independent
-	// from raft.
-	//FIXME ironing does not take fill angle into account. Shall it? Does it matter?
-	fill.layer_id 			 = this->id() - this->object()->get_layer(0)->id();
+    // Layer ID is used for orienting the infill in alternating directions.
+    // Layer::id() returns layer ID including raft layers, subtract them to make the infill direction independent
+    // from raft.
+    //FIXME ironing does not take fill angle into account. Shall it? Does it matter?
+    fill.layer_id 			 = this->id() - this->object()->get_layer(0)->id();
     fill.z                  = this->print_z;
     fill.overlap            = 0;
     fill_params.density     = 1.;
@@ -1552,7 +1552,7 @@ void Layer::make_ironing()
         double nozzle_dmr = this->object()->print()->config().nozzle_diameter.get_at(static_cast<size_t>(ironing_extruder_idx));
         const PrintRegionConfig& region_config = ironing_params.layerm->region().config();
         if (ironing_params.just_infill) {
-			//TODO just_infill is currently not used.
+            //TODO just_infill is currently not used.
             // Just infill.
         } else {
             // Infill and perimeter.
@@ -1566,7 +1566,7 @@ void Layer::make_ironing()
                 if (iron_everything) {
                     // Check whether there is any non-solid hole in the regions.
                     bool internal_infill_solid = region_config.fill_density.value > 95.;
-					for (const Surface &surface : ironing_params.layerm->fill_surfaces())
+                    for (const Surface &surface : ironing_params.layerm->fill_surfaces())
                         // stInternal or stInternalBridge or stInternalVoid
                         if ((!internal_infill_solid && surface.has(stPosInternal | stDensSparse)) ||
                             surface.surface_type == (stPosInternal | stDensSolid | stModBridge) ||
@@ -1578,18 +1578,18 @@ void Layer::make_ironing()
                 }
                 if (iron_completely) {
                     // Iron everything. This is likely only good for solid transparent objects.
-					for (const Surface &surface : ironing_params.layerm->slices())
+                    for (const Surface &surface : ironing_params.layerm->slices())
                         polygons_append(polys, surface.expolygon);
                 } else {
-					for (const Surface &surface : ironing_params.layerm->slices())
+                    for (const Surface &surface : ironing_params.layerm->slices())
                         if (surface.surface_type == (stPosTop | stDensSolid) || (iron_everything && surface.surface_type == (stPosBottom | stDensSolid)))
                             // stBottomBridge is not being ironed on purpose, as it would likely destroy the bridges.
                             polygons_append(polys, surface.expolygon);
                 }
-				if (iron_everything && ! iron_completely) {
+                if (iron_everything && ! iron_completely) {
                     // Add solid fill surfaces. This may not be ideal, as one will not iron perimeters touching these
                     // solid fill surfaces, but it is likely better than nothing.
-					for (const Surface &surface : ironing_params.layerm->fill_surfaces())
+                    for (const Surface &surface : ironing_params.layerm->fill_surfaces())
                         if (surface.surface_type == (stPosInternal | stDensSolid))
                             polygons_append(infills, surface.expolygon);
                 }

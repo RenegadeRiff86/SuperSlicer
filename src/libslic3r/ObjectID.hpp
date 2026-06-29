@@ -11,7 +11,7 @@
 namespace Slic3r {
 
 namespace UndoRedo {
-	class StackImpl;
+    class StackImpl;
 };
 
 // Unique identifier of a mutable object accross the application.
@@ -24,25 +24,25 @@ namespace UndoRedo {
 class ObjectID
 {
 public:
-	ObjectID(size_t id) : id(id) {}
-	// Default constructor constructs an invalid ObjectID.
-	ObjectID() : id(0) {}
+    ObjectID(size_t id) : id(id) {}
+    // Default constructor constructs an invalid ObjectID.
+    ObjectID() : id(0) {}
 
-	bool operator==(const ObjectID &rhs) const { return this->id == rhs.id; }
-	bool operator!=(const ObjectID &rhs) const { return this->id != rhs.id; }
-	bool operator< (const ObjectID &rhs) const { return this->id <  rhs.id; }
-	bool operator> (const ObjectID &rhs) const { return this->id >  rhs.id; }
-	bool operator<=(const ObjectID &rhs) const { return this->id <= rhs.id; }
-	bool operator>=(const ObjectID &rhs) const { return this->id >= rhs.id; }
+    bool operator==(const ObjectID &rhs) const { return this->id == rhs.id; }
+    bool operator!=(const ObjectID &rhs) const { return this->id != rhs.id; }
+    bool operator< (const ObjectID &rhs) const { return this->id <  rhs.id; }
+    bool operator> (const ObjectID &rhs) const { return this->id >  rhs.id; }
+    bool operator<=(const ObjectID &rhs) const { return this->id <= rhs.id; }
+    bool operator>=(const ObjectID &rhs) const { return this->id >= rhs.id; }
 
     bool valid() const { return id != 0; }
     bool invalid() const { return id == 0; }
 
-	size_t	id;
+    size_t	id;
 
 private:
-	friend class cereal::access;
-	template<class Archive> void serialize(Archive &ar) { ar(id); }
+    friend class cereal::access;
+    template<class Archive> void serialize(Archive &ar) { ar(id); }
 };
 
 // Base for Model, ModelObject, ModelVolume, ModelInstance or ModelMaterial to provide a unique ID
@@ -70,8 +70,8 @@ protected:
     // Constructor with ignored int parameter to assign an invalid ID, to be replaced
     // by an existing ID copied from elsewhere.
     ObjectBase(int) : m_id(ObjectID(0)) {}
-	// The class tree will have virtual tables and type information.
-	virtual ~ObjectBase() = default;
+    // The class tree will have virtual tables and type information.
+    virtual ~ObjectBase() = default;
 
     // Use with caution!
     void        set_new_unique_id() { m_id = generate_new_id(); }
@@ -85,19 +85,19 @@ protected:
 //private:
     ObjectID                m_id;
 
-	static inline ObjectID  generate_new_id() { return ObjectID(++ s_last_id); }
+    static inline ObjectID  generate_new_id() { return ObjectID(++ s_last_id); }
     static size_t           s_last_id;
-	
-	friend ObjectID wipe_tower_object_id();
-	friend ObjectID wipe_tower_instance_id();
+    
+    friend ObjectID wipe_tower_object_id();
+    friend ObjectID wipe_tower_instance_id();
 
-	friend class cereal::access;
-	friend class Slic3r::UndoRedo::StackImpl;
-	template<class Archive> void serialize(Archive &ar) { ar(m_id); }
+    friend class cereal::access;
+    friend class Slic3r::UndoRedo::StackImpl;
+    template<class Archive> void serialize(Archive &ar) { ar(m_id); }
 protected: // #vbCHECKME && #ysFIXME
     ObjectBase(const ObjectID id) : m_id(id) {}
 private:
-  	template<class Archive> static void load_and_construct(Archive & ar, cereal::construct<ObjectBase> &construct) { ObjectID id; ar(id); construct(id); }
+    template<class Archive> static void load_and_construct(Archive & ar, cereal::construct<ObjectBase> &construct) { ObjectID id; ar(id); construct(id); }
 };
 
 class ObjectWithTimestamp : public ObjectBase
@@ -105,12 +105,12 @@ class ObjectWithTimestamp : public ObjectBase
 protected:
     // Constructors to be only called by derived classes.
     // Default constructor to assign a new timestamp unique to this object's history.
-	ObjectWithTimestamp() = default;
+    ObjectWithTimestamp() = default;
     // Constructor with ignored int parameter to assign an invalid ID, to be replaced
     // by an existing ID copied from elsewhere.
     ObjectWithTimestamp(int) : ObjectBase(-1) {}
-	// The class tree will have virtual tables and type information.
-	virtual ~ObjectWithTimestamp() = default;
+    // The class tree will have virtual tables and type information.
+    virtual ~ObjectWithTimestamp() = default;
 
     // The timestamp uniquely identifies content of the derived class' data, therefore it makes sense to copy the timestamp if the content data was copied.
     void                copy_timestamp(const ObjectWithTimestamp& rhs) { m_timestamp = rhs.m_timestamp; }
@@ -126,13 +126,13 @@ public:
     void 				touch() { m_timestamp = ++ s_last_timestamp; }
 
 private:
-	// The first timestamp is non-zero, as zero timestamp means the timestamp is not reliable.
-	Timestamp 			m_timestamp { 1 };
+    // The first timestamp is non-zero, as zero timestamp means the timestamp is not reliable.
+    Timestamp 			m_timestamp { 1 };
     static Timestamp    s_last_timestamp;
-	
-	friend class cereal::access;
-	friend class Slic3r::UndoRedo::StackImpl;
-	template<class Archive> void serialize(Archive &ar) { ar(m_timestamp); }
+    
+    friend class cereal::access;
+    friend class Slic3r::UndoRedo::StackImpl;
+    template<class Archive> void serialize(Archive &ar) { ar(m_timestamp); }
 };
 
 class CutObjectBase : public ObjectBase
@@ -150,8 +150,8 @@ public:
     CutObjectBase(int) : ObjectBase(-1) {}
     // Constructor to initialize full information from 3mf
     CutObjectBase(ObjectID id, size_t check_sum, size_t connectors_cnt) : ObjectBase(id), m_check_sum(check_sum), m_connectors_cnt(connectors_cnt) {}
-	// The class tree will have virtual tables and type information.
-	virtual ~CutObjectBase() = default;
+    // The class tree will have virtual tables and type information.
+    virtual ~CutObjectBase() = default;
 
     bool operator<(const CutObjectBase& other)  const { return other.id() > this->id(); }
     bool operator==(const CutObjectBase& other) const { return other.id() == this->id(); }

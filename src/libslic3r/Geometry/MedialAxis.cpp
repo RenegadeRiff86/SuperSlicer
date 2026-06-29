@@ -2748,7 +2748,7 @@ unsafe_variable_width(const ThickPolyline& polyline, const ExtrusionRole role, c
             assert(!std::isnan(current_flow.mm3_per_mm()));
             assert(!std::isnan(current_flow.width()));
             assert(!std::isnan(current_flow.height()));
-			path = { ExtrusionAttributes{ role, current_flow }, false };
+            path = { ExtrusionAttributes{ role, current_flow }, false };
             path.polyline.append(line.a);
             path.polyline.append(line.b);
             assert(path.polyline.is_valid());
@@ -2773,7 +2773,7 @@ unsafe_variable_width(const ThickPolyline& polyline, const ExtrusionRole role, c
                 assert(!std::isnan(current_flow.mm3_per_mm()));
                 assert(!std::isnan(current_flow.width()));
                 assert(!std::isnan(current_flow.height()));
-				path = { ExtrusionAttributes{ role, current_flow }, false };
+                path = { ExtrusionAttributes{ role, current_flow }, false };
                 path.polyline.append(line.a);
                 path.polyline.append(line.b);
                 assert(path.polyline.is_valid());

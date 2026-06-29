@@ -14,10 +14,10 @@
 
 namespace Slic3r {
 
-	namespace ClipperLib {
-		class PolyNode;
-		using PolyNodes = std::vector<PolyNode*, PointsAllocator<PolyNode*>>;
-	}
+    namespace ClipperLib {
+        class PolyNode;
+        using PolyNodes = std::vector<PolyNode*, PointsAllocator<PolyNode*>>;
+    }
 
 class ExPolygon;
 using ExPolygons = std::vector<ExPolygon>;
@@ -35,14 +35,14 @@ std::vector<std::pair<size_t, bool>> chain_extrusion_entities(const std::vector<
 //template<typename ExtrusionEntityConstOrNot>
 inline void reorder_extrusion_entities(std::vector<ExtrusionEntity*> &entities, const std::vector<std::pair<size_t, bool>> &chain)
 {
-	assert(entities.size() == chain.size());
-	std::vector<ExtrusionEntity*> out;
-	out.reserve(entities.size());
+    assert(entities.size() == chain.size());
+    std::vector<ExtrusionEntity*> out;
+    out.reserve(entities.size());
     for (const std::pair<size_t, bool> &idx : chain) {
-		assert(entities[idx.first] != nullptr);
+        assert(entities[idx.first] != nullptr);
         out.emplace_back(entities[idx.first]);
         if (idx.second)
-			entities[idx.first]->reverse();
+            entities[idx.first]->reverse();
     }
     entities.swap(out);
 }
@@ -50,7 +50,7 @@ inline void reorder_extrusion_entities(std::vector<ExtrusionEntity*> &entities, 
 //template<typename ExtrusionEntityConstOrNot>
 inline void chain_and_reorder_extrusion_entities(std::vector<ExtrusionEntity*> &entities, const Point *start_near = nullptr)
 {
-	reorder_extrusion_entities(entities, chain_extrusion_entities(entities, start_near));
+    reorder_extrusion_entities(entities, chain_extrusion_entities(entities, start_near));
 }
 
 // Chain extrusion entities by a shortest distance. Returns the ordered extrusions together with a "reverse" flag.
@@ -59,11 +59,11 @@ inline void chain_and_reorder_extrusion_entities(std::vector<ExtrusionEntity*> &
 template<typename ExtrusionEntityConstOrNot>
 ExtrusionEntityReferences chain_extrusion_references(const std::vector<ExtrusionEntityConstOrNot*> &entities, const Point *start_near = nullptr, const bool reversed = false)
 {
-	const std::vector<std::pair<size_t, bool>> chain = chain_extrusion_entities(entities, start_near, reversed);
-	ExtrusionEntityReferences out;
-	out.reserve(chain.size());
+    const std::vector<std::pair<size_t, bool>> chain = chain_extrusion_entities(entities, start_near, reversed);
+    ExtrusionEntityReferences out;
+    out.reserve(chain.size());
     for (const std::pair<size_t, bool> &idx : chain) {
-		assert(entities[idx.first] != nullptr);
+        assert(entities[idx.first] != nullptr);
         out.push_back({ *entities[idx.first], idx.second });
     }
     return out;

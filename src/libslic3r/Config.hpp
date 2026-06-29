@@ -298,16 +298,16 @@ enum class OptionCategory : int
 std::string toString(OptionCategory opt);
 
 namespace ConfigHelpers {
-	inline bool looks_like_enum_value(std::string value)
-	{
-		boost::trim(value);
-		if (value.empty() || value.size() > 64 || ! isalpha(value.front()))
-			return false;
-		for (const char c : value)
-			if (! (isalnum(c) || c == '_' || c == '-'))
-				return false;
-		return true;
-	}
+    inline bool looks_like_enum_value(std::string value)
+    {
+        boost::trim(value);
+        if (value.empty() || value.size() > 64 || ! isalpha(value.front()))
+            return false;
+        for (const char c : value)
+            if (! (isalnum(c) || c == '_' || c == '-'))
+                return false;
+        return true;
+    }
 
     inline bool enum_looks_like_bool_value(std::string value) {
         boost::trim(value);
@@ -319,16 +319,16 @@ namespace ConfigHelpers {
         return boost::iequals(value, "enabled") || boost::iequals(value, "on");
     }
 
-	enum class DeserializationSubstitution {
-		Disabled,
-		DefaultsToFalse,
-		DefaultsToTrue
-	};
+    enum class DeserializationSubstitution {
+        Disabled,
+        DefaultsToFalse,
+        DefaultsToTrue
+    };
 
     enum class DeserializationResult {
-    	Loaded,
-    	Substituted,
-    	Failed,
+        Loaded,
+        Substituted,
+        Failed,
     };
 };
 
@@ -370,8 +370,8 @@ public:
 class BadOptionTypeException : public ConfigurationError
 {
 public:
-	BadOptionTypeException() : ConfigurationError("Bad option type exception") {}
-	BadOptionTypeException(const std::string &message) : ConfigurationError(message) {}
+    BadOptionTypeException() : ConfigurationError("Bad option type exception") {}
+    BadOptionTypeException(const std::string &message) : ConfigurationError(message) {}
     BadOptionTypeException(const char* message) : ConfigurationError(message) {}
 };
 
@@ -643,10 +643,10 @@ public:
         if (!rhs->is_enabled()) {
             return false;
         }
-    	if (*this == *rhs) 
-    		return false; 
-    	*this = *rhs; 
-    	return true;
+        if (*this == *rhs) 
+            return false; 
+        *this = *rhs; 
+        return true;
     }
 private:
     friend class cereal::access;
@@ -743,8 +743,8 @@ public:
     }
 
 private:
-	friend class cereal::access;
-	template<class Archive> void serialize(Archive & ar) { ar(this->flags); ar(this->value); }
+    friend class cereal::access;
+    template<class Archive> void serialize(Archive & ar) { ar(this->flags); ar(this->value); }
 };
 
 // Value of a vector valued option (bools, ints, floats, strings, points)
@@ -841,8 +841,8 @@ protected:
         }
     }
     
-	friend class cereal::access;
-	template<class Archive> void serialize(Archive & ar) { ar(this->flags); ar(this->m_enabled); }
+    friend class cereal::access;
+    template<class Archive> void serialize(Archive & ar) { ar(this->flags); ar(this->m_enabled); }
 };
 
 // Value of a vector valued option (bools, ints, floats, strings, points), template
@@ -1107,7 +1107,7 @@ public:
         //	throw ConfigurationError("Cannot override a nullable ConfigOption.");
         if (rhs->type() != this->type())
             throw ConfigurationError("ConfigOptionVector.overriden_by() applied to different types.");
-    	auto rhs_vec = static_cast<const ConfigOptionVector<T>*>(rhs);
+        auto rhs_vec = static_cast<const ConfigOptionVector<T>*>(rhs);
         assert(this->size() == rhs_vec->size());
         if (idx < 0 || idx >= size()) {
             if (this->empty()) {
@@ -1215,7 +1215,7 @@ public:
     }
 
 private:
-	friend class cereal::access;
+    friend class cereal::access;
     template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionSingle<double>>(this)); }
 };
 
@@ -1266,7 +1266,7 @@ public:
         std::istringstream is(str);
         std::string item_str;
         while (std::getline(is, item_str, ',')) {
-        	boost::trim(item_str);
+            boost::trim(item_str);
             bool enabled = true;
             if (!item_str.empty() && item_str.front() == '!') {
                 enabled = false;
@@ -1274,9 +1274,9 @@ public:
                 boost::trim(item_str);
                 assert(this->can_be_disabled());
             }
-	        std::istringstream iss(item_str);
-	        double value;
-	        iss >> value;
+            std::istringstream iss(item_str);
+            double value;
+            iss >> value;
             this->m_values.push_back(value);
             this->m_enabled.push_back(enabled);
         }
@@ -1295,11 +1295,11 @@ protected:
             ss << v;
         } else
             throw ConfigurationError("Serializing invalid number");
-	}
+    }
 
 private:
-	friend class cereal::access;
-	template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionVector<double>>(this)); }
+    friend class cereal::access;
+    template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionVector<double>>(this)); }
 };
 
 
@@ -1347,7 +1347,7 @@ public:
     }
 
 private:
-	friend class cereal::access;
+    friend class cereal::access;
     template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionSingle<int32_t>>(this)); }
 };
 
@@ -1405,9 +1405,9 @@ public:
                 boost::trim(item_str);
                 assert(this->can_be_disabled());
             }
-	        std::istringstream iss(item_str);
-	        int32_t value;
-	        iss >> value;
+            std::istringstream iss(item_str);
+            int32_t value;
+            iss >> value;
             this->m_values.push_back(value);
             this->m_enabled.push_back(enabled);
         }
@@ -1423,10 +1423,10 @@ private:
             assert(this->can_be_disabled());
         }
         ss << v;
-	}
+    }
 
-	friend class cereal::access;
-	template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionVector<int32_t>>(this)); }
+    friend class cereal::access;
+    template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionVector<int32_t>>(this)); }
 };
 
 class ConfigOptionString : public ConfigOptionSingle<std::string>
@@ -1461,8 +1461,8 @@ public:
     }
 
 private:
-	friend class cereal::access;
-	template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionSingle<std::string>>(this)); }
+    friend class cereal::access;
+    template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionSingle<std::string>>(this)); }
 };
 
 class ConfigOptionStringVersion : public ConfigOptionString
@@ -1529,8 +1529,8 @@ public:
     }
 
 private:
-	friend class cereal::access;
-	template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionVector<std::string>>(this)); }
+    friend class cereal::access;
+    template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionVector<std::string>>(this)); }
 };
 
 class ConfigOptionPercent : public ConfigOptionFloat
@@ -1577,8 +1577,8 @@ public:
     }
 
 private:
-	friend class cereal::access;
-	template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionFloat>(this)); }
+    friend class cereal::access;
+    template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionFloat>(this)); }
 };
 
 class ConfigOptionPercents : public ConfigOptionFloats
@@ -1625,8 +1625,8 @@ public:
     // bool deserialize(const std::string &str, bool append = false) override;
 
 private:
-	friend class cereal::access;
-	template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionFloats>(this)); }
+    friend class cereal::access;
+    template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionFloats>(this)); }
 };
 
 class ConfigOptionFloatOrPercent : public ConfigOptionPercent
@@ -1713,8 +1713,8 @@ public:
     }
 
 private:
-	friend class cereal::access;
-	template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionPercent>(this), percent); }
+    friend class cereal::access;
+    template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionPercent>(this), percent); }
 };
 
 class ConfigOptionFloatsOrPercents : public ConfigOptionVector<FloatOrPercent>
@@ -1864,8 +1864,8 @@ public:
     }
 
 private:
-	friend class cereal::access;
-	template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionSingle<Vec2d>>(this)); }
+    friend class cereal::access;
+    template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionSingle<Vec2d>>(this)); }
 };
 
 class ConfigOptionPoints : public ConfigOptionVector<Vec2d>
@@ -1930,7 +1930,7 @@ public:
         std::istringstream is(str);
         std::string point_str;
         while (std::getline(is, point_str, ',')) {
-        	boost::trim(point_str);
+            boost::trim(point_str);
             bool enabled = true;
             if (!point_str.empty() && point_str.front() == '!') {
                 enabled = false;
@@ -1955,20 +1955,20 @@ public:
     }
 
 private:
-	friend class cereal::access;
-	template<class Archive> void save(Archive& archive) const {
+    friend class cereal::access;
+    template<class Archive> void save(Archive& archive) const {
         archive(flags);
-		size_t cnt = this->m_values.size();
-		archive(cnt);
-		archive.saveBinary((const char*)this->m_values.data(), sizeof(Vec2d) * cnt);
-	}
-	template<class Archive> void load(Archive& archive) {
+        size_t cnt = this->m_values.size();
+        archive(cnt);
+        archive.saveBinary((const char*)this->m_values.data(), sizeof(Vec2d) * cnt);
+    }
+    template<class Archive> void load(Archive& archive) {
         archive(flags);
-		size_t cnt = 0;
-		archive(cnt);
-		this->m_values.assign(cnt, Vec2d());
-		archive.loadBinary((char*)this->m_values.data(), sizeof(Vec2d) * cnt);
-	}
+        size_t cnt = 0;
+        archive(cnt);
+        this->m_values.assign(cnt, Vec2d());
+        archive.loadBinary((char*)this->m_values.data(), sizeof(Vec2d) * cnt);
+    }
 };
 
 class ConfigOptionPoint3 : public ConfigOptionSingle<Vec3d>
@@ -2018,8 +2018,8 @@ public:
     }
 
 private:
-	friend class cereal::access;
-	template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionSingle<Vec3d>>(this)); }
+    friend class cereal::access;
+    template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionSingle<Vec3d>>(this)); }
 };
 
 class ConfigOptionGraph : public ConfigOptionSingle<GraphData>
@@ -2208,8 +2208,8 @@ public:
     }
 
 private:
-	friend class cereal::access;
-	template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionSingle<bool>>(this)); }
+    friend class cereal::access;
+    template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionSingle<bool>>(this)); }
 };
 
 class ConfigOptionBools : public ConfigOptionVector<unsigned char>
@@ -2232,8 +2232,8 @@ public:
         this->m_enabled.resize(this->m_values.size(), ConfigOption::is_enabled());
         assert(m_enabled.size() == size());
     }
-	explicit ConfigOptionBools(const std::vector<unsigned char>& vec) : ConfigOptionVector<unsigned char>(vec) {}
-	explicit ConfigOptionBools(std::vector<unsigned char>&& vec) : ConfigOptionVector<unsigned char>(std::move(vec)) {}
+    explicit ConfigOptionBools(const std::vector<unsigned char>& vec) : ConfigOptionVector<unsigned char>(vec) {}
+    explicit ConfigOptionBools(std::vector<unsigned char>&& vec) : ConfigOptionVector<unsigned char>(std::move(vec)) {}
 
     static ConfigOptionType static_type() { return coBools; }
     ConfigOptionType        type()  const override { return static_type(); }
@@ -2273,7 +2273,7 @@ public:
         std::string item_str;
         bool substituted = false;
         while (std::getline(is, item_str, ',')) {
-        	boost::trim(item_str);
+            boost::trim(item_str);
             bool enabled = true;
             if (!item_str.empty() && item_str.front() == '!') {
                 enabled = false;
@@ -2281,16 +2281,16 @@ public:
                 boost::trim(item_str);
                 assert(this->can_be_disabled());
             }
-        	unsigned char new_value = 0;
+            unsigned char new_value = 0;
             if (item_str == "1") {
-        		new_value = true;
-        	} else if (item_str == "0") {
-        		new_value = false;
-        	} else if (substitution != ConfigHelpers::DeserializationSubstitution::Disabled && ConfigHelpers::looks_like_enum_value(item_str)) {
-        		new_value = ConfigHelpers::enum_looks_like_true_value(item_str) || substitution == ConfigHelpers::DeserializationSubstitution::DefaultsToTrue;
-        		substituted = true;
-        	} else
-        		return ConfigHelpers::DeserializationResult::Failed;
+                new_value = true;
+            } else if (item_str == "0") {
+                new_value = false;
+            } else if (substitution != ConfigHelpers::DeserializationSubstitution::Disabled && ConfigHelpers::looks_like_enum_value(item_str)) {
+                new_value = ConfigHelpers::enum_looks_like_true_value(item_str) || substitution == ConfigHelpers::DeserializationSubstitution::DefaultsToTrue;
+                substituted = true;
+            } else
+                return ConfigHelpers::DeserializationResult::Failed;
             this->m_values.push_back(new_value);
             this->m_enabled.push_back(enabled);
         }
@@ -2301,7 +2301,7 @@ public:
 
     bool deserialize(const std::string &str, bool append = false) override
     {
-    	return this->deserialize_with_substitutions(str, append, ConfigHelpers::DeserializationSubstitution::Disabled) == ConfigHelpers::DeserializationResult::Loaded;
+        return this->deserialize_with_substitutions(str, append, ConfigHelpers::DeserializationSubstitution::Disabled) == ConfigHelpers::DeserializationResult::Loaded;
     }
 
 protected:
@@ -2314,8 +2314,8 @@ protected:
     }
 
 private:
-	friend class cereal::access;
-	template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionVector<unsigned char>>(this)); }
+    friend class cereal::access;
+    template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionVector<unsigned char>>(this)); }
 };
 
 // Map from an enum integer value to an enum name.
@@ -2472,8 +2472,8 @@ public:
     }
 
 private:
-	friend class cereal::access;
-	template<class Archive> void serialize(Archive& ar) { ar(cereal::base_class<ConfigOptionInt>(this)); }
+    friend class cereal::access;
+    template<class Archive> void serialize(Archive& ar) { ar(cereal::base_class<ConfigOptionInt>(this)); }
 };
 
 // Definition of values / labels for a combo box.
@@ -2601,14 +2601,14 @@ public:
     static bool is_gui_type_enum_open(const GUIType gui_type) 
         { return gui_type == ConfigOptionDef::GUIType::i_enum_open || gui_type == ConfigOptionDef::GUIType::f_enum_open || gui_type == ConfigOptionDef::GUIType::select_open; }
 
-	// Identifier of this option. It is stored here so that it is accessible through the by_serialization_key_ordinal map.
-	t_config_option_key 				opt_key;
+    // Identifier of this option. It is stored here so that it is accessible through the by_serialization_key_ordinal map.
+    t_config_option_key 				opt_key;
     // What type? bool, int, string etc.
     ConfigOptionType                    type            = coNone;
-	// If a type can be disabled (beforeit was nullable be that was a whole circus to make it works and it's dumb concept for "is enbaled": a flag is better)
-	bool								can_be_disabled = false;
+    // If a type can be disabled (beforeit was nullable be that was a whole circus to make it works and it's dumb concept for "is enbaled": a flag is better)
+    bool								can_be_disabled = false;
     // if a setting can be disabled, and is enabled, it won't be serialized, or kept.
-	bool								is_optional = false;
+    bool								is_optional = false;
     // Default value of this option. The default value object is owned by ConfigDef, it is released in its destructor.
     Slic3r::clonable_ptr<const ConfigOption> default_value;
     void 								set_default_value(ConfigOption* ptr);
@@ -2623,7 +2623,7 @@ public:
     bool                                is_scalar()     const { return (int(this->type) & int(coVectorType)) == 0; }
 
     template<class Archive> ConfigOption* load_option_from_archive(Archive &archive) const {
-		switch (this->type) {
+        switch (this->type) {
         case coFloat:           { auto opt = new ConfigOptionFloat();           archive(*opt);
             assert(this->can_be_disabled == opt->can_be_disabled());
             if (this->can_be_disabled) opt->set_can_be_disabled(); return opt; }
@@ -2646,36 +2646,36 @@ public:
         case coGraphs:          { auto opt = new ConfigOptionGraphs();          archive(*opt); opt->set_is_extruder_size(this->is_vector_extruder); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
         case coBool:            { auto opt = new ConfigOptionBool();            archive(*opt); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
         case coBools:           { auto opt = new ConfigOptionBools();           archive(*opt); opt->set_is_extruder_size(this->is_vector_extruder); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
-		case coEnum:            { auto opt = new ConfigOptionEnumGeneric(this->enum_def->m_enum_keys_map); archive(*opt); return opt; }
-		default:                throw ConfigurationError(std::string("ConfigOptionDef::load_option_from_archive(): Unknown option type for option ") + this->opt_key);
-		}
-	}
+        case coEnum:            { auto opt = new ConfigOptionEnumGeneric(this->enum_def->m_enum_keys_map); archive(*opt); return opt; }
+        default:                throw ConfigurationError(std::string("ConfigOptionDef::load_option_from_archive(): Unknown option type for option ") + this->opt_key);
+        }
+    }
 
     template<class Archive> ConfigOption* save_option_to_archive(Archive &archive, const ConfigOption *opt) const {
-		switch (this->type) {
-		case coFloat:           archive(*static_cast<const ConfigOptionFloat*>(opt));  			break;
-		case coFloats:          archive(*static_cast<const ConfigOptionFloats*>(opt)); 			break;
-		case coInt:             archive(*static_cast<const ConfigOptionInt*>(opt)); 	 		break;
-		case coInts:            archive(*static_cast<const ConfigOptionInts*>(opt)); 	 		break;
-		case coString:          archive(*static_cast<const ConfigOptionString*>(opt)); 			break;
-		case coStrings:         archive(*static_cast<const ConfigOptionStrings*>(opt)); 		break;
-		case coPercent:         archive(*static_cast<const ConfigOptionPercent*>(opt)); 		break;
-		case coPercents:        archive(*static_cast<const ConfigOptionPercents*>(opt)); 		break;
-		case coFloatOrPercent:  archive(*static_cast<const ConfigOptionFloatOrPercent*>(opt));	break;
-		case coFloatsOrPercents:archive(*static_cast<const ConfigOptionFloatsOrPercents*>(opt));break;
-		case coPoint:           archive(*static_cast<const ConfigOptionPoint*>(opt)); 			break;
-		case coPoints:          archive(*static_cast<const ConfigOptionPoints*>(opt)); 			break;
-		case coPoint3:          archive(*static_cast<const ConfigOptionPoint3*>(opt)); 			break;
-		case coGraph:           archive(*static_cast<const ConfigOptionGraph*>(opt)); 			break;
-		case coGraphs:          archive(*static_cast<const ConfigOptionGraphs*>(opt)); 			break;
-		case coBool:            archive(*static_cast<const ConfigOptionBool*>(opt)); 			break;
-		case coBools:           archive(*static_cast<const ConfigOptionBools*>(opt)); 			break;
-		case coEnum:            archive(*static_cast<const ConfigOptionEnumGeneric*>(opt)); 	break;
-		default:                throw ConfigurationError(std::string("ConfigOptionDef::save_option_to_archive(): Unknown option type for option ") + this->opt_key);
-		}
-		// Make the compiler happy, shut up the warnings.
-		return nullptr;
-	}
+        switch (this->type) {
+        case coFloat:           archive(*static_cast<const ConfigOptionFloat*>(opt));  			break;
+        case coFloats:          archive(*static_cast<const ConfigOptionFloats*>(opt)); 			break;
+        case coInt:             archive(*static_cast<const ConfigOptionInt*>(opt)); 	 		break;
+        case coInts:            archive(*static_cast<const ConfigOptionInts*>(opt)); 	 		break;
+        case coString:          archive(*static_cast<const ConfigOptionString*>(opt)); 			break;
+        case coStrings:         archive(*static_cast<const ConfigOptionStrings*>(opt)); 		break;
+        case coPercent:         archive(*static_cast<const ConfigOptionPercent*>(opt)); 		break;
+        case coPercents:        archive(*static_cast<const ConfigOptionPercents*>(opt)); 		break;
+        case coFloatOrPercent:  archive(*static_cast<const ConfigOptionFloatOrPercent*>(opt));	break;
+        case coFloatsOrPercents:archive(*static_cast<const ConfigOptionFloatsOrPercents*>(opt));break;
+        case coPoint:           archive(*static_cast<const ConfigOptionPoint*>(opt)); 			break;
+        case coPoints:          archive(*static_cast<const ConfigOptionPoints*>(opt)); 			break;
+        case coPoint3:          archive(*static_cast<const ConfigOptionPoint3*>(opt)); 			break;
+        case coGraph:           archive(*static_cast<const ConfigOptionGraph*>(opt)); 			break;
+        case coGraphs:          archive(*static_cast<const ConfigOptionGraphs*>(opt)); 			break;
+        case coBool:            archive(*static_cast<const ConfigOptionBool*>(opt)); 			break;
+        case coBools:           archive(*static_cast<const ConfigOptionBools*>(opt)); 			break;
+        case coEnum:            archive(*static_cast<const ConfigOptionEnumGeneric*>(opt)); 	break;
+        default:                throw ConfigurationError(std::string("ConfigOptionDef::save_option_to_archive(): Unknown option type for option ") + this->opt_key);
+        }
+        // Make the compiler happy, shut up the warnings.
+        return nullptr;
+    }
 
     // Usually empty. 
     // Special values - "i_enum_open", "f_enum_open" to provide combo box for int or float selection,
@@ -2976,8 +2976,8 @@ protected:
     virtual void                    handle_legacy_composite(std::map<t_config_option_key, std::string> &opt_deleted) {}
 
 public:
-	using ConfigOptionResolver::option;
-	using ConfigOptionResolver::option_throw;
+    using ConfigOptionResolver::option;
+    using ConfigOptionResolver::option_throw;
 
     // Non-virtual methods:
     ConfigOption* option(const t_config_option_key &opt_key, bool create = false)
@@ -3039,18 +3039,18 @@ public:
     // or if the conversion is not possible.
     // Conversion to string is always possible.
     void set(const std::string &opt_key, bool  				value, bool create = false)
-    	{ this->option_throw<ConfigOptionBool>(opt_key, create)->value = value; }
+        { this->option_throw<ConfigOptionBool>(opt_key, create)->value = value; }
     void set(const std::string &opt_key, int32_t				value, bool create = false);
     void set(const std::string &opt_key, double				value, bool create = false);
     void set(const std::string &opt_key, const char		   *value, bool create = false)
-    	{ this->option_throw<ConfigOptionString>(opt_key, create)->value = value; }
+        { this->option_throw<ConfigOptionString>(opt_key, create)->value = value; }
     void set(const std::string &opt_key, const std::string &value, bool create = false)
-    	{ this->option_throw<ConfigOptionString>(opt_key, create)->value = value; }
+        { this->option_throw<ConfigOptionString>(opt_key, create)->value = value; }
 
     // Set a configuration value from a string, it will NOT call an overridable handle_legacy(), so please call it before.
     // to resolve renamed and removed configuration keys.
     bool set_deserialize_nothrow(const t_config_option_key &opt_key_src, const std::string &value_src, ConfigSubstitutionContext& substitutions, bool append = false);
-	// May throw BadOptionTypeException() if the operation fails.
+    // May throw BadOptionTypeException() if the operation fails.
     void set_deserialize(const t_config_option_key &opt_key, const std::string &str, ConfigSubstitutionContext& config_substitutions, bool append = false);
     void set_deserialize(const t_config_option_key &opt_key, const std::string &str){ //for tests
         ConfigSubstitutionContext no_context(ForwardCompatibilitySubstitutionRule::Disable);
@@ -3059,13 +3059,13 @@ public:
     void set_deserialize_strict(const t_config_option_key &opt_key, const std::string &str, bool append = false)
         { ConfigSubstitutionContext ctxt{ ForwardCompatibilitySubstitutionRule::Disable }; this->set_deserialize(opt_key, str, ctxt, append); }
     struct SetDeserializeItem {
-    	SetDeserializeItem(const char *opt_key, const char *opt_value, bool append = false) : opt_key(opt_key), opt_value(opt_value), append(append) {}
-    	SetDeserializeItem(const std::string &opt_key, const std::string &opt_value, bool append = false) : opt_key(opt_key), opt_value(opt_value), append(append) {}
+        SetDeserializeItem(const char *opt_key, const char *opt_value, bool append = false) : opt_key(opt_key), opt_value(opt_value), append(append) {}
+        SetDeserializeItem(const std::string &opt_key, const std::string &opt_value, bool append = false) : opt_key(opt_key), opt_value(opt_value), append(append) {}
         SetDeserializeItem(const std::string &opt_key, const std::string_view opt_value, bool append = false) : opt_key(opt_key), opt_value(opt_value), append(append) {}
-    	SetDeserializeItem(const char *opt_key, const bool value, bool append = false) : opt_key(opt_key), opt_value(value ? "1" : "0"), append(append) {}
-    	SetDeserializeItem(const std::string &opt_key, const bool value, bool append = false) : opt_key(opt_key), opt_value(value ? "1" : "0"), append(append) {}
-    	SetDeserializeItem(const char *opt_key, const int32_t value, bool append = false) : opt_key(opt_key), opt_value(std::to_string(value)), append(append) {}
-    	SetDeserializeItem(const std::string &opt_key, const int32_t value, bool append = false) : opt_key(opt_key), opt_value(std::to_string(value)), append(append) {}
+        SetDeserializeItem(const char *opt_key, const bool value, bool append = false) : opt_key(opt_key), opt_value(value ? "1" : "0"), append(append) {}
+        SetDeserializeItem(const std::string &opt_key, const bool value, bool append = false) : opt_key(opt_key), opt_value(value ? "1" : "0"), append(append) {}
+        SetDeserializeItem(const char *opt_key, const int32_t value, bool append = false) : opt_key(opt_key), opt_value(std::to_string(value)), append(append) {}
+        SetDeserializeItem(const std::string &opt_key, const int32_t value, bool append = false) : opt_key(opt_key), opt_value(std::to_string(value)), append(append) {}
         SetDeserializeItem(const char *opt_key, const std::initializer_list<int32_t> values, bool append = false) : opt_key(opt_key), opt_value(format(values)), append(append) {}
         SetDeserializeItem(const std::string &opt_key, const std::initializer_list<int32_t> values, bool append = false) : opt_key(opt_key), opt_value(format(values)), append(append) {}
         SetDeserializeItem(const char *opt_key, const float value, bool append = false) : opt_key(opt_key), opt_value(float_to_string_decimal_point(value)), append(append) {}
@@ -3077,14 +3077,14 @@ public:
         SetDeserializeItem(const char *opt_key, const std::initializer_list<double> values, bool append = false) : opt_key(opt_key), opt_value(format(values)), append(append) {}
         SetDeserializeItem(const std::string &opt_key, const std::initializer_list<double> values, bool append = false) : opt_key(opt_key), opt_value(format(values)), append(append) {}
 
-    	std::string opt_key; std::string opt_value; bool append = false;
+        std::string opt_key; std::string opt_value; bool append = false;
 
     private:
         static std::string format(std::initializer_list<int32_t> values);
         static std::string format(std::initializer_list<float> values);
         static std::string format(std::initializer_list<double> values);
     };
-	// May throw BadOptionTypeException() if the operation fails.
+    // May throw BadOptionTypeException() if the operation fails.
     void set_deserialize(std::initializer_list<SetDeserializeItem> items, ConfigSubstitutionContext& substitutions);
     void set_deserialize_strict(std::initializer_list<SetDeserializeItem> items)
         { ConfigSubstitutionContext ctxt{ ForwardCompatibilitySubstitutionRule::Disable }; this->set_deserialize(items, ctxt); }
@@ -3165,9 +3165,9 @@ public:
     DynamicConfig() = default;
     DynamicConfig(const DynamicConfig &rhs) { *this = rhs; }
     DynamicConfig(DynamicConfig &&rhs) noexcept : options(std::move(rhs.options)) { rhs.options.clear(); }
-	explicit DynamicConfig(const ConfigBase &rhs, const t_config_option_keys &keys);
-	explicit DynamicConfig(const ConfigBase& rhs) : DynamicConfig(rhs, rhs.keys()) {}
-	virtual ~DynamicConfig() override = default;
+    explicit DynamicConfig(const ConfigBase &rhs, const t_config_option_keys &keys);
+    explicit DynamicConfig(const ConfigBase& rhs) : DynamicConfig(rhs, rhs.keys()) {}
+    virtual ~DynamicConfig() override = default;
 
     // Copy a content of one DynamicConfig to another DynamicConfig.
     // If rhs.def() is not null, then it has to be equal to this->def(). 
@@ -3306,8 +3306,8 @@ public:
 private:
     std::map<t_config_option_key, std::unique_ptr<ConfigOption>> options;
 
-	friend class cereal::access;
-	template<class Archive> void serialize(Archive &ar) { ar(options); }
+    friend class cereal::access;
+    template<class Archive> void serialize(Archive &ar) { ar(options); }
 };
 
 // Configuration store with a static definition of configuration values.

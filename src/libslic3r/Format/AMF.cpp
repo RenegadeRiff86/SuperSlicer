@@ -307,7 +307,7 @@ void AMFParserContext::startElement(const char *name, const char **atts)
             if (object_id == nullptr)
                 this->stop();
             else {
-				assert(m_object_vertices.empty());
+                assert(m_object_vertices.empty());
                 m_object = m_model.add_object();
                 m_object->name = std::string(object_id);
                 m_object_instances_map[object_id].idx = int(m_model.objects.size())-1;
@@ -379,15 +379,15 @@ void AMFParserContext::startElement(const char *name, const char **atts)
         break;
     case 3:
         if (m_path[2] == NODE_TYPE_MESH) {
-			assert(m_object);
+            assert(m_object);
             if (strcmp(name, "vertices") == 0)
                 node_type_new = NODE_TYPE_VERTICES;
-			else if (strcmp(name, "volume") == 0) {
-				assert(! m_volume);
+            else if (strcmp(name, "volume") == 0) {
+                assert(! m_volume);
                 m_volume = m_object->add_volume(TriangleMesh());
                 m_volume_transform = Transform3d::Identity();
                 node_type_new = NODE_TYPE_VOLUME;
-			}
+            }
         } else if (m_path[2] == NODE_TYPE_INSTANCE) {
             assert(m_instance);
             if (strcmp(name, "deltax") == 0)
@@ -639,7 +639,7 @@ void AMFParserContext::endElement(const char * /* name */)
     // Closing the current volume. Create an STL from m_volume_facets pointing to m_object_vertices.
     case NODE_TYPE_VOLUME:
     {
-		assert(m_object && m_volume);
+        assert(m_object && m_volume);
         if (m_volume_facets.empty()) {
             this->stop("An empty triangle mesh found");
             return;
@@ -780,11 +780,11 @@ void AMFParserContext::endElement(const char * /* name */)
                 for (;;) {
                     char *end = strchr(p, ';');
                     if (end != nullptr)
-	                    *end = 0;
+                        *end = 0;
                     data.emplace_back(float(atof(p)));
-					if (end == nullptr)
-						break;
-					p = end + 1;
+                    if (end == nullptr)
+                        break;
+                    p = end + 1;
                 }
                 m_object->layer_height_profile.set(std::move(data));
             }
@@ -796,16 +796,16 @@ void AMFParserContext::endElement(const char * /* name */)
                 for (;;) {
                     char *end = strchr(p, ';');
                     if (end != nullptr)
-	                    *end = 0;
+                        *end = 0;
 
                     point(coord_idx) = float(atof(p));
                     if (++coord_idx == 5) {
                         m_object->sla_support_points.push_back(sla::SupportPoint(point));
                         coord_idx = 0;
                     }
-					if (end == nullptr)
-						break;
-					p = end + 1;
+                    if (end == nullptr)
+                        break;
+                    p = end + 1;
                 }
                 m_object->sla_points_status = sla::PointsStatus::UserModified;
             }
@@ -823,7 +823,7 @@ void AMFParserContext::endElement(const char * /* name */)
                 if (strcmp(key, "modifier") == 0) {
                     // Is this volume a modifier volume?
                     // "modifier" flag comes first in the XML file, so it may be later overwritten by the "type" flag.
-					m_volume->set_type((atoi(m_value[1].c_str()) == 1) ? ModelVolumeType::PARAMETER_MODIFIER : ModelVolumeType::MODEL_PART);
+                    m_volume->set_type((atoi(m_value[1].c_str()) == 1) ? ModelVolumeType::PARAMETER_MODIFIER : ModelVolumeType::MODEL_PART);
                 } else if (strcmp(key, "volume_type") == 0) {
                     m_volume->set_type(ModelVolume::type_from_string(m_value[1]));
                 }
@@ -1300,7 +1300,7 @@ bool store_amf(std::string &path, Model *model, const DynamicPrintConfig *config
                 stream << "        <metadata type=\"slic3r.source_in_meters\">1</metadata>\n";
             if (volume->source.is_from_builtin_objects)
                 stream << "        <metadata type=\"slic3r.source_is_builtin_volume\">1</metadata>\n";
-			stream << std::setprecision(std::numeric_limits<float>::max_digits10);
+            stream << std::setprecision(std::numeric_limits<float>::max_digits10);
             const indexed_triangle_set &its = volume->mesh().its;
             for (size_t i = 0; i < its.indices.size(); ++i) {
                 stream << "        <triangle>\n";

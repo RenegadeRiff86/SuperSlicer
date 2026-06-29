@@ -24,8 +24,8 @@ public:
     };
 
     void 		enable(bool en) {
-   		m_transition_layer = en && ! m_enabled;
-    	m_enabled 		   = en;
+        m_transition_layer = en && ! m_enabled;
+        m_enabled 		   = en;
     }
 
     std::string process_layer(const std::string& gcode);

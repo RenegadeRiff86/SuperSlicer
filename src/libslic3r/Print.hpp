@@ -163,7 +163,7 @@ public:
     // Identifier of this PrintRegion in the list of Print::m_print_regions.
     int                         print_region_id() const throw() { return m_print_region_id; }
     int                         print_object_region_id() const throw() { return m_print_object_region_id; }
-	// 1-based extruder identifier for this region and role.
+    // 1-based extruder identifier for this region and role.
     uint16_t 				    extruder(FlowRole role, const PrintObject& object) const;
     Flow                        flow(const PrintObject &object, FlowRole role, double layer_height, size_t layer_id) const;
     float                       width(FlowRole role, bool first_layer, const PrintObject& object) const;
@@ -171,8 +171,8 @@ public:
     coordf_t                    nozzle_dmr_avg(const PrintConfig &print_config) const;
 
     // Collect 0-based extruder indices used to print this region's object.
-	void                        collect_object_printing_extruders(const Print& print, std::set<uint16_t> &object_extruders) const;
-	static void                 collect_object_printing_extruders(const PrintConfig &print_config, const PrintObjectConfig &object_config, const PrintRegionConfig &region_config, std::set<uint16_t> &object_extruders);
+    void                        collect_object_printing_extruders(const Print& print, std::set<uint16_t> &object_extruders) const;
+    static void                 collect_object_printing_extruders(const PrintConfig &print_config, const PrintObjectConfig &object_config, const PrintRegionConfig &region_config, std::set<uint16_t> &object_extruders);
 
 // Methods modifying the PrintRegion's state:
 public:
@@ -213,9 +213,9 @@ struct PrintInstance
     // Parent PrintObject
     PrintObject 		*print_object;
     // Source ModelInstance of a ModelObject, for which this print_object was created.
-	const ModelInstance *model_instance;
-	// Shift of this instance's center into the world coordinates.
-	Point 				 shift;
+    const ModelInstance *model_instance;
+    // Shift of this instance's center into the world coordinates.
+    Point 				 shift;
 };
 
 typedef std::vector<PrintInstance> PrintInstances;
@@ -419,7 +419,7 @@ protected:
     friend class Print;
     friend class PrintBaseWithState<PrintStep, psCount>;
 
-	PrintObject(Print* print, ModelObject* model_object, const Transform3d& trafo, PrintInstances&& instances);
+    PrintObject(Print* print, ModelObject* model_object, const Transform3d& trafo, PrintInstances&& instances);
     ~PrintObject() override {
         if (m_shared_regions && --m_shared_regions->m_ref_cnt == 0)
             delete m_shared_regions;
@@ -565,12 +565,12 @@ struct WipeTowerData
     }
 
 private:
-	// Only allow the WipeTowerData to be instantiated internally by Print, 
-	// as this WipeTowerData shares reference to Print::m_tool_ordering.
-	friend class Print;
-	WipeTowerData(ToolOrdering &tool_ordering) : tool_ordering(tool_ordering) { clear(); }
-	WipeTowerData(const WipeTowerData & /* rhs */) = delete;
-	WipeTowerData &operator=(const WipeTowerData & /* rhs */) = delete;
+    // Only allow the WipeTowerData to be instantiated internally by Print, 
+    // as this WipeTowerData shares reference to Print::m_tool_ordering.
+    friend class Print;
+    WipeTowerData(ToolOrdering &tool_ordering) : tool_ordering(tool_ordering) { clear(); }
+    WipeTowerData(const WipeTowerData & /* rhs */) = delete;
+    WipeTowerData &operator=(const WipeTowerData & /* rhs */) = delete;
 };
 
 struct PrintStatistics
@@ -678,9 +678,9 @@ public:
         m_default_object_config.parent = &m_config;
         m_default_region_config.parent = &m_default_object_config;
     };
-	virtual ~Print() { this->clear(); }
+    virtual ~Print() { this->clear(); }
 
-	PrinterTechnology	technology() const noexcept override { return ptFFF; }
+    PrinterTechnology	technology() const noexcept override { return ptFFF; }
 
     // Methods, which change the state of Print / PrintObject / PrintRegion.
     // The following methods are synchronized with process() and export_gcode(),
@@ -775,7 +775,7 @@ public:
     const WipeTowerData&        wipe_tower_data() const { return wipe_tower_data(&this->m_config,0); }
     const ToolOrdering& 		tool_ordering() const { return m_tool_ordering; }
 
-	std::string                 output_filename(const std::string &filename_base = std::string()) const override;
+    std::string                 output_filename(const std::string &filename_base = std::string()) const override;
 
     size_t                      num_print_regions() const throw() { return m_print_regions.size(); }
     const PrintRegion&          get_print_region(size_t idx) const  { return *m_print_regions[idx]; }

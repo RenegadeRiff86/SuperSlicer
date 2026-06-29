@@ -294,9 +294,9 @@ arrange(size_t total_parts, const Vec2d &part_size, coordf_t dist, const Boundin
 template<typename T>
 T dist(const boost::polygon::point_data<T> &p1,const boost::polygon::point_data<T> &p2)
 {
-	T dx = p2(0) - p1(0);
-	T dy = p2(1) - p1(1);
-	return sqrt(dx*dx+dy*dy);
+    T dx = p2(0) - p1(0);
+    T dy = p2(1) - p1(1);
+    return sqrt(dx*dx+dy*dy);
 }
 
 // Find a foot point of "px" on a segment "seg".

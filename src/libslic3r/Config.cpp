@@ -640,20 +640,20 @@ void ConfigOptionDeleter::operator()(ConfigOption* p) {
 
 std::vector<std::string> ConfigOptionDef::cli_args(const std::string &key) const
 {
-	std::vector<std::string> args;
-	if (this->cli != ConfigOptionDef::nocli) {
+    std::vector<std::string> args;
+    if (this->cli != ConfigOptionDef::nocli) {
         const std::string &cli = this->cli;
-		//FIXME What was that for? Check the "readline" documentation.
-		// Neither '=' nor '!' is used in any of the cli parameters currently defined by PrusaSlicer.
+        //FIXME What was that for? Check the "readline" documentation.
+        // Neither '=' nor '!' is used in any of the cli parameters currently defined by PrusaSlicer.
 //        std::string cli = this->cli.substr(0, this->cli.find("="));
 //        boost::trim_right_if(cli, boost::is_any_of("!"));
-		if (cli.empty()) {
+        if (cli.empty()) {
             // Convert an option key to CLI argument by replacing underscores with dashes.
             std::string opt = key;
             boost::replace_all(opt, "_", "-");
             args.emplace_back(std::move(opt));
         } else
-			boost::split(args, cli, boost::is_any_of("|"));
+            boost::split(args, cli, boost::is_any_of("|"));
     }
     return args;
 }
@@ -662,28 +662,28 @@ ConfigOption* ConfigOptionDef::create_empty_option() const
 {
     ConfigOption* opt = nullptr;
     ConfigOptionVectorBase* opt_vec = nullptr;
-	switch (this->type) {
-	case coFloat:            opt = new ConfigOptionFloat(); break;
-	case coFloats:           opt = opt_vec = new ConfigOptionFloats(); break;
-	case coInt:              opt = new ConfigOptionInt(); break;
-	case coInts:             opt = opt_vec = new ConfigOptionInts(); break;
-	case coString:           opt = new ConfigOptionString(); break;
-	case coStrings:          opt = opt_vec = new ConfigOptionStrings(); break;
-	case coPercent:          opt = new ConfigOptionPercent(); break;
-	case coPercents:         opt = opt_vec = new ConfigOptionPercents(); break;
-	case coFloatOrPercent:   opt = new ConfigOptionFloatOrPercent(); break;
+    switch (this->type) {
+    case coFloat:            opt = new ConfigOptionFloat(); break;
+    case coFloats:           opt = opt_vec = new ConfigOptionFloats(); break;
+    case coInt:              opt = new ConfigOptionInt(); break;
+    case coInts:             opt = opt_vec = new ConfigOptionInts(); break;
+    case coString:           opt = new ConfigOptionString(); break;
+    case coStrings:          opt = opt_vec = new ConfigOptionStrings(); break;
+    case coPercent:          opt = new ConfigOptionPercent(); break;
+    case coPercents:         opt = opt_vec = new ConfigOptionPercents(); break;
+    case coFloatOrPercent:   opt = new ConfigOptionFloatOrPercent(); break;
     case coFloatsOrPercents: opt = opt_vec = new ConfigOptionFloatsOrPercents(); break;
-	case coPoint:            opt = new ConfigOptionPoint(); break;
-	case coPoints:           opt = opt_vec = new ConfigOptionPoints(); break;
-	case coPoint3:           opt = new ConfigOptionPoint3(); break;
+    case coPoint:            opt = new ConfigOptionPoint(); break;
+    case coPoints:           opt = opt_vec = new ConfigOptionPoints(); break;
+    case coPoint3:           opt = new ConfigOptionPoint3(); break;
 //    case coPoint3s:         return new ConfigOptionPoint3s();
-	case coGraph:            opt = new ConfigOptionGraph(); break;
-	case coGraphs:           opt = opt_vec = new ConfigOptionGraphs(); break;
-	case coBool:             opt = new ConfigOptionBool(); break;
-	case coBools:            opt = opt_vec = new ConfigOptionBools(); break;
-	case coEnum:             opt = new ConfigOptionEnumGeneric(this->enum_def->m_enum_keys_map); break;
-	default:                throw ConfigurationError(std::string("Unknown option type for option ") + this->label);
-	}
+    case coGraph:            opt = new ConfigOptionGraph(); break;
+    case coGraphs:           opt = opt_vec = new ConfigOptionGraphs(); break;
+    case coBool:             opt = new ConfigOptionBool(); break;
+    case coBools:            opt = opt_vec = new ConfigOptionBools(); break;
+    case coEnum:             opt = new ConfigOptionEnumGeneric(this->enum_def->m_enum_keys_map); break;
+    default:                throw ConfigurationError(std::string("Unknown option type for option ") + this->label);
+    }
     if (this->is_vector_extruder) {
         assert(opt_vec);
         opt_vec->set_is_extruder_size(true);
@@ -726,7 +726,7 @@ void ConfigOptionDef::set_default_value(ConfigOptionVectorBase *ptr) {
 // Assignment of the serialization IDs is not thread safe. The Defs shall be initialized from the main thread!
 ConfigOptionDef* ConfigDef::add(const t_config_option_key &opt_key, ConfigOptionType type)
 {
-	static size_t serialization_key_ordinal_last = 0;
+    static size_t serialization_key_ordinal_last = 0;
     ConfigOptionDef *opt = &this->options[opt_key];
     opt->opt_key = opt_key;
     opt->type = type;
@@ -800,13 +800,13 @@ std::ostream& ConfigDef::print_cli_help(std::ostream& out, bool show_defaults, s
         
         for (const auto& opt : this->options) {
             const ConfigOptionDef& def = opt.second;
-			if (def.category != category || def.cli == ConfigOptionDef::nocli || !filter(def))
+            if (def.category != category || def.cli == ConfigOptionDef::nocli || !filter(def))
                 continue;
             
             // get all possible variations: --foo, --foobar, -f...
             std::vector<std::string> cli_args = def.cli_args(opt.first);
-			if (cli_args.empty())
-				continue;
+            if (cli_args.empty())
+                continue;
 
             for (auto& arg : cli_args) {
                 arg.insert(0, (arg.size() == 1) ? "-" : "--");
@@ -1203,11 +1203,11 @@ void ConfigBase::set(const std::string &opt_key, int32_t value, bool create)
 {
     ConfigOption *opt = this->option_throw(opt_key, create);
     switch (opt->type()) {
-    	case coInt:    static_cast<ConfigOptionInt*>(opt)->value = value; break;
-    	case coFloat:  static_cast<ConfigOptionFloat*>(opt)->value = value; break;
-		case coFloatOrPercent:  static_cast<ConfigOptionFloatOrPercent*>(opt)->value = value; static_cast<ConfigOptionFloatOrPercent*>(opt)->percent = false; break;
-		case coString: static_cast<ConfigOptionString*>(opt)->value = std::to_string(value); break;
-    	default: throw BadOptionTypeException("Configbase::set() - conversion from int not possible");
+        case coInt:    static_cast<ConfigOptionInt*>(opt)->value = value; break;
+        case coFloat:  static_cast<ConfigOptionFloat*>(opt)->value = value; break;
+        case coFloatOrPercent:  static_cast<ConfigOptionFloatOrPercent*>(opt)->value = value; static_cast<ConfigOptionFloatOrPercent*>(opt)->percent = false; break;
+        case coString: static_cast<ConfigOptionString*>(opt)->value = std::to_string(value); break;
+        default: throw BadOptionTypeException("Configbase::set() - conversion from int not possible");
     }
 }
 
@@ -1215,10 +1215,10 @@ void ConfigBase::set(const std::string &opt_key, double value, bool create)
 {
     ConfigOption *opt = this->option_throw(opt_key, create);
     switch (opt->type()) {
-    	case coFloat:  			static_cast<ConfigOptionFloat*>(opt)->value = value; break;
-    	case coFloatOrPercent:  static_cast<ConfigOptionFloatOrPercent*>(opt)->value = value; static_cast<ConfigOptionFloatOrPercent*>(opt)->percent = false; break;
+        case coFloat:  			static_cast<ConfigOptionFloat*>(opt)->value = value; break;
+        case coFloatOrPercent:  static_cast<ConfigOptionFloatOrPercent*>(opt)->value = value; static_cast<ConfigOptionFloatOrPercent*>(opt)->percent = false; break;
         case coString: 			static_cast<ConfigOptionString*>(opt)->value = float_to_string_decimal_point(value); break;
-    	default: throw BadOptionTypeException("Configbase::set() - conversion from float not possible");
+        default: throw BadOptionTypeException("Configbase::set() - conversion from float not possible");
     }
 }
 
@@ -1280,8 +1280,8 @@ void ConfigBase::set_deserialize(const t_config_option_key &opt_key_src, const s
 
 void ConfigBase::set_deserialize(std::initializer_list<SetDeserializeItem> items, ConfigSubstitutionContext& substitutions_ctxt)
 {
-	for (const SetDeserializeItem &item : items)
-		this->set_deserialize(item.opt_key, item.opt_value, substitutions_ctxt, item.append);
+    for (const SetDeserializeItem &item : items)
+        this->set_deserialize(item.opt_key, item.opt_value, substitutions_ctxt, item.append);
 }
 
 bool ConfigBase::set_deserialize_raw(const t_config_option_key &opt_key_src, const std::string &value, ConfigSubstitutionContext& substitutions_ctxt, bool append)
@@ -2021,8 +2021,8 @@ ConfigSubstitutions ConfigBase::load_from_gcode_file(const std::string &filename
         // Try a heuristics reading the G-code from back.
         ifs.seekg(0, ifs.end);
         auto file_length = ifs.tellg();
-    	std::fstream::pos_type data_length = std::min<std::fstream::pos_type>(65535, file_length - header_end_pos);
-    	ifs.seekg(file_length - data_length, ifs.beg);
+        std::fstream::pos_type data_length = std::min<std::fstream::pos_type>(65535, file_length - header_end_pos);
+        ifs.seekg(file_length - data_length, ifs.beg);
         std::vector<char> data(size_t(data_length) + 1, 0);
         ifs.read(data.data(), data_length);
         ifs.close();
@@ -2147,8 +2147,8 @@ void ConfigBase::disable_optionals()
 
 DynamicConfig::DynamicConfig(const ConfigBase& rhs, const t_config_option_keys& keys)
 {
-	for (const t_config_option_key& opt_key : keys)
-		this->options[opt_key] = std::unique_ptr<ConfigOption>(rhs.option(opt_key)->clone());
+    for (const t_config_option_key& opt_key : keys)
+        this->options[opt_key] = std::unique_ptr<ConfigOption>(rhs.option(opt_key)->clone());
 }
 
 bool DynamicConfig::operator==(const DynamicConfig &rhs) const
@@ -2158,23 +2158,23 @@ bool DynamicConfig::operator==(const DynamicConfig &rhs) const
     auto it2     = rhs.options.begin();
     auto it2_end = rhs.options.end();
     for (; it1 != it1_end && it2 != it2_end; ++ it1, ++ it2)
-		if (it1->first != it2->first || *it1->second != *it2->second)
-			// key or value differ
-			return false;
+        if (it1->first != it2->first || *it1->second != *it2->second)
+            // key or value differ
+            return false;
     return it1 == it1_end && it2 == it2_end;
 }
 
 // Remove disabled optional options; mandatory entries should never be stored disabled.
 size_t DynamicConfig::remove_optional_disabled_options()
 {
-	size_t cnt_removed = 0;
-	for (auto it = options.begin(); it != options.end();)
-		if (assert(it->second->can_be_disabled() || it->second->is_enabled()); it->second->can_be_disabled() && !it->second->is_enabled()) {
-			it = options.erase(it);
-			++ cnt_removed;
-		} else
-			++ it;
-	return cnt_removed;
+    size_t cnt_removed = 0;
+    for (auto it = options.begin(); it != options.end();)
+        if (assert(it->second->can_be_disabled() || it->second->is_enabled()); it->second->can_be_disabled() && !it->second->is_enabled()) {
+            it = options.erase(it);
+            ++ cnt_removed;
+        } else
+            ++ it;
+    return cnt_removed;
 }
 
 ConfigOption* DynamicConfig::optptr(const t_config_option_key &opt_key, bool create)
@@ -2307,9 +2307,9 @@ bool DynamicConfig::read_cli(int argc, const char* const argv[], t_config_option
         ConfigOption            *opt_base   = this->option(opt_key, true);
         ConfigOptionVectorBase  *opt_vector = opt_base->is_vector() ? static_cast<ConfigOptionVectorBase*>(opt_base) : nullptr;
         if (opt_vector) {
-			if (! existing)
-				// remove the default values
-				opt_vector->clear();
+            if (! existing)
+                // remove the default values
+                opt_vector->clear();
             // Vector values will be chained. Repeated use of a parameter will append the parameter or parameters
             // to the end of the value.
             if (opt_base->type() == coBools && value.empty())
@@ -2319,7 +2319,7 @@ bool DynamicConfig::read_cli(int argc, const char* const argv[], t_config_option
                 // they get deserialized from an .ini file. For ConfigOptionStrings, that means that the C-style unescape
                 // will be applied for values enclosed in quotes, while values non-enclosed in quotes are left to be
                 // unescaped by the calling shell.
-				opt_vector->deserialize(value, true);
+                opt_vector->deserialize(value, true);
         } else if (opt_base->type() == coBool) {
             if (value.empty())
                 static_cast<ConfigOptionBool*>(opt_base)->value = !no;
@@ -2334,9 +2334,9 @@ bool DynamicConfig::read_cli(int argc, const char* const argv[], t_config_option
             // Any scalar value of a type different from Bool and String.
             // here goes int options, like loglevel.
             if (! this->set_deserialize_nothrow(opt_key, value, context, false)) {
-				boost::nowide::cerr << "Invalid value supplied for --" << token.c_str() << std::endl;
-				return false;
-			}
+                boost::nowide::cerr << "Invalid value supplied for --" << token.c_str() << std::endl;
+                return false;
+            }
         }
     }
     return true;

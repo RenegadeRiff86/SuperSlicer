@@ -50,11 +50,11 @@ const char* GCodeReader::parse_line_internal(const char *ptr, const char *end, G
         // Skip the command.
         c = command.second = skip_word(command.first);
         // Up to the end of line or comment.
-		while (! is_end_of_gcode_line(*c)) {
+        while (! is_end_of_gcode_line(*c)) {
             // Skip whitespaces.
             c = skip_whitespaces(c);
-			if (is_end_of_gcode_line(*c))
-				break;
+            if (is_end_of_gcode_line(*c))
+                break;
             // Check the name of the axis.
             Axis axis = NUM_AXES_WITH_UNKNOWN;
             switch (*c) {
@@ -67,8 +67,8 @@ const char* GCodeReader::parse_line_internal(const char *ptr, const char *end, G
                     if (m_extrusion_axis != 0)
                         axis = E;
                 } else if (*c >= 'A' && *c <= 'Z')
-                	// Unknown axis, but we still want to remember that such a axis was seen.
-                	axis = UNKNOWN_AXIS;
+                    // Unknown axis, but we still want to remember that such a axis was seen.
+                    axis = UNKNOWN_AXIS;
                 break;
             }
             if (axis != NUM_AXES_WITH_UNKNOWN) {
@@ -79,7 +79,7 @@ const char* GCodeReader::parse_line_internal(const char *ptr, const char *end, G
                 if (pend != c && is_end_of_word(*pend)) {
                     // The axis value has been parsed correctly.
                     if (axis != UNKNOWN_AXIS)
-	                    gline.m_axis[int(axis)] = float(v);
+                        gline.m_axis[int(axis)] = float(v);
                     gline.m_mask |= 1 << int(axis);
                     c = pend;
                 } else
@@ -102,10 +102,10 @@ const char* GCodeReader::parse_line_internal(const char *ptr, const char *end, G
         gline.m_raw.assign(ptr, c);
 
     // Skip the trailing newlines.
-	if (*c == '\r')
-		++ c;
-	if (*c == '\n')
-		++ c;
+    if (*c == '\r')
+        ++ c;
+    if (*c == '\n')
+        ++ c;
 
     if (m_verbose)
         std::cout << gline.m_raw << std::endl;

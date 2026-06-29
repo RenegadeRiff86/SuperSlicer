@@ -26,19 +26,19 @@ namespace Slic3r {
 enum SLAPrintStep : uint8_t {
     slapsMergeSlicesAndEval,
     slapsRasterize,
-	slapsCount
+    slapsCount
 };
 
 enum SLAPrintObjectStep : uint8_t {
     slaposAssembly,
     slaposHollowing,
     slaposDrillHoles,
-	slaposObjectSlice,
-	slaposSupportPoints,
-	slaposSupportTree,
-	slaposPad,
+    slaposObjectSlice,
+    slaposSupportPoints,
+    slaposSupportTree,
+    slaposPad,
     slaposSliceSupports,
-	slaposCount
+    slaposCount
 };
 
 class SLAPrint;
@@ -301,7 +301,7 @@ protected:
     friend class SLAPrint;
     friend class PrintBaseWithState<SLAPrintStep, slapsCount>;
 
-	SLAPrintObject(SLAPrint* print, ModelObject* model_object);
+    SLAPrintObject(SLAPrint* print, ModelObject* model_object);
     ~SLAPrintObject();
 
     void                    config_apply(const ConfigBase &other, bool ignore_nonexistent = false) { m_config.apply(other, ignore_nonexistent); }
@@ -495,7 +495,7 @@ public:
     // Return sla tansformation for a given model_object
     Transform3d sla_trafo(const ModelObject &model_object) const;
 
-	std::string                 output_filename(const std::string &filename_base = std::string()) const override;
+    std::string                 output_filename(const std::string &filename_base = std::string()) const override;
 
     const SLAPrintStatistics&   print_statistics() const { return m_print_statistics; }
 
@@ -591,7 +591,7 @@ private:
         double status() const { return m_st; }
     } m_report_status;
 
-	friend SLAPrintObject;
+    friend SLAPrintObject;
 };
 
 // Helper functions:

@@ -311,14 +311,14 @@ float new_feedrate_to_reach_time_stretch(
     std::vector<PerExtruderAdjustments*>::const_iterator it_begin, std::vector<PerExtruderAdjustments*>::const_iterator it_end, 
     float min_feedrate, float time_stretch, size_t max_iter = 20)
 {
-	float new_feedrate = min_feedrate;
+    float new_feedrate = min_feedrate;
     for (size_t iter = 0; iter < max_iter; ++ iter) {
         float nomin = 0;
         float denom = time_stretch;
         for (auto it = it_begin; it != it_end; ++ it) {
-			assert((*it)->min_print_speed < min_feedrate + EPSILON);
-			for (size_t i = 0; i < (*it)->n_lines_adjustable; ++i) {
-				const CoolingLine &line = (*it)->lines[i];
+            assert((*it)->min_print_speed < min_feedrate + EPSILON);
+            for (size_t i = 0; i < (*it)->n_lines_adjustable; ++i) {
+                const CoolingLine &line = (*it)->lines[i];
                 if (line.feedrate > min_feedrate) {
                     nomin += line.time * line.feedrate;
                     denom += line.time;
@@ -333,8 +333,8 @@ float new_feedrate_to_reach_time_stretch(
         if (new_feedrate < min_feedrate + EPSILON)
             goto finished;
         for (auto it = it_begin; it != it_end; ++ it)
-			for (size_t i = 0; i < (*it)->n_lines_adjustable; ++i) {
-				const CoolingLine &line = (*it)->lines[i];
+            for (size_t i = 0; i < (*it)->n_lines_adjustable; ++i) {
+                const CoolingLine &line = (*it)->lines[i];
                 if (line.feedrate > min_feedrate && line.feedrate < new_feedrate)
                     // Some of the line segments taken into account in the calculation of nomin / denom are now slower than new_feedrate, 
                     // which makes the new_feedrate lower than it should be.
@@ -359,7 +359,7 @@ finished:
     }
 #endif /* NDEBUG */
 
-	return new_feedrate;
+    return new_feedrate;
 }
 
 std::string CoolingBuffer::process_layer(std::string &&gcode_in, size_t layer_id, bool flush, bool is_support_only)

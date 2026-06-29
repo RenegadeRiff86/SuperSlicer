@@ -166,38 +166,38 @@ std::string xml_escape_double_quotes_attribute_value(std::string text)
 
 std::string xml_unescape(std::string s)
 {
-	std::string ret;
-	std::string::size_type i = 0;
-	std::string::size_type pos = 0;
-	while (i < s.size()) {
-		std::string rep;
-		if (s[i] == '&') {
-			if (s.substr(i, 4) == "&lt;") {
-				ret += s.substr(pos, i - pos) + "<";
-				i += 4;
-				pos = i;
-			}
-			else if (s.substr(i, 4) == "&gt;") {
-				ret += s.substr(pos, i - pos) + ">";
-				i += 4;
-				pos = i;
-			}
-			else if (s.substr(i, 5) == "&amp;") {
-				ret += s.substr(pos, i - pos) + "&";
-				i += 5;
-				pos = i;
-			}
-			else {
-				++i;
-			}
-		}
-		else {
-			++i;
-		}
-	}
+    std::string ret;
+    std::string::size_type i = 0;
+    std::string::size_type pos = 0;
+    while (i < s.size()) {
+        std::string rep;
+        if (s[i] == '&') {
+            if (s.substr(i, 4) == "&lt;") {
+                ret += s.substr(pos, i - pos) + "<";
+                i += 4;
+                pos = i;
+            }
+            else if (s.substr(i, 4) == "&gt;") {
+                ret += s.substr(pos, i - pos) + ">";
+                i += 4;
+                pos = i;
+            }
+            else if (s.substr(i, 5) == "&amp;") {
+                ret += s.substr(pos, i - pos) + "&";
+                i += 5;
+                pos = i;
+            }
+            else {
+                ++i;
+            }
+        }
+        else {
+            ++i;
+        }
+    }
 
-	ret += s.substr(pos);
-	return ret;
+    ret += s.substr(pos);
+    return ret;
 }
 
 void save_string_file(const std_path& p, const std::string& str)
@@ -2976,7 +2976,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                     for (unsigned int i=0; i<object_data_points.size(); i+=3)
                     sla_support_points.emplace_back(float(std::atof(object_data_points[i+0].c_str())),
                                                     float(std::atof(object_data_points[i+1].c_str())),
-													float(std::atof(object_data_points[i+2].c_str())),
+                                                    float(std::atof(object_data_points[i+2].c_str())),
                                                     0.4f,
                                                     false);
                 }
@@ -2986,7 +2986,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                                                     float(std::atof(object_data_points[i+1].c_str())),
                                                     float(std::atof(object_data_points[i+2].c_str())),
                                                     float(std::atof(object_data_points[i+3].c_str())),
-													//FIXME storing boolean as 0 / 1 and importing it as float.
+                                                    //FIXME storing boolean as 0 / 1 and importing it as float.
                                                     std::abs(std::atof(object_data_points[i+4].c_str()) - 1.) < EPSILON);
                 }
 
@@ -4813,8 +4813,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 if (metadata.key == NAME_KEY)
                     volume->name = metadata.value;
                 //else if ((metadata.key == MODIFIER_KEY) && (metadata.value == "1"))
-				//	volume->set_type(ModelVolumeType::PARAMETER_MODIFIER);
-				//for old format
+                //	volume->set_type(ModelVolumeType::PARAMETER_MODIFIER);
+                //for old format
                 else if ((metadata.key == VOLUME_TYPE_KEY) || (metadata.key == PART_TYPE_KEY)) {
                     std::string subtype_str = metadata.value;
                     if( "normal_part" == subtype_str) 
@@ -4943,7 +4943,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             if (triangle_mesh.volume() < 0)
                 triangle_mesh.flip_triangles();
 
-			ModelVolume* volume = object.add_volume(std::move(triangle_mesh));
+            ModelVolume* volume = object.add_volume(std::move(triangle_mesh));
             // stores the volume matrix taken from the metadata, if present
             if (has_transform)
                 volume->source.transform = Slic3r::Geometry::Transformation(volume_matrix_to_object);
@@ -4976,8 +4976,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 if (metadata.key == NAME_KEY)
                     volume->name = metadata.value;
                 //else if ((metadata.key == MODIFIER_KEY) && (metadata.value == "1"))
-				//	volume->set_type(ModelVolumeType::PARAMETER_MODIFIER);
-				//for old format
+                //	volume->set_type(ModelVolumeType::PARAMETER_MODIFIER);
+                //for old format
                 else if ((metadata.key == VOLUME_TYPE_KEY) || (metadata.key == PART_TYPE_KEY))
                     volume->set_type(ModelVolume::type_from_string(metadata.value));
                 else if (metadata.key == SOURCE_FILE_KEY)

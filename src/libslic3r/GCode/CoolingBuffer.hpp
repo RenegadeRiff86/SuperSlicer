@@ -42,7 +42,7 @@ public:
         { return this->process_layer(std::string(gcode), layer_id, flush); }
 
 private:
-	CoolingBuffer& operator=(const CoolingBuffer&) = delete;
+    CoolingBuffer& operator=(const CoolingBuffer&) = delete;
     std::vector<PerExtruderAdjustments> parse_layer_gcode(const std::string &gcode, std::array<float, 7> &current_pos) const;
     float       calculate_layer_slowdown(std::vector<PerExtruderAdjustments> &per_extruder_adjustments);
     // Apply slow down over G-code lines stored in per_extruder_adjustments, enable fan if needed.

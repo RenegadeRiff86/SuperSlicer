@@ -17,7 +17,7 @@ enum InfillPattern : uint8_t;
 namespace FFFSupport {
 
 struct SupportParameters {
-	SupportParameters(const PrintObject &object);
+    SupportParameters(const PrintObject &object);
 
     //PrintRegionConfig for filling.
     PrintRegionConfig      default_region_config;
@@ -46,34 +46,34 @@ struct SupportParameters {
     size_t                  num_top_interface_layers_only() const { return this->num_top_interface_layers - this->num_top_base_interface_layers; }
     size_t                  num_bottom_interface_layers_only() const { return this->num_bottom_interface_layers - this->num_bottom_base_interface_layers; }
 
-	// Flow at the 1st print layer.
-	Flow 					first_layer_flow;
-	// Flow at the support base (neither top, nor bottom interface).
-	// Also flow at the raft base with the exception of raft interface and contact layers.
-	Flow 					support_material_flow;
-	// Flow at the top interface and contact layers.
-	Flow 					support_material_interface_flow;
-	// Flow at the bottom interfaces and contacts.
-	Flow 					support_material_bottom_interface_flow;
-	// Flow at raft layers.
-	Flow    				raft_flow;
-	// Flow at raft inteface & contact layers.
-	Flow    				raft_interface_flow;
-	// ratio for raft bridges flow.
-	float    				raft_bridge_flow_ratio;
-	// Is merging of regions allowed? Could the interface & base support regions be printed with the same extruder?
-	bool 					can_merge_support_regions;
+    // Flow at the 1st print layer.
+    Flow 					first_layer_flow;
+    // Flow at the support base (neither top, nor bottom interface).
+    // Also flow at the raft base with the exception of raft interface and contact layers.
+    Flow 					support_material_flow;
+    // Flow at the top interface and contact layers.
+    Flow 					support_material_interface_flow;
+    // Flow at the bottom interfaces and contacts.
+    Flow 					support_material_bottom_interface_flow;
+    // Flow at raft layers.
+    Flow    				raft_flow;
+    // Flow at raft inteface & contact layers.
+    Flow    				raft_interface_flow;
+    // ratio for raft bridges flow.
+    float    				raft_bridge_flow_ratio;
+    // Is merging of regions allowed? Could the interface & base support regions be printed with the same extruder?
+    bool 					can_merge_support_regions;
 
     double                  support_layer_height_min; //unscaled
 //	coordf_t				support_layer_height_max;
 
-	coordf_t				gap_xy;
+    coordf_t				gap_xy;
 
     //scaled, resolution for supports
     coord_t                 resolution = SCALED_EPSILON;
 
     float    				base_angle;
-	double                  base_angle_height; // unscaled
+    double                  base_angle_height; // unscaled
     float                   interface_angle;
     float                   interface_angle_incr;
 
@@ -104,7 +104,7 @@ struct SupportParameters {
 
     // Produce a raft interface angle for a given SupportLayer::interface_id()
     float 					raft_interface_angle(size_t interface_id) const 
-    	{ return this->raft_angle_interface + ((interface_id & 1) ? float(- M_PI / 4.) : float(+ M_PI / 4.)); }
+        { return this->raft_angle_interface + ((interface_id & 1) ? float(- M_PI / 4.) : float(+ M_PI / 4.)); }
 };
 
 } // namespace FFFSupport

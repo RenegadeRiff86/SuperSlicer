@@ -638,16 +638,16 @@ ExPolygons Layer::merged(coordf_t offset_scaled) const
         offset_scaled2 = float(- SCALED_EPSILON);
     }
     ExPolygons expolygons;
-	for (LayerRegion *layerm : m_regions) {
-		const PrintRegionConfig &config = layerm->region().config();
-		// Our users learned to bend Slic3r to produce empty volumes to act as subtracters. Only add the region if it is non-empty.
+    for (LayerRegion *layerm : m_regions) {
+        const PrintRegionConfig &config = layerm->region().config();
+        // Our users learned to bend Slic3r to produce empty volumes to act as subtracters. Only add the region if it is non-empty.
         if (config.bottom_solid_layers > 0 || config.top_solid_layers > 0 || config.fill_density > 0. ||
             config.perimeters > 0 || (config.solid_infill_every_layers.value > 0 && config.fill_density.value > 0)) {
             append(expolygons, offset_ex(layerm->slices().surfaces, offset_scaled));
-	}
+    }
     }
     expolygons = union_ex(expolygons);
-	if (offset_scaled2 != 0.f)
+    if (offset_scaled2 != 0.f)
         expolygons = offset_ex(expolygons, offset_scaled2);
 
     // with +- offset, you can have dupicated points. ensure_valid will remove them.

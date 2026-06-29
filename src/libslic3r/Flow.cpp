@@ -22,7 +22,7 @@
 namespace Slic3r {
 
 FlowErrorNegativeSpacing::FlowErrorNegativeSpacing() : 
-	FlowError("Flow::spacing() produced negative spacing. Did you set some extrusion width too small, or the (maximum) layer height too high?") {}
+    FlowError("Flow::spacing() produced negative spacing. Did you set some extrusion width too small, or the (maximum) layer height too high?") {}
 
 FlowErrorNegativeFlow::FlowErrorNegativeFlow() :
     FlowError("Flow::mm3_per_mm() produced negative flow. Did you set some extrusion width too small, or the (maximum) layer height too high?") {}
@@ -67,29 +67,29 @@ constexpr const char* OPT_PERIMETER_EXTRUSION_SPACING = "perimeter_extrusion_spa
 // and to provide reasonable values to the PlaceholderParser.
 static inline FlowRole opt_key_to_flow_role(const std::string &opt_key)
 {
- 	if (opt_key == OPT_PERIMETER_EXTRUSION_WIDTH || 
- 		// or almost all the defaults:
- 		opt_key == OPT_EXTRUSION_WIDTH || opt_key == OPT_FIRST_LAYER_EXTRUSION_WIDTH)
+    if (opt_key == OPT_PERIMETER_EXTRUSION_WIDTH || 
+        // or almost all the defaults:
+        opt_key == OPT_EXTRUSION_WIDTH || opt_key == OPT_FIRST_LAYER_EXTRUSION_WIDTH)
          return frPerimeter;
     else if (opt_key == OPT_EXTERNAL_PERIMETER_EXTRUSION_WIDTH)
          return frExternalPerimeter;
     else if (opt_key == OPT_IN_FILL_EXTRUSION_WIDTH)
          return frInfill;
     else if (opt_key == OPT_SOLID_INFILL_EXTRUSION_WIDTH
- 		// or the first layer infill:
+        // or the first layer infill:
          || opt_key == OPT_FIRST_LAYER_INFILL_EXTRUSION_WIDTH)
          return frSolidInfill;
- 	else if (opt_key == OPT_TOP_INFILL_EXTRUSION_WIDTH)
- 		return frTopSolidInfill;
- 	else if (opt_key == OPT_SUPPORT_MATERIAL_EXTRUSION_WIDTH)
-     	return frSupportMaterial;
+    else if (opt_key == OPT_TOP_INFILL_EXTRUSION_WIDTH)
+        return frTopSolidInfill;
+    else if (opt_key == OPT_SUPPORT_MATERIAL_EXTRUSION_WIDTH)
+        return frSupportMaterial;
      else 
-     	throw Slic3r::RuntimeError("opt_key_to_flow_role: invalid argument");
+        throw Slic3r::RuntimeError("opt_key_to_flow_role: invalid argument");
 };
 
 static inline void throw_on_missing_variable(const std::string &opt_key, const char *dependent_opt_key) 
 {
-	throw FlowErrorMissingVariable((boost::format(_u8L("Cannot calculate extrusion width for %1%: Variable \"%2%\" not accessible.")) % opt_key % dependent_opt_key).str());
+    throw FlowErrorMissingVariable((boost::format(_u8L("Cannot calculate extrusion width for %1%: Variable \"%2%\" not accessible.")) % opt_key % dependent_opt_key).str());
 }
 
 // Used to provide hints to the user on default extrusion width values, and to provide reasonable values to the PlaceholderParser.
@@ -520,9 +520,9 @@ float Flow::spacing() const
     float res = float(this->bridge() ? (this->width() /*+ BRIDGE_EXTRA_SPACING_MULT * nozzle_diameter*/) : (this->width() - this->height() * (1. - 0.25 * PI) * m_spacing_ratio));
 #endif
 //    assert(res > 0.f);
-	if (res <= 0.f)
-		throw FlowErrorNegativeSpacing();
-	return res;
+    if (res <= 0.f)
+        throw FlowErrorNegativeSpacing();
+    return res;
 }
 
 // Adjust the width / height of a rounded extrusion model to reach the prescribed cross section area while maintaining extrusion spacing.
@@ -570,9 +570,9 @@ float Flow::spacing(const Flow &other) const
         0.5 * this->width() + 0.5 * other.width() :
         0.5 * this->spacing() + 0.5 * other.spacing());
 //    assert(res > 0.f);
-	if (res <= 0.f)
-		throw FlowErrorNegativeSpacing();
-	return res;
+    if (res <= 0.f)
+        throw FlowErrorNegativeSpacing();
+    return res;
 }
 
 float Flow::rounded_rectangle_extrusion_spacing(float width, float height, float m_spacing_ratio)
@@ -612,8 +612,8 @@ double Flow::mm3_per_mm() const
         // Rectangle with semicircles at the ends. ~ h (w - 0.215 h)
         float(m_height * (m_width - m_height * (1. - 0.25 * PI)));
     //assert(res > 0.);
-	if (res <= 0.)
-		throw FlowErrorNegativeFlow();
+    if (res <= 0.)
+        throw FlowErrorNegativeFlow();
     return res;
 }
 

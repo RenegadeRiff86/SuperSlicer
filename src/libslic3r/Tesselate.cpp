@@ -201,7 +201,7 @@ std::vector<Vec3d> triangulate_expolygon_3d(const ExPolygon &poly, coordf_t z, b
 
 std::vector<Vec3d> triangulate_expolygons_3d(const ExPolygons &polys, coordf_t z, bool flip)
 {
-	GluTessWrapper tess;
+    GluTessWrapper tess;
     return tess.tesselate3d(polys, z, flip);
 }
 

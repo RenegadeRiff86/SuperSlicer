@@ -16,11 +16,11 @@ namespace CustomGCode {
 // then CustomGCode::Info.gcodes should be updated considering this option.
 extern void update_custom_gcode_per_print_z_from_config(Info& info, DynamicPrintConfig* config)
 {
-	auto *colorprint_heights = config->option<ConfigOptionFloats>("colorprint_heights");
+    auto *colorprint_heights = config->option<ConfigOptionFloats>("colorprint_heights");
     if (colorprint_heights == nullptr)
         return;
     if (info.gcodes.empty() && ! colorprint_heights->empty()) {
-		// Convert the old colorprint_heighs only if there is no equivalent data in a new format.
+        // Convert the old colorprint_heighs only if there is no equivalent data in a new format.
         const std::vector<std::string>& colors = ColorPrintColors::get();
         info.gcodes.clear();
         info.gcodes.reserve(colorprint_heights->size());
@@ -29,10 +29,10 @@ extern void update_custom_gcode_per_print_z_from_config(Info& info, DynamicPrint
             info.gcodes.emplace_back(Item{ val, ColorChange, 1, colors[(++i)%7] });
 
         info.mode = SingleExtruder;
-	}
+    }
 
-	// The "colorprint_heights" config value has been deprecated. At this point of time it has been converted
-	// to a new format and therefore it shall be erased.
+    // The "colorprint_heights" config value has been deprecated. At this point of time it has been converted
+    // to a new format and therefore it shall be erased.
     config->erase("colorprint_heights");
 }
 

@@ -51,18 +51,18 @@ std::pair<SupportGeneratorLayersPtr, SupportGeneratorLayersPtr> generate_interfa
 // Generate raft layers, also expand the 1st support layer
 // in case there is no raft layer to improve support adhesion.
 SupportGeneratorLayersPtr generate_raft_base(
-	const PrintObject				&object,
-	const SupportParameters			&support_params,
-	const SlicingParameters			&slicing_params,
-	const SupportGeneratorLayersPtr &top_contacts,
-	const SupportGeneratorLayersPtr &interface_layers,
-	const SupportGeneratorLayersPtr &base_interface_layers,
-	const SupportGeneratorLayersPtr &base_layers,
-	SupportGeneratorLayerStorage    &layer_storage);
+    const PrintObject				&object,
+    const SupportParameters			&support_params,
+    const SlicingParameters			&slicing_params,
+    const SupportGeneratorLayersPtr &top_contacts,
+    const SupportGeneratorLayersPtr &interface_layers,
+    const SupportGeneratorLayersPtr &base_interface_layers,
+    const SupportGeneratorLayersPtr &base_layers,
+    SupportGeneratorLayerStorage    &layer_storage);
 
 // returns sorted layers
 SupportGeneratorLayersPtr generate_support_layers(
-	PrintObject							&object,
+    PrintObject							&object,
     const SupportGeneratorLayersPtr     &raft_layers,
     const SupportGeneratorLayersPtr     &bottom_contacts,
     const SupportGeneratorLayersPtr     &top_contacts,
@@ -73,15 +73,15 @@ SupportGeneratorLayersPtr generate_support_layers(
 // Produce the support G-code.
 // Used by both classic and tree supports.
 void generate_support_toolpaths(
-	SupportLayerPtrs    				&support_layers,
-	const PrintObjectConfig 			&config,
-	const SupportParameters 			&support_params,
-	const SlicingParameters 			&slicing_params,
+    SupportLayerPtrs    				&support_layers,
+    const PrintObjectConfig 			&config,
+    const SupportParameters 			&support_params,
+    const SlicingParameters 			&slicing_params,
     const SupportGeneratorLayersPtr 	&raft_layers,
     const SupportGeneratorLayersPtr   	&bottom_contacts,
     const SupportGeneratorLayersPtr   	&top_contacts,
     const SupportGeneratorLayersPtr   	&intermediate_layers,
-	const SupportGeneratorLayersPtr   	&interface_layers,
+    const SupportGeneratorLayersPtr   	&interface_layers,
     const SupportGeneratorLayersPtr   	&base_interface_layers);
 
 // FN_HIGHER_EQUAL: the provided object pointer has a Z value >= of an internal threshold.

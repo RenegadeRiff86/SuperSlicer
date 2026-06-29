@@ -716,7 +716,7 @@ void PrintObject::slice()
                 layer.lslices_ex.clear();
                 layer.lslices_ex.reserve(layer.lslices().size());
                 for (const ExPolygon &expoly : layer.lslices())
-                	layer.lslices_ex.push_back({ get_extents(expoly) });
+                    layer.lslices_ex.push_back({ get_extents(expoly) });
                 layer.backup_untyped_slices();
             }
         });
@@ -1700,12 +1700,12 @@ void PrintObject::slice_volumes()
         ////    float(scale_(m_config.elefant_foot_compensation.value)) :
         ////	0.f;
         // Uncompensated slices for the first layer in case the Elephant foot compensation is applied.
-	    //ExPolygons  lslices_1st_layer;
+        //ExPolygons  lslices_1st_layer;
         Slic3r::parallel_for(size_t(0), m_layers.size(),
             [this](const size_t layer_id) {
-	                m_print->throw_if_canceled();
-	                Layer *layer = m_layers[layer_id];
-	                // Apply size compensation and perform clipping of multi-part objects.
+                    m_print->throw_if_canceled();
+                    Layer *layer = m_layers[layer_id];
+                    // Apply size compensation and perform clipping of multi-part objects.
                     coord_t outter_delta = scale_t(m_config.xy_size_compensation.value);
                     coord_t inner_delta = scale_t(m_config.xy_inner_size_compensation.value);
                     coord_t hole_delta = inner_delta + scale_t(m_config.hole_size_compensation.value);
@@ -1743,9 +1743,9 @@ void PrintObject::slice_volumes()
 
                     coord_t scaled_resolution = std::max(scale_t(m_print->config().resolution), SCALED_EPSILON);
                     //TODO: test it's done for multi-region and not
-	                if (layer->regions().size() == 1) {
-	                    // Optimized version for a single region layer.
-	                    // Single region, growing or shrinking.
+                    if (layer->regions().size() == 1) {
+                        // Optimized version for a single region layer.
+                        // Single region, growing or shrinking.
                         LayerRegion* layerm = layer->regions().front();
                         // we can move here because we'll fill it again below.
                         ExPolygons expolygons = to_expolygons(std::move(layerm->m_slices.surfaces));
@@ -1870,8 +1870,8 @@ void PrintObject::slice_volumes()
                             }
                         }
                     }
-	                // Merge all regions' slices to get islands, sorted topologically, chain them by a shortest path in separate index list
-	                layer->make_slices();
+                    // Merge all regions' slices to get islands, sorted topologically, chain them by a shortest path in separate index list
+                    layer->make_slices();
                     //FIXME: can't make it work in multi-region object, it seems useful to avoid bridge on top of first layer compensation
                     //so it's disable, if you want an offset, use the offset field.
                     //if (layer->regions().size() == 1 && ! m_layers.empty() && layer_id == 0 && first_layer_compensation < 0 && m_config.raft_layers == 0) {

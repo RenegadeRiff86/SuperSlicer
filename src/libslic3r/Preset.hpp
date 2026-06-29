@@ -113,9 +113,9 @@ class Preset;
 // The parent preset is only accessible through PresetCollection, therefore to allow definition of the various is_compatible_with methods
 // outside of the PresetCollection, this composite is returned by PresetCollection::get_preset_with_vendor_profile() when needed.
 struct PresetWithVendorProfile {
-	PresetWithVendorProfile(const Preset &preset, const VendorProfile *vendor) : preset(preset), vendor(vendor) {}
-	const Preset 		&preset;
-	const VendorProfile *vendor;
+    PresetWithVendorProfile(const Preset &preset, const VendorProfile *vendor) : preset(preset), vendor(vendor) {}
+    const Preset 		&preset;
+    const VendorProfile *vendor;
 };
 
 // Note: it is imporant that map is used here rather than unordered_map,
@@ -225,7 +225,7 @@ public:
     // Returns the "compatible_prints_condition".
     static std::string& compatible_prints_condition(DynamicPrintConfig &cfg) { return cfg.option<ConfigOptionString>("compatible_prints_condition", true)->value; }
     std::string&        compatible_prints_condition() { 
-		assert(this->type == TYPE_FFF_FILAMENT || this->type == TYPE_SLA_MATERIAL);
+        assert(this->type == TYPE_FFF_FILAMENT || this->type == TYPE_SLA_MATERIAL);
         return Preset::compatible_prints_condition(this->config);
     }
     const std::string&  compatible_prints_condition() const { return const_cast<Preset*>(this)->compatible_prints_condition(); }
@@ -233,7 +233,7 @@ public:
     // Returns the "compatible_printers_condition".
     static std::string& compatible_printers_condition(DynamicPrintConfig &cfg) { return cfg.option<ConfigOptionString>("compatible_printers_condition", true)->value; }
     std::string&        compatible_printers_condition() {
-		assert(this->type == TYPE_FFF_PRINT || this->type == TYPE_SLA_PRINT || this->type == TYPE_FFF_FILAMENT || this->type == TYPE_SLA_MATERIAL);
+        assert(this->type == TYPE_FFF_PRINT || this->type == TYPE_SLA_PRINT || this->type == TYPE_FFF_FILAMENT || this->type == TYPE_SLA_MATERIAL);
         return Preset::compatible_printers_condition(this->config);
     }
     const std::string&  compatible_printers_condition() const { return const_cast<Preset*>(this)->compatible_printers_condition(); }
@@ -278,7 +278,7 @@ public:
     static const std::vector<std::string>&  sla_material_options();
     static const std::vector<std::string>&  sla_print_options();
 
-	static void                             update_suffix_modified(const std::string& new_suffix_modified);
+    static void                             update_suffix_modified(const std::string& new_suffix_modified);
     static const std::string&               suffix_modified();
     static std::string                      remove_suffix_modified(const std::string& name);
     static void                             normalize(DynamicPrintConfig &config);
@@ -317,12 +317,12 @@ inline Preset::Type operator&=(Preset::Type& a, Preset::Type b) {
 }
 
 enum class PresetSelectCompatibleType {
-	// Never select a compatible preset if the newly selected profile is not compatible.
-	Never,
-	// Only select a compatible preset if the active profile used to be compatible, but it is no more.
-	OnlyIfWasCompatible,
-	// Always select a compatible preset if the active profile is no more compatible.
-	Always
+    // Never select a compatible preset if the newly selected profile is not compatible.
+    Never,
+    // Only select a compatible preset if the active profile used to be compatible, but it is no more.
+    OnlyIfWasCompatible,
+    // Always select a compatible preset if the active profile is no more compatible.
+    Always
 };
 
 // Substitutions having been performed during parsing a single configuration file.
@@ -456,10 +456,10 @@ public:
     // The parent preset may be a system preset or a user preset, which will be
     // reflected by the UI.
     const Preset*   get_selected_preset_parent() const;
-	// Get parent preset for a child preset, based on the "inherits" field of a child,
-	// where the "inherits" profile name is searched for in both m_presets and m_map_system_profile_renamed.
-	const Preset*	get_preset_parent(const Preset& child) const;
-	// Return the selected preset including the user modifications.
+    // Get parent preset for a child preset, based on the "inherits" field of a child,
+    // where the "inherits" profile name is searched for in both m_presets and m_map_system_profile_renamed.
+    const Preset*	get_preset_parent(const Preset& child) const;
+    // Return the selected preset including the user modifications.
     Preset&         get_edited_preset()         { return m_edited_preset; }
     const Preset&   get_edited_preset() const   { return m_edited_preset; }
 
@@ -471,17 +471,17 @@ public:
     PresetWithVendorProfile get_edited_preset_with_vendor_profile() const { return this->get_preset_with_vendor_profile(this->get_edited_preset()); }
 
     const std::string& 		get_preset_name_by_alias(const std::string& alias) const;
-	const std::string*		get_preset_name_renamed(const std::string &old_name) const;
+    const std::string*		get_preset_name_renamed(const std::string &old_name) const;
 
-	// used to update preset_choice from Tab
-	const std::deque<Preset>&	get_presets() const	{ return m_presets; }
+    // used to update preset_choice from Tab
+    const std::deque<Preset>&	get_presets() const	{ return m_presets; }
     //size_t                      get_idx_selected()	{ return m_idx_selected; } // duplicate of get_selected_idx
-	static const std::string&	get_suffix_modified();
+    static const std::string&	get_suffix_modified();
 
     // Return a preset possibly with modifications.
-	Preset&			default_preset(size_t idx = 0)		 { assert(idx < m_num_default_presets); return m_presets[idx]; }
-	const Preset&   default_preset(size_t idx = 0) const { assert(idx < m_num_default_presets); return m_presets[idx]; }
-	virtual const Preset& default_preset_for(const DynamicPrintConfig & /* config */) const { return this->default_preset(); }
+    Preset&			default_preset(size_t idx = 0)		 { assert(idx < m_num_default_presets); return m_presets[idx]; }
+    const Preset&   default_preset(size_t idx = 0) const { assert(idx < m_num_default_presets); return m_presets[idx]; }
+    virtual const Preset& default_preset_for(const DynamicPrintConfig & /* config */) const { return this->default_preset(); }
     // Return a preset by an index. If the preset is active, a temporary copy is returned.
     Preset&         preset(size_t idx, bool respect_active_preset = true)          { return (idx == m_idx_selected && respect_active_preset) ? m_edited_preset : m_presets[idx]; }
     const Preset&   preset(size_t idx, bool respect_active_preset = true) const    { return const_cast<PresetCollection*>(this)->preset(idx); }
@@ -606,7 +606,7 @@ protected:
     std::vector<std::string> merge_presets(PresetCollection &&other, const VendorMap &new_vendors);
 
     // Update m_map_alias_to_profile_name from loaded system profiles.
-	void 			update_map_alias_to_profile_name();
+    void 			update_map_alias_to_profile_name();
 
     // Update m_map_system_profile_renamed from loaded system profiles.
     void 			update_map_system_profile_renamed();
@@ -632,10 +632,10 @@ private:
     std::deque<Preset>::const_iterator find_preset_internal(const std::string &name) const
         { return const_cast<PresetCollection*>(this)->find_preset_internal(name); }
     std::deque<Preset>::iterator 	   find_preset_renamed(const std::string &name) {
-    	auto it_renamed = m_map_system_profile_renamed.find(name);
-    	auto it = (it_renamed == m_map_system_profile_renamed.end()) ? m_presets.end() : this->find_preset_internal(it_renamed->second);
-    	assert((it_renamed == m_map_system_profile_renamed.end()) || (it != m_presets.end() && it->name == it_renamed->second));
-    	return it;
+        auto it_renamed = m_map_system_profile_renamed.find(name);
+        auto it = (it_renamed == m_map_system_profile_renamed.end()) ? m_presets.end() : this->find_preset_internal(it_renamed->second);
+        assert((it_renamed == m_map_system_profile_renamed.end()) || (it != m_presets.end() && it->name == it_renamed->second));
+        return it;
     }
     std::deque<Preset>::const_iterator find_preset_renamed(const std::string &name) const
         { return const_cast<PresetCollection*>(this)->find_preset_renamed(name); }
@@ -685,7 +685,7 @@ class PrinterPresetCollection : public PresetCollection
 {
 public:
     PrinterPresetCollection(Preset::Type type, const std::vector<std::string> &keys, const Slic3r::StaticPrintConfig &defaults, const std::string &default_name = "- default -") :
-		PresetCollection(type, keys, defaults, default_name) {}
+        PresetCollection(type, keys, defaults, default_name) {}
 
     const Preset&   default_preset_for(const DynamicPrintConfig &config) const override;
 
@@ -701,8 +701,8 @@ private:
 };
 
 namespace PresetUtils {
-	// PrinterModel of a system profile, from which this preset is derived, or null if it is not derived from a system profile.
-	const VendorProfile::PrinterModel* system_printer_model(const Preset &preset);
+    // PrinterModel of a system profile, from which this preset is derived, or null if it is not derived from a system profile.
+    const VendorProfile::PrinterModel* system_printer_model(const Preset &preset);
     std::string system_printer_bed_model(const Preset& preset);
     std::string system_printer_bed_texture(const Preset& preset);
     bool        vendor_profile_has_all_resources(const VendorProfile& vp);

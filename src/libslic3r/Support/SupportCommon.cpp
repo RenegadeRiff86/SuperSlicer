@@ -350,7 +350,7 @@ std::pair<SupportGeneratorLayersPtr, SupportGeneratorLayersPtr> generate_interfa
 SupportGeneratorLayersPtr generate_raft_base(
     const PrintObject                 &object,
     const SupportParameters           &support_params,
-	const SlicingParameters			  &slicing_params,
+    const SlicingParameters			  &slicing_params,
     const SupportGeneratorLayersPtr   &top_contacts,
     const SupportGeneratorLayersPtr   &interface_layers,
     const SupportGeneratorLayersPtr   &base_interface_layers,

@@ -256,8 +256,8 @@ private:
         const ObjectsLayerToPrint       &layers,
         const LayerTools  				&layer_tools,
         const bool                       last_layer,
-		// Pairs of PrintObject index and its instance index.
-		const std::vector<const PrintInstance*> *ordering,
+        // Pairs of PrintObject index and its instance index.
+        const std::vector<const PrintInstance*> *ordering,
         // If set to size_t(-1), then print all copies of all objects.
         // Otherwise print a single copy of a single object.
         size_t                           single_object_idx = size_t(-1)
@@ -315,25 +315,25 @@ private:
         ExtrusionPaths& notch_extrusion_start, ExtrusionPaths& notch_extrusion_end, bool is_hole_loop, bool is_full_loop_ccw);
 
 
-	struct InstanceToPrint
-	{
+    struct InstanceToPrint
+    {
         InstanceToPrint(size_t object_layer_to_print_id, const PrintObject &print_object, size_t instance_id) :
             object_layer_to_print_id(object_layer_to_print_id), print_object(print_object), instance_id(instance_id) {}
 
         // Index into std::vector<ObjectLayerToPrint>, which contains Object and Support layers for the current print_z, collected for a single object, or for possibly multiple objects with multiple instances.
         const size_t             object_layer_to_print_id;
-		const PrintObject 		&print_object;
-		// Instance idx of the copy of a print object.
-		const size_t			 instance_id;
-	};
+        const PrintObject 		&print_object;
+        // Instance idx of the copy of a print object.
+        const size_t			 instance_id;
+    };
 
-	std::vector<InstanceToPrint> sort_print_object_instances(
-		// Object and Support layers for the current print_z, collected for a single object, or for possibly multiple objects with multiple instances.
+    std::vector<InstanceToPrint> sort_print_object_instances(
+        // Object and Support layers for the current print_z, collected for a single object, or for possibly multiple objects with multiple instances.
         const std::vector<ObjectLayerToPrint>           &layers,
-		// Ordering must be defined for normal (non-sequential print).
-		const std::vector<const PrintInstance*>     	*ordering,
-		// For sequential print, the instance of the object to be printing has to be defined.
-		const size_t                     				 single_object_instance_idx);
+        // Ordering must be defined for normal (non-sequential print).
+        const std::vector<const PrintInstance*>     	*ordering,
+        // For sequential print, the instance of the object to be printing has to be defined.
+        const size_t                     				 single_object_instance_idx);
 
     struct ExtrudeArgs{
         // Index of the extruder currently active.

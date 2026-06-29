@@ -24,9 +24,9 @@ void filter_by_extrusion_role_in_place(ExtrusionEntitiesPtr &extrusion_entities,
 // Returned extrusion entities are shared with the source vector, they are NOT cloned, they are considered to be owned by extrusion_entities.
 inline ExtrusionEntitiesPtr filter_by_extrusion_role(const ExtrusionEntitiesPtr &extrusion_entities, ExtrusionRole role)
 {
-	ExtrusionEntitiesPtr out { extrusion_entities }; 
-	filter_by_extrusion_role_in_place(out, role);
-	return out;
+    ExtrusionEntitiesPtr out { extrusion_entities }; 
+    filter_by_extrusion_role_in_place(out, role);
+    return out;
 }
 #endif
 
@@ -39,7 +39,7 @@ private:
 public:
     virtual ExtrusionEntityCollection* clone() const override { return new ExtrusionEntityCollection(*this); }
     // Create a new object, initialize it with this object using the move semantics.
-	virtual ExtrusionEntityCollection* clone_move() override { return new ExtrusionEntityCollection(std::move(*this)); }
+    virtual ExtrusionEntityCollection* clone_move() override { return new ExtrusionEntityCollection(std::move(*this)); }
 
 
     /// Owned ExtrusionEntities and descendent ExtrusionEntityCollections.

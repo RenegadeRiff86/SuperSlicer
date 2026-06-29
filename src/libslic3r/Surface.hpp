@@ -134,7 +134,7 @@ public:
         return *this;
     }
 
-	double area() 		 const { return this->expolygon.area(); }
+    double area() 		 const { return this->expolygon.area(); }
     bool empty() const { return expolygon.empty(); }
     void clear() { expolygon.clear(); }
     bool has(SurfaceType type) const;
@@ -206,7 +206,7 @@ inline ExPolygons to_expolygons(Surfaces &&src)
 {
     ExPolygons expolygons;
     expolygons.reserve(src.size());
-	for (auto it = src.begin(); it != src.end(); ++it)
+    for (auto it = src.begin(); it != src.end(); ++it)
         expolygons.emplace_back(ExPolygon(std::move(it->expolygon)));
     src.clear();
     return expolygons;

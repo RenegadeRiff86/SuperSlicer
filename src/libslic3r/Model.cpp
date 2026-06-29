@@ -62,11 +62,11 @@ Model& Model::assign_copy(const Model &rhs)
     // copy objects
     this->clear_objects();
     this->objects.reserve(rhs.objects.size());
-	for (const ModelObject *model_object : rhs.objects) {
+    for (const ModelObject *model_object : rhs.objects) {
         // Copy including the ID, leave ID set to invalid (zero).
         auto mo = ModelObject::new_copy(*model_object);
         mo->set_model(this);
-		this->objects.emplace_back(mo);
+        this->objects.emplace_back(mo);
     }
 
     // copy custom code per height
@@ -81,7 +81,7 @@ Model& Model::assign_copy(const Model &rhs)
 Model& Model::assign_copy(Model &&rhs)
 {
     this->copy_id(rhs);
-	// Move materials, adjust the parent pointer.
+    // Move materials, adjust the parent pointer.
     this->clear_materials();
     this->materials = std::move(rhs.materials);
     for (std::pair<const t_model_material_id, ModelMaterial*> &m : this->materials)
@@ -89,7 +89,7 @@ Model& Model::assign_copy(Model &&rhs)
     rhs.materials.clear();
     // Move objects, adjust the parent pointer.
     this->clear_objects();
-	this->objects = std::move(rhs.objects);
+    this->objects = std::move(rhs.objects);
     for (ModelObject *model_object : this->objects)
         model_object->set_model(this);
     rhs.objects.clear();
@@ -114,15 +114,15 @@ void Model::assign_new_unique_ids_recursive()
 
 void Model::update_links_bottom_up_recursive()
 {
-	for (std::pair<const t_model_material_id, ModelMaterial*> &kvp : this->materials)
-		kvp.second->set_model(this);
-	for (ModelObject *model_object : this->objects) {
-		model_object->set_model(this);
-		for (ModelInstance *model_instance : model_object->instances)
-			model_instance->set_model_object(model_object);
-		for (ModelVolume *model_volume : model_object->volumes)
-			model_volume->set_model_object(model_object);
-	}
+    for (std::pair<const t_model_material_id, ModelMaterial*> &kvp : this->materials)
+        kvp.second->set_model(this);
+    for (ModelObject *model_object : this->objects) {
+        model_object->set_model(this);
+        for (ModelInstance *model_instance : model_object->instances)
+            model_instance->set_model_object(model_object);
+        for (ModelVolume *model_volume : model_object->volumes)
+            model_volume->set_model_object(model_object);
+    }
 }
 
 bool Model::equals(const Model& rhs) const {
@@ -291,7 +291,7 @@ ModelObject* Model::add_object(const char *name, const char *path, TriangleMesh 
 
 ModelObject* Model::add_object(const ModelObject &other)
 {
-	ModelObject* new_object = ModelObject::new_clone(other);
+    ModelObject* new_object = ModelObject::new_clone(other);
     new_object->set_model(this);
     this->objects.push_back(new_object);
     return new_object;
@@ -375,8 +375,8 @@ ModelMaterial* Model::add_material(t_model_material_id material_id, const ModelM
     ModelMaterial* material = this->get_material(material_id);
     delete material;
     // set new material
-	material = new ModelMaterial(other);
-	material->set_model(this);
+    material = new ModelMaterial(other);
+    material->set_model(this);
     this->materials[material_id] = material;
     return material;
 }
@@ -434,17 +434,17 @@ bool Model::center_instances_around_point(const Vec2d &point)
                     bb.merge(o->instance_bounding_box(i, false));
 
     Vec2d shift2 = point - to_2d(bb.center());
-	if (std::abs(shift2(0)) < EPSILON && std::abs(shift2(1)) < EPSILON)
-		// No significant shift, don't do anything.
-		return false;
+    if (std::abs(shift2(0)) < EPSILON && std::abs(shift2(1)) < EPSILON)
+        // No significant shift, don't do anything.
+        return false;
 
-	Vec3d shift3 = Vec3d(shift2(0), shift2(1), 0.0);
-	for (ModelObject *o : this->objects) {
-		for (ModelInstance *i : o->instances)
-			i->set_offset(i->get_offset() + shift3);
-		o->invalidate_bounding_box();
-	}
-	return true;
+    Vec3d shift3 = Vec3d(shift2(0), shift2(1), 0.0);
+    for (ModelObject *o : this->objects) {
+        for (ModelInstance *i : o->instances)
+            i->set_offset(i->get_offset() + shift3);
+        o->invalidate_bounding_box();
+    }
+    return true;
 }
 
 // flattens everything to a single mesh
@@ -506,13 +506,13 @@ static inline int auto_extruder_id(unsigned int max_extruders, unsigned int &cnt
 {
     int out = ++ cntr;
     if (cntr == max_extruders)
-    	cntr = 0;
+        cntr = 0;
     return out;
 }
 
 void Model::convert_multipart_object(unsigned int max_extruders)
 {
-	assert(this->objects.size() >= 2);
+    assert(this->objects.size() >= 2);
     if (this->objects.size() < 2)
         return;
     
@@ -523,7 +523,7 @@ void Model::convert_multipart_object(unsigned int max_extruders)
 
     unsigned int extruder_counter = 0;
     for (const ModelObject* o : this->objects)
-    	for (const ModelVolume* v : o->volumes) {
+        for (const ModelVolume* v : o->volumes) {
             // If there are more than one object, put all volumes together 
             // Each object may contain any number of volumes and instances
             // The volumes transformations are relative to the object containing them...
@@ -538,7 +538,7 @@ void Model::convert_multipart_object(unsigned int max_extruders)
                 return new_v;
             };
             if (o->instances.empty()) {
-            	copy_volume(object->add_volume(*v))->set_transformation(trafo_volume);
+                copy_volume(object->add_volume(*v))->set_transformation(trafo_volume);
             } else {
                 for (const ModelInstance* i : o->instances)
                         // ...so, transform everything to a common reference system (world)
@@ -704,9 +704,9 @@ ModelObject::~ModelObject()
 // maintains the m_model pointer
 ModelObject& ModelObject::assign_copy(const ModelObject &rhs)
 {
-	assert(this->id().invalid() || this->id() == rhs.id());
-	assert(this->config.id().invalid() || this->config.id() == rhs.config.id());
-	this->copy_id(rhs);
+    assert(this->id().invalid() || this->id() == rhs.id());
+    assert(this->config.id().invalid() || this->config.id() == rhs.config.id());
+    this->copy_id(rhs);
 
     this->name                        = rhs.name;
     this->input_file                  = rhs.input_file;
@@ -730,7 +730,7 @@ ModelObject& ModelObject::assign_copy(const ModelObject &rhs)
         this->volumes.back()->set_model_object(this);
     }
     this->clear_instances();
-	this->instances.reserve(rhs.instances.size());
+    this->instances.reserve(rhs.instances.size());
     for (const ModelInstance *model_instance : rhs.instances) {
         this->instances.emplace_back(new ModelInstance(*model_instance));
         this->instances.back()->set_model_object(this);
@@ -742,7 +742,7 @@ ModelObject& ModelObject::assign_copy(const ModelObject &rhs)
 // maintains the m_model pointer
 ModelObject& ModelObject::assign_copy(ModelObject &&rhs)
 {
-	assert(this->id().invalid());
+    assert(this->id().invalid());
     this->copy_id(rhs);
 
     this->name                        = std::move(rhs.name);
@@ -760,13 +760,13 @@ ModelObject& ModelObject::assign_copy(ModelObject &&rhs)
     this->copy_transformation_caches(rhs);
 
     this->clear_volumes();
-	this->volumes = std::move(rhs.volumes);
-	rhs.volumes.clear();
+    this->volumes = std::move(rhs.volumes);
+    rhs.volumes.clear();
     for (ModelVolume *model_volume : this->volumes)
         model_volume->set_model_object(this);
     this->clear_instances();
-	this->instances = std::move(rhs.instances);
-	rhs.instances.clear();
+    this->instances = std::move(rhs.instances);
+    rhs.instances.clear();
     for (ModelInstance *model_instance : this->instances)
         model_instance->set_model_object(this);
 
@@ -845,7 +845,7 @@ ModelVolume* ModelObject::add_volume(const ModelVolume &other, ModelVolumeType t
         v->set_type(type);
     v->cut_info = other.cut_info;
     this->volumes.push_back(v);
-	// The volume should already be centered at this point of time when copying shared pointers of the triangle mesh and convex hull.
+    // The volume should already be centered at this point of time when copying shared pointers of the triangle mesh and convex hull.
 //    if(centered) v->center_geometry_after_creation();
 //    if(centered) this->invalidate_bounding_box();
     return v;
@@ -1119,10 +1119,10 @@ const BoundingBoxf3& ModelObject::raw_mesh_bounding_box() const
 
 BoundingBoxf3 ModelObject::full_raw_mesh_bounding_box() const
 {
-	BoundingBoxf3 bb;
-	for (const ModelVolume *v : this->volumes)
-		bb.merge(v->mesh().transformed_bounding_box(v->get_matrix()));
-	return bb;
+    BoundingBoxf3 bb;
+    for (const ModelVolume *v : this->volumes)
+        bb.merge(v->mesh().transformed_bounding_box(v->get_matrix()));
+    return bb;
 }
 
 // A transformed snug bounding box around the non-modifier object volumes, without the translation applied.
@@ -1142,7 +1142,7 @@ const BoundingBoxf3& ModelObject::raw_bounding_box() const
                 m_raw_bounding_box.merge(v->mesh().transformed_bounding_box(inst_matrix * v->get_matrix()));
         }
     }
-	return m_raw_bounding_box;
+    return m_raw_bounding_box;
 }
 
 // This returns an accurate snug bounding box of the transformed object instance, with or without the translation applied.
@@ -1629,8 +1629,8 @@ double ModelObject::get_instance_min_z(size_t instance_idx) const
         const Transform3d mv = mi * v->get_matrix();
         const TriangleMesh& hull = v->get_convex_hull();
         for (const stl_triangle_vertex_indices& facet : hull.its.indices)
-			for (int i = 0; i < 3; ++ i)
-				min_z = std::min(min_z, (mv * hull.its.vertices[facet[i]].cast<double>()).z());
+            for (int i = 0; i < 3; ++ i)
+                min_z = std::min(min_z, (mv * hull.its.vertices[facet[i]].cast<double>()).z());
     }
 
     return min_z + inst->get_offset(Z);
@@ -1852,12 +1852,12 @@ void ModelVolume::center_geometry_after_creation(bool update_source_offset)
     Vec3d shift = this->mesh().bounding_box().center();
     if (!shift.isApprox(Vec3d::Zero()))
     {
-    	if (m_mesh) {
-        	const_cast<TriangleMesh*>(m_mesh.get())->translate(-static_cast<float>(shift(0)), -static_cast<float>(shift(1)), -static_cast<float>(shift(2)));
+        if (m_mesh) {
+            const_cast<TriangleMesh*>(m_mesh.get())->translate(-static_cast<float>(shift(0)), -static_cast<float>(shift(1)), -static_cast<float>(shift(2)));
             const_cast<TriangleMesh*>(m_mesh.get())->set_init_shift(shift);
         }
         if (m_convex_hull)
-			const_cast<TriangleMesh*>(m_convex_hull.get())->translate(-static_cast<float>(shift(0)), -static_cast<float>(shift(1)), -static_cast<float>(shift(2)));
+            const_cast<TriangleMesh*>(m_convex_hull.get())->translate(-static_cast<float>(shift(0)), -static_cast<float>(shift(1)), -static_cast<float>(shift(2)));
         translate(shift);
     }
 
@@ -1889,18 +1889,18 @@ ModelVolumeType ModelVolume::type_from_string(const std::string &s)
 {
     // Legacy support
     if (s == "1")
-		return ModelVolumeType::PARAMETER_MODIFIER;
+        return ModelVolumeType::PARAMETER_MODIFIER;
     // New type (supporting the support enforcers & blockers)
     if (s == "ModelPart")
-		return ModelVolumeType::MODEL_PART;
+        return ModelVolumeType::MODEL_PART;
     if (s == "NegativeVolume")
         return ModelVolumeType::NEGATIVE_VOLUME;
     if (s == "ParameterModifier")
-		return ModelVolumeType::PARAMETER_MODIFIER;
+        return ModelVolumeType::PARAMETER_MODIFIER;
     if (s == "SupportEnforcer")
-		return ModelVolumeType::SUPPORT_ENFORCER;
+        return ModelVolumeType::SUPPORT_ENFORCER;
     if (s == "SupportBlocker")
-		return ModelVolumeType::SUPPORT_BLOCKER;
+        return ModelVolumeType::SUPPORT_BLOCKER;
     if (s == "SeamPosition")
         return ModelVolumeType::SEAM_POSITION_CENTER;
     if (s == "SeamPositionCenter")
@@ -1917,17 +1917,17 @@ ModelVolumeType ModelVolume::type_from_string(const std::string &s)
         return ModelVolumeType::BRIM_NEGATIVE;
     assert(s == "0");
     // Default value if invalud type string received.
-	return ModelVolumeType::MODEL_PART;
+    return ModelVolumeType::MODEL_PART;
 }
 
 std::string ModelVolume::type_to_string(const ModelVolumeType t)
 {
     switch (t) {
-	case ModelVolumeType::MODEL_PART:         return "ModelPart";
+    case ModelVolumeType::MODEL_PART:         return "ModelPart";
     case ModelVolumeType::NEGATIVE_VOLUME:    return "NegativeVolume";
-	case ModelVolumeType::PARAMETER_MODIFIER: return "ParameterModifier";
-	case ModelVolumeType::SUPPORT_ENFORCER:   return "SupportEnforcer";
-	case ModelVolumeType::SUPPORT_BLOCKER:    return "SupportBlocker";
+    case ModelVolumeType::PARAMETER_MODIFIER: return "ParameterModifier";
+    case ModelVolumeType::SUPPORT_ENFORCER:   return "SupportEnforcer";
+    case ModelVolumeType::SUPPORT_BLOCKER:    return "SupportBlocker";
     case ModelVolumeType::SEAM_POSITION_CENTER:         return "SeamPositionCenter";
     case ModelVolumeType::SEAM_POSITION_CENTER_Z:       return "SeamPositionCenterZ";
     case ModelVolumeType::SEAM_POSITION_INSIDE_CENTER:  return "SeamPositionInsideCenter";
@@ -2066,15 +2066,15 @@ void ModelVolume::mirror(Axis axis)
 // This method could only be called before the meshes of this ModelVolumes are not shared!
 void ModelVolume::scale_geometry_after_creation(const Vec3f& versor)
 {
-	const_cast<TriangleMesh*>(m_mesh.get())->scale(versor);
-	const_cast<TriangleMesh*>(m_convex_hull.get())->scale(versor);
+    const_cast<TriangleMesh*>(m_mesh.get())->scale(versor);
+    const_cast<TriangleMesh*>(m_convex_hull.get())->scale(versor);
 }
 
 void ModelVolume::transform_this_mesh(const Transform3d &mesh_trafo, bool fix_left_handed)
 {
-	TriangleMesh mesh = this->mesh();
-	mesh.transform(mesh_trafo, fix_left_handed);
-	this->set_mesh(std::move(mesh));
+    TriangleMesh mesh = this->mesh();
+    mesh.transform(mesh_trafo, fix_left_handed);
+    this->set_mesh(std::move(mesh));
     TriangleMesh convex_hull = this->get_convex_hull();
     convex_hull.transform(mesh_trafo, fix_left_handed);
     m_convex_hull = std::make_shared<TriangleMesh>(std::move(convex_hull));
@@ -2084,9 +2084,9 @@ void ModelVolume::transform_this_mesh(const Transform3d &mesh_trafo, bool fix_le
 
 void ModelVolume::transform_this_mesh(const Matrix3d &matrix, bool fix_left_handed)
 {
-	TriangleMesh mesh = this->mesh();
-	mesh.transform(matrix, fix_left_handed);
-	this->set_mesh(std::move(mesh));
+    TriangleMesh mesh = this->mesh();
+    mesh.transform(matrix, fix_left_handed);
+    this->set_mesh(std::move(mesh));
     TriangleMesh convex_hull = this->get_convex_hull();
     convex_hull.transform(matrix, fix_left_handed);
     m_convex_hull = std::make_shared<TriangleMesh>(std::move(convex_hull));
@@ -2372,24 +2372,24 @@ bool model_has_parameter_modifiers_in_objects(const Model &model)
 bool model_has_multi_part_objects(const Model &model)
 {
     for (const ModelObject *model_object : model.objects)
-    	if (model_object->volumes.size() != 1 || ! model_object->volumes.front()->is_model_part())
-    		return true;
+        if (model_object->volumes.size() != 1 || ! model_object->volumes.front()->is_model_part())
+            return true;
     return false;
 }
 
 bool model_has_advanced_features(const Model &model)
 {
-	auto config_is_advanced = [](const ModelConfig &config) {
+    auto config_is_advanced = [](const ModelConfig &config) {
         return ! (config.empty() || (config.size() == 1 && config.cbegin()->first == "extruder"));
-	};
+    };
     for (const ModelObject *model_object : model.objects) {
         // Is there more than one instance or advanced config data?
         if (model_object->instances.size() > 1 || config_is_advanced(model_object->config))
-        	return true;
+            return true;
         // Is there any modifier or advanced config data?
         for (const ModelVolume* model_volume : model_object->volumes)
             if (! model_volume->is_model_part() || config_is_advanced(model_volume->config))
-            	return true;
+                return true;
     }
     return false;
 }
@@ -2409,7 +2409,7 @@ void check_model_ids_validity(const Model &model)
         check(model_object->config.id());
         for (const ModelVolume *model_volume : model_object->volumes) {
             check(model_volume->id());
-	        check(model_volume->config.id());
+            check(model_volume->config.id());
         }
         for (const ModelInstance *model_instance : model_object->instances)
             check(model_instance->id());
@@ -2433,7 +2433,7 @@ void check_model_ids_equal(const Model &model1, const Model &model2)
         assert(model_object1.instances.size() == model_object2.instances.size());
         for (size_t i = 0; i < model_object1.volumes.size(); ++ i) {
             assert(model_object1.volumes[i]->id() == model_object2.volumes[i]->id());
-        	assert(model_object1.volumes[i]->config.id() == model_object2.volumes[i]->config.id());
+            assert(model_object1.volumes[i]->config.id() == model_object2.volumes[i]->config.id());
         }
         for (size_t i = 0; i < model_object1.instances.size(); ++ i)
             assert(model_object1.instances[i]->id() == model_object2.instances[i]->id());
@@ -2445,7 +2445,7 @@ void check_model_ids_equal(const Model &model1, const Model &model2)
         for (; it1 != model1.materials.end(); ++ it1, ++ it2) {
             assert(it1->first == it2->first); // compare keys
             assert(it1->second->id() == it2->second->id());
-        	assert(it1->second->config.id() == it2->second->config.id());
+            assert(it1->second->config.id() == it2->second->config.id());
         }
     }
 }
