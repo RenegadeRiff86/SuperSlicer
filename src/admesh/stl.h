@@ -41,6 +41,9 @@
 
 // STL triangles always have exactly 3 vertices and 3 edges.
 static constexpr int STL_VERTICES_PER_FACET = 3;
+// In a 3-D triangle mesh the spatial dimension equals the vertex count, so reuse
+// the same constant for square transform-matrix sizes and coordinate-loop bounds.
+static constexpr int STL_SPATIAL_DIM = STL_VERTICES_PER_FACET;
 
 // 3-component float vector (x, y, z).
 typedef Eigen::Matrix<float,   STL_VERTICES_PER_FACET, 1, Eigen::DontAlign> stl_vertex;
@@ -58,18 +61,17 @@ typedef enum {
 }EnumFaceTypes;
 
 struct stl_facet {
-	stl_normal normal;
-	stl_vertex vertex[STL_VERTICES_PER_FACET];
-	char       extra[2] = { 0, 0 }; // 2 extra bytes per binary STL facet record
+    stl_normal normal;
+    stl_vertex vertex[STL_VERTICES_PER_FACET];
+    char       extra[2] = { 0, 0 }; // 2 extra bytes per binary STL facet record
 
-	stl_facet  rotated(const Eigen::Quaternion<float, Eigen::DontAlign> &rot) const {
-		stl_facet out;
-		out.normal    = rot * this->normal;
-		out.vertex[0] = rot * this->vertex[0];
-		out.vertex[1] = rot * this->vertex[1];
-		out.vertex[2] = rot * this->vertex[2];
-		return out;
-	}
+    stl_facet  rotated(const Eigen::Quaternion<float, Eigen::DontAlign> &rot) const {
+        stl_facet out;
+        out.normal = rot * this->normal;
+        for (int i = 0; i < STL_VERTICES_PER_FACET; ++ i)
+            out.vertex[i] = rot * this->vertex[i];
+        return out;
+    }
 };
 
 #define SIZEOF_STL_FACET       50
@@ -82,21 +84,24 @@ static_assert(sizeof(stl_facet) >= SIZEOF_STL_FACET, "size of stl_facet incorrec
 typedef enum {binary, ascii, inmemory} stl_type;
 
 struct stl_neighbors {
-  	stl_neighbors() { reset(); }
-  	void reset() {
-  		for (int i = 0; i < STL_VERTICES_PER_FACET; ++i) {
-  			neighbor[i]        = -1;
-  			which_vertex_not[i] = -1;
-  		}
-  	}
-  	int num_neighbors() const {
-  		return STL_VERTICES_PER_FACET - ((this->neighbor[0] == -1) + (this->neighbor[1] == -1) + (this->neighbor[2] == -1));
-  	}
+    stl_neighbors() { reset(); }
+    void reset() {
+        for (int i = 0; i < STL_VERTICES_PER_FACET; ++i) {
+            neighbor[i]        = -1;
+            which_vertex_not[i] = -1;
+        }
+    }
+    int num_neighbors() const {
+        int unset = 0;
+        for (int i = 0; i < STL_VERTICES_PER_FACET; ++ i)
+            unset += (this->neighbor[i] == -1);
+        return STL_VERTICES_PER_FACET - unset;
+    }
 
-  	// Index of a neighbor facet.
-  	int   neighbor[STL_VERTICES_PER_FACET];
-  	// Index of an opposite vertex at the neighbor face.
-  	char  which_vertex_not[STL_VERTICES_PER_FACET];
+    // Index of a neighbor facet.
+    int   neighbor[STL_VERTICES_PER_FACET];
+    // Index of an opposite vertex at the neighbor face.
+    char  which_vertex_not[STL_VERTICES_PER_FACET];
 };
 
 struct stl_stats {
@@ -147,23 +152,23 @@ struct stl_stats {
 };
 
 struct stl_file {
-	stl_file() = default;
+    stl_file() = default;
 
-	void clear() {
-		this->facet_start.clear();
-		this->neighbors_start.clear();
+    void clear() {
+        this->facet_start.clear();
+        this->neighbors_start.clear();
         this->stats.clear();
-	}
+    }
 
-	size_t memsize() const {
-		return sizeof(*this) + sizeof(stl_facet) * facet_start.size() + sizeof(stl_neighbors) * neighbors_start.size();
-	}
+    size_t memsize() const {
+        return sizeof(*this) + sizeof(stl_facet) * facet_start.size() + sizeof(stl_neighbors) * neighbors_start.size();
+    }
 
     char mw_data[256] = {};
-	std::vector<stl_facet>     		facet_start;
-	std::vector<stl_neighbors> 		neighbors_start;
-	// Statistics
-	stl_stats     					stats;
+    std::vector<stl_facet>     		facet_start;
+    std::vector<stl_neighbors> 		neighbors_start;
+    // Statistics
+    stl_stats     					stats;
 };
  
  struct FaceProperty
@@ -223,13 +228,13 @@ struct indexed_triangle_set
  }
  indexed_triangle_set() {}
  
-	void clear() { indices.clear(); vertices.clear(); }
+    void clear() { indices.clear(); vertices.clear(); }
 
-	size_t memsize() const {
+    size_t memsize() const {
    return sizeof(*this) + (sizeof(stl_triangle_vertex_indices) + sizeof(FaceProperty)) * indices.size() + sizeof(stl_vertex) * vertices.size();
-	}
+    }
 
-	std::vector<stl_triangle_vertex_indices> 	indices;
+    std::vector<stl_triangle_vertex_indices> 	indices;
     std::vector<stl_vertex>       				vertices;
     std::vector<FaceProperty>                   properties;
     
@@ -239,7 +244,7 @@ struct indexed_triangle_set
   float facet_area(int facet_idx) const {
       // Cross-product magnitude / 2 = triangle area
       return std::abs((get_vertex(facet_idx, 0) - get_vertex(facet_idx, 1))
-          .cross(get_vertex(facet_idx, 0) - get_vertex(facet_idx, 2)).norm()) / 2.f;
+          .cross(get_vertex(facet_idx, 0) - get_vertex(facet_idx, STL_VERTICES_PER_FACET - 1)).norm()) * 0.5f;
   }
 
   FaceProperty& get_property(int face_idx) {
@@ -289,57 +294,57 @@ extern void stl_get_size(stl_file *stl);
 template<typename T>
 extern void stl_transform(stl_file *stl, T *trafo3x4)
 {
-    Eigen::Matrix<T, 3, 3, Eigen::DontAlign> trafo3x3;
-    for (int i = 0; i < 3; ++i)
+    Eigen::Matrix<T, STL_SPATIAL_DIM, STL_SPATIAL_DIM, Eigen::DontAlign> trafo3x3;
+    for (int i = 0; i < STL_SPATIAL_DIM; ++i)
     {
-        for (int j = 0; j < 3; ++j)
+        for (int j = 0; j < STL_SPATIAL_DIM; ++j)
         {
             trafo3x3(i, j) = (i * 4) + j;
         }
     }
-    Eigen::Matrix<T, 3, 3, Eigen::DontAlign> r = trafo3x3.inverse().transpose();
+    Eigen::Matrix<T, STL_SPATIAL_DIM, STL_SPATIAL_DIM, Eigen::DontAlign> r = trafo3x3.inverse().transpose();
     for (uint32_t i_face = 0; i_face < stl->stats.number_of_facets; ++ i_face) {
-		stl_facet &face = stl->facet_start[i_face];
-		for (int i_vertex = 0; i_vertex < 3; ++ i_vertex) {
-			stl_vertex &v_dst = face.vertex[i_vertex];
-			stl_vertex  v_src = v_dst;
-			v_dst(0) = T(trafo3x4[0] * v_src(0) + trafo3x4[1] * v_src(1) + trafo3x4[2]  * v_src(2) + trafo3x4[3]);
-			v_dst(1) = T(trafo3x4[4] * v_src(0) + trafo3x4[5] * v_src(1) + trafo3x4[6]  * v_src(2) + trafo3x4[7]);
-			v_dst(2) = T(trafo3x4[8] * v_src(0) + trafo3x4[9] * v_src(1) + trafo3x4[10] * v_src(2) + trafo3x4[11]);
-		}
+        stl_facet &face = stl->facet_start[i_face];
+        for (int i_vertex = 0; i_vertex < 3; ++ i_vertex) {
+            stl_vertex &v_dst = face.vertex[i_vertex];
+            stl_vertex  v_src = v_dst;
+            v_dst.x() = T(trafo3x4[0] * v_src.x() + trafo3x4[1] * v_src.y() + trafo3x4[2]  * v_src.z() + trafo3x4[3]);
+            v_dst.y() = T(trafo3x4[4] * v_src.x() + trafo3x4[5] * v_src.y() + trafo3x4[6]  * v_src.z() + trafo3x4[7]);
+            v_dst.z() = T(trafo3x4[8] * v_src.x() + trafo3x4[9] * v_src.y() + trafo3x4[10] * v_src.z() + trafo3x4[11]);
+        }
         face.normal = (r * face.normal.template cast<T>()).template cast<float>().eval();
     }
 
-	stl_get_size(stl);
+    stl_get_size(stl);
 }
 */
 
 template<typename T>
-inline void stl_transform(stl_file *stl, const Eigen::Transform<T, 3, Eigen::Affine, Eigen::DontAlign>& t)
+inline void stl_transform(stl_file *stl, const Eigen::Transform<T, STL_SPATIAL_DIM, Eigen::Affine, Eigen::DontAlign>& t)
 {
-    const Eigen::Matrix<T, 3, 3, Eigen::DontAlign> r = t.matrix().template block<3, 3>(0, 0).inverse().transpose();
+    const Eigen::Matrix<T, STL_SPATIAL_DIM, STL_SPATIAL_DIM, Eigen::DontAlign> r = t.matrix().template block<STL_SPATIAL_DIM, STL_SPATIAL_DIM>(0, 0).inverse().transpose();
     for (size_t i = 0; i < stl->stats.number_of_facets; ++ i) {
-		stl_facet &f = stl->facet_start[i];
-		for (size_t j = 0; j < 3; ++j)
-			f.vertex[j] = (t * f.vertex[j].template cast<T>()).template cast<float>().eval();
-		f.normal = (r * f.normal.template cast<T>()).template cast<float>().eval();
-	}
-
-	stl_get_size(stl);
-}
-
-template<typename T>
-inline void stl_transform(stl_file *stl, const Eigen::Matrix<T, 3, 3, Eigen::DontAlign>& m)
-{
-    const Eigen::Matrix<T, 3, 3, Eigen::DontAlign> r = m.inverse().transpose();
-    for (size_t i = 0; i < stl->stats.number_of_facets; ++ i) {
-		stl_facet &f = stl->facet_start[i];
-		for (size_t j = 0; j < 3; ++j)
-			f.vertex[j] = (m * f.vertex[j].template cast<T>()).template cast<float>().eval();
+        stl_facet &f = stl->facet_start[i];
+        for (size_t j = 0; j < STL_SPATIAL_DIM; ++j)
+            f.vertex[j] = (t * f.vertex[j].template cast<T>()).template cast<float>().eval();
         f.normal = (r * f.normal.template cast<T>()).template cast<float>().eval();
     }
 
-	stl_get_size(stl);
+    stl_get_size(stl);
+}
+
+template<typename T>
+inline void stl_transform(stl_file *stl, const Eigen::Matrix<T, STL_SPATIAL_DIM, STL_SPATIAL_DIM, Eigen::DontAlign>& m)
+{
+    const Eigen::Matrix<T, STL_SPATIAL_DIM, STL_SPATIAL_DIM, Eigen::DontAlign> r = m.inverse().transpose();
+    for (size_t i = 0; i < stl->stats.number_of_facets; ++ i) {
+        stl_facet &f = stl->facet_start[i];
+        for (size_t j = 0; j < STL_SPATIAL_DIM; ++j)
+            f.vertex[j] = (m * f.vertex[j].template cast<T>()).template cast<float>().eval();
+        f.normal = (r * f.normal.template cast<T>()).template cast<float>().eval();
+    }
+
+    stl_get_size(stl);
 }
 
 template<typename V>
@@ -352,30 +357,30 @@ inline void its_translate(indexed_triangle_set &its, const V v)
 template<typename T>
 inline void its_transform(indexed_triangle_set &its, T *trafo3x4)
 {
-	for (stl_vertex &v_dst : its.vertices) {
-		stl_vertex  v_src = v_dst;
-		v_dst(0) = T(trafo3x4[0] * v_src(0) + trafo3x4[1] * v_src(1) + trafo3x4[2]  * v_src(2) + trafo3x4[3]);
-		v_dst(1) = T(trafo3x4[4] * v_src(0) + trafo3x4[5] * v_src(1) + trafo3x4[6]  * v_src(2) + trafo3x4[7]);
-		v_dst(2) = T(trafo3x4[8] * v_src(0) + trafo3x4[9] * v_src(1) + trafo3x4[10] * v_src(2) + trafo3x4[11]);
-	}
+    for (stl_vertex &v_dst : its.vertices) {
+        stl_vertex  v_src = v_dst;
+        v_dst.x() = T(trafo3x4[0] * v_src.x() + trafo3x4[1] * v_src.y() + trafo3x4[2]  * v_src.z() + trafo3x4[3]);
+        v_dst.y() = T(trafo3x4[4] * v_src.x() + trafo3x4[5] * v_src.y() + trafo3x4[6]  * v_src.z() + trafo3x4[7]);
+        v_dst.z() = T(trafo3x4[8] * v_src.x() + trafo3x4[9] * v_src.y() + trafo3x4[10] * v_src.z() + trafo3x4[11]);
+    }
 }
 
 template<typename T>
-inline void its_transform(indexed_triangle_set &its, const Eigen::Transform<T, 3, Eigen::Affine, Eigen::DontAlign>& t, bool fix_left_handed = false)
+inline void its_transform(indexed_triangle_set &its, const Eigen::Transform<T, STL_SPATIAL_DIM, Eigen::Affine, Eigen::DontAlign>& t, bool fix_left_handed = false)
 {
-	//const Eigen::Matrix<double, 3, 3, Eigen::DontAlign> r = t.matrix().template block<3, 3>(0, 0);
-	for (stl_vertex &v : its.vertices)
-		v = (t * v.template cast<T>()).template cast<float>().eval();
-  if (fix_left_handed && t.matrix().block(0, 0, 3, 3).determinant() < 0.)
+    //const Eigen::Matrix<double, STL_SPATIAL_DIM, STL_SPATIAL_DIM, Eigen::DontAlign> r = t.matrix().template block<STL_SPATIAL_DIM, STL_SPATIAL_DIM>(0, 0);
+    for (stl_vertex &v : its.vertices)
+        v = (t * v.template cast<T>()).template cast<float>().eval();
+  if (fix_left_handed && t.matrix().block(0, 0, STL_SPATIAL_DIM, STL_SPATIAL_DIM).determinant() < 0.)
     for (stl_triangle_vertex_indices &i : its.indices)
       std::swap(i[0], i[1]);
 }
 
 template<typename T>
-inline void its_transform(indexed_triangle_set &its, const Eigen::Matrix<T, 3, 3, Eigen::DontAlign>& m, bool fix_left_handed = false)
+inline void its_transform(indexed_triangle_set &its, const Eigen::Matrix<T, STL_SPATIAL_DIM, STL_SPATIAL_DIM, Eigen::DontAlign>& m, bool fix_left_handed = false)
 {
   for (stl_vertex &v : its.vertices)
-		v = (m * v.template cast<T>()).template cast<float>().eval();
+        v = (m * v.template cast<T>()).template cast<float>().eval();
   if (fix_left_handed && m.determinant() < 0.)
     for (stl_triangle_vertex_indices &i : its.indices)
       std::swap(i[0], i[1]);
@@ -391,7 +396,7 @@ extern bool its_write_off(const indexed_triangle_set &its, const char *file);
 extern bool its_write_vrml(const indexed_triangle_set &its, const char *file);
 
 
-typedef Eigen::Matrix<float, 3, 1, Eigen::DontAlign> obj_color; // Vec3f
+typedef Eigen::Matrix<float, STL_SPATIAL_DIM, 1, Eigen::DontAlign> obj_color; // Vec3f
 /// <summary>
 /// write idexed triangle set into obj file with color
 /// </summary>
@@ -403,7 +408,7 @@ extern bool its_write_obj(const indexed_triangle_set& its, const std::vector<obj
 
 extern bool stl_write_dxf(stl_file *stl, const char *file, char *label);
 inline void stl_calculate_normal(stl_normal &normal, const stl_facet *facet) {
-  normal = (facet->vertex[1] - facet->vertex[0]).cross(facet->vertex[2] - facet->vertex[0]);
+  normal = (facet->vertex[1] - facet->vertex[0]).cross(facet->vertex[STL_VERTICES_PER_FACET - 1] - facet->vertex[0]);
 }
 inline void stl_normalize_vector(stl_normal &normal) {
   double length = normal.cast<double>().norm();
@@ -414,7 +419,10 @@ inline void stl_normalize_vector(stl_normal &normal) {
 }
 extern void stl_calculate_volume(stl_file *stl);
 
-extern void stl_repair(stl_file *stl, bool fixall_flag, bool exact_flag, bool tolerance_flag, float tolerance, bool increment_flag, float increment, bool nearby_flag, int iterations, bool remove_unconnected_flag, bool fill_holes_flag, bool normal_directions_flag, bool normal_values_flag, bool reverse_all_flag, bool verbose_flag);
+extern void stl_repair(stl_file *stl, bool fixall_flag, bool exact_flag, bool tolerance_flag, float tolerance,
+                       bool increment_flag, float increment, bool nearby_flag, int iterations, bool remove_unconnected_flag,
+                       bool fill_holes_flag, bool normal_directions_flag, bool normal_values_flag, bool reverse_all_flag,
+                       bool verbose_flag);
 
 extern void stl_allocate(stl_file *stl);
 extern void stl_read(stl_file *stl, int first_facet, bool first);
