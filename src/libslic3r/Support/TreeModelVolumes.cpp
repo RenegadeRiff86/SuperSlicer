@@ -764,7 +764,8 @@ void TreeModelVolumes::calculatePlaceables(const coord_t radius, const LayerInde
 void TreeModelVolumes::calculateWallRestrictions(const std::vector<RadiusLayerPair> &keys, std::function<void()> throw_on_cancel)
 {
     // Wall restrictions are mainly important when they represent actual walls that are printed, and not "just" the configured z_distance, because technically valid placement is no excuse for moving through a wall.
-    // As they exist to prevent accidentially moving though a wall at high speed between layers like thie (x = wall,i = influence area,o= empty space,d = blocked area because of z distance) Assume maximum movement distance is two characters and maximum safe movement distance of one character
+    // As they exist to prevent accidentially moving though a wall at high speed between layers like thie (x = wall,i = influence area,o= empty space,d = blocked area because of z distance) Assume
+    // maximum movement distance is two characters and maximum safe movement distance of one character
 
     /* Potential issue addressed by the wall restrictions: Influence area may lag through a wall
      *  layer z+1:iiiiiiiiiiioooo

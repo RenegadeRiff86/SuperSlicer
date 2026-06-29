@@ -543,7 +543,8 @@ private:
     std::optional<Point>                m_last_pos;
 
     // for ramping lift: if enabled, and this is set, then you will need to move Z at the next travel.
-    // note: rampng lift and these kind of trick should eb reworked & improve when the gcode creation will be split in multiplt subsystem, these working on a chain of "command" objects. That way it should be easier to move the Z / travel accrodingly.
+    // note: rampng lift and these kind of trick should eb reworked & improve when the gcode creation will be split in multiplt subsystem, these working on a chain of "command" objects. That way it
+    // should be easier to move the Z / travel accrodingly.
     // the dangerous thing with it is when you cancel an object, then the Z move and the travel need to be dealt with correctly. currently, it's a pain to to do that.
     std::optional<double>               m_new_z_target = {};
     double                              m_next_lift_min{0};

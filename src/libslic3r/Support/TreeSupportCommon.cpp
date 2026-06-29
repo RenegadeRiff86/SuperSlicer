@@ -163,7 +163,9 @@ TreeSupportSettings::TreeSupportSettings(const TreeSupportMeshGroupSettings &mes
         xy_distance     = std::max(xy_distance, xy_min_distance);
     }
 
-//            const std::unordered_map<std::string, InterfacePreference> interface_map = { { "support_area_overwrite_interface_area", InterfacePreference::SupportAreaOverwritesInterface }, { "interface_area_overwrite_support_area", InterfacePreference::InterfaceAreaOverwritesSupport }, { "support_lines_overwrite_interface_area", InterfacePreference::SupportLinesOverwriteInterface }, { "interface_lines_overwrite_support_area", InterfacePreference::InterfaceLinesOverwriteSupport }, { "nothing", InterfacePreference::Nothing } };
+// const std::unordered_map<std::string, InterfacePreference> interface_map = { { "support_area_overwrite_interface_area", InterfacePreference::SupportAreaOverwritesInterface }, {
+// "interface_area_overwrite_support_area", InterfacePreference::InterfaceAreaOverwritesSupport }, { "support_lines_overwrite_interface_area", InterfacePreference::SupportLinesOverwriteInterface }, {
+// "interface_lines_overwrite_support_area", InterfacePreference::InterfaceLinesOverwriteSupport }, { "nothing", InterfacePreference::Nothing } };
 //            interface_preference = interface_map.at(mesh_group_settings.get<std::string>("support_interface_priority"));
 //FIXME this was the default
 //            interface_preference = InterfacePreference::SupportLinesOverwriteInterface;

@@ -2708,7 +2708,8 @@ void PrintObjectSupportMaterial::generate_base_layers(
                 // Following cases are recognized:
                 // 1) bottom.bottom_z >= base.top_z -> No overlap, no trimming needed.
                 // 2) base.bottom_z >= bottom.print_z -> No overlap, no trimming needed.
-                // 3) base.print_z > bottom.bottom_z && base.bottom_z < bottom.bottom_z -> Overlap, which will be solved inside generate_support_toolpaths() by reducing the bottom layer height where it overlaps the base layer. No trimming needed here.
+                // 3) base.print_z > bottom.bottom_z && base.bottom_z < bottom.bottom_z -> Overlap, which will be solved inside generate_support_toolpaths() by reducing the bottom layer height where
+                // it overlaps the base layer. No trimming needed here.
                 // 4) base.print_z > bottom.print_z  && base.bottom_z >= bottom.print_z -> Base overlaps with bottom.print_z. This must not happen.
                 // 5) base.print_z <= bottom.print_z && base.bottom_z >= bottom.bottom_z -> Base is fully inside top. Trim base by top.
                 idx_bottom_contact_overlapping = idx_lower_or_equal(bottom_contacts, idx_bottom_contact_overlapping, 

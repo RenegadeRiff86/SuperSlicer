@@ -897,7 +897,8 @@ static std::optional<std::pair<Point, size_t>> polyline_sample_next_point_at_dis
  * \param distance[in] The distance by which me should be offset. Expects values >=0.
  * \param collision[in] The area representing obstacles.
  * \param last_step_offset_without_check[in] The most it is allowed to offset in one step.
- * \param min_amount_offset[in] How many steps have to be done at least. As this uses round offset this increases the amount of vertices, which may be required if Polygons get very small. Required as arcTolerance is not exposed in offset, which should result with a similar result.
+ * \param min_amount_offset[in] How many steps have to be done at least. As this uses round offset this increases the amount of vertices, which may be required if Polygons get very small. Required as
+ * arcTolerance is not exposed in offset, which should result with a similar result.
  * \return The resulting Polygons object.
  */
 [[nodiscard]] static Polygons safe_offset_inc(const Polygons& me, coord_t distance, const Polygons& collision, coord_t safe_step_size, coord_t last_step_offset_without_check, size_t min_amount_offset)
@@ -1489,7 +1490,8 @@ static void generate_initial_areas(
                 }
 #if 0
                 // If the xy distance overrides the z distance, some support needs to be inserted further down.
-                //=> Analyze which support points do not fit on this layer and check if they will fit a few layers down (while adding them an infinite amount of layers down would technically be closer the the setting description, it would not produce reasonable results. )
+                // => Analyze which support points do not fit on this layer and check if they will fit a few layers down (while adding them an infinite amount of layers down would technically be
+                // closer the the setting description, it would not produce reasonable results. )
                 if (! min_xy_dist) {
                     LineInformations overhang_lines;
                     {
@@ -1929,7 +1931,8 @@ static void increase_areas_one_layer(
             coord_t projected_radius_increased = config.getRadius(parent.state.effective_radius_height + 1, parent.state.elephant_foot_increases);
             coord_t projected_radius_delta = projected_radius_increased - support_element_collision_radius(config, parent.state);
 
-            // When z distance is more than one layer up and down the Collision used to calculate the wall restriction will always include the wall (and not just the xy_min_distance) of the layer above and below like this (d = blocked area because of z distance):
+            // When z distance is more than one layer up and down the Collision used to calculate the wall restriction will always include the wall (and not just the xy_min_distance) of the layer
+            // above and below like this (d = blocked area because of z distance):
             /*
              *  layer z+1:dddddiiiiiioooo
              *  layer z+0:xxxxxdddddddddd

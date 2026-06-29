@@ -1145,7 +1145,8 @@ MedialAxis::main_fusion(ThickPolylines& pp)
                     //    std::cout << "going to merge: b1=" << i << ", b2=" << best_idx << ", main=" << biggest_main_branch_id << "\n";
                     //    std::cout << "b1=" << polyline.points.front().x() << " : " << polyline.points.front().y() << " => " << polyline.points.back().x() << " : " << polyline.points.back().y() << "\n";
                     //    std::cout << "b2=" << other.points.front().x() << " : " << other.points.front().y() << " => " << other.points.back().x() << " : " << other.points.back().y() << "\n";
-                    //    std::cout << "main=" << pp[biggest_main_branch_id].points.front().x() << " : " << pp[biggest_main_branch_id].points.front().y() << " => " << pp[biggest_main_branch_id].points.back().x() << " : " << pp[biggest_main_branch_id].points.back().y() << "\n";
+                    // std::cout << "main=" << pp[biggest_main_branch_id].points.front().x() << " : " << pp[biggest_main_branch_id].points.front().y() << " => " <<
+                    // pp[biggest_main_branch_id].points.back().x() << " : " << pp[biggest_main_branch_id].points.back().y() << "\n";
                     //}
                 }
             }

@@ -365,7 +365,8 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
                     double max_slice_closing_radius = print_object.config().slice_closing_radius; //0;
                     // get slice for each region
                     for (int idx_region = 0; idx_region < int(layer_range.volume_regions.size()); ++ idx_region) {
-                        //if(layer_range.volume_regions[idx_region].region)max_slice_closing_radius = std::max(max_slice_closing_radius, layer_range.volume_regions[idx_region].region->->config().slice_closing_radius.value; //for when slice_closing_radius will be in region
+                        // if(layer_range.volume_regions[idx_region].region)max_slice_closing_radius = std::max(max_slice_closing_radius,
+                        // layer_range.volume_regions[idx_region].region->->config().slice_closing_radius.value; //for when slice_closing_radius will be in region
                         if (! temp_slices[idx_region].expolygons.empty()) {
                             const PrintObjectRegions::VolumeRegion &region = layer_range.volume_regions[idx_region];
                             if (region.model_volume->is_modifier()) {
@@ -502,7 +503,8 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
                             for (size_t idx_region = layer_range.volume_regions.size() - 1; idx_region < layer_range.volume_regions.size(); --idx_region) {
                                 if (!temp_slices[idx_region].expolygons.empty()) {
                                     ExPolygons &region_expolys = temp_slices[idx_region].expolygons;
-                                    //if(if(layer_range.volume_regions[idx_region].region)) region_expolys = offset_ex(region_expolys, scale_d(layer_range.volume_regions[idx_region].region->config().slice_closing_radius.value)); // for when slice_closing_radius will be in region
+                                    // if(if(layer_range.volume_regions[idx_region].region)) region_expolys = offset_ex(region_expolys,
+                                    // scale_d(layer_range.volume_regions[idx_region].region->config().slice_closing_radius.value)); // for when slice_closing_radius will be in region
                                     region_expolys = offset_ex(region_expolys, scale_d(print_object.config().slice_closing_radius));
                                     // now clip it by clip_master
                                     region_expolys = intersection_ex(region_expolys, clip_master);

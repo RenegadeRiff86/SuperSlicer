@@ -2363,7 +2363,8 @@ void mark_boundary_segments_touching_infill(
                 grid.visit_cells_intersecting_line(a.cast<coord_t>(), b.cast<coord_t>(), visitor);
 #endif
 #ifdef INFILL_DEBUG_OUTPUT
-                //                export_infill_to_svg(boundary, boundary_parameters, boundary_intersections, infill, distance_colliding * 2, debug_out_path("%s-%03d-%03d-%03d.svg", "FillBase-mark_boundary_segments_touching_infill-step", iRun, iStep, int(point_idx)), { polyline });
+                // export_infill_to_svg(boundary, boundary_parameters, boundary_intersections, infill, distance_colliding * 2, debug_out_path("%s-%03d-%03d-%03d.svg",
+                // "FillBase-mark_boundary_segments_touching_infill-step", iRun, iStep, int(point_idx)), { polyline });
 #endif // INFILL_DEBUG_OUTPUT
             }
 #ifdef INFILL_DEBUG_OUTPUT
