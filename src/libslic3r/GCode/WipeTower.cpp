@@ -851,8 +851,7 @@ std::vector<WipeTower::ToolChangeResult> WipeTower::prime(
 
         // This is the first toolchange - initiate priming
         if (idx_tool == 0) {
-            writer.append(kSeparatorLine
-                          "; CP PRIMING START\n")
+            writer.append(kSeparatorLine).append("; CP PRIMING START\n")
                   .append(kSeparatorLine)
                   .speed_override_backup()
                   .speed_override(100)
@@ -946,8 +945,7 @@ WipeTower::ToolChangeResult WipeTower::tool_change(size_t tool)
         .set_z(m_z_pos + m_config->z_offset.value)
         .set_initial_tool(m_current_tool)
         .set_y_shift(m_y_shift + (tool!=no_tool && (m_current_shape == SHAPE_REVERSED) ? m_layer_info->depth - m_layer_info->toolchanges_depth(): 0.f))
-        .append(kSeparatorLine
-                "; CP TOOLCHANGE START\n");
+        .append(kSeparatorLine).append("; CP TOOLCHANGE START\n");
 
     if (tool != (unsigned)(-1)) {
         writer.comment_with_value(" toolchange #", m_num_tool_changes + 1); // the number is zero-based
@@ -1463,8 +1461,7 @@ WipeTower::ToolChangeResult WipeTower::finish_layer()
     if (dy > m_perimeter_width)
     {
         writer.travel(fill_box.ld + Vec2f(m_perimeter_width * 2, 0.f))
-              .append(kSeparatorLine
-                      "; CP EMPTY GRID START\n")
+              .append(kSeparatorLine).append("; CP EMPTY GRID START\n")
               .comment_with_value(" layer #", m_num_layer_changes + 1);
 
         // Is there a soluble filament wiped/rammed at the next layer?
