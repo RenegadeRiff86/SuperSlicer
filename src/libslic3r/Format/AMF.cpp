@@ -66,6 +66,11 @@ const char* SLIC3R_CONFIG_TYPE = "slic3rpe_config";
 namespace Slic3r
 {
 
+// Opening of an AMF <metadata type="..."> element. AMF nests metadata under
+// <object>/<material> (4-space indent) and under <volume>/<range> (8-space
+// indent); the opener recurs many times during export, so keep each in one place.
+static constexpr const char* AMF_METADATA_OPEN_4SP = "    <metadata type=\"";
+static constexpr const char* AMF_METADATA_OPEN_8SP = "        <metadata type=\"";
 
 struct AMFParserContext
 {
@@ -1177,9 +1182,9 @@ bool store_amf(std::string &path, Model *model, const DynamicPrintConfig *config
         // note that material-id must never be 0 since it's reserved by the AMF spec
         stream << "  <material id=\"" << material.first << "\">\n";
         for (const auto &attr : material.second->attributes)
-            stream << "    <metadata type=\"" << attr.first << "\">" << attr.second << "</metadata>\n";
+            stream << AMF_METADATA_OPEN_4SP << attr.first << "\">" << attr.second << "</metadata>\n";
         for (const std::string &key : material.second->config.keys())
-            stream << "    <metadata type=\"slic3r." << key << "\">" << material.second->config.opt_serialize(key) << "</metadata>\n";
+            stream << AMF_METADATA_OPEN_4SP << "slic3r." << key << "\">" << material.second->config.opt_serialize(key) << "</metadata>\n";
         stream << "  </material>\n";
     }
     std::string instances;
@@ -1188,13 +1193,13 @@ bool store_amf(std::string &path, Model *model, const DynamicPrintConfig *config
         stream << "  <object id=\"" << object_id << "\">\n";
         if (options.export_modifiers)
             for (const std::string &key : object->config.keys())
-                stream << "    <metadata type=\"slic3r." << key << "\">" << object->config.opt_serialize(key) << "</metadata>\n";
+                stream << AMF_METADATA_OPEN_4SP << "slic3r." << key << "\">" << object->config.opt_serialize(key) << "</metadata>\n";
         if (!object->name.empty())
-            stream << "    <metadata type=\"name\">" << xml_escape(object->name) << "</metadata>\n";
+            stream << AMF_METADATA_OPEN_4SP << "name\">" << xml_escape(object->name) << "</metadata>\n";
         const std::vector<double> &layer_height_profile = object->layer_height_profile.get();
         if (layer_height_profile.size() >= 4 && (layer_height_profile.size() % 2) == 0) {
             // Store the layer height profile as a single semicolon separated list.
-            stream << "    <metadata type=\"slic3r.layer_height_profile\">";
+            stream << AMF_METADATA_OPEN_4SP << "slic3r.layer_height_profile\">";
             stream << layer_height_profile.front();
             for (size_t i = 1; i < layer_height_profile.size(); ++i)
                 stream << ";" << layer_height_profile[i];
@@ -1211,11 +1216,11 @@ bool store_amf(std::string &path, Model *model, const DynamicPrintConfig *config
             for (const auto &range : config_ranges) {
                 stream << "      <range id=\"" << layer_counter << "\">\n";
 
-                stream << "        <metadata type=\"slic3r.layer_height_range\">";
+                stream << AMF_METADATA_OPEN_8SP << "slic3r.layer_height_range\">";
                 stream << range.first.first << ";" << range.first.second << "</metadata>\n";
 
                 for (const std::string& key : range.second.keys())
-                    stream << "        <metadata type=\"slic3r." << key << "\">" << range.second.opt_serialize(key) << "</metadata>\n";
+                    stream << AMF_METADATA_OPEN_8SP << "slic3r." << key << "\">" << range.second.opt_serialize(key) << "</metadata>\n";
 
                 stream << "      </range>\n";
                 layer_counter++;
@@ -1228,7 +1233,7 @@ bool store_amf(std::string &path, Model *model, const DynamicPrintConfig *config
         const std::vector<sla::SupportPoint>& sla_support_points = object->sla_support_points;
         if (!sla_support_points.empty()) {
             // Store the SLA supports as a single semicolon separated list.
-            stream << "    <metadata type=\"slic3r.sla_support_points\">";
+            stream << AMF_METADATA_OPEN_4SP << "slic3r.sla_support_points\">";
             for (size_t i = 0; i < sla_support_points.size(); ++i) {
                 if (i != 0)
                     stream << ";";
@@ -1267,13 +1272,13 @@ bool store_amf(std::string &path, Model *model, const DynamicPrintConfig *config
                 stream << "      <volume materialid=\"" << volume->material_id() << "\">\n";
             if (options.export_modifiers)
                 for (const std::string &key : volume->config.keys())
-                    stream << "        <metadata type=\"slic3r." << key << "\">" << volume->config.opt_serialize(key) << "</metadata>\n";
+                    stream << AMF_METADATA_OPEN_8SP << "slic3r." << key << "\">" << volume->config.opt_serialize(key) << "</metadata>\n";
             if (!volume->name.empty())
-                stream << "        <metadata type=\"name\">" << xml_escape(volume->name) << "</metadata>\n";
+                stream << AMF_METADATA_OPEN_8SP << "name\">" << xml_escape(volume->name) << "</metadata>\n";
             if (volume->is_modifier())
-                stream << "        <metadata type=\"slic3r.modifier\">1</metadata>\n";
-            stream << "        <metadata type=\"slic3r.volume_type\">" << ModelVolume::type_to_string(volume->type()) << "</metadata>\n";
-            stream << "        <metadata type=\"slic3r.matrix\">";
+                stream << AMF_METADATA_OPEN_8SP << "slic3r.modifier\">1</metadata>\n";
+            stream << AMF_METADATA_OPEN_8SP << "slic3r.volume_type\">" << ModelVolume::type_to_string(volume->type()) << "</metadata>\n";
+            stream << AMF_METADATA_OPEN_8SP << "slic3r.matrix\">";
             const Transform3d& matrix = volume->get_matrix() * volume->source.transform.get_matrix();
             stream << std::setprecision(std::numeric_limits<double>::max_digits10);
             for (int r = 0; r < 4; ++r) {
@@ -1286,20 +1291,20 @@ bool store_amf(std::string &path, Model *model, const DynamicPrintConfig *config
             stream << "</metadata>\n";
             if (!volume->source.input_file.empty()) {
                 std::string input_file = xml_escape(options.fullpath_sources ? volume->source.input_file : boost::filesystem::path(volume->source.input_file).filename().string());
-                stream << "        <metadata type=\"slic3r.source_file\">" << input_file << "</metadata>\n";
-                stream << "        <metadata type=\"slic3r.source_object_id\">" << volume->source.object_idx << "</metadata>\n";
-                stream << "        <metadata type=\"slic3r.source_volume_id\">" << volume->source.volume_idx << "</metadata>\n";
-                stream << "        <metadata type=\"slic3r.source_offset_x\">" << volume->source.mesh_offset(0) << "</metadata>\n";
-                stream << "        <metadata type=\"slic3r.source_offset_y\">" << volume->source.mesh_offset(1) << "</metadata>\n";
-                stream << "        <metadata type=\"slic3r.source_offset_z\">" << volume->source.mesh_offset(2) << "</metadata>\n";
+                stream << AMF_METADATA_OPEN_8SP << "slic3r.source_file\">" << input_file << "</metadata>\n";
+                stream << AMF_METADATA_OPEN_8SP << "slic3r.source_object_id\">" << volume->source.object_idx << "</metadata>\n";
+                stream << AMF_METADATA_OPEN_8SP << "slic3r.source_volume_id\">" << volume->source.volume_idx << "</metadata>\n";
+                stream << AMF_METADATA_OPEN_8SP << "slic3r.source_offset_x\">" << volume->source.mesh_offset(0) << "</metadata>\n";
+                stream << AMF_METADATA_OPEN_8SP << "slic3r.source_offset_y\">" << volume->source.mesh_offset(1) << "</metadata>\n";
+                stream << AMF_METADATA_OPEN_8SP << "slic3r.source_offset_z\">" << volume->source.mesh_offset(2) << "</metadata>\n";
             }
             assert(! volume->source.is_converted_from_inches || ! volume->source.is_converted_from_meters);
             if (volume->source.is_converted_from_inches)
-                stream << "        <metadata type=\"slic3r.source_in_inches\">1</metadata>\n";
+                stream << AMF_METADATA_OPEN_8SP << "slic3r.source_in_inches\">1</metadata>\n";
             else if (volume->source.is_converted_from_meters)
-                stream << "        <metadata type=\"slic3r.source_in_meters\">1</metadata>\n";
+                stream << AMF_METADATA_OPEN_8SP << "slic3r.source_in_meters\">1</metadata>\n";
             if (volume->source.is_from_builtin_objects)
-                stream << "        <metadata type=\"slic3r.source_is_builtin_volume\">1</metadata>\n";
+                stream << AMF_METADATA_OPEN_8SP << "slic3r.source_is_builtin_volume\">1</metadata>\n";
             stream << std::setprecision(std::numeric_limits<float>::max_digits10);
             const indexed_triangle_set &its = volume->mesh().its;
             for (size_t i = 0; i < its.indices.size(); ++i) {
