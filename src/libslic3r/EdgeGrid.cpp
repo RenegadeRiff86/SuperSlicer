@@ -29,6 +29,11 @@
 
 namespace Slic3r {
 
+// Maximum value of an 8-bit color channel, used by the EDGE_GRID_DEBUG_OUTPUT
+// signed-distance-field PNG visualizations below. [[maybe_unused]] because those
+// blocks are only compiled when the debug macro is defined.
+[[maybe_unused]] static constexpr int PIXEL_CHANNEL_MAX = 255;
+
 void EdgeGrid::Grid::create(const Polygon &polygon, coord_t resolution)
 {
     // Collect the contours.
@@ -797,15 +802,15 @@ void EdgeGrid::Grid::calculate_sdf()
                 uint8_t *pxl = pixels.data() + (((nrows - r - 1) * ncols) + c) * 3;
                 float d = m_signed_distance_field[r * ncols + c];
                 if (d != search_radius) {
-                    float s = 255 * d / search_radius;
-                    int is = std::max(0, std::min(255, int(floor(s + 0.5f))));
-                    pxl[0] = 255;
-                    pxl[1] = 255 - is;
-                    pxl[2] = 255 - is;
+                    float s = PIXEL_CHANNEL_MAX * d / search_radius;
+                    int is = std::max(0, std::min(PIXEL_CHANNEL_MAX, int(floor(s + 0.5f))));
+                    pxl[0] = PIXEL_CHANNEL_MAX;
+                    pxl[1] = PIXEL_CHANNEL_MAX - is;
+                    pxl[2] = PIXEL_CHANNEL_MAX - is;
                 }
                 else {
                     pxl[0] = 0;
-                    pxl[1] = 255;
+                    pxl[1] = PIXEL_CHANNEL_MAX;
                     pxl[2] = 0;
                 }
             }
@@ -819,24 +824,24 @@ void EdgeGrid::Grid::calculate_sdf()
                 unsigned char *pxl = pixels.data() + (((nrows - r - 1) * ncols) + c) * 3;
                 float d = m_signed_distance_field[r * ncols + c];
                 if (d != search_radius) {
-                    float s = 255 * d / search_radius;
-                    int is = std::max(0, std::min(255, int(floor(s + 0.5f))));
+                    float s = PIXEL_CHANNEL_MAX * d / search_radius;
+                    int is = std::max(0, std::min(PIXEL_CHANNEL_MAX, int(floor(s + 0.5f))));
                     if ((signs[r * ncols + c] & 1) == 0) {
                         // Positive
-                        pxl[0] = 255;
-                        pxl[1] = 255 - is;
-                        pxl[2] = 255 - is;
+                        pxl[0] = PIXEL_CHANNEL_MAX;
+                        pxl[1] = PIXEL_CHANNEL_MAX - is;
+                        pxl[2] = PIXEL_CHANNEL_MAX - is;
                     }
                     else {
                         // Negative
-                        pxl[0] = 255 - is;
-                        pxl[1] = 255 - is;
-                        pxl[2] = 255;
+                        pxl[0] = PIXEL_CHANNEL_MAX - is;
+                        pxl[1] = PIXEL_CHANNEL_MAX - is;
+                        pxl[2] = PIXEL_CHANNEL_MAX;
                     }
                 }
                 else {
                     pxl[0] = 0;
-                    pxl[1] = 255;
+                    pxl[1] = PIXEL_CHANNEL_MAX;
                     pxl[2] = 0;
                 }
             }
@@ -928,11 +933,11 @@ void EdgeGrid::Grid::calculate_sdf()
                     // Positive, outside of a narrow band.
                     pxl[0] = 0;
                     pxl[1] = 0;
-                    pxl[2] = 255;
+                    pxl[2] = PIXEL_CHANNEL_MAX;
                     break;
                 case 1:
                     // Negative, outside of a narrow band.
-                    pxl[0] = 255;
+                    pxl[0] = PIXEL_CHANNEL_MAX;
                     pxl[1] = 0;
                     pxl[2] = 0;
                     break;
@@ -940,25 +945,25 @@ void EdgeGrid::Grid::calculate_sdf()
                     // Positive, outside of a narrow band.
                     pxl[0] = 100;
                     pxl[1] = 100;
-                    pxl[2] = 255;
+                    pxl[2] = PIXEL_CHANNEL_MAX;
                     break;
                 case 3:
                     // Negative, outside of a narrow band.
-                    pxl[0] = 255;
+                    pxl[0] = PIXEL_CHANNEL_MAX;
                     pxl[1] = 100; 
                     pxl[2] = 100;
                     break;
                 case 4:
                     // This shall not happen. Undefined signum.
                     pxl[0] = 0;
-                    pxl[1] = 255;
+                    pxl[1] = PIXEL_CHANNEL_MAX;
                     pxl[2] = 0;
                     break;
                 default:
                     // This shall not happen. Invalid signum value.
-                    pxl[0] = 255;
-                    pxl[1] = 255;
-                    pxl[2] = 255;
+                    pxl[0] = PIXEL_CHANNEL_MAX;
+                    pxl[1] = PIXEL_CHANNEL_MAX;
+                    pxl[2] = PIXEL_CHANNEL_MAX;
                     break;
                 }
             }
@@ -975,17 +980,17 @@ void EdgeGrid::Grid::calculate_sdf()
             for (coord_t c = 0; c < ncols; ++c) {
                 uint8_t *pxl = pixels.data() + (((nrows - r - 1) * ncols) + c) * 3;
                 float d = m_signed_distance_field[r * ncols + c];
-                float s = 255.f * fabs(d) / search_radius;
-                int is = std::max(0, std::min(255, int(floor(s + 0.5f))));
+                float s = PIXEL_CHANNEL_MAX * fabs(d) / search_radius;
+                int is = std::max(0, std::min(PIXEL_CHANNEL_MAX, int(floor(s + 0.5f))));
                 if (d < 0.f) {
-                    pxl[0] = 255;
-                    pxl[1] = 255 - is;
-                    pxl[2] = 255 - is;
+                    pxl[0] = PIXEL_CHANNEL_MAX;
+                    pxl[1] = PIXEL_CHANNEL_MAX - is;
+                    pxl[2] = PIXEL_CHANNEL_MAX - is;
                 }
                 else {
-                    pxl[0] = 255 - is;
-                    pxl[1] = 255 - is;
-                    pxl[2] = 255;
+                    pxl[0] = PIXEL_CHANNEL_MAX - is;
+                    pxl[1] = PIXEL_CHANNEL_MAX - is;
+                    pxl[2] = PIXEL_CHANNEL_MAX;
                 }
             }
         }
@@ -1521,33 +1526,33 @@ void EdgeGrid::save_png(const EdgeGrid::Grid &grid, const BoundingBox &bbox, coo
             #else
             if (grid.signed_distance(pt, search_radius, min_dist)) {
             #endif
-                float s = float(255 * std::abs(min_dist)) / float(display_blend_radius);
-                int is = std::max(0, std::min(255, int(floor(s + 0.5f))));
+                float s = float(PIXEL_CHANNEL_MAX * std::abs(min_dist)) / float(display_blend_radius);
+                int is = std::max(0, std::min(PIXEL_CHANNEL_MAX, int(floor(s + 0.5f))));
                 if (min_dist < 0) {
                     if (on_segment) {
-                        pxl[0] = 255;
-                        pxl[1] = 255 - is;
-                        pxl[2] = 255 - is;
+                        pxl[0] = PIXEL_CHANNEL_MAX;
+                        pxl[1] = PIXEL_CHANNEL_MAX - is;
+                        pxl[2] = PIXEL_CHANNEL_MAX - is;
                     } else {
-                        pxl[0] = 255;
+                        pxl[0] = PIXEL_CHANNEL_MAX;
                         pxl[1] = 0;
-                        pxl[2] = 255 - is;
+                        pxl[2] = PIXEL_CHANNEL_MAX - is;
                     }
                 }
                 else {
                     if (on_segment) {
-                        pxl[0] = 255 - is;
-                        pxl[1] = 255 - is;
-                        pxl[2] = 255;
+                        pxl[0] = PIXEL_CHANNEL_MAX - is;
+                        pxl[1] = PIXEL_CHANNEL_MAX - is;
+                        pxl[2] = PIXEL_CHANNEL_MAX;
                     } else {
-                        pxl[0] = 255 - is;
+                        pxl[0] = PIXEL_CHANNEL_MAX - is;
                         pxl[1] = 0;
-                        pxl[2] = 255;
+                        pxl[2] = PIXEL_CHANNEL_MAX;
                     }
                 }
             } else {
                 pxl[0] = 0;
-                pxl[1] = 255;
+                pxl[1] = PIXEL_CHANNEL_MAX;
                 pxl[2] = 0;
             }
 
@@ -1579,8 +1584,8 @@ void EdgeGrid::save_png(const EdgeGrid::Grid &grid, const BoundingBox &bbox, coo
                 pxl[2] = static_cast<unsigned char>(t * pxl[2]);
                 if (igrid > 0.f) {
                     // Other than zero iso contour.
-                    int g = int(pxl[1] + 255.f * (1.f - t));
-                    pxl[1] = std::min(g, 255);
+                    int g = int(pxl[1] + PIXEL_CHANNEL_MAX * (1.f - t));
+                    pxl[1] = std::min(g, PIXEL_CHANNEL_MAX);
                 }
             }
         }
