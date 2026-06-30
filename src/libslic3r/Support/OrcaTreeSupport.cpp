@@ -47,6 +47,10 @@
 #endif
 namespace Slic3r
 {
+
+// Repeated string literals extracted to named constants (BP1001).
+static constexpr const char* kOverhang = "overhang";
+static constexpr const char* kGeneratingSupport = "Generating support";
 #define unscale_(val) ((val) * SCALING_FACTOR)
 
 inline double dot_with_unscale(const Point a, const Point b)
@@ -197,7 +201,7 @@ static void draw_contours_and_nodes_to_svg
     const ExPolygons &outlines_below,
     const std::vector<SupportNode*>& layer_nodes,
     const std::vector<SupportNode*>& lower_layer_nodes,
-    std::vector<std::string> legends = { "overhang","avoid","outlines" },
+    std::vector<std::string> legends = { kOverhang,"avoid","outlines" },
     std::vector<std::string> colors = { "blue","red","yellow" }
 )
 {
@@ -1000,7 +1004,7 @@ void OrcaTreeSupport::detect_overhangs(bool check_support_necessity/* = false*/)
             SVG::export_expolygons(fname, {
                 { layer1->lslices, {"min_layer_lslices","red",0.5} },
                 { m_object->get_layer(cluster.max_layer)->lslices, {"max_layer_lslices","yellow",0.5} },
-                { cluster.merged_poly,{"overhang", "blue", 0.5} },
+                { cluster.merged_poly,{kOverhang, "blue", 0.5} },
                 { cluster.is_cantilever? layer1->cantilevers: offset_ex(cluster.merged_poly, -1 * extrusion_width_scaled), {cluster.is_cantilever ? "cantilever":"erode1","green",0.5}} });
 #endif
         }
@@ -1101,7 +1105,7 @@ void OrcaTreeSupport::detect_overhangs(bool check_support_necessity/* = false*/)
 
         SVG::export_expolygons(debug_out_path("overhang_areas_%d_%.2f.svg",layer->id(), layer->print_z), {
             { m_object->get_layer(layer->id())->lslices_extrudable, {"lslices_extrudable","yellow",0.5} },
-            { layer->loverhangs, {"overhang","red",0.5} }
+            { layer->loverhangs, {kOverhang,"red",0.5} }
             });
 
         if (enforcers.size() > layer->id()) {
@@ -1670,7 +1674,7 @@ void OrcaTreeSupport::generate()
 
     // Generate overhang areas
     profiler.stage_start(STAGE_DETECT_OVERHANGS);
-    m_object->print()->set_status(55, _u8L("Generating support"));
+    m_object->print()->set_status(55, _u8L(kGeneratingSupport));
     detect_overhangs();
     profiler.stage_finish(STAGE_DETECT_OVERHANGS);
 
@@ -1691,7 +1695,7 @@ void OrcaTreeSupport::generate()
 
     //Drop nodes to lower layers.
     profiler.stage_start(STAGE_DROP_DOWN_NODES);
-    m_object->print()->set_status(60, _u8L("Generating support"));
+    m_object->print()->set_status(60, _u8L(kGeneratingSupport));
     drop_nodes();
     profiler.stage_finish(STAGE_DROP_DOWN_NODES);
 
@@ -1699,14 +1703,14 @@ void OrcaTreeSupport::generate()
 
     //Generate support areas.
     profiler.stage_start(STAGE_DRAW_CIRCLES);
-    m_object->print()->set_status(65, _u8L("Generating support"));
+    m_object->print()->set_status(65, _u8L(kGeneratingSupport));
     draw_circles();
     profiler.stage_finish(STAGE_DRAW_CIRCLES);
 
 
 
     profiler.stage_start(STAGE_GENERATE_TOOLPATHS);
-    m_object->print()->set_status(70, _u8L("Generating support"));
+    m_object->print()->set_status(70, _u8L(kGeneratingSupport));
     generate_toolpaths();
     profiler.stage_finish(STAGE_GENERATE_TOOLPATHS);
 
@@ -2524,7 +2528,7 @@ void OrcaTreeSupport::drop_nodes()
 
         std::deque<std::pair<size_t, SupportNode*>> unsupported_branch_leaves; // All nodes that are leaves on this layer that would result in unsupported ('mid-air') branches.
 
-        m_object->print()->set_status(60 + int(10 * (1 - float(layer_nr) / contact_nodes.size())), _u8L("Generating support"));// (boost::format(_u8L("Support: propagate branches at layer %d")) % layer_nr).str());
+        m_object->print()->set_status(60 + int(10 * (1 - float(layer_nr) / contact_nodes.size())), _u8L(kGeneratingSupport));// (boost::format(_u8L("Support: propagate branches at layer %d")) % layer_nr).str());
 
         Polygons layer_contours = std::move(m_ts_data->get_contours_with_holes(obj_layer_nr));
         //std::unordered_map<Line, bool, LineHash>& mst_line_x_layer_contour_cache = m_mst_line_x_layer_contour_caches[layer_nr];
@@ -2894,7 +2898,7 @@ void OrcaTreeSupport::drop_nodes()
             draw_contours_and_nodes_to_svg(debug_out_path("contact_points_%.2f.svg", contact_nodes[layer_nr][0]->print_z), get_collision(0,obj_layer_nr_next),
                                            get_avoidance(branch_radius_temp, obj_layer_nr),
                                            m_ts_data->m_layer_outlines[obj_layer_nr],
-            contact_nodes[layer_nr], contact_nodes[layer_nr_next], { "overhang","avoid","outline" }, { "blue","red","yellow" });
+            contact_nodes[layer_nr], contact_nodes[layer_nr_next], { kOverhang,"avoid","outline" }, { "blue","red","yellow" });
 
             BOOST_LOG_TRIVIAL(debug) << "drop_nodes layer->next " << layer_nr << "->" << layer_nr_next << ", print_z=" << print_z
                 << ", num points: " << contact_nodes[layer_nr].size() << "->" << contact_nodes[layer_nr_next].size();
@@ -3360,7 +3364,7 @@ void OrcaTreeSupport::generate_contact_points()
 #ifdef SUPPORT_TREE_DEBUG_TO_SVG
             if (!curr_nodes.empty())
             draw_contours_and_nodes_to_svg(debug_out_path("init_contact_points_%.2f.svg", bottom_z), layer->loverhangs,layer->lslices_extrudable, m_ts_data->m_layer_outlines_below[layer_nr],
-                contact_nodes[layer_nr], contact_nodes[layer_nr - 1], { "overhang","lslices","outlines_below"});
+                contact_nodes[layer_nr], contact_nodes[layer_nr - 1], { kOverhang,"lslices","outlines_below"});
 #endif
         }}
     ); // end tbb::parallel_for

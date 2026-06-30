@@ -674,6 +674,10 @@ bool bbs_is_valid_object_type(const std::string& type)
 
 namespace Slic3r {
 
+// Repeated string literals extracted to named constants (BP1001).
+static constexpr const char* kExtruder = "extruder";
+static constexpr const char* kGcodeLabelObjects = "gcode_label_objects";
+
 void PlateData::parse_filament_info(GCodeProcessorResult *result)
 {
     if (!result) return;
@@ -1414,16 +1418,16 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         if (m_bambuslicer_generator_version)
             file_version = *m_bambuslicer_generator_version;
         if (result && plate_data_list.size() > 0) {
-            if(config.opt<ConfigOptionEnum<LabelObjectsStyle>>("gcode_label_objects") == nullptr)
-                config.set_key_value("gcode_label_objects", new ConfigOptionEnum<LabelObjectsStyle>(LabelObjectsStyle::Disabled));
-            LabelObjectsStyle has_label_objests = config.opt<ConfigOptionEnum<LabelObjectsStyle>>("gcode_label_objects")->value;
-                config.opt<ConfigOptionEnum<LabelObjectsStyle>>("gcode_label_objects")->value;
+            if(config.opt<ConfigOptionEnum<LabelObjectsStyle>>(kGcodeLabelObjects) == nullptr)
+                config.set_key_value(kGcodeLabelObjects, new ConfigOptionEnum<LabelObjectsStyle>(LabelObjectsStyle::Disabled));
+            LabelObjectsStyle has_label_objests = config.opt<ConfigOptionEnum<LabelObjectsStyle>>(kGcodeLabelObjects)->value;
+                config.opt<ConfigOptionEnum<LabelObjectsStyle>>(kGcodeLabelObjects)->value;
             if (has_label_objests == LabelObjectsStyle::Disabled) {
                 bool a_plate_has_label_obejct = false;
                 for (PlateData *plate : plate_data_list)
                     a_plate_has_label_obejct = a_plate_has_label_obejct || plate->is_label_object_enabled;
                 if (a_plate_has_label_obejct)
-                    config.opt<ConfigOptionEnum<LabelObjectsStyle>>("gcode_label_objects")->value = LabelObjectsStyle::Both;
+                    config.opt<ConfigOptionEnum<LabelObjectsStyle>>(kGcodeLabelObjects)->value = LabelObjectsStyle::Both;
             }
             std::string print_vars = config.opt<ConfigOptionString>("print_custom_variables") == nullptr ? "" : config.opt<ConfigOptionString>("print_custom_variables")->value;
             if (print_vars.find("plate_name") == std::string::npos && plate_data_list.front()) {
@@ -2138,7 +2142,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                     // get color
                     auto extruder_itor = color_group_id_to_extruder_id_map.find(current_object->second.pid);
                     if (extruder_itor != color_group_id_to_extruder_id_map.end()) {
-                        model_object->config.set_key_value("extruder", new ConfigOptionInt(extruder_itor->second));
+                        model_object->config.set_key_value(kExtruder, new ConfigOptionInt(extruder_itor->second));
                     }
                 }
 
@@ -2208,27 +2212,27 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         const ConfigOptionStrings* filament_ids_opt = config.option<ConfigOptionStrings>("filament_settings_id");
         int max_filament_id = filament_ids_opt ? filament_ids_opt->size() : std::numeric_limits<int>::max();
         for (ModelObject* mo : m_model->objects) {
-            const ConfigOptionInt* extruder_opt = dynamic_cast<const ConfigOptionInt*>(mo->config.option("extruder"));
+            const ConfigOptionInt* extruder_opt = dynamic_cast<const ConfigOptionInt*>(mo->config.option(kExtruder));
             int extruder_id = 0;
             if (extruder_opt != nullptr)
                 extruder_id = extruder_opt->get_int();
 
             if (extruder_id == 0 || extruder_id > max_filament_id)
-                mo->config.set_key_value("extruder", new ConfigOptionInt(1));
+                mo->config.set_key_value(kExtruder, new ConfigOptionInt(1));
 
             if (mo->volumes.size() == 1) {
-                mo->volumes[0]->config.erase("extruder");
+                mo->volumes[0]->config.erase(kExtruder);
             }
             else {
                 for (ModelVolume* mv : mo->volumes) {
-                    const ConfigOptionInt* vol_extruder_opt = dynamic_cast<const ConfigOptionInt*>(mv->config.option("extruder"));
+                    const ConfigOptionInt* vol_extruder_opt = dynamic_cast<const ConfigOptionInt*>(mv->config.option(kExtruder));
                     if (vol_extruder_opt == nullptr)
                         continue;
 
                     if (vol_extruder_opt->get_int() == 0)
-                        mv->config.erase("extruder");
+                        mv->config.erase(kExtruder);
                     else if (vol_extruder_opt->get_int() > max_filament_id)
-                        mv->config.set_key_value("extruder", new ConfigOptionInt(1));
+                        mv->config.set_key_value(kExtruder, new ConfigOptionInt(1));
                 }
             }
         }
@@ -2904,7 +2908,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                         //config.set_deserialize(opt_key, value, config_substitutions);
                         key_values_to_deserialize[opt_key] = value;
                     }
-                    assert(key_values_to_deserialize.find("extruder") != key_values_to_deserialize.end());
+                    assert(key_values_to_deserialize.find(kExtruder) != key_values_to_deserialize.end());
                     assert(key_values_to_deserialize.find("layer_height") != key_values_to_deserialize.end());
                     convert_settings_from_bambu(key_values_to_deserialize, config, config_substitutions, false);
                     config_ranges[{ min_z, max_z }].assign_config(std::move(config));

@@ -51,6 +51,9 @@ static const std::vector<std::string> DEFAULT_EXTRUDER_COLORS = { "#FF8000", "#D
 
 namespace Slic3r {
 
+// Repeated string literals extracted to named constants (BP1001).
+static constexpr const char* kErrorReadingFile = "Error reading file %1%: %2%";
+
 const std::vector<std::string> GCodeProcessor::Reserved_Tags = {
     "TYPE:",
     "WIPE_START",
@@ -1320,7 +1323,7 @@ void GCodeProcessor::process_binary_file(const std::string& filename, std::funct
     std::vector<std::byte> cs_buffer(65536);
     res = read_next_block_header(*file.f, file_header, block_header, cs_buffer.data(), cs_buffer.size());
     if (res != EResult::Success)
-        throw Slic3r::RuntimeError(format("Error reading file %1%: %2%", filename, std::string(translate_result(res))));
+        throw Slic3r::RuntimeError(format(kErrorReadingFile, filename, std::string(translate_result(res))));
     if ((EBlockType)block_header.type != EBlockType::FileMetadata && 
         (EBlockType)block_header.type != EBlockType::PrinterMetadata)
         throw Slic3r::RuntimeError(format("Unable to find file metadata block in file %1%", filename));
@@ -1328,7 +1331,7 @@ void GCodeProcessor::process_binary_file(const std::string& filename, std::funct
         FileMetadataBlock file_metadata_block;
         res = file_metadata_block.read_data(*file.f, file_header, block_header);
         if (res != EResult::Success)
-            throw Slic3r::RuntimeError(format("Error reading file %1%: %2%", filename, std::string(translate_result(res))));
+            throw Slic3r::RuntimeError(format(kErrorReadingFile, filename, std::string(translate_result(res))));
         auto producer_it = std::find_if(file_metadata_block.raw_data.begin(), file_metadata_block.raw_data.end(),
             [](const std::pair<std::string, std::string>& item) { return item.first == "Producer"; });
         if (producer_it != file_metadata_block.raw_data.end() && boost::starts_with(producer_it->second, std::string(SLIC3R_APP_NAME)))
@@ -1337,7 +1340,7 @@ void GCodeProcessor::process_binary_file(const std::string& filename, std::funct
             m_producer = EProducer::Unknown;
         res = read_next_block_header(*file.f, file_header, block_header, cs_buffer.data(), cs_buffer.size());
         if (res != EResult::Success)
-            throw Slic3r::RuntimeError(format("Error reading file %1%: %2%", filename, std::string(translate_result(res))));
+            throw Slic3r::RuntimeError(format(kErrorReadingFile, filename, std::string(translate_result(res))));
     }
     else {
         m_producer = EProducer::Unknown;
@@ -1349,21 +1352,21 @@ void GCodeProcessor::process_binary_file(const std::string& filename, std::funct
     PrinterMetadataBlock printer_metadata_block;
     res = printer_metadata_block.read_data(*file.f, file_header, block_header);
     if (res != EResult::Success)
-        throw Slic3r::RuntimeError(format("Error reading file %1%: %2%", filename, std::string(translate_result(res))));
+        throw Slic3r::RuntimeError(format(kErrorReadingFile, filename, std::string(translate_result(res))));
 
     // read thumbnail blocks
     res = read_next_block_header(*file.f, file_header, block_header, cs_buffer.data(), cs_buffer.size());
     if (res != EResult::Success)
-        throw Slic3r::RuntimeError(format("Error reading file %1%: %2%", filename, std::string(translate_result(res))));
+        throw Slic3r::RuntimeError(format(kErrorReadingFile, filename, std::string(translate_result(res))));
 
     while ((EBlockType)block_header.type == EBlockType::Thumbnail) {
         ThumbnailBlock thumbnail_block;
         res = thumbnail_block.read_data(*file.f, file_header, block_header);
         if (res != EResult::Success)
-            throw Slic3r::RuntimeError(format("Error reading file %1%: %2%", filename, std::string(translate_result(res))));
+            throw Slic3r::RuntimeError(format(kErrorReadingFile, filename, std::string(translate_result(res))));
         res = read_next_block_header(*file.f, file_header, block_header, cs_buffer.data(), cs_buffer.size());
         if (res != EResult::Success)
-            throw Slic3r::RuntimeError(format("Error reading file %1%: %2%", filename, std::string(translate_result(res))));
+            throw Slic3r::RuntimeError(format(kErrorReadingFile, filename, std::string(translate_result(res))));
     }
 
     // read print metadata block
@@ -1372,18 +1375,18 @@ void GCodeProcessor::process_binary_file(const std::string& filename, std::funct
     PrintMetadataBlock print_metadata_block;
     res = print_metadata_block.read_data(*file.f, file_header, block_header);
     if (res != EResult::Success)
-        throw Slic3r::RuntimeError(format("Error reading file %1%: %2%", filename, std::string(translate_result(res))));
+        throw Slic3r::RuntimeError(format(kErrorReadingFile, filename, std::string(translate_result(res))));
 
     // read slicer metadata block
     res = read_next_block_header(*file.f, file_header, block_header, cs_buffer.data(), cs_buffer.size());
     if (res != EResult::Success)
-        throw Slic3r::RuntimeError(format("Error reading file %1%: %2%", filename, std::string(translate_result(res))));
+        throw Slic3r::RuntimeError(format(kErrorReadingFile, filename, std::string(translate_result(res))));
     if ((EBlockType)block_header.type != EBlockType::SlicerMetadata)
         throw Slic3r::RuntimeError(format("Unable to find slicer metadata block in file %1%", filename));
     SlicerMetadataBlock slicer_metadata_block;
     res = slicer_metadata_block.read_data(*file.f, file_header, block_header);
     if (res != EResult::Success)
-        throw Slic3r::RuntimeError(format("Error reading file %1%: %2%", filename, std::string(translate_result(res))));
+        throw Slic3r::RuntimeError(format(kErrorReadingFile, filename, std::string(translate_result(res))));
     DynamicPrintConfig config;
     config.apply(FullPrintConfig::defaults());
     std::string str;
@@ -1404,14 +1407,14 @@ void GCodeProcessor::process_binary_file(const std::string& filename, std::funct
     // read gcodes block
     res = read_next_block_header(*file.f, file_header, block_header, cs_buffer.data(), cs_buffer.size());
     if (res != EResult::Success)
-        throw Slic3r::RuntimeError(format("Error reading file %1%: %2%", filename, std::string(translate_result(res))));
+        throw Slic3r::RuntimeError(format(kErrorReadingFile, filename, std::string(translate_result(res))));
     if ((EBlockType)block_header.type != EBlockType::GCode)
         throw Slic3r::RuntimeError(format("Unable to find gcode block in file %1%", filename));
     while ((EBlockType)block_header.type == EBlockType::GCode) {
         GCodeBlock block;
         res = block.read_data(*file.f, file_header, block_header);
         if (res != EResult::Success)
-            throw Slic3r::RuntimeError(format("Error reading file %1%: %2%", filename, std::string(translate_result(res))));
+            throw Slic3r::RuntimeError(format(kErrorReadingFile, filename, std::string(translate_result(res))));
 
         std::vector<size_t>& lines_ends = m_result.lines_ends.emplace_back(std::vector<size_t>());
         update_lines_ends_and_out_file_pos(block.raw_data, lines_ends, nullptr);
@@ -1425,7 +1428,7 @@ void GCodeProcessor::process_binary_file(const std::string& filename, std::funct
 
         res = read_next_block_header(*file.f, file_header, block_header, cs_buffer.data(), cs_buffer.size());
         if (res != EResult::Success)
-            throw Slic3r::RuntimeError(format("Error reading file %1%: %2%", filename, std::string(translate_result(res))));
+            throw Slic3r::RuntimeError(format(kErrorReadingFile, filename, std::string(translate_result(res))));
     }
 
     // Don't post-process the G-code to update time stamps.

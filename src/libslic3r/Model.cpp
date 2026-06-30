@@ -49,6 +49,9 @@
 
 namespace Slic3r {
 
+// Repeated string literals extracted to named constants (BP1001).
+static constexpr const char* kExtruder = "extruder";
+
 Model& Model::assign_copy(const Model &rhs)
 {
     this->copy_id(rhs);
@@ -535,7 +538,7 @@ void Model::convert_multipart_object(unsigned int max_extruders)
             auto copy_volume = [o, max_extruders, &counter, &extruder_counter](ModelVolume *new_v) {
                 assert(new_v != nullptr);
                 new_v->name = (counter > 1) ? o->name + "_" + std::to_string(counter++) : o->name;
-                new_v->config.set("extruder", auto_extruder_id(max_extruders, extruder_counter));
+                new_v->config.set(kExtruder, auto_extruder_id(max_extruders, extruder_counter));
                 return new_v;
             };
             if (o->instances.empty()) {
@@ -1516,8 +1519,8 @@ void ModelObject::split(ModelObjectPtrs* new_objects)
             // Invalidate extruder value in volume's config,
             // otherwise there will no way to change extruder for object after splitting,
             // because volume's extruder value overrides object's extruder value.
-            if (new_vol->config.has("extruder"))
-                new_vol->config.set_key_value("extruder", new ConfigOptionInt(0));
+            if (new_vol->config.has(kExtruder))
+                new_vol->config.set_key_value(kExtruder, new ConfigOptionInt(0));
 
             for (ModelInstance* model_instance : new_object->instances) {
                 const Vec3d shift = model_instance->get_transformation().get_matrix_no_offset() * new_vol->get_offset();
@@ -1831,9 +1834,9 @@ int ModelVolume::extruder_id() const
 {
     int extruder_id = -1;
     if (this->is_model_part()) {
-        const ConfigOption *opt = this->config.option("extruder");
+        const ConfigOption *opt = this->config.option(kExtruder);
         if ((opt == nullptr) || (opt->get_int() == 0))
-            opt = this->object->config.option("extruder");
+            opt = this->object->config.option(kExtruder);
         extruder_id = (opt == nullptr) ? 0 : opt->get_int();
     }
     return extruder_id;
@@ -1983,7 +1986,7 @@ size_t ModelVolume::split(unsigned int max_extruders)
         this->object->volumes[ivolume]->center_geometry_after_creation();
         this->object->volumes[ivolume]->translate(offset);
         this->object->volumes[ivolume]->name = name + "_" + std::to_string(idx + 1);
-        this->object->volumes[ivolume]->config.set("extruder", auto_extruder_id(max_extruders, extruder_counter));
+        this->object->volumes[ivolume]->config.set(kExtruder, auto_extruder_id(max_extruders, extruder_counter));
         this->object->volumes[ivolume]->m_is_splittable = 0;
         ++ idx;
     }
@@ -2381,7 +2384,7 @@ bool model_has_multi_part_objects(const Model &model)
 bool model_has_advanced_features(const Model &model)
 {
     auto config_is_advanced = [](const ModelConfig &config) {
-        return ! (config.empty() || (config.size() == 1 && config.cbegin()->first == "extruder"));
+        return ! (config.empty() || (config.size() == 1 && config.cbegin()->first == kExtruder));
     };
     for (const ModelObject *model_object : model.objects) {
         // Is there more than one instance or advanced config data?

@@ -21,6 +21,9 @@
 
 namespace Slic3r {
 
+// Repeated string literals extracted to named constants (BP1001).
+static constexpr const char* kExtrusionWidth = "_extrusion_width";
+
 FlowErrorNegativeSpacing::FlowErrorNegativeSpacing() : 
     FlowError("Flow::spacing() produced negative spacing. Did you set some extrusion width too small, or the (maximum) layer height too high?") {}
 
@@ -137,8 +140,8 @@ const ConfigOptionFloatOrPercent* Flow::extrusion_width_option(const std::string
         opt_key = opt_key.substr(0,opt_key.size() - 7);
         opt_key += "width";
     }
-    if (!boost::ends_with(opt_key, "_extrusion_width")) {
-        opt_key += "_extrusion_width";
+    if (!boost::ends_with(opt_key, kExtrusionWidth)) {
+        opt_key += kExtrusionWidth;
     }
 
     const ConfigOptionFloatOrPercent* opt = config.option<ConfigOptionFloatOrPercent>(opt_key);
@@ -225,16 +228,16 @@ const ConfigOptionFloatOrPercent* Flow::extrusion_spacing_option(const std::stri
     std::string opt_key_width;
     if (boost::starts_with(opt_key, "skirt")) {
         //skirt have only width setting
-        if (!boost::ends_with(opt_key, "_extrusion_width")) {
-            opt_key += "_extrusion_width";
+        if (!boost::ends_with(opt_key, kExtrusionWidth)) {
+            opt_key += kExtrusionWidth;
         }
         opt_key_width = opt_key;
     } else {//brim
-        if (boost::ends_with(opt_key, "_extrusion_width")) {
+        if (boost::ends_with(opt_key, kExtrusionWidth)) {
             boost::replace_first(opt_key, "_width", "_spacing");
         }
         if (!boost::ends_with(opt_key, "_extrusion_spacing")) {
-            opt_key_width = opt_key + "_extrusion_width";
+            opt_key_width = opt_key + kExtrusionWidth;
             opt_key += "_extrusion_spacing";
         } else {
             opt_key_width = opt_key;

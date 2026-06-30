@@ -75,6 +75,12 @@
 
 namespace Slic3r {
 
+// Repeated string literals extracted to named constants (BP1001).
+static constexpr const char* kIndexingAnEmptyVectorVariable = "Indexing an empty vector variable";
+static constexpr const char* kUnknownScalarVariableType = "Unknown scalar variable type";
+static constexpr const char* kReferencingVectorAsScalar = "Referencing a vector variable when scalar is expected";
+static constexpr const char* kExpectingAnExpression = "Expecting an expression.";
+
 PlaceholderParser::PlaceholderParser(const DynamicConfig *external_config) : m_external_config(external_config)
 {
     this->set("version", std::string(SLIC3R_VERSION));
@@ -1007,7 +1013,7 @@ namespace client
             } else {
                 const ConfigOptionVectorBase *vec = static_cast<const ConfigOptionVectorBase*>(opt);
                 if (vec->empty())
-                    ctx->throw_exception("Indexing an empty vector variable", opt_key);
+                    ctx->throw_exception(kIndexingAnEmptyVectorVariable, opt_key);
                 if (idx >= vec->size())
                     idx = 0;
                 output = vec->serialize_at(idx);
@@ -1042,7 +1048,7 @@ namespace client
                 ctx->throw_exception("Trying to index a scalar variable", opt_key);
             const ConfigOptionVectorBase *vec = static_cast<const ConfigOptionVectorBase*>(opt);
             if (vec->empty())
-                ctx->throw_exception("Indexing an empty vector variable", opt_key);
+                ctx->throw_exception(kIndexingAnEmptyVectorVariable, opt_key);
             const ConfigOption *opt_index = ctx->resolve_symbol(std::string(opt_vector_index.begin(), opt_vector_index.end()));
             if (opt_index == nullptr)
                 ctx->throw_exception("Variable does not exist", opt_key);
@@ -1139,7 +1145,7 @@ namespace client
             if (opt.opt->is_vector()) {
                 vector_opt = static_cast<const ConfigOptionVectorBase*>(opt.opt);
                 if (!vector_opt->is_extruder_size())
-                    ctx->throw_exception("Referencing a vector variable when scalar is expected", opt.it_range);
+                    ctx->throw_exception(kReferencingVectorAsScalar, opt.it_range);
             }
 
             switch (opt.opt->type()) {
@@ -1197,7 +1203,7 @@ namespace client
                     output.set_i(((ConfigOptionVectorBase*)opt.opt)->get_int(int(ctx->current_extruder_id)));
                     break;
                 } else
-                    ctx->throw_exception("Unknown scalar variable type", opt.it_range);
+                    ctx->throw_exception(kUnknownScalarVariableType, opt.it_range);
             case coFloats:
             case coPercents:
                 vector_opt = static_cast<const ConfigOptionVectorBase*>(opt.opt);
@@ -1205,35 +1211,35 @@ namespace client
                     output.set_d(((ConfigOptionVectorBase*)opt.opt)->get_float(int(ctx->current_extruder_id)));
                     break;
                 } else
-                    ctx->throw_exception("Unknown scalar variable type", opt.it_range);
+                    ctx->throw_exception(kUnknownScalarVariableType, opt.it_range);
             case coFloatsOrPercents:
                 vector_opt = static_cast<const ConfigOptionVectorBase*>(opt.opt);
                 if (vector_opt->is_extruder_size()) {
                     output.set_d(ctx->get_computed_value(opt_key));
                     break;
                 } else
-                    ctx->throw_exception("Unknown scalar variable type", opt.it_range);
+                    ctx->throw_exception(kUnknownScalarVariableType, opt.it_range);
             case coStrings:
                 vector_opt = static_cast<const ConfigOptionVectorBase*>(opt.opt);
                 if (vector_opt->is_extruder_size()) {
                     output.set_s(((ConfigOptionStrings*)opt.opt)->get_at(ctx->current_extruder_id));
                     break;
                 } else
-                    ctx->throw_exception("Unknown scalar variable type", opt.it_range);
+                    ctx->throw_exception(kUnknownScalarVariableType, opt.it_range);
             case coPoints:
                 vector_opt = static_cast<const ConfigOptionVectorBase*>(opt.opt);
                 if (vector_opt->is_extruder_size()) {
                     output.set_s(to_string(((ConfigOptionPoints*)opt.opt)->get_at(ctx->current_extruder_id)));
                     break;
                 }else
-                    ctx->throw_exception("Unknown scalar variable type", opt.it_range);
+                    ctx->throw_exception(kUnknownScalarVariableType, opt.it_range);
             case coGraphs:
                 vector_opt = static_cast<const ConfigOptionVectorBase*>(opt.opt);
                 if (vector_opt->is_extruder_size()) {
                     output.set_s(((ConfigOptionGraphs*)opt.opt)->get_at(ctx->current_extruder_id).serialize());
                     break;
                 }else
-                    ctx->throw_exception("Unknown scalar variable type", opt.it_range);
+                    ctx->throw_exception(kUnknownScalarVariableType, opt.it_range);
             default:
                 ctx->throw_exception("Unsupported scalar variable type", opt.it_range);
             }
@@ -1253,7 +1259,7 @@ namespace client
             }
             const ConfigOptionVectorBase* vec = static_cast<const ConfigOptionVectorBase*>(opt.opt);
             if (vec->empty())
-                ctx->throw_exception("Indexing an empty vector variable", opt.it_range);
+                ctx->throw_exception(kIndexingAnEmptyVectorVariable, opt.it_range);
             size_t idx = 0;
             if (!opt.has_index()) {
                 if (!vec->is_extruder_size() && int(ctx->current_extruder_id) >= 0 && int(ctx->current_extruder_id) < int(vec->size()))
@@ -1262,7 +1268,7 @@ namespace client
             } else if (opt.has_index() && opt.index >= 0 && opt.index < int(vec->size()))
                 idx = size_t(opt.index);
             else if (!opt.has_index())
-                ctx->throw_exception("Referencing a vector variable when scalar is expected", opt.it_range);
+                ctx->throw_exception(kReferencingVectorAsScalar, opt.it_range);
             switch (opt.opt->type()) {
             case coFloats:   output.set_d(static_cast<const ConfigOptionFloats  *>(opt.opt)->get_at(idx)); break;
             case coInts:     output.set_i(static_cast<const ConfigOptionInts    *>(opt.opt)->get_at(idx)); break;
@@ -1338,7 +1344,7 @@ namespace client
                 ctx->throw_exception("Referencing an output vector variable when scalar is expected", lhs.it_range);
             ConfigOptionVectorBase *vec = const_cast<ConfigOptionVectorBase*>(static_cast<const ConfigOptionVectorBase*>(lhs.opt));
             if (vec->empty())
-                ctx->throw_exception("Indexing an empty vector variable", lhs.it_range);
+                ctx->throw_exception(kIndexingAnEmptyVectorVariable, lhs.it_range);
             if (lhs.index >= int(vec->size()))
                 ctx->throw_exception("Index out of range", lhs.it_range);
             switch (lhs.opt->type()) {
@@ -1440,9 +1446,9 @@ namespace client
             if (ctx->skipping()) {
             } else if (opt.opt->is_vector()) {
                 if (! opt.has_index())
-                    ctx->throw_exception("Referencing a vector variable when scalar is expected", opt.it_range);
+                    ctx->throw_exception(kReferencingVectorAsScalar, opt.it_range);
                 if (opt.opt->size() == 0)
-                    ctx->throw_exception("Indexing an empty vector variable", opt.it_range);
+                    ctx->throw_exception(kIndexingAnEmptyVectorVariable, opt.it_range);
                 output.set_b(opt.opt->is_enabled(opt.index));
             } else {
                 assert(opt.opt->is_scalar());
@@ -1457,9 +1463,9 @@ namespace client
             if (ctx->skipping()) {
             } else if (opt.opt->is_vector()) {
                 if (! opt.has_index())
-                    ctx->throw_exception("Referencing a vector variable when scalar is expected", opt.it_range);
+                    ctx->throw_exception(kReferencingVectorAsScalar, opt.it_range);
                 if (opt.opt->size() == 0)
-                    ctx->throw_exception("Indexing an empty vector variable", opt.it_range);
+                    ctx->throw_exception(kIndexingAnEmptyVectorVariable, opt.it_range);
                 if (opt.opt->type() != ConfigOptionType::coGraphs)
                     ctx->throw_exception("Interpolate on a variable that isn't a graph", opt.it_range);
                 expr::throw_if_not_numeric(valeur);
@@ -1482,9 +1488,9 @@ namespace client
             if (ctx->skipping()) {
             } else if (opt.opt->is_vector()) {
                 if (! opt.has_index())
-                    ctx->throw_exception("Referencing a vector variable when scalar is expected", opt.it_range);
+                    ctx->throw_exception(kReferencingVectorAsScalar, opt.it_range);
                 if (opt.opt->size() == 0)
-                    ctx->throw_exception("Indexing an empty vector variable", opt.it_range);
+                    ctx->throw_exception(kIndexingAnEmptyVectorVariable, opt.it_range);
                 output.set_b(!opt.opt->is_enabled(opt.index));
             } else {
                 assert(opt.opt->is_scalar());
@@ -2005,12 +2011,12 @@ namespace client
         { "conditional_expression",     "Expecting a conditional expression." },
         { "logical_or_expression",      "Expecting a boolean expression." },
         { "logical_and_expression",     "Expecting a boolean expression." },
-        { "equality_expression",        "Expecting an expression." },
+        { "equality_expression",        kExpectingAnExpression },
         { "bool_expr_eval",             "Expecting a boolean expression."},
-        { "relational_expression",      "Expecting an expression." },
-        { "additive_expression",        "Expecting an expression." },
-        { "multiplicative_expression",  "Expecting an expression." },
-        { "unary_expression",           "Expecting an expression." },
+        { "relational_expression",      kExpectingAnExpression },
+        { "additive_expression",        kExpectingAnExpression },
+        { "multiplicative_expression",  kExpectingAnExpression },
+        { "unary_expression",           kExpectingAnExpression },
         { "optional_parameter",         "Expecting a closing brace or an optional parameter." },
         { "one_of_list",                "Expecting a list of string patterns (simple text or rexep)" },
         { "variable_reference",         "Expecting a variable reference."},

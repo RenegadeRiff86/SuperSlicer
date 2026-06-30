@@ -56,6 +56,9 @@
 
 namespace Slic3r {
 
+// Repeated string literals extracted to named constants (BP1001).
+static constexpr const char* GET_ABS_VALUE_ERR = "ConfigBase::get_abs_value(): ";
+
 PrinterTechnology parse_printer_technology(const std::string &technology) {
     if (technology == "FFF")
         return PrinterTechnology::ptFFF;
@@ -1446,7 +1449,7 @@ double ConfigBase::get_computed_value(const t_config_option_key &opt_key, int ex
         if (!opt_def->ratio_over.empty() && opt_def->ratio_over != "depends")
             return cast_opt->get_abs_value(resolve_ratio_over(opt_def->ratio_over, extruder_id));
 
-        std::stringstream ss; ss << "ConfigBase::get_abs_value(): " << opt_key << " has no valid ratio_over to compute of";
+        std::stringstream ss; ss << GET_ABS_VALUE_ERR << opt_key << " has no valid ratio_over to compute of";
         throw ConfigurationError(ss.str());
     } else {
         // check if it's an extruder_id array
@@ -1459,7 +1462,7 @@ double ConfigBase::get_computed_value(const t_config_option_key &opt_key, int ex
                 if ((opt_extruder_id = this->option("extruder")) == nullptr)
                     if ((opt_extruder_id = this->option("current_extruder")) == nullptr
                         || opt_extruder_id->get_int() < 0 || opt_extruder_id->get_int() >= vector_opt->size()) {
-                        std::stringstream ss; ss << "ConfigBase::get_abs_value(): " << opt_key << " need to has the extuder id to get the right value, but it's not available";
+                        std::stringstream ss; ss << GET_ABS_VALUE_ERR << opt_key << " need to has the extuder id to get the right value, but it's not available";
                         throw ConfigurationError(ss.str());
                     }
                 extruder_id = opt_extruder_id->get_int();
@@ -1486,7 +1489,7 @@ double ConfigBase::get_computed_value(const t_config_option_key &opt_key, int ex
                     return opt_fl_per->get_abs_value(idx, 1);
                 if (opt_def->ratio_over != "depends")
                     return opt_fl_per->get_abs_value(idx, resolve_ratio_over(opt_def->ratio_over, idx));
-                std::stringstream ss; ss << "ConfigBase::get_abs_value(): " << opt_key << " has no valid ratio_over to compute of";
+                std::stringstream ss; ss << GET_ABS_VALUE_ERR << opt_key << " has no valid ratio_over to compute of";
                 throw ConfigurationError(ss.str());
             }
             if (raw_opt->type() == coPercents) {
@@ -1498,12 +1501,12 @@ double ConfigBase::get_computed_value(const t_config_option_key &opt_key, int ex
                     return opt_per->get_abs_value(idx, 1);
                 if (opt_def->ratio_over != "depends")
                     return opt_per->get_abs_value(idx, resolve_ratio_over(opt_def->ratio_over, idx));
-                std::stringstream ss; ss << "ConfigBase::get_abs_value(): " << opt_key << " has no valid ratio_over to compute of";
+                std::stringstream ss; ss << GET_ABS_VALUE_ERR << opt_key << " has no valid ratio_over to compute of";
                 throw ConfigurationError(ss.str());
             }
         } 
     }
-    std::stringstream ss; ss << "ConfigBase::get_abs_value(): "<< opt_key<<" has not a valid option type for get_abs_value()";
+    std::stringstream ss; ss << GET_ABS_VALUE_ERR<< opt_key<<" has not a valid option type for get_abs_value()";
     throw ConfigurationError(ss.str());
 }
 
@@ -1531,7 +1534,7 @@ double ConfigBase::get_abs_value(const t_config_option_key &opt_key, double rati
             if ((opt_extruder_id = this->option("extruder")) == nullptr)
                 if ((opt_extruder_id = this->option("current_extruder")) == nullptr
                     || opt_extruder_id->get_int() < 0 || opt_extruder_id->get_int() >= vector_opt->size()) {
-                    std::stringstream ss; ss << "ConfigBase::get_abs_value(): " << opt_key << " need to has the extuder id to get the right value, but it's not available";
+                    std::stringstream ss; ss << GET_ABS_VALUE_ERR << opt_key << " need to has the extuder id to get the right value, but it's not available";
                     throw ConfigurationError(ss.str());
                 }
             extruder_id = opt_extruder_id->get_int();

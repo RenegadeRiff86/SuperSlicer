@@ -33,6 +33,10 @@
 namespace Slic3r::FFFTreeSupport
 {
 
+// Repeated string literals extracted to named constants (BP1001).
+static constexpr const char* kAndLayer = " and layer ";
+static constexpr const char* kPrecalcPerfWarn = ", but precalculate was called. Performance may suffer!";
+
 using namespace std::literals;
 
 // or warning
@@ -301,7 +305,7 @@ const Polygons& TreeModelVolumes::getCollision(const coord_t orig_radius, LayerI
     if (std::optional<std::reference_wrapper<const Polygons>> result = m_collision_cache.getArea({ radius, layer_idx }); result)
         return (*result).get();
     if (m_precalculated) {
-        BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate collision at radius " << radius << " and layer " << layer_idx << ", but precalculate was called. Performance may suffer!";
+        BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate collision at radius " << radius << kAndLayer << layer_idx << kPrecalcPerfWarn;
         tree_supports_show_error("Not precalculated Collision requested."sv, false);
     }
     const_cast<TreeModelVolumes*>(this)->calculateCollision(radius, layer_idx, []{});
@@ -324,7 +328,7 @@ const Polygons& TreeModelVolumes::getCollisionHolefree(coord_t radius, LayerInde
     if (std::optional<std::reference_wrapper<const Polygons>> result = m_collision_cache_holefree.getArea({ radius, layer_idx }); result)
         return (*result).get();
     if (m_precalculated) {
-        BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate collision holefree at radius " << radius << " and layer " << layer_idx << ", but precalculate was called. Performance may suffer!";
+        BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate collision holefree at radius " << radius << kAndLayer << layer_idx << kPrecalcPerfWarn;
         tree_supports_show_error("Not precalculated Holefree Collision requested."sv, false);
     }
     const_cast<TreeModelVolumes*>(this)->calculateCollisionHolefree({ radius, layer_idx });
@@ -348,10 +352,10 @@ const Polygons& TreeModelVolumes::getAvoidance(const coord_t orig_radius, LayerI
 
     if (m_precalculated) {
         if (to_model) {
-            BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate Avoidance to model at radius " << radius << " and layer " << layer_idx << ", but precalculate was called. Performance may suffer!";
+            BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate Avoidance to model at radius " << radius << kAndLayer << layer_idx << kPrecalcPerfWarn;
             tree_supports_show_error("Not precalculated Avoidance(to model) requested."sv, false);
         } else {
-            BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate Avoidance at radius " << radius << " and layer " << layer_idx << ", but precalculate was called. Performance may suffer!";
+            BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate Avoidance at radius " << radius << kAndLayer << layer_idx << kPrecalcPerfWarn;
             tree_supports_show_error("Not precalculated Avoidance(to buildplate) requested."sv, false);
         }
     }
@@ -366,7 +370,7 @@ const Polygons& TreeModelVolumes::getPlaceableAreas(const coord_t orig_radius, L
     if (std::optional<std::reference_wrapper<const Polygons>> result = m_placeable_areas_cache.getArea({ radius, layer_idx }); result)
         return (*result).get();
     if (m_precalculated) {
-        BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate Placeable Areas at radius " << radius << " and layer " << layer_idx << ", but precalculate was called. Performance may suffer!";
+        BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate Placeable Areas at radius " << radius << kAndLayer << layer_idx << kPrecalcPerfWarn;
         tree_supports_show_error(format("Not precalculated Placeable areas requested, radius %1%, layer %2%", radius, layer_idx), false);
     }
     if (orig_radius == 0)
@@ -393,7 +397,7 @@ const Polygons& TreeModelVolumes::getWallRestriction(const coord_t orig_radius, 
         result)
         return (*result).get();
     if (m_precalculated) {
-        BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate Wall restricions at radius " << radius << " and layer " << layer_idx << ", but precalculate was called. Performance may suffer!";
+        BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate Wall restricions at radius " << radius << kAndLayer << layer_idx << kPrecalcPerfWarn;
         tree_supports_show_error(
             min_xy_dist ? 
                 "Not precalculated Wall restriction of minimum xy distance requested )." :

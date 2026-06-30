@@ -343,6 +343,10 @@ bool is_valid_object_type(const std::string& type)
 
 namespace Slic3r {
 
+// Repeated string literals extracted to named constants (BP1001).
+static constexpr const char* kXmlattrId = "<xmlattr>.id";
+static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
+
     // Base class with error messages management
     class _3MF_Base
     {
@@ -1220,9 +1224,9 @@ namespace Slic3r {
 
             for (const auto& object : objects_tree.get_child("objects")) {
                 pt::ptree object_tree = object.second;
-                int obj_idx = object_tree.get<int>("<xmlattr>.id", -1);
+                int obj_idx = object_tree.get<int>(kXmlattrId, -1);
                 if (obj_idx <= 0) {
-                    add_error("Found invalid object id");
+                    add_error(kFoundInvalidObjectId);
                     continue;
                 }
 
@@ -1238,7 +1242,7 @@ namespace Slic3r {
                 for (const auto& obj_cut_info : object_tree) {
                     if (obj_cut_info.first == "cut_id") {
                         pt::ptree cut_id_tree = obj_cut_info.second;
-                        cut_id = CutObjectBase(ObjectID( cut_id_tree.get<size_t>("<xmlattr>.id")),
+                        cut_id = CutObjectBase(ObjectID( cut_id_tree.get<size_t>(kXmlattrId)),
                                                          cut_id_tree.get<size_t>("<xmlattr>.check_sum"),
                                                          cut_id_tree.get<size_t>("<xmlattr>.connectors_cnt"));
                     }
@@ -1322,7 +1326,7 @@ namespace Slic3r {
 
                 int object_id = std::atoi(object_data_id[1].c_str());
                 if (object_id == 0) {
-                    add_error("Found invalid object id");
+                    add_error(kFoundInvalidObjectId);
                     continue;
                 }
 
@@ -1367,9 +1371,9 @@ namespace Slic3r {
 
             for (const auto& object : objects_tree.get_child("objects")) {
                 pt::ptree object_tree = object.second;
-                int obj_idx = object_tree.get<int>("<xmlattr>.id", -1);
+                int obj_idx = object_tree.get<int>(kXmlattrId, -1);
                 if (obj_idx <= 0) {
-                    add_error("Found invalid object id");
+                    add_error(kFoundInvalidObjectId);
                     continue;
                 }
 
@@ -1463,7 +1467,7 @@ namespace Slic3r {
 
                 int object_id = std::atoi(object_data_id[1].c_str());
                 if (object_id == 0) {
-                    add_error("Found invalid object id");
+                    add_error(kFoundInvalidObjectId);
                     continue;
                 }
 
@@ -1545,7 +1549,7 @@ namespace Slic3r {
                 
                 int object_id = std::atoi(object_data_id[1].c_str());
                 if (object_id == 0) {
-                    add_error("Found invalid object id");
+                    add_error(kFoundInvalidObjectId);
                     continue;
                 }
                 
@@ -3377,13 +3381,13 @@ namespace Slic3r {
                 continue;
             pt::ptree& obj_tree = tree.add("objects.object", "");
 
-            obj_tree.put("<xmlattr>.id", object_cnt);
+            obj_tree.put(kXmlattrId, object_cnt);
 
             // Store info for cut_id
             pt::ptree& cut_id_tree = obj_tree.add("cut_id", "");
 
             // store cut_id atributes
-            cut_id_tree.put("<xmlattr>.id",             object->cut_id.id().id);
+            cut_id_tree.put(kXmlattrId,             object->cut_id.id().id);
             cut_id_tree.put("<xmlattr>.check_sum",      object->cut_id.check_sum());
             cut_id_tree.put("<xmlattr>.connectors_cnt", object->cut_id.connectors_cnt());
 
@@ -3475,7 +3479,7 @@ namespace Slic3r {
                 {
                     pt::ptree& obj_tree = tree.add("objects.object", "");
 
-                    obj_tree.put("<xmlattr>.id", object_cnt);
+                    obj_tree.put(kXmlattrId, object_cnt);
 
                     // Store the layer config ranges.
                     for (const auto& range : ranges) {

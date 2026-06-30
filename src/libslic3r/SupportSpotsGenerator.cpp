@@ -60,6 +60,9 @@ constexpr bool debug_files = false;
 
 namespace Slic3r::SupportSpotsGenerator {
 
+// Repeated string literals extracted to named constants (BP1001).
+static constexpr const char* kObjVertexFmt = "v %f %f %f  %f %f %f\n";
+
 ExtrusionLine::ExtrusionLine() : a(Vec2f::Zero()), b(Vec2f::Zero()), len(0.0), origin_entity(nullptr) {}
 ExtrusionLine::ExtrusionLine(const Vec2f &a, const Vec2f &b, float len, const ExtrusionEntity *origin_entity)
     : a(a), b(b), len(len), origin_entity(origin_entity)
@@ -1265,7 +1268,7 @@ static void debug_export(const SupportPoints& support_points,const PartialObject
             case SupportPointCause::WeakObjectPart: color = {0.609375f, 0.210938f, 0.621094f}; break; // PURPLE
             }
 
-            fprintf(fp, "v %f %f %f  %f %f %f\n", support_points[i].position(0), support_points[i].position(1),
+            fprintf(fp, kObjVertexFmt, support_points[i].position(0), support_points[i].position(1),
                     support_points[i].position(2), color[0], color[1], color[2]);
         }
 
@@ -1274,7 +1277,7 @@ static void debug_export(const SupportPoints& support_points,const PartialObject
             if (objects[i].connected_to_bed) {
                 color = {1.0f, 0.0f, 0.0f};
             }
-            fprintf(fp, "v %f %f %f  %f %f %f\n", objects[i].centroid(0), objects[i].centroid(1), objects[i].centroid(2), color[0],
+            fprintf(fp, kObjVertexFmt, objects[i].centroid(0), objects[i].centroid(1), objects[i].centroid(2), color[0],
                     color[1], color[2]);
         }
 
@@ -1349,12 +1352,12 @@ void estimate_supports_malformations(SupportLayerPtrs &layers, float flow_width,
         for (const ExtrusionLine &line : current_layer_lines) {
             if (line.curled_up_height > params.curling_tolerance_limit) {
                 Vec3f color = value_to_rgbf(-EPSILON, l->height * params.max_curled_height_factor, line.curled_up_height);
-                fprintf(debug_file, "v %f %f %f  %f %f %f\n", line.b[0], line.b[1], l->print_z, color[0], color[1], color[2]);
+                fprintf(debug_file, kObjVertexFmt, line.b[0], line.b[1], l->print_z, color[0], color[1], color[2]);
             }
         }
         for (const ExtrusionLine &line : current_layer_lines) {
             Vec3f color = value_to_rgbf(-EPSILON, l->height * params.max_curled_height_factor, line.curled_up_height);
-            fprintf(full_file, "v %f %f %f  %f %f %f\n", line.b[0], line.b[1], l->print_z, color[0], color[1], color[2]);
+            fprintf(full_file, kObjVertexFmt, line.b[0], line.b[1], l->print_z, color[0], color[1], color[2]);
         }
 #endif
 
@@ -1427,12 +1430,12 @@ void estimate_malformations(LayerPtrs &layers, const Params &params)
         for (const ExtrusionLine &line : current_layer_lines) {
             if (line.curled_up_height > params.curling_tolerance_limit) {
                 Vec3f color = value_to_rgbf(-EPSILON, l->height * params.max_curled_height_factor, line.curled_up_height);
-                fprintf(debug_file, "v %f %f %f  %f %f %f\n", line.b[0], line.b[1], l->print_z, color[0], color[1], color[2]);
+                fprintf(debug_file, kObjVertexFmt, line.b[0], line.b[1], l->print_z, color[0], color[1], color[2]);
             }
         }
         for (const ExtrusionLine &line : current_layer_lines) {
             Vec3f color = value_to_rgbf(-EPSILON, l->height * params.max_curled_height_factor, line.curled_up_height);
-            fprintf(full_file, "v %f %f %f  %f %f %f\n", line.b[0], line.b[1], l->print_z, color[0], color[1], color[2]);
+            fprintf(full_file, kObjVertexFmt, line.b[0], line.b[1], l->print_z, color[0], color[1], color[2]);
         }
 #endif
 
