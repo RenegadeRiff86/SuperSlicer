@@ -345,7 +345,7 @@ void ToolOrdering::collect_extruders(
 
         // Override extruder with the next 
         for (; it_per_layer_extruder_override != per_layer_extruder_switches.end() && it_per_layer_extruder_override->first < layer->print_z + EPSILON; ++ it_per_layer_extruder_override)
-            extruder_override = (int)it_per_layer_extruder_override->second;
+            extruder_override = static_cast<int>(it_per_layer_extruder_override->second);
 
         // Store the current extruder override (set to zero if no overriden), so that layer_tools.wiping_extrusions().is_overridable_and_mark() will use it.
         layer_tools.extruder_override = extruder_override;
@@ -846,8 +846,9 @@ float WipingExtrusions::mark_wiping_extrusions(const Print& print, const LayerTo
     // this is controlled by the following variable:
     bool perimeters_done = false;
 
-    for (int i=0 ; i<(int)object_list.size() + (perimeters_done ? 0 : 1); ++i) {
-        if (!perimeters_done && (i==(int)object_list.size() || !object_list[i]->config().wipe_into_objects)) { // we passed the last dedicated object in list
+    const int object_count = static_cast<int>(object_list.size());
+    for (int i=0 ; i<object_count + (perimeters_done ? 0 : 1); ++i) {
+        if (!perimeters_done && (i==object_count || !object_list[i]->config().wipe_into_objects)) { // we passed the last dedicated object in list
             perimeters_done = true;
             i=-1;   // let's go from the start again
             continue;
@@ -978,14 +979,15 @@ void WipingExtrusions::ensure_perimeters_infills_order(const Print& print, const
 
 int ToolOrdering::toolchanges_count() const
 {
+    static constexpr uint16_t invalid_tool = std::numeric_limits<uint16_t>::max();
     std::vector<uint16_t> tools_in_order;
     for (const LayerTools& lt : m_layer_tools)
         tools_in_order.insert(tools_in_order.end(), lt.extruders.begin(), lt.extruders.end());
-    assert(std::find(tools_in_order.begin(), tools_in_order.end(), (uint16_t)(-1)) == tools_in_order.end());
+    assert(std::find(tools_in_order.begin(), tools_in_order.end(), invalid_tool) == tools_in_order.end());
     for (size_t i=1; i<tools_in_order.size(); ++i)
         if (tools_in_order[i] == tools_in_order[i-1])
-            tools_in_order[i-1] = (uint16_t)(-1);
-    tools_in_order.erase(std::remove(tools_in_order.begin(), tools_in_order.end(), (uint16_t)(-1)), tools_in_order.end());
+            tools_in_order[i-1] = invalid_tool;
+    tools_in_order.erase(std::remove(tools_in_order.begin(), tools_in_order.end(), invalid_tool), tools_in_order.end());
     if (tools_in_order.size() > 1 && tools_in_order.back() == tools_in_order[tools_in_order.size()-2])
         tools_in_order.pop_back();
     return std::max(0, int(tools_in_order.size())-1); // 5 tools = 4 toolchanges

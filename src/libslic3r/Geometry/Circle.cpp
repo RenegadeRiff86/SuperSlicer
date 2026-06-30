@@ -336,15 +336,15 @@ bool ArcCircle::is_over_deviation(const Points& points, const double tolerance)
         {
             //BBS: check fitting tolerance
             temp = points[index] - center;
-            distance_from_center = sqrt((double)temp.x() * (double)temp.x() + (double)temp.y() * (double)temp.y());
+            distance_from_center = sqrt(static_cast<double>(temp.x()) * static_cast<double>(temp.x()) + static_cast<double>(temp.y()) * static_cast<double>(temp.y()));
             if (std::fabs(distance_from_center - radius) > tolerance)
                 return true;
         }
 
         //BBS: Check the point perpendicular from the segment to the circle's center
-        if (get_closest_perpendicular_point(points[index], points[(size_t)index + 1], center, closest_point)) {
+        if (get_closest_perpendicular_point(points[index], points[index + 1], center, closest_point)) {
             temp = closest_point - center;
-            distance_from_center = sqrt((double)temp.x() * (double)temp.x() + (double)temp.y() * (double)temp.y());
+            distance_from_center = sqrt(static_cast<double>(temp.x()) * static_cast<double>(temp.x()) + static_cast<double>(temp.y()) * static_cast<double>(temp.y()));
             if (std::fabs(distance_from_center - radius) > tolerance)
                 return true;
         }
@@ -385,7 +385,7 @@ bool ArcCircle::get_deviation_sum_squared(const Points& points, const double tol
         //BBS: make sure the length from the center of our circle to the test point is 
         // at or below our max distance.
         temp = points[index] - center;
-        distance_from_center = sqrt((double)temp.x() * (double)temp.x() + (double)temp.y() * (double)temp.y());
+        distance_from_center = sqrt(static_cast<double>(temp.x()) * static_cast<double>(temp.x()) + static_cast<double>(temp.y()) * static_cast<double>(temp.y()));
         deviation = std::fabs(distance_from_center - radius);
         total_deviation += deviation * deviation;
         if (deviation > tolerance)
@@ -396,9 +396,9 @@ bool ArcCircle::get_deviation_sum_squared(const Points& points, const double tol
     //BBS: check the point perpendicular from the segment to the circle's center
     for (int index = 0; index < points.size() - 1; index++)
     {
-        if (get_closest_perpendicular_point(points[index], points[(size_t)index + 1], center, closest_point)) {
+        if (get_closest_perpendicular_point(points[index], points[index + 1], center, closest_point)) {
             temp = closest_point - center;
-            distance_from_center = sqrt((double)temp.x() * (double)temp.x() + (double)temp.y() * (double)temp.y());
+            distance_from_center = sqrt(static_cast<double>(temp.x()) * static_cast<double>(temp.x()) + static_cast<double>(temp.y()) * static_cast<double>(temp.y()));
             deviation = std::fabs(distance_from_center - radius);
             total_deviation += deviation * deviation;
             if (deviation > tolerance)
@@ -602,12 +602,12 @@ bool ArcSegment::are_points_within_slice(const ArcSegment& test_arc, const Point
     double previous_polar = test_arc.polar_start_theta;
     bool will_cross_zero = false;
     bool crossed_zero = false;
-    const int point_count = points.size();
+    const int point_count = static_cast<int>(points.size());
 
-    Vec2d start_norm(((double)test_arc.start_point.x() - (double)test_arc.center.x()) / test_arc.radius,
-        ((double)test_arc.start_point.y() - (double)test_arc.center.y()) / test_arc.radius);
-    Vec2d end_norm(((double)test_arc.end_point.x() - (double)test_arc.center.x()) / test_arc.radius,
-        ((double)test_arc.end_point.y() - (double)test_arc.center.y()) / test_arc.radius);
+    Vec2d start_norm((static_cast<double>(test_arc.start_point.x()) - static_cast<double>(test_arc.center.x())) / test_arc.radius,
+        (static_cast<double>(test_arc.start_point.y()) - static_cast<double>(test_arc.center.y())) / test_arc.radius);
+    Vec2d end_norm((static_cast<double>(test_arc.end_point.x()) - static_cast<double>(test_arc.center.x())) / test_arc.radius,
+        (static_cast<double>(test_arc.end_point.y()) - static_cast<double>(test_arc.center.y())) / test_arc.radius);
 
     if (test_arc.direction == ArcDirection::Arc_Dir_CCW)
         will_cross_zero = test_arc.polar_start_theta > test_arc.polar_end_theta;
@@ -709,10 +709,10 @@ float ArcSegment::calc_arc_radian(Vec3f start_pos, Vec3f end_pos, Vec3f center_p
     float radian;
     if ((delta1 - delta2).norm() < 1e-6) {
         // start_pos is same with end_pos, we think it's a full circle
-        radian = float(2 * M_PI);
+        radian = static_cast<float>(2 * M_PI);
     } else {
         double dot = delta1.dot(delta2);
-        double cross = (double)delta1(0, 0) * (double)delta2(1, 0) - (double)delta1(1, 0) * (double)delta2(0, 0);
+        double cross = static_cast<double>(delta1(0, 0)) * static_cast<double>(delta2(1, 0)) - static_cast<double>(delta1(1, 0)) * static_cast<double>(delta2(0, 0));
         radian = atan2(cross, dot);
         if (is_ccw)
             radian = (radian < 0) ? 2 * M_PI + radian : radian;

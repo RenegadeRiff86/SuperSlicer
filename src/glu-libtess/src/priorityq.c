@@ -49,7 +49,7 @@
 /* really __gl_pqSortNewPriorityQ */
 PriorityQ *pqNewPriorityQ( int (*leq)(PQkey key1, PQkey key2) )
 {
-  PriorityQ *pq = (PriorityQ *)memAlloc( sizeof( PriorityQ ));
+  PriorityQ *pq = memAlloc( sizeof( *pq ));
   if (pq == NULL) return NULL;
 
   pq->heap = __gl_pqHeapNewPriorityQ( leq );
@@ -58,7 +58,7 @@ PriorityQ *pqNewPriorityQ( int (*leq)(PQkey key1, PQkey key2) )
      return NULL;
   }
 
-  pq->keys = (PQHeapKey *)memAlloc( INIT_SIZE * sizeof(pq->keys[0]) );
+  pq->keys = memAlloc( INIT_SIZE * sizeof( *pq->keys ) );
   if (pq->keys == NULL) {
      __gl_pqHeapDeletePriorityQ(pq->heap);
      memFree(pq);
@@ -98,12 +98,7 @@ int pqInit( PriorityQ *pq )
   /* Create an array of indirect pointers to the keys, so that we
    * the handles we have returned are still valid.
    */
-/*
-  pq->order = (PQHeapKey **)memAlloc( (size_t)
-                                  (pq->size * sizeof(pq->order[0])) );
-*/
-  pq->order = (PQHeapKey **)memAlloc( (size_t)
-                                  ((pq->size+1) * sizeof(pq->order[0])) );
+  pq->order = memAlloc( (pq->size + 1) * sizeof( *pq->order ) );
 /* the previous line is a patch to compensate for the fact that IBM */
 /* machines return a null on a malloc of zero bytes (unlike SGI),   */
 /* so we have to put in this defense to guard against a memory      */
@@ -184,9 +179,8 @@ PQhandle pqInsert( PriorityQ *pq, PQkey keyNew )
 
     /* If the heap overflows, double its size. */
     pq->max <<= 1;
-    pq->keys = (PQHeapKey *)memRealloc( pq->keys, 
-	 	                        (size_t)
-	                                 (pq->max * sizeof( pq->keys[0] )));
+    pq->keys = memRealloc( pq->keys,
+	 	                        pq->max * sizeof( *pq->keys ));
     if (pq->keys == NULL) {	
        pq->keys = saveKey;	/* restore ptr to free upon return */
        return LONG_MAX;

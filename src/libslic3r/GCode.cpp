@@ -1758,7 +1758,8 @@ void GCodeGenerator::_do_export(Print& print_mod, GCodeOutputStream &file, Thumb
     this->placeholder_parser().set("has_wipe_tower", has_wipe_tower);
     this->placeholder_parser().set("has_single_extruder_multi_material_priming", has_wipe_tower && print.config().single_extruder_multi_material_priming);
     this->placeholder_parser().set("total_toolchanges", tool_ordering.toolchanges_count());
-    this->placeholder_parser().set("bounding_box", new ConfigOptionFloats({ global_bounding_box.min.x(), global_bounding_box.min.y(), global_bounding_box.min.z(), global_bounding_box.max.x(), global_bounding_box.max.y(), global_bounding_box.max.z() }));
+    this->placeholder_parser().set("bounding_box", new ConfigOptionFloats({ global_bounding_box.min.x(), global_bounding_box.min.y(), global_bounding_box.min.z(), global_bounding_box.max.x(),
+        global_bounding_box.max.y(), global_bounding_box.max.z() }));
     {
         BoundingBoxf bbox(print.config().bed_shape.get_values());
         assert(bbox.defined);
@@ -1897,7 +1898,8 @@ void GCodeGenerator::_do_export(Print& print_mod, GCodeOutputStream &file, Thumb
         this->_init_multiextruders(print, preamble_to_put_start_layer, m_writer, tool_ordering, start_gcode);
 
     // Set extruder(s) temperature before and after start G-code.
-    if ((initial_extruder_id != (uint16_t)-1) && !this->config().start_gcode_manual && (this->config().gcode_flavor != gcfKlipper || print.config().start_gcode.value.empty()) && print.config().first_layer_temperature.get_at(initial_extruder_id) != 0)
+    if ((initial_extruder_id != (uint16_t)-1) && !this->config().start_gcode_manual && (this->config().gcode_flavor != gcfKlipper || print.config().start_gcode.value.empty()) &&
+        print.config().first_layer_temperature.get_at(initial_extruder_id) != 0)
         this->_print_first_layer_extruder_temperatures(preamble_to_put_start_layer, print, start_all_gcode, initial_extruder_id, false);
 
     // adds tag for processor

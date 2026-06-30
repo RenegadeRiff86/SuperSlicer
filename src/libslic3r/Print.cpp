@@ -1376,12 +1376,14 @@ void Print::process()
                     for (; path_idx < range.end() && path_idx < visitor.paths.size(); ++path_idx) {
                         visitor.paths[path_idx]->simplify(scaled_resolution, config().arc_fitting.value, scale_d(arc_fitting_tolerance.get_abs_value(visitor.paths[path_idx]->width())));
                         int nb_items_done = (++atomic_count);
-                        this->set_status(int((size_t(nb_items_done) * 100) / (visitor.paths.size() + visitor.paths3D.size())), L("Optimizing skirt & brim %s%%"), { std::to_string(int(100.0 * double(nb_items_done) / double(visitor.paths.size() + visitor.paths3D.size()))) }, PrintBase::SlicingStatus::SECONDARY_STATE);
+                        this->set_status(int((size_t(nb_items_done) * 100) / (visitor.paths.size() + visitor.paths3D.size())), L("Optimizing skirt & brim %s%%"),
+                            { std::to_string(int(100.0 * double(nb_items_done) / double(visitor.paths.size() + visitor.paths3D.size()))) }, PrintBase::SlicingStatus::SECONDARY_STATE);
                     }
                     for (; path_idx < range.end() && path_idx - visitor.paths.size() < visitor.paths3D.size(); ++path_idx) {
                         visitor.paths3D[path_idx - visitor.paths.size()]->simplify(scaled_resolution, config().arc_fitting.value, scale_d(arc_fitting_tolerance.get_abs_value(visitor.paths[path_idx]->width())));
                         int nb_items_done = (++atomic_count);
-                        this->set_status(int((size_t(nb_items_done) * 100) / (visitor.paths.size() + visitor.paths3D.size())), L("Optimizing skirt & brim %s%%"), { std::to_string(int(100.0 * double(nb_items_done) / double(visitor.paths.size() + visitor.paths3D.size()))) }, PrintBase::SlicingStatus::SECONDARY_STATE);
+                        this->set_status(int((size_t(nb_items_done) * 100) / (visitor.paths.size() + visitor.paths3D.size())), L("Optimizing skirt & brim %s%%"),
+                            { std::to_string(int(100.0 * double(nb_items_done) / double(visitor.paths.size() + visitor.paths3D.size()))) }, PrintBase::SlicingStatus::SECONDARY_STATE);
                     }
                 }
             );

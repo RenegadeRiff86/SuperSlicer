@@ -108,7 +108,8 @@ public:
 
         bool is_pointer_in_triangle(const Vec3f &p1, const Vec3f &p2, const Vec3f &p3) const override;
 
-        static std::unique_ptr<Cursor> cursor_factory(const Vec3f &first_center, const Vec3f &second_center, const Vec3f &camera_pos, const float cursor_radius, const CursorType cursor_type, const Transform3d &trafo_matrix, const ClippingPlane &clipping_plane)
+        static std::unique_ptr<Cursor> cursor_factory(const Vec3f &first_center, const Vec3f &second_center, const Vec3f &camera_pos, const float cursor_radius, const CursorType cursor_type,
+            const Transform3d &trafo_matrix, const ClippingPlane &clipping_plane)
         {
             assert(cursor_type == TriangleSelector::CursorType::CIRCLE || cursor_type == TriangleSelector::CursorType::SPHERE);
             if (cursor_type == TriangleSelector::CursorType::SPHERE)

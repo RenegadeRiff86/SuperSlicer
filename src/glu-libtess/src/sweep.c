@@ -677,7 +677,7 @@ static int CheckForIntersect( GLUtesselator *tess, ActiveRegion *regUp )
 
   if( VertEq( &isect, orgUp ) || VertEq( &isect, orgLo )) {
     /* Easy case -- intersection at one of the right endpoints */
-    (void) CheckForRightSplice( tess, regUp );
+    CheckForRightSplice( tess, regUp );
     return FALSE;
   }
 
@@ -830,7 +830,7 @@ static void WalkDirtyRegions( GLUtesselator *tess, ActiveRegion *regUp )
 	/* Even though we can't use CheckForIntersect(), the Org vertices
 	 * may violate the dictionary edge ordering.  Check and correct this.
 	 */
-	(void) CheckForRightSplice( tess, regUp );
+	CheckForRightSplice( tess, regUp );
       }
     }
     if( eUp->Org == eLo->Org && eUp->Dst == eLo->Dst ) {
@@ -886,7 +886,7 @@ static void ConnectRightVertex( GLUtesselator *tess, ActiveRegion *regUp,
   int degenerate = FALSE;
 
   if( eUp->Dst != eLo->Dst ) {
-    (void) CheckForIntersect( tess, regUp );
+    CheckForIntersect( tess, regUp );
   }
 
   /* Possible new degeneracies: upper or lower edge of regUp may pass

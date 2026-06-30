@@ -439,7 +439,8 @@ static std::vector<std::pair<OrcaTreeSupportSettings, std::vector<size_t>>> grou
  * \param storage[in] Background storage to access meshes.
  * \param currently_processing_meshes[in] Indexes of all meshes that are processed in this iteration
  */
-[[nodiscard]] static LayerIndex precalculate(const Print &print, const std::vector<Polygons> &overhangs, const OrcaTreeSupportSettings &config, const std::vector<size_t> &object_ids, OrcaTreeModelVolumes &volumes, std::function<void()> throw_on_cancel)
+[[nodiscard]] static LayerIndex precalculate(const Print &print, const std::vector<Polygons> &overhangs, const OrcaTreeSupportSettings &config, const std::vector<size_t> &object_ids,
+    OrcaTreeModelVolumes &volumes, std::function<void()> throw_on_cancel)
 {
     // calculate top most layer that is relevant for support
     LayerIndex max_layer = 0;
@@ -1529,7 +1530,8 @@ static void generate_initial_areas(
                         LineInformations fresh_valid_points = convert_lines_to_internal(volumes, config, convert_internal_to_lines(split.second), layer_idx - lag_ctr);
                         validate_range(fresh_valid_points);
 
-                        rich_interface_placer.add_points_along_lines(fresh_valid_points, (force_tip_to_roof && lag_ctr <= num_support_roof_layers) ? num_support_roof_layers : 0, layer_idx - lag_ctr, false, roof_enabled ? num_support_roof_layers : 0);
+                        rich_interface_placer.add_points_along_lines(fresh_valid_points, (force_tip_to_roof && lag_ctr <= num_support_roof_layers) ? num_support_roof_layers : 0, layer_idx - lag_ctr,
+                            false, roof_enabled ? num_support_roof_layers : 0);
                     }
                 }
 #endif

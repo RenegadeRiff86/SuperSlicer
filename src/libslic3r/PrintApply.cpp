@@ -1080,7 +1080,8 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
             const bool tool_change_differ    = num_extruders > 1 && custom_per_printz_gcodes_tool_changes_differ(m_model.custom_gcode_per_print_z.gcodes, model.custom_gcode_per_print_z.gcodes, CustomGCode::ToolChange);
             // For multi-extruder printers, we perform a tool change before a color change.
             // So, in that case, we must invalidate tool ordering and wipe tower even if custom color change g-codes differ.
-            const bool color_change_differ   = num_extruders > 1 && (next_mode == CustomGCode::MultiExtruder) && custom_per_printz_gcodes_tool_changes_differ(m_model.custom_gcode_per_print_z.gcodes, model.custom_gcode_per_print_z.gcodes, CustomGCode::ColorChange);
+            const bool color_change_differ   = num_extruders > 1 && (next_mode == CustomGCode::MultiExtruder) && custom_per_printz_gcodes_tool_changes_differ(m_model.custom_gcode_per_print_z.gcodes,
+                model.custom_gcode_per_print_z.gcodes, CustomGCode::ColorChange);
 
             update_apply_status(
                 (num_extruders_changed || tool_change_differ || multi_extruder_differ || color_change_differ) ?

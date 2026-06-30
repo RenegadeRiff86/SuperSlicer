@@ -255,7 +255,8 @@ std::vector<float> contour_distance2(const EdgeGrid::Grid &grid, const size_t id
 #endif
         struct Visitor {
             Visitor(const EdgeGrid::Grid &grid, const size_t idx_contour, const std::vector<ResampledPoint> &resampled_point_parameters, double dist_same_contour_accept, double dist_same_contour_reject) :
-                grid(grid), idx_contour(idx_contour), contour(grid.contours()[idx_contour]), resampled_point_parameters(resampled_point_parameters), dist_same_contour_accept(dist_same_contour_accept), dist_same_contour_reject(dist_same_contour_reject) {}
+                grid(grid), idx_contour(idx_contour), contour(grid.contours()[idx_contour]), resampled_point_parameters(resampled_point_parameters),
+                    dist_same_contour_accept(dist_same_contour_accept), dist_same_contour_reject(dist_same_contour_reject) {}
 
             void init(const Points &contour, const Point &apoint) {
                 this->idx_point  = &apoint - contour.data();

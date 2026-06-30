@@ -1241,7 +1241,7 @@ bool AppConfig::set_recent_projects(const std::vector<std::string>& recent_proje
     auto &dst = it_section->second;
 
     std::map<std::string, std::string> src;
-    for (unsigned int i = 0; i < (unsigned int)recent_projects.size(); ++i)
+    for (size_t i = 0; i < recent_projects.size(); ++i)
         src[std::to_string(i + 1)] = recent_projects[i];
 
     if (src != dst) {

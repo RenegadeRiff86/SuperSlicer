@@ -1523,7 +1523,8 @@ static void generate_initial_areas(
                         LineInformations fresh_valid_points = convert_lines_to_internal(volumes, config, convert_internal_to_lines(split.second), layer_idx - lag_ctr);
                         validate_range(fresh_valid_points);
 
-                        rich_interface_placer.add_points_along_lines(fresh_valid_points, (force_tip_to_roof && lag_ctr <= num_support_roof_layers) ? num_support_roof_layers : 0, layer_idx - lag_ctr, false, roof_enabled ? num_support_roof_layers : 0);
+                        rich_interface_placer.add_points_along_lines(fresh_valid_points, (force_tip_to_roof && lag_ctr <= num_support_roof_layers) ? num_support_roof_layers : 0, layer_idx - lag_ctr,
+                            false, roof_enabled ? num_support_roof_layers : 0);
                     }
                 }
 #endif
@@ -3133,7 +3134,8 @@ static void smooth_branch_areas(
 
 #ifdef SLIC3R_TREESUPPORTS_PROGRESS
     progress_total += TREE_PROGRESS_SMOOTH_BRANCH_AREAS / 2;
-    Progress::messageProgress(Progress::Stage::SUPPORT, progress_total * m_progress_multiplier + m_progress_offset, TREE_PROGRESS_TOTAL); // It is just assumed that both smoothing loops together are one third of the time spent in this function. This was guessed. As the whole function is only 10%, and the smoothing is hard to predict a progress report in the loop may be not useful.
+    Progress::messageProgress(Progress::Stage::SUPPORT, progress_total * m_progress_multiplier + m_progress_offset, TREE_PROGRESS_TOTAL);
+    // It is just assumed that both smoothing loops together are one third of the time spent in this function. This was guessed. As the whole function is only 10%, and the smoothing is hard to predict a progress report in the loop may be not useful.
 #endif
 
     // smooth downwards

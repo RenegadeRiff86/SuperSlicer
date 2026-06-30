@@ -739,7 +739,8 @@ MedialAxis::fusion_corners(ThickPolylines& pp)
                   polyline.points[0]); // polyline.points[0].ccw_angle(polyline.points[1],
                                        // pp[crosspoint[0]].points[1]); if (angle1 >= PI) angle1 = 2 * PI - angle1;
         assert(angle1 <= PI);
-        double angle2 = angle_ccw(polyline.points[1] - polyline.points[0], pp[crosspoint[1]].points[1] - polyline.points[0]); // polyline.points[0].ccw_angle(polyline.points[1], pp[crosspoint[1]].points[1]); if (angle2 >= PI) angle2 = 2 * PI - angle2;
+        double angle2 = angle_ccw(polyline.points[1] - polyline.points[0], pp[crosspoint[1]].points[1] - polyline.points[0]);
+        // polyline.points[0].ccw_angle(polyline.points[1], pp[crosspoint[1]].points[1]); if (angle2 >= PI) angle2 = 2 * PI - angle2;
         assert(angle2 <= PI);
         if (angle1 + angle2 <= PI) continue;
 

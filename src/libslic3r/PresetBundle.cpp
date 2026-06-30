@@ -1102,7 +1102,7 @@ void PresetBundle::load_config_file_config(const std::string &name_or_path, bool
             // Load the configs into this->filaments and make them active.
             std::vector<std::string> extr_names = std::vector<std::string>(configs.size());
             bool any_modified = false;
-            for (int i = 0; i < (int)configs.size(); i++) {
+            for (size_t i = 0; i < configs.size(); i++) {
                 DynamicPrintConfig &cfg = configs[i];
                 // Split the "compatible_printers_condition" and "inherits" from the cummulative vectors to separate filament presets.
                 cfg.opt_string("compatible_printers_condition", true) = compatible_printers_condition_values[i + 1];
@@ -1110,7 +1110,7 @@ void PresetBundle::load_config_file_config(const std::string &name_or_path, bool
                 cfg.opt_string("inherits", true)                      = inherits_values[i + 1];
                 // Load all filament presets, but only select the first one in the preset dialog.
                 auto [loaded, modified, installed] = this->filaments.load_external_preset(name_or_path, name,
-                    (i < int(old_filament_profile_names->size())) ? old_filament_profile_names->get_at(i) : "",
+                    (i < old_filament_profile_names->size()) ? old_filament_profile_names->get_at(i) : "",
                     std::move(cfg),
                     any_modified ? PresetCollection::LoadAndSelect::Never : 
                         PresetCollection::LoadAndSelect::OnlyIfModified);
@@ -1990,7 +1990,7 @@ void PresetBundle::export_configbundle(const std::string &path, bool export_syst
     for (size_t i = 0; i < this->extruders_filaments.size(); ++ i) {
         char suffix[64];
         if (i > 0)
-            sprintf(suffix, "_%d", (int)i);
+            sprintf(suffix, "_%d", static_cast<int>(i));
         else
             suffix[0] = 0;
         c << "filament" << suffix << " = " << this->extruders_filaments[i].get_selected_preset_name() << std::endl;

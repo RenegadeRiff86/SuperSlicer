@@ -497,8 +497,11 @@ size_t Polygon::remove_collinear_angle(double angle_radian) {
     min_dist_sq = min_dist_sq * min_dist_sq;
     while (points.size() > 2 && Line::distance_to_squared(points.front(), points.back(), points[1]) < min_dist_sq * std::min(points.back().distance_to_square(points.front()), points.front().distance_to_square(points[1]))) {
        /* if (Line::distance_to_squared(points.front(), points.back(), points[1]) > SCALED_EPSILON) {
-            std::cout << "Fcolinear angle " << Line::distance_to_squared(points[0], points.back(), points[1]) << " < " << (min_dist_sq * std::min(points.back().distance_to_square(points.front()), points.front().distance_to_square(points[1]))) << " (" << min_dist_sq << " * " << std::min(points.back().distance_to_square(points.front()), points.front().distance_to_square(points[1])) << ")\n";
-            std::cout << "      unscaled= " << unscaled(Line::distance_to(points[0], points.back(), points[1])) << " < " << unscaled(std::sin(angle_radian) * std::min(points.back().distance_to(points.front()), points.front().distance_to(points[1]))) << " (" << std::sin(angle_radian) << " * " << unscaled(std::min(points.back().distance_to(points.front()), points.front().distance_to(points[1]))) << ")\n";
+            std::cout << "Fcolinear angle " << Line::distance_to_squared(points[0], points.back(), points[1]) << " < " << (min_dist_sq * std::min(points.back().distance_to_square(points.front()),
+                points.front().distance_to_square(points[1]))) << " (" << min_dist_sq << " * " << std::min(points.back().distance_to_square(points.front()), points.front().distance_to_square(points[1])) << ")\n";
+            std::cout << "      unscaled= " << unscaled(Line::distance_to(points[0], points.back(), points[1])) << " < " <<
+                unscaled(std::sin(angle_radian) * std::min(points.back().distance_to(points.front()), points.front().distance_to(points[1]))) << " (" << std::sin(angle_radian) << " * " <<
+                unscaled(std::min(points.back().distance_to(points.front()), points.front().distance_to(points[1]))) << ")\n";
             std::cout << "      dists: " << unscaled(points.back().distance_to(points.front())) << " => " << unscaled(points.front().distance_to(points[1])) << "\n";
         }*/
         //colinear! delete!
@@ -508,8 +511,12 @@ size_t Polygon::remove_collinear_angle(double angle_radian) {
     for (size_t idx = 1; idx < points.size() - 1 && points.size() > 2; ) {
         if (Line::distance_to_squared(points[idx], points[idx - 1], points[idx + 1]) < min_dist_sq * std::min(points[idx - 1].distance_to_square(points[idx]), points[idx].distance_to_square(points[idx + 1]))) {
             /*if (Line::distance_to_squared(points[idx], points[idx - 1], points[idx + 1]) > SCALED_EPSILON) {
-                std::cout << " colinear angle " << Line::distance_to_squared(points[idx], points[idx - 1], points[idx + 1]) << " < " << (min_dist_sq * std::min(points[idx - 1].distance_to_square(points[idx]), points[idx].distance_to_square(points[idx + 1]))) << " (" << min_dist_sq << " * " << std::min(points[idx - 1].distance_to_square(points[idx]), points[idx].distance_to_square(points[idx + 1])) << ")\n";
-                std::cout << "      unscaled= " << unscaled(Line::distance_to(points[idx], points[idx - 1], points[idx + 1])) << " < " << unscaled(std::sin(angle_radian) * std::min(points[idx - 1].distance_to(points[idx]), points[idx].distance_to(points[idx + 1]))) << " (" << std::sin(angle_radian) << " * " << unscaled(std::min(points[idx - 1].distance_to(points[idx]), points[idx].distance_to(points[idx + 1]))) << ")\n";
+                std::cout << " colinear angle " << Line::distance_to_squared(points[idx], points[idx - 1], points[idx + 1]) << " < " <<
+                    (min_dist_sq * std::min(points[idx - 1].distance_to_square(points[idx]), points[idx].distance_to_square(points[idx + 1]))) << " (" << min_dist_sq << " * " <<
+                    std::min(points[idx - 1].distance_to_square(points[idx]), points[idx].distance_to_square(points[idx + 1])) << ")\n";
+                std::cout << "      unscaled= " << unscaled(Line::distance_to(points[idx], points[idx - 1], points[idx + 1])) << " < " <<
+                    unscaled(std::sin(angle_radian) * std::min(points[idx - 1].distance_to(points[idx]), points[idx].distance_to(points[idx + 1]))) << " (" << std::sin(angle_radian) << " * " <<
+                    unscaled(std::min(points[idx - 1].distance_to(points[idx]), points[idx].distance_to(points[idx + 1]))) << ")\n";
                 std::cout << "      dists: " << unscaled(points[idx - 1].distance_to(points[idx])) << " => " << unscaled(points[idx].distance_to(points[idx + 1])) << "\n";
             }*/
             //colinear! delete!
@@ -519,7 +526,8 @@ size_t Polygon::remove_collinear_angle(double angle_radian) {
             idx++;
         }
     }
-    while (points.size() > 2 && Line::distance_to_squared(points.back(), points[points.size() - 2], points.front()) < min_dist_sq * std::min(points.back().distance_to_square(points[points.size() - 2]), points.front().distance_to_square(points.back()))) {
+    while (points.size() > 2 && Line::distance_to_squared(points.back(), points[points.size() - 2],
+        points.front()) < min_dist_sq * std::min(points.back().distance_to_square(points[points.size() - 2]), points.front().distance_to_square(points.back()))) {
         //colinear! delete!
         points.erase(points.end() - 1);
         nb_del++;

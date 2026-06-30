@@ -630,7 +630,8 @@ void LayerRegion::process_external_surfaces(const Layer *lower_layer, const Poly
         const double custom_angle = this->region().config().bridge_angle.value;
         const auto   expansion_params_into_solid_infill  = RegionExpansionParameters::build(expansion_bottom_bridge, expansion_step, max_nr_expansion_steps);
         if (this->region().config().bridge_angle.is_enabled()) {
-            bridges.surfaces = expand_merge_surfaces(m_fill_surfaces.surfaces, stPosBottom | stDensSolid | stModBridge, shells, expansion_params_into_solid_infill, sparse, expansion_params_into_sparse_infill, closing_radius, scaled_resolution, Geometry::deg2rad(custom_angle)
+            bridges.surfaces = expand_merge_surfaces(m_fill_surfaces.surfaces, stPosBottom | stDensSolid | stModBridge, shells, expansion_params_into_solid_infill, sparse,
+                expansion_params_into_sparse_infill, closing_radius, scaled_resolution, Geometry::deg2rad(custom_angle)
 #ifdef _DEBUG
             , std::to_string(this->layer()->id()) + "_expand_merge_surfaces_bridge_"
 #endif

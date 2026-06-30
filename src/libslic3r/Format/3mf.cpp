@@ -1397,8 +1397,10 @@ namespace Slic3r {
                         std::string opt_key = option.second.get<std::string>("<xmlattr>.opt_key");
                         std::string value = option.second.data();
                         if (value.empty() && opt_key.find("pattern") != std::string::npos) {
-                            add_error("Error while reading '"+ opt_key +"': no value. If you are the one who created this project file, please open an issue and put the ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt file created next to the executable for debugging.");
-                            std::string old_value = "Error while reading '" + opt_key + "': no value. If you are the one who created this project file, please open an issue and put the ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt file created next to the executable for debugging.";
+                            add_error("Error while reading '"+ opt_key +
+                                "': no value. If you are the one who created this project file, please open an issue and put the ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt file created next to the executable for debugging.");
+                            std::string old_value = "Error while reading '" + opt_key +
+                                "': no value. If you are the one who created this project file, please open an issue and put the ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt file created next to the executable for debugging.";
                             const ConfigOptionDef *opt_def = config.get_option_def(opt_key);
                             config_substitutions.emplace(opt_def,
                                 std::move(old_value),
@@ -2630,8 +2632,10 @@ namespace Slic3r {
                     ;//already parsed
                 else
                     if (metadata.value.empty() && metadata.key.find("pattern") != std::string::npos) {
-                            add_error("Error while reading '"+  metadata.key +"': no value. If you are the one who created this project file, please open an issue and put the ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt file created next to the executable for debugging.");
-                            std::string old_value = "Error while reading '" + metadata.key + "': no value. If you are the one who created this project file, please open an issue and put the ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt file created next to the executable for debugging.";
+                            add_error("Error while reading '"+  metadata.key +
+                                "': no value. If you are the one who created this project file, please open an issue and put the ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt file created next to the executable for debugging.");
+                            std::string old_value = "Error while reading '" + metadata.key +
+                                "': no value. If you are the one who created this project file, please open an issue and put the ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt file created next to the executable for debugging.";
                             const ConfigOptionDef *opt_def = global_config.get_option_def(metadata.key);
                             config_substitutions.emplace(opt_def,
                                 std::move(old_value),
@@ -3592,7 +3596,8 @@ namespace Slic3r {
 
                 // Store the layer height profile as a single space separated list.
                 for (size_t i = 0; i < sla_support_points.size(); ++i) {
-                    sprintf(buffer, (i==0 ? "%f %f %f %f %f" : " %f %f %f %f %f"),  sla_support_points[i].pos(0), sla_support_points[i].pos(1), sla_support_points[i].pos(2), sla_support_points[i].head_front_radius, static_cast<float>(sla_support_points[i].is_new_island));
+                    sprintf(buffer, (i==0 ? "%f %f %f %f %f" : " %f %f %f %f %f"),  sla_support_points[i].pos(0), sla_support_points[i].pos(1), sla_support_points[i].pos(2),
+                        sla_support_points[i].head_front_radius, static_cast<float>(sla_support_points[i].is_new_island));
                     out += buffer;
                 }
                 out += "\n";

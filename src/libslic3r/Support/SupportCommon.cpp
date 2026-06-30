@@ -497,7 +497,7 @@ SupportGeneratorLayersPtr generate_raft_base(
         if (columns_base != nullptr) {
             // Expand the bases of the support columns in the 1st layer.
             Polygons &raft     = columns_base->polygons;
-            Polygons  trimming = offset(object.layers().front()->lslices(), (float)scale_(support_params.gap_xy), SUPPORT_SURFACES_OFFSET_PARAMETERS);
+            Polygons  trimming = offset(object.layers().front()->lslices(), static_cast<float>(scale_(support_params.gap_xy)), SUPPORT_SURFACES_OFFSET_PARAMETERS);
             if (inflate_factor_1st_layer > SCALED_EPSILON) {
                 // Inflate in multiple steps to avoid leaking of the support 1st layer through object walls.
                 auto  nsteps = std::max(5, int(ceil(inflate_factor_1st_layer / support_params.first_layer_flow.scaled_width())));

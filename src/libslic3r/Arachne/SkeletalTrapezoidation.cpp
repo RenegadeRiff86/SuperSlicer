@@ -368,7 +368,8 @@ bool SkeletalTrapezoidation::computePointCellRange(const VD::cell_type &cell, Po
             starting_vd_edge = vd_edge->next();
             ending_vd_edge = vd_edge;
         } else {
-            assert((Geometry::VoronoiUtils::to_point(vd_edge->vertex0()) == source_point.cast<int64_t>() || !vd_edge->is_secondary()) && "point cells must end in the point! They cannot cross the point with an edge, because collinear edges are not allowed in the input.");
+            assert((Geometry::VoronoiUtils::to_point(vd_edge->vertex0()) == source_point.cast<int64_t>() || !vd_edge->is_secondary()) &&
+                "point cells must end in the point! They cannot cross the point with an edge, because collinear edges are not allowed in the input.");
         }
     }
     while (vd_edge = vd_edge->next(), vd_edge != cell.incident_edge());
@@ -1138,7 +1139,8 @@ void SkeletalTrapezoidation::generateTransitionEnds(edge_t& edge, coord_t mid_po
     }
 }
 
-bool SkeletalTrapezoidation::generateTransitionEnd(edge_t& edge, coord_t start_pos, coord_t end_pos, coord_t transition_half_length, double start_rest, double end_rest, coord_t lower_bead_count, ptr_vector_t<std::list<TransitionEnd>>& edge_transition_ends)
+bool SkeletalTrapezoidation::generateTransitionEnd(edge_t& edge, coord_t start_pos, coord_t end_pos, coord_t transition_half_length, double start_rest, double end_rest, coord_t lower_bead_count,
+    ptr_vector_t<std::list<TransitionEnd>>& edge_transition_ends)
 {
     Point a = edge.from->p;
     Point b = edge.to->p;

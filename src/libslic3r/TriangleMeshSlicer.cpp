@@ -1059,7 +1059,7 @@ static void chain_lines_by_triangle_connectivity(IntersectionLines &lines, Polyg
                             assert(!loop.points.front().coincides_with(loop.points.back()));
                     }
                     #ifdef SLIC3R_TRIANGLEMESH_DEBUG
-                    printf("  Discovered %s polygon of %d points\n", (p.is_counter_clockwise() ? "ccw" : "cw"), (int)p.points.size());
+                    printf("  Discovered %s polygon of %d points\n", (p.is_counter_clockwise() ? "ccw" : "cw"), static_cast<int>(p.points.size()));
                     #endif
                 } else {
                     // This is an open polyline. Add it to the list of open polylines. These open polylines will processed later.

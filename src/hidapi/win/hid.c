@@ -670,7 +670,7 @@ HID_API_EXPORT hid_device * HID_API_CALL hid_open_path(const char *path)
 	dev->input_report_length = caps.InputReportByteLength;
 	HidD_FreePreparsedData(pp_data);
 
-	dev->read_buf = (char*) malloc(dev->input_report_length);
+	dev->read_buf = malloc(dev->input_report_length);
 
 	return dev;
 

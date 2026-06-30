@@ -48,7 +48,8 @@ DistanceField::DistanceField(const coord_t& radius, const Polygons& current_outl
         const size_t unsupported_points_prev_size = m_unsupported_points.size();
         m_unsupported_points.resize(unsupported_points_prev_size + sampled_points.size());
 
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, sampled_points.size()), [&self = *this, &expoly = std::as_const(expoly), &sampled_points = std::as_const(sampled_points), &unsupported_points_prev_size = std::as_const(unsupported_points_prev_size)](const tbb::blocked_range<size_t> &range) -> void {
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, sampled_points.size()), [&self = *this, &expoly = std::as_const(expoly), &sampled_points = std::as_const(sampled_points),
+            &unsupported_points_prev_size = std::as_const(unsupported_points_prev_size)](const tbb::blocked_range<size_t> &range) -> void {
             for (size_t sp_idx = range.begin(); sp_idx < range.end(); ++sp_idx) {
                 const Point &sp = sampled_points[sp_idx];
                 // Find a squared distance to the source expolygon boundary.

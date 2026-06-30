@@ -14,6 +14,7 @@
 #include <memory>
 #include <sstream>
 #include <iomanip>
+#include <limits>
 
 #include "ClipperUtils.hpp"
 #include "GCodeProcessor.hpp"
@@ -173,10 +174,10 @@ public:
         }
 
         std::string gcode;
-        if (std::abs(rot.x() - rotated_current_pos.x()) > (float)EPSILON)
+        if (std::abs(rot.x() - rotated_current_pos.x()) > static_cast<float>(EPSILON))
             gcode += set_format_X(rot.x());
 
-        if (std::abs(rot.y() - rotated_current_pos.y()) > (float)EPSILON)
+        if (std::abs(rot.y() - rotated_current_pos.y()) > static_cast<float>(EPSILON))
             gcode += set_format_Y(rot.y());
 
 
@@ -912,12 +913,13 @@ std::vector<WipeTower::ToolChangeResult> WipeTower::prime(
 WipeTower::ToolChangeResult WipeTower::tool_change(size_t tool)
 {
     size_t old_tool = m_current_tool;
+    static constexpr size_t no_tool = std::numeric_limits<size_t>::max();
 
     float wipe_area = 0.f;
     float wipe_volume = 0.f;
     
     // Finds this toolchange info
-    if (tool != (unsigned int)(-1))
+    if (tool != no_tool)
     {
         for (const auto &b : m_layer_info->tool_changes)
             if ( b.new_tool == tool ) {
@@ -933,14 +935,14 @@ WipeTower::ToolChangeResult WipeTower::tool_change(size_t tool)
     box_coordinates cleaning_box(
         Vec2f(m_perimeter_width / 2.f, m_perimeter_width / 2.f),
         m_wipe_tower_width - m_perimeter_width,
-        (tool != (unsigned int)(-1) ? wipe_area+m_depth_traversed-0.5f*m_perimeter_width
+        (tool != no_tool ? wipe_area+m_depth_traversed-0.5f*m_perimeter_width
                                     : m_wipe_tower_depth-m_perimeter_width));
 
     WipeTowerWriter writer(m_layer_height, m_perimeter_width, m_gcode_flavor, m_config->tool_name.get_values(), m_filpar);
     writer.set_extrusion_flow(m_extrusion_flow)
         .set_z(m_z_pos + m_config->z_offset.value)
         .set_initial_tool(m_current_tool)
-        .set_y_shift(m_y_shift + (tool!=(unsigned int)(-1) && (m_current_shape == SHAPE_REVERSED) ? m_layer_info->depth - m_layer_info->toolchanges_depth(): 0.f))
+        .set_y_shift(m_y_shift + (tool!=no_tool && (m_current_shape == SHAPE_REVERSED) ? m_layer_info->depth - m_layer_info->toolchanges_depth(): 0.f))
         .append(";--------------------\n"
                 "; CP TOOLCHANGE START\n");
 
@@ -1630,8 +1632,8 @@ WipeTower::ToolChangeResult WipeTower::finish_layer()
             frPerimeter,
             *Flow::extrusion_width_option("brim", brim_region_config),
             *Flow::extrusion_spacing_option("brim", brim_region_config),
-            (float)m_nozzle_diameter,
-            (float)m_layer_height,
+            static_cast<float>(m_nozzle_diameter),
+            static_cast<float>(m_layer_height),
             (m_current_tool < m_config->nozzle_diameter.size()) ? m_object_config->get_computed_value("filament_max_overlap", m_current_tool) : 1
         );
         const double spacing = brim_flow.spacing();
@@ -1716,7 +1718,7 @@ std::vector<std::vector<float>> WipeTower::extract_wipe_volumes(const ConfigBase
 
     // Extract purging volumes for each extruder pair:
     std::vector<std::vector<float>> wipe_volumes;
-    const unsigned int number_of_extruders = (unsigned int)(sqrt(wiping_matrix.size())+EPSILON);
+    const unsigned int number_of_extruders = static_cast<unsigned int>(sqrt(wiping_matrix.size()) + EPSILON);
     for (unsigned int i = 0; i<number_of_extruders; ++i)
         wipe_volumes.push_back(std::vector<float>(wiping_matrix.begin()+i*number_of_extruders, wiping_matrix.begin()+(i+1)*number_of_extruders));
 

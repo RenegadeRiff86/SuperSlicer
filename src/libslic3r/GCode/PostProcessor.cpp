@@ -171,7 +171,7 @@ static int run_script(const std::string &script, const std::string &gcode, std::
     LocalFree(szArglist);
     quote_argv_winapi(boost::nowide::widen(gcode), command_line);
     BOOST_LOG_TRIVIAL(debug) << (boost::format("Executing script : %1%") % boost::nowide::narrow(command_line));
-    return (int)execute_process_winapi(command_line);
+    return static_cast<int>(execute_process_winapi(command_line));
 }
 
 #else

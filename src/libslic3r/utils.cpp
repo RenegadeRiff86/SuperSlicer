@@ -1407,7 +1407,8 @@ std::string log_memory_info(bool ignore_loglevel)
 
         PROCESS_MEMORY_COUNTERS_EX pmc{};
         if (GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc)))
-            out = " WorkingSet: " + format_memsize_MB(pmc.WorkingSetSize) + "; PrivateBytes: " + format_memsize_MB(pmc.PrivateUsage) + "; Pagefile(peak): " + format_memsize_MB(pmc.PagefileUsage) + "(" + format_memsize_MB(pmc.PeakPagefileUsage) + ")";
+            out = " WorkingSet: " + format_memsize_MB(pmc.WorkingSetSize) + "; PrivateBytes: " + format_memsize_MB(pmc.PrivateUsage) + "; Pagefile(peak): " + format_memsize_MB(pmc.PagefileUsage) +
+                "(" + format_memsize_MB(pmc.PeakPagefileUsage) + ")";
         else
             out += " Used memory: N/A";
 #elif defined(__linux__) or defined(__APPLE__)

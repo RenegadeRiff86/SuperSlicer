@@ -348,7 +348,7 @@ public:
 class DummyCtl : public ArrangeTaskCtl
 {
 public:
-    void update_status(int) override {}
+    void update_status(int /*st*/) override {}
     bool was_canceled() const override { return false; }
 };
 

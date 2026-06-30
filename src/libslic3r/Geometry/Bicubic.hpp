@@ -244,7 +244,7 @@ static typename KernelWrapper::FloatType cubic_interpolate(const Eigen::ArrayBas
         const typename KernelWrapper::FloatType pt) {
     typedef typename KernelWrapper::FloatType T;
     const int w = int(F.size());
-    const int ix = (int) floor(pt);
+    const int ix = static_cast<int>(floor(pt));
     const T s = pt - T( ix);
 
     if (ix > 1 && ix + 2 < w) {
@@ -264,8 +264,8 @@ static float bicubic_interpolate(const Eigen::MatrixBase<Derived> &F,
     typedef typename Kernel::FloatType T;
     const int w = F.cols();
     const int h = F.rows();
-    const int ix = (int) floor(pt[0]);
-    const int iy = (int) floor(pt[1]);
+    const int ix = static_cast<int>(floor(pt[0]));
+    const int iy = static_cast<int>(floor(pt[1]));
     const T s = pt[0] - T( ix);
     const T t = pt[1] - T( iy);
 

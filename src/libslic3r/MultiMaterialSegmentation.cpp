@@ -256,7 +256,8 @@ static std::vector<std::vector<PaintedLine>> post_process_painted_lines(const st
     size_t prev_painted_line_idx = 0;
     for (size_t curr_painted_line_idx = 0; curr_painted_line_idx < painted_lines.size(); ++curr_painted_line_idx) {
         size_t next_painted_line_idx = curr_painted_line_idx + 1;
-        if (next_painted_line_idx >= painted_lines.size() || painted_lines[curr_painted_line_idx].contour_idx != painted_lines[next_painted_line_idx].contour_idx || painted_lines[curr_painted_line_idx].line_idx != painted_lines[next_painted_line_idx].line_idx) {
+        if (next_painted_line_idx >= painted_lines.size() || painted_lines[curr_painted_line_idx].contour_idx != painted_lines[next_painted_line_idx].contour_idx ||
+            painted_lines[curr_painted_line_idx].line_idx != painted_lines[next_painted_line_idx].line_idx) {
             const PaintedLine &start_line      = painted_lines[prev_painted_line_idx];
             const Line        &line_to_process = contours[start_line.contour_idx].get_segment(start_line.line_idx);
             Slic3r::append(filtered_painted_lines[painted_lines[curr_painted_line_idx].contour_idx], filter_painted_lines(line_to_process, prev_painted_line_idx, curr_painted_line_idx, painted_lines));
@@ -1314,7 +1315,8 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
         //can reuse the TriangleSelector for each extruder_idx
         TriangleSelector tri_selector(mv->mesh());
         mv->mm_segmentation_facets.set_facets_selector(tri_selector);
-        tbb::parallel_for(tbb::blocked_range<size_t>(1, num_extruders + 1), [&mv, &print_object, &layers, &edge_grids, &painted_lines, &painted_lines_mutex, &input_expolygons, &resolution, &tri_selector , &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {
+        tbb::parallel_for(tbb::blocked_range<size_t>(1, num_extruders + 1), [&mv, &print_object, &layers, &edge_grids, &painted_lines, &painted_lines_mutex, &input_expolygons, &resolution,
+            &tri_selector , &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {
             for (size_t extruder_idx = range.begin(); extruder_idx < range.end(); ++extruder_idx) {
                 throw_on_cancel_callback();
                 const indexed_triangle_set custom_facets = tri_selector.get_facets(EnforcerBlockerType(extruder_idx));
@@ -1322,7 +1324,8 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
                     continue;
 
                 const Transform3f tr = print_object.trafo().cast<float>() * mv->get_matrix().cast<float>();
-                tbb::parallel_for(tbb::blocked_range<size_t>(0, custom_facets.indices.size()), [&tr, &custom_facets, &print_object, &layers, &edge_grids, &input_expolygons, &painted_lines, &painted_lines_mutex, &extruder_idx, &resolution](const tbb::blocked_range<size_t> &range) {
+                tbb::parallel_for(tbb::blocked_range<size_t>(0, custom_facets.indices.size()), [&tr, &custom_facets, &print_object, &layers, &edge_grids, &input_expolygons, &painted_lines,
+                    &painted_lines_mutex, &extruder_idx, &resolution](const tbb::blocked_range<size_t> &range) {
                     for (size_t facet_idx = range.begin(); facet_idx < range.end(); ++facet_idx) {
                         float min_z = std::numeric_limits<float>::max();
                         float max_z = std::numeric_limits<float>::lowest();

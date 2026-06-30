@@ -159,7 +159,8 @@ struct HeightProfileAdaptiveParams
     float max_adaptive_layer_height;
 
     HeightProfileAdaptiveParams() : adaptive_quality(0.5f), min_adaptive_layer_height(-1.f), max_adaptive_layer_height(-1.f) {} // -1 -> not initialized
-    HeightProfileAdaptiveParams(float adaptive_quality, float min_adaptive_layer_height, float max_adaptive_layer_height) : adaptive_quality(adaptive_quality), max_adaptive_layer_height(max_adaptive_layer_height), min_adaptive_layer_height(min_adaptive_layer_height) {}
+    HeightProfileAdaptiveParams(float adaptive_quality, float min_adaptive_layer_height, float max_adaptive_layer_height) : adaptive_quality(adaptive_quality),
+        max_adaptive_layer_height(max_adaptive_layer_height), min_adaptive_layer_height(min_adaptive_layer_height) {}
 };
 
 std::vector<double> layer_height_profile_adaptive(

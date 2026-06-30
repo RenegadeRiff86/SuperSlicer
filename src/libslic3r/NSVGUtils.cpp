@@ -111,7 +111,7 @@ std::unique_ptr<std::string> read_from_disk(const std::string &path)
 }
 
 NSVGimage_ptr nsvgParse(const std::string& file_data, const char *units, float dpi){
-    // NOTE: nsvg parser consume data from input(char *)
+    // NOTE: nsvg parser consumes mutable, null-terminated input.
     size_t size = file_data.size();
     // file data could be big, so it is allocated on heap
     std::unique_ptr<char[]> data_copy(new char[size+1]);

@@ -133,13 +133,13 @@ public:
 
 /******************************************** Splitting the 128bit number into two 64bit words *********************************************/
 
-    Int128(int64_t lo = 0) : m_lo((uint64_t)lo), m_hi((lo < 0) ? -1 : 0) {}
+    Int128(int64_t lo = 0) : m_lo(static_cast<uint64_t>(lo)), m_hi((lo < 0) ? -1 : 0) {}
     Int128(const Int128 &val) : m_lo(val.m_lo), m_hi(val.m_hi) {}
     Int128(const int64_t& hi, const uint64_t& lo) : m_lo(lo), m_hi(hi) {}
 
     Int128& operator = (const int64_t &val)
     {
-        m_lo = (uint64_t)val;
+        m_lo = static_cast<uint64_t>(val);
         m_hi = (val < 0) ? -1 : 0;
         return *this;
     }
@@ -190,9 +190,9 @@ public:
         const double shift64 = 18446744073709551616.0; //2^64
         return (m_hi < 0) ?
         ((m_lo == 0) ? 
-        (double)m_hi * shift64 :
-        -(double)(~m_lo + ~m_hi * shift64)) :
-        (double)(m_lo + m_hi * shift64);
+        static_cast<double>(m_hi) * shift64 :
+        -(static_cast<double>(~m_lo) + static_cast<double>(~m_hi) * shift64)) :
+        (static_cast<double>(m_lo) + static_cast<double>(m_hi) * shift64);
     }
 
     static inline Int128 multiply(int64_t lhs, int64_t rhs)
@@ -200,7 +200,7 @@ public:
 #if defined(_MSC_VER) && defined(_WIN64)
         // On Visual Studio 64bit, use the _mul128() intrinsic function.
         Int128 result;
-        result.m_lo = (uint64_t)_mul128(lhs, rhs, &result.m_hi);
+        result.m_lo = static_cast<uint64_t>(_mul128(lhs, rhs, &result.m_hi));
         return result;
 #else
         // This branch should only be executed in case there is neither __int16 type nor _mul128 intrinsic

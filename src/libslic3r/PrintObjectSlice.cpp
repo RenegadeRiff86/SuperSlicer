@@ -1761,7 +1761,8 @@ void PrintObject::slice_volumes()
                             expolygons = union_ex(Slic3r::elephant_foot_compensation(expolygons, layerm->flow(frExternalPerimeter), unscaled(-first_layer_compensation)));
                             // regrow
                             assert(first_layer_compensation <= std::min(hole_delta, std::min(inner_delta, outter_delta)));
-                            expolygons = _shrink_contour_holes(std::min(coord_t(0), outter_delta) - first_layer_compensation, std::min(coord_t(0), inner_delta) - first_layer_compensation, std::min(coord_t(0), hole_delta) - first_layer_compensation, expolygons);
+                            expolygons = _shrink_contour_holes(std::min(coord_t(0), outter_delta) - first_layer_compensation, std::min(coord_t(0), inner_delta) - first_layer_compensation,
+                                std::min(coord_t(0), hole_delta) - first_layer_compensation, expolygons);
                             //trim
                             expolygons = intersection_ex(expolygons, trim_first_layer);
                         } else if (hole_delta < 0 || inner_delta < 0 || outter_delta < 0) {
@@ -1841,7 +1842,8 @@ void PrintObject::slice_volumes()
                                 trimming = union_ex(Slic3r::elephant_foot_compensation(trimming, min_ext_peri_flow, unscaled(-first_layer_compensation)));
                                 // regrow
                                 assert(first_layer_compensation <= std::min(hole_delta, std::min(inner_delta, outter_delta)));
-                                trimming = _shrink_contour_holes(std::min(coord_t(0), outter_delta) - first_layer_compensation, std::min(coord_t(0), inner_delta) - first_layer_compensation, std::min(coord_t(0), hole_delta) - first_layer_compensation, trimming);
+                                trimming = _shrink_contour_holes(std::min(coord_t(0), outter_delta) - first_layer_compensation, std::min(coord_t(0), inner_delta) - first_layer_compensation,
+                                    std::min(coord_t(0), hole_delta) - first_layer_compensation, trimming);
                                 //trim
                                 trimming = intersection_ex(trimming, trim_first_layer);
                             } else if (hole_delta < 0 || inner_delta < 0 || outter_delta < 0) {

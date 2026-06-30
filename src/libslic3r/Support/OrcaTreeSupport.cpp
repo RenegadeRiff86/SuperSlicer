@@ -2067,7 +2067,8 @@ void OrcaTreeSupport::draw_circles()
                             }
                         }
                         if (obj_layer_nr == 0 && m_raft_layers == 0) {
-                            double brim_width = !config.tree_support_auto_brim ? tree_brim_width : std::max(MIN_BRANCH_RADIUS_FIRST_LAYER, std::min(node.radius + node.dist_mm_to_top / (scale * branch_radius) * 0.5, MAX_BRANCH_RADIUS_FIRST_LAYER) - node.radius);
+                            double brim_width = !config.tree_support_auto_brim ? tree_brim_width : std::max(MIN_BRANCH_RADIUS_FIRST_LAYER, std::min(node.radius +
+                                node.dist_mm_to_top / (scale * branch_radius) * 0.5, MAX_BRANCH_RADIUS_FIRST_LAYER) - node.radius);
                             auto tmp=offset(circle, scale_(brim_width));
                             if(!tmp.empty())
                                 circle = tmp[0];
@@ -3468,7 +3469,8 @@ Polygons OrcaTreeSupportData::get_contours_with_holes(size_t layer_nr) const
     return contours;
 }
 
-SupportNode* OrcaTreeSupportData::create_node(const Point position, const int distance_to_top, const int obj_layer_nr, const int support_roof_layers_below, const bool to_buildplate, SupportNode* parent, coordf_t print_z_, coordf_t height_, coordf_t dist_mm_to_top_, coordf_t radius_)
+SupportNode* OrcaTreeSupportData::create_node(const Point position, const int distance_to_top, const int obj_layer_nr, const int support_roof_layers_below, const bool to_buildplate,
+    SupportNode* parent, coordf_t print_z_, coordf_t height_, coordf_t dist_mm_to_top_, coordf_t radius_)
 {
     // this function may be called from multiple threads, need to lock
     m_mutex.lock();

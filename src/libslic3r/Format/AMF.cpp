@@ -923,14 +923,14 @@ bool load_amf_file(const char *path, DynamicPrintConfig *config, ConfigSubstitut
     }
 
     AMFParserContext ctx(parser, config, config_substitutions, model);
-    XML_SetUserData(parser, (void*)&ctx);
+    XML_SetUserData(parser, static_cast<void*>(&ctx));
     XML_SetElementHandler(parser, AMFParserContext::startElement, AMFParserContext::endElement);
     XML_SetCharacterDataHandler(parser, AMFParserContext::characters);
 
     char buff[8192];
     bool result = false;
     for (;;) {
-        int len = (int)fread(buff, 1, 8192, pFile);
+        int len = static_cast<int>(fread(buff, 1, 8192, pFile));
         if (ferror(pFile)) {
             BOOST_LOG_TRIVIAL(error) << "AMF parser: Read error";
             break;
@@ -1006,12 +1006,12 @@ bool extract_model_from_archive(mz_zip_archive& archive, const mz_zip_archive_fi
     try
     {
         res = mz_zip_reader_extract_to_callback(&archive, stat.m_file_index, [](void* pOpaque, mz_uint64 file_ofs, const void* pBuf, size_t n)->size_t {
-            CallbackData* data = (CallbackData*)pOpaque;
-            if (!XML_Parse(data->parser, (const char*)pBuf, (int)n, (file_ofs + n == data->stat.m_uncomp_size) ? 1 : 0) || data->ctx.error())
+            CallbackData* data = static_cast<CallbackData*>(pOpaque);
+            if (!XML_Parse(data->parser, static_cast<const char*>(pBuf), static_cast<int>(n), (file_ofs + n == data->stat.m_uncomp_size) ? 1 : 0) || data->ctx.error())
             {
                 std::string error_msg = "Error (" + std::string(data->ctx.error_message()) + 
                                        ") while parsing '" + std::string(data->stat.m_filename) + 
-                                       "' at line " + std::to_string((int)XML_GetCurrentLineNumber(data->parser));
+                                       "' at line " + std::to_string(static_cast<int>(XML_GetCurrentLineNumber(data->parser)));
                 throw Slic3r::FileIOError(error_msg);
             }
 
@@ -1255,7 +1255,7 @@ bool store_amf(std::string &path, Model *model, const DynamicPrintConfig *config
                 stream << "           </coordinates>\n";
                 stream << "         </vertex>\n";
             }
-            num_vertices += (int)its.vertices.size();
+            num_vertices += static_cast<int>(its.vertices.size());
         }
         stream << "      </vertices>\n";
         for (size_t i_volume = 0; i_volume < object->volumes.size(); ++i_volume) {
@@ -1398,7 +1398,7 @@ bool store_amf(std::string &path, Model *model, const DynamicPrintConfig *config
     std::string internal_amf_filename = boost::ireplace_last_copy(boost::filesystem::path(path).filename().string(), ".zip.amf", ".amf");
     std::string out = stream.str();
 
-    if (!mz_zip_writer_add_mem(&archive, internal_amf_filename.c_str(), (const void*)out.data(), out.length(), MZ_DEFAULT_COMPRESSION))
+    if (!mz_zip_writer_add_mem(&archive, internal_amf_filename.c_str(), static_cast<const void*>(out.data()), out.length(), MZ_DEFAULT_COMPRESSION))
     {
         close_zip_writer(&archive);
         boost::filesystem::remove(path);

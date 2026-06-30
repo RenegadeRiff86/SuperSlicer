@@ -636,7 +636,7 @@ std::vector<PerExtruderAdjustments> CoolingBuffer::parse_layer_gcode(const std::
         } else if (boost::starts_with(sline, ";_TOOLCHANGE")) {
             //not using m_toolchange_prefix anymore because there is no use case for it, there is always a _TOOLCHANGE for when a fan change is needed.
             int prefix = 13;
-            uint16_t new_extruder = (uint16_t)atoi(sline.data() + 12);
+            uint16_t new_extruder = static_cast<uint16_t>(atoi(sline.data() + 12));
             auto res = std::from_chars(sline.data() + prefix, sline.data() + sline.size(), new_extruder);
             if (res.ec != std::errc::invalid_argument) {
             // Only change extruder in case the number is meaningful. User could provide an out-of-range index through custom gcodes - those shall be ignored.
@@ -1031,7 +1031,7 @@ std::string CoolingBuffer::apply_layer_cooldown(
         }
         graph.graph_points[graph.begin_idx].x() = 0;
         // x=100 is the full-overhang end (boundary) in the current convention.
-        default_fan_speed[ uint8_t(GCodeExtrusionRole::OverhangPerimeter)] = (int) graph.interpolate(100);
+        default_fan_speed[static_cast<uint8_t>(GCodeExtrusionRole::OverhangPerimeter)] = static_cast<int>(graph.interpolate(100));
     }
     // if disabled, and default is not default
     if (default_fan_speed[uint8_t(GCodeExtrusionRole::TopSolidInfill)] < 0) {

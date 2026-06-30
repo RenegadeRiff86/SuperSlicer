@@ -69,9 +69,9 @@ public:
         CoordType dist = point_coord - this->coordinate(idx, dimension);
         return (double(dist) * dist < search_radius + double(std::is_floating_point<CoordType>::value ? EPSILON : SCALED_EPSILON)) ?
                                                                     // The plane intersects a hypersphere centered at point_coord of search_radius.
-                   ((unsigned int)(VisitorReturnMask::CONTINUE_LEFT) | (unsigned int)(VisitorReturnMask::CONTINUE_RIGHT)) :
+                   (static_cast<unsigned int>(VisitorReturnMask::CONTINUE_LEFT) | static_cast<unsigned int>(VisitorReturnMask::CONTINUE_RIGHT)) :
                    // The plane does not intersect the hypersphere.
-                   (dist > CoordType(0)) ? (unsigned int)(VisitorReturnMask::CONTINUE_RIGHT) : (unsigned int)(VisitorReturnMask::CONTINUE_LEFT);
+                   (dist > CoordType(0)) ? static_cast<unsigned int>(VisitorReturnMask::CONTINUE_RIGHT) : static_cast<unsigned int>(VisitorReturnMask::CONTINUE_LEFT);
     }
 
        // Visitor is supposed to return a bit mask of VisitorReturnMask.
@@ -182,11 +182,11 @@ private:
         size_t left  = node * 2 + 1;
         size_t right = left + 1;
         unsigned int mask = visitor(m_nodes[node], dimension);
-        if ((mask & (unsigned int)VisitorReturnMask::STOP) == 0) {
+        if ((mask & static_cast<unsigned int>(VisitorReturnMask::STOP)) == 0) {
             size_t next_dimension = (++ dimension == NumDimensions) ? 0 : dimension;
-            if (mask & (unsigned int)VisitorReturnMask::CONTINUE_LEFT)
+            if (mask & static_cast<unsigned int>(VisitorReturnMask::CONTINUE_LEFT))
                 visit_recursive(left,  next_dimension, visitor);
-            if (mask & (unsigned int)VisitorReturnMask::CONTINUE_RIGHT)
+            if (mask & static_cast<unsigned int>(VisitorReturnMask::CONTINUE_RIGHT))
                 visit_recursive(right, next_dimension, visitor);
         }
     }

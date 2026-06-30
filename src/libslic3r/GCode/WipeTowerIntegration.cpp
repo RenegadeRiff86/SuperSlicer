@@ -329,8 +329,8 @@ std::string WipeTowerIntegration::tool_change(GCodeGenerator &gcodegen, int extr
     std::string gcode;
     assert(m_layer_idx >= 0);
     if (gcodegen.writer().need_toolchange(extruder_id) || finish_layer) {
-        if (m_layer_idx < (int)m_tool_changes.size()) {
-            if (!(size_t(m_tool_change_idx) < m_tool_changes[m_layer_idx].size()))
+        if (static_cast<size_t>(m_layer_idx) < m_tool_changes.size()) {
+            if (!(static_cast<size_t>(m_tool_change_idx) < m_tool_changes[m_layer_idx].size()))
                 throw Slic3r::RuntimeError("Wipe tower generation failed, possibly due to empty first layer.");
 
             // Calculate where the wipe tower layer will be printed. -1 means that print z will not change,

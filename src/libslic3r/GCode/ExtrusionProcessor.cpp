@@ -31,7 +31,7 @@ ExtrusionPaths calculate_and_split_overhanging_extrusions(const ExtrusionPath   
     //TODO: 'split' lines if the dist of each point is between 0 and max_width, with a max length of path.width/2
 
     std::vector<ExtendedPoint>           extended_points = estimate_points_properties<true, true, true, true>(path.polyline.to_polyline().points,
-                                                                                                    unscaled_prev_layer, path.width(), (float)nozzle_diameter);
+                                                                                                    unscaled_prev_layer, path.width(), static_cast<float>(nozzle_diameter));
     std::vector<std::pair<float, float>> calculated_distances(extended_points.size());
 
     for (size_t i = 0; i < extended_points.size(); i++) {
@@ -315,9 +315,9 @@ float calculate_overhang_fan_speed(const ExtrusionAttributes &attributes,
         // x=0 -> full overhang (0% overlap, most cooling), x=100 -> no overhang (100% overlap).
         // overlap% = 100 - 100*distance/max  (distance=0 sits on the previous layer = full overlap).
         float max_dynamic_distance_fan =
-            (float) config.overhangs_width.get_abs_value(config.nozzle_diameter.get_at(extruder_id));
+            static_cast<float>(config.overhangs_width.get_abs_value(config.nozzle_diameter.get_at(extruder_id)));
         if (max_dynamic_distance_fan <= 0)
-            max_dynamic_distance_fan = (float) config.nozzle_diameter.get_at(extruder_id);
+            max_dynamic_distance_fan = static_cast<float>(config.nozzle_diameter.get_at(extruder_id));
         fan_speed = std::min(
                      graph.interpolate(100 - 100 * std::min(1.f, attributes.overhang_attributes->start_distance_from_prev_layer / max_dynamic_distance_fan)),
                      graph.interpolate(100 - 100 * std::min(1.f, attributes.overhang_attributes->end_distance_from_prev_layer / max_dynamic_distance_fan)));

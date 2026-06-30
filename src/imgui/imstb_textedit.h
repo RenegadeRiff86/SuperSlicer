@@ -1129,13 +1129,13 @@ static void stb_textedit_discard_undo(StbUndoState *state)
          int n = state->undo_rec[0].insert_length, i;
          // delete n characters from all other records
          state->undo_char_point -= n;
-         STB_TEXTEDIT_memmove(state->undo_char, state->undo_char + n, (size_t) (state->undo_char_point*sizeof(STB_TEXTEDIT_CHARTYPE)));
+         STB_TEXTEDIT_memmove(state->undo_char, state->undo_char + n, state->undo_char_point * sizeof(STB_TEXTEDIT_CHARTYPE));
          for (i=0; i < state->undo_point; ++i)
             if (state->undo_rec[i].char_storage >= 0)
                state->undo_rec[i].char_storage -= n; // @OPTIMIZE: get rid of char_storage and infer it
       }
       --state->undo_point;
-      STB_TEXTEDIT_memmove(state->undo_rec, state->undo_rec+1, (size_t) (state->undo_point*sizeof(state->undo_rec[0])));
+      STB_TEXTEDIT_memmove(state->undo_rec, state->undo_rec+1, state->undo_point * sizeof(state->undo_rec[0]));
    }
 }
 
@@ -1153,7 +1153,7 @@ static void stb_textedit_discard_redo(StbUndoState *state)
          int n = state->undo_rec[k].insert_length, i;
          // move the remaining redo character data to the end of the buffer
          state->redo_char_point += n;
-         STB_TEXTEDIT_memmove(state->undo_char + state->redo_char_point, state->undo_char + state->redo_char_point-n, (size_t) ((STB_TEXTEDIT_UNDOCHARCOUNT - state->redo_char_point)*sizeof(STB_TEXTEDIT_CHARTYPE)));
+         STB_TEXTEDIT_memmove(state->undo_char + state->redo_char_point, state->undo_char + state->redo_char_point-n, (STB_TEXTEDIT_UNDOCHARCOUNT - state->redo_char_point) * sizeof(STB_TEXTEDIT_CHARTYPE));
          // adjust the position of all the other records to account for above memmove
          for (i=state->redo_point; i < k; ++i)
             if (state->undo_rec[i].char_storage >= 0)
@@ -1161,11 +1161,12 @@ static void stb_textedit_discard_redo(StbUndoState *state)
       }
       // now move all the redo records towards the end of the buffer; the first one is at 'redo_point'
       // [DEAR IMGUI]
-      size_t move_size = (size_t)((STB_TEXTEDIT_UNDOSTATECOUNT - state->redo_point - 1) * sizeof(state->undo_rec[0]));
-      const char* buf_begin = (char*)state->undo_rec; (void)buf_begin;
-      const char* buf_end   = (char*)state->undo_rec + sizeof(state->undo_rec); (void)buf_end;
-      IM_ASSERT(((char*)(state->undo_rec + state->redo_point)) >= buf_begin);
-      IM_ASSERT(((char*)(state->undo_rec + state->redo_point + 1) + move_size) <= buf_end);
+      int remaining_redo_records = STB_TEXTEDIT_UNDOSTATECOUNT - state->redo_point - 1;
+      size_t move_size = remaining_redo_records * sizeof(state->undo_rec[0]);
+      const StbUndoRecord* buf_begin = state->undo_rec;
+      const StbUndoRecord* buf_end   = state->undo_rec + STB_TEXTEDIT_UNDOSTATECOUNT;
+      IM_ASSERT((state->undo_rec + state->redo_point) >= buf_begin);
+      IM_ASSERT((state->undo_rec + state->redo_point + 1 + remaining_redo_records) <= buf_end);
       STB_TEXTEDIT_memmove(state->undo_rec + state->redo_point+1, state->undo_rec + state->redo_point, move_size);
 
       // now move redo_point to point to the new one
@@ -1374,7 +1375,7 @@ static void stb_textedit_clear_state(STB_TexteditState *state, int is_single_lin
    state->preferred_x = 0;
    state->cursor_at_end_of_line = 0;
    state->initialized = 1;
-   state->single_line = (unsigned char) is_single_line;
+   state->single_line = is_single_line ? 1 : 0;
    state->insert_mode = 0;
    state->row_count_per_page = 0;
 }

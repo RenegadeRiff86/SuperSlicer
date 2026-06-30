@@ -18,7 +18,10 @@
 #ifndef EXIF_H_
 #define EXIF_H_
 
-#ifdef _WIN32
+#if defined(__INTELLISENSE__)
+#define EXIF_API_EXPORT
+#define EXIF_API_CALL
+#elif defined(_WIN32)
 #define EXIF_API_EXPORT __declspec(dllexport)
 #define EXIF_API_CALL
 #else

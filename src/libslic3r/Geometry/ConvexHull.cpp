@@ -18,7 +18,7 @@ Polygon convex_hull(Points pts)
     pts.erase(std::unique(pts.begin(), pts.end(), [](const Point& a, const Point& b) { return a.x() == b.x() && a.y() == b.y(); }), pts.end());
 
     Polygon hull;
-    int n = (int)pts.size();
+    int n = static_cast<int>(pts.size());
     if (n >= 3) {
         int k = 0;
         hull.points.resize(2 * n);

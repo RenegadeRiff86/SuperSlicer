@@ -157,7 +157,9 @@ GroundingLocation Layer::getBestGroundingLocation
 
         Point      current_dist_grid_addr{std::numeric_limits<coord_t>::lowest(), std::numeric_limits<coord_t>::lowest()};
         std::mutex current_dist_mutex;
-        tbb::parallel_for(tbb::blocked_range2d<coord_t>(region.min.y(), region.max.y(), region.min.x(), region.max.x()), [&current_dist, current_dist_copy = current_dist, &current_dist_mutex, &sub_tree, &current_dist_grid_addr, &exclude_tree = std::as_const(exclude_tree), &outline_locator = std::as_const(outline_locator), &supporting_radius = std::as_const(supporting_radius), &tree_node_locator = std::as_const(tree_node_locator), &unsupported_location = std::as_const(unsupported_location)](const tbb::blocked_range2d<coord_t> &range) -> void {
+        tbb::parallel_for(tbb::blocked_range2d<coord_t>(region.min.y(), region.max.y(), region.min.x(), region.max.x()), [&current_dist, current_dist_copy = current_dist, &current_dist_mutex,
+            &sub_tree, &current_dist_grid_addr, &exclude_tree = std::as_const(exclude_tree), &outline_locator = std::as_const(outline_locator), &supporting_radius = std::as_const(supporting_radius),
+            &tree_node_locator = std::as_const(tree_node_locator), &unsupported_location = std::as_const(unsupported_location)](const tbb::blocked_range2d<coord_t> &range) -> void {
             for (coord_t grid_addr_y = range.rows().begin(); grid_addr_y < range.rows().end(); ++grid_addr_y)
                 for (coord_t grid_addr_x = range.cols().begin(); grid_addr_x < range.cols().end(); ++grid_addr_x) {
                     const Point local_grid_addr{grid_addr_x, grid_addr_y};

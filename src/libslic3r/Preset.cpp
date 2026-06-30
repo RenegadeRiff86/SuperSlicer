@@ -455,7 +455,7 @@ void Preset::normalize(DynamicPrintConfig &config)
     auto *nozzle_diameter = dynamic_cast<const ConfigOptionFloats*>(config.option("nozzle_diameter"));
     if (nozzle_diameter != nullptr)
         // Loaded the FFF Printer settings. Verify, that all extruder dependent values have enough values.
-        config.set_num_extruders((unsigned int)nozzle_diameter->size());
+        config.set_num_extruders(static_cast<unsigned int>(nozzle_diameter->size()));
     if (config.option("filament_diameter") != nullptr) {
         // This config contains single or multiple filament presets.
         // Ensure that the filament preset vector options contain the correct number of values.
@@ -483,7 +483,7 @@ void Preset::normalize(DynamicPrintConfig &config)
     auto *milling_diameter = dynamic_cast<const ConfigOptionFloats*>(config.option("milling_diameter"));
     if (milling_diameter != nullptr)
         // Loaded the FFF Printer settings. Verify, that all extruder dependent values have enough values.
-        config.set_num_milling((unsigned int)milling_diameter->size());
+        config.set_num_milling(static_cast<unsigned int>(milling_diameter->size()));
     if (const auto *gap_fill_speed = config.option<ConfigOptionFloat>("gap_fill_speed", false); gap_fill_speed && gap_fill_speed->value <= 0.) {
         // Legacy conversion. If the gap fill speed is zero, it means the gap fill is not enabled.
         // Set the new gap_fill_enabled value, so that it will show up in the UI as disabled.

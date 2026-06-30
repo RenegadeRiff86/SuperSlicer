@@ -476,8 +476,8 @@ bool    ImGui::BeginTableEx(const char* name, ImGuiID id, int columns_count, ImG
     // Mark as used
     if (table_idx >= g.TablesLastTimeActive.Size)
         g.TablesLastTimeActive.resize(table_idx + 1, -1.0f);
-    g.TablesLastTimeActive[table_idx] = (float)g.Time;
-    temp_data->LastTimeActive = (float)g.Time;
+    g.TablesLastTimeActive[table_idx] = static_cast<float>(g.Time);
+    temp_data->LastTimeActive = static_cast<float>(g.Time);
     table->MemoryCompacted = false;
 
     // Setup memory buffer (clear data if columns count changed)
@@ -1224,7 +1224,7 @@ void    ImGui::EndTable()
     // Context menu in columns body
     if (flags & ImGuiTableFlags_ContextMenuInBody)
         if (table->HoveredColumnBody != -1 && !IsAnyItemHovered() && IsMouseReleased(ImGuiMouseButton_Right))
-            TableOpenContextMenu((int)table->HoveredColumnBody);
+            TableOpenContextMenu(static_cast<int>(table->HoveredColumnBody));
 
     // Finalize table height
     inner_window->DC.PrevLineSize = temp_data->HostBackupPrevLineSize;
@@ -1589,7 +1589,7 @@ int ImGui::TableGetHoveredColumn()
     ImGuiTable* table = g.CurrentTable;
     if (!table)
         return -1;
-    return (int)table->HoveredColumnBody;
+    return static_cast<int>(table->HoveredColumnBody);
 }
 
 void ImGui::TableSetBgColor(ImGuiTableBgTarget target, ImU32 color, int column_n)
@@ -2684,11 +2684,11 @@ void ImGui::TableSortSpecsSanitize(ImGuiTable* table)
         if (column->SortOrder == -1)
             continue;
         sort_order_count++;
-        sort_order_mask |= ((ImU64)1 << column->SortOrder);
-        IM_ASSERT(sort_order_count < (int)sizeof(sort_order_mask) * 8);
+        sort_order_mask |= (static_cast<ImU64>(1) << column->SortOrder);
+        IM_ASSERT(sort_order_count < static_cast<int>(sizeof(sort_order_mask)) * 8);
     }
 
-    const bool need_fix_linearize = ((ImU64)1 << sort_order_count) != (sort_order_mask + 1);
+    const bool need_fix_linearize = (static_cast<ImU64>(1) << sort_order_count) != (sort_order_mask + 1);
     const bool need_fix_single_sort_order = (sort_order_count > 1) && !(table->Flags & ImGuiTableFlags_SortMulti);
     if (need_fix_linearize || need_fix_single_sort_order)
     {
@@ -2966,7 +2966,7 @@ void ImGui::TableHeader(const char* label)
 
     const bool text_clipped = label_size.x > (ellipsis_max - label_pos.x);
     if (text_clipped && hovered && g.HoveredIdNotActiveTimer > g.TooltipSlowDelay)
-        SetTooltip("%.*s", (int)(label_end - label), label);
+        SetTooltip("%.*s", static_cast<int>(label_end - label), label);
 
     // We don't use BeginPopupContextItem() because we want the popup to stay up even after the column is hidden
     if (IsMouseReleased(1) && IsItemHovered())
@@ -3123,13 +3123,13 @@ static void TableSettingsInit(ImGuiTableSettings* settings, ImGuiID id, int colu
         IM_PLACEMENT_NEW(settings_column) ImGuiTableColumnSettings();
     settings->ID = id;
     settings->ColumnsCount = (ImGuiTableColumnIdx)columns_count;
-    settings->ColumnsCountMax = (ImGuiTableColumnIdx)columns_count_max;
+    settings->ColumnsCountMax = static_cast<ImGuiTableColumnIdx>(columns_count_max);
     settings->WantApply = true;
 }
 
 static size_t TableSettingsCalcChunkSize(int columns_count)
 {
-    return sizeof(ImGuiTableSettings) + (size_t)columns_count * sizeof(ImGuiTableColumnSettings);
+    return sizeof(ImGuiTableSettings) + static_cast<size_t>(columns_count) * sizeof(ImGuiTableColumnSettings);
 }
 
 ImGuiTableSettings* ImGui::TableSettingsCreate(ImGuiID id, int columns_count)
@@ -3337,9 +3337,10 @@ static void* TableSettingsHandler_ReadOpen(ImGuiContext*, ImGuiSettingsHandler*,
 static void TableSettingsHandler_ReadLine(ImGuiContext*, ImGuiSettingsHandler*, void* entry, const char* line)
 {
     // "Column 0  UserID=0x42AD2D21 Width=100 Visible=1 Order=0 Sort=0v"
-    ImGuiTableSettings* settings = (ImGuiTableSettings*)entry;
+    ImGuiTableSettings* settings = static_cast<ImGuiTableSettings*>(entry);
     float f = 0.0f;
     int column_n = 0, r = 0, n = 0;
+    ImU32 user_id = 0;
 
     if (sscanf(line, "RefScale=%f", &f) == 1) { settings->RefScale = f; return; }
 
@@ -3350,13 +3351,13 @@ static void TableSettingsHandler_ReadLine(ImGuiContext*, ImGuiSettingsHandler*, 
         line = ImStrSkipBlank(line + r);
         char c = 0;
         ImGuiTableColumnSettings* column = settings->GetColumnSettings() + column_n;
-        column->Index = (ImGuiTableColumnIdx)column_n;
-        if (sscanf(line, "UserID=0x%08X%n", (ImU32*)&n, &r)==1) { line = ImStrSkipBlank(line + r); column->UserID = (ImGuiID)n; }
-        if (sscanf(line, "Width=%d%n", &n, &r) == 1)            { line = ImStrSkipBlank(line + r); column->WidthOrWeight = (float)n; column->IsStretch = 0; settings->SaveFlags |= ImGuiTableFlags_Resizable; }
+        column->Index = static_cast<ImGuiTableColumnIdx>(column_n);
+        if (sscanf(line, "UserID=0x%08X%n", &user_id, &r)==1) { line = ImStrSkipBlank(line + r); column->UserID = static_cast<ImGuiID>(user_id); }
+        if (sscanf(line, "Width=%d%n", &n, &r) == 1)            { line = ImStrSkipBlank(line + r); column->WidthOrWeight = static_cast<float>(n); column->IsStretch = 0; settings->SaveFlags |= ImGuiTableFlags_Resizable; }
         if (sscanf(line, "Weight=%f%n", &f, &r) == 1)           { line = ImStrSkipBlank(line + r); column->WidthOrWeight = f; column->IsStretch = 1; settings->SaveFlags |= ImGuiTableFlags_Resizable; }
-        if (sscanf(line, "Visible=%d%n", &n, &r) == 1)          { line = ImStrSkipBlank(line + r); column->IsEnabled = (ImU8)n; settings->SaveFlags |= ImGuiTableFlags_Hideable; }
-        if (sscanf(line, "Order=%d%n", &n, &r) == 1)            { line = ImStrSkipBlank(line + r); column->DisplayOrder = (ImGuiTableColumnIdx)n; settings->SaveFlags |= ImGuiTableFlags_Reorderable; }
-        if (sscanf(line, "Sort=%d%c%n", &n, &c, &r) == 2)       { line = ImStrSkipBlank(line + r); column->SortOrder = (ImGuiTableColumnIdx)n; column->SortDirection = (c == '^') ? ImGuiSortDirection_Descending : ImGuiSortDirection_Ascending; settings->SaveFlags |= ImGuiTableFlags_Sortable; }
+        if (sscanf(line, "Visible=%d%n", &n, &r) == 1)          { line = ImStrSkipBlank(line + r); column->IsEnabled = static_cast<ImU8>(n); settings->SaveFlags |= ImGuiTableFlags_Hideable; }
+        if (sscanf(line, "Order=%d%n", &n, &r) == 1)            { line = ImStrSkipBlank(line + r); column->DisplayOrder = static_cast<ImGuiTableColumnIdx>(n); settings->SaveFlags |= ImGuiTableFlags_Reorderable; }
+        if (sscanf(line, "Sort=%d%c%n", &n, &c, &r) == 2)       { line = ImStrSkipBlank(line + r); column->SortOrder = static_cast<ImGuiTableColumnIdx>(n); column->SortDirection = (c == '^') ? ImGuiSortDirection_Descending : ImGuiSortDirection_Ascending; settings->SaveFlags |= ImGuiTableFlags_Sortable; }
     }
 }
 
@@ -3391,7 +3392,7 @@ static void TableSettingsHandler_WriteAll(ImGuiContext* ctx, ImGuiSettingsHandle
             buf->appendf("Column %-2d", column_n);
             if (column->UserID != 0)                    buf->appendf(" UserID=%08X", column->UserID);
             if (save_size && column->IsStretch)         buf->appendf(" Weight=%.4f", column->WidthOrWeight);
-            if (save_size && !column->IsStretch)        buf->appendf(" Width=%d", (int)column->WidthOrWeight);
+            if (save_size && !column->IsStretch)        buf->appendf(" Width=%d", static_cast<int>(column->WidthOrWeight));
             if (save_visible)                           buf->appendf(" Visible=%d", column->IsEnabled);
             if (save_order)                             buf->appendf(" Order=%d", column->DisplayOrder);
             if (save_sort && column->SortOrder != -1)   buf->appendf(" Sort=%d%c", column->SortOrder, (column->SortDirection == ImGuiSortDirection_Ascending) ? 'v' : '^');
@@ -3464,7 +3465,7 @@ void ImGui::TableGcCompactSettings()
     int required_memory = 0;
     for (ImGuiTableSettings* settings = g.SettingsTables.begin(); settings != NULL; settings = g.SettingsTables.next_chunk(settings))
         if (settings->ID != 0)
-            required_memory += (int)TableSettingsCalcChunkSize(settings->ColumnsCount);
+            required_memory += static_cast<int>(TableSettingsCalcChunkSize(settings->ColumnsCount));
     if (required_memory == g.SettingsTables.Buf.Size)
         return;
     ImChunkStream<ImGuiTableSettings> new_chunk_stream;
@@ -3558,7 +3559,7 @@ void ImGui::DebugNodeTable(ImGuiTable* table)
 
 void ImGui::DebugNodeTableSettings(ImGuiTableSettings* settings)
 {
-    if (!TreeNode((void*)(intptr_t)settings->ID, "Settings 0x%08X (%d columns)", settings->ID, settings->ColumnsCount))
+    if (!TreeNode(reinterpret_cast<void*>(static_cast<intptr_t>(settings->ID)), "Settings 0x%08X (%d columns)", settings->ID, settings->ColumnsCount))
         return;
     BulletText("SaveFlags: 0x%08X", settings->SaveFlags);
     BulletText("ColumnsCount: %d (max %d)", settings->ColumnsCount, settings->ColumnsCountMax);
@@ -3842,7 +3843,7 @@ void ImGui::BeginColumns(const char* str_id, int columns_count, ImGuiOldColumnFl
         for (int n = 0; n < columns_count + 1; n++)
         {
             ImGuiOldColumnData column;
-            column.OffsetNorm = n / (float)columns_count;
+            column.OffsetNorm = n / static_cast<float>(columns_count);
             columns->Columns.push_back(column);
         }
     }

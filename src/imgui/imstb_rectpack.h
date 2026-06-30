@@ -214,11 +214,10 @@ struct stbrp_context
 #endif
 
 // [DEAR IMGUI] Added STBRP__CDECL
+#define STBRP__NOTUSED(v)  do { if (0) { (v); } } while (0)
 #ifdef _MSC_VER
-#define STBRP__NOTUSED(v)  (void)(v)
 #define STBRP__CDECL __cdecl
 #else
-#define STBRP__NOTUSED(v)  (void)sizeof(v)
 #define STBRP__CDECL
 #endif
 

@@ -181,7 +181,8 @@ public:
 
 private:
     void				initialize_layers(std::vector<double> &zs);
-    void 				collect_extruders(const PrintObject &object, const GCode::ObjectsLayerToPrint &layers, const std::vector<std::pair<double, uint16_t>> &per_layer_extruder_switches, const std::vector<std::pair<double, uint16_t>> &per_layer_color_changes);
+    void 				collect_extruders(const PrintObject &object, const GCode::ObjectsLayerToPrint &layers, const std::vector<std::pair<double, uint16_t>> &per_layer_extruder_switches,
+        const std::vector<std::pair<double, uint16_t>> &per_layer_color_changes);
     void				reorder_extruders(uint16_t last_extruder_id);
     void 				fill_wipe_tower_partitions(const PrintConfig &config, coordf_t object_bottom_z, coordf_t max_layer_height);
     bool                insert_wipe_tower_extruder();

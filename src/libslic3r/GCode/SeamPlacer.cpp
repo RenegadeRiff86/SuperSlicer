@@ -966,8 +966,8 @@ struct SeamComparator {
         } else if (setup == spAligned || setup == spExtremlyAligned) {
             angle_importance = SeamPlacer::angle_importance_aligned;
         } else {
-            travel_importance = (float)po.config().seam_travel_cost.get_abs_value(1.f);
-            angle_importance = (float)po.config().seam_angle_cost.get_abs_value(1.f);
+            travel_importance = static_cast<float>(po.config().seam_travel_cost.get_abs_value(1.f));
+            angle_importance = static_cast<float>(po.config().seam_angle_cost.get_abs_value(1.f));
         }
         visibility_importance = (po.config().seam_visibility.value &&
                                  po.config().seam_position.value == SeamPosition::spCost) ?
@@ -1197,7 +1197,7 @@ void pick_random_seam_point(const std::vector<SeamCandidate> &perimeter_points, 
 
     const Vec3f pseudornd_seed = perimeter_points[viable_example_index].position;
     float rand = std::abs(sin(pseudornd_seed.dot(Vec3f(12.9898f,78.233f, 133.3333f))) * 43758.5453f);
-    rand = rand - (int) rand;
+    rand = rand - static_cast<int>(rand);
 
     for (size_t index = start_index; index < end_index; ++index) {
         if (comparator.are_similar(perimeter_points[index], perimeter_points[viable_example_index])) {
@@ -1443,7 +1443,7 @@ std::vector<std::pair<size_t, size_t>> SeamPlacer::find_seam_string(const PrintO
         }
         float max_nozzle_diam = 0;
         for (size_t region_id = 0; region_id < po->num_printing_regions(); ++region_id) {
-            max_nozzle_diam = std::max(max_nozzle_diam, (float)po->print()->config().nozzle_diameter.get_at(po->printing_region(region_id).config().perimeter_extruder.value - 1));
+            max_nozzle_diam = std::max(max_nozzle_diam, static_cast<float>(po->print()->config().nozzle_diameter.get_at(po->printing_region(region_id).config().perimeter_extruder.value - 1)));
         }
         float max_distance = SeamPlacer::seam_align_tolerable_dist_factor * max_nozzle_diam *
                 layers[start_seam.first].points[start_seam.second].perimeter.flow_width;
@@ -1984,7 +1984,7 @@ std::tuple<bool,std::optional<Vec3f>> get_seam_from_modifier(const Layer& layer,
 
                 Point xy_lambda = Point::new_scale(center_pos.x(), center_pos.y());
                 Point nearest = polygon.point_projection(xy_lambda).first;
-                Vec3d polygon_3dpoint{ unscaled(nearest.x()), unscaled(nearest.y()), (double)layer.print_z };
+                Vec3d polygon_3dpoint{ unscaled(nearest.x()), unscaled(nearest.y()), static_cast<double>(layer.print_z) };
                 double test_lambda_dist = (polygon_3dpoint - center_pos).norm();
                 max_lambda_radius = std::max(max_lambda_radius, sphere_radius);
 
@@ -2006,7 +2006,7 @@ std::tuple<bool,std::optional<Vec3f>> get_seam_from_modifier(const Layer& layer,
             // Weight is set by user and stored in the radius of the sphere
             float seam_mod_weight = 1.f + 100 * (lambda_radius / max_lambda_radius);
             if (seam_mod_weight > 0.0) {
-                return std::tuple<bool, std::optional<Vec3f>>{ true, std::optional{ Vec3f{(float)lambda_pos.x(), (float)lambda_pos.y(), (float)layer.slice_z} } };
+                return std::tuple<bool, std::optional<Vec3f>>{ true, std::optional{ Vec3f{static_cast<float>(lambda_pos.x()), static_cast<float>(lambda_pos.y()), static_cast<float>(layer.slice_z)} } };
             }
         }
     }
@@ -2088,7 +2088,7 @@ Point SeamPlacer::place_seam(const Layer *layer, const ExtrusionLoop &loop, cons
             const SeamCandidate &perimeter_point = layer_perimeters.points[seam_index];
             ExtrusionLoop::ClosestPathPoint projected_point = loop.get_closest_path_and_point(seam_point, false);
             // determine depth of the seam point.
-            const float dist = (float) unscale(Point(seam_point - projected_point.foot_pt)).norm();
+            const float dist = static_cast<float>(unscale(Point(seam_point - projected_point.foot_pt)).norm());
             float depth = dist;
             float beta_angle = cos(perimeter_point.local_ccw_angle / 2.0f);
             size_t index_of_prev =

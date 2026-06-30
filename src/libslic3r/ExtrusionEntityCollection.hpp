@@ -310,7 +310,7 @@ public:
     virtual void use(const ExtrusionEntityCollection& coll) override {
         for (const ExtrusionEntity* entity : coll.entities()) {
             assert(entity);
-            std::cout << "entity at " << ((uint64_t)(void*)entity) << "\n";
+            std::cout << "entity at " << entity << "\n";
             entity->visit(*this);
         }
 

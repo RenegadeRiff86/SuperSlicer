@@ -1170,7 +1170,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
 
         //BBS: add plate data related logic
         // add backup & restore logic
-        bool _load_model_from_file(std::string filename, Model& model, PlateDataPtrs& plate_data_list, std::vector<Preset*>& project_presets, DynamicPrintConfig& config, ConfigSubstitutionContext& config_substitutions, Import3mfProgressFn proFn = nullptr,
+        bool _load_model_from_file(std::string filename, Model& model, PlateDataPtrs& plate_data_list, std::vector<Preset*>& project_presets, DynamicPrintConfig& config,
+            ConfigSubstitutionContext& config_substitutions, Import3mfProgressFn proFn = nullptr,
             /*BBLProject* project = nullptr, */int plate_id = 0);
         bool _is_svg_shape_file(const std::string &filename) const;
         bool _extract_from_archive(mz_zip_archive& archive, std::string const & path, std::function<bool (mz_zip_archive& archive, const mz_zip_archive_file_stat& stat)>, bool restore = false);

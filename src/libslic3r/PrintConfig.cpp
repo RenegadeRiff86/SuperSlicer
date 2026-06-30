@@ -888,7 +888,8 @@ void PrintConfigDef::init_fff_params()
     def = this->add("between_objects_gcode", coString);
     def->label = L("Between objects G-code");
     def->category = OptionCategory::customgcode;
-    def->tooltip = L("This code is inserted between objects when using sequential printing. By default extruder and bed temperature are reset using non-wait command; however if M104, M109, M140 or M190 are detected in this custom code, Slic3r will not add temperature commands. Note that you can use placeholder variables for all Slic3r settings, so you can put a \"M109 S{first_layer_temperature}\" command wherever you want.");
+    def->tooltip = L("This code is inserted between objects when using sequential printing. By default extruder and bed temperature are reset using non-wait command; however if M104, M109, M140 or M190 are "
+        "detected in this custom code, Slic3r will not add temperature commands. Note that you can use placeholder variables for all Slic3r settings, so you can put a \"M109 S{first_layer_temperature}\" command wherever you want.");
     def->multiline = true;
     def->full_width = true;
     def->height = 12;

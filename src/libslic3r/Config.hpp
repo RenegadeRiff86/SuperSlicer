@@ -1722,11 +1722,16 @@ class ConfigOptionFloatsOrPercents : public ConfigOptionVector<FloatOrPercent>
 {
 public:
     ConfigOptionFloatsOrPercents() : ConfigOptionVector<FloatOrPercent>() {}
-    explicit ConfigOptionFloatsOrPercents(FloatOrPercent default_value) : ConfigOptionVector<FloatOrPercent>(default_value) {assert(std::abs(default_value.value) < 1000000000 && (std::abs(default_value.value) > 0.000000001 || default_value.value == 0));}
-    explicit ConfigOptionFloatsOrPercents(size_t n, FloatOrPercent value) : ConfigOptionVector<FloatOrPercent>(n, value) {assert(std::abs(default_value.value) < 1000000000 && (std::abs(default_value.value) > 0.000000001 || default_value.value == 0));}
-    explicit ConfigOptionFloatsOrPercents(std::initializer_list<FloatOrPercent> il) : ConfigOptionVector<FloatOrPercent>(std::move(il)) {assert(std::abs(default_value.value) < 1000000000 && (std::abs(default_value.value) > 0.000000001 || default_value.value == 0));}
-    explicit ConfigOptionFloatsOrPercents(const std::vector<FloatOrPercent> &vec) : ConfigOptionVector<FloatOrPercent>(vec) {assert(std::abs(default_value.value) < 1000000000 && (std::abs(default_value.value) > 0.000000001 || default_value.value == 0));}
-    explicit ConfigOptionFloatsOrPercents(std::vector<FloatOrPercent> &&vec) : ConfigOptionVector<FloatOrPercent>(std::move(vec)) {assert(std::abs(default_value.value) < 1000000000 && (std::abs(default_value.value) > 0.000000001 || default_value.value == 0));}
+    explicit ConfigOptionFloatsOrPercents(FloatOrPercent default_value) : ConfigOptionVector<FloatOrPercent>(default_value) {assert(std::abs(default_value.value) < 1000000000 &&
+        (std::abs(default_value.value) > 0.000000001 || default_value.value == 0));}
+    explicit ConfigOptionFloatsOrPercents(size_t n, FloatOrPercent value) : ConfigOptionVector<FloatOrPercent>(n, value) {assert(std::abs(default_value.value) < 1000000000 &&
+        (std::abs(default_value.value) > 0.000000001 || default_value.value == 0));}
+    explicit ConfigOptionFloatsOrPercents(std::initializer_list<FloatOrPercent> il) : ConfigOptionVector<FloatOrPercent>(std::move(il)) {assert(std::abs(default_value.value) < 1000000000 &&
+        (std::abs(default_value.value) > 0.000000001 || default_value.value == 0));}
+    explicit ConfigOptionFloatsOrPercents(const std::vector<FloatOrPercent> &vec) : ConfigOptionVector<FloatOrPercent>(vec) {assert(std::abs(default_value.value) < 1000000000 &&
+        (std::abs(default_value.value) > 0.000000001 || default_value.value == 0));}
+    explicit ConfigOptionFloatsOrPercents(std::vector<FloatOrPercent> &&vec) : ConfigOptionVector<FloatOrPercent>(std::move(vec)) {assert(std::abs(default_value.value) < 1000000000 &&
+        (std::abs(default_value.value) > 0.000000001 || default_value.value == 0));}
 
     static ConfigOptionType static_type() { return coFloatsOrPercents; }
     ConfigOptionType        type()  const override { return static_type(); }
@@ -1961,14 +1966,14 @@ private:
         archive(flags);
         size_t cnt = this->m_values.size();
         archive(cnt);
-        archive.saveBinary((const char*)this->m_values.data(), sizeof(Vec2d) * cnt);
+        archive.saveBinary(this->m_values.data(), sizeof(Vec2d) * cnt);
     }
     template<class Archive> void load(Archive& archive) {
         archive(flags);
         size_t cnt = 0;
         archive(cnt);
         this->m_values.assign(cnt, Vec2d());
-        archive.loadBinary((char*)this->m_values.data(), sizeof(Vec2d) * cnt);
+        archive.loadBinary(this->m_values.data(), sizeof(Vec2d) * cnt);
     }
 };
 
@@ -2154,7 +2159,7 @@ private:
         std::string serialized = this->serialize();
         size_t cnt = serialized.size();
         archive(cnt);
-        archive.saveBinary((const char*)serialized.data(), sizeof(char) * cnt);
+        archive.saveBinary(serialized.data(), sizeof(char) * cnt);
     }
     template<class Archive> void load(Archive& archive) {
         archive(flags);
@@ -2162,7 +2167,7 @@ private:
         archive(cnt);
         std::string serialized;
         serialized.assign(cnt, char());
-        archive.loadBinary((char*)serialized.data(), sizeof(char) * cnt);
+        archive.loadBinary(serialized.data(), sizeof(char) * cnt);
         deserialize(serialized, false);
     }
 };
@@ -2218,11 +2223,11 @@ class ConfigOptionBools : public ConfigOptionVector<unsigned char>
 public:
     ConfigOptionBools() : ConfigOptionVector<unsigned char>() {}
     explicit ConfigOptionBools(bool default_value) : ConfigOptionVector<unsigned char>(default_value) {}
-    explicit ConfigOptionBools(size_t n, bool value) : ConfigOptionVector<unsigned char>(n, (unsigned char)value) {}
+    explicit ConfigOptionBools(size_t n, bool value) : ConfigOptionVector<unsigned char>(n, static_cast<unsigned char>(value)) {}
     explicit ConfigOptionBools(std::initializer_list<bool> il)
     {
         this->m_values.reserve(il.size());
-        for (bool b : il) this->m_values.emplace_back((unsigned char) b);
+        for (bool b : il) this->m_values.emplace_back(static_cast<unsigned char>(b));
         this->m_enabled.resize(this->m_values.size(), ConfigOption::is_enabled());
         assert(m_enabled.size() == size());
     }

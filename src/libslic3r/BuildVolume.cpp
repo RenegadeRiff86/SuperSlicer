@@ -302,7 +302,8 @@ BuildVolume::ObjectState BuildVolume::object_state(const indexed_triangle_set& i
     case Type::Custom:
         return m_max_print_height == 0.0 ? 
             object_state_templ(its, trafo, may_be_below_bed, [this](const Vec3f &pt) { return Geometry::inside_convex_polygon(m_top_bottom_convex_hull_decomposition_scene, to_2d(pt).cast<double>()); }) :
-            object_state_templ(its, trafo, may_be_below_bed, [this, z = m_max_print_height + SceneEpsilon](const Vec3f &pt) { return pt.z() < z && Geometry::inside_convex_polygon(m_top_bottom_convex_hull_decomposition_scene, to_2d(pt).cast<double>()); });
+            object_state_templ(its, trafo, may_be_below_bed, [this, z = m_max_print_height + SceneEpsilon](const Vec3f &pt) { return pt.z() < z &&
+                Geometry::inside_convex_polygon(m_top_bottom_convex_hull_decomposition_scene, to_2d(pt).cast<double>()); });
     case Type::Invalid:
     default:
         return ObjectState::Inside;

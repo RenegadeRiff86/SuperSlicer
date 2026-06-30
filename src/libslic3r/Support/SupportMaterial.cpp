@@ -724,8 +724,8 @@ public:
                             // Does the ray with y == point(1) intersect this line segment?
                             for (auto &sample_inside : samples_inside) {
                                 if (((*i)(1) > sample_inside.first(1)) != ((*j)(1) > sample_inside.first(1))) {
-                                    double x1 = (double)sample_inside.first(0);
-                                    double x2 = (double)(*i)(0) + (double)((*j)(0) - (*i)(0)) * (double)(sample_inside.first(1) - (*i)(1)) / (double)((*j)(1) - (*i)(1));
+                                    double x1 = static_cast<double>(sample_inside.first(0));
+                                    double x2 = static_cast<double>((*i)(0)) + static_cast<double>((*j)(0) - (*i)(0)) * static_cast<double>(sample_inside.first(1) - (*i)(1)) / static_cast<double>((*j)(1) - (*i)(1));
                                     if (x1 < x2)
                                         sample_inside.second = !sample_inside.second;
                                 }
@@ -1106,7 +1106,7 @@ namespace SupportMaterialInternal {
         assert(expansion_scaled >= 0.f);
         for (const ExtrusionPath &ep : loop.paths)
             if (ep.role().has(ExtrusionRole::OverhangPerimeter) && ! ep.polyline.empty()) {
-                float exp = 0.5f * (float)scale_(ep.width()) + expansion_scaled;
+                float exp = 0.5f * static_cast<float>(scale_(ep.width())) + expansion_scaled;
                 if (ep.is_closed()) {
                     if (ep.size() >= 3) {
                         // This is a complete loop.
@@ -1308,7 +1308,7 @@ static inline std::tuple<Polygons, Polygons, Polygons, float> detect_overhangs(
             coord_t flow_width = float(layerm->flow(frExternalPerimeter).scaled_width());
             max_flow_width = std::max(max_flow_width, flow_width);
             lower_layer_offset  = 
-                (layer_id < (size_t)object_config.support_material_enforce_layers.value) ? 
+                (layer_id < static_cast<size_t>(object_config.support_material_enforce_layers.value)) ? 
                     // Enforce a full possible support, ignore the overhang angle.
                     0.f :
                 (threshold_rad > 0. ? 
@@ -1749,7 +1749,7 @@ static void merge_contact_layers(const SlicingParameters &slicing_params, double
     {
         // Find the span of layers, which are to be printed at the first layer height.
         int j = 0;
-        for (; j < (int)layers.size() && layers[j]->print_z < slicing_params.first_print_layer_height + support_layer_height_min - EPSILON; ++ j);
+        for (; j < static_cast<int>(layers.size()) && layers[j]->print_z < slicing_params.first_print_layer_height + support_layer_height_min - EPSILON; ++ j);
         if (j > 0) {
             // Merge the layers layers (0) to (j - 1) into the layers[0].
             SupportGeneratorLayer &dst = *layers.front();
@@ -1763,11 +1763,11 @@ static void merge_contact_layers(const SlicingParameters &slicing_params, double
         }
         i = j;
     }
-    for (; i < int(layers.size()); ++ k) {
+    for (; i < static_cast<int>(layers.size()); ++ k) {
         // Find the span of layers closer than m_support_layer_height_min.
         int j = i + 1;
         coordf_t zmax = layers[i]->print_z + support_layer_height_min + EPSILON;
-        for (; j < (int)layers.size() && layers[j]->print_z < zmax; ++ j) ;
+        for (; j < static_cast<int>(layers.size()) && layers[j]->print_z < zmax; ++ j) ;
         if (i + 1 < j) {
             // Merge the layers layers (i + 1) to (j - 1) into the layers[i].
             SupportGeneratorLayer &dst = *layers[i];
@@ -1778,7 +1778,7 @@ static void merge_contact_layers(const SlicingParameters &slicing_params, double
             layers[k] = layers[i];
         i = j;
     }
-    if (k < (int)layers.size())
+    if (k < static_cast<int>(layers.size()))
         layers.erase(layers.begin() + k, layers.end());
 }
 

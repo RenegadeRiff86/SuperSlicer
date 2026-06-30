@@ -2369,7 +2369,8 @@ void mark_boundary_segments_touching_infill(
             }
 #ifdef INFILL_DEBUG_OUTPUT
             Polylines perimeter_overlaps;
-            export_infill_to_svg(boundary, boundary_parameters, boundary_intersections, infill, distance_colliding * 2, debug_out_path("%s-%03d-%03d.svg", "FillBase-mark_boundary_segments_touching_infill-step", iRun, iStep), visitor.perimeter_overlaps, { polyline });
+            export_infill_to_svg(boundary, boundary_parameters, boundary_intersections, infill, distance_colliding * 2, debug_out_path("%s-%03d-%03d.svg",
+                "FillBase-mark_boundary_segments_touching_infill-step", iRun, iStep), visitor.perimeter_overlaps, { polyline });
             append(perimeter_overlaps, std::move(visitor.perimeter_overlaps));
             perimeter_overlaps.clear();
 #endif // INFILL_DEBUG_OUTPUT

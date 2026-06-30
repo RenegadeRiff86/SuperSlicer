@@ -1039,7 +1039,8 @@ void FanMover::_handle_m_command(const std::string& cmd, const GCodeReader::GCod
                                  _remove_slow_fan(fan_baseline, kickstart);
                                  // print me
                                  if (!m_buffer.empty() && (m_buffer_time_size - m_buffer.front().time * 0.1) > nb_seconds_delay) {
-                                     _print_in_middle_G1(m_buffer.front(), m_buffer_time_size - nb_seconds_delay, _set_fan(fan_speed, "kickstart fan"));//m_writer.set_fan(FAN_PERCENT_MAX, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
+                                     _print_in_middle_G1(m_buffer.front(), m_buffer_time_size - nb_seconds_delay, _set_fan(fan_speed, "kickstart fan"));
+                                     //m_writer.set_fan(FAN_PERCENT_MAX, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
                                      remove_from_buffer(m_buffer.begin());
                                  } else {
                                      _append_fan_command(_set_fan(fan_speed, "kickstart fan"), fan_speed);//m_writer.set_fan(FAN_PERCENT_MAX, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing

@@ -88,7 +88,7 @@ public:
     double  mm3_per_mm()      const;
 
     float overlap(float height) const {
-        return (float)(height * (1. - 0.25 * PI)) * m_spacing_ratio;
+        return static_cast<float>(height * (1. - 0.25 * PI)) * m_spacing_ratio;
     }
     // is it still needed?
     float spacing(const Flow& other) const;
