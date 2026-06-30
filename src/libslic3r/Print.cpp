@@ -2010,7 +2010,8 @@ void Print::alert_when_supports_needed()
         auto single_line_list_rule = L("%1%, %2%");
         auto multiline_list_rule   = "%1%\n%2%";
 
-        auto elements_to_translated_list = [](const std::vector<std::string> &translated_elements, std::string expansion_rule) {
+auto elements_to_translated_list = [](const std::vector<std::string> &translated_elements, const std::string& expansion_rule_in) {
+            std::string expansion_rule = expansion_rule_in;
             if (expansion_rule.find("%1%") == expansion_rule.npos || expansion_rule.find("%2%") == expansion_rule.npos) {
                 BOOST_LOG_TRIVIAL(error) << "INCORRECT EXPANSION RULE FOR LIST TRANSLATION: " << expansion_rule
                                          << " - IT SHOULD CONTAIN %1% and %2%!";

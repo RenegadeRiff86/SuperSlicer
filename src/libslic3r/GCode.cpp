@@ -8181,7 +8181,7 @@ std::vector<coord_t> GCodeGenerator::get_travel_elevation(Polyline& travel, doub
     return result;
 }
 
-void GCodeGenerator::write_travel_to(std::string &gcode, Polyline& travel, std::string comment)
+void GCodeGenerator::write_travel_to(std::string &gcode, Polyline& travel, const std::string& comment)
 {
     // Note: if last_pos is undefined, then travel.size() == 1
     // ramping travel?

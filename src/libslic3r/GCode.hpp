@@ -382,7 +382,7 @@ private:
          bool& could_be_wipe_disabled
      );
     Polyline        travel_to(std::string& gcode, const Point &end_point, ExtrusionRole role);
-    void            write_travel_to(std::string& gcode, Polyline& travel, std::string comment);
+    void            write_travel_to(std::string& gcode, Polyline& travel, const std::string& comment);
     std::vector<coord_t> get_travel_elevation(Polyline& travel, double z_change);
     //std::string     travel_to_first_position(const Vec3crd& point);
     bool            can_cross_perimeter(const Polyline& travel, bool offset);

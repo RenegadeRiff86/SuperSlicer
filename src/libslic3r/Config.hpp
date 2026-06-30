@@ -299,9 +299,9 @@ enum class OptionCategory : int
 std::string toString(OptionCategory opt);
 
 namespace ConfigHelpers {
-    inline bool looks_like_enum_value(std::string value)
+inline bool looks_like_enum_value(const std::string& value_in)
     {
-        boost::trim(value);
+        const std::string value = boost::trim_copy(value_in);
         if (value.empty() || value.size() > 64 || ! isalpha(value.front()))
             return false;
         for (const char c : value)
@@ -310,13 +310,13 @@ namespace ConfigHelpers {
         return true;
     }
 
-    inline bool enum_looks_like_bool_value(std::string value) {
-        boost::trim(value);
+inline bool enum_looks_like_bool_value(const std::string& value_in) {
+        const std::string value = boost::trim_copy(value_in);
         return boost::iequals(value, "enabled") || boost::iequals(value, "disabled") || boost::iequals(value, "on") || boost::iequals(value, "off");
     }
 
-    inline bool enum_looks_like_true_value(std::string value) {
-        boost::trim(value);
+inline bool enum_looks_like_true_value(const std::string& value_in) {
+        const std::string value = boost::trim_copy(value_in);
         return boost::iequals(value, "enabled") || boost::iequals(value, "on");
     }
 
@@ -540,7 +540,7 @@ struct ConfigSubstitution {
     ConfigSubstitution() = default;
     ConfigSubstitution(const ConfigOptionDef* def, const std::string &old, ConfigOptionUniquePtr&& new_v);
     ConfigSubstitution(const ConfigOptionDef* def, std::string &&old, ConfigOptionUniquePtr&& new_v);
-    ConfigSubstitution(std::string bad_key, std::string value) : opt_def(nullptr), old_name(bad_key), old_value(value), new_value() {}
+    ConfigSubstitution(const std::string& bad_key, const std::string& value) : opt_def(nullptr), old_name(bad_key), old_value(value), new_value() {}
 };
 
 using  ConfigSubstitutions = std::vector<ConfigSubstitution>;
@@ -1434,7 +1434,8 @@ class ConfigOptionString : public ConfigOptionSingle<std::string>
 {
 public:
     ConfigOptionString() : ConfigOptionSingle<std::string>(std::string{}) {}
-    explicit ConfigOptionString(std::string value) : ConfigOptionSingle<std::string>(std::move(value)) {}
+    explicit ConfigOptionString(const std::string& value) : ConfigOptionSingle<std::string>(value) {}
+    explicit ConfigOptionString(std::string&& value) : ConfigOptionSingle<std::string>(std::move(value)) {}
 
     static ConfigOptionType static_type() { return coString; }
     ConfigOptionType        type()  const override { return static_type(); }
@@ -1470,7 +1471,8 @@ class ConfigOptionStringVersion : public ConfigOptionString
 {
 public:
     ConfigOptionStringVersion() : ConfigOptionString(std::string{}) { this->set_phony(false); }
-    explicit ConfigOptionStringVersion(std::string value) : ConfigOptionString(std::move(value)) { this->set_phony(false); }
+    explicit ConfigOptionStringVersion(const std::string& value) : ConfigOptionString(value) { this->set_phony(false); }
+    explicit ConfigOptionStringVersion(std::string&& value) : ConfigOptionString(std::move(value)) { this->set_phony(false); }
     ConfigOption*           clone() const override { return new ConfigOptionStringVersion(*this); }
 
     std::string serialize() const override
@@ -1484,7 +1486,7 @@ class ConfigOptionStrings : public ConfigOptionVector<std::string>
 {
 public:
     ConfigOptionStrings() : ConfigOptionVector<std::string>() {}
-    explicit ConfigOptionStrings(std::string default_value) : ConfigOptionVector<std::string>(default_value) {}
+    explicit ConfigOptionStrings(const std::string& default_value) : ConfigOptionVector<std::string>(default_value) {}
     explicit ConfigOptionStrings(size_t n, const std::string &value) : ConfigOptionVector<std::string>(n, value) {}
     explicit ConfigOptionStrings(std::initializer_list<std::string> il) : ConfigOptionVector<std::string>(std::move(il)) {}
     explicit ConfigOptionStrings(const std::vector<std::string> &values) : ConfigOptionVector<std::string>(values) {}
