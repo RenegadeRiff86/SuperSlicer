@@ -1744,6 +1744,9 @@ static void *addTagNodeToIfd(void *pIfd,
         return NULL;
     }
     tag = malloc(sizeof(*tag));
+    if (!tag) {
+        return NULL;
+    }
     memset(tag, 0, sizeof(*tag));
     tag->tagId = tagId;
     tag->type = type;
@@ -1757,12 +1760,20 @@ static void *addTagNodeToIfd(void *pIfd,
                 num *= EXIF_RATIONAL_COMPONENT_COUNT;
             }
             tag->numData = malloc(sizeof(*tag->numData) * num);
-            for (i = 0; i < num; i++) {
-                tag->numData[i] = numData[i];
+            if (tag->numData) {
+                for (i = 0; i < num; i++) {
+                    tag->numData[i] = numData[i];
+                }
+            } else {
+                tag->error = 1;
             }
         } else if (byteData != NULL) {
             tag->byteData = malloc(count);
-            memcpy(tag->byteData, byteData, count);
+            if (tag->byteData) {
+                memcpy(tag->byteData, byteData, count);
+            } else {
+                tag->error = 1;
+            }
         } else {
             tag->error = 1;
         }
@@ -1794,6 +1805,9 @@ static TagNode *duplicateTagNode(TagNode *src)
         return NULL;
     }
     dup = malloc(sizeof(*dup));
+    if (!dup) {
+        return NULL;
+    }
     memset(dup, 0, sizeof(*dup));
     dup->tagId = src->tagId;
     dup->type = src->type;
@@ -1806,11 +1820,15 @@ static TagNode *duplicateTagNode(TagNode *src)
             len *= EXIF_RATIONAL_COMPONENT_COUNT;
         }
         dup->numData = malloc(len);
-        memcpy(dup->numData, src->numData, len);
+        if (dup->numData) {
+            memcpy(dup->numData, src->numData, len);
+        }
     } else if (src->byteData) {
         len = sizeof(*dup->byteData) * src->count;
         dup->byteData = malloc(len);
-        memcpy(dup->byteData, src->byteData, len);
+        if (dup->byteData) {
+            memcpy(dup->byteData, src->byteData, len);
+        }
     }
     return dup;
 }
@@ -1946,6 +1964,9 @@ static int setSingleNumDataToTag(TagNode *tag, unsigned int value)
     }
     if (!tag->numData) {
         tag->numData = malloc(sizeof(*tag->numData));
+        if (!tag->numData) {
+            return 0;
+        }
     }
     tag->count = 1;
     tag->numData[0] = value;
@@ -2988,12 +3009,18 @@ static void PRINTF(char **ms, const char *fmt, ...) {
     else if (*ms) {
         len = strlen(*ms) + cntLen + 1;
         p = malloc(len);
+        if (!p) {
+            return;
+        }
         strcpy(p, *ms);
         strcat(p, buf);
         free(*ms);
     } else {
         len = cntLen + 1;
         p = malloc(len);
+        if (!p) {
+            return;
+        }
         strcpy(p, buf);
     }
     *ms = p;
