@@ -18,25 +18,24 @@
 #include <boost/log/trivial.hpp>
 
 
-#define TAG_INTRO "ANYCUBIC\0\0\0\0"
-#define TAG_HEADER "HEADER\0\0\0\0\0\0"
-#define TAG_PREVIEW "PREVIEW\0\0\0\0\0"
-#define TAG_LAYERS "LAYERDEF\0\0\0\0"
+static constexpr const char* TAG_INTRO = "ANYCUBIC\0\0\0\0";
+static constexpr const char* TAG_HEADER = "HEADER\0\0\0\0\0\0";
+static constexpr const char* TAG_PREVIEW = "PREVIEW\0\0\0\0\0";
+static constexpr const char* TAG_LAYERS = "LAYERDEF\0\0\0\0";
 
-#define CFG_LIFT_DISTANCE "LIFT_DISTANCE"
-#define CFG_LIFT_SPEED "LIFT_SPEED"
-#define CFG_RETRACT_SPEED "RETRACT_SPEED"
-#define CFG_DELAY_BEFORE_EXPOSURE "DELAY_BEFORE_EXPOSURE"
-#define CFG_BOTTOM_LIFT_SPEED "BOTTOM_LIFT_SPEED"
-#define CFG_BOTTOM_LIFT_DISTANCE "BOTTOM_LIFT_DISTANCE"
-#define CFG_ANTIALIASING "ANTIALIASING"
+static constexpr const char* CFG_LIFT_DISTANCE = "LIFT_DISTANCE";
+static constexpr const char* CFG_LIFT_SPEED = "LIFT_SPEED";
+static constexpr const char* CFG_RETRACT_SPEED = "RETRACT_SPEED";
+static constexpr const char* CFG_DELAY_BEFORE_EXPOSURE = "DELAY_BEFORE_EXPOSURE";
+static constexpr const char* CFG_BOTTOM_LIFT_SPEED = "BOTTOM_LIFT_SPEED";
+static constexpr const char* CFG_BOTTOM_LIFT_DISTANCE = "BOTTOM_LIFT_DISTANCE";
+static constexpr const char* CFG_ANTIALIASING = "ANTIALIASING";
 
+static constexpr int PREV_W = 224;
+static constexpr int PREV_H = 168;
+static constexpr int PREV_DPI = 42;
 
-#define PREV_W 224
-#define PREV_H 168
-#define PREV_DPI 42
-
-#define LAYER_SIZE_ESTIMATE (32 * 1024)
+static constexpr int LAYER_SIZE_ESTIMATE = 32 * 1024;
 
 namespace Slic3r {
 

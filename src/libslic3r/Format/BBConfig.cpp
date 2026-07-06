@@ -26,34 +26,34 @@ static constexpr const char* kParsePrefix = ": parse ";
     
 namespace BBConfiguration {
 // BBS: add json support
-#define BBL_JSON_KEY_VERSION "version"
-#define BBL_JSON_KEY_IS_CUSTOM "is_custom_defined"
-#define BBL_JSON_KEY_URL "url"
-#define BBL_JSON_KEY_NAME "name"
-#define BBL_JSON_KEY_DESCRIPTION "description"
-#define BBL_JSON_KEY_FORCE_UPDATE "force_update"
-#define BBL_JSON_KEY_MACHINE_MODEL_LIST "machine_model_list"
-#define BBL_JSON_KEY_PROCESS_LIST "process_list"
-#define BBL_JSON_KEY_SUB_PATH "sub_path"
-#define BBL_JSON_KEY_FILAMENT_LIST "filament_list"
-#define BBL_JSON_KEY_MACHINE_LIST "machine_list"
-#define BBL_JSON_KEY_TYPE "type"
-#define BBL_JSON_KEY_FROM "from"
-#define BBL_JSON_KEY_SETTING_ID "setting_id"
-#define BBL_JSON_KEY_BASE_ID "base_id"
-#define BBL_JSON_KEY_USER_ID "user_id"
-#define BBL_JSON_KEY_FILAMENT_ID "filament_id"
-#define BBL_JSON_KEY_UPDATE_TIME "updated_time"
-#define BBL_JSON_KEY_INHERITS "inherits"
-#define BBL_JSON_KEY_INSTANTIATION "instantiation"
-#define BBL_JSON_KEY_NOZZLE_DIAMETER "nozzle_diameter"
-#define BBL_JSON_KEY_PRINTER_TECH "machine_tech"
-#define BBL_JSON_KEY_FAMILY "family"
-#define BBL_JSON_KEY_BED_MODEL "bed_model"
-#define BBL_JSON_KEY_BED_TEXTURE "bed_texture"
-#define BBL_JSON_KEY_HOTEND_MODEL "hotend_model"
-#define BBL_JSON_KEY_DEFAULT_MATERIALS "default_materials"
-#define BBL_JSON_KEY_MODEL_ID "model_id"
+static constexpr const char* BBL_JSON_KEY_VERSION = "version";
+static constexpr const char* BBL_JSON_KEY_IS_CUSTOM = "is_custom_defined";
+static constexpr const char* BBL_JSON_KEY_URL = "url";
+static constexpr const char* BBL_JSON_KEY_NAME = "name";
+static constexpr const char* BBL_JSON_KEY_DESCRIPTION = "description";
+static constexpr const char* BBL_JSON_KEY_FORCE_UPDATE = "force_update";
+static constexpr const char* BBL_JSON_KEY_MACHINE_MODEL_LIST = "machine_model_list";
+static constexpr const char* BBL_JSON_KEY_PROCESS_LIST = "process_list";
+static constexpr const char* BBL_JSON_KEY_SUB_PATH = "sub_path";
+static constexpr const char* BBL_JSON_KEY_FILAMENT_LIST = "filament_list";
+static constexpr const char* BBL_JSON_KEY_MACHINE_LIST = "machine_list";
+static constexpr const char* BBL_JSON_KEY_TYPE = "type";
+static constexpr const char* BBL_JSON_KEY_FROM = "from";
+static constexpr const char* BBL_JSON_KEY_SETTING_ID = "setting_id";
+static constexpr const char* BBL_JSON_KEY_BASE_ID = "base_id";
+static constexpr const char* BBL_JSON_KEY_USER_ID = "user_id";
+static constexpr const char* BBL_JSON_KEY_FILAMENT_ID = "filament_id";
+static constexpr const char* BBL_JSON_KEY_UPDATE_TIME = "updated_time";
+static constexpr const char* BBL_JSON_KEY_INHERITS = "inherits";
+static constexpr const char* BBL_JSON_KEY_INSTANTIATION = "instantiation";
+static constexpr const char* BBL_JSON_KEY_NOZZLE_DIAMETER = "nozzle_diameter";
+static constexpr const char* BBL_JSON_KEY_PRINTER_TECH = "machine_tech";
+static constexpr const char* BBL_JSON_KEY_FAMILY = "family";
+static constexpr const char* BBL_JSON_KEY_BED_MODEL = "bed_model";
+static constexpr const char* BBL_JSON_KEY_BED_TEXTURE = "bed_texture";
+static constexpr const char* BBL_JSON_KEY_HOTEND_MODEL = "hotend_model";
+static constexpr const char* BBL_JSON_KEY_DEFAULT_MATERIALS = "default_materials";
+static constexpr const char* BBL_JSON_KEY_MODEL_ID = "model_id";
 
 std::map<std::string, std::string> key_translation_map;
 std::map<std::string, std::map<std::string, std::string>> value_translation_map;
