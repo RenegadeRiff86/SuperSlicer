@@ -201,8 +201,8 @@ printf("*********************%d\n",RandomInterpolate);
 #define Swap(a,b)	do { GLUvertex *t = a; a = b; b = t; } while (0)
 
 void __gl_edgeIntersect( GLUvertex *o1, GLUvertex *d1,
-			 GLUvertex *o2, GLUvertex *d2,
-			 GLUvertex *v )
+             GLUvertex *o2, GLUvertex *d2,
+             GLUvertex *v )
 /* Given edges (o1,d1) and (o2,d2), compute their point of intersection.
  * The computed point is guaranteed to lie in the intersection of the
  * bounding rectangles defined by each edge.

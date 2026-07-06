@@ -127,24 +127,24 @@ int pqInit( PriorityQ *pq )
       i = p - 1;
       j = r + 1;
       do {
-	do { ++i; } while( GT( **i, *piv ));
-	do { --j; } while( LT( **j, *piv ));
-	Swap( i, j );
+    do { ++i; } while( GT( **i, *piv ));
+    do { --j; } while( LT( **j, *piv ));
+    Swap( i, j );
       } while( i < j );
       Swap( i, j );	/* Undo last swap */
       if( i - p < r - j ) {
-	top->p = j+1; top->r = r; ++top;
-	r = i-1;
+    top->p = j+1; top->r = r; ++top;
+    r = i-1;
       } else {
-	top->p = p; top->r = i-1; ++top;
-	p = j+1;
+    top->p = p; top->r = i-1; ++top;
+    p = j+1;
       }
     }
     /* Insertion sort small lists */
     for( i = p+1; i <= r; ++i ) {
       piv = *i;
       for( j = i; j > p && LT( **(j-1), *piv ); --j ) {
-	*j = *(j-1);
+    *j = *(j-1);
       }
       *j = piv;
     }
@@ -180,7 +180,7 @@ PQhandle pqInsert( PriorityQ *pq, PQkey keyNew )
     /* If the heap overflows, double its size. */
     pq->max <<= 1;
     pq->keys = memRealloc( pq->keys,
-	 	                        pq->max * sizeof( *pq->keys ));
+                                pq->max * sizeof( *pq->keys ));
     if (pq->keys == NULL) {	
        pq->keys = saveKey;	/* restore ptr to free upon return */
        return LONG_MAX;

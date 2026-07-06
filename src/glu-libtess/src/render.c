@@ -75,7 +75,7 @@ static struct FaceCount MaximumStrip( GLUhalfEdge *eOrig );
 static void RenderFan( GLUtesselator *tess, GLUhalfEdge *eStart, long size );
 static void RenderStrip( GLUtesselator *tess, GLUhalfEdge *eStart, long size );
 static void RenderTriangle( GLUtesselator *tess, GLUhalfEdge *eStart,
-			    long size );
+                long size );
 
 static void RenderMaximumFaceGroup( GLUtesselator *tess, GLUface *fOrig );
 static void RenderLonelyTriangles( GLUtesselator *tess, GLUface *head );
@@ -160,10 +160,10 @@ static void RenderMaximumFaceGroup( GLUtesselator *tess, GLUface *fOrig )
 #define AddToTrail(f,t)	((f)->trail = (t), (t) = (f), (f)->marked = TRUE)
 
 #define FreeTrail(t)	do { \
-			  while( (t) != NULL ) { \
-			    (t)->marked = FALSE; t = (t)->trail; \
-			  } \
-			} while(0) /* absorb trailing semicolon */
+              while( (t) != NULL ) { \
+                (t)->marked = FALSE; t = (t)->trail; \
+              } \
+            } while(0) /* absorb trailing semicolon */
 
 
 
@@ -274,14 +274,14 @@ static void RenderLonelyTriangles( GLUtesselator *tess, GLUface *f )
     e = f->anEdge;
     do {
       if( tess->flagBoundary ) {
-	/* Set the "edge state" to TRUE just before we output the
-	 * first vertex of each edge on the polygon boundary.
-	 */
-	newState = ! e->Rface->inside;
-	if( edgeState != newState ) {
-	  edgeState = newState;
+    /* Set the "edge state" to TRUE just before we output the
+     * first vertex of each edge on the polygon boundary.
+     */
+    newState = ! e->Rface->inside;
+    if( edgeState != newState ) {
+      edgeState = newState;
           CALL_EDGE_FLAG_OR_EDGE_FLAG_DATA( edgeState );
-	}
+    }
       }
       CALL_VERTEX_OR_VERTEX_DATA( e->Org->data );
 
@@ -359,7 +359,7 @@ void __gl_renderBoundary( GLUtesselator *tess, GLUmesh *mesh )
       e = f->anEdge;
       do {
         CALL_VERTEX_OR_VERTEX_DATA( e->Org->data ); 
-	e = e->Lnext;
+    e = e->Lnext;
       } while( e != f->anEdge );
       CALL_END_OR_END_DATA();
     }
@@ -425,18 +425,18 @@ static int ComputeNormal( GLUtesselator *tess, GLdouble norm[RENDER_COORD_COUNT]
        * a reasonable normal for self-intersecting polygons (see above)
        */
       if( dot >= 0 ) {
-	norm[RENDER_COORD_X_INDEX] += n[RENDER_COORD_X_INDEX]; norm[RENDER_COORD_Y_INDEX] += n[RENDER_COORD_Y_INDEX]; norm[RENDER_COORD_Z_INDEX] += n[RENDER_COORD_Z_INDEX];
+    norm[RENDER_COORD_X_INDEX] += n[RENDER_COORD_X_INDEX]; norm[RENDER_COORD_Y_INDEX] += n[RENDER_COORD_Y_INDEX]; norm[RENDER_COORD_Z_INDEX] += n[RENDER_COORD_Z_INDEX];
       } else {
-	norm[RENDER_COORD_X_INDEX] -= n[RENDER_COORD_X_INDEX]; norm[RENDER_COORD_Y_INDEX] -= n[RENDER_COORD_Y_INDEX]; norm[RENDER_COORD_Z_INDEX] -= n[RENDER_COORD_Z_INDEX];
+    norm[RENDER_COORD_X_INDEX] -= n[RENDER_COORD_X_INDEX]; norm[RENDER_COORD_Y_INDEX] -= n[RENDER_COORD_Y_INDEX]; norm[RENDER_COORD_Z_INDEX] -= n[RENDER_COORD_Z_INDEX];
       }
     } else if( dot != 0 ) {
       /* Check the new orientation for consistency with previous triangles */
       if( dot > 0 ) {
-	if( sign < 0 ) return SIGN_INCONSISTENT;
-	sign = 1;
+    if( sign < 0 ) return SIGN_INCONSISTENT;
+    sign = 1;
       } else {
-	if( sign > 0 ) return SIGN_INCONSISTENT;
-	sign = -1;
+    if( sign > 0 ) return SIGN_INCONSISTENT;
+    sign = -1;
       }
     }
   }
@@ -496,8 +496,8 @@ GLboolean __gl_renderCache( GLUtesselator *tess )
   }
 
   CALL_BEGIN_OR_BEGIN_DATA( tess->boundaryOnly ? GL_LINE_LOOP
-			  : (tess->cacheCount > RENDER_TRIANGLE_VERTEX_COUNT) ? GL_TRIANGLE_FAN
-			  : GL_TRIANGLES );
+              : (tess->cacheCount > RENDER_TRIANGLE_VERTEX_COUNT) ? GL_TRIANGLE_FAN
+              : GL_TRIANGLES );
 
   CALL_VERTEX_OR_VERTEX_DATA( v0->data ); 
   if( sign > 0 ) {
