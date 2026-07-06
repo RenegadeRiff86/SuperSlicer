@@ -2080,45 +2080,6 @@ void test_overhangs(const ClipperLib_Z::Paths& path1, const ClipperLib_Z::Paths&
         for (int i = 0; i < poly.size() - 1; i++)
             assert(poly[i] != poly[i + 1]);
     // check if points are equal
-    //Points path2_points;
-    //Points path1_points;
-    //for (auto &line : path2)
-    //    for (auto &pt : line) path2_points.emplace_back(coord_t(pt.x()), coord_t(pt.y()));
-    //for (auto &line : path1)
-    //    for (auto &pt : line) path1_points.emplace_back(coord_t(pt.x()), coord_t(pt.y()));
-    //for (Point &pt : path2_points) {
-    //    bool found    = false;
-    //    bool in_outer = false;
-    //    Point pt2_almost;
-    //    for (Point &pt2 : path1_points)
-    //        if (pt.coincides_with_epsilon(pt2)) {
-    //            found = true;
-    //            pt2_almost = pt2;
-    //            break;
-    //        }
-    //    for (Point &pt2 : outer_points)
-    //        if (pt.coincides_with_epsilon(pt2)) {
-    //            found    = true;
-    //            in_outer = true;
-    //            pt2_almost = pt2;
-    //            break;
-    //        }
-    //    assert(found);
-    //    found    = false;
-    //    in_outer = false;
-    //    for (Point &pt2 : path1_points)
-    //        if (pt.coincides_with(pt2)) {
-    //            found = true;
-    //            break;
-    //        }
-    //    for (Point &pt2 : outer_points)
-    //        if (pt.coincides_with(pt2)) {
-    //            found    = true;
-    //            in_outer = true;
-    //            break;
-    //        }
-    //    assert(found);
-    //}
     //  => points can be different from diff & intersect
     // TODO: create a new operation that create the diff & intersect at the same time
 }
@@ -7313,19 +7274,8 @@ coord_t PerimeterGenerator::get_resolution(size_t perimeter_id, bool is_overhang
 {
     coord_t reso = scale_t(params.print_config.resolution.value);
     if (reso == 0) reso = SCALED_EPSILON;
+    // deactivated because with full perimeter on tube, the innermost perimeter can be very rough, and not a circle anymore.
     return reso;
-    //deactivated because with full perimeter on tube, the innermost perimeter can be very rough, and not a circle anymore.
-    //if on top or bottom, use external resolution.
-    //if (is_overhang || perimeter_id == 0)
-    //    return reso;
-    //if(srf && srf->has_pos_top())
-    //    return reso;
-    //// for each perimeter, reduce the precision by a factor 3
-    //int mult = (int)std::pow(2, perimeter_id);
-    //coord_t reso_internal = scale_t(params.print_config.resolution_internal.value);
-    //if(reso_internal < reso * mult)
-    //    return reso_internal;
-    //return reso * mult;
 }
 
 const std::vector<t_config_option_keys> Parameters::perimeter_keys({
