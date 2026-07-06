@@ -896,7 +896,7 @@ std::optional<int> ConfigOptionEnumDef::value_to_index(const std::string &value)
 {
     assert(this->is_valid_open_enum() || this->is_valid_closed_enum());
     auto it = std::find(m_values.begin(), m_values.end(), value);
-    return it == m_values.end() ? std::optional<int>{} : std::optional<int>{it - m_values.begin()};
+    return it == m_values.end() ? std::optional<int>{} : std::optional<int>{static_cast<int>(it - m_values.begin())};
 }
 
 // Look up an index of label of this combo box. Used for open enums.
@@ -905,7 +905,7 @@ std::optional<int> ConfigOptionEnumDef::label_to_index(const std::string &value)
     assert(is_valid_open_enum());
     const auto &ls = this->labels();
     auto        it = std::find(ls.begin(), ls.end(), value);
-    return it == ls.end() ? std::optional<int>{} : std::optional<int>{it - ls.begin()};
+    return it == ls.end() ? std::optional<int>{} : std::optional<int>{static_cast<int>(it - ls.begin())};
 }
 
 std::optional<std::reference_wrapper<const std::string>> ConfigOptionEnumDef::enum_to_value(int enum_val) const

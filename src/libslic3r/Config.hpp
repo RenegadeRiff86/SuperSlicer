@@ -26,6 +26,7 @@
 #include <cassert>
 #include <cfloat>
 #include <climits>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
@@ -55,6 +56,16 @@
 #include <cereal/types/base_class.hpp>
 
 namespace Slic3r {
+    static constexpr double config_option_numeric_default_max_abs = 1'000'000'000.;
+    static constexpr double config_option_numeric_default_min_abs = 0.000000001;
+
+    inline bool valid_config_option_numeric_default(double value)
+    {
+        const double abs_value = std::abs(value);
+        return abs_value < config_option_numeric_default_max_abs &&
+               (abs_value > config_option_numeric_default_min_abs || abs_value == 0.);
+    }
+
     struct FloatOrPercent
     {
         double  value;
@@ -1008,35 +1019,37 @@ public:
         if (n == 0) {
             this->m_values.clear();
             this->m_enabled.clear();
-        } else if (n < this->m_values.size()) {
+            assert(m_enabled.size() == size());
+            return;
+        }
+
+        if (n < this->m_values.size()) {
             assert (this->m_enabled.size() == this->m_values.size());
             this->m_values.erase(this->m_values.begin() + n, this->m_values.end());
             this->m_enabled.erase(this->m_enabled.begin() + n, this->m_enabled.end());
-        } else if (n > this->m_values.size()) {
-            if (this->m_values.empty()) {
-                if (opt_default == nullptr) {
-                    if (this->m_values.size() == 0) {
-                        this->m_values.resize(n, this->default_value);
-                    } else {
-                        this->m_values.resize(n, this->m_values.front());
-                    }
-                } else {
-                    if (opt_default->type() != this->type()) {
-                        throw ConfigurationError(
-                            "ConfigOptionVector::resize(): Extending with an incompatible type.");
-                    } else if (auto other = static_cast<const ConfigOptionVector<T> *>(opt_default);
-                               other->m_values.empty()) {
-                        this->m_values.resize(n, other->default_value);
-                    } else {
-                        this->m_values.resize(n, other->get_at(0));
-                    }
-                }
-            } else {
-                // Resize by duplicating the first value.
-                this->m_values.resize(n, this->get_at(0));
-            }
-            this->m_enabled.resize(n, ConfigOption::is_enabled());
+            assert(m_enabled.size() == size());
+            return;
         }
+
+        if (n == this->m_values.size()) {
+            assert(m_enabled.size() == size());
+            return;
+        }
+
+        if (! this->m_values.empty()) {
+            // Resize by duplicating the first value.
+            this->m_values.resize(n, this->get_at(0));
+        } else if (opt_default == nullptr) {
+            this->m_values.resize(n, this->default_value);
+        } else {
+            if (opt_default->type() != this->type())
+                throw ConfigurationError(
+                    "ConfigOptionVector::resize(): Extending with an incompatible type.");
+
+            auto other = static_cast<const ConfigOptionVector<T> *>(opt_default);
+            this->m_values.resize(n, other->m_values.empty() ? other->default_value : other->get_at(0));
+        }
+        this->m_enabled.resize(n, ConfigOption::is_enabled());
         assert(m_enabled.size() == size());
     }
 
@@ -1087,8 +1100,8 @@ public:
         // should compare all flags?
     }
 
-    bool operator==(const std::vector<T> &rhs) const throw() { return this->is_enabled() == rhs.is_enabled() && this->m_values == rhs; }
-    bool operator!=(const std::vector<T> &rhs) const throw() { return this->is_enabled() != rhs.is_enabled() || this->m_values != rhs; }
+    bool operator==(const std::vector<T> &rhs) const throw() { return this->m_values == rhs; }
+    bool operator!=(const std::vector<T> &rhs) const throw() { return !(*this == rhs); }
 
     size_t hash() const throw() override {
         std::hash<T> hasher;
@@ -1135,33 +1148,30 @@ public:
             throw ConfigurationError("ConfigOptionVector.apply_override() applied to different types.");
         auto rhs_vec = static_cast<const ConfigOptionVector<T> *>(rhs);
         assert(this->size() == rhs_vec->size());
+
+        auto apply_value = [this, rhs_vec](size_t value_idx) {
+            if (!rhs_vec->m_enabled[value_idx])
+                return false;
+
+            bool modified = false;
+            if (this->m_values[value_idx] != rhs_vec->m_values[value_idx]) {
+                this->m_values[value_idx] = rhs_vec->m_values[value_idx];
+                modified = true;
+            }
+            if (!this->m_enabled[value_idx]) {
+                this->m_enabled[value_idx] = true;
+                modified = true;
+            }
+            return modified;
+        };
+
+        if (idx >= 0 && static_cast<size_t>(idx) < this->size())
+            return apply_value(static_cast<size_t>(idx));
+
         bool modified = false;
-        if (idx >= 0 && idx < this->size()) {
-            if (rhs_vec->m_enabled[idx]) {
-                if (this->m_values[idx] != rhs_vec->m_values[idx]) {
-                    this->m_values[idx] = rhs_vec->m_values[idx];
-                    modified = true;
-                }
-                if (!this->m_enabled[idx]) {
-                    this->m_enabled[idx] = true;
-                    modified = true;
-                }
-            }
-        } else {
-            // do it value per value
-            for (int i = 0; i < this->size(); ++i) {
-                if (rhs_vec->m_enabled[i]) {
-                    if (this->m_values[i] != rhs_vec->m_values[i]) {
-                        this->m_values[i] = rhs_vec->m_values[i];
-                        modified = true;
-                    }
-                    if (!this->m_enabled[i]) {
-                        this->m_enabled[i] = true;
-                        modified = true;
-                    }
-                }
-            }
-        }
+        // do it value per value
+        for (size_t i = 0; i < this->size(); ++i)
+            modified |= apply_value(i);
         return modified;
     }
 
@@ -1224,11 +1234,11 @@ class ConfigOptionFloats : public ConfigOptionVector<double>
 {
 public:
     ConfigOptionFloats() : ConfigOptionVector<double>() {}
-    explicit ConfigOptionFloats(double default_value) : ConfigOptionVector<double>(default_value) { assert(std::abs(default_value) < 1000000000 && (std::abs(default_value) > 0.000000001 || default_value == 0));}
-    explicit ConfigOptionFloats(size_t n, double value) : ConfigOptionVector<double>(n, value) {assert(std::abs(default_value) < 1000000000 && (std::abs(default_value) > 0.000000001 || default_value == 0));}
-    explicit ConfigOptionFloats(std::initializer_list<double> il) : ConfigOptionVector<double>(std::move(il)) {assert(std::abs(default_value) < 1000000000 && (std::abs(default_value) > 0.000000001 || default_value == 0));}
-    explicit ConfigOptionFloats(const std::vector<double> &vec) : ConfigOptionVector<double>(vec) {assert(std::abs(default_value) < 1000000000 && (std::abs(default_value) > 0.000000001 || default_value == 0));}
-    explicit ConfigOptionFloats(std::vector<double> &&vec) : ConfigOptionVector<double>(std::move(vec)) {assert(std::abs(default_value) < 1000000000 && (std::abs(default_value) > 0.000000001 || default_value == 0));}
+    explicit ConfigOptionFloats(double default_value) : ConfigOptionVector<double>(default_value) { assert(valid_config_option_numeric_default(default_value)); }
+    explicit ConfigOptionFloats(size_t n, double value) : ConfigOptionVector<double>(n, value) { assert(valid_config_option_numeric_default(default_value)); }
+    explicit ConfigOptionFloats(std::initializer_list<double> il) : ConfigOptionVector<double>(std::move(il)) { assert(valid_config_option_numeric_default(default_value)); }
+    explicit ConfigOptionFloats(const std::vector<double> &vec) : ConfigOptionVector<double>(vec) { assert(valid_config_option_numeric_default(default_value)); }
+    explicit ConfigOptionFloats(std::vector<double> &&vec) : ConfigOptionVector<double>(std::move(vec)) { assert(valid_config_option_numeric_default(default_value)); }
 
     static ConfigOptionType static_type() { return coFloats; }
     ConfigOptionType        type()  const override { return static_type(); }
@@ -1356,9 +1366,9 @@ class ConfigOptionInts : public ConfigOptionVector<int32_t>
 {
 public:
     ConfigOptionInts() : ConfigOptionVector<int32_t>() {}
-    explicit ConfigOptionInts(int32_t default_value) : ConfigOptionVector<int32_t>(default_value) {assert(std::abs(default_value) < 1000000000);}
-    explicit ConfigOptionInts(size_t n, int32_t value) : ConfigOptionVector<int32_t>(n, value) {assert(std::abs(default_value) < 1000000000);}
-    explicit ConfigOptionInts(std::initializer_list<int32_t> &&il) : ConfigOptionVector<int32_t>(std::move(il)) {assert(std::abs(default_value) < 1000000000);}
+    explicit ConfigOptionInts(int32_t default_value) : ConfigOptionVector<int32_t>(default_value) { assert(valid_config_option_numeric_default(default_value)); }
+    explicit ConfigOptionInts(size_t n, int32_t value) : ConfigOptionVector<int32_t>(n, value) { assert(valid_config_option_numeric_default(default_value)); }
+    explicit ConfigOptionInts(std::initializer_list<int32_t> &&il) : ConfigOptionVector<int32_t>(std::move(il)) { assert(valid_config_option_numeric_default(default_value)); }
     //explicit ConfigOptionInts(const std::vector<int> &v) : ConfigOptionVector<int>(v) {}
     //explicit ConfigOptionInts(std::vector<int> &&v) : ConfigOptionVector<int>(std::move(v)) {}
 
@@ -1724,16 +1734,11 @@ class ConfigOptionFloatsOrPercents : public ConfigOptionVector<FloatOrPercent>
 {
 public:
     ConfigOptionFloatsOrPercents() : ConfigOptionVector<FloatOrPercent>() {}
-    explicit ConfigOptionFloatsOrPercents(FloatOrPercent default_value) : ConfigOptionVector<FloatOrPercent>(default_value) {assert(std::abs(default_value.value) < 1000000000 &&
-        (std::abs(default_value.value) > 0.000000001 || default_value.value == 0));}
-    explicit ConfigOptionFloatsOrPercents(size_t n, FloatOrPercent value) : ConfigOptionVector<FloatOrPercent>(n, value) {assert(std::abs(default_value.value) < 1000000000 &&
-        (std::abs(default_value.value) > 0.000000001 || default_value.value == 0));}
-    explicit ConfigOptionFloatsOrPercents(std::initializer_list<FloatOrPercent> il) : ConfigOptionVector<FloatOrPercent>(std::move(il)) {assert(std::abs(default_value.value) < 1000000000 &&
-        (std::abs(default_value.value) > 0.000000001 || default_value.value == 0));}
-    explicit ConfigOptionFloatsOrPercents(const std::vector<FloatOrPercent> &vec) : ConfigOptionVector<FloatOrPercent>(vec) {assert(std::abs(default_value.value) < 1000000000 &&
-        (std::abs(default_value.value) > 0.000000001 || default_value.value == 0));}
-    explicit ConfigOptionFloatsOrPercents(std::vector<FloatOrPercent> &&vec) : ConfigOptionVector<FloatOrPercent>(std::move(vec)) {assert(std::abs(default_value.value) < 1000000000 &&
-        (std::abs(default_value.value) > 0.000000001 || default_value.value == 0));}
+    explicit ConfigOptionFloatsOrPercents(FloatOrPercent default_value) : ConfigOptionVector<FloatOrPercent>(default_value) { assert(valid_config_option_numeric_default(default_value.value)); }
+    explicit ConfigOptionFloatsOrPercents(size_t n, FloatOrPercent value) : ConfigOptionVector<FloatOrPercent>(n, value) { assert(valid_config_option_numeric_default(default_value.value)); }
+    explicit ConfigOptionFloatsOrPercents(std::initializer_list<FloatOrPercent> il) : ConfigOptionVector<FloatOrPercent>(std::move(il)) { assert(valid_config_option_numeric_default(default_value.value)); }
+    explicit ConfigOptionFloatsOrPercents(const std::vector<FloatOrPercent> &vec) : ConfigOptionVector<FloatOrPercent>(vec) { assert(valid_config_option_numeric_default(default_value.value)); }
+    explicit ConfigOptionFloatsOrPercents(std::vector<FloatOrPercent> &&vec) : ConfigOptionVector<FloatOrPercent>(std::move(vec)) { assert(valid_config_option_numeric_default(default_value.value)); }
 
     static ConfigOptionType static_type() { return coFloatsOrPercents; }
     ConfigOptionType        type()  const override { return static_type(); }
