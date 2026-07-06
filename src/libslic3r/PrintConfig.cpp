@@ -129,6 +129,31 @@
 #define KEY_FIRST_LAYER_EXTRUSION_SPACING "first_layer_extrusion_spacing"
 #define KEY_FIRST_LAYER_EXTRUSION_WIDTH "first_layer_extrusion_width"
 #define KEY_GCODE_FLAVOR "gcode_flavor"
+#define KEY_HOST_TYPE "host_type"
+#define KEY_INFILL_ACCELERATION "infill_acceleration"
+#define KEY_INFILL_CONNECTION "infill_connection"
+#define KEY_INFILL_EXTRUDER "infill_extruder"
+#define KEY_INFILL_EXTRUSION_SPACING "infill_extrusion_spacing"
+#define KEY_MONOTONICGAPFILL "monotonicgapfill"
+#define KEY_OCTAGRAMSPIRAL "octagramspiral"
+#define KEY_OVERHANGS_SPEED "overhangs_speed"
+#define KEY_OVERHANGS_WIDTH "overhangs_width"
+#define KEY_PERIMETER_EXTRUSION_SPACING "perimeter_extrusion_spacing"
+#define KEY_PERIMETER_OVERLAP "perimeter_overlap"
+#define KEY_PERIMETER_SPEED "perimeter_speed"
+#define KEY_PREVIOUS_LAYER_Z "previous_layer_z"
+#define KEY_RETRACT_LAYER_CHANGE "retract_layer_change"
+#define KEY_RETRACT_LIFT "retract_lift"
+#define KEY_RETRACT_LIFT_BEFORE_TRAVEL "retract_lift_before_travel"
+#define KEY_RETRACT_LIFT_TOP "retract_lift_top"
+#define KEY_SEAM_GAP "seam_gap"
+#define KEY_SEAM_POSITION "seam_position"
+#define KEY_SOLID_FILL_PATTERN "solid_fill_pattern"
+#define KEY_SOLID_INFILL_EXTRUSION_SPACING "solid_infill_extrusion_spacing"
+#define KEY_SOLID_INFILL_EXTRUSION_WIDTH "solid_infill_extrusion_width"
+#define KEY_SOLID_INFILL_OVERLAP "solid_infill_overlap"
+#define KEY_THUMBNAILS "thumbnails"
+#define KEY_TOP_INFILL_EXTRUSION_SPACING "top_infill_extrusion_spacing"
 
 namespace Slic3r {
 
@@ -271,7 +296,7 @@ static const t_config_enum_values s_keys_map_InfillPattern {
     {"gyroid",              ipGyroid},
     {KEY_HILBERTCURVE,        ipHilbertCurve},
     {KEY_ARCHIMEDEANCHORDS,   ipArchimedeanChords},
-    {"octagramspiral",      ipOctagramSpiral},
+    {KEY_OCTAGRAMSPIRAL,      ipOctagramSpiral},
     {"smooth",              ipSmooth},
     {"smoothtriple",        ipSmoothTriple},
     {"smoothhilbert",       ipSmoothHilbert},
@@ -564,7 +589,7 @@ void PrintConfigDef::init_common_params()
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionString(""));
 
-    def = this->add("thumbnails", coPoints);
+    def = this->add(KEY_THUMBNAILS, coPoints);
     def->label = L("Thumbnails size");
     def->tooltip = L("Picture sizes to be stored into a .gcode / .bgcode and .sl1 / .sl1s files, in the following format: \"XxY/EXT, XxY/EXT, ...\"\n"
                      "Currently supported extensions are PNG, QOI and JPG.");
@@ -1589,14 +1614,14 @@ void PrintConfigDef::init_fff_params()
     def->set_enum<InfillPattern>({
         { FILL_RECTILINEAR,        L(STR_RECTILINEAR_CAP) },
         { FILL_MONOTONIC,          L(STR_MONOTONIC_CAP) },
-        { "monotonicgapfill",   L("Monotonic (filled)") },
+        { KEY_MONOTONICGAPFILL,   L("Monotonic (filled)") },
         { "monotoniclines",     L("Monotonic Lines") },
         { KEY_ALIGNEDRECTILINEAR, L("Aligned Rectilinear") },
         { KEY_CONCENTRIC,         L(STR_CONCENTRIC_CAP) },
         { KEY_CONCENTRICGAPFILL,  L("Concentric (filled)") },
         { KEY_HILBERTCURVE,       L(STR_HILBERT_CURVE) },
         { KEY_ARCHIMEDEANCHORDS,  L("Archimedean Chords") },
-        { "octagramspiral",     L("Octagram Spiral") },
+        { KEY_OCTAGRAMSPIRAL,     L("Octagram Spiral") },
         { "sawtooth",     L("Sawtooth") },
         { "smooth",     L("Ironing") },
     });
@@ -1614,21 +1639,21 @@ void PrintConfigDef::init_fff_params()
     def->set_enum<InfillPattern>({
         { FILL_RECTILINEAR,        L(STR_RECTILINEAR_CAP) },
         { FILL_MONOTONIC,          L(STR_MONOTONIC_CAP) },
-        { "monotonicgapfill",   L("Monotonic (filled)") },
+        { KEY_MONOTONICGAPFILL,   L("Monotonic (filled)") },
         { "monotoniclines",     L("Monotonic Lines") },
         { KEY_ALIGNEDRECTILINEAR, L("Aligned Rectilinear") },
         { KEY_CONCENTRIC,         L(STR_CONCENTRIC_CAP) },
         { KEY_CONCENTRICGAPFILL,  L("Concentric (filled)") },
         { KEY_HILBERTCURVE,       L(STR_HILBERT_CURVE) },
         { KEY_ARCHIMEDEANCHORDS,  L("Archimedean Chords") },
-        { "octagramspiral",     L("Octagram Spiral") },
+        { KEY_OCTAGRAMSPIRAL,     L("Octagram Spiral") },
         { "smooth",     L("Ironing") },
     });
 
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionEnum<InfillPattern>(ipMonotonic));
 
-    def = this->add("solid_fill_pattern", coEnum);
+    def = this->add(KEY_SOLID_FILL_PATTERN, coEnum);
     def->label = L("Solid fill pattern");
     def->category = OptionCategory::infill;
     def->tooltip = L("Fill pattern for solid (internal) infill. This only affects the solid not-visible layers. You should use rectilinear in most cases. You can try ironing for translucent material."
@@ -1639,14 +1664,14 @@ void PrintConfigDef::init_fff_params()
         { FILL_RECTILINEAR,        L(STR_RECTILINEAR_CAP) },
         { "rectilineargapfill", L("Rectilinear (filled)") },
         { FILL_MONOTONIC,          L(STR_MONOTONIC_CAP) },
-        { "monotonicgapfill",   L("Monotonic (filled)") },
+        { KEY_MONOTONICGAPFILL,   L("Monotonic (filled)") },
         { "monotoniclines",     L("Monotonic Lines") },
         { KEY_ALIGNEDRECTILINEAR, L("Aligned Rectilinear") },
         { KEY_CONCENTRIC,         L(STR_CONCENTRIC_CAP) },
         { KEY_CONCENTRICGAPFILL,  L("Concentric (filled)") },
         { KEY_HILBERTCURVE,       L(STR_HILBERT_CURVE) },
         { KEY_ARCHIMEDEANCHORDS,  L("Archimedean Chords") },
-        { "octagramspiral",     L("Octagram Spiral") },
+        { KEY_OCTAGRAMSPIRAL,     L("Octagram Spiral") },
         { "smooth",             L("Ironing") },
     });
 
@@ -1808,7 +1833,7 @@ void PrintConfigDef::init_fff_params()
                    "\nIf expressed as percentage (for example: 80%) it will be calculated over the Internal Perimeters speed setting."
                    STR_SET_ZERO_AUTOSPEED);
     def->sidetext = L(UNIT_MM_S_OR_PCT);
-    def->ratio_over = "perimeter_speed";
+    def->ratio_over = KEY_PERIMETER_SPEED;
     def->min = 0;
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionFloatOrPercent(50, true));
@@ -2965,7 +2990,7 @@ void PrintConfigDef::init_fff_params()
         { "gyroid",             L("Gyroid")},
         { KEY_HILBERTCURVE,       L(STR_HILBERT_CURVE)},
         { KEY_ARCHIMEDEANCHORDS,  L("Archimedean Chords")},
-        { "octagramspiral",     L("Octagram Spiral")},
+        { KEY_OCTAGRAMSPIRAL,     L("Octagram Spiral")},
         {"scatteredrectilinear",L("Scattered Rectilinear")},
         { "adaptivecubic",      L("Adaptive Cubic")},
         { "supportcubic",       L("Support Cubic")},
@@ -3508,7 +3533,7 @@ void PrintConfigDef::init_fff_params()
         "\nGap fill extrusions are ignored from the automatic volumetric speed computation, unless you set it to 0."
         "\nThis can be expressed as a percentage (for example: 80%) over the Internal Perimeter speed.");
     def->sidetext = L(UNIT_MM_S_OR_PCT);
-    def->ratio_over = "perimeter_speed";
+    def->ratio_over = KEY_PERIMETER_SPEED;
     def->min = 0;
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionFloatOrPercent(50,true));
@@ -3612,7 +3637,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionBool(0));
 
-    def = this->add("infill_acceleration", coFloatOrPercent);
+    def = this->add(KEY_INFILL_ACCELERATION, coFloatOrPercent);
     def->label = L("Sparse");
     def->full_label = L("Infill acceleration");
     def->category = OptionCategory::speed;
@@ -3693,7 +3718,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionFloatOrPercent(0, false));
 
-    def = this->add("infill_connection", coEnum);
+    def = this->add(KEY_INFILL_CONNECTION, coEnum);
     def->label = L("Connection of sparse infill lines");
     def->category = OptionCategory::infill;
     def->tooltip = L("Give to the infill algorithm if the infill needs to be connected, and on which perimeters"
@@ -3793,7 +3818,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->set_default_value(new ConfigOptionEnum<DenseInfillAlgo>(dfaAutoOrEnlarged));
 
-    def = this->add("infill_extruder", coInt);
+    def = this->add(KEY_INFILL_EXTRUDER, coInt);
     def->label = L("Infill extruder");
     def->category = OptionCategory::extruders;
     def->tooltip = L("The extruder to use when printing infill.");
@@ -3833,7 +3858,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->set_default_value(new ConfigOptionFloatOrPercent(false, 0));
 
-    def = this->add("infill_extrusion_spacing", coFloatOrPercent);
+    def = this->add(KEY_INFILL_EXTRUSION_SPACING, coFloatOrPercent);
     def->label = L("Infill");
     def->full_label = L("Infill spacing");
     def->category = OptionCategory::width;
@@ -4626,7 +4651,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionFloats{ 0.4 });
 
-    def = this->add("host_type", coEnum);
+    def = this->add(KEY_HOST_TYPE, coEnum);
     def->label = L("Host Type");
     def->category = OptionCategory::general;
     def->tooltip = L("Slic3r can upload G-code files to a printer host. This field must contain "
@@ -4950,7 +4975,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->set_default_value(new ConfigOptionFloatOrPercent(0, false));
 
-    def = this->add("overhangs_speed", coFloatOrPercent);
+    def = this->add(KEY_OVERHANGS_SPEED, coFloatOrPercent);
     def->label = L("Overhangs");
     def->full_label = L("Overhangs speed");
     def->category = OptionCategory::speed;
@@ -5004,7 +5029,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->set_default_value(new ConfigOptionEnum<BridgeType>{BridgeType::btFromNozzle});
 
-    def = this->add("overhangs_width", coFloatOrPercent);
+    def = this->add(KEY_OVERHANGS_WIDTH, coFloatOrPercent);
     def->label = L("Overhangs flow threshold");
     def->category = OptionCategory::width;
     def->tooltip = L("Minimum unsupported width for an extrusion to apply the overhang flow to it."
@@ -5149,7 +5174,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value((new ConfigOptionFloatOrPercent(0, false))->set_phony(true));
 
-    def = this->add("perimeter_extrusion_spacing", coFloatOrPercent);
+    def = this->add(KEY_PERIMETER_EXTRUSION_SPACING, coFloatOrPercent);
     def->label = L(STR_PERIMETERS_CAP);
     def->full_label = L("Perimeter spacing");
     def->category = OptionCategory::width;
@@ -5228,7 +5253,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->set_default_value(new ConfigOptionEnum<SeamPosition>(spRear));
 
-    def = this->add("perimeter_overlap", coPercent);
+    def = this->add(KEY_PERIMETER_OVERLAP, coPercent);
     def->label = L("perimeter overlap");
     def->full_label = L("Perimeter overlap");
     def->category = OptionCategory::width;
@@ -5259,7 +5284,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->set_default_value(new ConfigOptionBool(false));
 
-    def = this->add("perimeter_speed", coFloatOrPercent);
+    def = this->add(KEY_PERIMETER_SPEED, coFloatOrPercent);
     def->label = L("Internal");
     def->full_label = L("Internal perimeters speed");
     def->category = OptionCategory::speed;
@@ -5668,7 +5693,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionFloats { 2. });
 
-    def = this->add("retract_lift_before_travel", coFloats);
+    def = this->add(KEY_RETRACT_LIFT_BEFORE_TRAVEL, coFloats);
     def->label = L("Minimum travel after z lift");
     def->category = OptionCategory::extruders;
     def->tooltip = L("Z lift is not triggered when travel moves are shorter than this length.");
@@ -5688,7 +5713,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionPercents { 0. });
 
-    def = this->add("retract_layer_change", coBools);
+    def = this->add(KEY_RETRACT_LAYER_CHANGE, coBools);
     def->label = L("Retract on layer change");
     def->category = OptionCategory::extruders;
     def->tooltip = L("This flag enforces a retraction whenever a Z move is done (before it).");
@@ -5764,7 +5789,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionFloats { 10. });
 
-    def = this->add("retract_lift", coFloats);
+    def = this->add(KEY_RETRACT_LIFT, coFloats);
     def->label = L("Lift height");
     def->category = OptionCategory::extruders;
     def->tooltip = L("If you set this to a positive value, the extruder is quickly raised every time a retraction "
@@ -5812,7 +5837,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionBools{ false });
 
-    def = this->add("retract_lift_top", coStrings);
+    def = this->add(KEY_RETRACT_LIFT_TOP, coStrings);
     def->label = L("On surfaces");
     def->full_label = L("Lift only on");
     def->category = OptionCategory::extruders;
@@ -5868,7 +5893,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionFloats { 0. });
 
-    def = this->add("seam_position", coEnum);
+    def = this->add(KEY_SEAM_POSITION, coEnum);
     def->label = L("Seam position");
     def->category = OptionCategory::perimeter;
     def->tooltip = L("Position of perimeters' starting points."
@@ -5904,7 +5929,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->set_default_value(new ConfigOptionPercent(60));
 
-    def = this->add("seam_gap", coFloatsOrPercents);
+    def = this->add(KEY_SEAM_GAP, coFloatsOrPercents);
     def->label = L("Seam gap");
     def->category = OptionCategory::extruders;
     def->tooltip = L("To avoid visible seam, the extrusion can be stoppped a bit before the end of the loop."
@@ -6171,7 +6196,7 @@ void PrintConfigDef::init_fff_params()
                    "\nIf expressed as percentage (for example: 80%) it will be calculated on the Internal Perimeters speed setting above."
                    STR_SET_ZERO_TO_DISABLE);
     def->sidetext = L(UNIT_MM_S_OR_PCT);
-    def->ratio_over = "perimeter_speed";
+    def->ratio_over = KEY_PERIMETER_SPEED;
     def->min = 0;
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionFloatOrPercent(50, true));
@@ -6233,7 +6258,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->set_default_value(new ConfigOptionFloatOrPercent(0, false));
 
-    def = this->add("solid_infill_overlap", coPercent);
+    def = this->add(KEY_SOLID_INFILL_OVERLAP, coPercent);
     def->label = L("Solid infill overlap");
     def->category = OptionCategory::width;
     def->tooltip = L("This setting allows you to reduce the overlap between the lines of the solid fill, to reduce the % filled if you see overextrusion signs on solid areas."
@@ -6265,7 +6290,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionInt(0));
 
-    def = this->add("solid_infill_extrusion_width", coFloatOrPercent);
+    def = this->add(KEY_SOLID_INFILL_EXTRUSION_WIDTH, coFloatOrPercent);
     def->label = L("Solid infill");
     def->full_label = L("Solid infill width");
     def->category = OptionCategory::width;
@@ -6296,7 +6321,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->set_default_value(new ConfigOptionFloatOrPercent(false, 0));
 
-    def = this->add("solid_infill_extrusion_spacing", coFloatOrPercent);
+    def = this->add(KEY_SOLID_INFILL_EXTRUSION_SPACING, coFloatOrPercent);
     def->label = L("Solid spacing");
     def->full_label = L("Solid infill spacing");
     def->category = OptionCategory::width;
@@ -7287,7 +7312,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionFloatOrPercent(105, true));
 
-    def = this->add("top_infill_extrusion_spacing", coFloatOrPercent);
+    def = this->add(KEY_TOP_INFILL_EXTRUSION_SPACING, coFloatOrPercent);
     def->label = L("Top solid spacing");
     def->category = OptionCategory::width;
     def->tooltip = L("Like Top solid infill width but spacing is the distance between two lines (as they overlap a bit, it's not the same)."
@@ -8055,19 +8080,19 @@ void PrintConfigDef::init_extruder_option_keys()
         KEY_NOZZLE_DIAMETER,
         "retract_before_travel",
         "retract_before_wipe",
-        "retract_layer_change",
+        KEY_RETRACT_LAYER_CHANGE,
         "retract_length",
         "retract_length_toolchange",
-        "retract_lift",
+        KEY_RETRACT_LIFT,
         "retract_lift_above",
-        "retract_lift_before_travel",
+        KEY_RETRACT_LIFT_BEFORE_TRAVEL,
         "retract_lift_below",
         "retract_lift_first_layer",
-        "retract_lift_top",
+        KEY_RETRACT_LIFT_TOP,
         "retract_restart_extra",
         "retract_restart_extra_toolchange",
         "retract_speed",
-        "seam_gap",
+        KEY_SEAM_GAP,
         "seam_gap_external",
         "tool_name",
         "travel_lift_before_obstacle",
@@ -8092,19 +8117,19 @@ void PrintConfigDef::init_extruder_option_keys()
         "deretract_speed",
         "retract_before_travel",
         "retract_before_wipe",
-        "retract_layer_change",
+        KEY_RETRACT_LAYER_CHANGE,
         "retract_length",
         "retract_length_toolchange",
-        "retract_lift",
+        KEY_RETRACT_LIFT,
         "retract_lift_above",
-        "retract_lift_before_travel",
+        KEY_RETRACT_LIFT_BEFORE_TRAVEL,
         "retract_lift_below",
         "retract_lift_first_layer",
-        "retract_lift_top",
+        KEY_RETRACT_LIFT_TOP,
         "retract_restart_extra",
         "retract_restart_extra_toolchange",
         "retract_speed",
-        "seam_gap",
+        KEY_SEAM_GAP,
         "seam_gap_external",
         "travel_lift_before_obstacle",
         // "travel_max_lift",
@@ -8127,17 +8152,17 @@ void PrintConfigDef::init_extruder_option_keys()
         "deretract_speed",
         "retract_before_travel",
         "retract_before_wipe",
-        "retract_layer_change",
+        KEY_RETRACT_LAYER_CHANGE,
         "retract_length",
         "retract_length_toolchange",
-        "retract_lift",
+        KEY_RETRACT_LIFT,
         "retract_lift_above",
-        "retract_lift_before_travel",
+        KEY_RETRACT_LIFT_BEFORE_TRAVEL,
         "retract_lift_below",
         "retract_restart_extra",
         "retract_restart_extra_toolchange",
         "retract_speed",
-        "seam_gap",
+        KEY_SEAM_GAP,
         "travel_lift_before_obstacle",
         // "travel_max_lift",
         KEY_TRAVEL_RAMPING_LIFT,
@@ -9251,12 +9276,12 @@ inline t_config_option_key &opt_key() {
 
 const std::vector<std::pair<t_config_option_key, t_config_option_key>> widths_2_spacings_for_phony_fix =
     {{KEY_EXTRUSION_WIDTH, KEY_EXTRUSION_SPACING},
-     {KEY_PERIMETER_EXTRUSION_WIDTH, "perimeter_extrusion_spacing"},
+     {KEY_PERIMETER_EXTRUSION_WIDTH, KEY_PERIMETER_EXTRUSION_SPACING},
      {KEY_EXTERNAL_PERIMETER_EXTRUSION_WIDTH, KEY_EXTERNAL_PERIMETER_EXTRUSION_SPACING},
      {KEY_FIRST_LAYER_EXTRUSION_WIDTH, KEY_FIRST_LAYER_EXTRUSION_SPACING},
-     {KEY_IN_FILL_EXTRUSION_WIDTH, "infill_extrusion_spacing"},
-     {"solid_infill_extrusion_width", "solid_infill_extrusion_spacing"},
-     {KEY_TOP_IN_FILL_EXTRUSION_WIDTH, "top_infill_extrusion_spacing"}};
+     {KEY_IN_FILL_EXTRUSION_WIDTH, KEY_INFILL_EXTRUSION_SPACING},
+     {KEY_SOLID_INFILL_EXTRUSION_WIDTH, KEY_SOLID_INFILL_EXTRUSION_SPACING},
+     {KEY_TOP_IN_FILL_EXTRUSION_WIDTH, KEY_TOP_INFILL_EXTRUSION_SPACING}};
 
 inline void erase() {
     last_search_result->second.first = "";
@@ -9289,9 +9314,9 @@ void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_config_o
             // the "new" marlin firmware flavor used to be called "marlinfirmware" for some time during PrusaSlicer 2.4.0-alpha development.
             value() = "marlin2";
     }
-    if (has(dict, "host_type"s, "mainsail"s)) {
+    if (has(dict, KEY_HOST_TYPE, "mainsail"s)) {
         // the "mainsail" key (introduced in 2.6.0-alpha6) was renamed to "moonraker" (in 2.6.0-rc1).
-        set("host_type", "moonraker");
+        set(KEY_HOST_TYPE, "moonraker");
     }
     if (has(dict, "fill_density") && value().find("%") == std::string::npos) {
         try {
@@ -9301,7 +9326,7 @@ void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_config_o
         } catch (boost::bad_lexical_cast &) { erase(); }
     }
     if (has(dict, "randomize_start", "1")) {
-        set("seam_position", "random");
+        set(KEY_SEAM_POSITION, "random");
     }
     if (has(dict, "bed_size") && !value().empty()) {
         opt_key() = "bed_shape";
@@ -9366,7 +9391,7 @@ void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_config_o
     if (has(dict, "elefant_foot_min_width"s)) {
         opt_key() = "elephant_foot_min_width"s;
     }
-    if (has(dict, "thumbnails"s)) {
+    if (has(dict, KEY_THUMBNAILS)) {
         if (value().empty())
             value() = "0x0,0x0";
     }
@@ -9377,7 +9402,7 @@ void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_config_o
             value() = to_string_nozero(1/v, 5);
     }
     if (has(dict, "infill_not_connected"s) ) {
-        opt_key() = "infill_connection";
+        opt_key() = KEY_INFILL_CONNECTION;
         if (value() == "1")
             value() = KEY_NOTCONNECTED;
         else
@@ -9405,7 +9430,7 @@ void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_config_o
             erase();
         }
     }
-    if (has(dict, "seam_position"s)) {
+    if (has(dict, KEY_SEAM_POSITION)) {
         if (value() == "hidden") {
             value() = "cost";
         } else if ("near" == value() || "nearest" == value()) {
@@ -9426,7 +9451,7 @@ void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_config_o
     //    if (value() == "1") {
     //        value() = "50%";
     //        //note: modifying dict invalidate opt_key() & value()
-    //        dict["overhangs_width"] = {"overhangs_width", "50%"};
+    //        dict["overhangs_width"] = {KEY_OVERHANGS_WIDTH, "50%"};
     //    } else {
     //        value() = "!50%";
     //        dict["overhangs_width"] = {"overhangs_width", "!50%"};
@@ -9440,7 +9465,7 @@ void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_config_o
             value() = "time_estimate_only";
     }
     if (has(dict, "retract_lift_not_last_layer"s)) {
-        opt_key() = "retract_lift_top";
+        opt_key() = KEY_RETRACT_LIFT_TOP;
         if (value() == "1")
             value() = "Not on top";
         else
@@ -9497,7 +9522,7 @@ void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_config_o
 
     // In PrusaSlicer 2.3.0-alpha0 the FILL_MONOTONIC infill was introduced, which was later renamed to "monotonous".
     for_ech_entry(dict,
-                  {KEY_TOP_FILL_PATTERN, KEY_BOTTOM_FILL_PATTERN, KEY_FILL_PATTERN, "solid_fill_pattern",
+                  {KEY_TOP_FILL_PATTERN, KEY_BOTTOM_FILL_PATTERN, KEY_FILL_PATTERN, KEY_SOLID_FILL_PATTERN,
                    "bridge_fill_pattern", "support_material_interface_pattern",
                    "support_material_top_interface_pattern", "support_material_bottom_interface_pattern"},
                   [&dict](Key &opt_key, Val &value) {
@@ -9511,7 +9536,7 @@ void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_config_o
             value = FILL_RECTILINEAR;
             set_gapfill = true;
         }
-        if (value == "monotonicgapfill") {
+        if (value == KEY_MONOTONICGAPFILL) {
             value=FILL_MONOTONIC;
             set_gapfill = true;
         }
@@ -9523,7 +9548,7 @@ void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_config_o
             if (opt_key == KEY_BOTTOM_FILL_PATTERN) {
                 //note: modifying dict invalidate opt_key & value
                 dict["infill_filled_bottom"] = {"infill_filled_bottom", "1"};
-            } else if (opt_key == "solid_fill_pattern") {
+            } else if (opt_key == KEY_SOLID_FILL_PATTERN) {
                 dict["infill_filled_solid"] = {"infill_filled_solid", "1"};
             } else if (opt_key == KEY_TOP_FILL_PATTERN) {
                 dict["infill_filled_top"] = {"infill_filled_top", "1"};
@@ -9545,7 +9570,7 @@ void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_config_o
     });
 
     const std::vector<std::string> move_deactivate = {
-        "overhangs_width"s, KEY_OVERHANGS_FLOW_RATIO
+        KEY_OVERHANGS_WIDTH, KEY_OVERHANGS_FLOW_RATIO
         };
     for (size_t i = 0; i < move_deactivate.size(); i += 2) {
         const size_t companion_idx = i + size_t{1};
@@ -9847,7 +9872,7 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
     if (old && config.has(KEY_OVERHANGS_WIDTH_SPEED) && config.get_float(KEY_OVERHANGS_WIDTH_SPEED) == 0 && config.is_enabled(KEY_OVERHANGS_WIDTH_SPEED)) {
         config.option(KEY_OVERHANGS_WIDTH_SPEED)->set_enabled(false);
     }
-    if (old && config.has("overhangs_width") && config.has(KEY_OVERHANGS_FLOW_RATIO) && config.get_float("overhangs_width") == 0 && config.is_enabled(KEY_OVERHANGS_FLOW_RATIO)) {
+    if (old && config.has(KEY_OVERHANGS_WIDTH) && config.has(KEY_OVERHANGS_FLOW_RATIO) && config.get_float(KEY_OVERHANGS_WIDTH) == 0 && config.is_enabled(KEY_OVERHANGS_FLOW_RATIO)) {
         config.option(KEY_OVERHANGS_FLOW_RATIO)->set_enabled(false);
     }
     // enable_dynamic_overhang/fan_speeds
@@ -9899,10 +9924,10 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
         }
         //can't have both (min < external_perimeter_speed) & (max > external_perimeter_speed) at same time.
         if (min < external_perimeter_speed) {
-            config.set_key_value("overhangs_speed", new ConfigOptionFloatOrPercent(min, false));
+            config.set_key_value(KEY_OVERHANGS_SPEED, new ConfigOptionFloatOrPercent(min, false));
             max = external_perimeter_speed;
         } else if (max > external_perimeter_speed) {
-            config.set_key_value("overhangs_speed", new ConfigOptionFloatOrPercent(max, false));
+            config.set_key_value(KEY_OVERHANGS_SPEED, new ConfigOptionFloatOrPercent(max, false));
             min = external_perimeter_speed;
         } else {
             assert(min == max && min ==external_perimeter_speed);
@@ -10069,21 +10094,21 @@ std::map<std::string,std::string> PrintConfigDef::from_prusa(t_config_option_key
     }
     if ("infill_anchor_max" == opt_key) {
         if(value == "0")
-            output["infill_connection"] = KEY_NOTCONNECTED;
+            output[KEY_INFILL_CONNECTION] = KEY_NOTCONNECTED;
     }
     if ("first_layer_speed" == opt_key) {
         output["first_layer_min_speed"] = value;
         output["first_layer_infill_speed"] = value;
     }
     //dep between solid infill & infill accel are inverted for prusa.
-    if ("infill_acceleration" == opt_key) {
+    if (KEY_INFILL_ACCELERATION == opt_key) {
         if (value == "0" && all_conf.get_float(KEY_SOLID_INFILL_ACCELERATION) != 0) {
             value = std::to_string(all_conf.get_computed_value(KEY_DEFAULT_ACCELERATION));
         }
     }
     if (KEY_SOLID_INFILL_ACCELERATION == opt_key) {
-        if (value == "0" && all_conf.get_float("infill_acceleration") != 0) {
-            value = all_conf.get_float("infill_acceleration");
+        if (value == "0" && all_conf.get_float(KEY_INFILL_ACCELERATION) != 0) {
+            value = all_conf.get_float(KEY_INFILL_ACCELERATION);
         }
     }
     if (KEY_BRIM_TYPE == opt_key) {
@@ -10124,7 +10149,7 @@ std::map<std::string,std::string> PrintConfigDef::from_prusa(t_config_option_key
             output[KEY_SUPPORT_MATERIAL_CONTACT_DISTANCE_TYPE] = "plane";
         }
     }
-    if (opt_key == "seam_position") {
+    if (opt_key == KEY_SEAM_POSITION) {
         if ("cost" == value ) { // eqauls to "near" == value || "nearest" == value
             output[KEY_SEAM_ANGLE_COST] = "50%";
             output[KEY_SEAM_TRAVEL_COST] = "50%";
@@ -10217,7 +10242,7 @@ std::map<std::string,std::string> PrintConfigDef::from_prusa(t_config_option_key
         if (value == "PNG")
             output["thumbnails_tag_format"] = "0";
     }
-    if ("thumbnails" == opt_key && value.find('/') != std::string::npos) {
+    if (KEY_THUMBNAILS == opt_key && value.find('/') != std::string::npos) {
         // new (string from 2.7) .x./. , not old (Points before) type .x.
         auto [thumbnails_list, errors] = GCodeThumbnails::make_and_check_thumbnail_list_from_prusa(value);
         std::vector<Vec2d> pts;
@@ -10231,7 +10256,7 @@ std::map<std::string,std::string> PrintConfigDef::from_prusa(t_config_option_key
         //output["thumbnails_format"] = opt_format.serialize();
     }
     /*
-    if ("thumbnails" == opt_key) {
+    if (KEY_THUMBNAILS == opt_key) {
         //check if their format is inside the size
         if (value.find('/') != std::string::npos) {
             std::vector<std::string> sizes;
@@ -10300,7 +10325,7 @@ std::map<std::string,std::string> PrintConfigDef::from_prusa(t_config_option_key
 //keys that needs to go through from_prusa before beeing deserialized.
 const std::unordered_set<std::string> prusa_import_to_review_keys =
 {
-    "thumbnails"
+    KEY_THUMBNAILS
 };
 
 
@@ -10675,7 +10700,7 @@ KEY_FIRST_LAYER_EXTRUSION_SPACING,
 "hole_to_polyhole_threshold",
 "hole_to_polyhole_twisted",
 "hole_to_polyhole",
-"infill_connection",
+KEY_INFILL_CONNECTION,
 "infill_connection_bottom",
 "infill_connection_bridge",
 "infill_connection_solid",
@@ -10683,7 +10708,7 @@ KEY_FIRST_LAYER_EXTRUSION_SPACING,
 "infill_dense_algo",
 "infill_dense",
 "infill_extrusion_change_odd_layers",
-"infill_extrusion_spacing",
+KEY_INFILL_EXTRUSION_SPACING,
 "infill_fan_speed",
 "infill_filled_bottom",
 "infill_filled_solid",
@@ -10735,12 +10760,12 @@ KEY_OVERHANGS_WIDTH_SPEED,
 "parallel_objects_step_max_z",
 "perimeter_bonding",
 "perimeter_extrusion_change_odd_layers",
-"perimeter_extrusion_spacing",
+KEY_PERIMETER_EXTRUSION_SPACING,
 "perimeter_direction",
 "perimeter_fan_speed",
 "perimeter_loop_seam",
 "perimeter_loop",
-"perimeter_overlap",
+KEY_PERIMETER_OVERLAP,
 "perimeter_reverse",
 "perimeter_round_corners",
 "perimeters_hole",
@@ -10764,10 +10789,10 @@ KEY_OVERHANGS_WIDTH_SPEED,
 "remaining_times_type",
 "resolution_internal",
 "retract_lift_first_layer",
-"retract_lift_top",
-"retract_lift_before_travel",
+KEY_RETRACT_LIFT_TOP,
+KEY_RETRACT_LIFT_BEFORE_TRAVEL,
 KEY_SEAM_ANGLE_COST,
-"seam_gap",
+KEY_SEAM_GAP,
 "seam_gap_external",
 "solid_over_perimeters",
 "filament_seam_gap", // filament override
@@ -10786,11 +10811,11 @@ KEY_SEAM_TRAVEL_COST,
 "small_area_infill_flow_compensation_model",
 "small_perimeter_max_length",
 "small_perimeter_min_length",
-"solid_fill_pattern",
+KEY_SOLID_FILL_PATTERN,
 "solid_infill_extrusion_change_odd_layers",
-"solid_infill_extrusion_spacing",
+KEY_SOLID_INFILL_EXTRUSION_SPACING,
 "solid_infill_fan_speed",
-"solid_infill_overlap",
+KEY_SOLID_INFILL_OVERLAP,
 "start_gcode_manual",
 "solid_infill_below_layer_area",
 "solid_infill_below_width",
@@ -10824,7 +10849,7 @@ KEY_SUPPORT_MATERIAL_CONTACT_DISTANCE_TYPE,
 "time_toolchange",
 "tool_name",
 "top_fan_speed",
-"top_infill_extrusion_spacing",
+KEY_TOP_INFILL_EXTRUSION_SPACING,
 "top_solid_infill_overlap",
 "travel_acceleration",
 "travel_deceleration_use_target",
@@ -10866,7 +10891,7 @@ std::unordered_set<std::string> prusa_export_to_change_keys =
 {
 KEY_DEFAULT_FAN_SPEED, // used to convert to min_fan_speed & fan_always_on
 "overhangs_width",
-"overhangs_speed",
+KEY_OVERHANGS_SPEED,
 };
 
 std::map<std::string, std::string> PrintConfigDef::to_prusa(t_config_option_key& opt_key, std::string& value, const DynamicConfig& all_conf) {
@@ -10888,7 +10913,7 @@ std::map<std::string, std::string> PrintConfigDef::to_prusa(t_config_option_key&
             value = FILL_RECTILINEAR;
         } else if (KEY_CONCENTRICGAPFILL == value) {
             value = KEY_CONCENTRIC;
-        } else if ("monotonicgapfill" == value) {
+        } else if (KEY_MONOTONICGAPFILL == value) {
             value = FILL_MONOTONIC;
         }
         if (all_conf.has(KEY_FILL_ANGLE_INCREMENT) && ((int(all_conf.option(KEY_FILL_ANGLE_INCREMENT)->get_float())-90)%180) == 0 && FILL_RECTILINEAR == value
@@ -10898,7 +10923,7 @@ std::map<std::string, std::string> PrintConfigDef::to_prusa(t_config_option_key&
         if ("support_material_top_interface_pattern" == opt_key) {
             opt_key = "support_material_interface_pattern";
         }
-    } else if ("seam_position" == opt_key) {
+    } else if (KEY_SEAM_POSITION == opt_key) {
         if ("cost" == value) {
             value = "nearest";
         }else if ("allrandom" == value) {
@@ -10922,9 +10947,9 @@ std::map<std::string, std::string> PrintConfigDef::to_prusa(t_config_option_key&
             // can't support %, so we uese the default accel a baseline for half-assed conversion
             value = std::to_string(all_conf.get_abs_value(opt_key, all_conf.get_computed_value(KEY_DEFAULT_ACCELERATION)));
         }
-    } else if ("infill_acceleration" == opt_key || KEY_SOLID_INFILL_ACCELERATION == opt_key || "top_solid_infill_acceleration" == opt_key
+    } else if (KEY_INFILL_ACCELERATION == opt_key || KEY_SOLID_INFILL_ACCELERATION == opt_key || "top_solid_infill_acceleration" == opt_key
         || "bridge_acceleration" == opt_key || KEY_DEFAULT_ACCELERATION == opt_key || "perimeter_acceleration" == opt_key
-        || "overhangs_speed" == opt_key || "ironing_speed" == opt_key || "perimeter_speed" == opt_key 
+        || KEY_OVERHANGS_SPEED == opt_key || "ironing_speed" == opt_key || KEY_PERIMETER_SPEED == opt_key 
         || "infill_speed" == opt_key || "bridge_speed" == opt_key || "support_material_speed" == opt_key
         || "max_print_speed" == opt_key
         ) {
@@ -10936,7 +10961,7 @@ std::map<std::string, std::string> PrintConfigDef::to_prusa(t_config_option_key&
                 value = std::to_string(all_conf.get_computed_value(opt_key));
         }
         // infill_acceleration & solid_infill_acceleration dep are inverted
-        if ("infill_acceleration" == opt_key && value == "0") {
+        if (KEY_INFILL_ACCELERATION == opt_key && value == "0") {
             value = std::to_string(all_conf.get_computed_value(KEY_SOLID_INFILL_ACCELERATION));
         } else if (KEY_SOLID_INFILL_ACCELERATION == opt_key && value == "0") {
             value = std::to_string(all_conf.get_computed_value(KEY_DEFAULT_ACCELERATION));
@@ -10999,12 +11024,12 @@ std::map<std::string, std::string> PrintConfigDef::to_prusa(t_config_option_key&
             value = "marlin";
         else if ("klipper" == value)
             value = "reprap";
-    } else if ("host_type" == opt_key) {
+    } else if (KEY_HOST_TYPE == opt_key) {
         if ("klipper" == value)
             value = KEY_OCTOPRINT;
     } else if (opt_key.find(KEY_EXTRUSION_WIDTH) != std::string::npos) {
         if (std::set<std::string>{KEY_EXTRUSION_WIDTH, KEY_FIRST_LAYER_EXTRUSION_WIDTH, KEY_PERIMETER_EXTRUSION_WIDTH, KEY_EXTERNAL_PERIMETER_EXTRUSION_WIDTH, 
-            KEY_IN_FILL_EXTRUSION_WIDTH, "solid_infill_extrusion_width", KEY_TOP_IN_FILL_EXTRUSION_WIDTH, "support_material_extrusion_width"}.count(opt_key) > 0) {
+            KEY_IN_FILL_EXTRUSION_WIDTH, KEY_SOLID_INFILL_EXTRUSION_WIDTH, KEY_TOP_IN_FILL_EXTRUSION_WIDTH, "support_material_extrusion_width"}.count(opt_key) > 0) {
             const ConfigOptionFloatOrPercent* opt = all_conf.option<ConfigOptionFloatOrPercent>(opt_key);
             if (opt->is_phony() || opt->percent) {
                 if (opt->percent) {
@@ -11019,7 +11044,7 @@ std::map<std::string, std::string> PrintConfigDef::to_prusa(t_config_option_key&
     }
     if ("infill_anchor_max" == opt_key) {
         //it's infill_anchor == 0 that disable it for prusa
-        if (all_conf.opt_serialize("infill_connection") == KEY_NOTCONNECTED) {
+        if (all_conf.opt_serialize(KEY_INFILL_CONNECTION) == KEY_NOTCONNECTED) {
             value = "0";
         }
     }
@@ -11037,7 +11062,7 @@ std::map<std::string, std::string> PrintConfigDef::to_prusa(t_config_option_key&
     if ("output_format" == opt_key) {
         opt_key = "sla_archive_format";
     }
-    if ("host_type" == opt_key) {
+    if (KEY_HOST_TYPE == opt_key) {
         if ("klipper" == value || "mpmdv2" == value || "monoprice" == value) value = KEY_OCTOPRINT;
     }
     if ("fan_below_layer_time" == opt_key) {
@@ -11064,7 +11089,7 @@ std::map<std::string, std::string> PrintConfigDef::to_prusa(t_config_option_key&
     }
     if (KEY_TRAVEL_RAMPING_LIFT == opt_key && "1" == value) {
         // also add travel_max_lift from retract_lift & same from filament
-        new_entries[KEY_TRAVEL_RAMPING_LIFT] = all_conf.option("retract_lift")->serialize();
+        new_entries[KEY_TRAVEL_RAMPING_LIFT] = all_conf.option(KEY_RETRACT_LIFT)->serialize();
         new_entries["filament_travel_ramping_lift"] = all_conf.option("filament_retract_lift")->serialize();
     }
 
@@ -11095,7 +11120,7 @@ std::map<std::string, std::string> PrintConfigDef::to_prusa(t_config_option_key&
         value = std::to_string(current_opt->get_abs_value(nozzle_diameters->get_at(0)));
     }
 
-    if ("thumbnails" == opt_key) {
+    if (KEY_THUMBNAILS == opt_key) {
     // add format to thumbnails
         const ConfigOptionEnum<GCodeThumbnailsFormat> *format_opt = all_conf.option<ConfigOptionEnum<GCodeThumbnailsFormat>>("thumbnails_format");
         std::string format = format_opt->serialize();
@@ -11383,8 +11408,8 @@ void DynamicPrintConfig::normalize_fdm()
         int extruder = this->option("extruder")->get_int();
         this->erase("extruder");
         if (extruder != 0) {
-            if (!this->has("infill_extruder"))
-                this->option<ConfigOptionInt>("infill_extruder", true)->value = (extruder);
+            if (!this->has(KEY_INFILL_EXTRUDER))
+                this->option<ConfigOptionInt>(KEY_INFILL_EXTRUDER, true)->value = (extruder);
             if (!this->has("perimeter_extruder"))
                 this->option<ConfigOptionInt>("perimeter_extruder", true)->value = (extruder);
             // Don't propagate the current extruder to support.
@@ -11407,13 +11432,13 @@ void DynamicPrintConfig::normalize_fdm()
             this->opt<ConfigOptionInt>("wipe_tower_extruder")->value = 0;
     }
 
-    if (!this->has("solid_infill_extruder") && this->has("infill_extruder"))
-        this->option<ConfigOptionInt>("solid_infill_extruder", true)->value = (this->option("infill_extruder")->get_int());
+    if (!this->has("solid_infill_extruder") && this->has(KEY_INFILL_EXTRUDER))
+        this->option<ConfigOptionInt>("solid_infill_extruder", true)->value = (this->option(KEY_INFILL_EXTRUDER)->get_int());
 
     if (this->has("spiral_vase") && this->opt<ConfigOptionBool>("spiral_vase", true)->value) {
         {
             // this should be actually done only on the spiral layers instead of all
-            auto* opt = this->opt<ConfigOptionBools>("retract_layer_change", true);
+            auto* opt = this->opt<ConfigOptionBools>(KEY_RETRACT_LAYER_CHANGE, true);
             opt->set(std::vector<uint8_t>(opt->size(), false));  // set all values to false
             // Disable retract on layer change also for filament overrides.
             auto* opt_n = this->opt<ConfigOptionBools>("filament_retract_layer_change", true);
@@ -11575,8 +11600,8 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
             return this;
         return nullptr;
     }
-    if (opt_key == KEY_FILAMENT_MAX_OVERLAP || opt_key == "perimeter_overlap" ||
-        opt_key == KEY_EXTERNAL_PERIMETER_OVERLAP || opt_key == "solid_infill_overlap" ||
+    if (opt_key == KEY_FILAMENT_MAX_OVERLAP || opt_key == KEY_PERIMETER_OVERLAP ||
+        opt_key == KEY_EXTERNAL_PERIMETER_OVERLAP || opt_key == KEY_SOLID_INFILL_OVERLAP ||
         opt_key == "top_solid_infill_overlap") {
         if (this->option(KEY_EXTRUSION_WIDTH)) {
             if (this->update_phony(config_collection) != nullptr) {
@@ -11646,8 +11671,8 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                     something_changed = true;
                 }
             }
-            if (opt_key == "perimeter_extrusion_spacing") {
-                const ConfigOptionPercent* perimeter_overlap_option = find_option<ConfigOptionPercent>("perimeter_overlap", this, config_collection);
+            if (opt_key == KEY_PERIMETER_EXTRUSION_SPACING) {
+                const ConfigOptionPercent* perimeter_overlap_option = find_option<ConfigOptionPercent>(KEY_PERIMETER_OVERLAP, this, config_collection);
                 ConfigOptionFloatOrPercent* width_option = this->option<ConfigOptionFloatOrPercent>(KEY_PERIMETER_EXTRUSION_WIDTH);
                 if (width_option && perimeter_overlap_option) {
                     width_option->set_phony(true);
@@ -11680,7 +11705,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                     something_changed = true;
                 }
             }
-            if (opt_key == "infill_extrusion_spacing") {
+            if (opt_key == KEY_INFILL_EXTRUSION_SPACING) {
                 ConfigOptionFloatOrPercent* width_option = this->option<ConfigOptionFloatOrPercent>(KEY_IN_FILL_EXTRUSION_WIDTH);
                 if (width_option) {
                     width_option->set_phony(true);
@@ -11693,9 +11718,9 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                     something_changed = true;
                 }
             }
-            if (opt_key == "solid_infill_extrusion_spacing") {
-                const ConfigOptionPercent* solid_infill_overlap_option = find_option<ConfigOptionPercent>("solid_infill_overlap", this, config_collection);
-                ConfigOptionFloatOrPercent* width_option = this->option<ConfigOptionFloatOrPercent>("solid_infill_extrusion_width");
+            if (opt_key == KEY_SOLID_INFILL_EXTRUSION_SPACING) {
+                const ConfigOptionPercent* solid_infill_overlap_option = find_option<ConfigOptionPercent>(KEY_SOLID_INFILL_OVERLAP, this, config_collection);
+                ConfigOptionFloatOrPercent* width_option = this->option<ConfigOptionFloatOrPercent>(KEY_SOLID_INFILL_EXTRUSION_WIDTH);
                 if (width_option) {
                     width_option->set_phony(true);
                     spacing_option->set_phony(false);
@@ -11710,7 +11735,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                     something_changed = true;
                 }
             }
-            if (opt_key == "top_infill_extrusion_spacing") {
+            if (opt_key == KEY_TOP_INFILL_EXTRUSION_SPACING) {
                 const ConfigOptionPercent* top_solid_infill_overlap_option = find_option<ConfigOptionPercent>("top_solid_infill_overlap", this, config_collection);
                 ConfigOptionFloatOrPercent* width_option = this->option<ConfigOptionFloatOrPercent>(KEY_TOP_IN_FILL_EXTRUSION_WIDTH);
                 if (width_option) {
@@ -11811,8 +11836,8 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                     }
                 }
                 if (opt_key == KEY_PERIMETER_EXTRUSION_WIDTH) {
-                    const ConfigOptionPercent* perimeter_overlap_option = find_option<ConfigOptionPercent>("perimeter_overlap", this, config_collection);
-                    spacing_option = this->option<ConfigOptionFloatOrPercent>("perimeter_extrusion_spacing");
+                    const ConfigOptionPercent* perimeter_overlap_option = find_option<ConfigOptionPercent>(KEY_PERIMETER_OVERLAP, this, config_collection);
+                    spacing_option = this->option<ConfigOptionFloatOrPercent>(KEY_PERIMETER_EXTRUSION_SPACING);
                     if (width_option && perimeter_overlap_option) {
                         width_option->set_phony(false);
                         spacing_option->set_phony(true);
@@ -11851,7 +11876,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                     }
                 }
                 if (opt_key == KEY_IN_FILL_EXTRUSION_WIDTH) {
-                    spacing_option = this->option<ConfigOptionFloatOrPercent>("infill_extrusion_spacing");
+                    spacing_option = this->option<ConfigOptionFloatOrPercent>(KEY_INFILL_EXTRUSION_SPACING);
                     if (width_option) {
                         width_option->set_phony(false);
                         spacing_option->set_phony(true);
@@ -11866,9 +11891,9 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                         something_changed = true;
                     }
                 }
-                if (opt_key == "solid_infill_extrusion_width") {
-                    const ConfigOptionPercent* solid_infill_overlap_option = find_option<ConfigOptionPercent>("solid_infill_overlap", this, config_collection);
-                    spacing_option = this->option<ConfigOptionFloatOrPercent>("solid_infill_extrusion_spacing");
+                if (opt_key == KEY_SOLID_INFILL_EXTRUSION_WIDTH) {
+                    const ConfigOptionPercent* solid_infill_overlap_option = find_option<ConfigOptionPercent>(KEY_SOLID_INFILL_OVERLAP, this, config_collection);
+                    spacing_option = this->option<ConfigOptionFloatOrPercent>(KEY_SOLID_INFILL_EXTRUSION_SPACING);
                     if (width_option) {
                         width_option->set_phony(false);
                         spacing_option->set_phony(true);
@@ -11888,7 +11913,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                 }
                 if (opt_key == KEY_TOP_IN_FILL_EXTRUSION_WIDTH) {
                     const ConfigOptionPercent* top_solid_infill_overlap_option = find_option<ConfigOptionPercent>("top_solid_infill_overlap", this, config_collection);
-                    spacing_option = this->option<ConfigOptionFloatOrPercent>("top_infill_extrusion_spacing");
+                    spacing_option = this->option<ConfigOptionFloatOrPercent>(KEY_TOP_INFILL_EXTRUSION_SPACING);
                     if (width_option) {
                         width_option->set_phony(false);
                         spacing_option->set_phony(true);
@@ -12028,7 +12053,7 @@ std::string validate(const FullPrintConfig& cfg)
         return "Invalid value for --bottom-fill-pattern";
 
     // --solid-fill-pattern
-    if (!print_config_def.get("solid_fill_pattern")->has_enum_value(cfg.solid_fill_pattern.serialize()))
+    if (!print_config_def.get(KEY_SOLID_FILL_PATTERN)->has_enum_value(cfg.solid_fill_pattern.serialize()))
         return "Invalid value for --solid-fill-pattern";
 
     // --brim-ears-pattern
@@ -12743,12 +12768,12 @@ OtherPresetsConfigDef::OtherPresetsConfigDef()
 static std::map<t_custom_gcode_key, t_config_option_keys> s_CustomGcodeSpecificPlaceholders{
     {"start_filament_gcode",    {KEY_LAYER_NUM, "layer_z", KEY_MAX_LAYER_Z, "filament_extruder_id", KEY_PREVIOUS_EXTRUDER, KEY_NEXT_EXTRUDER}},
     {"end_filament_gcode",      {KEY_LAYER_NUM, "layer_z", KEY_MAX_LAYER_Z, "filament_extruder_id", KEY_PREVIOUS_EXTRUDER, KEY_NEXT_EXTRUDER}},
-    {"milling_toolchange_start_gcode", {KEY_LAYER_NUM, "layer_z", "previous_layer_z", KEY_MAX_LAYER_Z, KEY_PREVIOUS_EXTRUDER, KEY_NEXT_EXTRUDER}},
-    {"milling_toolchange_end_gcode",   {KEY_LAYER_NUM, "layer_z", "previous_layer_z", KEY_MAX_LAYER_Z, KEY_PREVIOUS_EXTRUDER, KEY_NEXT_EXTRUDER}},
+    {"milling_toolchange_start_gcode", {KEY_LAYER_NUM, "layer_z", KEY_PREVIOUS_LAYER_Z, KEY_MAX_LAYER_Z, KEY_PREVIOUS_EXTRUDER, KEY_NEXT_EXTRUDER}},
+    {"milling_toolchange_end_gcode",   {KEY_LAYER_NUM, "layer_z", KEY_PREVIOUS_LAYER_Z, KEY_MAX_LAYER_Z, KEY_PREVIOUS_EXTRUDER, KEY_NEXT_EXTRUDER}},
     {"start_gcode",             {"start_gcode_bed_temperature"}},
     {"end_gcode",               {KEY_LAYER_NUM, "layer_z", KEY_MAX_LAYER_Z, "filament_extruder_id", KEY_PREVIOUS_EXTRUDER, KEY_NEXT_EXTRUDER}},
-    {"before_layer_gcode",      {KEY_LAYER_NUM, "layer_z", "previous_layer_z", KEY_MAX_LAYER_Z, "gcode_bed_temperature", "layer_used_filament"}},
-    {"layer_gcode",             {KEY_LAYER_NUM, "layer_z", "previous_layer_z", KEY_MAX_LAYER_Z, "gcode_bed_temperature"}},
+    {"before_layer_gcode",      {KEY_LAYER_NUM, "layer_z", KEY_PREVIOUS_LAYER_Z, KEY_MAX_LAYER_Z, "gcode_bed_temperature", "layer_used_filament"}},
+    {"layer_gcode",             {KEY_LAYER_NUM, "layer_z", KEY_PREVIOUS_LAYER_Z, KEY_MAX_LAYER_Z, "gcode_bed_temperature"}},
     {KEY_FEATURE_GCODE,           {KEY_LAYER_NUM, "layer_z", KEY_MAX_LAYER_Z, "previous_extrusion_role", "next_extrusion_role", /*deprecated*/"extrusion_role", "last_extrusion_role" /*deprecated*/}},
     {KEY_TOOLCHANGE_GCODE,        {KEY_LAYER_NUM, "layer_z", KEY_MAX_LAYER_Z, KEY_PREVIOUS_EXTRUDER, KEY_NEXT_EXTRUDER, "toolchange_z"}},
     {"color_change_gcode",      {"color_change_extruder", "next_color", "next_colour"}},
@@ -12773,7 +12798,7 @@ CustomGcodeSpecificConfigDef::CustomGcodeSpecificConfigDef()
     def->label = L("Layer Z");
     def->tooltip = L("Height of the current layer above the print bed, measured to the top of the layer.");
 
-    def = this->add("previous_layer_z", coFloat);
+    def = this->add(KEY_PREVIOUS_LAYER_Z, coFloat);
     def->label = L("Previous Layer Z");
     def->tooltip = L("Height of the previous layer.");
 
