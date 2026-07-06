@@ -26,6 +26,10 @@ BOOST_STATIC_ASSERT(sizeof(std::mbstate_t)>=2);
 #define BOOST_NOWIDE_DO_LENGTH_MBSTATE_CONST
 #endif
 
+#ifdef DEBUG_CODECVT
+static const char* const kCodecvtDebugLeftIn = "Left in ";
+#endif
+
 template<typename CharType,int CharSize=sizeof(CharType)>
 class utf8_codecvt;
 
@@ -129,7 +133,7 @@ protected:
 #ifdef DEBUG_CODECVT            
             std::cout << "Entering IN--------------" << std::endl;
             std::cout << "State " << std::hex << state <<std::endl;
-            std::cout << "Left in " << std::dec << from_end - from << " out " << to_end -to << std::endl;
+            std::cout << kCodecvtDebugLeftIn << std::dec << from_end - from << " out " << to_end -to << std::endl;
 #endif           
             char const *from_saved = from;
             
@@ -196,7 +200,7 @@ protected:
             break;
         }
         std::cout << "State " << std::hex << state <<std::endl;
-        std::cout << "Left in " << std::dec << from_end - from << " out " << to_end -to << std::endl;
+        std::cout << kCodecvtDebugLeftIn << std::dec << from_end - from << " out " << to_end -to << std::endl;
 #endif            
         return r;
     }
@@ -224,7 +228,7 @@ protected:
 #ifdef DEBUG_CODECVT            
         std::cout << "Entering OUT --------------" << std::endl;
         std::cout << "State " << std::hex << state <<std::endl;
-        std::cout << "Left in " << std::dec << from_end - from << " out " << to_end -to << std::endl;
+        std::cout << kCodecvtDebugLeftIn << std::dec << from_end - from << " out " << to_end -to << std::endl;
 #endif            
             boost::uint32_t ch=0;
             if(state != 0) {
@@ -299,7 +303,7 @@ protected:
             break;
         }
         std::cout << "State " << std::hex << state <<std::endl;
-        std::cout << "Left in " << std::dec << from_end - from << " out " << to_end -to << std::endl;
+        std::cout << kCodecvtDebugLeftIn << std::dec << from_end - from << " out " << to_end -to << std::endl;
 #endif            
         return r;
     }
@@ -389,7 +393,7 @@ protected:
 #ifdef DEBUG_CODECVT            
             std::cout << "Entering IN--------------" << std::endl;
             std::cout << "State " << std::hex << state <<std::endl;
-            std::cout << "Left in " << std::dec << from_end - from << " out " << to_end -to << std::endl;
+            std::cout << kCodecvtDebugLeftIn << std::dec << from_end - from << " out " << to_end -to << std::endl;
 #endif           
             char const *from_saved = from;
             
@@ -428,7 +432,7 @@ protected:
             break;
         }
         std::cout << "State " << std::hex << state <<std::endl;
-        std::cout << "Left in " << std::dec << from_end - from << " out " << to_end -to << std::endl;
+        std::cout << kCodecvtDebugLeftIn << std::dec << from_end - from << " out " << to_end -to << std::endl;
 #endif            
         return r;
     }
@@ -448,7 +452,7 @@ protected:
 #ifdef DEBUG_CODECVT            
         std::cout << "Entering OUT --------------" << std::endl;
         std::cout << "State " << std::hex << state <<std::endl;
-        std::cout << "Left in " << std::dec << from_end - from << " out " << to_end -to << std::endl;
+        std::cout << kCodecvtDebugLeftIn << std::dec << from_end - from << " out " << to_end -to << std::endl;
 #endif            
             boost::uint32_t ch=0;
             ch = *from;
@@ -485,7 +489,7 @@ protected:
             break;
         }
         std::cout << "State " << std::hex << state <<std::endl;
-        std::cout << "Left in " << std::dec << from_end - from << " out " << to_end -to << std::endl;
+        std::cout << kCodecvtDebugLeftIn << std::dec << from_end - from << " out " << to_end -to << std::endl;
 #endif            
         return r;
     }

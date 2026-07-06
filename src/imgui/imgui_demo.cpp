@@ -147,6 +147,11 @@ Index of this file:
 #define IM_PRIu64   "llu"
 #endif
 
+// Sample strings reused verbatim across several of the Tables demo blocks below (BP1001).
+static const char* const kDemoTableHelloRowCol      = "Hello %d,%d";
+static const char* const kDemoTableCellRowCol       = "Cell %d,%d";
+static const char* const kDemoTableFlagsResizableName = "ImGuiTableFlags_Resizable";
+
 // Helpers macros
 // We normally try to not use many helpers in imgui_demo.cpp in order to make code easier to copy and paste,
 // but making an exception here as those are largely simplifying code...
@@ -3684,7 +3689,7 @@ static void ShowDemoWindowTables()
                 {
                     ImGui::TableSetColumnIndex(column);
                     char buf[32];
-                    sprintf(buf, "Hello %d,%d", column, row);
+                    sprintf(buf, kDemoTableHelloRowCol, column, row);
                     if (contents_type == CT_Text)
                         ImGui::TextUnformatted(buf);
                     else if (contents_type)
@@ -3704,7 +3709,7 @@ static void ShowDemoWindowTables()
         // Each columns maintain a sizing weight, and they will occupy all available width.
         static ImGuiTableFlags flags = ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_Resizable | ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV | ImGuiTableFlags_ContextMenuInBody;
         PushStyleCompact();
-        ImGui::CheckboxFlags("ImGuiTableFlags_Resizable", &flags, ImGuiTableFlags_Resizable);
+        ImGui::CheckboxFlags(kDemoTableFlagsResizableName, &flags, ImGuiTableFlags_Resizable);
         ImGui::CheckboxFlags("ImGuiTableFlags_BordersV", &flags, ImGuiTableFlags_BordersV);
         ImGui::SameLine(); HelpMarker("Using the _Resizable flag automatically enables the _BordersInnerV flag as well, this is why the resize borders are still showing when unchecking this.");
         PopStyleCompact();
@@ -3717,7 +3722,7 @@ static void ShowDemoWindowTables()
                 for (int column = 0; column < 3; column++)
                 {
                     ImGui::TableSetColumnIndex(column);
-                    ImGui::Text("Hello %d,%d", column, row);
+                    ImGui::Text(kDemoTableHelloRowCol, column, row);
                 }
             }
             ImGui::EndTable();
@@ -3750,7 +3755,7 @@ static void ShowDemoWindowTables()
                 for (int column = 0; column < 3; column++)
                 {
                     ImGui::TableSetColumnIndex(column);
-                    ImGui::Text("Hello %d,%d", column, row);
+                    ImGui::Text(kDemoTableHelloRowCol, column, row);
                 }
             }
             ImGui::EndTable();
@@ -3816,7 +3821,7 @@ static void ShowDemoWindowTables()
             "Right-click on a header to open a context menu.");
         static ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable | ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV;
         PushStyleCompact();
-        ImGui::CheckboxFlags("ImGuiTableFlags_Resizable", &flags, ImGuiTableFlags_Resizable);
+        ImGui::CheckboxFlags(kDemoTableFlagsResizableName, &flags, ImGuiTableFlags_Resizable);
         ImGui::CheckboxFlags("ImGuiTableFlags_Reorderable", &flags, ImGuiTableFlags_Reorderable);
         ImGui::CheckboxFlags("ImGuiTableFlags_Hideable", &flags, ImGuiTableFlags_Hideable);
         ImGui::CheckboxFlags("ImGuiTableFlags_NoBordersInBody", &flags, ImGuiTableFlags_NoBordersInBody);
@@ -3837,7 +3842,7 @@ static void ShowDemoWindowTables()
                 for (int column = 0; column < 3; column++)
                 {
                     ImGui::TableSetColumnIndex(column);
-                    ImGui::Text("Hello %d,%d", column, row);
+                    ImGui::Text(kDemoTableHelloRowCol, column, row);
                 }
             }
             ImGui::EndTable();
@@ -3916,7 +3921,7 @@ static void ShowDemoWindowTables()
                     else
                     {
                         char buf[32];
-                        sprintf(buf, "Hello %d,%d", column, row);
+                        sprintf(buf, kDemoTableHelloRowCol, column, row);
                         ImGui::Button(buf, ImVec2(-FLT_MIN, 0.0f));
                     }
                     //if (ImGui::TableGetColumnFlags() & ImGuiTableColumnFlags_IsHovered)
@@ -3940,7 +3945,7 @@ static void ShowDemoWindowTables()
         ImGui::CheckboxFlags("ImGuiTableFlags_BordersInner", &flags2, ImGuiTableFlags_BordersInner);
         ImGui::CheckboxFlags("ImGuiTableFlags_BordersOuter", &flags2, ImGuiTableFlags_BordersOuter);
         ImGui::CheckboxFlags("ImGuiTableFlags_RowBg", &flags2, ImGuiTableFlags_RowBg);
-        ImGui::CheckboxFlags("ImGuiTableFlags_Resizable", &flags2, ImGuiTableFlags_Resizable);
+        ImGui::CheckboxFlags(kDemoTableFlagsResizableName, &flags2, ImGuiTableFlags_Resizable);
         ImGui::Checkbox("show_widget_frame_bg", &show_widget_frame_bg);
         ImGui::SliderFloat2("CellPadding", &cell_padding.x, 0.0f, 10.0f, "%.0f");
         PopStyleCompact();
@@ -3978,7 +3983,7 @@ static void ShowDemoWindowTables()
     {
         static ImGuiTableFlags flags1 = ImGuiTableFlags_BordersV | ImGuiTableFlags_BordersOuterH | ImGuiTableFlags_RowBg | ImGuiTableFlags_ContextMenuInBody;
         PushStyleCompact();
-        ImGui::CheckboxFlags("ImGuiTableFlags_Resizable", &flags1, ImGuiTableFlags_Resizable);
+        ImGui::CheckboxFlags(kDemoTableFlagsResizableName, &flags1, ImGuiTableFlags_Resizable);
         ImGui::CheckboxFlags("ImGuiTableFlags_NoHostExtendX", &flags1, ImGuiTableFlags_NoHostExtendX);
         PopStyleCompact();
 
@@ -4037,7 +4042,7 @@ static void ShowDemoWindowTables()
             HelpMarker("Be mindful that using right-alignment (e.g. size.x = -FLT_MIN) creates a feedback loop where contents width can feed into auto-column width can feed into contents width.");
         }
         ImGui::DragInt("Columns", &column_count, 0.1f, 1, 64, "%d", ImGuiSliderFlags_AlwaysClamp);
-        ImGui::CheckboxFlags("ImGuiTableFlags_Resizable", &flags, ImGuiTableFlags_Resizable);
+        ImGui::CheckboxFlags(kDemoTableFlagsResizableName, &flags, ImGuiTableFlags_Resizable);
         ImGui::CheckboxFlags("ImGuiTableFlags_PreciseWidths", &flags, ImGuiTableFlags_PreciseWidths);
         ImGui::SameLine(); HelpMarker("Disable distributing remainder width to stretched columns (width allocation on a 100-wide table with 3 columns: Without this flag: 33,33,34. With this flag: 33,33,33). With larger number of columns, resizing will appear to be less smooth.");
         ImGui::CheckboxFlags("ImGuiTableFlags_ScrollX", &flags, ImGuiTableFlags_ScrollX);
@@ -4058,7 +4063,7 @@ static void ShowDemoWindowTables()
                 ImGui::PushID(cell);
                 char label[32];
                 static char text_buf[32] = "";
-                sprintf(label, "Hello %d,%d", column, row);
+                sprintf(label, kDemoTableHelloRowCol, column, row);
                 switch (contents_type)
                 {
                 case CT_ShortText:  ImGui::TextUnformatted(label); break;
@@ -4108,7 +4113,7 @@ static void ShowDemoWindowTables()
                     for (int column = 0; column < 3; column++)
                     {
                         ImGui::TableSetColumnIndex(column);
-                        ImGui::Text("Hello %d,%d", column, row);
+                        ImGui::Text(kDemoTableHelloRowCol, column, row);
                     }
                 }
             }
@@ -4131,7 +4136,7 @@ static void ShowDemoWindowTables()
         static int freeze_rows = 1;
 
         PushStyleCompact();
-        ImGui::CheckboxFlags("ImGuiTableFlags_Resizable", &flags, ImGuiTableFlags_Resizable);
+        ImGui::CheckboxFlags(kDemoTableFlagsResizableName, &flags, ImGuiTableFlags_Resizable);
         ImGui::CheckboxFlags("ImGuiTableFlags_ScrollX", &flags, ImGuiTableFlags_ScrollX);
         ImGui::CheckboxFlags("ImGuiTableFlags_ScrollY", &flags, ImGuiTableFlags_ScrollY);
         ImGui::SetNextItemWidth(ImGui::GetFrameHeight());
@@ -4277,7 +4282,7 @@ static void ShowDemoWindowTables()
 
         static ImGuiTableFlags flags1 = ImGuiTableFlags_Borders | ImGuiTableFlags_NoBordersInBodyUntilResize;
         PushStyleCompact();
-        ImGui::CheckboxFlags("ImGuiTableFlags_Resizable", &flags1, ImGuiTableFlags_Resizable);
+        ImGui::CheckboxFlags(kDemoTableFlagsResizableName, &flags1, ImGuiTableFlags_Resizable);
         ImGui::CheckboxFlags("ImGuiTableFlags_NoBordersInBodyUntilResize", &flags1, ImGuiTableFlags_NoBordersInBodyUntilResize);
         PopStyleCompact();
         if (ImGui::BeginTable("table1", 3, flags1))
@@ -4296,7 +4301,7 @@ static void ShowDemoWindowTables()
                     if (row == 0)
                         ImGui::Text("(w: %5.1f)", ImGui::GetContentRegionAvail().x);
                     else
-                        ImGui::Text("Hello %d,%d", column, row);
+                        ImGui::Text(kDemoTableHelloRowCol, column, row);
                 }
             }
             ImGui::EndTable();
@@ -4326,7 +4331,7 @@ static void ShowDemoWindowTables()
                     if (row == 0)
                         ImGui::Text("(w: %5.1f)", ImGui::GetContentRegionAvail().x);
                     else
-                        ImGui::Text("Hello %d,%d", column, row);
+                        ImGui::Text(kDemoTableHelloRowCol, column, row);
                 }
             }
             ImGui::EndTable();
@@ -4421,7 +4426,7 @@ static void ShowDemoWindowTables()
                 for (int column = 0; column < 3; column++)
                 {
                     ImGui::TableNextColumn();
-                    ImGui::Text("Cell %d,%d", column, row);
+                    ImGui::Text(kDemoTableCellRowCol, column, row);
                 }
             }
             ImGui::EndTable();
@@ -4440,7 +4445,7 @@ static void ShowDemoWindowTables()
                 for (int column = 0; column < 3; column++)
                 {
                     ImGui::TableNextColumn();
-                    ImGui::Text("Cell %d,%d", column, row);
+                    ImGui::Text(kDemoTableCellRowCol, column, row);
                 }
             }
             ImGui::EndTable();
@@ -4454,7 +4459,7 @@ static void ShowDemoWindowTables()
                 for (int column = 0; column < 3; column++)
                 {
                     ImGui::TableNextColumn();
-                    ImGui::Text("Cell %d,%d", column, row);
+                    ImGui::Text(kDemoTableCellRowCol, column, row);
                 }
             }
             ImGui::EndTable();
@@ -4672,7 +4677,7 @@ static void ShowDemoWindowTables()
                 for (int column = 0; column < 3; column++)
                 {
                     char buf[32];
-                    sprintf(buf, "Cell %d,%d", column, row);
+                    sprintf(buf, kDemoTableCellRowCol, column, row);
                     ImGui::TableSetColumnIndex(column);
                     ImGui::Selectable(buf, column_selected[column]);
                 }
@@ -4714,7 +4719,7 @@ static void ShowDemoWindowTables()
                 for (int column = 0; column < COLUMNS_COUNT; column++)
                 {
                     ImGui::TableSetColumnIndex(column);
-                    ImGui::Text("Cell %d,%d", column, row);
+                    ImGui::Text(kDemoTableCellRowCol, column, row);
                 }
             }
             ImGui::EndTable();
@@ -4741,7 +4746,7 @@ static void ShowDemoWindowTables()
                 {
                     // Submit dummy contents
                     ImGui::TableSetColumnIndex(column);
-                    ImGui::Text("Cell %d,%d", column, row);
+                    ImGui::Text(kDemoTableCellRowCol, column, row);
                     ImGui::SameLine();
 
                     // [2.2] Right-click on the ".." to open a custom popup
@@ -4944,7 +4949,7 @@ static void ShowDemoWindowTables()
 
             if (ImGui::TreeNodeEx("Features:", ImGuiTreeNodeFlags_DefaultOpen))
             {
-                ImGui::CheckboxFlags("ImGuiTableFlags_Resizable", &flags, ImGuiTableFlags_Resizable);
+                ImGui::CheckboxFlags(kDemoTableFlagsResizableName, &flags, ImGuiTableFlags_Resizable);
                 ImGui::CheckboxFlags("ImGuiTableFlags_Reorderable", &flags, ImGuiTableFlags_Reorderable);
                 ImGui::CheckboxFlags("ImGuiTableFlags_Hideable", &flags, ImGuiTableFlags_Hideable);
                 ImGui::CheckboxFlags("ImGuiTableFlags_Sortable", &flags, ImGuiTableFlags_Sortable);
