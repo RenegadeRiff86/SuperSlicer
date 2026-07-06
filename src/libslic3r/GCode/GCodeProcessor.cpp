@@ -10,7 +10,6 @@
 #include "libslic3r/format.hpp"
 #include "libslic3r/I18N.hpp"
 #include "libslic3r/GCode/GCodeWriter.hpp"
-#include "libslic3r/I18N.hpp"
 #include "libslic3r/Geometry/ArcWelder.hpp"
 #include "GCodeProcessor.hpp"
 
@@ -264,7 +263,7 @@ static void planner_forward_pass_kernel(GCodeProcessor::TimeBlock& prev, GCodePr
     }
 }
 
-void planner_reverse_pass_kernel(GCodeProcessor::TimeBlock& curr, GCodeProcessor::TimeBlock& next)
+static void planner_reverse_pass_kernel(GCodeProcessor::TimeBlock& curr, GCodeProcessor::TimeBlock& next)
 {
     // If entry speed is already at the maximum entry speed, no need to recheck. Block is cruising.
     // If not, block in state of acceleration or deceleration. Reset entry speed to maximum and
@@ -328,7 +327,7 @@ void GCodeProcessor::TimeMachine::calculate_time(std::vector<GCodeProcessorResul
     }
 
     // reverse_pass
-    for (int i = static_cast<int>(blocks.size()) - 1; i > 0; --i)
+    for (size_t i = blocks.size() - 1; i > 0; --i)
         planner_reverse_pass_kernel(blocks[i - 1], blocks[i]);
 
     recalculate_trapezoids(blocks);
@@ -354,7 +353,8 @@ void GCodeProcessor::TimeMachine::calculate_time(std::vector<GCodeProcessorResul
                 layers_time[i] = 0.0f;
             }
         }
-        layers_time[block.layer_id - 1] += block_time;
+        const size_t layer_index = static_cast<size_t>(block.layer_id) - 1;
+        layers_time[layer_index] += block_time;
         g1_times_cache.push_back({ block.g1_line_id, block.remaining_internal_g1_lines, time });
         // update times for remaining time to printer stop placeholders
         auto it_stop_time = std::lower_bound(stop_times.begin(), stop_times.end(), block.g1_line_id,
@@ -410,7 +410,7 @@ void GCodeProcessor::UsedFilaments::reset()
 void GCodeProcessor::UsedFilaments::increase_caches(double extruded_volume, uint16_t extruder_id, double parking_volume, double extra_loading_volume)
 {
     if (extruder_id >= this->extruder_retracted_volume.size())
-        this->extruder_retracted_volume.resize(extruder_id + 1, parking_volume);
+        this->extruder_retracted_volume.resize(static_cast<size_t>(extruder_id) + 1, parking_volume);
     
     if (this->recent_toolchange) {
         extruded_volume -= extra_loading_volume;
@@ -1558,7 +1558,7 @@ std::vector<std::pair<GCodeExtrusionRole, float>> GCodeProcessor::get_roles_time
     return ret;
 }
 
-ConfigSubstitutions load_from_slic3r_gcode_file(const std::string& filename, DynamicPrintConfig& config, ForwardCompatibilitySubstitutionRule compatibility_rule)
+static ConfigSubstitutions load_from_slic3r_gcode_file(const std::string& filename, DynamicPrintConfig& config, ForwardCompatibilitySubstitutionRule compatibility_rule)
 {
     // for reference, see: ConfigBase::load_from_gcode_file()
 
@@ -1569,10 +1569,10 @@ ConfigSubstitutions load_from_slic3r_gcode_file(const std::string& filename, Dyn
     size_t                    key_value_pairs = 0;
 
     ifs.seekg(0, ifs.end);
-    auto file_length = ifs.tellg();
-    auto data_length = std::min<std::fstream::pos_type>(65535, file_length - header_end_pos);
+    const std::fstream::pos_type file_length = ifs.tellg();
+    const std::fstream::pos_type data_length = std::min<std::fstream::pos_type>(65535, file_length - header_end_pos);
     ifs.seekg(file_length - data_length, ifs.beg);
-    std::vector<char> data(size_t(data_length) + 1, 0);
+    std::vector<char> data(static_cast<size_t>(data_length) + 1, 0);
     ifs.read(data.data(), data_length);
     ifs.close();
     key_value_pairs = ConfigBase::load_from_gcode_string_legacy(config, data.data(), substitutions_ctxt);
@@ -1679,11 +1679,12 @@ std::vector<float> GCodeProcessor::get_layers_time(PrintEstimatedStatistics::ETi
         std::vector<float>();;
 }
 
-std::string get_klipper_param(std::string key, std::string line) {
+static std::string get_klipper_param(const std::string& key, const std::string& line) {
     size_t key_pos = line.find(key);
     if (key_pos == std::string::npos) {
-        boost::to_lower(key);
-        key_pos = line.find(key);
+        std::string lowercase_key = key;
+        boost::to_lower(lowercase_key);
+        key_pos = line.find(lowercase_key);
     }
     if (key_pos != std::string::npos) {
         size_t data_pos = key_pos + key.size();
@@ -2899,7 +2900,7 @@ void GCodeProcessor::process_G1(const std::array<std::optional<double>, 4>& axes
     }
 
     // calculates movement deltas
-    AxisCoords delta_pos;
+    AxisCoords delta_pos{};
     for (unsigned char a = X; a <= E; ++a)
         delta_pos[a] = m_end_position[a] - m_start_position[a];
 
@@ -3410,7 +3411,7 @@ void GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line, bool cloc
     const double sin_T = theta_per_segment;
 
     AxisCoords prev_target = m_start_position;
-    AxisCoords arc_target;
+    AxisCoords arc_target{};
 
     // Initialize the linear axis
     arc_target[Z] = m_start_position[Z] - m_origin[Z];
@@ -4055,7 +4056,7 @@ void GCodeProcessor::process_toolchange(uint16_t new_id)
         //if (m_single_extruder_multi_material)
         //    m_extruder_temps[m_extruder_id] = m_extruder_temps[old_extruder_id];
 
-        m_result.extruders_count = std::max<size_t>(m_result.extruders_count, m_extruder_id + 1);
+        m_result.extruders_count = std::max<size_t>(m_result.extruders_count, static_cast<size_t>(m_extruder_id) + 1);
 
 
         // store tool change move
@@ -4399,7 +4400,7 @@ void GCodeProcessor::post_process()
                 const float backtrace_time_i = (i + 1) * time_step;
                 const float time_threshold_i = m_time - backtrace_time_i;
                 auto rev_it = m_lines.rbegin() + rev_it_dist;
-                auto start_rev_it = rev_it;
+                const decltype(rev_it) start_rev_it = rev_it;
 
                 std::string curr_cmd = GCodeReader::GCodeLine::extract_cmd(rev_it->line);
                 // backtrace into the cache to find the place where to insert the line
@@ -4800,8 +4801,9 @@ void GCodeProcessor::post_process()
                         else if (GCodeReader::GCodeLine::cmd_is(gcode_line, "G2") || GCodeReader::GCodeLine::cmd_is(gcode_line, "G3")) {
                             export_lines.append_line(gcode_line);
                             // add lines M73 where needed
-                            process_line_G1(g1_lines_counter + internal_g1_lines_counter);
-                            g1_lines_counter += (1 + internal_g1_lines_counter);
+                            const size_t internal_g1_count = static_cast<size_t>(internal_g1_lines_counter);
+                            process_line_G1(g1_lines_counter + internal_g1_count);
+                            g1_lines_counter += internal_g1_count + 1;
                             gcode_line.clear();
                         }
                         else if (GCodeReader::GCodeLine::cmd_is(gcode_line, "G28")) {
@@ -5097,7 +5099,7 @@ void GCodeProcessor::update_estimated_statistics()
 
     m_result.object_names.clear();
     m_result.object_names.resize(m_all_objects.size());
-    for (auto [name, idx] : m_all_objects) {
+    for (const auto& [name, idx] : m_all_objects) {
         assert(idx < m_result.object_names.size());
         m_result.object_names[idx] = name;
     }

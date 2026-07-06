@@ -131,9 +131,7 @@ struct SplitOutputFn {
 template<class Its, class OutputIt>
 void its_split(const Its &m, OutputIt out_it)
 {
-    using namespace meshsplit_detail;
-
-    const indexed_triangle_set &its = ItsWithNeighborsIndex_<Its>::get_its(m);
+    const indexed_triangle_set &its = meshsplit_detail::ItsWithNeighborsIndex_<Its>::get_its(m);
 
     struct VertexConv {
         size_t part_id      = std::numeric_limits<size_t>::max();

@@ -51,6 +51,8 @@ static constexpr double MAX_PLAUSIBLE_FEEDRATE_MM_MIN = 10000000.; // guard on F
 static constexpr int    MAX_PLAUSIBLE_E_DELTA         = 10000000;  // guard on extrusion delta
 static constexpr int    SECONDS_PER_MINUTE            = 60;        // mm/s -> mm/min feedrate conversion
 static constexpr int    PA_OUTPUT_DECIMALS            = 4;         // decimals when emitting pressure-advance values
+static constexpr double ARC_CENTER_OFFSET_EPSILON_SCALE = 10.;     // require arc center offset to rise above epsilon noise
+static constexpr int    MIN_ARC_QUANTIZED_DELTA       = 10;        // smallest XY quantized delta that still emits an arc
 
 // static
 bool GCodeWriter::supports_separate_travel_acceleration(GCodeFlavor flavor)
@@ -677,13 +679,13 @@ std::string GCodeWriter::travel_arc_to_xy(const Vec2d& point, const Vec2d& cente
     assert(std::abs(point.y()) < MAX_PLAUSIBLE_COORD_MM);
     assert(std::abs(center_offset.x()) < MAX_PLAUSIBLE_ARC_OFFSET_MM);
     assert(std::abs(center_offset.y()) < MAX_PLAUSIBLE_ARC_OFFSET_MM);
-    assert(std::abs(center_offset.x()) >= EPSILON * 10 || std::abs(center_offset.y()) >= EPSILON * 10);
+    assert(std::abs(center_offset.x()) >= EPSILON * ARC_CENTER_OFFSET_EPSILON_SCALE || std::abs(center_offset.y()) >= EPSILON * ARC_CENTER_OFFSET_EPSILON_SCALE);
 
     //check that the move is long enough: if not enough precision, the arc can be weird or in opposite.
     GCodeG2G3Formatter w(this->config.gcode_precision_xyz.value, this->config.gcode_precision_e.value, is_ccw);
     int delta = std::abs(w.quantize_int(this->m_pos.x()) - w.quantize_int(point.x())) +
         std::abs(w.quantize_int(this->m_pos.y()) - w.quantize_int(point.y()));
-    bool has_long_enough_move = delta > 10;
+    bool has_long_enough_move = delta > MIN_ARC_QUANTIZED_DELTA;
     if (!has_long_enough_move) {
         // use strait move
         return travel_to_xy(point, speed, comment);
@@ -875,7 +877,6 @@ std::string GCodeWriter::extrude_to_xy(const Vec2d &point, const double dE, cons
     return write_acceleration() + w.string();
 }
 
-static constexpr const std::array<double, 10> log_10{1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000};
 //BBS: generate G2 or G3 extrude which moves by arc
 //point is end point which means X and Y axis
 //center_offset is I and J axis
@@ -885,13 +886,13 @@ std::string GCodeWriter::extrude_arc_to_xy(const Vec2d& point, const Vec2d& cent
     assert(std::abs(point.y()) < MAX_PLAUSIBLE_COORD_MM);
     assert(std::abs(center_offset.x()) < MAX_PLAUSIBLE_ARC_OFFSET_MM);
     assert(std::abs(center_offset.y()) < MAX_PLAUSIBLE_ARC_OFFSET_MM);
-    assert(std::abs(center_offset.x()) >= EPSILON * 10 || std::abs(center_offset.y()) >= EPSILON * 10);
+    assert(std::abs(center_offset.x()) >= EPSILON * ARC_CENTER_OFFSET_EPSILON_SCALE || std::abs(center_offset.y()) >= EPSILON * ARC_CENTER_OFFSET_EPSILON_SCALE);
     
     //check that the move is long enough: if not enough precision, the arc can be weird or in opposite.
     GCodeG2G3Formatter w(this->config.gcode_precision_xyz.value, this->config.gcode_precision_e.value, is_ccw);
     int delta = std::abs(w.quantize_int(this->m_pos.x()) - w.quantize_int(point.x())) +
         std::abs(w.quantize_int(this->m_pos.y()) - w.quantize_int(point.y()));
-    bool has_long_enough_move = delta > 10;
+    bool has_long_enough_move = delta > MIN_ARC_QUANTIZED_DELTA;
     if (!has_long_enough_move) {
         // use strait move
         return extrude_to_xy(point, dE, comment);
@@ -972,13 +973,13 @@ std::string GCodeWriter::extrude_arc_to_xyz(const Vec3d& point, const Vec2d& cen
     assert(std::abs(point.y()) < MAX_PLAUSIBLE_COORD_MM);
     assert(std::abs(center_offset.x()) < MAX_PLAUSIBLE_ARC_OFFSET_MM);
     assert(std::abs(center_offset.y()) < MAX_PLAUSIBLE_ARC_OFFSET_MM);
-    assert(std::abs(center_offset.x()) >= EPSILON * 10 || std::abs(center_offset.y()) >= EPSILON * 10);
+    assert(std::abs(center_offset.x()) >= EPSILON * ARC_CENTER_OFFSET_EPSILON_SCALE || std::abs(center_offset.y()) >= EPSILON * ARC_CENTER_OFFSET_EPSILON_SCALE);
     
     //check that the move is long enough: if not enough precision, the arc can be weird or in opposite.
     GCodeG2G3Formatter w(this->config.gcode_precision_xyz.value, this->config.gcode_precision_e.value, is_ccw);
     int delta = std::abs(w.quantize_int(this->m_pos.x()) - w.quantize_int(point.x())) +
         std::abs(w.quantize_int(this->m_pos.y()) - w.quantize_int(point.y()));
-    bool has_long_enough_move = delta > 10;
+    bool has_long_enough_move = delta > MIN_ARC_QUANTIZED_DELTA;
     if (!has_long_enough_move) {
         // use strait move
         return extrude_to_xyz(point, dE, comment);

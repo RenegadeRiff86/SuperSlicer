@@ -12,6 +12,10 @@
 namespace Slic3r::Arachne
 {
 
+namespace polyline_stitcher_detail {
+constexpr double default_snap_distance_mm = 0.01;
+}
+
 /*!
  * Class for stitching polylines into longer polylines or into polygons
  */
@@ -49,7 +53,9 @@ public:
      * \param snap_distance Points closer than this distance are considered to
      * be the same point.
      */
-    static void stitch(const Paths& lines, Paths& result_lines, Paths& result_polygons, coord_t max_stitch_distance = scaled<coord_t>(0.1), coord_t snap_distance = scaled<coord_t>(0.01))
+    static void stitch(const Paths& lines, Paths& result_lines, Paths& result_polygons,
+        coord_t max_stitch_distance = scaled<coord_t>(0.1),
+        coord_t snap_distance = scaled<coord_t>(polyline_stitcher_detail::default_snap_distance_mm))
     {
         if (lines.empty())
             return;
@@ -113,15 +119,15 @@ public:
                                                    is_closing_segment = true;
                                                    if (!should_close)
                                                    {
-                                                       dist += scaled<coord_t>(0.01); // prefer continuing polyline over closing a polygon; avoids closed zigzags from being printed separately
-                                                       // continue to see if closing segment is also the closest
-                                                       // there might be a segment smaller than [max_stitch_distance] which closes the polygon better
-                                                   }
-                                                   else
-                                                   {
-                                                       dist -= scaled<coord_t>(0.01); //Prefer closing the polygon if it's 100% even lines. Used to create closed contours.
-                                                       //Continue to see if closing segment is also the closest.
-                                                   }
+                                                        dist += scaled<coord_t>(polyline_stitcher_detail::default_snap_distance_mm); // prefer continuing polyline over closing a polygon; avoids closed zigzags from being printed separately
+                                                        // continue to see if closing segment is also the closest
+                                                        // there might be a segment smaller than [max_stitch_distance] which closes the polygon better
+                                                    }
+                                                    else
+                                                    {
+                                                        dist -= scaled<coord_t>(polyline_stitcher_detail::default_snap_distance_mm); //Prefer closing the polygon if it's 100% even lines. Used to create closed contours.
+                                                        //Continue to see if closing segment is also the closest.
+                                                    }
                                                }
                                                else if (processed[nearby.poly_idx])
                                                { // it was already moved to output
@@ -159,7 +165,7 @@ public:
                     }
 
                     coord_t segment_dist = (make_point(chain.back()).template cast<int64_t>() - closest.p().template cast<int64_t>()).norm();
-                    assert(segment_dist <= max_stitch_distance + scaled<coord_t>(0.01));
+                    assert(segment_dist <= max_stitch_distance + scaled<coord_t>(polyline_stitcher_detail::default_snap_distance_mm));
                     const size_t old_size = chain.size();
                     if (closest.point_idx == 0)
                     {
@@ -183,7 +189,7 @@ public:
                     {
                         chain_length += (make_point(chain[i]).template cast<int64_t>() - make_point(chain[i - 1]).template cast<int64_t>()).norm();
                     }
-                    should_close = should_close & !isOdd((*closest.polygons)[closest.poly_idx]); //If we connect an even to an odd line, we should no longer try to close it.
+                    should_close = should_close && !isOdd((*closest.polygons)[closest.poly_idx]); //If we connect an even to an odd line, we should no longer try to close it.
                     assert( ! processed[closest.poly_idx]);
                     processed[closest.poly_idx] = true;
                 }

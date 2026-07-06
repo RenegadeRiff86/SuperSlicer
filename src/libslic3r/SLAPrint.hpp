@@ -335,7 +335,7 @@ private:
     // Individual 2d slice polygons from lower z to higher z levels
     std::vector<ExPolygons>                 m_model_slices;
 
-    // Exact (float) height levels mapped to the slices. Each record contains
+    // Exact float height levels mapped to the slices. Each record contains
     // the index to the model and the support slice vectors.
     std::vector<SliceRecord>                m_slice_index;
 

@@ -543,7 +543,10 @@ std::vector<ExPolygons> TriangleMesh::slice(const std::vector<double> &z) const
 {
     throw Exception("not using config");
     // convert doubles to floats
-    std::vector<float> z_f(z.begin(), z.end());
+    std::vector<float> z_f;
+    z_f.reserve(z.size());
+    for (double z_mm : z)
+        z_f.emplace_back(static_cast<float>(z_mm));
     return slice_mesh_ex(this->its, z_f, 0.0004f);
 }
 
@@ -1095,9 +1098,9 @@ indexed_triangle_set its_make_cone(double r, double h, double fa)
 
     // base center and top vertex
     vertices.emplace_back(Vec3f::Zero());
-    vertices.emplace_back(Vec3f(0., 0., h));
+    vertices.emplace_back(Vec3f(0.f, 0.f, static_cast<float>(h)));
 
-    size_t i = 0;
+    int i = 0;
     const auto vec = Eigen::Vector2f(0, float(r));
     for (double angle=0; angle<2*PI; angle+=fa) {
         Vec2f p = Eigen::Rotation2Df(angle) * vec;
@@ -1481,7 +1484,7 @@ indexed_triangle_set its_convex_hull(const std::vector<Vec3f> &pts)
                     i = int(dst_vertices.size());
                     map_dst_vertices[id] = i;
                     orgQhull::QhullPoint pt(vertex.point());
-                    dst_vertices.emplace_back(pt[0], pt[1], pt[2]);
+                    dst_vertices.emplace_back(static_cast<float>(pt[0]), static_cast<float>(pt[1]), static_cast<float>(pt[2]));
                     indices[cnt] = i;
                 } else {
                     // Reuse existing vertex.

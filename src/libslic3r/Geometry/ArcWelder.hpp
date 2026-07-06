@@ -284,16 +284,15 @@ inline std::optional<typename Eigen::Matrix<typename Derived::Scalar, 2, 1, Eige
             Float y_i2 = sqr(y_i);
             // Distance of i'th sample from the current circle center.
             Float r_i = sqrt(sqr(v) + y_i2);
-            if (r_i >= EPSILON) {
-                // Square of residual is differentiable at the current c_x and current sample.
-                // Jacobian: diff(residual, c_x)
-                Float j_i = u / r - v / r_i;
-                num   += j_i * (r_i - r);
-                denom += sqr(j_i);
-            } else {
-                // Sample point is on current center of the circle,
-                // therefore the gradient is not defined.
-            }
+            if (!(r_i >= EPSILON))
+                // Sample point is on current center of the circle, therefore the gradient is not defined.
+                continue;
+
+            // Square of residual is differentiable at the current c_x and current sample.
+            // Jacobian: diff(residual, c_x)
+            Float j_i = u / r - v / r_i;
+            num   += j_i * (r_i - r);
+            denom += sqr(j_i);
         }
         if (denom == 0)
             // Fitting diverged, the input points are likely nearly collinear with the arch end points.
@@ -372,23 +371,31 @@ inline bool inside_arc_wedge(
 template<typename FloatType>
 size_t arc_discretization_steps(const FloatType radius, const FloatType angle, const FloatType deviation)
 {
+    static_assert(std::is_floating_point<FloatType>::value, "arc_discretization_steps() expects a floating point type");
+
     assert(radius > 0);
     assert(angle > 0);
-    assert(angle <= FloatType(2. * M_PI));
     assert(deviation > 0);
 
+    const FloatType pi        = static_cast<FloatType>(M_PI);
+    const FloatType max_angle = static_cast<FloatType>(2. * M_PI);
+    const FloatType one       = static_cast<FloatType>(1.);
+    const FloatType two       = static_cast<FloatType>(2.);
+    const FloatType half      = one / two;
+
+    assert(angle <= max_angle);
+
     FloatType d = radius - deviation;
-    return d < EPSILON ?
-        // Radius smaller than deviation.
-        (   // Acute angle: a single segment interpolates the arc with sufficient accuracy.
-            angle < M_PI || 
-            // Obtuse angle: Test whether the furthest point (center) of an arc is closer than deviation to the center of a line segment.
-            radius * (FloatType(1.) + cos(M_PI - FloatType(.5) * angle)) < deviation ?
-            // Single segment is sufficient
-            1 :
-            // Two segments are necessary, the middle point is at the center of the arc.
-            2) :
-        size_t(ceil(angle / (2. * acos(d / radius))));
+    if (!(d < EPSILON))
+        return static_cast<size_t>(ceil(angle / (two * acos(d / radius))));
+
+    // Radius smaller than deviation.
+    const bool acute_angle = angle < pi;
+    // Obtuse angle: Test whether the furthest point (center) of an arc is closer than deviation to the center of a line segment.
+    const FloatType center_deviation = radius * (one + cos(pi - half * angle));
+
+    // One segment is sufficient for acute angles or small enough center deviation; otherwise two segments are necessary.
+    return acute_angle || center_deviation < deviation ? size_t(1) : size_t(2);
 }
 
 // Discretize arc given the radius, orientation and maximum deviation from the arc.
@@ -408,9 +415,9 @@ double arc_fit_max_deviation(const Point &start_point, const Point &end_point, c
 
 // 1.2m diameter, maximum given by coord_t in 32b
 //static_assert(sizeof(coord_t) == 4); // disabled, but keep the 1.2m max diameter, as it's enough I think.
-static constexpr const coordf_t default_scaled_max_radius = scaled(600.);
+static constexpr const coordf_t default_scaled_max_radius = scale_d(600.);
 // 0.05mm
-static constexpr const coordf_t default_scaled_resolution = scaled(0.05);
+static constexpr const coordf_t default_scaled_resolution = scale_d(0.05);
 // 5 percent
 static constexpr const double default_arc_length_percent_tolerance = 0.05;
 

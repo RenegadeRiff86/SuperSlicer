@@ -169,13 +169,13 @@ public:
     // overhang may need to be reversed
     bool is_steep_overhang;
     // Depth in the hierarchy. External perimeter has depth = 0. An external perimeter could be both a contour and a hole.
-    unsigned short depth;
+    size_t depth;
     // Should this contur be fuzzyfied on path generation?
     bool fuzzify;
     // Children contour, may be both CCW and CW oriented (outer contours or holes).
     std::vector<PerimeterGeneratorLoop> children;
 
-    PerimeterGeneratorLoop(const Polygon &polygon, unsigned short depth, bool is_contour, bool steep_overhangs, bool fuzzify)
+    PerimeterGeneratorLoop(const Polygon &polygon, size_t depth, bool is_contour, bool steep_overhangs, bool fuzzify)
         : polygon(polygon), is_contour(is_contour), is_steep_overhang(steep_overhangs), depth(depth), fuzzify(fuzzify)
     {}
     // External perimeter. It may be CCW or CW oriented (outer contour or hole contour).

@@ -42,7 +42,7 @@ RegionExpansionParameters RegionExpansionParameters::build(
     float full_expansion = float(_full_expansion);
     float expansion_step = float(_expansion_step);
 
-    RegionExpansionParameters out;
+    RegionExpansionParameters out = {};
     // Initial expansion of src to make the source regions intersect with boundary regions just a bit.
     // The expansion should not be too tiny, but also small enough, so the following expansion will
     // compensate for tiny_expansion and bring the wave back to the boundary without producing
@@ -115,48 +115,55 @@ static inline void merge_splits(ClipperLib_Z::Paths &paths, std::vector<std::pai
     for (auto it_path = paths.begin(); it_path != paths.end(); ) {
         ClipperLib_Z::Path &path = *it_path;
         assert(path.size() >= 2);
-        bool merged = false;
-        if (path.size() >= 2) {
-            const ClipperLib_Z::IntPoint &front = path.front();
-            const ClipperLib_Z::IntPoint &back  = path.back();
-            // The path before clipping was supposed to cross the clipping boundary or be fully out of it.
-            // Thus the clipped contour is supposed to become open, with one exception: The anchor expands into a closed hole.
-            if (front.x() != back.x() || front.y() != back.y()) {
-                // Look up the ends in "splits", possibly join the contours.
-                // "splits" maps into the other piece connected to the same end point.
-                auto find_end = [&splits](const ClipperLib_Z::IntPoint &pt) -> std::pair<ClipperLib_Z::IntPoint, int>* {
-                    auto it = std::lower_bound(splits.begin(), splits.end(), pt,
-                        [](const auto &l, const auto &r){ return ClipperZUtils::zpoint_lower(l.first, r); });
-                    return it != splits.end() && it->first == pt ? &(*it) : nullptr;
-                };
-                auto *end = find_end(front);
-                bool  end_front = true;
-                if (! end) {
-                    end_front = false;
-                    end = find_end(back);
-                }
-                if (end) {
-                    // This segment ends at a split point of the source closed contour before clipping.
-                    if (end->second == -1) {
-                        // Open end was found, not matched yet.
-                        end->second = int(it_path - paths.begin());
-                    } else {
-                        // Open end was found and matched with end->second
-                        ClipperLib_Z::Path &other_path = paths[end->second];
-                        polylines_merge(other_path, other_path.front() == end->first, std::move(path), end_front);
-                        if (std::next(it_path) == paths.end()) {
-                            paths.pop_back();
-                            break;
-                        }
-                        path = std::move(paths.back());
-                        paths.pop_back();
-                        merged = true;
-                    }
-                }
-            }
-        }
-        if (! merged)
+        if (path.size() < 2) {
             ++ it_path;
+            continue;
+        }
+
+        const ClipperLib_Z::IntPoint &front = path.front();
+        const ClipperLib_Z::IntPoint &back  = path.back();
+        // The path before clipping was supposed to cross the clipping boundary or be fully out of it.
+        // Thus the clipped contour is supposed to become open, with one exception: The anchor expands into a closed hole.
+        if (front.x() == back.x() && front.y() == back.y()) {
+            ++ it_path;
+            continue;
+        }
+
+        // Look up the ends in "splits", possibly join the contours.
+        // "splits" maps into the other piece connected to the same end point.
+        auto find_end = [&splits](const ClipperLib_Z::IntPoint &pt) -> std::pair<ClipperLib_Z::IntPoint, int>* {
+            auto it = std::lower_bound(splits.begin(), splits.end(), pt,
+                [](const auto &l, const auto &r){ return ClipperZUtils::zpoint_lower(l.first, r); });
+            return it != splits.end() && it->first == pt ? &(*it) : nullptr;
+        };
+        auto *end = find_end(front);
+        bool  end_front = true;
+        if (! end) {
+            end_front = false;
+            end = find_end(back);
+        }
+        if (! end) {
+            ++ it_path;
+            continue;
+        }
+
+        // This segment ends at a split point of the source closed contour before clipping.
+        if (end->second == -1) {
+            // Open end was found, not matched yet.
+            end->second = int(it_path - paths.begin());
+            ++ it_path;
+            continue;
+        }
+
+        // Open end was found and matched with end->second
+        ClipperLib_Z::Path &other_path = paths[end->second];
+        polylines_merge(other_path, other_path.front() == end->first, std::move(path), end_front);
+        if (std::next(it_path) == paths.end()) {
+            paths.pop_back();
+            break;
+        }
+        path = std::move(paths.back());
+        paths.pop_back();
     }
 }
 

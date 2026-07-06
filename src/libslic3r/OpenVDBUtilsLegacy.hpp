@@ -36,14 +36,14 @@ openvdb::FloatGrid::Ptr mesh_to_grid(const indexed_triangle_set &    mesh,
 
         size_t polygonCount() const { return its.indices.size(); }
         size_t pointCount() const   { return its.vertices.size(); }
-        size_t vertexCount(size_t) const { return 3; }
+        size_t vertexCount(size_t /*polygon_index*/) const { return 3; }
 
              // Return position pos in local grid index space for polygon n and vertex v
              // The actual mesh will appear to openvdb as scaled uniformly by voxel_size
              // And the voxel count per unit volume can be affected this way.
         void getIndexSpacePoint(size_t n, size_t v, openvdb::Vec3d& pos) const
         {
-            auto vidx = size_t(its.indices[n](Eigen::Index(v)));
+            auto vidx = static_cast<size_t>(its.indices[n](Eigen::Index(v)));
             Slic3r::Vec3d p = its.vertices[vidx].cast<double>() * voxel_scale;
             pos = {p.x(), p.y(), p.z()};
         }
