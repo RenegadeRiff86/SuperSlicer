@@ -142,6 +142,8 @@ git -c user.name="Stan-Elston" -c user.email="elston86@hotmail.com" commit ...
 
 The user runs a custom VS IDE Bridge MCP server that connects Codex to the live Visual Studio instance. **Always prefer bridge tools over standard file tools when the bridge is available.**
 
+The supported installed runtime is the Windows service / MCP / HTTP bridge stack under `C:\Program Files\VsIdeBridge\`. Do not expect a separate installed command-line launcher; use the bridge MCP tools or service-backed HTTP endpoint instead.
+
 ### Workflow
 
 1. **Start with `diagnostics_snapshot`** — returns errors + warnings + messages (linter) in one call. The `messages` tier contains `lnt-*` linter findings that are the most precision-relevant; never skip it.
