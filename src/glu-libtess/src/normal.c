@@ -46,47 +46,60 @@
 #define FALSE 0
 #endif
 
-#define Dot(u,v)	(u[0]*v[0] + u[1]*v[1] + u[2]*v[2])
+enum {
+  TESS_COORD_X_INDEX,
+  TESS_COORD_Y_INDEX,
+  TESS_COORD_Z_INDEX,
+  TESS_COORD_COUNT
+};
+
+enum {
+  TESS_AXIS_NEXT_OFFSET = TESS_COORD_Y_INDEX,
+  TESS_AXIS_SECOND_NEXT_OFFSET = TESS_COORD_Z_INDEX,
+  TESS_BOUND_EXTENT_MULTIPLIER = TESS_COORD_Z_INDEX
+};
+
+#define Dot(u,v)	(u[TESS_COORD_X_INDEX]*v[TESS_COORD_X_INDEX] + u[TESS_COORD_Y_INDEX]*v[TESS_COORD_Y_INDEX] + u[TESS_COORD_Z_INDEX]*v[TESS_COORD_Z_INDEX])
 
 #if 0
-static void Normalize( GLdouble v[3] )
+static void Normalize( GLdouble v[TESS_COORD_COUNT] )
 {
-  GLdouble len = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
+  GLdouble len = v[TESS_COORD_X_INDEX]*v[TESS_COORD_X_INDEX] + v[TESS_COORD_Y_INDEX]*v[TESS_COORD_Y_INDEX] + v[TESS_COORD_Z_INDEX]*v[TESS_COORD_Z_INDEX];
 
   assert( len > 0 );
   len = sqrt( len );
-  v[0] /= len;
-  v[1] /= len;
-  v[2] /= len;
+  v[TESS_COORD_X_INDEX] /= len;
+  v[TESS_COORD_Y_INDEX] /= len;
+  v[TESS_COORD_Z_INDEX] /= len;
 }
 #endif
 
 #undef	ABS
 #define ABS(x)	((x) < 0 ? -(x) : (x))
 
-static int LongAxis( GLdouble v[3] )
+static int LongAxis( GLdouble v[TESS_COORD_COUNT] )
 {
   int i = 0;
 
-  if( ABS(v[1]) > ABS(v[0]) ) { i = 1; }
-  if( ABS(v[2]) > ABS(v[i]) ) { i = 2; }
+  if( ABS(v[TESS_COORD_Y_INDEX]) > ABS(v[TESS_COORD_X_INDEX]) ) { i = TESS_COORD_Y_INDEX; }
+  if( ABS(v[TESS_COORD_Z_INDEX]) > ABS(v[i]) ) { i = TESS_COORD_Z_INDEX; }
   return i;
 }
 
-static void ComputeNormal( GLUtesselator *tess, GLdouble norm[3] )
+static void ComputeNormal( GLUtesselator *tess, GLdouble norm[TESS_COORD_COUNT] )
 {
-  GLUvertex *v, *v1, *v2;
-  GLdouble c, tLen2, maxLen2;
-  GLdouble maxVal[3], minVal[3], d1[3], d2[3], tNorm[3];
-  GLUvertex *maxVert[3] = { NULL, NULL, NULL }, *minVert[3] = { NULL, NULL, NULL };
+  GLUvertex *v = NULL, *v1 = NULL, *v2 = NULL;
+  GLdouble c = 0, tLen2 = 0, maxLen2 = 0;
+  GLdouble maxVal[TESS_COORD_COUNT] = { 0 }, minVal[TESS_COORD_COUNT] = { 0 }, d1[TESS_COORD_COUNT] = { 0 }, d2[TESS_COORD_COUNT] = { 0 }, tNorm[TESS_COORD_COUNT] = { 0 };
+  GLUvertex *maxVert[TESS_COORD_COUNT] = { NULL, NULL, NULL }, *minVert[TESS_COORD_COUNT] = { NULL, NULL, NULL };
   GLUvertex *vHead = &tess->mesh->vHead;
   int i;
 
-  maxVal[0] = maxVal[1] = maxVal[2] = -2 * GLU_TESS_MAX_COORD;
-  minVal[0] = minVal[1] = minVal[2] = 2 * GLU_TESS_MAX_COORD;
+  maxVal[TESS_COORD_X_INDEX] = maxVal[TESS_COORD_Y_INDEX] = maxVal[TESS_COORD_Z_INDEX] = -TESS_BOUND_EXTENT_MULTIPLIER * GLU_TESS_MAX_COORD;
+  minVal[TESS_COORD_X_INDEX] = minVal[TESS_COORD_Y_INDEX] = minVal[TESS_COORD_Z_INDEX] = TESS_BOUND_EXTENT_MULTIPLIER * GLU_TESS_MAX_COORD;
 
   for( v = vHead->next; v != vHead; v = v->next ) {
-    for( i = 0; i < 3; ++i ) {
+    for( i = 0; i < TESS_COORD_COUNT; ++i ) {
       c = v->coords[i];
       if( c < minVal[i] ) { minVal[i] = c; minVert[i] = v; }
       if( c > maxVal[i] ) { maxVal[i] = c; maxVert[i] = v; }
@@ -97,11 +110,11 @@ static void ComputeNormal( GLUtesselator *tess, GLdouble norm[3] )
    * distance between any two vertices
    */
   i = 0;
-  if( maxVal[1] - minVal[1] > maxVal[0] - minVal[0] ) { i = 1; }
-  if( maxVal[2] - minVal[2] > maxVal[i] - minVal[i] ) { i = 2; }
+  if( maxVal[TESS_COORD_Y_INDEX] - minVal[TESS_COORD_Y_INDEX] > maxVal[TESS_COORD_X_INDEX] - minVal[TESS_COORD_X_INDEX] ) { i = 1; }
+  if( maxVal[TESS_COORD_Z_INDEX] - minVal[TESS_COORD_Z_INDEX] > maxVal[i] - minVal[i] ) { i = 2; }
   if( minVal[i] >= maxVal[i] ) {
     /* All vertices are the same -- normal doesn't matter */
-    norm[0] = 0; norm[1] = 0; norm[2] = 1;
+    norm[TESS_COORD_X_INDEX] = 0; norm[TESS_COORD_Y_INDEX] = 0; norm[TESS_COORD_Z_INDEX] = 1;
     return;
   }
 
@@ -111,28 +124,28 @@ static void ComputeNormal( GLUtesselator *tess, GLdouble norm[3] )
   maxLen2 = 0;
   v1 = minVert[i];
   v2 = maxVert[i];
-  d1[0] = v1->coords[0] - v2->coords[0];
-  d1[1] = v1->coords[1] - v2->coords[1];
-  d1[2] = v1->coords[2] - v2->coords[2];
+  d1[TESS_COORD_X_INDEX] = v1->coords[TESS_COORD_X_INDEX] - v2->coords[TESS_COORD_X_INDEX];
+  d1[TESS_COORD_Y_INDEX] = v1->coords[TESS_COORD_Y_INDEX] - v2->coords[TESS_COORD_Y_INDEX];
+  d1[TESS_COORD_Z_INDEX] = v1->coords[TESS_COORD_Z_INDEX] - v2->coords[TESS_COORD_Z_INDEX];
   for( v = vHead->next; v != vHead; v = v->next ) {
-    d2[0] = v->coords[0] - v2->coords[0];
-    d2[1] = v->coords[1] - v2->coords[1];
-    d2[2] = v->coords[2] - v2->coords[2];
-    tNorm[0] = d1[1]*d2[2] - d1[2]*d2[1];
-    tNorm[1] = d1[2]*d2[0] - d1[0]*d2[2];
-    tNorm[2] = d1[0]*d2[1] - d1[1]*d2[0];
-    tLen2 = tNorm[0]*tNorm[0] + tNorm[1]*tNorm[1] + tNorm[2]*tNorm[2];
+    d2[TESS_COORD_X_INDEX] = v->coords[TESS_COORD_X_INDEX] - v2->coords[TESS_COORD_X_INDEX];
+    d2[TESS_COORD_Y_INDEX] = v->coords[TESS_COORD_Y_INDEX] - v2->coords[TESS_COORD_Y_INDEX];
+    d2[TESS_COORD_Z_INDEX] = v->coords[TESS_COORD_Z_INDEX] - v2->coords[TESS_COORD_Z_INDEX];
+    tNorm[TESS_COORD_X_INDEX] = d1[TESS_COORD_Y_INDEX]*d2[TESS_COORD_Z_INDEX] - d1[TESS_COORD_Z_INDEX]*d2[TESS_COORD_Y_INDEX];
+    tNorm[TESS_COORD_Y_INDEX] = d1[TESS_COORD_Z_INDEX]*d2[TESS_COORD_X_INDEX] - d1[TESS_COORD_X_INDEX]*d2[TESS_COORD_Z_INDEX];
+    tNorm[TESS_COORD_Z_INDEX] = d1[TESS_COORD_X_INDEX]*d2[TESS_COORD_Y_INDEX] - d1[TESS_COORD_Y_INDEX]*d2[TESS_COORD_X_INDEX];
+    tLen2 = tNorm[TESS_COORD_X_INDEX]*tNorm[TESS_COORD_X_INDEX] + tNorm[TESS_COORD_Y_INDEX]*tNorm[TESS_COORD_Y_INDEX] + tNorm[TESS_COORD_Z_INDEX]*tNorm[TESS_COORD_Z_INDEX];
     if( tLen2 > maxLen2 ) {
       maxLen2 = tLen2;
-      norm[0] = tNorm[0];
-      norm[1] = tNorm[1];
-      norm[2] = tNorm[2];
+      norm[TESS_COORD_X_INDEX] = tNorm[TESS_COORD_X_INDEX];
+      norm[TESS_COORD_Y_INDEX] = tNorm[TESS_COORD_Y_INDEX];
+      norm[TESS_COORD_Z_INDEX] = tNorm[TESS_COORD_Z_INDEX];
     }
   }
 
   if( maxLen2 <= 0 ) {
     /* All points lie on a single line -- any decent normal will do */
-    norm[0] = norm[1] = norm[2] = 0;
+    norm[TESS_COORD_X_INDEX] = norm[TESS_COORD_Y_INDEX] = norm[TESS_COORD_Z_INDEX] = 0;
     norm[LongAxis(d1)] = 1;
   }
 }
@@ -162,17 +175,17 @@ static void CheckOrientation( GLUtesselator *tess )
     for( v = vHead->next; v != vHead; v = v->next ) {
       v->t = - v->t;
     }
-    tess->tUnit[0] = - tess->tUnit[0];
-    tess->tUnit[1] = - tess->tUnit[1];
-    tess->tUnit[2] = - tess->tUnit[2];
+    tess->tUnit[TESS_COORD_X_INDEX] = - tess->tUnit[TESS_COORD_X_INDEX];
+    tess->tUnit[TESS_COORD_Y_INDEX] = - tess->tUnit[TESS_COORD_Y_INDEX];
+    tess->tUnit[TESS_COORD_Z_INDEX] = - tess->tUnit[TESS_COORD_Z_INDEX];
   }
 }
 
 #ifdef FOR_TRITE_TEST_PROGRAM
 #include <stdlib.h>
 extern int RandomSweep;
-#define S_UNIT_X	(RandomSweep ? (2*drand48()-1) : 1.0)
-#define S_UNIT_Y	(RandomSweep ? (2*drand48()-1) : 0.0)
+#define S_UNIT_X	(RandomSweep ? (TESS_BOUND_EXTENT_MULTIPLIER*drand48()-1) : 1.0)
+#define S_UNIT_Y	(RandomSweep ? (TESS_BOUND_EXTENT_MULTIPLIER*drand48()-1) : 0.0)
 #else
 #if defined(SLANTED_SWEEP)
 /* The "feature merging" is not intended to be complete.  There are
@@ -198,14 +211,14 @@ extern int RandomSweep;
 void __gl_projectPolygon( GLUtesselator *tess )
 {
   GLUvertex *v, *vHead = &tess->mesh->vHead;
-  GLdouble norm[3];
-  GLdouble *sUnit, *tUnit;
-  int i, computedNormal = FALSE;
+  GLdouble norm[TESS_COORD_COUNT] = { 0 };
+  GLdouble *sUnit = NULL, *tUnit = NULL;
+  int i = 0, computedNormal = FALSE;
 
-  norm[0] = tess->normal[0];
-  norm[1] = tess->normal[1];
-  norm[2] = tess->normal[2];
-  if( norm[0] == 0 && norm[1] == 0 && norm[2] == 0 ) {
+  norm[TESS_COORD_X_INDEX] = tess->normal[TESS_COORD_X_INDEX];
+  norm[TESS_COORD_Y_INDEX] = tess->normal[TESS_COORD_Y_INDEX];
+  norm[TESS_COORD_Z_INDEX] = tess->normal[TESS_COORD_Z_INDEX];
+  if( norm[TESS_COORD_X_INDEX] == 0 && norm[TESS_COORD_Y_INDEX] == 0 && norm[TESS_COORD_Z_INDEX] == 0 ) {
     ComputeNormal( tess, norm );
     computedNormal = TRUE;
   }
@@ -220,30 +233,30 @@ void __gl_projectPolygon( GLUtesselator *tess )
   Normalize( norm );
 
   sUnit[i] = 0;
-  sUnit[(i+1)%3] = S_UNIT_X;
-  sUnit[(i+2)%3] = S_UNIT_Y;
+  sUnit[(i+TESS_AXIS_NEXT_OFFSET)%TESS_COORD_COUNT] = S_UNIT_X;
+  sUnit[(i+TESS_AXIS_SECOND_NEXT_OFFSET)%TESS_COORD_COUNT] = S_UNIT_Y;
 
   /* Now make it exactly perpendicular */
   w = Dot( sUnit, norm );
-  sUnit[0] -= w * norm[0];
-  sUnit[1] -= w * norm[1];
-  sUnit[2] -= w * norm[2];
+  sUnit[TESS_COORD_X_INDEX] -= w * norm[TESS_COORD_X_INDEX];
+  sUnit[TESS_COORD_Y_INDEX] -= w * norm[TESS_COORD_Y_INDEX];
+  sUnit[TESS_COORD_Z_INDEX] -= w * norm[TESS_COORD_Z_INDEX];
   Normalize( sUnit );
 
   /* Choose tUnit so that (sUnit,tUnit,norm) form a right-handed frame */
-  tUnit[0] = norm[1]*sUnit[2] - norm[2]*sUnit[1];
-  tUnit[1] = norm[2]*sUnit[0] - norm[0]*sUnit[2];
-  tUnit[2] = norm[0]*sUnit[1] - norm[1]*sUnit[0];
+  tUnit[TESS_COORD_X_INDEX] = norm[TESS_COORD_Y_INDEX]*sUnit[TESS_COORD_Z_INDEX] - norm[TESS_COORD_Z_INDEX]*sUnit[TESS_COORD_Y_INDEX];
+  tUnit[TESS_COORD_Y_INDEX] = norm[TESS_COORD_Z_INDEX]*sUnit[TESS_COORD_X_INDEX] - norm[TESS_COORD_X_INDEX]*sUnit[TESS_COORD_Z_INDEX];
+  tUnit[TESS_COORD_Z_INDEX] = norm[TESS_COORD_X_INDEX]*sUnit[TESS_COORD_Y_INDEX] - norm[TESS_COORD_Y_INDEX]*sUnit[TESS_COORD_X_INDEX];
   Normalize( tUnit );
 #else
   /* Project perpendicular to a coordinate axis -- better numerically */
   sUnit[i] = 0;
-  sUnit[(i+1)%3] = S_UNIT_X;
-  sUnit[(i+2)%3] = S_UNIT_Y;
+  sUnit[(i+TESS_AXIS_NEXT_OFFSET)%TESS_COORD_COUNT] = S_UNIT_X;
+  sUnit[(i+TESS_AXIS_SECOND_NEXT_OFFSET)%TESS_COORD_COUNT] = S_UNIT_Y;
 
   tUnit[i] = 0;
-  tUnit[(i+1)%3] = (norm[i] > 0) ? -S_UNIT_Y : S_UNIT_Y;
-  tUnit[(i+2)%3] = (norm[i] > 0) ? S_UNIT_X : -S_UNIT_X;
+  tUnit[(i+TESS_AXIS_NEXT_OFFSET)%TESS_COORD_COUNT] = (norm[i] > 0) ? -S_UNIT_Y : S_UNIT_Y;
+  tUnit[(i+TESS_AXIS_SECOND_NEXT_OFFSET)%TESS_COORD_COUNT] = (norm[i] > 0) ? S_UNIT_X : -S_UNIT_X;
 #endif
 
   /* Project the vertices onto the sweep plane */

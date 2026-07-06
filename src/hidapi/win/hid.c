@@ -1036,10 +1036,12 @@ HID_API_EXPORT const wchar_t * HID_API_CALL  hid_error(hid_device *dev)
 
 
 #if 0
+enum { HID_EXAMPLE_REPORT_BUFFER_SIZE = 65 };
+
 int __cdecl main(int argc, char* argv[])
 {
 	int res;
-	unsigned char buf[65];
+	unsigned char buf[HID_EXAMPLE_REPORT_BUFFER_SIZE];
 
 	UNREFERENCED_PARAMETER(argc);
 	UNREFERENCED_PARAMETER(argv);
@@ -1058,18 +1060,18 @@ int __cdecl main(int argc, char* argv[])
 
 	/* Toggle LED (cmd 0x80) */
 	buf[1] = 0x80;
-	res = write(handle, buf, 65);
+	res = write(handle, buf, HID_EXAMPLE_REPORT_BUFFER_SIZE);
 	if (res < 0)
 		printf("Unable to write()\n");
 
 	/* Request state (cmd 0x81) */
 	buf[1] = 0x81;
-	write(handle, buf, 65);
+	write(handle, buf, HID_EXAMPLE_REPORT_BUFFER_SIZE);
 	if (res < 0)
 		printf("Unable to write() (2)\n");
 
 	/* Read requested state */
-	read(handle, buf, 65);
+	read(handle, buf, HID_EXAMPLE_REPORT_BUFFER_SIZE);
 	if (res < 0)
 		printf("Unable to read()\n");
 

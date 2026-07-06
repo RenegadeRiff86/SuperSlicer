@@ -14,13 +14,14 @@
 /* Disable *lots* of warnings to get a clean build. I can't be bothered fixing the
  * code at the moment, as it is pretty ugly.
  */
-#pragma warning 7   10
-#pragma warning 13  10
-#pragma warning 14  10
-#pragma warning 367 10
-#pragma warning 379 10
-#pragma warning 726 10
-#pragma warning 836 10
+#define GLU_WATCOM_WARNING_LEVEL 10
+#pragma warning 7   GLU_WATCOM_WARNING_LEVEL
+#pragma warning 13  GLU_WATCOM_WARNING_LEVEL
+#pragma warning 14  GLU_WATCOM_WARNING_LEVEL
+#pragma warning 367 GLU_WATCOM_WARNING_LEVEL
+#pragma warning 379 GLU_WATCOM_WARNING_LEVEL
+#pragma warning 726 GLU_WATCOM_WARNING_LEVEL
+#pragma warning 836 GLU_WATCOM_WARNING_LEVEL
 #endif
 
 #ifdef BUILD_FOR_SNAP
@@ -45,8 +46,8 @@
 #endif
 
 #ifndef _WIN32_WINNT
-  /* XXX: Workaround a bug in mingw-w64's headers when NOGDI is set and
-   * _WIN32_WINNT >= 0x0600 */
+  /* Work around a mingw-w64 header bug triggered by NOGDI when
+   * _WIN32_WINNT >= 0x0600. */
   #define _WIN32_WINNT 0x0400
 #endif
 #ifndef STRICT

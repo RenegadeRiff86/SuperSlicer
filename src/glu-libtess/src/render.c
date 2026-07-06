@@ -46,6 +46,18 @@
 #define FALSE 0
 #endif
 
+enum {
+  RENDER_COORD_X_INDEX,
+  RENDER_COORD_Y_INDEX,
+  RENDER_COORD_Z_INDEX,
+  RENDER_COORD_COUNT
+};
+
+enum {
+  RENDER_SIGN_INCONSISTENT = RENDER_COORD_Z_INDEX,
+  RENDER_TRIANGLE_VERTEX_COUNT = RENDER_COORD_COUNT
+};
+
 /* This structure remembers the information we need about a primitive
  * to be able to render it later, once we have determined which
  * primitive is able to use the most triangles.
@@ -117,7 +129,7 @@ static void RenderMaximumFaceGroup( GLUtesselator *tess, GLUface *fOrig )
    * triangles (a greedy approach).
    */
   GLUhalfEdge *e = fOrig->anEdge;
-  struct FaceCount max, newFace;
+  struct FaceCount max = { 0 }, newFace = { 0 };
 
   max.size = 1;
   max.eStart = e;
@@ -357,9 +369,9 @@ void __gl_renderBoundary( GLUtesselator *tess, GLUmesh *mesh )
 
 /************************ Quick-and-dirty decomposition ******************/
 
-#define SIGN_INCONSISTENT 2
+#define SIGN_INCONSISTENT RENDER_SIGN_INCONSISTENT
 
-static int ComputeNormal( GLUtesselator *tess, GLdouble norm[3], int check )
+static int ComputeNormal( GLUtesselator *tess, GLdouble norm[RENDER_COORD_COUNT], int check )
 /*
  * If check==FALSE, we compute the polygon normal and place it in norm[].
  * If check==TRUE, we check that each triangle in the fan from v0 has a
@@ -371,8 +383,8 @@ static int ComputeNormal( GLUtesselator *tess, GLdouble norm[3], int check )
 {
   CachedVertex *v0 = tess->cache;
   CachedVertex *vn = v0 + tess->cacheCount;
-  CachedVertex *vc;
-  GLdouble dot, xc, yc, zc, xp, yp, zp, n[3];
+  CachedVertex *vc = NULL;
+  GLdouble dot = 0, xc = 0, yc = 0, zc = 0, xp = 0, yp = 0, zp = 0, n[RENDER_COORD_COUNT] = { 0 };
   int sign = 0;
 
   /* Find the polygon normal.  It is important to get a reasonable
@@ -389,33 +401,33 @@ static int ComputeNormal( GLUtesselator *tess, GLdouble norm[3], int check )
    * case.
    */
   if( ! check ) {
-    norm[0] = norm[1] = norm[2] = 0.0;
+    norm[RENDER_COORD_X_INDEX] = norm[RENDER_COORD_Y_INDEX] = norm[RENDER_COORD_Z_INDEX] = 0.0;
   }
 
   vc = v0 + 1;
-  xc = vc->coords[0] - v0->coords[0];
-  yc = vc->coords[1] - v0->coords[1];
-  zc = vc->coords[2] - v0->coords[2];
+  xc = vc->coords[RENDER_COORD_X_INDEX] - v0->coords[RENDER_COORD_X_INDEX];
+  yc = vc->coords[RENDER_COORD_Y_INDEX] - v0->coords[RENDER_COORD_Y_INDEX];
+  zc = vc->coords[RENDER_COORD_Z_INDEX] - v0->coords[RENDER_COORD_Z_INDEX];
   while( ++vc < vn ) {
     xp = xc; yp = yc; zp = zc;
-    xc = vc->coords[0] - v0->coords[0];
-    yc = vc->coords[1] - v0->coords[1];
-    zc = vc->coords[2] - v0->coords[2];
+    xc = vc->coords[RENDER_COORD_X_INDEX] - v0->coords[RENDER_COORD_X_INDEX];
+    yc = vc->coords[RENDER_COORD_Y_INDEX] - v0->coords[RENDER_COORD_Y_INDEX];
+    zc = vc->coords[RENDER_COORD_Z_INDEX] - v0->coords[RENDER_COORD_Z_INDEX];
 
     /* Compute (vp - v0) cross (vc - v0) */
-    n[0] = yp*zc - zp*yc;
-    n[1] = zp*xc - xp*zc;
-    n[2] = xp*yc - yp*xc;
+    n[RENDER_COORD_X_INDEX] = yp*zc - zp*yc;
+    n[RENDER_COORD_Y_INDEX] = zp*xc - xp*zc;
+    n[RENDER_COORD_Z_INDEX] = xp*yc - yp*xc;
 
-    dot = n[0]*norm[0] + n[1]*norm[1] + n[2]*norm[2];
+    dot = n[RENDER_COORD_X_INDEX]*norm[RENDER_COORD_X_INDEX] + n[RENDER_COORD_Y_INDEX]*norm[RENDER_COORD_Y_INDEX] + n[RENDER_COORD_Z_INDEX]*norm[RENDER_COORD_Z_INDEX];
     if( ! check ) {
       /* Reverse the contribution of back-facing triangles to get
        * a reasonable normal for self-intersecting polygons (see above)
        */
       if( dot >= 0 ) {
-	norm[0] += n[0]; norm[1] += n[1]; norm[2] += n[2];
+	norm[RENDER_COORD_X_INDEX] += n[RENDER_COORD_X_INDEX]; norm[RENDER_COORD_Y_INDEX] += n[RENDER_COORD_Y_INDEX]; norm[RENDER_COORD_Z_INDEX] += n[RENDER_COORD_Z_INDEX];
       } else {
-	norm[0] -= n[0]; norm[1] -= n[1]; norm[2] -= n[2];
+	norm[RENDER_COORD_X_INDEX] -= n[RENDER_COORD_X_INDEX]; norm[RENDER_COORD_Y_INDEX] -= n[RENDER_COORD_Y_INDEX]; norm[RENDER_COORD_Z_INDEX] -= n[RENDER_COORD_Z_INDEX];
       }
     } else if( dot != 0 ) {
       /* Check the new orientation for consistency with previous triangles */
@@ -442,19 +454,19 @@ GLboolean __gl_renderCache( GLUtesselator *tess )
 {
   CachedVertex *v0 = tess->cache;
   CachedVertex *vn = v0 + tess->cacheCount;
-  CachedVertex *vc;
-  GLdouble norm[3];
-  int sign;
+  CachedVertex *vc = NULL;
+  GLdouble norm[RENDER_COORD_COUNT] = { 0 };
+  int sign = 0;
 
-  if( tess->cacheCount < 3 ) {
+  if( tess->cacheCount < RENDER_TRIANGLE_VERTEX_COUNT ) {
     /* Degenerate contour -- no output */
     return TRUE;
   }
 
-  norm[0] = tess->normal[0];
-  norm[1] = tess->normal[1];
-  norm[2] = tess->normal[2];
-  if( norm[0] == 0 && norm[1] == 0 && norm[2] == 0 ) {
+  norm[RENDER_COORD_X_INDEX] = tess->normal[RENDER_COORD_X_INDEX];
+  norm[RENDER_COORD_Y_INDEX] = tess->normal[RENDER_COORD_Y_INDEX];
+  norm[RENDER_COORD_Z_INDEX] = tess->normal[RENDER_COORD_Z_INDEX];
+  if( norm[RENDER_COORD_X_INDEX] == 0 && norm[RENDER_COORD_Y_INDEX] == 0 && norm[RENDER_COORD_Z_INDEX] == 0 ) {
     ComputeNormal( tess, norm, FALSE );
   }
 
@@ -484,7 +496,7 @@ GLboolean __gl_renderCache( GLUtesselator *tess )
   }
 
   CALL_BEGIN_OR_BEGIN_DATA( tess->boundaryOnly ? GL_LINE_LOOP
-			  : (tess->cacheCount > 3) ? GL_TRIANGLE_FAN
+			  : (tess->cacheCount > RENDER_TRIANGLE_VERTEX_COUNT) ? GL_TRIANGLE_FAN
 			  : GL_TRIANGLES );
 
   CALL_VERTEX_OR_VERTEX_DATA( v0->data ); 

@@ -59,6 +59,29 @@ extern void DebugEvent( GLUtesselator *tess );
 #define DebugEvent( tess )
 #endif
 
+#define TESS_ABS_WINDING_THRESHOLD 2
+#define TESS_COMBINE_INPUT_COUNT 4
+#define TESS_EDGE_HALF_WEIGHT 0.5f
+
+enum {
+  TESS_COORD_X_INDEX,
+  TESS_COORD_Y_INDEX,
+  TESS_COORD_Z_INDEX,
+  TESS_COORD_COUNT
+};
+
+enum {
+  TESS_WEIGHT_ORG_INDEX,
+  TESS_WEIGHT_DST_INDEX
+};
+
+enum {
+  TESS_COMBINE_UP_ORG_INDEX,
+  TESS_COMBINE_UP_DST_INDEX,
+  TESS_COMBINE_LO_ORG_INDEX,
+  TESS_COMBINE_LO_DST_INDEX
+};
+
 /*
  * Invariants for the Edge Dictionary.
  * - each pair of adjacent edges e2=Succ(e1) satisfies EdgeLeq(e1,e2)
@@ -247,7 +270,7 @@ static GLboolean IsWindingInside( GLUtesselator *tess, int n )
   case GLU_TESS_WINDING_NEGATIVE:
     return (n < 0);
   case GLU_TESS_WINDING_ABS_GEQ_TWO:
-    return (n >= 2) || (n <= -2);
+    return (n >= TESS_ABS_WINDING_THRESHOLD) || (n <= -TESS_ABS_WINDING_THRESHOLD);
   }
   /*LINTED*/
   assert( FALSE );
@@ -410,14 +433,14 @@ static void AddRightEdges( GLUtesselator *tess, ActiveRegion *regUp,
 
 
 static void CallCombine( GLUtesselator *tess, GLUvertex *isect,
-			 void *data[4], GLfloat weights[4], int needed )
+			 void *data[TESS_COMBINE_INPUT_COUNT], GLfloat weights[TESS_COMBINE_INPUT_COUNT], int needed )
 {
-  GLdouble coords[3];
+  GLdouble coords[TESS_COORD_COUNT] = { 0 };
 
   /* Copy coord data in case the callback changes it. */
-  coords[0] = isect->coords[0];
-  coords[1] = isect->coords[1];
-  coords[2] = isect->coords[2];
+  coords[TESS_COORD_X_INDEX] = isect->coords[TESS_COORD_X_INDEX];
+  coords[TESS_COORD_Y_INDEX] = isect->coords[TESS_COORD_Y_INDEX];
+  coords[TESS_COORD_Z_INDEX] = isect->coords[TESS_COORD_Z_INDEX];
 
   isect->data = NULL;
   CALL_COMBINE_OR_COMBINE_DATA( coords, data, weights, &isect->data );
@@ -442,8 +465,8 @@ static void SpliceMergeVertices( GLUtesselator *tess, GLUhalfEdge *e1,
  * e1->Org is kept, while e2->Org is discarded.
  */
 {
-  void *data[4] = { NULL, NULL, NULL, NULL };
-  GLfloat weights[4] = { 0.5, 0.5, 0.0, 0.0 };
+  void *data[TESS_COMBINE_INPUT_COUNT] = { NULL, NULL, NULL, NULL };
+  GLfloat weights[TESS_COMBINE_INPUT_COUNT] = { TESS_EDGE_HALF_WEIGHT, TESS_EDGE_HALF_WEIGHT, 0.0, 0.0 };
 
   data[0] = e1->Org->data;
   data[1] = e2->Org->data;
@@ -464,11 +487,11 @@ static void VertexWeights( GLUvertex *isect, GLUvertex *org, GLUvertex *dst,
   GLdouble t1 = VertL1dist( org, isect );
   GLdouble t2 = VertL1dist( dst, isect );
 
-  weights[0] = 0.5 * t2 / (t1 + t2);
-  weights[1] = 0.5 * t1 / (t1 + t2);
-  isect->coords[0] += weights[0]*org->coords[0] + weights[1]*dst->coords[0];
-  isect->coords[1] += weights[0]*org->coords[1] + weights[1]*dst->coords[1];
-  isect->coords[2] += weights[0]*org->coords[2] + weights[1]*dst->coords[2];
+  weights[TESS_WEIGHT_ORG_INDEX] = TESS_EDGE_HALF_WEIGHT * t2 / (t1 + t2);
+  weights[TESS_WEIGHT_DST_INDEX] = TESS_EDGE_HALF_WEIGHT * t1 / (t1 + t2);
+  isect->coords[TESS_COORD_X_INDEX] += weights[TESS_WEIGHT_ORG_INDEX]*org->coords[TESS_COORD_X_INDEX] + weights[TESS_WEIGHT_DST_INDEX]*dst->coords[TESS_COORD_X_INDEX];
+  isect->coords[TESS_COORD_Y_INDEX] += weights[TESS_WEIGHT_ORG_INDEX]*org->coords[TESS_COORD_Y_INDEX] + weights[TESS_WEIGHT_DST_INDEX]*dst->coords[TESS_COORD_Y_INDEX];
+  isect->coords[TESS_COORD_Z_INDEX] += weights[TESS_WEIGHT_ORG_INDEX]*org->coords[TESS_COORD_Z_INDEX] + weights[TESS_WEIGHT_DST_INDEX]*dst->coords[TESS_COORD_Z_INDEX];
 }
 
 
@@ -481,17 +504,17 @@ static void GetIntersectData( GLUtesselator *tess, GLUvertex *isect,
  * rendering callbacks.
  */
 {
-  void *data[4];
-  GLfloat weights[4];
+  void *data[TESS_COMBINE_INPUT_COUNT] = { NULL };
+  GLfloat weights[TESS_COMBINE_INPUT_COUNT] = { 0 };
 
-  data[0] = orgUp->data;
-  data[1] = dstUp->data;
-  data[2] = orgLo->data;
-  data[3] = dstLo->data;
+  data[TESS_COMBINE_UP_ORG_INDEX] = orgUp->data;
+  data[TESS_COMBINE_UP_DST_INDEX] = dstUp->data;
+  data[TESS_COMBINE_LO_ORG_INDEX] = orgLo->data;
+  data[TESS_COMBINE_LO_DST_INDEX] = dstLo->data;
 
-  isect->coords[0] = isect->coords[1] = isect->coords[2] = 0;
-  VertexWeights( isect, orgUp, dstUp, &weights[0] );
-  VertexWeights( isect, orgLo, dstLo, &weights[2] );
+  isect->coords[TESS_COORD_X_INDEX] = isect->coords[TESS_COORD_Y_INDEX] = isect->coords[TESS_COORD_Z_INDEX] = 0;
+  VertexWeights( isect, orgUp, dstUp, &weights[TESS_COMBINE_UP_ORG_INDEX] );
+  VertexWeights( isect, orgLo, dstLo, &weights[TESS_COMBINE_LO_ORG_INDEX] );
 
   CallCombine( tess, isect, data, weights, TRUE );
 }
@@ -1017,7 +1040,7 @@ static void ConnectLeftVertex( GLUtesselator *tess, GLUvertex *vEvent )
 {
   ActiveRegion *regUp, *regLo, *reg;
   GLUhalfEdge *eUp, *eLo, *eNew;
-  ActiveRegion tmp;
+  ActiveRegion tmp = { 0 };
 
   /* assert( vEvent->anEdge->Onext->Onext == vEvent->anEdge ); */
 
@@ -1201,7 +1224,7 @@ static void RemoveDegenerateEdges( GLUtesselator *tess )
  * Remove zero-length edges, and contours with fewer than 3 vertices.
  */
 {
-  GLUhalfEdge *e, *eNext, *eLnext;
+  GLUhalfEdge *e = NULL, *eNext = NULL, *eLnext = NULL;
   GLUhalfEdge *eHead = &tess->mesh->eHead;
 
   /*LINTED*/
@@ -1280,8 +1303,8 @@ static int RemoveDegenerateFaces( GLUmesh *mesh )
  * will sometimes be keeping a pointer to that edge.
  */
 {
-  GLUface *f, *fNext;
-  GLUhalfEdge *e;
+  GLUface *f = NULL, *fNext = NULL;
+  GLUhalfEdge *e = NULL;
 
   /*LINTED*/
   for( f = mesh->fHead.next; f != &mesh->fHead; f = fNext ) {

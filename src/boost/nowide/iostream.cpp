@@ -23,6 +23,10 @@
 namespace boost {
 namespace nowide {
 namespace details {
+    static const size_t pback_buffer_growth_factor = 2;
+    static const int stdout_fd = 1;
+    static const int stderr_fd = 2;
+
     class console_output_buffer : public std::streambuf {
     public:
         console_output_buffer(HANDLE h) :
@@ -49,7 +53,8 @@ namespace details {
             if(n > 0 && (r=write(pbase(),n)) < 0)
                     return -1;
             if(r < n) {
-                memmove(pbase(),pbase() + r,n-r);
+                const size_t bytes_kept = static_cast<size_t>(n) - static_cast<size_t>(r);
+                memmove(pbase(), pbase() + r, bytes_kept);
             }
             setp(buffer_, buffer_ + buffer_size);
             pbump(n-r);
@@ -59,7 +64,7 @@ namespace details {
         }
     private:
         
-        int write(char const *p,int n)
+        int write(char const *p,int n) const
         {
             namespace uf = boost::locale::utf;
             char const *b = p;
@@ -88,7 +93,7 @@ namespace details {
         
         static const int buffer_size = 1024;
         char buffer_[buffer_size];
-        wchar_t wbuffer_[buffer_size]; // for null
+        mutable wchar_t wbuffer_[buffer_size]; // for null
         HANDLE handle_;
         bool isatty_;
     };
@@ -128,11 +133,11 @@ namespace details {
             else {
                 size_t n = pback_buffer_.size();
                 std::vector<char> tmp;
-                tmp.resize(n*2);
+                tmp.resize(n * pback_buffer_growth_factor);
                 memcpy(&tmp[n],&pback_buffer_[0],n);
                 tmp.swap(pback_buffer_);
                 char *b = &pback_buffer_[0];
-                char *e = b + n * 2;
+                char *e = b + n * pback_buffer_growth_factor;
                 char *p = b+n-1;
                 *p = c;
                 setg(b,p,e);
@@ -210,7 +215,7 @@ namespace details {
         case 1:
             h = GetStdHandle(STD_OUTPUT_HANDLE);
             break;
-        case 2:
+        case stderr_fd:
             h = GetStdHandle(STD_ERROR_HANDLE);
             break;
         }
@@ -236,9 +241,9 @@ namespace details {
 } // details
     
 BOOST_NOWIDE_DECL details::winconsole_istream cin;
-BOOST_NOWIDE_DECL details::winconsole_ostream cout(1);
-BOOST_NOWIDE_DECL details::winconsole_ostream cerr(2);
-BOOST_NOWIDE_DECL details::winconsole_ostream clog(2);
+BOOST_NOWIDE_DECL details::winconsole_ostream cout(details::stdout_fd);
+BOOST_NOWIDE_DECL details::winconsole_ostream cerr(details::stderr_fd);
+BOOST_NOWIDE_DECL details::winconsole_ostream clog(details::stderr_fd);
     
 namespace {
     struct initialize {

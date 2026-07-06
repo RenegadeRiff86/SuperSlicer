@@ -4,6 +4,13 @@
 #include <string>
 #include <cstdlib>
 
+static constexpr int Utf8TwoByteSequenceLength = 2;
+static constexpr int Utf8ThreeByteSequenceLength = 3;
+static constexpr int Utf8FourByteSequenceLength = 4;
+static constexpr int ExpectedArgumentCount = 3;
+static constexpr int TargetArgumentIndex = 1;
+static constexpr int FilenameArgumentIndex = 2;
+static constexpr int ErrorExitCode = -2;
 
 /*
  * The utf8_check() function scans the '\0'-terminated string starting
@@ -36,30 +43,30 @@ unsigned char *utf8_check(unsigned char *s)
                 (s[0] & 0xfe) == 0xc0) {         // overlong?
                 return s;
             } else {
-                s += 2;
+                s += Utf8TwoByteSequenceLength;
             }
         } else if ((s[0] & 0xf0) == 0xe0) {
             // 1110xxxx 10xxxxxx 10xxxxxx
             if ((s[1] & 0xc0) != 0x80 ||
-                (s[2] & 0xc0) != 0x80 ||
+                (s[Utf8TwoByteSequenceLength] & 0xc0) != 0x80 ||
                 (s[0] == 0xe0 && (s[1] & 0xe0) == 0x80) || // overlong?
                 (s[0] == 0xed && (s[1] & 0xe0) == 0xa0) || // surrogate?
                 (s[0] == 0xef && s[1] == 0xbf &&
-                (s[2] & 0xfe) == 0xbe)) {                  // U+FFFE or U+FFFF?
+                (s[Utf8TwoByteSequenceLength] & 0xfe) == 0xbe)) {                  // U+FFFE or U+FFFF?
                 return s;
             } else {
-                s += 3;
+                s += Utf8ThreeByteSequenceLength;
             }
         } else if ((s[0] & 0xf8) == 0xf0) {
             // 11110xxX 10xxxxxx 10xxxxxx 10xxxxxx
             if ((s[1] & 0xc0) != 0x80 ||
-                (s[2] & 0xc0) != 0x80 ||
-                (s[3] & 0xc0) != 0x80 ||
+                (s[Utf8TwoByteSequenceLength] & 0xc0) != 0x80 ||
+                (s[Utf8ThreeByteSequenceLength] & 0xc0) != 0x80 ||
                 (s[0] == 0xf0 && (s[1] & 0xf0) == 0x80) ||      // overlong?
                 (s[0] == 0xf4 && s[1] > 0x8f) || s[0] > 0xf4) { // > U+10FFFF?
                 return s;
             } else {
-                s += 4;
+                s += Utf8FourByteSequenceLength;
             }
         } else {
             return s;
@@ -72,17 +79,17 @@ unsigned char *utf8_check(unsigned char *s)
 
 int main(int argc, char const *argv[])
 {
-    if (argc != 3) {
+    if (argc != ExpectedArgumentCount) {
         std::cerr << "Usage: " << argv[0] << " <program/library> <file>" << std::endl;
         return -1;
     }
 
-    const char* target = argv[1];
-    const char* filename = argv[2];
+    const char* target = argv[TargetArgumentIndex];
+    const char* filename = argv[FilenameArgumentIndex];
 
     const auto error_exit = [=](const char* error) {
         std::cerr << "Target: " << target << " @"<< filename << "\n\tError: " << error << std::endl;
-        std::exit(-2);
+        std::exit(ErrorExitCode);
     };
 
     std::ifstream file(filename, std::ios::binary | std::ios::ate);

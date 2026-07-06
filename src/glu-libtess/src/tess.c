@@ -44,8 +44,16 @@
 #include "tessmono.h"
 #include "render.h"
 
-#define GLU_TESS_DEFAULT_TOLERANCE 0.0
+#define GLU_TESS_TOLERANCE_MIN 0.0
+#define GLU_TESS_TOLERANCE_MAX 1.0
+#define GLU_TESS_DEFAULT_TOLERANCE GLU_TESS_TOLERANCE_MIN
 #define GLU_TESS_MESH		100112	/* void (*)(GLUmesh *mesh)	    */
+
+enum {
+  GLU_TESS_COORD_X_INDEX,
+  GLU_TESS_COORD_Y_INDEX,
+  GLU_TESS_COORD_Z_INDEX
+};
 
 #ifndef TRUE
 #define TRUE 1
@@ -59,8 +67,8 @@
 /*ARGSUSED*/ static void GLAPIENTRY noVertex( void *data ) {}
 /*ARGSUSED*/ static void GLAPIENTRY noEnd( void ) {}
 /*ARGSUSED*/ static void GLAPIENTRY noError( GLenum errnum ) {}
-/*ARGSUSED*/ static void GLAPIENTRY noCombine( GLdouble coords[3], void *data[4],
-				    GLfloat weight[4], void **dataOut ) {}
+/*ARGSUSED*/ static void GLAPIENTRY noCombine( GLdouble coords[TESS_HEADER_COORD_COUNT], void *data[TESS_HEADER_COMBINE_INPUT_COUNT],
+				    GLfloat weight[TESS_HEADER_COMBINE_INPUT_COUNT], void **dataOut ) {}
 /*ARGSUSED*/ static void GLAPIENTRY noMesh( GLUmesh *mesh ) {}
 
 
@@ -73,9 +81,9 @@
 /*ARGSUSED*/ void GLAPIENTRY __gl_noEndData( void *polygonData ) {}
 /*ARGSUSED*/ void GLAPIENTRY __gl_noErrorData( GLenum errnum,
 					     void *polygonData ) {}
-/*ARGSUSED*/ void GLAPIENTRY __gl_noCombineData( GLdouble coords[3],
-					       void *data[4],
-					       GLfloat weight[4],
+/*ARGSUSED*/ void GLAPIENTRY __gl_noCombineData( GLdouble coords[TESS_HEADER_COORD_COUNT],
+					       void *data[TESS_HEADER_COMBINE_INPUT_COUNT],
+					       GLfloat weight[TESS_HEADER_COMBINE_INPUT_COUNT],
 					       void **outData,
 					       void *polygonData ) {}
 
@@ -107,9 +115,9 @@ gluNewTess( void )
 
   tess->state = T_DORMANT;
 
-  tess->normal[0] = 0;
-  tess->normal[1] = 0;
-  tess->normal[2] = 0;
+  tess->normal[GLU_TESS_COORD_X_INDEX] = 0;
+  tess->normal[GLU_TESS_COORD_Y_INDEX] = 0;
+  tess->normal[GLU_TESS_COORD_Z_INDEX] = 0;
 
   tess->relTolerance = GLU_TESS_DEFAULT_TOLERANCE;
   tess->windingRule = GLU_TESS_WINDING_ODD;
@@ -204,7 +212,7 @@ gluTessProperty( GLUtesselator *tess, GLenum which, GLdouble value )
 
   switch( which ) {
   case GLU_TESS_TOLERANCE:
-    if( value < 0.0 || value > 1.0 ) break;
+    if( value < GLU_TESS_TOLERANCE_MIN || value > GLU_TESS_TOLERANCE_MAX ) break;
     tess->relTolerance = value;
     return;
 
@@ -242,7 +250,7 @@ gluGetTessProperty( GLUtesselator *tess, GLenum which, GLdouble *value )
    switch (which) {
    case GLU_TESS_TOLERANCE:
       /* tolerance should be in range [0..1] */
-      assert(0.0 <= tess->relTolerance && tess->relTolerance <= 1.0);
+      assert(GLU_TESS_TOLERANCE_MIN <= tess->relTolerance && tess->relTolerance <= GLU_TESS_TOLERANCE_MAX);
       *value= tess->relTolerance;
       break;
    case GLU_TESS_WINDING_RULE:
@@ -258,7 +266,7 @@ gluGetTessProperty( GLUtesselator *tess, GLenum which, GLdouble *value )
       *value= tess->boundaryOnly;
       break;
    default:
-      *value= 0.0;
+      *value= GLU_TESS_TOLERANCE_MIN;
       CALL_ERROR_OR_ERROR_DATA( GLU_INVALID_ENUM );
       break;
    }
@@ -267,9 +275,9 @@ gluGetTessProperty( GLUtesselator *tess, GLenum which, GLdouble *value )
 void GLAPIENTRY
 gluTessNormal( GLUtesselator *tess, GLdouble x, GLdouble y, GLdouble z )
 {
-  tess->normal[0] = x;
-  tess->normal[1] = y;
-  tess->normal[2] = z;
+  tess->normal[GLU_TESS_COORD_X_INDEX] = x;
+  tess->normal[GLU_TESS_COORD_Y_INDEX] = y;
+  tess->normal[GLU_TESS_COORD_Z_INDEX] = z;
 }
 
 void GLAPIENTRY
@@ -323,13 +331,13 @@ gluTessCallback( GLUtesselator *tess, GLenum which, _GLUfuncptr fn)
     return;
   case GLU_TESS_COMBINE:
     tess->callCombine = (fn == NULL) ? &noCombine :
-	(void (GLAPIENTRY *)(GLdouble [3],void *[4], GLfloat [4], void ** )) fn;
+	(void (GLAPIENTRY *)(GLdouble [TESS_HEADER_COORD_COUNT],void *[TESS_HEADER_COMBINE_INPUT_COUNT], GLfloat [TESS_HEADER_COMBINE_INPUT_COUNT], void ** )) fn;
     return;
   case GLU_TESS_COMBINE_DATA:
     tess->callCombineData = (fn == NULL) ? &__gl_noCombineData :
-					   (void (GLAPIENTRY *)(GLdouble [3],
-						     void *[4],
-						     GLfloat [4],
+					   (void (GLAPIENTRY *)(GLdouble [TESS_HEADER_COORD_COUNT],
+						     void *[TESS_HEADER_COMBINE_INPUT_COUNT],
+						     GLfloat [TESS_HEADER_COMBINE_INPUT_COUNT],
 						     void **,
 						     void *)) fn;
     return;
@@ -342,7 +350,7 @@ gluTessCallback( GLUtesselator *tess, GLenum which, _GLUfuncptr fn)
   }
 }
 
-static int AddVertex( GLUtesselator *tess, GLdouble coords[3], void *data )
+static int AddVertex( GLUtesselator *tess, GLdouble coords[TESS_HEADER_COORD_COUNT], void *data )
 {
   GLUhalfEdge *e;
 
@@ -363,9 +371,9 @@ static int AddVertex( GLUtesselator *tess, GLdouble coords[3], void *data )
 
   /* The new vertex is now e->Org. */
   e->Org->data = data;
-  e->Org->coords[0] = coords[0];
-  e->Org->coords[1] = coords[1];
-  e->Org->coords[2] = coords[2];
+  e->Org->coords[GLU_TESS_COORD_X_INDEX] = coords[GLU_TESS_COORD_X_INDEX];
+  e->Org->coords[GLU_TESS_COORD_Y_INDEX] = coords[GLU_TESS_COORD_Y_INDEX];
+  e->Org->coords[GLU_TESS_COORD_Z_INDEX] = coords[GLU_TESS_COORD_Z_INDEX];
 
   /* The winding of an edge says how the winding number changes as we
    * cross from the edge''s right face to its left face.  We add the
@@ -381,14 +389,14 @@ static int AddVertex( GLUtesselator *tess, GLdouble coords[3], void *data )
 }
 
 
-static void CacheVertex( GLUtesselator *tess, GLdouble coords[3], void *data )
+static void CacheVertex( GLUtesselator *tess, GLdouble coords[TESS_HEADER_COORD_COUNT], void *data )
 {
   CachedVertex *v = &tess->cache[tess->cacheCount];
 
   v->data = data;
-  v->coords[0] = coords[0];
-  v->coords[1] = coords[1];
-  v->coords[2] = coords[2];
+  v->coords[GLU_TESS_COORD_X_INDEX] = coords[GLU_TESS_COORD_X_INDEX];
+  v->coords[GLU_TESS_COORD_Y_INDEX] = coords[GLU_TESS_COORD_Y_INDEX];
+  v->coords[GLU_TESS_COORD_Z_INDEX] = coords[GLU_TESS_COORD_Z_INDEX];
   ++tess->cacheCount;
 }
 
@@ -412,10 +420,10 @@ static int EmptyCache( GLUtesselator *tess )
 
 
 void GLAPIENTRY
-gluTessVertex( GLUtesselator *tess, GLdouble coords[3], void *data )
+gluTessVertex( GLUtesselator *tess, GLdouble coords[TESS_HEADER_COORD_COUNT], void *data )
 {
   int i, tooLarge = FALSE;
-  GLdouble x, clamped[3];
+  GLdouble x = 0, clamped[TESS_HEADER_COORD_COUNT] = { 0 };
 
   RequireState( tess, T_IN_CONTOUR );
 
@@ -426,7 +434,7 @@ gluTessVertex( GLUtesselator *tess, GLdouble coords[3], void *data )
     }
     tess->lastEdge = NULL;
   }
-  for( i = 0; i < 3; ++i ) {
+  for( i = 0; i < TESS_HEADER_COORD_COUNT; ++i ) {
     x = coords[i];
     if( x < - GLU_TESS_MAX_COORD ) {
       x = - GLU_TESS_MAX_COORD;

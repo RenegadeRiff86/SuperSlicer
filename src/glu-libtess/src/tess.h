@@ -50,9 +50,11 @@ enum TessState { T_DORMANT, T_IN_POLYGON, T_IN_CONTOUR };
  * try a quick-and-dirty decomposition first.
  */
 #define TESS_MAX_CACHE	100
+#define TESS_HEADER_COORD_COUNT 3
+#define TESS_HEADER_COMBINE_INPUT_COUNT 4
 
 typedef struct CachedVertex {
-  GLdouble	coords[3];
+  GLdouble	coords[TESS_HEADER_COORD_COUNT];
   void		*data;
 } CachedVertex;
 
@@ -70,9 +72,9 @@ struct GLUtesselator {
 
   /*** state needed for projecting onto the sweep plane ***/
 
-  GLdouble	normal[3];	/* user-specified normal (if provided) */
-  GLdouble	sUnit[3];	/* unit vector in s-direction (debugging) */
-  GLdouble	tUnit[3];	/* unit vector in t-direction (debugging) */
+  GLdouble	normal[TESS_HEADER_COORD_COUNT];	/* user-specified normal (if provided) */
+  GLdouble	sUnit[TESS_HEADER_COORD_COUNT];	/* unit vector in s-direction (debugging) */
+  GLdouble	tUnit[TESS_HEADER_COORD_COUNT];	/* unit vector in t-direction (debugging) */
 
   /*** state needed for the line sweep ***/
 
@@ -84,8 +86,8 @@ struct GLUtesselator {
   PriorityQ	*pq;		/* priority queue of vertex events */
   GLUvertex	*event;		/* current sweep event being processed */
 
-  void		(GLAPIENTRY *callCombine)( GLdouble coords[3], void *data[4],
-			        GLfloat weight[4], void **outData );
+  void		(GLAPIENTRY *callCombine)( GLdouble coords[TESS_HEADER_COORD_COUNT], void *data[TESS_HEADER_COMBINE_INPUT_COUNT],
+			        GLfloat weight[TESS_HEADER_COMBINE_INPUT_COUNT], void **outData );
 
   /*** state needed for rendering callbacks (see render.c) ***/
 
@@ -114,8 +116,8 @@ struct GLUtesselator {
   void		(GLAPIENTRY *callVertexData)( void *data, void *polygonData );
   void		(GLAPIENTRY *callEndData)( void *polygonData );
   void		(GLAPIENTRY *callErrorData)( GLenum errnum, void *polygonData );
-  void		(GLAPIENTRY *callCombineData)( GLdouble coords[3], void *data[4],
-				    GLfloat weight[4], void **outData,
+  void		(GLAPIENTRY *callCombineData)( GLdouble coords[TESS_HEADER_COORD_COUNT], void *data[TESS_HEADER_COMBINE_INPUT_COUNT],
+				    GLfloat weight[TESS_HEADER_COMBINE_INPUT_COUNT], void **outData,
 				    void *polygonData );
 
   jmp_buf env;			/* place to jump to when memAllocs fail */
@@ -128,8 +130,8 @@ void GLAPIENTRY __gl_noEdgeFlagData( GLboolean boundaryEdge, void *polygonData )
 void GLAPIENTRY __gl_noVertexData( void *data, void *polygonData );
 void GLAPIENTRY __gl_noEndData( void *polygonData );
 void GLAPIENTRY __gl_noErrorData( GLenum errnum, void *polygonData );
-void GLAPIENTRY __gl_noCombineData( GLdouble coords[3], void *data[4],
-			 GLfloat weight[4], void **outData,
+void GLAPIENTRY __gl_noCombineData( GLdouble coords[TESS_HEADER_COORD_COUNT], void *data[TESS_HEADER_COMBINE_INPUT_COUNT],
+			 GLfloat weight[TESS_HEADER_COMBINE_INPUT_COUNT], void **outData,
 			 void *polygonData );
 
 #define CALL_BEGIN_OR_BEGIN_DATA(a) \
