@@ -154,6 +154,17 @@
 #define KEY_SOLID_INFILL_OVERLAP "solid_infill_overlap"
 #define KEY_THUMBNAILS "thumbnails"
 #define KEY_TOP_INFILL_EXTRUSION_SPACING "top_infill_extrusion_spacing"
+#define KEY_TOP_SOLID_INFILL_OVERLAP "top_solid_infill_overlap"
+#define KEY_WIPE_EXTRA_PERIMETER "wipe_extra_perimeter"
+#define KEY_WIPE_INSIDE_DEPTH "wipe_inside_depth"
+#define KEY_WIPE_INSIDE_END "wipe_inside_end"
+#define KEY_WIPE_INSIDE_START "wipe_inside_start"
+#define KEY_WIPE_LIFT "wipe_lift"
+#define KEY_WIPE_LIFT_LENGTH "wipe_lift_length"
+#define KEY_WIPE_MIN "wipe_min"
+#define KEY_WIPE_ONLY_CROSSING "wipe_only_crossing"
+#define KEY_WIPE_RETURN "wipe_return"
+#define KEY_WIPE_SPEED "wipe_speed"
 
 namespace Slic3r {
 
@@ -7341,7 +7352,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionFloatOrPercent(0,false));
 
-    def = this->add("top_solid_infill_overlap", coPercent);
+    def = this->add(KEY_TOP_SOLID_INFILL_OVERLAP, coPercent);
     def->label = L("Top solid infill overlap");
     def->category = OptionCategory::width;
     def->tooltip = L("This setting allows you to reduce the overlap between the lines of the top solid fill, to reduce the % filled if you see overextrusion signs on solid areas."
@@ -7482,7 +7493,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionBools{ false });
 
-    def = this->add("wipe_extra_perimeter", coFloats);
+    def = this->add(KEY_WIPE_EXTRA_PERIMETER, coFloats);
     def->category = OptionCategory::extruders;
     def->label = L("Extra Wipe for external perimeters");
     def->tooltip = L("When the external perimeter loop extrusion ends, a wipe is done, going slightly inside the print."
@@ -7493,7 +7504,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionFloats{ 0.f });
 
-    def = this->add("wipe_inside_start", coBools);
+    def = this->add(KEY_WIPE_INSIDE_START, coBools);
     def->label = L("Wipe inside at start");
     def->category = OptionCategory::extruders;
     def->tooltip = L("Before extruding an external perimeter, this flag will place the nozzle a bit inward and in advance of the seam position before unretracting."
@@ -7502,7 +7513,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionBools{ false });
 
-    def = this->add("wipe_inside_end", coBools);
+    def = this->add(KEY_WIPE_INSIDE_END, coBools);
     def->label = L("Wipe inside at end");
     def->category = OptionCategory::extruders;
     def->tooltip = L("This flag will wipe the nozzle a bit inward after extruding an external perimeter."
@@ -7512,7 +7523,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionBools{ true });
 
-    def = this->add("wipe_inside_depth", coPercents);
+    def = this->add(KEY_WIPE_INSIDE_DEPTH, coPercents);
     def->label = L("Max Wipe deviation");
     def->full_label = L("Maximum Wipe deviation to the inside");
     def->category = OptionCategory::extruders;
@@ -7524,7 +7535,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionPercents{ 50 });
     
-    def = this->add("wipe_lift", coFloatsOrPercents);
+    def = this->add(KEY_WIPE_LIFT, coFloatsOrPercents);
     def->label = L("Wipe lift");
     def->category = OptionCategory::extruders;
     def->tooltip = L("When wiping, it will lift gradually to this height, so the filament can be 'cut' more easily."
@@ -7533,7 +7544,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionFloatsOrPercents{FloatOrPercent{0, false}});
     
-    def = this->add("wipe_lift_length", coFloatsOrPercents);
+    def = this->add(KEY_WIPE_LIFT_LENGTH, coFloatsOrPercents);
     def->label = L("Wipe lift length");
     def->full_label = L("Wipe length with lift");
     def->category = OptionCategory::extruders;
@@ -7545,7 +7556,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionFloatsOrPercents{FloatOrPercent{50, true}});
 
-    def = this->add("wipe_min", coFloatsOrPercents);
+    def = this->add(KEY_WIPE_MIN, coFloatsOrPercents);
     def->label = L("Minimum Wipe length");
     def->category = OptionCategory::extruders;
     def->tooltip = L("Ensure the nozzle will move at least this much."
@@ -7555,7 +7566,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionFloatsOrPercents{FloatOrPercent{150, true}});
 
-    def = this->add("wipe_only_crossing", coBools);
+    def = this->add(KEY_WIPE_ONLY_CROSSING, coBools);
     def->label = L("Wipe only when crossing perimeters");
     def->category = OptionCategory::extruders;
     def->tooltip = L("Don't wipe when you don't cross a perimeter. Need 'avoid_crossing_perimeters' and 'wipe' enabled.");
@@ -7563,7 +7574,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionBools{ true });
 
-    def = this->add("wipe_return", coBools);
+    def = this->add(KEY_WIPE_RETURN, coBools);
     def->label = L("return to seam to end the wipe");
     def->category = OptionCategory::extruders;
     def->tooltip = L("If true, it ensure the wipe ends at the seam. It can stop and return back at mid-distance."
@@ -7572,7 +7583,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionBools{ false });
 
-    def = this->add("wipe_speed", coFloats);
+    def = this->add(KEY_WIPE_SPEED, coFloats);
     def->label = L("Wipe speed");
     def->category = OptionCategory::extruders;
     def->tooltip = L("Speed in mm/s of the wipe. If it's faster, it will try to go further away, as the wipe time is set by ( 100% - 'retract before wipe') * 'retaction length' / 'retraction speed'."
@@ -8100,16 +8111,16 @@ void PrintConfigDef::init_extruder_option_keys()
         KEY_TRAVEL_RAMPING_LIFT,
         "travel_slope",
         "wipe",
-        "wipe_extra_perimeter",
-        "wipe_inside_depth",
-        "wipe_inside_end",
-        "wipe_inside_start",
-        "wipe_lift",
-        "wipe_lift_length",
-        "wipe_min",
-        "wipe_only_crossing",
-        "wipe_return",
-        "wipe_speed",
+        KEY_WIPE_EXTRA_PERIMETER,
+        KEY_WIPE_INSIDE_DEPTH,
+        KEY_WIPE_INSIDE_END,
+        KEY_WIPE_INSIDE_START,
+        KEY_WIPE_LIFT,
+        KEY_WIPE_LIFT_LENGTH,
+        KEY_WIPE_MIN,
+        KEY_WIPE_ONLY_CROSSING,
+        KEY_WIPE_RETURN,
+        KEY_WIPE_SPEED,
     };
     assert(std::is_sorted(m_extruder_option_keys.begin(), m_extruder_option_keys.end()));
 
@@ -8136,16 +8147,16 @@ void PrintConfigDef::init_extruder_option_keys()
         KEY_TRAVEL_RAMPING_LIFT,
         "travel_slope",
         "wipe",
-        "wipe_extra_perimeter",
-        "wipe_inside_depth",
-        "wipe_inside_end",
-        "wipe_inside_start",
-        "wipe_lift",
-        "wipe_lift_length",
-        "wipe_min",
-        "wipe_only_crossing",
-        "wipe_return",
-        "wipe_speed",
+        KEY_WIPE_EXTRA_PERIMETER,
+        KEY_WIPE_INSIDE_DEPTH,
+        KEY_WIPE_INSIDE_END,
+        KEY_WIPE_INSIDE_START,
+        KEY_WIPE_LIFT,
+        KEY_WIPE_LIFT_LENGTH,
+        KEY_WIPE_MIN,
+        KEY_WIPE_ONLY_CROSSING,
+        KEY_WIPE_RETURN,
+        KEY_WIPE_SPEED,
     };
     assert(std::is_sorted(m_extruder_retract_keys.begin(), m_extruder_retract_keys.end()));
     m_filament_override_option_keys = {
@@ -8168,16 +8179,16 @@ void PrintConfigDef::init_extruder_option_keys()
         KEY_TRAVEL_RAMPING_LIFT,
         "travel_slope",
         "wipe",
-        "wipe_extra_perimeter",
-        "wipe_inside_depth",
-        "wipe_inside_end",
-        "wipe_inside_start",
-        "wipe_lift",
-        "wipe_lift_length",
-        "wipe_min",
-        "wipe_only_crossing",
-        "wipe_return",
-        "wipe_speed",
+        KEY_WIPE_EXTRA_PERIMETER,
+        KEY_WIPE_INSIDE_DEPTH,
+        KEY_WIPE_INSIDE_END,
+        KEY_WIPE_INSIDE_START,
+        KEY_WIPE_LIFT,
+        KEY_WIPE_LIFT_LENGTH,
+        KEY_WIPE_MIN,
+        KEY_WIPE_ONLY_CROSSING,
+        KEY_WIPE_RETURN,
+        KEY_WIPE_SPEED,
     };
 }
 
@@ -10850,23 +10861,23 @@ KEY_SUPPORT_MATERIAL_CONTACT_DISTANCE_TYPE,
 "tool_name",
 "top_fan_speed",
 KEY_TOP_INFILL_EXTRUSION_SPACING,
-"top_solid_infill_overlap",
+KEY_TOP_SOLID_INFILL_OVERLAP,
 "travel_acceleration",
 "travel_deceleration_use_target",
 "wipe_advanced_algo",
 "wipe_advanced_multiplier",
 "wipe_advanced_nozzle_melted_volume",
 "wipe_advanced",
-"wipe_extra_perimeter",
-"wipe_inside_depth",
-"wipe_inside_end",
-"wipe_inside_start",
-"wipe_lift",
-"wipe_lift_length",
-"wipe_min",
-"wipe_only_crossing",
-"wipe_return",
-"wipe_speed",
+KEY_WIPE_EXTRA_PERIMETER,
+KEY_WIPE_INSIDE_DEPTH,
+KEY_WIPE_INSIDE_END,
+KEY_WIPE_INSIDE_START,
+KEY_WIPE_LIFT,
+KEY_WIPE_LIFT_LENGTH,
+KEY_WIPE_MIN,
+KEY_WIPE_ONLY_CROSSING,
+KEY_WIPE_RETURN,
+KEY_WIPE_SPEED,
 "filament_wipe_extra_perimeter", // filament override
 "filament_wipe_inside_depth", // filament override
 "filament_wipe_inside_end", // filament override
@@ -11602,7 +11613,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
     }
     if (opt_key == KEY_FILAMENT_MAX_OVERLAP || opt_key == KEY_PERIMETER_OVERLAP ||
         opt_key == KEY_EXTERNAL_PERIMETER_OVERLAP || opt_key == KEY_SOLID_INFILL_OVERLAP ||
-        opt_key == "top_solid_infill_overlap") {
+        opt_key == KEY_TOP_SOLID_INFILL_OVERLAP) {
         if (this->option(KEY_EXTRUSION_WIDTH)) {
             if (this->update_phony(config_collection) != nullptr) {
                 return this;
@@ -11736,7 +11747,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                 }
             }
             if (opt_key == KEY_TOP_INFILL_EXTRUSION_SPACING) {
-                const ConfigOptionPercent* top_solid_infill_overlap_option = find_option<ConfigOptionPercent>("top_solid_infill_overlap", this, config_collection);
+                const ConfigOptionPercent* top_solid_infill_overlap_option = find_option<ConfigOptionPercent>(KEY_TOP_SOLID_INFILL_OVERLAP, this, config_collection);
                 ConfigOptionFloatOrPercent* width_option = this->option<ConfigOptionFloatOrPercent>(KEY_TOP_IN_FILL_EXTRUSION_WIDTH);
                 if (width_option) {
                     width_option->set_phony(true);
@@ -11912,7 +11923,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                     }
                 }
                 if (opt_key == KEY_TOP_IN_FILL_EXTRUSION_WIDTH) {
-                    const ConfigOptionPercent* top_solid_infill_overlap_option = find_option<ConfigOptionPercent>("top_solid_infill_overlap", this, config_collection);
+                    const ConfigOptionPercent* top_solid_infill_overlap_option = find_option<ConfigOptionPercent>(KEY_TOP_SOLID_INFILL_OVERLAP, this, config_collection);
                     spacing_option = this->option<ConfigOptionFloatOrPercent>(KEY_TOP_INFILL_EXTRUSION_SPACING);
                     if (width_option) {
                         width_option->set_phony(false);
