@@ -81,5 +81,6 @@ IGL_INLINE ScalarMatrix igl::embree::line_mesh_intersection
 }
 
 #ifdef IGL_STATIC_LIBRARY
-template Eigen::Matrix<double, -1, -1, 0, -1, -1> igl::embree::line_mesh_intersection<Eigen::Matrix<double, -1, -1, 0, -1, -1>, Eigen::Matrix<int, -1, -1, 0, -1, -1> >(Eigen::Matrix<double, -1, -1, 0, -1, -1> const&, Eigen::Matrix<double, -1, -1, 0, -1, -1> const&, Eigen::Matrix<double, -1, -1, 0, -1, -1> const&, Eigen::Matrix<int, -1, -1, 0, -1, -1> const&);
+template Eigen::Matrix<double, -1, -1, 0, -1, -1> igl::embree::line_mesh_intersection<Eigen::Matrix<double, -1, -1, 0, -1, -1>, Eigen::Matrix<int, -1, -1, 0, -1, -1> >(Eigen::Matrix<double, -1, -1, 0, -1, -1> const&, Eigen::Matrix<double, -1, -1, 0,
+  -1, -1> const&, Eigen::Matrix<double, -1, -1, 0, -1, -1> const&, Eigen::Matrix<int, -1, -1, 0, -1, -1> const&);
 #endif

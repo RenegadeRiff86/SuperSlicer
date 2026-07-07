@@ -907,6 +907,8 @@ namespace igl
 
 #ifdef IGL_STATIC_LIBRARY
 // Explicit template instantiation
-template void igl::xml::serialize_xml<std::vector<float, std::allocator<float> > >(std::vector<float, std::allocator<float> > const&, std::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, bool, bool);
-template void igl::xml::deserialize_xml<std::vector<float, std::allocator<float> > >(std::vector<float, std::allocator<float> >&, std::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::basic_string<char, std::char_traits<char>, std::allocator<char> > const&);
+template void igl::xml::serialize_xml<std::vector<float, std::allocator<float> > >(std::vector<float, std::allocator<float> > const&, std::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::basic_string<char,
+  std::char_traits<char>, std::allocator<char> > const&, bool, bool);
+template void igl::xml::deserialize_xml<std::vector<float, std::allocator<float> > >(std::vector<float, std::allocator<float> >&, std::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::basic_string<char,
+  std::char_traits<char>, std::allocator<char> > const&);
 #endif

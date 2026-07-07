@@ -558,7 +558,8 @@
 
     // Swap columns 1-2 if necessary
 
-    ENABLE_SCALAR_IMPLEMENTATION(Stmp4.ui=(Stmp1.f<Stmp2.f)?0xffffffff:0;)                ENABLE_SSE_IMPLEMENTATION(Vtmp4=_mm_cmplt_ps(Vtmp1,Vtmp2);)                               ENABLE_AVX_IMPLEMENTATION(Vtmp4=_mm256_cmp_ps(Vtmp1,Vtmp2, _CMP_LT_OS);) //ENABLE_AVX_IMPLEMENTATION(Vtmp4=_mm256_cmplt_ps(Vtmp1,Vtmp2);)
+    ENABLE_SCALAR_IMPLEMENTATION(Stmp4.ui=(Stmp1.f<Stmp2.f)?0xffffffff:0;)                ENABLE_SSE_IMPLEMENTATION(Vtmp4=_mm_cmplt_ps(Vtmp1,Vtmp2);)                               ENABLE_AVX_IMPLEMENTATION(Vtmp4=_mm256_cmp_ps(Vtmp1,Vtmp2,
+      _CMP_LT_OS);) //ENABLE_AVX_IMPLEMENTATION(Vtmp4=_mm256_cmplt_ps(Vtmp1,Vtmp2);)
     ENABLE_SCALAR_IMPLEMENTATION(Stmp5.ui=Sa11.ui^Sa12.ui;)                               ENABLE_SSE_IMPLEMENTATION(Vtmp5=_mm_xor_ps(Va11,Va12);)                                   ENABLE_AVX_IMPLEMENTATION(Vtmp5=_mm256_xor_ps(Va11,Va12);)
     ENABLE_SCALAR_IMPLEMENTATION(Stmp5.ui=Stmp5.ui&Stmp4.ui;)                             ENABLE_SSE_IMPLEMENTATION(Vtmp5=_mm_and_ps(Vtmp5,Vtmp4);)                                 ENABLE_AVX_IMPLEMENTATION(Vtmp5=_mm256_and_ps(Vtmp5,Vtmp4);)
     ENABLE_SCALAR_IMPLEMENTATION(Sa11.ui=Sa11.ui^Stmp5.ui;)                               ENABLE_SSE_IMPLEMENTATION(Va11=_mm_xor_ps(Va11,Vtmp5);)                                   ENABLE_AVX_IMPLEMENTATION(Va11=_mm256_xor_ps(Va11,Vtmp5);)
@@ -634,7 +635,8 @@
 
     // Swap columns 1-3 if necessary
 
-    ENABLE_SCALAR_IMPLEMENTATION(Stmp4.ui=(Stmp1.f<Stmp3.f)?0xffffffff:0;)                ENABLE_SSE_IMPLEMENTATION(Vtmp4=_mm_cmplt_ps(Vtmp1,Vtmp3);)                               ENABLE_AVX_IMPLEMENTATION(Vtmp4=_mm256_cmp_ps(Vtmp1,Vtmp3, _CMP_LT_OS);) //ENABLE_AVX_IMPLEMENTATION(Vtmp4=_mm256_cmplt_ps(Vtmp1,Vtmp3);)
+    ENABLE_SCALAR_IMPLEMENTATION(Stmp4.ui=(Stmp1.f<Stmp3.f)?0xffffffff:0;)                ENABLE_SSE_IMPLEMENTATION(Vtmp4=_mm_cmplt_ps(Vtmp1,Vtmp3);)                               ENABLE_AVX_IMPLEMENTATION(Vtmp4=_mm256_cmp_ps(Vtmp1,Vtmp3,
+      _CMP_LT_OS);) //ENABLE_AVX_IMPLEMENTATION(Vtmp4=_mm256_cmplt_ps(Vtmp1,Vtmp3);)
     ENABLE_SCALAR_IMPLEMENTATION(Stmp5.ui=Sa11.ui^Sa13.ui;)                               ENABLE_SSE_IMPLEMENTATION(Vtmp5=_mm_xor_ps(Va11,Va13);)                                   ENABLE_AVX_IMPLEMENTATION(Vtmp5=_mm256_xor_ps(Va11,Va13);)
     ENABLE_SCALAR_IMPLEMENTATION(Stmp5.ui=Stmp5.ui&Stmp4.ui;)                             ENABLE_SSE_IMPLEMENTATION(Vtmp5=_mm_and_ps(Vtmp5,Vtmp4);)                                 ENABLE_AVX_IMPLEMENTATION(Vtmp5=_mm256_and_ps(Vtmp5,Vtmp4);)
     ENABLE_SCALAR_IMPLEMENTATION(Sa11.ui=Sa11.ui^Stmp5.ui;)                               ENABLE_SSE_IMPLEMENTATION(Va11=_mm_xor_ps(Va11,Vtmp5);)                                   ENABLE_AVX_IMPLEMENTATION(Va11=_mm256_xor_ps(Va11,Vtmp5);)
@@ -710,7 +712,8 @@
 
     // Swap columns 2-3 if necessary
 
-    ENABLE_SCALAR_IMPLEMENTATION(Stmp4.ui=(Stmp2.f<Stmp3.f)?0xffffffff:0;)                ENABLE_SSE_IMPLEMENTATION(Vtmp4=_mm_cmplt_ps(Vtmp2,Vtmp3);)                               ENABLE_AVX_IMPLEMENTATION(Vtmp4=_mm256_cmp_ps(Vtmp2,Vtmp3, _CMP_LT_OS);) //ENABLE_AVX_IMPLEMENTATION(Vtmp4=_mm256_cmplt_ps(Vtmp2,Vtmp3);)
+    ENABLE_SCALAR_IMPLEMENTATION(Stmp4.ui=(Stmp2.f<Stmp3.f)?0xffffffff:0;)                ENABLE_SSE_IMPLEMENTATION(Vtmp4=_mm_cmplt_ps(Vtmp2,Vtmp3);)                               ENABLE_AVX_IMPLEMENTATION(Vtmp4=_mm256_cmp_ps(Vtmp2,Vtmp3,
+      _CMP_LT_OS);) //ENABLE_AVX_IMPLEMENTATION(Vtmp4=_mm256_cmplt_ps(Vtmp2,Vtmp3);)
     ENABLE_SCALAR_IMPLEMENTATION(Stmp5.ui=Sa12.ui^Sa13.ui;)                               ENABLE_SSE_IMPLEMENTATION(Vtmp5=_mm_xor_ps(Va12,Va13);)                                   ENABLE_AVX_IMPLEMENTATION(Vtmp5=_mm256_xor_ps(Va12,Va13);)
     ENABLE_SCALAR_IMPLEMENTATION(Stmp5.ui=Stmp5.ui&Stmp4.ui;)                             ENABLE_SSE_IMPLEMENTATION(Vtmp5=_mm_and_ps(Vtmp5,Vtmp4);)                                 ENABLE_AVX_IMPLEMENTATION(Vtmp5=_mm256_and_ps(Vtmp5,Vtmp4);)
     ENABLE_SCALAR_IMPLEMENTATION(Sa12.ui=Sa12.ui^Stmp5.ui;)                               ENABLE_SSE_IMPLEMENTATION(Va12=_mm_xor_ps(Va12,Vtmp5);)                                   ENABLE_AVX_IMPLEMENTATION(Va12=_mm256_xor_ps(Va12,Vtmp5);)

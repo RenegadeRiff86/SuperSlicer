@@ -24,14 +24,16 @@
 #endif
 
 ENABLE_SCALAR_IMPLEMENTATION(Ssh.f=SANPIVOT.f*SANPIVOT.f;)                                ENABLE_SSE_IMPLEMENTATION(Vsh=_mm_mul_ps(VANPIVOT,VANPIVOT);)                             ENABLE_AVX_IMPLEMENTATION(Vsh=_mm256_mul_ps(VANPIVOT,VANPIVOT);)
-ENABLE_SCALAR_IMPLEMENTATION(Ssh.ui=(Ssh.f>=Ssmall_number.f)?0xffffffff:0;)               ENABLE_SSE_IMPLEMENTATION(Vsh=_mm_cmpge_ps(Vsh,Vsmall_number);)                           ENABLE_AVX_IMPLEMENTATION(Vsh=_mm256_cmp_ps(Vsh,Vsmall_number, _CMP_GE_OS);) //ENABLE_AVX_IMPLEMENTATION(Vsh=_mm256_cmpge_ps(Vsh,Vsmall_number);)
+ENABLE_SCALAR_IMPLEMENTATION(Ssh.ui=(Ssh.f>=Ssmall_number.f)?0xffffffff:0;)               ENABLE_SSE_IMPLEMENTATION(Vsh=_mm_cmpge_ps(Vsh,Vsmall_number);)                           ENABLE_AVX_IMPLEMENTATION(Vsh=_mm256_cmp_ps(Vsh,Vsmall_number,
+  _CMP_GE_OS);) //ENABLE_AVX_IMPLEMENTATION(Vsh=_mm256_cmpge_ps(Vsh,Vsmall_number);)
 ENABLE_SCALAR_IMPLEMENTATION(Ssh.ui=Ssh.ui&SANPIVOT.ui;)                                  ENABLE_SSE_IMPLEMENTATION(Vsh=_mm_and_ps(Vsh,VANPIVOT);)                                  ENABLE_AVX_IMPLEMENTATION(Vsh=_mm256_and_ps(Vsh,VANPIVOT);)
 
 ENABLE_SCALAR_IMPLEMENTATION(Stmp5.f=0.;)                                                 ENABLE_SSE_IMPLEMENTATION(Vtmp5=_mm_xor_ps(Vtmp5,Vtmp5);)                                 ENABLE_AVX_IMPLEMENTATION(Vtmp5=_mm256_xor_ps(Vtmp5,Vtmp5);)
 ENABLE_SCALAR_IMPLEMENTATION(Sch.f=Stmp5.f-SAPIVOT.f;)                                    ENABLE_SSE_IMPLEMENTATION(Vch=_mm_sub_ps(Vtmp5,VAPIVOT);)                                 ENABLE_AVX_IMPLEMENTATION(Vch=_mm256_sub_ps(Vtmp5,VAPIVOT);)
 ENABLE_SCALAR_IMPLEMENTATION(Sch.f=std::max(Sch.f,SAPIVOT.f);)                            ENABLE_SSE_IMPLEMENTATION(Vch=_mm_max_ps(Vch,VAPIVOT);)                                   ENABLE_AVX_IMPLEMENTATION(Vch=_mm256_max_ps(Vch,VAPIVOT);)
 ENABLE_SCALAR_IMPLEMENTATION(Sch.f=std::max(Sch.f,Ssmall_number.f);)                      ENABLE_SSE_IMPLEMENTATION(Vch=_mm_max_ps(Vch,Vsmall_number);)                             ENABLE_AVX_IMPLEMENTATION(Vch=_mm256_max_ps(Vch,Vsmall_number);)
-ENABLE_SCALAR_IMPLEMENTATION(Stmp5.ui=(SAPIVOT.f>=Stmp5.f)?0xffffffff:0;)                 ENABLE_SSE_IMPLEMENTATION(Vtmp5=_mm_cmpge_ps(VAPIVOT,Vtmp5);)                             ENABLE_AVX_IMPLEMENTATION(Vtmp5=_mm256_cmp_ps(VAPIVOT,Vtmp5, _CMP_GE_OS);) //ENABLE_AVX_IMPLEMENTATION(Vtmp5=_mm256_cmpge_ps(VAPIVOT,Vtmp5);)
+ENABLE_SCALAR_IMPLEMENTATION(Stmp5.ui=(SAPIVOT.f>=Stmp5.f)?0xffffffff:0;)                 ENABLE_SSE_IMPLEMENTATION(Vtmp5=_mm_cmpge_ps(VAPIVOT,Vtmp5);)                             ENABLE_AVX_IMPLEMENTATION(Vtmp5=_mm256_cmp_ps(VAPIVOT,Vtmp5,
+  _CMP_GE_OS);) //ENABLE_AVX_IMPLEMENTATION(Vtmp5=_mm256_cmpge_ps(VAPIVOT,Vtmp5);)
 
 ENABLE_SCALAR_IMPLEMENTATION(Stmp1.f=Sch.f*Sch.f;)                                        ENABLE_SSE_IMPLEMENTATION(Vtmp1=_mm_mul_ps(Vch,Vch);)                                     ENABLE_AVX_IMPLEMENTATION(Vtmp1=_mm256_mul_ps(Vch,Vch);)
 ENABLE_SCALAR_IMPLEMENTATION(Stmp2.f=Ssh.f*Ssh.f;)                                        ENABLE_SSE_IMPLEMENTATION(Vtmp2=_mm_mul_ps(Vsh,Vsh);)                                     ENABLE_AVX_IMPLEMENTATION(Vtmp2=_mm256_mul_ps(Vsh,Vsh);)
@@ -70,7 +72,9 @@ ENABLE_SCALAR_IMPLEMENTATION(Stmp1.f=Stmp1.f-Stmp3.f;)                          
 ENABLE_SCALAR_IMPLEMENTATION(Sch.f=Sch.f*Stmp1.f;)                                        ENABLE_SSE_IMPLEMENTATION(Vch=_mm_mul_ps(Vch,Vtmp1);)                                     ENABLE_AVX_IMPLEMENTATION(Vch=_mm256_mul_ps(Vch,Vtmp1);)
 ENABLE_SCALAR_IMPLEMENTATION(Ssh.f=Ssh.f*Stmp1.f;)                                        ENABLE_SSE_IMPLEMENTATION(Vsh=_mm_mul_ps(Vsh,Vtmp1);)                                     ENABLE_AVX_IMPLEMENTATION(Vsh=_mm256_mul_ps(Vsh,Vtmp1);)
 
-ENABLE_SCALAR_IMPLEMENTATION(Sc.f=Sch.f*Sch.f;)                                           ENABLE_SSE_IMPLEMENTATION(Vc=_mm_mul_ps(Vch,Vch);)                                        ENABLE_AVX_IMPLEMENTATION(Vc=_mm256_mul_ps(Vch,Vch);)ENABLE_SCALAR_IMPLEMENTATION(Ss.f=Ssh.f*Ssh.f;)                                           ENABLE_SSE_IMPLEMENTATION(Vs=_mm_mul_ps(Vsh,Vsh);)                                        ENABLE_AVX_IMPLEMENTATION(Vs=_mm256_mul_ps(Vsh,Vsh);)
+ENABLE_SCALAR_IMPLEMENTATION(Sc.f=Sch.f*Sch.f;)                                           ENABLE_SSE_IMPLEMENTATION(Vc=_mm_mul_ps(Vch,Vch);)
+  ENABLE_AVX_IMPLEMENTATION(Vc=_mm256_mul_ps(Vch,Vch);)ENABLE_SCALAR_IMPLEMENTATION(Ss.f=Ssh.f*Ssh.f;)                                           ENABLE_SSE_IMPLEMENTATION(Vs=_mm_mul_ps(Vsh,Vsh);)
+  ENABLE_AVX_IMPLEMENTATION(Vs=_mm256_mul_ps(Vsh,Vsh);)
 ENABLE_SCALAR_IMPLEMENTATION(Sc.f=Sc.f-Ss.f;)                                             ENABLE_SSE_IMPLEMENTATION(Vc=_mm_sub_ps(Vc,Vs);)                                          ENABLE_AVX_IMPLEMENTATION(Vc=_mm256_sub_ps(Vc,Vs);)
 ENABLE_SCALAR_IMPLEMENTATION(Ss.f=Ssh.f*Sch.f;)                                           ENABLE_SSE_IMPLEMENTATION(Vs=_mm_mul_ps(Vsh,Vch);)                                        ENABLE_AVX_IMPLEMENTATION(Vs=_mm256_mul_ps(Vsh,Vch);)
 ENABLE_SCALAR_IMPLEMENTATION(Ss.f=Ss.f+Ss.f;)                                             ENABLE_SSE_IMPLEMENTATION(Vs=_mm_add_ps(Vs,Vs);)                                          ENABLE_AVX_IMPLEMENTATION(Vs=_mm256_add_ps(Vs,Vs);)

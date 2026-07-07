@@ -59,6 +59,8 @@ IGL_INLINE Scalar igl::grid_search(
 }
 
 #ifdef IGL_STATIC_LIBRARY
-template double igl::grid_search<double, Eigen::Matrix<double, 1, 3, 1, 1, 3>, Eigen::Matrix<double, 1, 3, 1, 1, 3>, Eigen::Matrix<double, 1, 3, 1, 1, 3>, Eigen::Matrix<int, 1, 3, 1, 1, 3> >(std::function<double (Eigen::Matrix<double, 1, 3, 1, 1, 3>&)>, Eigen::MatrixBase<Eigen::Matrix<double, 1, 3, 1, 1, 3> > const&, Eigen::MatrixBase<Eigen::Matrix<double, 1, 3, 1, 1, 3> > const&, Eigen::MatrixBase<Eigen::Matrix<int, 1, 3, 1, 1, 3> > const&, Eigen::Matrix<double, 1, 3, 1, 1, 3>&);
-template float igl::grid_search<float, Eigen::Matrix<float, 1, -1, 1, 1, -1>, Eigen::Matrix<float, 1, -1, 1, 1, -1>, Eigen::Matrix<float, 1, -1, 1, 1, -1>, Eigen::Matrix<int, 1, -1, 1, 1, -1> >(std::function<float (Eigen::Matrix<float, 1, -1, 1, 1, -1>&)>, Eigen::MatrixBase<Eigen::Matrix<float, 1, -1, 1, 1, -1> > const&, Eigen::MatrixBase<Eigen::Matrix<float, 1, -1, 1, 1, -1> > const&, Eigen::MatrixBase<Eigen::Matrix<int, 1, -1, 1, 1, -1> > const&, Eigen::Matrix<float, 1, -1, 1, 1, -1>&);
+template double igl::grid_search<double, Eigen::Matrix<double, 1, 3, 1, 1, 3>, Eigen::Matrix<double, 1, 3, 1, 1, 3>, Eigen::Matrix<double, 1, 3, 1, 1, 3>, Eigen::Matrix<int, 1, 3, 1, 1, 3> >(std::function<double (Eigen::Matrix<double, 1, 3, 1, 1,
+  3>&)>, Eigen::MatrixBase<Eigen::Matrix<double, 1, 3, 1, 1, 3> > const&, Eigen::MatrixBase<Eigen::Matrix<double, 1, 3, 1, 1, 3> > const&, Eigen::MatrixBase<Eigen::Matrix<int, 1, 3, 1, 1, 3> > const&, Eigen::Matrix<double, 1, 3, 1, 1, 3>&);
+template float igl::grid_search<float, Eigen::Matrix<float, 1, -1, 1, 1, -1>, Eigen::Matrix<float, 1, -1, 1, 1, -1>, Eigen::Matrix<float, 1, -1, 1, 1, -1>, Eigen::Matrix<int, 1, -1, 1, 1, -1> >(std::function<float (Eigen::Matrix<float, 1, -1, 1, 1,
+  -1>&)>, Eigen::MatrixBase<Eigen::Matrix<float, 1, -1, 1, 1, -1> > const&, Eigen::MatrixBase<Eigen::Matrix<float, 1, -1, 1, 1, -1> > const&, Eigen::MatrixBase<Eigen::Matrix<int, 1, -1, 1, 1, -1> > const&, Eigen::Matrix<float, 1, -1, 1, 1, -1>&);
 #endif

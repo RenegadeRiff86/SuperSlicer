@@ -57,5 +57,6 @@ IGL_INLINE void igl::opengl::vertex_array(
 }
 
 #ifdef IGL_STATIC_LIBRARY
-template void igl::opengl::vertex_array<Eigen::Matrix<float, -1, 3, 1, -1, 3>, Eigen::Matrix<int, -1, 3, 1, -1, 3> >(Eigen::PlainObjectBase<Eigen::Matrix<float, -1, 3, 1, -1, 3> > const&, Eigen::PlainObjectBase<Eigen::Matrix<int, -1, 3, 1, -1, 3> > const&, unsigned int&, unsigned int&, unsigned int&);
+template void igl::opengl::vertex_array<Eigen::Matrix<float, -1, 3, 1, -1, 3>, Eigen::Matrix<int, -1, 3, 1, -1, 3> >(Eigen::PlainObjectBase<Eigen::Matrix<float, -1, 3, 1, -1, 3> > const&, Eigen::PlainObjectBase<Eigen::Matrix<int, -1, 3, 1, -1,
+  3> > const&, unsigned int&, unsigned int&, unsigned int&);
 #endif
