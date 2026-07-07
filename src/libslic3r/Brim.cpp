@@ -724,11 +724,9 @@ void make_brim_patch(const Print &print,
     }
 }
 
-void make_brim_interior(const Print& print, const Flow& flow, const PrintObjectPtrs& objects, ExPolygons& unbrimmable_areas, ExtrusionEntityCollection& out) {
-    // Brim is only printed on first layer and uses perimeter extruder.
-
-    const PrintObjectConfig& brim_config = objects.front()->config();
-    coord_t brim_offset = scale_t(brim_config.brim_separation.value);
+// Collect the (per-instance translated) first-layer islands of all objects, holes included,
+// together with the closed-over support areas, merged into one set.
+static ExPolygons collect_interior_brim_islands(const Print& print, const Flow& flow, const PrintObjectPtrs& objects, coord_t brim_offset) {
     ExPolygons    islands;
     coordf_t spacing;
     for (PrintObject* object : objects) {
@@ -763,7 +761,15 @@ void make_brim_interior(const Print& print, const Flow& flow, const PrintObjectP
             }
     }
 
-    islands = union_ex(islands);
+    return union_ex(islands);
+}
+
+void make_brim_interior(const Print& print, const Flow& flow, const PrintObjectPtrs& objects, ExPolygons& unbrimmable_areas, ExtrusionEntityCollection& out) {
+    // Brim is only printed on first layer and uses perimeter extruder.
+
+    const PrintObjectConfig& brim_config = objects.front()->config();
+    coord_t brim_offset = scale_t(brim_config.brim_separation.value);
+    ExPolygons islands = collect_interior_brim_islands(print, flow, objects, brim_offset);
 
     //to have the brimmable areas, get all holes, use them as contour , add smaller hole inside and make a diff with unbrimmable
     const size_t num_loops = size_t(floor((brim_config.brim_width_interior.value - brim_config.brim_separation.value) / flow.spacing()));
