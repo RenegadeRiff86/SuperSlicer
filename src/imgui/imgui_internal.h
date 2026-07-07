@@ -225,7 +225,7 @@ namespace ImStb
 #else
 #define IM_NEWLINE                      "\n"
 #endif
-#define IM_TABSIZE                      (4)
+constexpr int IM_TABSIZE = 4;
 #define IM_MEMALIGN(_OFF,_ALIGN)        (((_OFF) + (_ALIGN - 1)) & ~(_ALIGN - 1))               // Memory align e.g. IM_ALIGN(0,4)=0, IM_ALIGN(1,4)=4, IM_ALIGN(4,4)=4, IM_ALIGN(5,4)=8
 #define IM_F32_TO_INT8_UNBOUND(_VAL)    ((int)((_VAL) * 255.0f + ((_VAL)>=0 ? 0.5f : -0.5f)))   // Unsaturated, for display purpose
 #define IM_F32_TO_INT8_SAT(_VAL)        ((int)(ImSaturate(_VAL) * 255.0f + 0.5f))               // Saturated, always output 0..255
@@ -2037,8 +2037,8 @@ struct ImGuiTabBar
 //-----------------------------------------------------------------------------
 
 #define IM_COL32_DISABLE                IM_COL32(0,0,0,1)   // Special sentinel code which cannot be used as a regular color.
-#define IMGUI_TABLE_MAX_COLUMNS         64                  // sizeof(ImU64) * 8. This is solely because we frequently encode columns set in a ImU64.
-#define IMGUI_TABLE_MAX_DRAW_CHANNELS   (4 + 64 * 2)        // See TableSetupDrawChannels()
+constexpr int IMGUI_TABLE_MAX_COLUMNS       = 64;           // sizeof(ImU64) * 8. This is solely because we frequently encode columns set in a ImU64.
+constexpr int IMGUI_TABLE_MAX_DRAW_CHANNELS = 4 + 64 * 2;   // See TableSetupDrawChannels()
 
 // Our current column maximum is 64 but we may raise that in the future.
 typedef ImS8 ImGuiTableColumnIdx;

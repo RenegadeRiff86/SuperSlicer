@@ -61,7 +61,7 @@ Index of this file:
 // Version
 // (Integer encoded as XYYZZ for use in #if preprocessor conditionals. Work in progress versions typically starts at XYY99 then bounce up to XYY00, XYY01 etc. when release tagging happens)
 #define IMGUI_VERSION               "1.83"
-#define IMGUI_VERSION_NUM           18300
+constexpr int IMGUI_VERSION_NUM   = 18300;
 #define IMGUI_CHECKVERSION()        ImGui::DebugCheckVersionAndDataLayout(IMGUI_VERSION, sizeof(ImGuiIO), sizeof(ImGuiStyle), sizeof(ImVec2), sizeof(ImVec4), sizeof(ImDrawVert), sizeof(ImDrawIdx))
 #define IMGUI_HAS_TABLE
 
@@ -2099,7 +2099,7 @@ struct ImGuiTableSortSpecs
 //-----------------------------------------------------------------------------
 
 // Helper: Unicode defines
-#define IM_UNICODE_CODEPOINT_INVALID 0xFFFD     // Invalid Unicode code point (standard value).
+constexpr int IM_UNICODE_CODEPOINT_INVALID = 0xFFFD; // Invalid Unicode code point (standard value).
 #ifdef IMGUI_USE_WCHAR32
 #define IM_UNICODE_CODEPOINT_MAX     0x10FFFF   // Maximum Unicode code point supported by this build.
 #else
@@ -2262,14 +2262,13 @@ struct ImGuiListClipper
 #define IM_COL32_G_SHIFT    8
 #define IM_COL32_B_SHIFT    0
 #define IM_COL32_A_SHIFT    24
-#define IM_COL32_A_MASK     0xFF000000
 #else
 #define IM_COL32_R_SHIFT    0
 #define IM_COL32_G_SHIFT    8
 #define IM_COL32_B_SHIFT    16
 #define IM_COL32_A_SHIFT    24
-#define IM_COL32_A_MASK     0xFF000000
 #endif
+constexpr ImU32 IM_COL32_A_MASK = 0xFF000000; // alpha bits of an IM_COL32 packed color (shift is 24 in both channel layouts)
 #define IM_COL32(R,G,B,A)    (((ImU32)(A)<<IM_COL32_A_SHIFT) | ((ImU32)(B)<<IM_COL32_B_SHIFT) | ((ImU32)(G)<<IM_COL32_G_SHIFT) | ((ImU32)(R)<<IM_COL32_R_SHIFT))
 #define IM_COL32_WHITE       IM_COL32(255,255,255,255)  // Opaque white = 0xFFFFFFFF
 #define IM_COL32_BLACK       IM_COL32(0,0,0,255)        // Opaque black
