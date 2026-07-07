@@ -1783,7 +1783,7 @@ void PerimeterGenerator::_sort_overhangs(const Parameters &params,
             path.attributes_mutable().height = (path.attributes().overhang_attributes &&
                                                 path.attributes().overhang_attributes->has_full_overhangs_flow) ?
                 params.overhang_flow.height() :
-                (float) params.layer->height;
+                static_cast<float>(params.layer->height);
 #ifdef _DEBUG
             //assert(last_pt == path.first_point());
             for (size_t idx = 1; idx < path.size(); ++idx) {
@@ -3924,7 +3924,7 @@ void PerimeterGenerator::split_top_surfaces(const ExPolygons *lower_slices,
             // before 469c6f
             Polygons contour = offset2(ExPolygons{ExPolygon{expoly_to_grow.contour}}, -offset_top_surface,
                                        offset_top_surface + min_width_top_surface +
-                                           (this->mill_extra_size > SCALED_EPSILON ? (double) mill_extra_size : 0));
+                                           (this->mill_extra_size > SCALED_EPSILON ? static_cast<double>(mill_extra_size) : 0));
             if (!contour.empty()) {
                 if (expoly_to_grow.holes.empty()) {
                     for (Polygon &p : contour) grown_accumulator.push_back(ExPolygon{p});
