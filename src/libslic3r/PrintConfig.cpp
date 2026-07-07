@@ -45,126 +45,128 @@
 #include <algorithm>
 #include <cfloat>
 
-// String constants extracted to reduce repeated string literals (BP1001) and fix compile errors from previous edits.
-#define KEY_NOZZLE_DIAMETER "nozzle_diameter"
-#define KEY_EXTRUSION_WIDTH "extrusion_width"
-#define KEY_LAYER_HEIGHT "layer_height"
-#define KEY_LAYER_NUM "layer_num"
-#define FILL_RECTILINEAR "rectilinear"
-#define FILL_MONOTONIC "monotonic"
-#define STR_DISABLED "disabled"
-#define UNIT_MM_S_OR_PCT "mm/s or %"
-#define UNIT_MM_S2_OR_PCT "mm/s\u00b2 or %"
+// String constants extracted to reduce repeated string literals (BP1001).
+// Most are constexpr; the few remaining #defines are tooltip fragments glued to adjacent
+// string literals inside L(...) calls, where preprocessor concatenation must produce the
+// full translation key — a constexpr variable cannot participate in literal concatenation.
+static constexpr const char* KEY_NOZZLE_DIAMETER = "nozzle_diameter";
+static constexpr const char* KEY_EXTRUSION_WIDTH = "extrusion_width";
+static constexpr const char* KEY_LAYER_HEIGHT = "layer_height";
+static constexpr const char* KEY_LAYER_NUM = "layer_num";
+static constexpr const char* FILL_RECTILINEAR = "rectilinear";
+static constexpr const char* FILL_MONOTONIC = "monotonic";
+static constexpr const char* STR_DISABLED = "disabled";
+static constexpr const char* UNIT_MM_S_OR_PCT = "mm/s or %";
+static constexpr const char* UNIT_MM_S2_OR_PCT = "mm/s\u00b2 or %";
 #define STR_SET_ZERO_TO_DISABLE "\nSet zero to disable."
-#define KEY_BRIM_WIDTH_INTERIOR "brim_width_interior"
-#define KEY_CONCENTRIC "concentric"
-#define KEY_DEFAULT_ACCELERATION "default_acceleration"
-#define KEY_DEFAULT_FAN_SPEED "default_fan_speed"
-#define KEY_MAX_LAYER_Z "max_layer_z"
-#define STR_FIRST_LAYER "First layer"
-#define STR_RECTILINEAR "Rectilinear"
-#define KEY_BRIM_WIDTH "brim_width"
-#define KEY_NOTCONNECTED "notconnected"
-#define KEY_ALIGNEDRECTILINEAR "alignedrectilinear"
-#define KEY_EXTERNAL_PERIMETER_EXTRUSION_WIDTH "external_perimeter_extrusion_width"
-#define KEY_OVERHANGS_WIDTH_SPEED "overhangs_width_speed"
+static constexpr const char* KEY_BRIM_WIDTH_INTERIOR = "brim_width_interior";
+static constexpr const char* KEY_CONCENTRIC = "concentric";
+static constexpr const char* KEY_DEFAULT_ACCELERATION = "default_acceleration";
+static constexpr const char* KEY_DEFAULT_FAN_SPEED = "default_fan_speed";
+static constexpr const char* KEY_MAX_LAYER_Z = "max_layer_z";
+static constexpr const char* STR_FIRST_LAYER = "First layer";
+static constexpr const char* KEY_BRIM_WIDTH = "brim_width";
+static constexpr const char* KEY_NOTCONNECTED = "notconnected";
+static constexpr const char* KEY_ALIGNEDRECTILINEAR = "alignedrectilinear";
+static constexpr const char* KEY_EXTERNAL_PERIMETER_EXTRUSION_WIDTH = "external_perimeter_extrusion_width";
+static constexpr const char* KEY_OVERHANGS_WIDTH_SPEED = "overhangs_width_speed";
 #define STR_SET_ZERO_FAN "\nSet to 0 to stop the fan."
 #define STR_SET_ZERO_AUTOSPEED "\nSet zero to use autospeed for this feature."
-#define STR_RECTILINEAR_CAP "Rectilinear"
-#define KEY_PERIMETER_EXTRUSION_WIDTH "perimeter_extrusion_width"
-#define STR_CONCENTRIC_CAP "Concentric"
-#define STR_MONOTONIC_CAP "Monotonic"
+static constexpr const char* STR_RECTILINEAR_CAP = "Rectilinear";
+static constexpr const char* KEY_PERIMETER_EXTRUSION_WIDTH = "perimeter_extrusion_width";
+static constexpr const char* STR_CONCENTRIC_CAP = "Concentric";
+static constexpr const char* STR_MONOTONIC_CAP = "Monotonic";
 #define STR_SET_ZERO_FAN_DESC "\nIf disabled, the 'Default fan speed' setting will be used."
 #define STR_SET_ZERO_AUTOSPEED_DESC "\nWhen enabled, the speed will not exceed the 'Default fan speed' unless explicitly set higher."
-#define KEY_BRIDGE_ANGLE "bridge_angle"
-#define KEY_CONNECTED "connected"
-#define KEY_EXTRUSION_SPACING "extrusion_spacing"
-#define KEY_HILBERTCURVE "hilbertcurve"
-#define KEY_NEXT_EXTRUDER "next_extruder"
-#define KEY_SEAM_TRAVEL_COST "seam_travel_cost"
-#define KEY_SOLID_INFILL_ACCELERATION "solid_infill_acceleration"
-#define KEY_TOOLCHANGE_GCODE "toolchange_gcode"
-#define STR_HILBERT_CURVE "Hilbert Curve"
+static constexpr const char* KEY_BRIDGE_ANGLE = "bridge_angle";
+static constexpr const char* KEY_CONNECTED = "connected";
+static constexpr const char* KEY_EXTRUSION_SPACING = "extrusion_spacing";
+static constexpr const char* KEY_HILBERTCURVE = "hilbertcurve";
+static constexpr const char* KEY_NEXT_EXTRUDER = "next_extruder";
+static constexpr const char* KEY_SEAM_TRAVEL_COST = "seam_travel_cost";
+static constexpr const char* KEY_SOLID_INFILL_ACCELERATION = "solid_infill_acceleration";
+static constexpr const char* KEY_TOOLCHANGE_GCODE = "toolchange_gcode";
+static constexpr const char* STR_HILBERT_CURVE = "Hilbert Curve";
 #define STR_CAN_BE_PCT "\nCan be a % of the default acceleration"
-#define STR_BRIDGE_FLOW_RATIO "bridge_flow_ratio"
-#define KEY_BRIDGE_FLOW_RATIO "bridge_flow_ratio"
-#define KEY_BRIM_TYPE "brim_type"
-#define KEY_CONCENTRICGAPFILL "concentricgapfill"
-#define KEY_DEFAULT_SPEED "default_speed"
-#define KEY_ENABLE_DYNAMIC_OVERHANG_SPEEDS "enable_dynamic_overhang_speeds"
-#define KEY_IN_FILL_EXTRUSION_WIDTH "infill_extrusion_width"
-#define KEY_MAX_LAYER_HEIGHT "max_layer_height"
-#define KEY_OCTOPRINT "octoprint"
-#define KEY_OUTERSHELL "outershell"
-#define KEY_OVERHANGS_FLOW_RATIO "overhangs_flow_ratio"
-#define KEY_PREVIOUS_EXTRUDER "previous_extruder"
-#define KEY_SEAM_ANGLE_COST "seam_angle_cost"
-#define KEY_SUPPORT_MATERIAL_CONTACT_DISTANCE_TYPE "support_material_contact_distance_type"
-#define KEY_TOP_FILL_PATTERN "top_fill_pattern"
-#define KEY_TOP_IN_FILL_EXTRUSION_WIDTH "top_infill_extrusion_width"
-#define KEY_TRAVEL_RAMPING_LIFT "travel_ramping_lift"
-#define STR_CONNECTED "Connected"
+static constexpr const char* STR_BRIDGE_FLOW_RATIO = "bridge_flow_ratio";
+static constexpr const char* KEY_BRIDGE_FLOW_RATIO = "bridge_flow_ratio";
+static constexpr const char* KEY_BRIM_TYPE = "brim_type";
+static constexpr const char* KEY_CONCENTRICGAPFILL = "concentricgapfill";
+static constexpr const char* KEY_DEFAULT_SPEED = "default_speed";
+static constexpr const char* KEY_ENABLE_DYNAMIC_OVERHANG_SPEEDS = "enable_dynamic_overhang_speeds";
+static constexpr const char* KEY_IN_FILL_EXTRUSION_WIDTH = "infill_extrusion_width";
+static constexpr const char* KEY_MAX_LAYER_HEIGHT = "max_layer_height";
+static constexpr const char* KEY_OCTOPRINT = "octoprint";
+static constexpr const char* KEY_OUTERSHELL = "outershell";
+static constexpr const char* KEY_OVERHANGS_FLOW_RATIO = "overhangs_flow_ratio";
+static constexpr const char* KEY_PREVIOUS_EXTRUDER = "previous_extruder";
+static constexpr const char* KEY_SEAM_ANGLE_COST = "seam_angle_cost";
+static constexpr const char* KEY_SUPPORT_MATERIAL_CONTACT_DISTANCE_TYPE = "support_material_contact_distance_type";
+static constexpr const char* KEY_TOP_FILL_PATTERN = "top_fill_pattern";
+static constexpr const char* KEY_TOP_IN_FILL_EXTRUSION_WIDTH = "top_infill_extrusion_width";
+static constexpr const char* KEY_TRAVEL_RAMPING_LIFT = "travel_ramping_lift";
+static constexpr const char* STR_CONNECTED = "Connected";
 #define STR_SPACING_WIDTH_OVERLAP_TOOLTIP "\nYou can set either 'Spacing', or 'Width'; the other will be calculated, using the perimeter 'Overlap' percentages and default layer height."
 #define STR_SPACING_WIDTH_DEFAULT_TOOLTIP "\nYou can set either 'Spacing', or 'Width'; the other will be calculated, using default layer height."
-#define STR_CONNECTED_TO_HOLE_PERIMETERS "Connected to hole perimeters"
-#define STR_CONNECTED_TO_OUTER_PERIMETERS "Connected to outer perimeters"
-#define STR_NOT_CONNECTED "Not connected"
-#define STR_PERIMETERS_CAP "Perimeters"
+static constexpr const char* STR_CONNECTED_TO_HOLE_PERIMETERS = "Connected to hole perimeters";
+static constexpr const char* STR_CONNECTED_TO_OUTER_PERIMETERS = "Connected to outer perimeters";
+static constexpr const char* STR_NOT_CONNECTED = "Not connected";
+static constexpr const char* STR_PERIMETERS_CAP = "Perimeters";
 #define STR_FAN_DISABLE_SLOWDOWN_TOOLTIP "\nCan be disabled by disable_fan_first_layers, slowed down by full_fan_speed_layer and increased by low layer time."
 #define STR_GAPFILL_TOOLTIP "\nIs also used by infill's gapfill."
 #define STR_SET_ZERO_DISABLE_LOWER "\nset 0 to disable"
-#define KEY_ARCHIMEDEANCHORDS "archimedeanchords"
-#define KEY_BOTTOM_FILL_PATTERN "bottom_fill_pattern"
-#define KEY_BRANCHING "branching"
-#define KEY_BRIDGE_OVERLAP "bridge_overlap"
-#define KEY_BRIDGE_OVERLAP_MIN "bridge_overlap_min"
-#define KEY_ENABLE_DYNAMIC_FAN_SPEEDS "enable_dynamic_fan_speeds"
-#define KEY_EXTERNAL_PERIMETER_EXTRUSION_SPACING "external_perimeter_extrusion_spacing"
-#define KEY_EXTERNAL_PERIMETER_OVERLAP "external_perimeter_overlap"
-#define KEY_FAN_ALWAYS_ON "fan_always_on"
-#define KEY_FEATURE_GCODE "feature_gcode"
-#define KEY_FILAMENT_MAX_OVERLAP "filament_max_overlap"
-#define KEY_FILL_ANGLE_INCREMENT "fill_angle_increment"
-#define KEY_FILL_PATTERN "fill_pattern"
-#define KEY_FIRST_LAYER_EXTRUSION_SPACING "first_layer_extrusion_spacing"
-#define KEY_FIRST_LAYER_EXTRUSION_WIDTH "first_layer_extrusion_width"
-#define KEY_GCODE_FLAVOR "gcode_flavor"
-#define KEY_HOST_TYPE "host_type"
-#define KEY_INFILL_ACCELERATION "infill_acceleration"
-#define KEY_INFILL_CONNECTION "infill_connection"
-#define KEY_INFILL_EXTRUDER "infill_extruder"
-#define KEY_INFILL_EXTRUSION_SPACING "infill_extrusion_spacing"
-#define KEY_MONOTONICGAPFILL "monotonicgapfill"
-#define KEY_OCTAGRAMSPIRAL "octagramspiral"
-#define KEY_OVERHANGS_SPEED "overhangs_speed"
-#define KEY_OVERHANGS_WIDTH "overhangs_width"
-#define KEY_PERIMETER_EXTRUSION_SPACING "perimeter_extrusion_spacing"
-#define KEY_PERIMETER_OVERLAP "perimeter_overlap"
-#define KEY_PERIMETER_SPEED "perimeter_speed"
-#define KEY_PREVIOUS_LAYER_Z "previous_layer_z"
-#define KEY_RETRACT_LAYER_CHANGE "retract_layer_change"
-#define KEY_RETRACT_LIFT "retract_lift"
-#define KEY_RETRACT_LIFT_BEFORE_TRAVEL "retract_lift_before_travel"
-#define KEY_RETRACT_LIFT_TOP "retract_lift_top"
-#define KEY_SEAM_GAP "seam_gap"
-#define KEY_SEAM_POSITION "seam_position"
-#define KEY_SOLID_FILL_PATTERN "solid_fill_pattern"
-#define KEY_SOLID_INFILL_EXTRUSION_SPACING "solid_infill_extrusion_spacing"
-#define KEY_SOLID_INFILL_EXTRUSION_WIDTH "solid_infill_extrusion_width"
-#define KEY_SOLID_INFILL_OVERLAP "solid_infill_overlap"
-#define KEY_THUMBNAILS "thumbnails"
-#define KEY_TOP_INFILL_EXTRUSION_SPACING "top_infill_extrusion_spacing"
-#define KEY_TOP_SOLID_INFILL_OVERLAP "top_solid_infill_overlap"
-#define KEY_WIPE_EXTRA_PERIMETER "wipe_extra_perimeter"
-#define KEY_WIPE_INSIDE_DEPTH "wipe_inside_depth"
-#define KEY_WIPE_INSIDE_END "wipe_inside_end"
-#define KEY_WIPE_INSIDE_START "wipe_inside_start"
-#define KEY_WIPE_LIFT "wipe_lift"
-#define KEY_WIPE_LIFT_LENGTH "wipe_lift_length"
-#define KEY_WIPE_MIN "wipe_min"
-#define KEY_WIPE_ONLY_CROSSING "wipe_only_crossing"
-#define KEY_WIPE_RETURN "wipe_return"
-#define KEY_WIPE_SPEED "wipe_speed"
+static constexpr const char* KEY_ARCHIMEDEANCHORDS = "archimedeanchords";
+static constexpr const char* KEY_BOTTOM_FILL_PATTERN = "bottom_fill_pattern";
+static constexpr const char* KEY_BRANCHING = "branching";
+static constexpr const char* KEY_BRIDGE_OVERLAP = "bridge_overlap";
+static constexpr const char* KEY_BRIDGE_OVERLAP_MIN = "bridge_overlap_min";
+static constexpr const char* KEY_ENABLE_DYNAMIC_FAN_SPEEDS = "enable_dynamic_fan_speeds";
+static constexpr const char* KEY_EXTERNAL_PERIMETER_EXTRUSION_SPACING = "external_perimeter_extrusion_spacing";
+static constexpr const char* KEY_EXTERNAL_PERIMETER_OVERLAP = "external_perimeter_overlap";
+static constexpr const char* KEY_FAN_ALWAYS_ON = "fan_always_on";
+static constexpr const char* KEY_FEATURE_GCODE = "feature_gcode";
+static constexpr const char* KEY_FILAMENT_MAX_OVERLAP = "filament_max_overlap";
+static constexpr const char* KEY_FILL_ANGLE_INCREMENT = "fill_angle_increment";
+static constexpr const char* KEY_FILL_PATTERN = "fill_pattern";
+static constexpr const char* KEY_FIRST_LAYER_EXTRUSION_SPACING = "first_layer_extrusion_spacing";
+static constexpr const char* KEY_FIRST_LAYER_EXTRUSION_WIDTH = "first_layer_extrusion_width";
+static constexpr const char* KEY_GCODE_FLAVOR = "gcode_flavor";
+static constexpr const char* KEY_HOST_TYPE = "host_type";
+static constexpr const char* KEY_INFILL_ACCELERATION = "infill_acceleration";
+static constexpr const char* KEY_INFILL_CONNECTION = "infill_connection";
+static constexpr const char* KEY_INFILL_EXTRUDER = "infill_extruder";
+static constexpr const char* KEY_INFILL_EXTRUSION_SPACING = "infill_extrusion_spacing";
+static constexpr const char* KEY_MONOTONICGAPFILL = "monotonicgapfill";
+static constexpr const char* KEY_OCTAGRAMSPIRAL = "octagramspiral";
+static constexpr const char* KEY_OVERHANGS_SPEED = "overhangs_speed";
+static constexpr const char* KEY_OVERHANGS_WIDTH = "overhangs_width";
+static constexpr const char* KEY_PERIMETER_EXTRUSION_SPACING = "perimeter_extrusion_spacing";
+static constexpr const char* KEY_PERIMETER_OVERLAP = "perimeter_overlap";
+static constexpr const char* KEY_PERIMETER_SPEED = "perimeter_speed";
+static constexpr const char* KEY_PREVIOUS_LAYER_Z = "previous_layer_z";
+static constexpr const char* KEY_RETRACT_LAYER_CHANGE = "retract_layer_change";
+static constexpr const char* KEY_RETRACT_LIFT = "retract_lift";
+static constexpr const char* KEY_RETRACT_LIFT_BEFORE_TRAVEL = "retract_lift_before_travel";
+static constexpr const char* KEY_RETRACT_LIFT_TOP = "retract_lift_top";
+static constexpr const char* KEY_SEAM_GAP = "seam_gap";
+static constexpr const char* KEY_SEAM_POSITION = "seam_position";
+static constexpr const char* KEY_SOLID_FILL_PATTERN = "solid_fill_pattern";
+static constexpr const char* KEY_SOLID_INFILL_EXTRUSION_SPACING = "solid_infill_extrusion_spacing";
+static constexpr const char* KEY_SOLID_INFILL_EXTRUSION_WIDTH = "solid_infill_extrusion_width";
+static constexpr const char* KEY_SOLID_INFILL_OVERLAP = "solid_infill_overlap";
+static constexpr const char* KEY_THUMBNAILS = "thumbnails";
+static constexpr const char* KEY_TOP_INFILL_EXTRUSION_SPACING = "top_infill_extrusion_spacing";
+static constexpr const char* KEY_TOP_SOLID_INFILL_OVERLAP = "top_solid_infill_overlap";
+static constexpr const char* KEY_WIPE_EXTRA_PERIMETER = "wipe_extra_perimeter";
+static constexpr const char* KEY_WIPE_INSIDE_DEPTH = "wipe_inside_depth";
+static constexpr const char* KEY_WIPE_INSIDE_END = "wipe_inside_end";
+static constexpr const char* KEY_WIPE_INSIDE_START = "wipe_inside_start";
+static constexpr const char* KEY_WIPE_LIFT = "wipe_lift";
+static constexpr const char* KEY_WIPE_LIFT_LENGTH = "wipe_lift_length";
+static constexpr const char* KEY_WIPE_MIN = "wipe_min";
+static constexpr const char* KEY_WIPE_ONLY_CROSSING = "wipe_only_crossing";
+static constexpr const char* KEY_WIPE_RETURN = "wipe_return";
+static constexpr const char* KEY_WIPE_SPEED = "wipe_speed";
 
 namespace Slic3r {
 
