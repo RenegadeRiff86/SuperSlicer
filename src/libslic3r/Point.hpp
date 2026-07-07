@@ -229,7 +229,8 @@ inline Vec3d   unscale(const Vec3d   &pt) { return Vec3d(unscaled(pt.x()), unsca
 
 inline std::string to_string(const Vec2crd &pt) { return std::string("[") + float_to_string_decimal_point(static_cast<double>(pt.x())) + ", " + float_to_string_decimal_point(static_cast<double>(pt.y())) + "]"; }
 inline std::string to_string(const Vec2d   &pt) { return std::string("[") + float_to_string_decimal_point(pt.x()) + ", " + float_to_string_decimal_point(pt.y()) + "]"; }
-inline std::string to_string(const Vec3crd &pt) { return std::string("[") + float_to_string_decimal_point(static_cast<double>(pt.x())) + ", " + float_to_string_decimal_point(static_cast<double>(pt.y())) + ", " + float_to_string_decimal_point(static_cast<double>(pt.z())) + "]"; }
+inline std::string to_string(const Vec3crd &pt) { return std::string("[") + float_to_string_decimal_point(static_cast<double>(pt.x())) + ", " + float_to_string_decimal_point(static_cast<double>(pt.y())) + ", " +
+  float_to_string_decimal_point(static_cast<double>(pt.z())) + "]"; }
 inline std::string to_string(const Vec3d   &pt) { return std::string("[") + float_to_string_decimal_point(pt.x()) + ", " + float_to_string_decimal_point(pt.y()) + ", " + float_to_string_decimal_point(pt.z()) + "]"; }
 
 std::vector<Vec3f> transform(const std::vector<Vec3f>& points, const Transform3f& t);

@@ -1,4 +1,5 @@
-///|/ Copyright (c) Prusa Research 2017 - 2023 Lukáš Matěna @lukasmatena, Enrico Turri @enricoturri1966, Oleksandra Iushchenko @YuSanka, Tomáš Mészáros @tamasmeszaros, Filip Sykala @Jony01, Vojtěch Bubník @bubnikv, David Kocík @kocikdav, Vojtěch Král @vojtechkral
+// |/ Copyright (c) Prusa Research 2017 - 2023 Lukáš Matěna @lukasmatena, Enrico Turri @enricoturri1966, Oleksandra Iushchenko @YuSanka, Tomáš Mészáros @tamasmeszaros, Filip Sykala @Jony01, Vojtěch Bubník @bubnikv, David Kocík @kocikdav, Vojtěch Král
+// @vojtechkral
 ///|/ Copyright (c) 2017 Eyal Soha @eyal0
 ///|/ Copyright (c) Slic3r 2015 Alessandro Ranellucci @alranel
 ///|/

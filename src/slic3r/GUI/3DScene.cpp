@@ -1,4 +1,5 @@
-///|/ Copyright (c) Prusa Research 2016 - 2023 Lukáš Matěna @lukasmatena, Enrico Turri @enricoturri1966, Oleksandra Iushchenko @YuSanka, Tomáš Mészáros @tamasmeszaros, Vojtěch Bubník @bubnikv, Filip Sykala @Jony01, Lukáš Hejl @hejllukas, David Kocík @kocikdav, Vojtěch Král @vojtechkral
+// |/ Copyright (c) Prusa Research 2016 - 2023 Lukáš Matěna @lukasmatena, Enrico Turri @enricoturri1966, Oleksandra Iushchenko @YuSanka, Tomáš Mészáros @tamasmeszaros, Vojtěch Bubník @bubnikv, Filip Sykala @Jony01, Lukáš Hejl @hejllukas, David Kocík
+// @kocikdav, Vojtěch Král @vojtechkral
 ///|/ Copyright (c) 2017 Eyal Soha @eyal0
 ///|/ Copyright (c) Slic3r 2015 Alessandro Ranellucci @alranel
 ///|/
@@ -1565,7 +1566,8 @@ void ExtrusionToVertMap::use(const ExtrusionMultiPath& multipath) {
 void ExtrusionToVertMap::use(const ExtrusionMultiPath3D& multipath3D) {
     for (const ExtrusionPath3D &path3D : multipath3D.paths) _3DScene::extrusionentity_to_verts(path3D, print_z, copy, get_geometry(path3D));
     /*_3DScene::extrusionentity_to_verts(multipath3D, print_z, copy, get_geometry(multipath3D)); */}
-void ExtrusionToVertMap::use(const ExtrusionLoop& loop) { for (const ExtrusionPath &path : loop.paths) _3DScene::extrusionentity_to_verts(path, print_z, copy, get_geometry(path)); }//_3DScene::extrusionentity_to_verts(loop, print_z, copy, get_geometry(loop)); }
+void ExtrusionToVertMap::use(const ExtrusionLoop& loop) { for (const ExtrusionPath &path : loop.paths) _3DScene::extrusionentity_to_verts(path, print_z, copy, get_geometry(path)); }
+                                                                                                    // _3DScene::extrusionentity_to_verts(loop, print_z, copy, get_geometry(loop)); }
 void ExtrusionToVertMap::use(const ExtrusionEntityCollection& collection) { for (const ExtrusionEntity* extrusion_entity : collection.entities()) extrusion_entity->visit(*this); }
 GUI::GLModel::Geometry& ExtrusionToVertMap::get_geometry(const ExtrusionEntity& e) {
     auto it = geometries.find(extrusion_role_to_gcode_extrusion_role(e.role()));

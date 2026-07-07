@@ -903,7 +903,8 @@ void PageMaterials::set_compatible_printers_html_window(const std::vector<std::s
     wxString text;
     if (materials->technology == T_FFF && template_shown) {
         // TRN ConfigWizard: Materials : "%1%" = "Filaments"/"SLA materials"
-        text = format_wxstr(_L("%1% visible for <b>(\"Template\")</b> printer are universal profiles available for all printers. These might not be compatible with your printer."), materials->technology == T_FFF ? _L("Filaments") : _L("SLA materials"));
+        text = format_wxstr(_L("%1% visible for <b>(\"Template\")</b> printer are universal profiles available for all printers. These might not be compatible with your printer."),
+          materials->technology == T_FFF ? _L("Filaments") : _L("SLA materials"));
     } else {
         // TRN ConfigWizard: Materials : "%1%" = "Filaments"/"SLA materials"
         wxString first_line = format_wxstr(_L("%1% marked with <b>*</b> are <b>not</b> compatible with some installed printers."), materials->technology == T_FFF ? _L("Filaments") : _L("SLA materials"));
@@ -1323,7 +1324,8 @@ void PageMaterials::select_material(int i)
     const std::string& alias_key = list_profile->get_data(i);
     if (checked && template_shown && !notification_shown) {
         notification_shown = true;
-        wxString message = _L("You have selected template filament. Please note that these filaments are available for all printers but are NOT certain to be compatible with your printer. Do you still wish to have this filament selected?\n(This message won't be displayed again.)");
+        wxString message = _L("You have selected template filament. Please note that these filaments are available for all printers but are NOT certain to be compatible with your printer. "
+                              "Do you still wish to have this filament selected?\n(This message won't be displayed again.)");
         MessageDialog msg(this, message, _L("Notice"), wxYES_NO);
         if (msg.ShowModal() == wxID_NO) {
             list_profile->Check(i, false);

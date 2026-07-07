@@ -344,7 +344,8 @@ bool Mouse3DController::State::apply(const Mouse3DController::Params &params, Ca
 
     for (const QueueItem &input_queue_item : input_queue) {
     	if (input_queue_item.is_translation()) {
-            Vec3d translation = params.swap_yz ? Vec3d(input_queue_item.vector.x() * xmult, - input_queue_item.vector.z() * zmult, input_queue_item.vector.y() * ymult) : Vec3d(input_queue_item.vector.x() * xmult, input_queue_item.vector.y() * ymult, input_queue_item.vector.z() * zmult);
+            Vec3d translation = params.swap_yz ? Vec3d(input_queue_item.vector.x() * xmult, - input_queue_item.vector.z() * zmult, input_queue_item.vector.y() * ymult) : Vec3d(input_queue_item.vector.x() * xmult, input_queue_item.vector.y() * ymult,
+              input_queue_item.vector.z() * zmult);
             double zoom_factor = camera.min_zoom() / camera.get_zoom();
 	        camera.set_target(camera.get_target() + zoom_factor * params.translation.scale * (translation.x() * camera.get_dir_right() + translation.z() * camera.get_dir_up()));
             if (translation.y() != 0.0)

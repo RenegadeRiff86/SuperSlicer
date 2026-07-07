@@ -1,4 +1,5 @@
-///|/ Copyright (c) Prusa Research 2017 - 2023 Oleksandra Iushchenko @YuSanka, Vojtěch Bubník @bubnikv, Lukáš Hejl @hejllukas, Tomáš Mészáros @tamasmeszaros, David Kocík @kocikdav, Lukáš Matěna @lukasmatena, Vojtěch Král @vojtechkral, Enrico Turri @enricoturri1966
+// |/ Copyright (c) Prusa Research 2017 - 2023 Oleksandra Iushchenko @YuSanka, Vojtěch Bubník @bubnikv, Lukáš Hejl @hejllukas, Tomáš Mészáros @tamasmeszaros, David Kocík @kocikdav, Lukáš Matěna @lukasmatena, Vojtěch Král @vojtechkral, Enrico Turri
+// @enricoturri1966
 ///|/ Copyright (c) 2018 Martin Loidl @LoidlM
 ///|/
 ///|/ ported from lib/Slic3r/GUI/OptionsGroup.pm:

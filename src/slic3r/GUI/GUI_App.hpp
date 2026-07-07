@@ -1,5 +1,6 @@
 ///|/ Modified 2026 by Stan Elston (RenegadeRiff86) -- see git history.
-///|/ Copyright (c) Prusa Research 2018 - 2023 Vojtěch Bubník @bubnikv, Oleksandra Iushchenko @YuSanka, Tomáš Mészáros @tamasmeszaros, David Kocík @kocikdav, Lukáš Matěna @lukasmatena, Enrico Turri @enricoturri1966, Filip Sykala @Jony01, Lukáš Hejl @hejllukas, Vojtěch Král @vojtechkral
+// |/ Copyright (c) Prusa Research 2018 - 2023 Vojtěch Bubník @bubnikv, Oleksandra Iushchenko @YuSanka, Tomáš Mészáros @tamasmeszaros, David Kocík @kocikdav, Lukáš Matěna @lukasmatena, Enrico Turri @enricoturri1966, Filip Sykala @Jony01, Lukáš Hejl
+// @hejllukas, Vojtěch Král @vojtechkral
 ///|/ Copyright (c) 2021 Li Jiang
 ///|/
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher

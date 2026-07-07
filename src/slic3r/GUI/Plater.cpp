@@ -1,4 +1,5 @@
-///|/ Copyright (c) Prusa Research 2018 - 2023 Vojtěch Bubník @bubnikv, Lukáš Matěna @lukasmatena, Oleksandra Iushchenko @YuSanka, Enrico Turri @enricoturri1966, Tomáš Mészáros @tamasmeszaros, David Kocík @kocikdav, Lukáš Hejl @hejllukas, Pavel Mikuš @Godrak, Filip Sykala @Jony01, Vojtěch Král @vojtechkral
+// |/ Copyright (c) Prusa Research 2018 - 2023 Vojtěch Bubník @bubnikv, Lukáš Matěna @lukasmatena, Oleksandra Iushchenko @YuSanka, Enrico Turri @enricoturri1966, Tomáš Mészáros @tamasmeszaros, David Kocík @kocikdav, Lukáš Hejl @hejllukas, Pavel Mikuš
+// @Godrak, Filip Sykala @Jony01, Vojtěch Král @vojtechkral
 ///|/ Copyright (c) 2022 Michael Kirsch
 ///|/ Copyright (c) 2021 Boleslaw Ciesielski
 ///|/ Copyright (c) 2019 John Drake @foxox
@@ -4511,7 +4512,8 @@ void Plater::priv::on_slicing_update(SlicingStatusEvent &evt)
             }
 
             if (evt.status.args.empty()) {
-                notification_manager->set_slicing_progress_percentage(evt.status.main_text.empty() ? "" : Slic3r::GUI::I18N::translate_utf8(evt.status.main_text), evt.status.percent / 100.f, 0 == (evt.status.flags & PrintBase::SlicingStatus::FlagBits::SECONDARY_STATE));
+                notification_manager->set_slicing_progress_percentage(evt.status.main_text.empty() ? "" : Slic3r::GUI::I18N::translate_utf8(evt.status.main_text), evt.status.percent / 100.f,
+                  0 == (evt.status.flags & PrintBase::SlicingStatus::FlagBits::SECONDARY_STATE));
             } else {
                 auto formatter = boost::format(Slic3r::GUI::I18N::translate_utf8(evt.status.main_text));
                 for (std::string& arg : evt.status.args)

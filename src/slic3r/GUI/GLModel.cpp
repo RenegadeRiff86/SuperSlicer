@@ -1151,7 +1151,8 @@ bool contains(const BuildVolume& volume, const GLModel& model, bool ignore_botto
     case BuildVolume::Type::Custom:
         return volume.max_print_height() == 0.0 ?
             all_vertices_inside(model.get_geometry(), [&volume](const Vec3f& p) { return Geometry::inside_convex_polygon(volume.top_bottom_convex_hull_decomposition_bed(), to_2d(p).cast<double>()); }) :
-            all_vertices_inside(model.get_geometry(), [&volume, z = volume.max_print_height() + epsilon](const Vec3f& p) { return Geometry::inside_convex_polygon(volume.top_bottom_convex_hull_decomposition_bed(), to_2d(p).cast<double>()) && p.z() <= z; });
+            all_vertices_inside(model.get_geometry(), [&volume, z = volume.max_print_height() + epsilon](const Vec3f& p) { return Geometry::inside_convex_polygon(volume.top_bottom_convex_hull_decomposition_bed(),
+              to_2d(p).cast<double>()) && p.z() <= z; });
     default:
         return true;
     }

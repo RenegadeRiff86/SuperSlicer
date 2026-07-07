@@ -1,4 +1,5 @@
-///|/ Copyright (c) Prusa Research 2020 - 2023 David Kocík @kocikdav, Vojtěch Bubník @bubnikv, Oleksandra Iushchenko @YuSanka, Filip Sykala @Jony01, Lukáš Matěna @lukasmatena, Enrico Turri @enricoturri1966, Lukáš Hejl @hejllukas, Tomáš Mészáros @tamasmeszaros
+// |/ Copyright (c) Prusa Research 2020 - 2023 David Kocík @kocikdav, Vojtěch Bubník @bubnikv, Oleksandra Iushchenko @YuSanka, Filip Sykala @Jony01, Lukáš Matěna @lukasmatena, Enrico Turri @enricoturri1966, Lukáš Hejl @hejllukas, Tomáš Mészáros
+// @tamasmeszaros
 ///|/
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
@@ -457,7 +458,8 @@ void NotificationManager::PopNotification::render_text(ImGuiWrapper& imgui, cons
 			if (i == m_normal_lines_count - 1 && m_endlines.size() > m_normal_lines_count && !m_multiline) {
 				// second line with "more" hypertext
 				assert(m_normal_lines_count - 2 >= 0);
-				line = m_text1.substr(m_endlines[m_normal_lines_count - 2] + (m_text1[m_endlines[m_normal_lines_count - 2]] == '\n' || m_text1[m_endlines[m_normal_lines_count - 2]] == ' ' ? 1 : 0), m_endlines[m_normal_lines_count - 1] - m_endlines[m_normal_lines_count - 2] - (m_text1[m_endlines[m_normal_lines_count - 2]] == '\n' || m_text1[m_endlines[m_normal_lines_count - 2]] == ' ' ? 1 : 0));
+				line = m_text1.substr(m_endlines[m_normal_lines_count - 2] + (m_text1[m_endlines[m_normal_lines_count - 2]] == '\n' || m_text1[m_endlines[m_normal_lines_count - 2]] == ' ' ? 1 : 0),
+  m_endlines[m_normal_lines_count - 1] - m_endlines[m_normal_lines_count - 2] - (m_text1[m_endlines[m_normal_lines_count - 2]] == '\n' || m_text1[m_endlines[m_normal_lines_count - 2]] == ' ' ? 1 : 0));
 				while (ImGui::CalcTextSize(line.c_str()).x > m_window_width - m_window_width_offset - ImGui::CalcTextSize(("  [" + _u8L("More") + "]").c_str()).x) {
 					line = line.substr(0, line.length() - 1);
 				}
@@ -548,7 +550,8 @@ void NotificationManager::PopNotification::render_hypertext(ImGuiWrapper& imgui,
 	lineEnd.y -= 2;
 	ImVec2 lineStart = lineEnd;
 	lineStart.x = ImGui::GetItemRectMin().x;
-	ImGui::GetWindowDrawList()->AddLine(lineStart, lineEnd, IM_COL32((int)(blue_color_vec.x * 255), (int)(blue_color_vec.y * 255), (int)(blue_color_vec.z * 255), (int)(blue_color_vec.w * 255.f * (m_state == EState::FadingOut ? m_current_fade_opacity : 1.f))));
+	ImGui::GetWindowDrawList()->AddLine(lineStart, lineEnd, IM_COL32((int)(blue_color_vec.x * 255), (int)(blue_color_vec.y * 255), (int)(blue_color_vec.z * 255),
+  (int)(blue_color_vec.w * 255.f * (m_state == EState::FadingOut ? m_current_fade_opacity : 1.f))));
 
 }
 

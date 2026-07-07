@@ -4098,7 +4098,8 @@ void GCodeViewer::render_legend(float& legend_height)
     bool show_min_max_field = range && (range->get_user_min() || range->get_user_max() || range->count_discrete() > 5);
     bool show_min_max_field_same_line = (m_view_type == EViewType::VolumetricFlow || m_view_type == EViewType::VolumetricRate || m_view_type == EViewType::LayerTime || m_view_type == EViewType::Chronology);
     bool show_switch_discrete = range && range->count_discrete() > 2 && range->count_discrete() <= Range_Colors_Details.size();
-    bool show_switch_whole_print = range && (m_view_type == EViewType::Chronology || m_view_type == EViewType::Width || m_view_type == EViewType::Feedrate || m_view_type == EViewType::VolumetricRate || m_view_type == EViewType::VolumetricFlow || m_view_type == EViewType::LayerTime);
+    bool show_switch_whole_print = range && (m_view_type == EViewType::Chronology || m_view_type == EViewType::Width || m_view_type == EViewType::Feedrate || m_view_type == EViewType::VolumetricRate || m_view_type == EViewType::VolumetricFlow ||
+      m_view_type == EViewType::LayerTime);
     // don't show_switch_whole_print if the there is no layers selected (seeing whole print) and the option isn't activated.
     if (show_switch_whole_print && range->is_whole_print_mode() && m_layers_z_range.front() == 0 && m_layers_z_range.back() >= m_layers.size() - 1) {
         show_switch_whole_print = false;

@@ -201,7 +201,8 @@ FileArchiveDialog::FileArchiveDialog(wxWindow* parent_window, mz_zip_archive* ar
             stack.pop_back();
     };
     // recursively stores whole structure of file onto function stack and synchoronize with stack object.
-    std::function<size_t(const boost::filesystem::path&, std::vector<std::shared_ptr<ArchiveViewNode>>&)> adjust_stack = [&adjust_stack, &reduce_stack, &avc = m_avc](const boost::filesystem::path& const_file, std::vector<std::shared_ptr<ArchiveViewNode>>& stack)->size_t {
+    std::function<size_t(const boost::filesystem::path&, std::vector<std::shared_ptr<ArchiveViewNode>>&)> adjust_stack = [&adjust_stack, &reduce_stack, &avc = m_avc](const boost::filesystem::path& const_file,
+      std::vector<std::shared_ptr<ArchiveViewNode>>& stack)->size_t {
         boost::filesystem::path file(const_file);
         size_t struct_size = file.has_parent_path() ? adjust_stack(file.parent_path(), stack) : 0;
 
