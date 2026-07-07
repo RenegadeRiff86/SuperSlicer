@@ -1,53 +1,27 @@
-// Visual Studio IntelliSense hint file.
-//
-// Purpose:
-// - Provide a minimal set of preprocessor symbols so IntelliSense can follow
-//   the common code paths in src/slic3r/GUI/GUI_App.cpp.
-// - This helps reduce repeated VCR102 diagnostics caused by unresolved
-//   platform / feature-gated branches while browsing.
-//
-// Usage for contributors:
-// - Keep this file small and focused on frequently-hit gates.
-// - After changing this file, reopen the solution (or refresh IntelliSense)
-//   so the database is rebuilt with updated symbols.
+// Hint file for the Visual Studio IntelliSense browsing database.
+// See https://learn.microsoft.com/cpp/build/reference/hint-files
+// These declaration-decorating macros confuse the browsing parser (VCR102);
+// giving it benign definitions here lets navigation/browsing work correctly.
 
-// Primary platform gates used across GUI_App.cpp.
-// Keep these aligned with the active Windows / Visual Studio environment.
-#define _WIN32
-#define WIN32
-#define __WXMSW__
+// imgui API decoration macros (imgui.h / imgui_internal.h)
+#define IMGUI_API
+#define IMGUI_IMPL_API
+#define IM_FMTARGS(FMT)
+#define IM_FMTLIST(FMT)
+#define IM_MSVC_RUNTIME_CHECKS_OFF
+#define IM_MSVC_RUNTIME_CHECKS_RESTORE
+#define IMGUI_DEMO_MARKER(section)
 
-// SuperSlicer feature gates frequently encountered in GUI_App.cpp
-#define _MSW_DARK_MODE
-#define USE_GTHUB_PRESET_UPDATE
-#define ENABLE_GL_CORE_PROFILE
-#define ENABLE_THUMBNAIL_GENERATOR_DEBUG
-#define GUI_TAG_PALETTE
-
-// IntelliSense-only stubs for macros / forward declarations that frequently
-// confuse the parser and pollute the Error List without affecting real builds.
-class wxZipStreamLink;
-#define wxDEFINE_EVENT(name, type)
-
-// wxWidgets application entry point.
-// Real expansion generates extern "C" WinMain() + global factory objects inside
-// namespace scope, which breaks IntelliSense's structural analysis of the TU
-// and produces dozens of "Browsing operations around this macro may fail" warnings.
-#define wxIMPLEMENT_WXWIN_MAIN
-#define wxIMPLEMENT_APP_NO_MAIN(appname)
-#define wxIMPLEMENT_WX_THEME_SUPPORT
-#define wxIMPLEMENT_APP_NO_THEMES(appname)
-#define wxIMPLEMENT_APP(appname)
-#define IMPLEMENT_APP(appname)
-
-// wxWidgets assertion / guard macros.
-// The else-branch contains a bare `return rc` or arbitrary `op` statement;
-// IntelliSense loses track of the enclosing function return type when parsing.
-#define wxCHECK2_MSG(cond, op, msg)
-#define wxCHECK_MSG(cond, rc, msg)
-#define wxCHECK_RET(cond, msg)
-#define wxCHECK(cond, rc)
-
-// Localisation helpers.
-#define _L(x) x
-#define _u8L(x) x
+// libslic3r/PrintConfig.cpp tooltip-fragment macros (kept as #defines for
+// adjacent-string-literal concatenation inside L(...) translation keys)
+#define STR_SET_ZERO_TO_DISABLE ""
+#define STR_SET_ZERO_FAN ""
+#define STR_SET_ZERO_FAN_DESC ""
+#define STR_SET_ZERO_AUTOSPEED ""
+#define STR_SET_ZERO_AUTOSPEED_DESC ""
+#define STR_CAN_BE_PCT ""
+#define STR_SPACING_WIDTH_OVERLAP_TOOLTIP ""
+#define STR_SPACING_WIDTH_DEFAULT_TOOLTIP ""
+#define STR_FAN_DISABLE_SLOWDOWN_TOOLTIP ""
+#define STR_GAPFILL_TOOLTIP ""
+#define STR_SET_ZERO_DISABLE_LOWER ""
