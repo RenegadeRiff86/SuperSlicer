@@ -531,19 +531,19 @@ namespace {
     const int max_temp = 1500;
 };
 
-ConfigOption *disable_default_option(ConfigOption *option) {
+static ConfigOption *disable_default_option(ConfigOption *option) {
     return option->set_can_be_disabled(true);
 }
 
-ConfigOption *enable_default_option(ConfigOption *option) {
+static ConfigOption *enable_default_option(ConfigOption *option) {
     return option->set_can_be_disabled(false);
 }
 
-ConfigOptionVectorBase *disable_default_option(ConfigOptionVectorBase *option, bool default_is_disabled = true) {
+static ConfigOptionVectorBase *disable_default_option(ConfigOptionVectorBase *option, bool default_is_disabled = true) {
     return (ConfigOptionVectorBase *)option->set_can_be_disabled(true);
 }
 
-ConfigOptionVectorBase *enable_default_option(ConfigOptionVectorBase *option, bool default_is_disabled = true) {
+static ConfigOptionVectorBase *enable_default_option(ConfigOptionVectorBase *option, bool default_is_disabled = true) {
     return (ConfigOptionVectorBase *)option->set_can_be_disabled(false);
 }
 
@@ -9188,10 +9188,10 @@ static std::set<t_config_option_key> PrintConfigDef_ignore = {
 };
 namespace Handle_legacy_tools {
 
-std::unordered_map<t_config_option_key, std::pair<t_config_option_key, std::string>>::iterator last_search_result;
+static std::unordered_map<t_config_option_key, std::pair<t_config_option_key, std::string>>::iterator last_search_result;
 
 typedef std::pair<t_config_option_key, std::string> KVEntry;
-inline void for_ech_entry(std::unordered_map<t_config_option_key, std::pair<t_config_option_key, std::string>> &dict,
+static inline void for_ech_entry(std::unordered_map<t_config_option_key, std::pair<t_config_option_key, std::string>> &dict,
                           std::initializer_list<t_config_option_key> &&list,
                           const std::function<void(t_config_option_key &opt_key, std::string &value)> &do_something) {
     for (const t_config_option_key &key : list) {
@@ -9201,7 +9201,7 @@ inline void for_ech_entry(std::unordered_map<t_config_option_key, std::pair<t_co
         }
     }
 }
-inline void for_ech_entry(std::unordered_map<t_config_option_key, std::pair<t_config_option_key, std::string>> &dict,
+static inline void for_ech_entry(std::unordered_map<t_config_option_key, std::pair<t_config_option_key, std::string>> &dict,
                           const std::set<t_config_option_key> &list,
                           const std::function<void(t_config_option_key &opt_key, std::string &value)> &do_something) {
     for (const t_config_option_key &key : list) {
@@ -9210,13 +9210,13 @@ inline void for_ech_entry(std::unordered_map<t_config_option_key, std::pair<t_co
         }
     }
 }
-inline bool has(std::unordered_map<t_config_option_key, std::pair<t_config_option_key, std::string>> &dict,
+static inline bool has(std::unordered_map<t_config_option_key, std::pair<t_config_option_key, std::string>> &dict,
                  const t_config_option_key &opt_key) {
     last_search_result = dict.find(opt_key);
     // exists and not already deleted/changed
     return last_search_result != dict.end() && last_search_result->second.first == opt_key;
 }
-inline bool has(std::unordered_map<t_config_option_key, std::pair<t_config_option_key, std::string>> &dict,
+static inline bool has(std::unordered_map<t_config_option_key, std::pair<t_config_option_key, std::string>> &dict,
                   const t_config_option_key &&opt_key,
                   const std::string &&value) {
     last_search_result = dict.find(opt_key);
@@ -9244,13 +9244,13 @@ inline bool has(std::unordered_map<t_config_option_key, std::pair<t_config_optio
 //    entry.first = std::move(new_key);
 //}
 
-inline void set(t_config_option_key &&new_key,
-                std::string &&new_val) {
+static inline void set(t_config_option_key &&new_key,
+                       std::string &&new_val) {
     last_search_result->second.first = std::move(new_key);
     last_search_result->second.second = std::move(new_val);
 }
 
-inline std::string &value() {
+static inline std::string &value() {
     return last_search_result->second.second;
 }
 
@@ -9266,7 +9266,7 @@ inline std::string &value() {
 //    return dict.at(opt_key).second;
 //}
 
-inline t_config_option_key &opt_key() {
+static inline t_config_option_key &opt_key() {
     return last_search_result->second.first;
 }
 
@@ -9296,11 +9296,11 @@ const std::vector<std::pair<t_config_option_key, t_config_option_key>> widths_2_
      {KEY_SOLID_INFILL_EXTRUSION_WIDTH, KEY_SOLID_INFILL_EXTRUSION_SPACING},
      {KEY_TOP_IN_FILL_EXTRUSION_WIDTH, KEY_TOP_INFILL_EXTRUSION_SPACING}};
 
-inline void erase() {
+static inline void erase() {
     last_search_result->second.first = "";
 }
 
-void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_config_option_key, std::string>> &dict, bool remove_unkown_keys)
+static void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_config_option_key, std::string>> &dict, bool remove_unkown_keys)
 {
     using namespace std::literals;
     typedef t_config_option_key Key;
