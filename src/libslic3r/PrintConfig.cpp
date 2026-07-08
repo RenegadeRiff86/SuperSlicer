@@ -171,11 +171,17 @@ static constexpr const char* KEY_WIPE_SPEED = "wipe_speed";
 // Numeric constants extracted to reduce repeated numeric literals (BP1002).
 static constexpr int    FULL_PERCENT = 100;                    // a whole quantity expressed in percent
 static constexpr double MAX_PERCENT = FULL_PERCENT;            // input-field cap for fields that cannot exceed 100%
+static constexpr double PERCENT_SCALE = FULL_PERCENT;          // ratio -> percent conversion factor
 static constexpr double LARGE_MAX_LIMIT = 1000;                // generous cap for numeric fields with no natural upper bound
 static constexpr double HUGE_MAX_LIMIT = 10000;                // cap for counts that can legitimately grow very large
 static constexpr double FULL_CIRCLE_DEGREES = 360;             // angle fields wrap at a full turn
 static constexpr int    DEFAULT_NOZZLE_TEMP_C = 200;           // default extrusion temperature (degrees C)
 static constexpr int    DEFAULT_BED_SIZE_MM = 200;             // default square bed edge length (mm)
+static constexpr int    DEFAULT_BED_CENTER_MM = DEFAULT_BED_SIZE_MM / 2; // default XY position: middle of the default bed
+static constexpr double DEFAULT_SPEED_MM_S = 100;              // reference speed other speed fields derive from by %
+static constexpr int    MIN_DISPLAY_RESOLUTION_PX = 100;       // sanity floor for SLA display pixel counts
+static constexpr double DEFAULT_MAX_EXPOSURE_S = 100;          // SLA maximum exposure time default (seconds)
+static constexpr double DEFAULT_HOLE_AREA_THRESHOLD_MM2 = 100; // XY hole compensation area threshold default (mm^2)
 static constexpr double DISABLED_PRESSURE_ADVANCE = 0;         // 0 = no pressure-advance override for that feature
 // ConfigOptionDef::max_literal typo guards: a literal (non-'%') value beyond the threshold asks the user to
 // confirm that a '%' sign was not forgotten; a negative threshold checks values below its opposite instead.
@@ -849,7 +855,7 @@ void PrintConfigDef::init_fff_params()
     "\n can be a mm or a % of the slice resolution.");
     def->mode = comExpert | comSuSi;
     def->min = 0;
-    def->set_default_value(new ConfigOptionFloatOrPercent(100, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(FULL_PERCENT, true));
 
     def = this->add("arc_fitting_tolerance", coFloatOrPercent);
     def->label = L("Arc fitting tolerance");
@@ -1062,7 +1068,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comPrusa;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(enable_default_option(new ConfigOptionInts{ 100 }));
+    def->set_default_value(enable_default_option(new ConfigOptionInts{ FULL_PERCENT }));
 
     def = this->add("bridge_fill_pattern", coEnum);
     def->label = L("Bridging fill pattern");
@@ -1107,7 +1113,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 2;
     def->max = LARGE_MAX_LIMIT;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionPercent(100));
+    def->set_default_value(new ConfigOptionPercent(FULL_PERCENT));
 
     def = this->add("over_bridge_flow_ratio", coPercent);
     def->label = L("Above the bridges");
@@ -1120,7 +1126,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 2;
     def->max = LARGE_MAX_LIMIT;
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value(new ConfigOptionPercent(100));
+    def->set_default_value(new ConfigOptionPercent(FULL_PERCENT));
 
     def = this->add("bridge_precision", coFloatOrPercent);
     def->label = L("Bridge precision");
@@ -1540,7 +1546,7 @@ void PrintConfigDef::init_fff_params()
     def->max                = MAX_PERCENT;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ 100 })));
+    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
     def->aliases = { "min_fan_speed" }; // only if "fan_always_on"
 
     def = this->add("default_print_profile", coString);
@@ -1564,7 +1570,7 @@ void PrintConfigDef::init_fff_params()
     def->ratio_over = "machine_max_feedrate_x";
     def->min = 0;
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value(new ConfigOptionFloatOrPercent(100, false));
+    def->set_default_value(new ConfigOptionFloatOrPercent(DEFAULT_SPEED_MM_S, false));
 
     def = this->add("disable_fan_first_layers", coInts);
     def->label = L("Disable fan for the first");
@@ -1829,7 +1835,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ 100 })));
+    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
 
     def = this->add(KEY_EXTERNAL_PERIMETER_OVERLAP, coPercent);
     def->label = L("external perimeter overlap");
@@ -2140,7 +2146,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comSimpleAE | comSuSi;
     def->min = 0;
     def->max = 200;
-    def->set_default_value(new ConfigOptionPercent(100));
+    def->set_default_value(new ConfigOptionPercent(FULL_PERCENT));
 
     def = this->add(KEY_EXTRUSION_WIDTH, coFloatOrPercent);
     def->label = L("Default extrusion width");
@@ -2242,7 +2248,7 @@ void PrintConfigDef::init_fff_params()
                     " You should only add the little percentage difference that this filament has versus your main one.");
     def->min = 0;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionPercents{100});
+    def->set_default_value(new ConfigOptionPercents{FULL_PERCENT});
 
     def = this->add("filament_first_layer_flow_ratio", coPercents);
     def->label = L(STR_FIRST_LAYER);
@@ -2254,7 +2260,7 @@ void PrintConfigDef::init_fff_params()
                     " You should only add the little percentage difference that this filament has versus your main one.");
     def->min = 0;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionPercents{100});
+    def->set_default_value(new ConfigOptionPercents{FULL_PERCENT});
 
     def = this->add("filament_notes", coStrings);
     def->label = L("Filament notes");
@@ -2799,7 +2805,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 10;
     def->mode = comExpert | comSuSi;
     def->is_vector_extruder = true;
-    def->set_default_value(new ConfigOptionPercents{ 100 });
+    def->set_default_value(new ConfigOptionPercents{ FULL_PERCENT });
 
     def = this->add(KEY_FILAMENT_MAX_OVERLAP, coPercents);
     def->label = L("Max line overlap");
@@ -2812,7 +2818,7 @@ void PrintConfigDef::init_fff_params()
     def->max = MAX_PERCENT;
     def->mode = comExpert | comSuSi;
     def->is_vector_extruder = true;
-    def->set_default_value(new ConfigOptionPercents{ 100 });
+    def->set_default_value(new ConfigOptionPercents{ FULL_PERCENT });
 
     def = this->add("filament_density", coFloats);
     def->label = L("Density");
@@ -3037,7 +3043,7 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("You can increase this to over-extrude on the top layer if there is not enough plastic to make a good fill.");
     def->min = 0;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionPercent(100));
+    def->set_default_value(new ConfigOptionPercent(FULL_PERCENT));
 
     def = this->add("first_layer_flow_ratio", coPercent);
     def->label = L(STR_FIRST_LAYER);
@@ -3049,7 +3055,7 @@ void PrintConfigDef::init_fff_params()
                     " Use this setting only as last resort after all calibrations failed.");
     def->min = 0;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionPercent(100));
+    def->set_default_value(new ConfigOptionPercent(FULL_PERCENT));
 
     def = this->add("first_layer_size_compensation", coFloat);
     def->label = L(STR_FIRST_LAYER);
@@ -3147,7 +3153,7 @@ void PrintConfigDef::init_fff_params()
     def->graph_settings->label_min_y = L("Minimum ratio");
     def->graph_settings->label_max_y = L("Maximum ratio");
     def->graph_settings->min_x       = 0;
-    def->graph_settings->max_x       = 100;
+    def->graph_settings->max_x       = MAX_PERCENT;
     def->graph_settings->step_x      = 0.1;
     def->graph_settings->min_y       = 0;
     def->graph_settings->max_y       = 1;
@@ -3445,7 +3451,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ 100 })));
+    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
 
     def = this->add("gap_fill_flow_match_perimeter", coPercent);
     def->label = L("Cap with perimeter flow");
@@ -3492,7 +3498,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext = L("mm² or %");
     def->min = 0;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionFloatOrPercent{ 100, true });
+    def->set_default_value(new ConfigOptionFloatOrPercent{ FULL_PERCENT, true });
 
     def = this->add("gap_fill_min_length", coFloatOrPercent);
     def->label = L("Min length");
@@ -3896,7 +3902,7 @@ void PrintConfigDef::init_fff_params()
     def->max_literal = { CONFIRM_LITERAL_ABOVE_10, true };
     def->can_phony = true;
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value(new ConfigOptionFloatOrPercent(100, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(FULL_PERCENT, true));
 
     def = this->add("infill_fan_speed", coInts);
     def->label = L("Internal Infill fan speed");
@@ -3912,7 +3918,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ 100 })));
+    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
 
     def = this->add("infill_filled_bottom", coBool);
     def->label = L("GapFill for bottom infill areas");
@@ -4040,7 +4046,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ 100 })));
+    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
     def->aliases = { "bridge_internal_fan_speed" };
 
     def = this->add("internal_bridge_min_width", coFloatOrPercent);
@@ -4484,7 +4490,7 @@ void PrintConfigDef::init_fff_params()
     def->max = MAX_PERCENT;
     def->mode = comAdvancedE | comPrusa;
     def->is_vector_extruder = true;
-    def->set_default_value(new ConfigOptionInts { 100 });
+    def->set_default_value(new ConfigOptionInts { FULL_PERCENT });
 
     def = this->add(KEY_MAX_LAYER_HEIGHT, coFloatsOrPercents);
     def->label = L("Max");
@@ -4619,7 +4625,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->max_literal = { 15, false };
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionFloatOrPercent(100, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(FULL_PERCENT, true));
 
     def = this->add("min_print_speed", coFloats);
     def->label = L("Min print speed");
@@ -4836,7 +4842,7 @@ void PrintConfigDef::init_fff_params()
     def->can_be_disabled = true;
     def->mode       = comExpert | comPrusa;
     def->set_default_value(disable_default_option(new ConfigOptionGraphs({GraphData(0,5, GraphData::GraphType::LINEAR,
-        {{0,100},{25,80},{50,60},{75,40},{100,20}}
+        {{0,FULL_PERCENT},{25,80},{50,60},{75,40},{FULL_PERCENT,20}}
     )})));
     def->graph_settings = std::make_shared<GraphSettings>();
     def->graph_settings->title       = L("Overhangs fan speed by % of overlap");
@@ -4853,10 +4859,10 @@ void PrintConfigDef::init_fff_params()
     def->graph_settings->label_min_y = L("");
     def->graph_settings->label_max_y = L("");
     def->graph_settings->min_x       = 0;
-    def->graph_settings->max_x       = 100;
+    def->graph_settings->max_x       = MAX_PERCENT;
     def->graph_settings->step_x      = 1.;
     def->graph_settings->min_y       = 0;
-    def->graph_settings->max_y       = 100;
+    def->graph_settings->max_y       = MAX_PERCENT;
     def->graph_settings->step_y      = 1.;
     def->graph_settings->allowed_types = {GraphData::GraphType::LINEAR, GraphData::GraphType::SQUARE, GraphData::GraphType::SPLINE};
 
@@ -4870,7 +4876,7 @@ void PrintConfigDef::init_fff_params()
     def->can_be_disabled = true;
     def->mode       = comExpert | comSuSi;
     def->set_default_value(enable_default_option(new ConfigOptionGraph(GraphData(0,5, GraphData::GraphType::LINEAR,
-        {{0,0},{25,0},{50,15},{75,50},{100,100}}
+        {{0,0},{25,0},{50,15},{75,50},{FULL_PERCENT,FULL_PERCENT}}
     ))));
     def->graph_settings = std::make_shared<GraphSettings>();
     def->graph_settings->title       = L("Overhangs flow ratio by % of overlap");
@@ -4886,12 +4892,12 @@ void PrintConfigDef::init_fff_params()
     def->graph_settings->label_max_x = L("Overhang");
     def->graph_settings->label_min_y = L("Perimeter Flow");
     def->graph_settings->label_max_y = L("Overhang Flow");
-    def->graph_settings->min_x       = 100;
+    def->graph_settings->min_x       = FULL_PERCENT;
     def->graph_settings->max_x       = 0;
-    def->graph_settings->max_x       = 100;
+    def->graph_settings->max_x       = MAX_PERCENT;
     def->graph_settings->step_x      = 1.;
     def->graph_settings->min_y       = 0;
-    def->graph_settings->max_y       = 100;
+    def->graph_settings->max_y       = MAX_PERCENT;
     def->graph_settings->step_y      = 1.;
     def->graph_settings->allowed_types = {GraphData::GraphType::LINEAR, GraphData::GraphType::SQUARE, GraphData::GraphType::SPLINE};
 
@@ -4908,7 +4914,7 @@ void PrintConfigDef::init_fff_params()
     def->can_be_disabled = true;
     def->mode       = comExpert | comPrusa;
     def->set_default_value(enable_default_option(new ConfigOptionGraph(GraphData(0,5, GraphData::GraphType::LINEAR,
-        {{0,0},{25,10},{50,40},{75,70},{100,100}}
+        {{0,0},{25,10},{50,40},{75,70},{FULL_PERCENT,FULL_PERCENT}}
     ))));
     def->graph_settings = std::make_shared<GraphSettings>();
     def->graph_settings->title       = L("Overhangs speed ratio by % of overlap");
@@ -4926,11 +4932,11 @@ void PrintConfigDef::init_fff_params()
     def->graph_settings->label_min_y = L("Overhang Speed");
     def->graph_settings->label_max_y = L("Perimeter Speed");
     def->graph_settings->min_x       = 0;
-    def->graph_settings->max_x       = 100;
-    def->graph_settings->max_x       = 100;
+    def->graph_settings->max_x       = MAX_PERCENT;
+    def->graph_settings->max_x       = MAX_PERCENT;
     def->graph_settings->step_x      = 1.;
     def->graph_settings->min_y       = 0;
-    def->graph_settings->max_y       = 100;
+    def->graph_settings->max_y       = MAX_PERCENT;
     def->graph_settings->step_y      = 1.;
     def->graph_settings->allowed_types = {GraphData::GraphType::LINEAR, GraphData::GraphType::SQUARE, GraphData::GraphType::SPLINE};
 
@@ -4964,7 +4970,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ 100 })));
+    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
 
     def = this->add(KEY_OVERHANGS_FLOW_RATIO, coPercent);
     def->label = L("Overhangs flow ratio");
@@ -4982,7 +4988,7 @@ void PrintConfigDef::init_fff_params()
     def->max = LARGE_MAX_LIMIT;
     def->can_be_disabled = true;
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value(enable_default_option(new ConfigOptionPercent(100)));
+    def->set_default_value(enable_default_option(new ConfigOptionPercent(FULL_PERCENT)));
 
     def = this->add("overhangs_max_slope", coFloatOrPercent);
     def->label = L("Overhangs max slope");
@@ -5009,7 +5015,7 @@ void PrintConfigDef::init_fff_params()
     def->ratio_over = "bridge_speed";
     def->min = 0;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionFloatOrPercent(100, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(FULL_PERCENT, true));
 
     def = this->add("overhangs_speed_enforce", coInt);
     def->label = L("Enforce overhangs speed");
@@ -5063,7 +5069,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->max_literal = { CONFIRM_LITERAL_ABOVE_10, true };
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionFloatOrPercent(100, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(FULL_PERCENT, true));
     
     def = this->add(KEY_OVERHANGS_WIDTH_SPEED, coFloatOrPercent);
     def->label = L("Overhangs speed threshold");
@@ -5076,7 +5082,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->can_be_disabled = true;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(disable_default_option(new ConfigOptionFloatOrPercent(100, true)));
+    def->set_default_value(disable_default_option(new ConfigOptionFloatOrPercent(FULL_PERCENT, true)));
 
     def = this->add("overhangs_reverse", coBool);
     def->label = L("Reverse on even");
@@ -5209,7 +5215,7 @@ void PrintConfigDef::init_fff_params()
     def->max_literal = { CONFIRM_LITERAL_ABOVE_10, true };
     def->can_phony = true;
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value(new ConfigOptionFloatOrPercent(100, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(FULL_PERCENT, true));
 
     def = this->add("perimeter_extrusion_change_odd_layers", coFloatOrPercent);
     def->label = L(STR_PERIMETERS_CAP);
@@ -5251,7 +5257,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ 100 })));
+    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
 
     def = this->add("perimeter_loop", coBool);
     def->label = L("Perimeters loop");
@@ -6038,7 +6044,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->max = LARGE_MAX_LIMIT;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionPercent(100));
+    def->set_default_value(new ConfigOptionPercent(FULL_PERCENT));
 
     def = this->add("seam_visibility", coBool);
     def->label = L("use visibility check");
@@ -6286,7 +6292,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->max = MAX_PERCENT;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionPercent(100));
+    def->set_default_value(new ConfigOptionPercent(FULL_PERCENT));
 
     def = this->add("solid_infill_extruder", coInt);
     def->label = L("Solid infill extruder");
@@ -6351,7 +6357,7 @@ void PrintConfigDef::init_fff_params()
     def->max_literal = { CONFIRM_LITERAL_ABOVE_10, true };
     def->can_phony = true;
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value(new ConfigOptionFloatOrPercent(100, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(FULL_PERCENT, true));
 
     def = this->add("solid_infill_fan_speed", coInts);
     def->label = L("Solid Infill fan speed");
@@ -6367,7 +6373,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ 100 })));
+    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
 
     def = this->add("solid_infill_speed", coFloatOrPercent);
     def->label = L("Solid");
@@ -6745,7 +6751,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ 100 })));
+    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
 
     def = this->add("support_material_interface_angle", coFloat);
     def->label = L("Pattern angle");
@@ -6781,7 +6787,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ 100 })));
+    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
 
 
     def = this->add("support_material_interface_contact_loops", coBool);
@@ -7220,7 +7226,7 @@ void PrintConfigDef::init_fff_params()
     def->ratio_over = "external_perimeter_speed";
     def->min = 0;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionFloatOrPercent(100, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(FULL_PERCENT, true));
 
     // put it in Preferences if you want it.
     //def = this->add("threads", coInt);
@@ -7252,7 +7258,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->sidetext = L("%");
     def->min = 0;
-    def->set_default_value(new ConfigOptionPercent(100));
+    def->set_default_value(new ConfigOptionPercent(FULL_PERCENT));
 
     def = this->add("time_start_gcode", coFloat);
     def->label = L("Time for start custom gcode");
@@ -7307,7 +7313,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ 100 })));
+    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
 
     def = this->add(KEY_TOP_IN_FILL_EXTRUSION_WIDTH, coFloatOrPercent);
     def->label = L("Top solid infill");
@@ -7365,7 +7371,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->max = MAX_PERCENT;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionPercent(100));
+    def->set_default_value(new ConfigOptionPercent(FULL_PERCENT));
 
     def = this->add("top_solid_infill_speed", coFloatOrPercent);
     def->label = L("Top solid");
@@ -7856,7 +7862,7 @@ void PrintConfigDef::init_fff_params()
             " Set to 0 to let the hole_size_compensation apply fully for all detected holes");
     def->sidetext = L("mm²");
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionFloat(100));
+    def->set_default_value(new ConfigOptionFloat(DEFAULT_HOLE_AREA_THRESHOLD_MM2));
 
     def = this->add("hole_to_polyhole", coBool);
     def->label = L("Convert round holes to polyholes");
@@ -7948,7 +7954,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext = L("mm or %");
     def->mode = comExpert | comPrusa;
     def->min = 0;
-    def->set_default_value(new ConfigOptionFloatOrPercent(100, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(FULL_PERCENT, true));
 
     def = this->add("wall_transition_filter_deviation", coFloatOrPercent);
     def->label = L("Perimeter transitioning filter margin");
@@ -8561,14 +8567,14 @@ void PrintConfigDef::init_sla_params()
     def->full_label = L("Number of pixels in");
     def->label = L("X");
     def->tooltip = L("Number of pixels in X");
-    def->min = 100;
+    def->min = MIN_DISPLAY_RESOLUTION_PX;
     def->mode = comSimpleAE | comPrusa;
     def->set_default_value(new ConfigOptionInt(2560));
 
     def = this->add("display_pixels_y", coInt);
     def->label = L("Y");
     def->tooltip = L("Number of pixels in Y");
-    def->min = 100;
+    def->min = MIN_DISPLAY_RESOLUTION_PX;
     def->mode = comSimpleAE | comPrusa;
     def->set_default_value(new ConfigOptionInt(1440));
 
@@ -8775,7 +8781,7 @@ void PrintConfigDef::init_sla_params()
     def->sidetext = L("s");
     def->min = 0;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(100));
+    def->set_default_value(new ConfigOptionFloat(DEFAULT_MAX_EXPOSURE_S));
 
     def = this->add("exposure_time", coFloat);
     def->label = L("Exposure time");
@@ -8918,7 +8924,7 @@ void PrintConfigDef::init_sla_params()
     def->sidetext = L("%");
     def->min = 0;
     def->mode = comSimpleAE | comPrusa;
-    def->set_default_value(new ConfigOptionInt(100));
+    def->set_default_value(new ConfigOptionInt(FULL_PERCENT));
 
     def = this->add("support_points_minimal_distance", coFloat);
     def->label = L("Minimal distance of the support points");
@@ -9314,7 +9320,7 @@ static void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_c
                 try {
                     float v = boost::lexical_cast<float>(value);
                     if (v != 0)
-                        value = to_string_nozero(v * 100, 2) + "%";
+                        value = to_string_nozero(v * PERCENT_SCALE, 2) + "%";
                 } catch (boost::bad_lexical_cast &) { value = "0"; }
             });
     if (has(dict, "infill_only_where_needed"s, "0"s)) {
@@ -9335,7 +9341,7 @@ static void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_c
         try {
             // fill_density was turned into a percent value
             float v = boost::lexical_cast<float>(value());
-            value() = to_string_nozero(v * 100, 2) + "%";
+            value() = to_string_nozero(v * PERCENT_SCALE, 2) + "%";
         } catch (boost::bad_lexical_cast &) { erase(); }
     }
     if (has(dict, "randomize_start", "1")) {
@@ -9508,7 +9514,7 @@ static void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_c
             try {
                 float val = boost::lexical_cast<float>(value);
                 if (val < 2)
-                    value = to_string_nozero(val * 100, 2) + "%";
+                    value = to_string_nozero(val * PERCENT_SCALE, 2) + "%";
                 else
                     value = "100%";
             } catch (boost::bad_lexical_cast &) { value = "100%"; }
@@ -9682,7 +9688,7 @@ static void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_c
             for (size_t idx = 0; idx < opt_decoder.size(); ++idx) {
                 if (opt_decoder.is_enabled(idx)) {
                     if (opt_decoder.get_at(idx) < 0) {
-                        opt_decoder.set_at(100, idx);
+                        opt_decoder.set_at(FULL_PERCENT, idx);
                         opt_decoder.set_enabled(false, idx);
                     } else if (opt_decoder.get_at(idx) <= 1) {
                         // for now, still consider "1" as a "0", to be able to import old config where the 1 means 0
@@ -9956,12 +9962,12 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
             if (min == external_perimeter_speed) {
                 percent = 1 - percent;
             }
-            graph_curve.push_back(Vec2d(x * 25, int(percent * 100)));
+            graph_curve.push_back(Vec2d(x * 25, int(percent * PERCENT_SCALE)));
         }
         if (min == external_perimeter_speed) {
-            graph_curve.push_back(Vec2d(100, 0));
+            graph_curve.push_back(Vec2d(FULL_PERCENT, 0));
         } else {
-            graph_curve.push_back(Vec2d(100, 100));
+            graph_curve.push_back(Vec2d(FULL_PERCENT, FULL_PERCENT));
         }
         opt.value = GraphData(graph_curve);
         if (useful_items.find(KEY_ENABLE_DYNAMIC_OVERHANG_SPEEDS) != useful_items.end())
@@ -10036,13 +10042,13 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
                 graph_curve.push_back(Vec2d(x*25, values[x].get_at(idx)));
             }
             if (external_perimeter_fan_speed && external_perimeter_fan_speed->is_enabled(idx)) {
-                graph_curve.push_back(Vec2d(100, external_perimeter_fan_speed->get_at(idx)));
+                graph_curve.push_back(Vec2d(FULL_PERCENT, external_perimeter_fan_speed->get_at(idx)));
             } else if (perimeter_fan_speed && perimeter_fan_speed->is_enabled(idx)) {
-                graph_curve.push_back(Vec2d(100, perimeter_fan_speed->get_at(idx)));
+                graph_curve.push_back(Vec2d(FULL_PERCENT, perimeter_fan_speed->get_at(idx)));
             } else if (default_fan_speed && default_fan_speed->is_enabled(idx)) {
-                graph_curve.push_back(Vec2d(100, default_fan_speed->get_at(idx)));
+                graph_curve.push_back(Vec2d(FULL_PERCENT, default_fan_speed->get_at(idx)));
             } else {
-                graph_curve.push_back(Vec2d(100, graph_curve.back().y()));
+                graph_curve.push_back(Vec2d(FULL_PERCENT, graph_curve.back().y()));
             }
             graph_data.emplace_back(graph_curve);
         }
@@ -11653,7 +11659,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                     if (spacing_value == 0)
                         width_option->value = 0;
                     else
-                        width_option->value = (spacing_option->percent) ? std::round(100 * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
+                        width_option->value = (spacing_option->percent) ? std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                     width_option->percent = spacing_option->percent;
                     something_changed = true;
                 }
@@ -11666,7 +11672,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                     if (spacing_value == 0)
                         width_option->value = 0;
                     else
-                        width_option->value = (spacing_option->percent) ? std::round(100 * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
+                        width_option->value = (spacing_option->percent) ? std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                     width_option->percent = spacing_option->percent;
                     something_changed = true;
                 }
@@ -11679,7 +11685,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                     if (spacing_value == 0)
                         width_option->value = 0;
                     else
-                        width_option->value = (spacing_option->percent) ? std::round(100 * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
+                        width_option->value = (spacing_option->percent) ? std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                     width_option->percent = spacing_option->percent;
                     something_changed = true;
                 }
@@ -11695,7 +11701,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                     else {
                         float spacing_ratio = (std::min(flow.spacing_ratio(), float(perimeter_overlap_option->get_abs_value(1))));
                         flow = flow.with_width( spacing_option->get_abs_value(max_nozzle_diameter) + layer_height_option->value * (1. - 0.25 * PI) * spacing_ratio);
-                        width_option->value = (spacing_option->percent) ? std::round(100 * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
+                        width_option->value = (spacing_option->percent) ? std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                     }
                     width_option->percent = spacing_option->percent;
                     something_changed = true;
@@ -11712,7 +11718,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                     else {
                         float spacing_ratio = (std::min(flow.spacing_ratio() / 2, float(external_perimeter_overlap_option->get_abs_value(0.5))));
                         flow = flow.with_width(spacing_option->get_abs_value(max_nozzle_diameter) + layer_height_option->value * (1. - 0.25 * PI) * spacing_ratio);
-                        width_option->value = (spacing_option->percent) ? std::round(100 * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
+                        width_option->value = (spacing_option->percent) ? std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                     }
                     width_option->percent = spacing_option->percent;
                     something_changed = true;
@@ -11726,7 +11732,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                     if (spacing_value == 0)
                         width_option->value = 0;
                     else
-                        width_option->value = (spacing_option->percent) ? std::round(100 * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
+                        width_option->value = (spacing_option->percent) ? std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                     width_option->percent = spacing_option->percent;
                     something_changed = true;
                 }
@@ -11742,7 +11748,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                     else {
                         float spacing_ratio = (std::min(flow.spacing_ratio(), float(solid_infill_overlap_option->get_abs_value(1))));
                         flow = flow.with_width(spacing_option->get_abs_value(max_nozzle_diameter) + layer_height_option->value * (1. - 0.25 * PI) * spacing_ratio);
-                        width_option->value = (spacing_option->percent) ? std::round(100 * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
+                        width_option->value = (spacing_option->percent) ? std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                     }
                     width_option->percent = spacing_option->percent;
                     something_changed = true;
@@ -11759,7 +11765,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                     else {
                         float spacing_ratio = (std::min(flow.spacing_ratio(), float(top_solid_infill_overlap_option->get_abs_value(1))));
                         flow = flow.with_width(spacing_option->get_abs_value(max_nozzle_diameter) + layer_height_option->value * (1. - 0.25 * PI) * spacing_ratio);
-                        width_option->value = (spacing_option->percent) ? std::round(100 * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
+                        width_option->value = (spacing_option->percent) ? std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                     }
                     width_option->percent = spacing_option->percent;
                     something_changed = true;
@@ -11767,14 +11773,14 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
             }
             /*if (opt_key == "support_material_extrusion_spacing") {
                 if (spacing_option->percent)
-                    this->set_key_value("support_material_extrusion_width", new ConfigOptionFloatOrPercent(std::round(100 * flow.width / max_nozzle_diameter), true));
+                    this->set_key_value("support_material_extrusion_width", new ConfigOptionFloatOrPercent(std::round(PERCENT_SCALE * flow.width / max_nozzle_diameter), true));
                 else
                     this->set_key_value("support_material_extrusion_width", new ConfigOptionFloatOrPercent(std::round(flow.width * ROUND_4_DECIMALS) / ROUND_4_DECIMALS, false));
                 something_changed = true;
             }
             if (opt_key == "skirt_extrusion_spacing") {
                 if (spacing_option->percent)
-                    this->set_key_value("skirt_extrusion_width", new ConfigOptionFloatOrPercent(std::round(100 * flow.width / max_nozzle_diameter), true));
+                    this->set_key_value("skirt_extrusion_width", new ConfigOptionFloatOrPercent(std::round(PERCENT_SCALE * flow.width / max_nozzle_diameter), true));
                 else
                     this->set_key_value("skirt_extrusion_width", new ConfigOptionFloatOrPercent(std::round(flow.width * ROUND_4_DECIMALS) / ROUND_4_DECIMALS, false));
                 something_changed = true;
@@ -11806,7 +11812,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                             else {
                                 Flow flow = Flow::new_from_config_width(FlowRole::frPerimeter, width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, max_nozzle_diameter, layer_height_option->value, overlap_ratio, 0);
                                 if (flow.width() < flow.height()) flow.with_height(flow.width());
-                                spacing_option->value = (width_option->percent) ? std::round(100 * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
+                                spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                             }
                             spacing_option->percent = width_option->percent;
                             something_changed = true;
@@ -11824,7 +11830,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                                     width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, 
                                     max_nozzle_diameter, layer_height_option->value, overlap_ratio, 0);
                                 if (flow.width() < flow.height()) flow.with_height(flow.width());
-                                spacing_option->value = (width_option->percent) ? std::round(100 * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
+                                spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                             }
                             spacing_option->percent = width_option->percent;
                             something_changed = true;
@@ -11842,7 +11848,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                                     width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, 
                                     max_nozzle_diameter, layer_height_option->value, overlap_ratio, 0);
                                 if (flow.width() < flow.height()) flow.with_height(flow.width());
-                                spacing_option->value = (width_option->percent) ? std::round(100 * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
+                                spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                             }
                             spacing_option->percent = width_option->percent;
                             something_changed = true;
@@ -11862,7 +11868,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                                 max_nozzle_diameter, layer_height_option->value, 
                                 std::min(overlap_ratio, (float)perimeter_overlap_option->get_abs_value(1)), 0);
                             if (flow.width() < flow.height()) flow = flow.with_height(flow.width());
-                            spacing_option->value = (width_option->percent) ? std::round(100 * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
+                            spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                         }
                         spacing_option->percent = width_option->percent;
                         something_changed = true;
@@ -11882,7 +11888,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                                 max_nozzle_diameter, layer_height_option->value, 
                                 std::min(overlap_ratio * 0.5f, float(external_perimeter_overlap_option->get_abs_value(0.5))), 0);
                             if (ext_perimeter_flow.width() < ext_perimeter_flow.height()) ext_perimeter_flow = ext_perimeter_flow.with_height(ext_perimeter_flow.width());
-                            spacing_option->value = (width_option->percent) ? std::round(100 * ext_perimeter_flow.spacing() / max_nozzle_diameter) : (std::round(ext_perimeter_flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
+                            spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * ext_perimeter_flow.spacing() / max_nozzle_diameter) : (std::round(ext_perimeter_flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                         }
                         spacing_option->percent = width_option->percent;
                         something_changed = true;
@@ -11898,7 +11904,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                         else {
                             Flow flow = Flow::new_from_config_width(FlowRole::frInfill, width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, max_nozzle_diameter, layer_height_option->value, overlap_ratio, 0);
                             if (flow.width() < flow.height()) flow = flow.with_height(flow.width());
-                            spacing_option->value = (width_option->percent) ? std::round(100 * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
+                            spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                         }
                         spacing_option->percent = width_option->percent;
                         something_changed = true;
@@ -11918,7 +11924,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                                 max_nozzle_diameter, layer_height_option->value, 
                                 std::min(overlap_ratio, float(solid_infill_overlap_option->get_abs_value(1.))), 0);
                             if (flow.width() < flow.height()) flow = flow.with_height(flow.width());
-                            spacing_option->value = (width_option->percent) ? std::round(100 * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
+                            spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                         }
                         spacing_option->percent = width_option->percent;
                         something_changed = true;
@@ -11938,7 +11944,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                                 max_nozzle_diameter, layer_height_option->value,
                                 std::min(overlap_ratio, float(top_solid_infill_overlap_option->get_abs_value(1.))), 0);
                             if (flow.width() < flow.height()) flow = flow.with_height(flow.width());
-                            spacing_option->value = (width_option->percent) ? std::round(100 * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
+                            spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                         }
                         spacing_option->percent = width_option->percent;
                         something_changed = true;
@@ -11947,7 +11953,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                 //if (opt_key == "support_material_extrusion_width") {
                 //    Flow flow = Flow::new_from_config_width(FlowRole::frSupportMaterial, width_option->value == 0 ? *default_width_option : *width_option, max_nozzle_diameter, layer_height_option->value, 0);
                 //    if (width_option->percent)
-                //        this->set_key_value("support_material_extrusion_spacing", new ConfigOptionFloatOrPercent(std::round(100 * flow.spacing() / max_nozzle_diameter), true));
+                //        this->set_key_value("support_material_extrusion_spacing", new ConfigOptionFloatOrPercent(std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter), true));
                 //    else
                 //        this->set_key_value("support_material_extrusion_spacing", new ConfigOptionFloatOrPercent(std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS, false));
                 //    something_changed = true;
@@ -11955,7 +11961,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                 //if (opt_key == "skirt_extrusion_width") {
                 //    Flow flow = Flow::new_from_config_width(FlowRole::frPerimeter, width_option->value == 0 ? *default_width_option : *width_option, max_nozzle_diameter, layer_height_option->value, 0);
                 //    if (width_option->percent)
-                //        this->set_key_value("skirt_extrusion_spacing", new ConfigOptionFloatOrPercent(std::round(100 * flow.spacing() / max_nozzle_diameter), true));
+                //        this->set_key_value("skirt_extrusion_spacing", new ConfigOptionFloatOrPercent(std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter), true));
                 //    else
                 //        this->set_key_value("skirt_extrusion_spacing", new ConfigOptionFloatOrPercent(std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS, false));
                 //    something_changed = true;
@@ -11964,19 +11970,19 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                 if (spacing_option != nullptr) {
                     width_option->set_phony(true);
                     spacing_option->set_phony(false);
-                    spacing_option->value = 100;
+                    spacing_option->value = FULL_PERCENT;
                     spacing_option->percent = true;
                     Flow flow = Flow::new_from_spacing(spacing_option->get_abs_value(max_nozzle_diameter), max_nozzle_diameter, layer_height_option->value, overlap_ratio, false);
-                    width_option->value = (spacing_option->percent) ? std::round(100 * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
+                    width_option->value = (spacing_option->percent) ? std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                     width_option->percent = spacing_option->percent;
                     something_changed = true;
                 } else {
-                    width_option->value = 100;
+                    width_option->value = FULL_PERCENT;
                     width_option->percent = true;
                     width_option->set_phony(false);
                     spacing_option->set_phony(true);
                     Flow flow = Flow::new_from_config_width(FlowRole::frPerimeter, width_option->value == 0 ? *width_option : *default_width_option, *spacing_option, max_nozzle_diameter, layer_height_option->value, overlap_ratio, 0);
-                    spacing_option->value = (width_option->percent) ? std::round(100 * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
+                    spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                     spacing_option->percent = width_option->percent;
                     something_changed = true;
                 }
@@ -12352,7 +12358,7 @@ CLITransformConfigDef::CLITransformConfigDef()
     def = this->add("align_xy", coPoint);
     def->label = L("Align XY");
     def->tooltip = L("Align the model to the given point.");
-    def->set_default_value(new ConfigOptionPoint(Vec2d(100,100)));
+    def->set_default_value(new ConfigOptionPoint(Vec2d(DEFAULT_BED_CENTER_MM, DEFAULT_BED_CENTER_MM)));
 
     def = this->add("cut", coFloat);
     def->label = L("Cut");
@@ -12379,7 +12385,7 @@ CLITransformConfigDef::CLITransformConfigDef()
     def = this->add("center", coPoint);
     def->label = L("Center");
     def->tooltip = L("Center the print around the given center.");
-    def->set_default_value(new ConfigOptionPoint(Vec2d(100,100)));
+    def->set_default_value(new ConfigOptionPoint(Vec2d(DEFAULT_BED_CENTER_MM, DEFAULT_BED_CENTER_MM)));
 
     def = this->add("dont_arrange", coBool);
     def->label = L("Don't arrange");
