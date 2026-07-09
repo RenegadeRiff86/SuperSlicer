@@ -172,6 +172,21 @@ static constexpr const char* KEY_WIPE_SPEED = "wipe_speed";
 static constexpr int    FULL_PERCENT = 100;                    // a whole quantity expressed in percent
 static constexpr double MAX_PERCENT = FULL_PERCENT;            // input-field cap for fields that cannot exceed 100%
 static constexpr double PERCENT_SCALE = FULL_PERCENT;          // ratio -> percent conversion factor
+static constexpr int    HALF_PERCENT = 50;                     // 50% of the base value
+static constexpr int    QUARTER_PERCENT = 25;                  // 25% of the base value
+static constexpr int    SIXTY_PERCENT = 60;                    // 60% of the base value
+static constexpr int    EIGHTY_PERCENT = 80;                   // 80% of the base value
+static constexpr int    NINETY_PERCENT = 90;                   // 90% of the base value
+static constexpr int    OVERLAP_GRAPH_STEP_PCT = QUARTER_PERCENT; // legacy overhang graphs sample at 25%-overlap steps
+static constexpr int    RIGHT_ANGLE_DEGREES = 90;              // angle fields capped at a right angle
+static constexpr int    DEFAULT_BED_TEMP_C = 60;               // default bed temperature (degrees C)
+static constexpr int    DEFAULT_FIRST_LAYER_WIDTH_PCT = 140;   // first-layer (infill) width: 140% of nozzle diameter
+static constexpr double DEFAULT_PURGE_VOLUME_MM3 = 140;        // purge volume between any two tools on the wipe tower (mm^3)
+static constexpr double DEFAULT_PURGE_VOLUME_HALF_MM3 = DEFAULT_PURGE_VOLUME_MM3 / 2; // per-tool load/unload share
+static constexpr double DEFAULT_WIPE_TOWER_Y_MM = 140;         // default Y of the wipe tower front-left corner (mm)
+static constexpr int    DEFAULT_MAX_PRINT_SPEED_MM_S = 80;     // max print speed default when given literally (mm/s)
+static constexpr int    DEFAULT_LAYER_TIME_THRESHOLD_S = 60;   // layer-time threshold for fan/slowdown triggers (seconds)
+static constexpr int    DEFAULT_WIPE_ADVANCED_MULTIPLIER = 60; // advanced wipe volume multiplier default
 static constexpr double LARGE_MAX_LIMIT = 1000;                // generous cap for numeric fields with no natural upper bound
 static constexpr double HUGE_MAX_LIMIT = 10000;                // cap for counts that can legitimately grow very large
 static constexpr double FULL_CIRCLE_DEGREES = 360;             // angle fields wrap at a full turn
@@ -1136,7 +1151,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext = L("mm or %");
     def->min = 0;
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value(new ConfigOptionFloatOrPercent(25, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(QUARTER_PERCENT, true));
 
     def = this->add(KEY_BRIDGE_OVERLAP_MIN, coPercent);
     def->label = L("Min");
@@ -1149,7 +1164,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 2;
     def->max = 2000;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionPercent(80));
+    def->set_default_value(new ConfigOptionPercent(EIGHTY_PERCENT));
 
     def = this->add(KEY_BRIDGE_OVERLAP, coPercent);
     def->label = L("Max");
@@ -1161,7 +1176,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 2;
     def->max = 2000;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionPercent(90));
+    def->set_default_value(new ConfigOptionPercent(NINETY_PERCENT));
 
     def = this->add("bridge_speed", coFloatOrPercent);
     def->label = L("Bridges");
@@ -1175,7 +1190,7 @@ void PrintConfigDef::init_fff_params()
     def->ratio_over = KEY_DEFAULT_SPEED;
     def->min = 0;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloatOrPercent(60, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(SIXTY_PERCENT, true));
 
     def = this->add("brim_inside_holes", coBool);
     def->label = L("Brim inside holes");
@@ -1291,7 +1306,7 @@ void PrintConfigDef::init_fff_params()
     def->ratio_over = "support_material_speed";
     def->min = 0;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionFloatOrPercent(50, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(HALF_PERCENT, true));
 
 #if 0
     def = this->add(KEY_BRIM_TYPE, coEnum);
@@ -1847,7 +1862,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->max = MAX_PERCENT;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionPercent(80));
+    def->set_default_value(new ConfigOptionPercent(EIGHTY_PERCENT));
 
     def = this->add("external_perimeter_acceleration", coFloatOrPercent);
     def->label = L("External");
@@ -1874,7 +1889,7 @@ void PrintConfigDef::init_fff_params()
     def->ratio_over = KEY_PERIMETER_SPEED;
     def->min = 0;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloatOrPercent(50, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(HALF_PERCENT, true));
 
     def = this->add("external_perimeters_first", coBool);
     def->label = L("first");
@@ -2204,7 +2219,7 @@ void PrintConfigDef::init_fff_params()
     def->max = LARGE_MAX_LIMIT;
     def->mode = comExpert | comPrusa;
     def->is_vector_extruder = true;
-    def->set_default_value(new ConfigOptionFloats { 60 });
+    def->set_default_value(new ConfigOptionFloats { DEFAULT_LAYER_TIME_THRESHOLD_S });
 
     def = this->add("filament_colour", coStrings);
     def->label = L("Color");
@@ -3115,7 +3130,7 @@ void PrintConfigDef::init_fff_params()
     def->max_literal = { 1, true };
     def->mode = comExpert | comSuSi;
     def->sidetext = L("mm/%");
-    def->set_default_value(new ConfigOptionFloatOrPercent(50, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(HALF_PERCENT, true));
 
     def = this->add("fill_smooth_distribution", coPercent);
     def->label = L("Distribution");
@@ -3218,7 +3233,7 @@ void PrintConfigDef::init_fff_params()
     def->can_phony = true;
     def->can_be_disabled = true;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(enable_default_option(new ConfigOptionFloatOrPercent(140, true)));
+    def->set_default_value(enable_default_option(new ConfigOptionFloatOrPercent(DEFAULT_FIRST_LAYER_WIDTH_PCT, true)));
 
     def = this->add(KEY_FIRST_LAYER_EXTRUSION_SPACING, coFloatOrPercent);
     def->label = L(STR_FIRST_LAYER);
@@ -3255,7 +3270,7 @@ void PrintConfigDef::init_fff_params()
     def->can_phony = true;
     def->can_be_disabled = true;
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value(disable_default_option(new ConfigOptionFloatOrPercent(140, true)));
+    def->set_default_value(disable_default_option(new ConfigOptionFloatOrPercent(DEFAULT_FIRST_LAYER_WIDTH_PCT, true)));
 
     def = this->add("first_layer_infill_extrusion_spacing", coFloatOrPercent);
     def->label = L(STR_FIRST_LAYER);
@@ -3546,7 +3561,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->max = MAX_PERCENT;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionPercent(80));
+    def->set_default_value(new ConfigOptionPercent(EIGHTY_PERCENT));
 
     def = this->add("gap_fill_perimeter", coBool);
     def->label = L("Allow Perimeter inside Gap fill");
@@ -3568,7 +3583,7 @@ void PrintConfigDef::init_fff_params()
     def->ratio_over = KEY_PERIMETER_SPEED;
     def->min = 0;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloatOrPercent(50,true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(HALF_PERCENT, true));
 
     def = this->add("gcode_ascii", coBool);
     def->label = L("Only ascii characters in gcode");
@@ -3969,7 +3984,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->max_literal = { 0.5, true };
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloatOrPercent(25, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(QUARTER_PERCENT, true));
 
     def = this->add("infill_speed", coFloatOrPercent);
     def->label = L("Sparse");
@@ -4155,7 +4170,7 @@ void PrintConfigDef::init_fff_params()
     def->ratio_over = KEY_NOZZLE_DIAMETER;
     def->min = 0;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloatOrPercent(25, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(QUARTER_PERCENT, true));
 
     def = this->add("ironing_speed", coFloatOrPercent);
     def->label = L("Ironing");
@@ -4168,7 +4183,7 @@ void PrintConfigDef::init_fff_params()
     def->ratio_over = "top_solid_infill_speed";
     def->min = 0.1;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloatOrPercent(50, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(HALF_PERCENT, true));
 
     def = this->add("layer_gcode", coString);
     def->label = L("After layer change G-code");
@@ -4522,7 +4537,7 @@ void PrintConfigDef::init_fff_params()
     def->ratio_over = "machine_max_feedrate_x";
     def->min = 1;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloatOrPercent(80, false));
+    def->set_default_value(new ConfigOptionFloatOrPercent(DEFAULT_MAX_PRINT_SPEED_MM_S, false));
 
     def = this->add("max_speed_reduction", coPercents);
     def->label = L("Max speed reduction");
@@ -4536,7 +4551,7 @@ void PrintConfigDef::init_fff_params()
     def->max = MAX_PERCENT;
     def->mode = comExpert | comSuSi;
     def->is_vector_extruder = true;
-    def->set_default_value(new ConfigOptionPercents{ 90 });
+    def->set_default_value(new ConfigOptionPercents{ NINETY_PERCENT });
 
     def = this->add("max_volumetric_speed", coFloat);
     def->label = L("Maximum flow for Autospeed");
@@ -4842,7 +4857,7 @@ void PrintConfigDef::init_fff_params()
     def->can_be_disabled = true;
     def->mode       = comExpert | comPrusa;
     def->set_default_value(disable_default_option(new ConfigOptionGraphs({GraphData(0,5, GraphData::GraphType::LINEAR,
-        {{0,FULL_PERCENT},{25,80},{50,60},{75,40},{FULL_PERCENT,20}}
+        {{0,FULL_PERCENT},{QUARTER_PERCENT,EIGHTY_PERCENT},{HALF_PERCENT,SIXTY_PERCENT},{75,40},{FULL_PERCENT,20}}
     )})));
     def->graph_settings = std::make_shared<GraphSettings>();
     def->graph_settings->title       = L("Overhangs fan speed by % of overlap");
@@ -4876,7 +4891,7 @@ void PrintConfigDef::init_fff_params()
     def->can_be_disabled = true;
     def->mode       = comExpert | comSuSi;
     def->set_default_value(enable_default_option(new ConfigOptionGraph(GraphData(0,5, GraphData::GraphType::LINEAR,
-        {{0,0},{25,0},{50,15},{75,50},{FULL_PERCENT,FULL_PERCENT}}
+        {{0,0},{QUARTER_PERCENT,0},{HALF_PERCENT,15},{75,HALF_PERCENT},{FULL_PERCENT,FULL_PERCENT}}
     ))));
     def->graph_settings = std::make_shared<GraphSettings>();
     def->graph_settings->title       = L("Overhangs flow ratio by % of overlap");
@@ -4914,7 +4929,7 @@ void PrintConfigDef::init_fff_params()
     def->can_be_disabled = true;
     def->mode       = comExpert | comPrusa;
     def->set_default_value(enable_default_option(new ConfigOptionGraph(GraphData(0,5, GraphData::GraphType::LINEAR,
-        {{0,0},{25,10},{50,40},{75,70},{FULL_PERCENT,FULL_PERCENT}}
+        {{0,0},{QUARTER_PERCENT,10},{HALF_PERCENT,40},{75,70},{FULL_PERCENT,FULL_PERCENT}}
     ))));
     def->graph_settings = std::make_shared<GraphSettings>();
     def->graph_settings->title       = L("Overhangs speed ratio by % of overlap");
@@ -5291,7 +5306,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->max = MAX_PERCENT;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionPercent(80));
+    def->set_default_value(new ConfigOptionPercent(EIGHTY_PERCENT));
 
     def = this->add("perimeter_reverse", coBool);
     def->label = L("Perimeter reversal on even layers");
@@ -5323,7 +5338,7 @@ void PrintConfigDef::init_fff_params()
     def->ratio_over = KEY_DEFAULT_SPEED;
     def->min = 0;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloatOrPercent(60, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(SIXTY_PERCENT, true));
 
     def = this->add("perimeters", coInt);
     def->label = L(STR_PERIMETERS_CAP);
@@ -5424,7 +5439,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->mode = comExpert | comSuSi;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInt(60)));
+    def->set_default_value(disable_default_option(new ConfigOptionInt(DEFAULT_BED_TEMP_C)));
 
     def = this->add("print_first_layer_bed_temperature", coInt);
     def->label = L("First Layer Bed Temperature");
@@ -5436,7 +5451,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->mode = comExpert | comSuSi;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInt(60)));
+    def->set_default_value(disable_default_option(new ConfigOptionInt(DEFAULT_BED_TEMP_C)));
 
     def = this->add("print_first_layer_temperature", coInt);
     def->label = L("First Layer Temperature");
@@ -5578,7 +5593,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 10;
     def->max = MAX_PERCENT;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionPercent(90));
+    def->set_default_value(new ConfigOptionPercent(NINETY_PERCENT));
 
     def = this->add("raft_first_layer_expansion", coFloat);
     def->label = L("First layer expansion");
@@ -5766,7 +5781,7 @@ void PrintConfigDef::init_fff_params()
                     "\n0° means that the lift will always be hit at the end of the travel.");
     def->sidetext = L("°");
     def->min = 0;
-    def->max = 90;
+    def->max = RIGHT_ANGLE_DEGREES;
     def->mode = comAdvancedE | comPrusa;
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionFloats{0.0});
@@ -5952,7 +5967,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->max = LARGE_MAX_LIMIT;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionPercent(60));
+    def->set_default_value(new ConfigOptionPercent(SIXTY_PERCENT));
 
     def = this->add(KEY_SEAM_GAP, coFloatsOrPercents);
     def->label = L("Seam gap");
@@ -6223,7 +6238,7 @@ void PrintConfigDef::init_fff_params()
     def->ratio_over = KEY_PERIMETER_SPEED;
     def->min = 0;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloatOrPercent(50, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(HALF_PERCENT, true));
 
     def = this->add("small_perimeter_min_length", coFloatOrPercent);
     def->label = L("Min length");
@@ -6617,7 +6632,7 @@ void PrintConfigDef::init_fff_params()
     def->max_literal = { CONFIRM_LITERAL_ABOVE_10, false};
     def->mode = comAdvancedE | comPrusa;
     // Default is half the external perimeter width.
-    def->set_default_value(new ConfigOptionFloatOrPercent(50, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(HALF_PERCENT, true));
 
     def = this->add("support_material_angle", coFloat);
     def->label = L("Pattern angle");
@@ -6762,7 +6777,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->max = FULL_CIRCLE_DEGREES;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionFloat(90));
+    def->set_default_value(new ConfigOptionFloat(RIGHT_ANGLE_DEGREES));
 
     def = this->add("support_material_interface_angle_increment", coFloat);
     def->label = L("Support interface angle increment");
@@ -6881,7 +6896,7 @@ void PrintConfigDef::init_fff_params()
     def->ratio_over = "support_material_speed";
     def->min = 0;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloatOrPercent(50, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(HALF_PERCENT, true));
 
     def = this->add("support_material_pattern", coEnum);
     def->label = L("Pattern");
@@ -6966,7 +6981,7 @@ void PrintConfigDef::init_fff_params()
     def->ratio_over = KEY_DEFAULT_SPEED;
     def->min = 0;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloatOrPercent(60, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(SIXTY_PERCENT, true));
 
     def = this->add("support_material_style", coEnum);
     def->label = L("Style");
@@ -7005,7 +7020,7 @@ void PrintConfigDef::init_fff_params()
                    "(recommended).");
     def->sidetext = L("°");
     def->min = 0;
-    def->max = 90;
+    def->max = RIGHT_ANGLE_DEGREES;
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionInt(0));
 
@@ -7143,7 +7158,7 @@ void PrintConfigDef::init_fff_params()
                 "\n-1% will also deactivate the anti-hysteris checks for external perimeters.");
     def->sidetext = "%";
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionPercent(80));
+    def->set_default_value(new ConfigOptionPercent(EIGHTY_PERCENT));
 
     def = this->add("thin_perimeters_all", coPercent);
     def->label = L("Overlapping all perimeters");
@@ -7190,7 +7205,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->min = 0;
     def->max_literal = { CONFIRM_LITERAL_ABOVE_10, true };
-    def->set_default_value(new ConfigOptionFloatOrPercent(50, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(HALF_PERCENT, true));
 
     def = this->add("thin_walls_merge", coBool);
     def->label = L("Merging with perimeters");
@@ -7386,7 +7401,7 @@ void PrintConfigDef::init_fff_params()
     def->ratio_over = "solid_infill_speed";
     def->min = 0;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloatOrPercent(50, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(HALF_PERCENT, true));
 
     def = this->add("top_solid_layers", coInt);
     //TRN Print Settings: "Top solid layers"
@@ -7541,7 +7556,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext = L("%");
     def->mode = comAdvancedE | comSuSi;
     def->is_vector_extruder = true;
-    def->set_default_value(new ConfigOptionPercents{ 50 });
+    def->set_default_value(new ConfigOptionPercents{ HALF_PERCENT });
     
     def = this->add(KEY_WIPE_LIFT, coFloatsOrPercents);
     def->label = L("Wipe lift");
@@ -7562,7 +7577,7 @@ void PrintConfigDef::init_fff_params()
         "\nCan be a percentage of the wipe distance.");
     def->mode = comAdvancedE | comSuSi;
     def->is_vector_extruder = true;
-    def->set_default_value(new ConfigOptionFloatsOrPercents{FloatOrPercent{50, true}});
+    def->set_default_value(new ConfigOptionFloatsOrPercents{FloatOrPercent{HALF_PERCENT, true}});
 
     def = this->add(KEY_WIPE_MIN, coFloatsOrPercents);
     def->label = L("Minimum Wipe length");
@@ -7643,18 +7658,18 @@ void PrintConfigDef::init_fff_params()
                      "wipe tower. These values are used to simplify creation of the full purging "
                      "volumes below. ");
     def->mode = comSimpleAE | comPrusa;
-    def->set_default_value(new ConfigOptionFloats { 70., 70., 70., 70., 70., 70., 70., 70., 70., 70.  });
+    def->set_default_value(new ConfigOptionFloats { DEFAULT_PURGE_VOLUME_HALF_MM3, DEFAULT_PURGE_VOLUME_HALF_MM3, DEFAULT_PURGE_VOLUME_HALF_MM3, DEFAULT_PURGE_VOLUME_HALF_MM3, DEFAULT_PURGE_VOLUME_HALF_MM3, DEFAULT_PURGE_VOLUME_HALF_MM3, DEFAULT_PURGE_VOLUME_HALF_MM3, DEFAULT_PURGE_VOLUME_HALF_MM3, DEFAULT_PURGE_VOLUME_HALF_MM3, DEFAULT_PURGE_VOLUME_HALF_MM3 });
 
     def = this->add("wiping_volumes_matrix", coFloats);
     def->label = L("Purging volumes - matrix");
     def->tooltip = L("This matrix describes volumes (in cubic milimetres) required to purge the"
                      " new filament on the wipe tower for any given pair of tools. ");
     def->mode = comSimpleAE | comPrusa;
-    def->set_default_value(new ConfigOptionFloats {   0., 140., 140., 140., 140.,
-                                                    140.,   0., 140., 140., 140.,
-                                                    140., 140.,   0., 140., 140.,
-                                                    140., 140., 140.,   0., 140.,
-                                                    140., 140., 140., 140.,   0. });
+    def->set_default_value(new ConfigOptionFloats {   0., DEFAULT_PURGE_VOLUME_MM3, DEFAULT_PURGE_VOLUME_MM3, DEFAULT_PURGE_VOLUME_MM3, DEFAULT_PURGE_VOLUME_MM3,
+                                                    DEFAULT_PURGE_VOLUME_MM3,   0., DEFAULT_PURGE_VOLUME_MM3, DEFAULT_PURGE_VOLUME_MM3, DEFAULT_PURGE_VOLUME_MM3,
+                                                    DEFAULT_PURGE_VOLUME_MM3, DEFAULT_PURGE_VOLUME_MM3,   0., DEFAULT_PURGE_VOLUME_MM3, DEFAULT_PURGE_VOLUME_MM3,
+                                                    DEFAULT_PURGE_VOLUME_MM3, DEFAULT_PURGE_VOLUME_MM3, DEFAULT_PURGE_VOLUME_MM3,   0., DEFAULT_PURGE_VOLUME_MM3,
+                                                    DEFAULT_PURGE_VOLUME_MM3, DEFAULT_PURGE_VOLUME_MM3, DEFAULT_PURGE_VOLUME_MM3, DEFAULT_PURGE_VOLUME_MM3,   0. });
 
 
     def = this->add("wipe_advanced", coBool);
@@ -7685,7 +7700,7 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("The volume multiplier used to compute the final volume to extrude by the algorithm.");
     def->sidetext = L("mm3");
     def->mode = comExpert | comSuSi;
-    def->set_default_value(new ConfigOptionFloat(60));
+    def->set_default_value(new ConfigOptionFloat(DEFAULT_WIPE_ADVANCED_MULTIPLIER));
 
 
     def = this->add("wipe_advanced_algo", coEnum);
@@ -7736,7 +7751,7 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("Y coordinate of the left front corner of a wipe tower");
     def->sidetext = L("mm");
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(140.));
+    def->set_default_value(new ConfigOptionFloat(DEFAULT_WIPE_TOWER_Y_MM));
 
     def = this->add("wipe_tower_width", coFloat);
     def->label = L("Width");
@@ -7969,7 +7984,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext = L("mm");
     def->mode = comExpert | comPrusa;
     def->min = 0;
-    def->set_default_value(new ConfigOptionFloatOrPercent(25, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(QUARTER_PERCENT, true));
 
     def = this->add("wall_transition_angle", coFloat);
     def->label = L("Perimeter transitioning threshold angle");
@@ -8003,7 +8018,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext = L("mm or %");
     def->mode = comExpert | comPrusa;
     def->min = 0;
-    def->set_default_value(new ConfigOptionFloatOrPercent(25, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(QUARTER_PERCENT, true));
 
     def = this->add("min_bead_width", coFloatOrPercent);
     def->label = L("Minimum perimeter width");
@@ -8392,7 +8407,7 @@ void PrintConfigDef::init_sla_support_params(const std::string &prefix)
     def->min = 1;
     def->max = MAX_PERCENT;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionPercent(50));
+    def->set_default_value(new ConfigOptionPercent(HALF_PERCENT));
 
     def = this->add(prefix + "support_max_bridges_on_pillar", coInt);
     def->label = L("Max bridges on a pillar");
@@ -8487,7 +8502,7 @@ void PrintConfigDef::init_sla_support_params(const std::string &prefix)
     def->tooltip = L("The default angle for connecting support sticks and junctions.");
     def->sidetext = L("°");
                     def->min = 0;
-    def->max = 90;
+    def->max = RIGHT_ANGLE_DEGREES;
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionFloat(45));
 
@@ -9006,7 +9021,7 @@ void PrintConfigDef::init_sla_params()
                      "90 degrees means straight walls.");
     def->sidetext = L("°");
     def->min = 45;
-    def->max = 90;
+    def->max = RIGHT_ANGLE_DEGREES;
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionFloat(90.0));
 
@@ -9962,7 +9977,7 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
             if (min == external_perimeter_speed) {
                 percent = 1 - percent;
             }
-            graph_curve.push_back(Vec2d(x * 25, int(percent * PERCENT_SCALE)));
+            graph_curve.push_back(Vec2d(x * OVERLAP_GRAPH_STEP_PCT, int(percent * PERCENT_SCALE)));
         }
         if (min == external_perimeter_speed) {
             graph_curve.push_back(Vec2d(FULL_PERCENT, 0));
@@ -10039,7 +10054,7 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
             // extract values
             Pointfs graph_curve;
             for (int x = 0; x < values.size(); ++x) {
-                graph_curve.push_back(Vec2d(x*25, values[x].get_at(idx)));
+                graph_curve.push_back(Vec2d(x*OVERLAP_GRAPH_STEP_PCT, values[x].get_at(idx)));
             }
             if (external_perimeter_fan_speed && external_perimeter_fan_speed->is_enabled(idx)) {
                 graph_curve.push_back(Vec2d(FULL_PERCENT, external_perimeter_fan_speed->get_at(idx)));
