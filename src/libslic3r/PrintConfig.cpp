@@ -228,6 +228,41 @@ static constexpr int    DEFAULT_DUPLICATE_DISTANCE_MM = 6;     // distance betwe
 static constexpr int    DEFAULT_SKIRT_DISTANCE_MM = 6;         // skirt-to-object distance default (mm)
 static constexpr int    DEFAULT_SMALL_PERIMETER_MIN_MM = 6;    // small_perimeter_min_length default (mm)
 static constexpr double SLA_OBJECT_DISTANCE_MM = 6;            // minimum distance between SLA objects (mm)
+static constexpr int    SEVENTY_FIVE_PERCENT = 75;             // 75% of the base value
+static constexpr double CONFIRM_LITERAL_ABOVE_HALF = 0.5;
+static constexpr double CONFIRM_LITERAL_ABOVE_500 = 500;
+static constexpr double ONE_MICRON_MM = 0.001;                 // 1 um expressed in mm; floor for tiny distances
+static constexpr double GRAPH_AXIS_STEP = 0.1;                 // default graph-editor axis step
+static constexpr double DEFAULT_LAYER_HEIGHT_MM = 0.2;
+static constexpr double DEFAULT_SUPPORT_CONTACT_Z_MM = 0.2;    // support Z contact distance default (mm)
+static constexpr double DEFAULT_ELEPHANT_FOOT_MIN_WIDTH_MM = 0.2;
+static constexpr double DEFAULT_RAFT_CONTACT_Z_MM = 0.1;
+static constexpr double DEFAULT_ISLAND_AVOIDANCE_WEIGHT = 0.4; // travel island-avoidance cost weight
+static constexpr double DEFAULT_NOZZLE_DIAMETER_MM = 0.4;
+static constexpr double DEFAULT_MIN_CRUISE_RATIO = 0.5;        // machine_min_cruise_ratio default
+static constexpr double DEFAULT_PIGMENT_RATIO = 0.5;           // filament pigment fraction default (0..1)
+static constexpr double DEFAULT_PILLAR_WIDENING_RATIO = 0.5;
+static constexpr double DEFAULT_HOLLOWING_QUALITY = 0.5;       // hollowing quality ratio default (0..1)
+static constexpr double HALF_RATIO = 0.5;                      // 50% expressed as a ratio
+static constexpr double SLA_HEAD_DIAMETER_MM = 0.4;            // SLA support head front diameter default
+static constexpr double SLA_HEAD_PENETRATION_MM = 0.2;         // SLA support head penetration default
+static constexpr double SLA_HEAD_WIDTH_MM = 1.0;               // SLA support head width default
+static constexpr double SLA_PILLAR_DIAMETER_MM = 1.0;          // SLA support pillar diameter default
+static constexpr double SLA_BASE_HEIGHT_MM = 1.0;              // SLA support base height default
+static constexpr double SLA_CONNECTOR_WIDTH_MM = 0.5;          // SLA pad object-connector width default
+static constexpr double NEUTRAL_GAMMA = 1.0;                   // gamma correction that changes nothing
+static constexpr double DEFAULT_BOTTLE_WEIGHT_KG = 1.0;
+static constexpr double DEFAULT_MATERIAL_DENSITY = 1.0;        // SLA material density default (g/ml)
+static constexpr double FLOW_ROUNDING_FACTOR = 1. - 0.25 * PI; // width a rounded extrusion loses vs its bounding rectangle
+static constexpr double DEFAULT_MAX_ACCEL_MM_S2 = 1500;        // machine max acceleration default, normal mode
+static constexpr double DEFAULT_MAX_ACCEL_SILENT_MM_S2 = 1250; // machine max acceleration default, silent mode
+static constexpr int    DEFAULT_MAX_GCODE_PER_SECOND = 1500;
+static constexpr int    DEFAULT_COOLING_MOVES = 4;             // filament cooling moves default
+static constexpr int    DEFAULT_FULL_FAN_LAYER = 4;            // layer at which the fan reaches full speed
+static constexpr double DEFAULT_SOLID_AREA_THRESHOLD_MM2 = 4;  // solid_infill_below_area default (mm^2)
+static constexpr size_t SUSI_VERSION_PREFIX_LEN = 4;           // strlen("SUSI") in legacy version tags
+static constexpr size_t OVERHANG_SPEED_SLOTS = 4;              // legacy overhang speed/fan buckets
+static constexpr int    HEIGHT_GCODE_BOX_TALL = 120;           // very tall multiline G-code text box (rows)
 static constexpr double LARGE_MAX_LIMIT = 1000;                // generous cap for numeric fields with no natural upper bound
 static constexpr double HUGE_MAX_LIMIT = 10000;                // cap for counts that can legitimately grow very large
 static constexpr double FULL_CIRCLE_DEGREES = 360;             // angle fields wrap at a full turn
@@ -751,7 +786,7 @@ void PrintConfigDef::init_common_params()
     def->sidetext = L("mm");
     def->min = 0;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(0.2));
+    def->set_default_value(new ConfigOptionFloat(DEFAULT_LAYER_HEIGHT_MM));
 
     def = this->add("max_print_height", coFloat);
     def->label = L("Max print height");
@@ -1003,7 +1038,7 @@ void PrintConfigDef::init_fff_params()
         "\nNote: In modifiers, only works in object & layer range modifiers.");
     def->min = 0;
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value(new ConfigOptionFloat(0.4));
+    def->set_default_value(new ConfigOptionFloat(DEFAULT_ISLAND_AVOIDANCE_WEIGHT));
 
     def = this->add("bed_temperature", coInts);
     def->label = L("Other layers");
@@ -1694,7 +1729,7 @@ void PrintConfigDef::init_fff_params()
                    "If you have multiple extruders, the gcode is processed in extruder order.");
     def->multiline = true;
     def->full_width = true;
-    def->height = 120;
+    def->height = HEIGHT_GCODE_BOX_TALL;
     def->mode = comExpert | comPrusa;
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionStrings { "; Filament-specific end gcode \n;END gcode for filament\n" });
@@ -2130,9 +2165,9 @@ void PrintConfigDef::init_fff_params()
     def->graph_settings->min_x       = 10;
     def->graph_settings->max_x       = 2000;
     def->graph_settings->step_x      = 1.;
-    def->graph_settings->min_y       = 0.1;
+    def->graph_settings->min_y       = GRAPH_AXIS_STEP;
     def->graph_settings->max_y       = 2;
-    def->graph_settings->step_y      = 0.1;
+    def->graph_settings->step_y      = GRAPH_AXIS_STEP;
     def->graph_settings->allowed_types = {GraphData::GraphType::LINEAR, GraphData::GraphType::SQUARE};
 
     def = this->add("extruder_offset", coPoints);
@@ -2521,7 +2556,7 @@ void PrintConfigDef::init_fff_params()
     def->max = MAX_COOLING_MOVES;
     def->mode = comExpert | comPrusa;
     def->is_vector_extruder = true;
-    def->set_default_value(new ConfigOptionInts { 4 });
+    def->set_default_value(new ConfigOptionInts { DEFAULT_COOLING_MOVES });
 
     def = this->add("filament_cooling_initial_speed", coFloats);
     def->label = L("Speed of the first cooling move");
@@ -3210,7 +3245,7 @@ void PrintConfigDef::init_fff_params()
     def->graph_settings->label_max_y = L("Maximum ratio");
     def->graph_settings->min_x       = 0;
     def->graph_settings->max_x       = MAX_PERCENT;
-    def->graph_settings->step_x      = 0.1;
+    def->graph_settings->step_x      = GRAPH_AXIS_STEP;
     def->graph_settings->min_y       = 0;
     def->graph_settings->max_y       = 1;
     def->graph_settings->step_y      = 0.01;
@@ -3340,7 +3375,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->max_literal = { CONFIRM_LITERAL_ABOVE_20, false };
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloatOrPercent(75, true));
+    def->set_default_value(new ConfigOptionFloatOrPercent(SEVENTY_FIVE_PERCENT, true));
 
     def = this->add("first_layer_speed", coFloatOrPercent);
     def->label = L("Max");
@@ -3418,7 +3453,7 @@ void PrintConfigDef::init_fff_params()
     def->max = LARGE_MAX_LIMIT;
     def->mode = comExpert | comPrusa;
     def->is_vector_extruder = true;
-    def->set_default_value(new ConfigOptionInts { 4 });
+    def->set_default_value(new ConfigOptionInts { DEFAULT_FULL_FAN_LAYER });
 
     def = this->add("fuzzy_skin", coEnum);
     def->label = L("Fuzzy Skin");
@@ -4023,7 +4058,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext = L("mm or %");
     def->ratio_over = KEY_PERIMETER_EXTRUSION_WIDTH;
     def->min = 0;
-    def->max_literal = { 0.5, true };
+    def->max_literal = { CONFIRM_LITERAL_ABOVE_HALF, true };
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionFloatOrPercent(QUARTER_PERCENT, true));
 
@@ -4469,7 +4504,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext = L("mm/s²");
     def->min = 0;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloats{ 1500., 1250. });
+    def->set_default_value(new ConfigOptionFloats{ DEFAULT_MAX_ACCEL_MM_S2, DEFAULT_MAX_ACCEL_SILENT_MM_S2 });
 
     // M204 R... [mm/sec^2]
     def = this->add("machine_max_acceleration_retracting", coFloats);
@@ -4480,7 +4515,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext = L("mm/s²");
     def->min = 0;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloats{ 1500., 1250. });
+    def->set_default_value(new ConfigOptionFloats{ DEFAULT_MAX_ACCEL_MM_S2, DEFAULT_MAX_ACCEL_SILENT_MM_S2 });
 
     // M204 T... [mm/sec^2]
     def = this->add("machine_max_acceleration_travel", coFloats);
@@ -4490,7 +4525,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext = L("mm/s²");
     def->min = 0;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloats{ 1500., 1250. });
+    def->set_default_value(new ConfigOptionFloats{ DEFAULT_MAX_ACCEL_MM_S2, DEFAULT_MAX_ACCEL_SILENT_MM_S2 });
 
     // Klipper SET_VELOCITY_LIMIT MINIMUM_CRUISE_RATIO=<ratio>
     // Klipper requires 0 <= ratio < 1 (default 0.5). Replaces the removed
@@ -4508,7 +4543,7 @@ void PrintConfigDef::init_fff_params()
     def->max = 0.99;
     def->mode = comAdvancedE | comSuSi;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloat(0.5)));
+    def->set_default_value(disable_default_option(new ConfigOptionFloat(DEFAULT_MIN_CRUISE_RATIO)));
 
     def = this->add("max_gcode_per_second", coFloat);
     def->label = L("Maximum G1 per second (Experimental)");
@@ -4521,7 +4556,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->mode = comExpert | comSuSi;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloat(1500)));
+    def->set_default_value(disable_default_option(new ConfigOptionFloat(DEFAULT_MAX_GCODE_PER_SECOND)));
 
     def = this->add("pressure_advance_min_delta", coFloat);
     def->label = L("Pressure advance minimum change");
@@ -4564,7 +4599,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comSimpleAE | comPrusa;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(enable_default_option(new ConfigOptionFloatsOrPercents{ FloatOrPercent{ 75, true} }));
+    def->set_default_value(enable_default_option(new ConfigOptionFloatsOrPercents{ FloatOrPercent{ SEVENTY_FIVE_PERCENT, true} }));
 
     def = this->add("max_print_speed", coFloatOrPercent);
     def->label = L("Max Autospeed");
@@ -4735,7 +4770,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext = L("mm");
     def->mode = comAdvancedE | comPrusa;
     def->is_vector_extruder = true;
-    def->set_default_value(new ConfigOptionFloats{ 0.4 });
+    def->set_default_value(new ConfigOptionFloats{ DEFAULT_NOZZLE_DIAMETER_MM });
 
     def = this->add(KEY_HOST_TYPE, coEnum);
     def->label = L("Host Type");
@@ -4898,7 +4933,7 @@ void PrintConfigDef::init_fff_params()
     def->can_be_disabled = true;
     def->mode       = comExpert | comPrusa;
     def->set_default_value(disable_default_option(new ConfigOptionGraphs({GraphData(0,5, GraphData::GraphType::LINEAR,
-        {{0,FULL_PERCENT},{QUARTER_PERCENT,EIGHTY_PERCENT},{HALF_PERCENT,SIXTY_PERCENT},{75,40},{FULL_PERCENT,20}}
+        {{0,FULL_PERCENT},{QUARTER_PERCENT,EIGHTY_PERCENT},{HALF_PERCENT,SIXTY_PERCENT},{SEVENTY_FIVE_PERCENT,40},{FULL_PERCENT,20}}
     )})));
     def->graph_settings = std::make_shared<GraphSettings>();
     def->graph_settings->title       = L("Overhangs fan speed by % of overlap");
@@ -4932,7 +4967,7 @@ void PrintConfigDef::init_fff_params()
     def->can_be_disabled = true;
     def->mode       = comExpert | comSuSi;
     def->set_default_value(enable_default_option(new ConfigOptionGraph(GraphData(0,5, GraphData::GraphType::LINEAR,
-        {{0,0},{QUARTER_PERCENT,0},{HALF_PERCENT,15},{75,HALF_PERCENT},{FULL_PERCENT,FULL_PERCENT}}
+        {{0,0},{QUARTER_PERCENT,0},{HALF_PERCENT,15},{SEVENTY_FIVE_PERCENT,HALF_PERCENT},{FULL_PERCENT,FULL_PERCENT}}
     ))));
     def->graph_settings = std::make_shared<GraphSettings>();
     def->graph_settings->title       = L("Overhangs flow ratio by % of overlap");
@@ -4970,7 +5005,7 @@ void PrintConfigDef::init_fff_params()
     def->can_be_disabled = true;
     def->mode       = comExpert | comPrusa;
     def->set_default_value(enable_default_option(new ConfigOptionGraph(GraphData(0,5, GraphData::GraphType::LINEAR,
-        {{0,0},{QUARTER_PERCENT,10},{HALF_PERCENT,40},{75,70},{FULL_PERCENT,FULL_PERCENT}}
+        {{0,0},{QUARTER_PERCENT,10},{HALF_PERCENT,40},{SEVENTY_FIVE_PERCENT,70},{FULL_PERCENT,FULL_PERCENT}}
     ))));
     def->graph_settings = std::make_shared<GraphSettings>();
     def->graph_settings->title       = L("Overhangs speed ratio by % of overlap");
@@ -5598,7 +5633,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext = L("mm");
     def->min = 0;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(0.1));
+    def->set_default_value(new ConfigOptionFloat(DEFAULT_RAFT_CONTACT_Z_MM));
 
     def = this->add("raft_contact_distance_type", coEnum);
     def->label = L("Type");
@@ -5959,7 +5994,7 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("The speed for retractions (this only applies to the extruder motor).");
     def->sidetext = L("mm/s");
     def->mode = comAdvancedE | comPrusa;
-    def->min = 0.001;
+    def->min = ONE_MICRON_MM;
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionFloats { DEFAULT_RETRACT_SPEED_MM_S });
 
@@ -6305,7 +6340,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext = L("mm or %");
     def->ratio_over = KEY_NOZZLE_DIAMETER;
     def->min = 0;
-    def->max_literal = { 500, false };
+    def->max_literal = { CONFIRM_LITERAL_ABOVE_500, false };
     def->mode = comAdvancedE | comSuSi;
     def->set_default_value(new ConfigOptionFloatOrPercent(DEFAULT_SMALL_PERIMETER_LENGTH_MM, false));
 
@@ -6316,7 +6351,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext = L("mm²");
     def->min = 0;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(4));
+    def->set_default_value(new ConfigOptionFloat(DEFAULT_SOLID_AREA_THRESHOLD_MM2));
 
     def = this->add("solid_infill_below_layer_area", coFloat);
     def->label = L("Solid infill layer threshold area");
@@ -6732,7 +6767,7 @@ void PrintConfigDef::init_fff_params()
     def->max_literal = { CONFIRM_LITERAL_ABOVE_20, true };
     def->mode = comAdvancedE | comPrusa;
     def->aliases = { "support_material_contact_distance_top" }; // Sli3r, PS
-    def->set_default_value(new ConfigOptionFloatOrPercent(0.2, false));
+    def->set_default_value(new ConfigOptionFloatOrPercent(DEFAULT_SUPPORT_CONTACT_Z_MM, false));
 
     def = this->add("support_material_bottom_contact_distance", coFloatOrPercent);
     def->label = L("Bottom");
@@ -6754,7 +6789,7 @@ void PrintConfigDef::init_fff_params()
     def->max_literal = { CONFIRM_LITERAL_ABOVE_20, true };
     def->mode = comAdvancedE | comPrusa;
     def->aliases = { "support_material_contact_distance_bottom" }; //since PS 2.4
-    def->set_default_value(new ConfigOptionFloatOrPercent(0.2,false));
+    def->set_default_value(new ConfigOptionFloatOrPercent(DEFAULT_SUPPORT_CONTACT_Z_MM, false));
 
     def = this->add("support_material_enforce_layers", coInt);
     def->label = L("Enforce support for the first");
@@ -7479,7 +7514,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->max_literal = { CONFIRM_LITERAL_BELOW_200, false };
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value(new ConfigOptionFloatOrPercent(1500, false));
+    def->set_default_value(new ConfigOptionFloatOrPercent(DEFAULT_MAX_ACCEL_MM_S2, false));
 
     def = this->add("travel_deceleration_use_target", coBool);
     def->label = L("Decelerate with target acceleration");
@@ -7733,7 +7768,7 @@ void PrintConfigDef::init_fff_params()
     def->max = 1;
     def->mode = comExpert | comSuSi;
     def->is_vector_extruder = true;
-    def->set_default_value(new ConfigOptionFloats{ 0.5 });
+    def->set_default_value(new ConfigOptionFloats{ DEFAULT_PIGMENT_RATIO });
 
     def = this->add("wipe_advanced_multiplier", coFloat);
     def->label = L("Multiplier");
@@ -8408,7 +8443,7 @@ void PrintConfigDef::init_sla_support_params(const std::string &prefix)
     def->sidetext = L("mm");
     def->min = 0;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(0.4));
+    def->set_default_value(new ConfigOptionFloat(SLA_HEAD_DIAMETER_MM));
 
     def = this->add(prefix + "support_head_penetration", coFloat);
     def->label = L("Head penetration");
@@ -8417,7 +8452,7 @@ void PrintConfigDef::init_sla_support_params(const std::string &prefix)
     def->sidetext = L("mm");
     def->mode = comAdvancedE | comPrusa;
     def->min = 0;
-    def->set_default_value(new ConfigOptionFloat(0.2));
+    def->set_default_value(new ConfigOptionFloat(SLA_HEAD_PENETRATION_MM));
 
     def = this->add(prefix + "support_head_width", coFloat);
     def->label = L("Pinhead width");
@@ -8427,7 +8462,7 @@ void PrintConfigDef::init_sla_support_params(const std::string &prefix)
     def->min = 0;
     def->max = 20;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(1.0));
+    def->set_default_value(new ConfigOptionFloat(SLA_HEAD_WIDTH_MM));
 
     def = this->add(prefix + "support_pillar_diameter", coFloat);
     def->label = L("Pillar diameter");
@@ -8437,7 +8472,7 @@ void PrintConfigDef::init_sla_support_params(const std::string &prefix)
     def->min = 0;
     def->max = 15;
     def->mode = comSimpleAE | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(1.0));
+    def->set_default_value(new ConfigOptionFloat(SLA_HEAD_WIDTH_MM));
 
     def = this->add(prefix + "support_small_pillar_diameter_percent", coPercent);
     def->label = L("Small pillar diameter percent");
@@ -8503,7 +8538,7 @@ void PrintConfigDef::init_sla_support_params(const std::string &prefix)
     def->min = 0;
     def->max = 1;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(0.5));
+    def->set_default_value(new ConfigOptionFloat(DEFAULT_PILLAR_WIDENING_RATIO));
 
     def = this->add(prefix + "support_base_diameter", coFloat);
     def->label = L("Support base diameter");
@@ -8522,7 +8557,7 @@ void PrintConfigDef::init_sla_support_params(const std::string &prefix)
     def->sidetext = L("mm");
     def->min = 0;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(1.0));
+    def->set_default_value(new ConfigOptionFloat(SLA_BASE_HEIGHT_MM));
 
     def = this->add(prefix + "support_base_safety_distance", coFloat);
     def->label = L("Support base safety distance");
@@ -8742,7 +8777,7 @@ void PrintConfigDef::init_sla_params()
     def->sidetext = L("mm");
     def->min = 0;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(0.2));
+    def->set_default_value(new ConfigOptionFloat(DEFAULT_ELEPHANT_FOOT_MIN_WIDTH_MM));
 
     def = this->add("gamma_correction", coFloat);
     def->label = L("Printer gamma correction");
@@ -8754,7 +8789,7 @@ void PrintConfigDef::init_sla_params()
     def->min = 0;
     def->max = 1;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(1.0));
+    def->set_default_value(new ConfigOptionFloat(NEUTRAL_GAMMA));
 
 
     // SLA Material settings.
@@ -8797,7 +8832,7 @@ void PrintConfigDef::init_sla_params()
     def->sidetext = L("kg");
     def->min = 0;
     def->mode = comSimpleAE | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(1.0));
+    def->set_default_value(new ConfigOptionFloat(DEFAULT_BOTTLE_WEIGHT_KG));
 
     def = this->add("material_density", coFloat);
     def->label = L("Density");
@@ -8805,7 +8840,7 @@ void PrintConfigDef::init_sla_params()
     def->sidetext = L("g/ml");
     def->min = 0;
     def->mode = comSimpleAE | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(1.0));
+    def->set_default_value(new ConfigOptionFloat(DEFAULT_BOTTLE_WEIGHT_KG));
 
     def = this->add("bottle_cost", coFloat);
     def->label = L("Cost");
@@ -9107,7 +9142,7 @@ void PrintConfigDef::init_sla_params()
     def->sidetext = L("mm");
     def->min = 0;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(0.5));
+    def->set_default_value(new ConfigOptionFloat(SLA_CONNECTOR_WIDTH_MM));
 
     def = this->add("pad_object_connector_penetration", coFloat);
     def->label = L("Pad object connector penetration");
@@ -9143,7 +9178,7 @@ void PrintConfigDef::init_sla_params()
     def->min = 0;
     def->max = 1;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(0.5));
+    def->set_default_value(new ConfigOptionFloat(DEFAULT_HOLLOWING_QUALITY));
     
     def = this->add("hollowing_closing_distance", coFloat);
     def->label = L("Closing distance");
@@ -9198,7 +9233,7 @@ void PrintConfigDef::init_sla_params()
     def->sidetext = L("mm");
     def->min = float(SCALING_FACTOR);
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(0.001));
+    def->set_default_value(new ConfigOptionFloat(ONE_MICRON_MM));
 
     // Declare retract values for material profile, overriding the print and printer profiles.
     for (const std::string &opt_key : m_material_overrides_option_keys) {
@@ -9926,9 +9961,9 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
     bool old = true;
     if (config.has("print_version")) {
         std::string str_version = config.option<ConfigOptionString>("print_version")->value;
-        old = str_version.size() < 4+1+7;
-        old = old || str_version.substr(0,4) != "SUSI";
-        assert(old || str_version[4] == '_');
+        old = str_version.size() < SUSI_VERSION_PREFIX_LEN+1+7;
+        old = old || str_version.substr(0, SUSI_VERSION_PREFIX_LEN) != "SUSI";
+        assert(old || str_version[SUSI_VERSION_PREFIX_LEN] == '_');
         if (!old) {
             std::optional<Semver> version = Semver::parse(str_version.substr(5));
             if (version) {
@@ -9980,7 +10015,7 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
         if (useful_items.find(KEY_ENABLE_DYNAMIC_OVERHANG_SPEEDS) != useful_items.end())
             enable_dynamic_overhang_speeds.deserialize(useful_items[KEY_ENABLE_DYNAMIC_OVERHANG_SPEEDS]);
         std::vector<ConfigOptionFloatOrPercent> values;
-        values.resize(4);
+        values.resize(OVERHANG_SPEED_SLOTS);
         values[0].deserialize(useful_items["overhang_speed_0"]);
         values[1].deserialize(useful_items["overhang_speed_1"]);
         values[2].deserialize(useful_items["overhang_speed_2"]);
@@ -10041,7 +10076,7 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
         auto *perimeter_fan_speed = config.option<ConfigOptionInts>("perimeter_fan_speed");
         auto *default_fan_speed = config.option<ConfigOptionInts>(KEY_DEFAULT_FAN_SPEED);
         std::vector<ConfigOptionFloats> values;
-        values.resize(4);
+        values.resize(OVERHANG_SPEED_SLOTS);
         if(useful_items.find("overhang_fan_speed_0") != useful_items.end())
             values[0].deserialize(useful_items["overhang_fan_speed_0"]);
         if(useful_items.find("overhang_fan_speed_1") != useful_items.end())
@@ -11541,17 +11576,17 @@ void DynamicPrintConfig::normalize_fdm()
 // merill : why?
 //    if (auto* opt_gcode_resolution = this->opt<ConfigOptionFloat>("gcode_resolution", false); opt_gcode_resolution)
 //        // Resolution will be above 1um.
-//        opt_gcode_resolution->value = std::max(opt_gcode_resolution->value, 0.001);
+//        opt_gcode_resolution->value = std::max(opt_gcode_resolution->value, ONE_MICRON_MM);
 
     if (auto *opt_min_bead_width = this->opt<ConfigOptionFloat>("min_bead_width", false); opt_min_bead_width)
-        opt_min_bead_width->value = std::max(opt_min_bead_width->value, 0.001);
+        opt_min_bead_width->value = std::max(opt_min_bead_width->value, ONE_MICRON_MM);
     if (auto *opt_wall_transition_length = this->opt<ConfigOptionFloat>("wall_transition_length", false); opt_wall_transition_length)
-        opt_wall_transition_length->value = std::max(opt_wall_transition_length->value, 0.001);
+        opt_wall_transition_length->value = std::max(opt_wall_transition_length->value, ONE_MICRON_MM);
 
     if (auto *opt_min_bead_width = this->opt<ConfigOptionFloat>("min_bead_width", false); opt_min_bead_width)
-        opt_min_bead_width->value = std::max(opt_min_bead_width->value, 0.001);
+        opt_min_bead_width->value = std::max(opt_min_bead_width->value, ONE_MICRON_MM);
     if (auto *opt_wall_transition_length = this->opt<ConfigOptionFloat>("wall_transition_length", false); opt_wall_transition_length)
-        opt_wall_transition_length->value = std::max(opt_wall_transition_length->value, 0.001);
+        opt_wall_transition_length->value = std::max(opt_wall_transition_length->value, ONE_MICRON_MM);
 }
 
 void  handle_legacy_sla(DynamicPrintConfig& config)
@@ -11703,8 +11738,8 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
             if (filament_max_overlap_option) overlap_ratio = filament_max_overlap_option->get_abs_value(0, 1.);
             Flow flow = Flow::new_from_spacing(spacing_value, max_nozzle_diameter,layer_height_option->value, overlap_ratio, false);
             //test for valid height. If too high, revert to round shape
-            if (spacing_value > 0 && flow.height() > spacing_value / (1 - (1. - 0.25 * PI) * flow.spacing_ratio())) {
-                flow = flow.with_width(spacing_value / (1 - (1. - 0.25 * PI) * flow.spacing_ratio()));
+            if (spacing_value > 0 && flow.height() > spacing_value / (1 - FLOW_ROUNDING_FACTOR * flow.spacing_ratio())) {
+                flow = flow.with_width(spacing_value / (1 - FLOW_ROUNDING_FACTOR * flow.spacing_ratio()));
                 flow = flow.with_height(flow.width());
             }
             if (opt_key == KEY_EXTRUSION_SPACING) {
@@ -11756,7 +11791,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                         width_option->value = 0;
                     else {
                         float spacing_ratio = (std::min(flow.spacing_ratio(), float(perimeter_overlap_option->get_abs_value(1))));
-                        flow = flow.with_width( spacing_option->get_abs_value(max_nozzle_diameter) + layer_height_option->value * (1. - 0.25 * PI) * spacing_ratio);
+                        flow = flow.with_width( spacing_option->get_abs_value(max_nozzle_diameter) + layer_height_option->value * FLOW_ROUNDING_FACTOR * spacing_ratio);
                         width_option->value = (spacing_option->percent) ? std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                     }
                     width_option->percent = spacing_option->percent;
@@ -11772,8 +11807,8 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                     if (spacing_value == 0)
                         width_option->value = 0;
                     else {
-                        float spacing_ratio = (std::min(flow.spacing_ratio() / 2, float(external_perimeter_overlap_option->get_abs_value(0.5))));
-                        flow = flow.with_width(spacing_option->get_abs_value(max_nozzle_diameter) + layer_height_option->value * (1. - 0.25 * PI) * spacing_ratio);
+                        float spacing_ratio = (std::min(flow.spacing_ratio() / 2, float(external_perimeter_overlap_option->get_abs_value(HALF_RATIO))));
+                        flow = flow.with_width(spacing_option->get_abs_value(max_nozzle_diameter) + layer_height_option->value * FLOW_ROUNDING_FACTOR * spacing_ratio);
                         width_option->value = (spacing_option->percent) ? std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                     }
                     width_option->percent = spacing_option->percent;
@@ -11803,7 +11838,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                         width_option->value = 0;
                     else {
                         float spacing_ratio = (std::min(flow.spacing_ratio(), float(solid_infill_overlap_option->get_abs_value(1))));
-                        flow = flow.with_width(spacing_option->get_abs_value(max_nozzle_diameter) + layer_height_option->value * (1. - 0.25 * PI) * spacing_ratio);
+                        flow = flow.with_width(spacing_option->get_abs_value(max_nozzle_diameter) + layer_height_option->value * FLOW_ROUNDING_FACTOR * spacing_ratio);
                         width_option->value = (spacing_option->percent) ? std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                     }
                     width_option->percent = spacing_option->percent;
@@ -11820,7 +11855,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                         width_option->value = 0;
                     else {
                         float spacing_ratio = (std::min(flow.spacing_ratio(), float(top_solid_infill_overlap_option->get_abs_value(1))));
-                        flow = flow.with_width(spacing_option->get_abs_value(max_nozzle_diameter) + layer_height_option->value * (1. - 0.25 * PI) * spacing_ratio);
+                        flow = flow.with_width(spacing_option->get_abs_value(max_nozzle_diameter) + layer_height_option->value * FLOW_ROUNDING_FACTOR * spacing_ratio);
                         width_option->value = (spacing_option->percent) ? std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                     }
                     width_option->percent = spacing_option->percent;
@@ -11942,7 +11977,7 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                             Flow ext_perimeter_flow = Flow::new_from_config_width(FlowRole::frPerimeter, 
                                 width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, 
                                 max_nozzle_diameter, layer_height_option->value, 
-                                std::min(overlap_ratio * 0.5f, float(external_perimeter_overlap_option->get_abs_value(0.5))), 0);
+                                std::min(overlap_ratio * 0.5f, float(external_perimeter_overlap_option->get_abs_value(HALF_RATIO))), 0);
                             if (ext_perimeter_flow.width() < ext_perimeter_flow.height()) ext_perimeter_flow = ext_perimeter_flow.with_height(ext_perimeter_flow.width());
                             spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * ext_perimeter_flow.spacing() / max_nozzle_diameter) : (std::round(ext_perimeter_flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
                         }
