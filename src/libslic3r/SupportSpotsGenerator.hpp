@@ -71,7 +71,7 @@ struct Params
         } else if (filament_type == "PET" || filament_type == "PETG") {
             return 0.3 * 1e6;
         } else if (filament_type == "ABS" || filament_type == "ASA") {
-            return 0.1 * 1e6; //TODO do measurements
+            return 0.1 * 1e6; // rough estimate, not backed by measurements
         } else { //PLA default value - defensive approach, PLA has quite low adhesion
             return 0.02 * 1e6;
         }
@@ -158,7 +158,7 @@ class Integrals{
      */
     explicit Integrals(const Polylines& polylines, const std::vector<float>& widths);
 
-    // TODO refactor and delete the default constructor
+    // A refactor could remove the need for the default constructor.
     Integrals() = default;
     Integrals(float area, Vec2f x_i, Vec2f x_i_squared, float xy);
 

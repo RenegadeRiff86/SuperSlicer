@@ -78,8 +78,9 @@ void win_exec(const std::string &command);
 #endif
 
 #ifdef _DEBUGINFO
-// TODO: sort items idx by difficulty, so we can process the most difficult first.
-// for now, only used to swi
+// Debug-only replacement for tbb::parallel_for: lets you switch between parallel and
+// sequential execution without recompiling everything.
+// Possible improvement: sort item indices by difficulty, to process the most difficult first.
 void parallel_for(size_t begin, size_t size, std::function<void(size_t)> process_one_item);
 void not_parallel_for(size_t begin, size_t size, std::function<void(size_t)> process_one_item);
 #else

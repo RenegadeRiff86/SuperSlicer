@@ -20,7 +20,7 @@ template<typename T> constexpr T pi_div(const T div) { return static_cast<T>(M_P
  *
  * The beads may have different widths.
  *
- * TODO: extend with printing order?
+ * Possible future extension: printing order.
  */
 class BeadingStrategy
 {

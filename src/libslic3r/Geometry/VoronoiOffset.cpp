@@ -1256,11 +1256,11 @@ std::vector<Vec2d> edge_offset_contour_intersections(
                         case 0:
                             // No intersection found even though one or two were expected to be found.
                             // Not trying to find the intersection means that we may produce offset curves, that intersect at this Voronoi edge.
-                            //FIXME We are fine with that for now, but we may try to create artificial split points in further revisions.
+                            // Accepted for now; artificial split points may be created in further revisions.
                             break;
                         case 1:
                             // Tangential point found.
-                            //FIXME We are fine with that for now, but we may try to create artificial split points in further revisions.
+                            // Accepted for now; artificial split points may be created in further revisions.
                             break;
                         default:
                         {

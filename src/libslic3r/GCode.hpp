@@ -290,7 +290,7 @@ private:
     std::string change_layer(double print_z);
 
     std::string      visitor_gcode;
-    bool             visitor_flipped; //TODO use instead of reverse() at extrude_entity
+    bool             visitor_flipped; // could replace the reverse() calls in extrude_entity
     bool             visitor_in_use = false;
     std::string_view visitor_comment;
     double           visitor_speed;
@@ -466,7 +466,7 @@ private:
     // The Pressure Equalizer removes the markers from the final G-code.
     bool                                m_enable_extrusion_role_markers;
     int                                 m_check_markers = 0;
-    // HACK to avoid multiple Z move.
+    // Workaround to avoid emitting multiple Z moves on layer change: the move is buffered here and emitted later.
     std::string                         m_delayed_layer_change;
     // Keeps track of the last extrusion role passed to the processor
     GCodeExtrusionRole                  m_last_processor_extrusion_role;

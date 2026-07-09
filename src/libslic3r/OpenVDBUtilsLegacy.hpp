@@ -73,7 +73,7 @@ openvdb::FloatGrid::Ptr mesh_to_grid(const indexed_triangle_set &    mesh,
 
     if (meshparts.size() > 1) {
         // This is needed to avoid various artefacts on multipart meshes.
-        // TODO: replace with something faster
+        // Performance note: levelSetRebuild is slow; a faster alternative would be welcome.
         grid = openvdb::tools::levelSetRebuild(*grid, 0., 1.f, 1.f);
     }
     if(meshparts.empty()) {

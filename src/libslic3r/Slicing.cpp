@@ -320,7 +320,8 @@ std::shared_ptr<SlicingParameters> SlicingParameters::create_from_config(
 
     if (params.has_raft()) {
         // Raise first object layer Z by the thickness of the raft itself plus the extra distance required by the support material logic.
-        //FIXME The last raft layer is the contact layer, which shall be printed with a bridging flow for ease of separation. Currently it is not the case.
+        // Known limitation: the last raft layer is the contact layer, which should ideally be printed
+        // with a bridging flow for ease of separation; currently it is not.
         if (params.raft_layers() == 1) {
             assert(params.base_raft_layers == 1);
             assert(params.interface_raft_layers == 0);
@@ -883,35 +884,6 @@ std::vector<double> generate_object_layers(
         slice_z = print_z + 0.5 * slicing_params.min_layer_height;
         out.push_back(print_z);
     }
-
-    // Adjust the last layer to align with the top object layer exactly
-    // FIXME
-    // if (out.size() > 0 && slicing_params.object_print_z_height() != out[out.size() - 1] && slicing_params.exact_last_layer_height) {
-        // float neededPrintZ = slicing_params.object_print_z_height();
-        // int idx_layer = out.size() / 2 - 1;
-        // float diffZ = neededPrintZ - out[idx_layer * 2 + 1];
-        // while (diffZ > EPSILON || diffZ < -EPSILON && idx_layer >= 0){
-            // float newH = out[idx_layer * 2 + 1] - out[idx_layer * 2];
-            // if (diffZ > 0){
-                // newH = std::min(static_cast<float>(slicing_params.max_layer_height), newH + diffZ);
-            // } else{
-                // newH = std::max(static_cast<float>(slicing_params.min_layer_height), newH + diffZ);
-            // }
-            // out[idx_layer * 2 + 1] = neededPrintZ;
-            // out[idx_layer * 2] = neededPrintZ - newH;
-
-            // //next item
-            // neededPrintZ = out[idx_layer * 2];
-            // idx_layer--;
-            // if (idx_layer >= 0){
-                // diffZ = neededPrintZ - out[idx_layer * 2 + 1];
-            // } else{
-                // //unlikely to happen. note: can create a layer outside the min/max bounds. 
-                // diffZ = 0;
-                // out[idx_layer * 2] = 0;
-            // }
-        // }
-    // }
 
 #ifdef _DEBUG
     for (size_t i = 0; i < out.size(); i++)

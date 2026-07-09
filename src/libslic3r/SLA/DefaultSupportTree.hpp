@@ -90,7 +90,7 @@ class DefaultSupportTree {
     // A spatial index to easily find strong pillars to connect to.
     PillarIndex m_pillar_index;
 
-    // When bridging heads to pillars... TODO: find a cleaner solution
+    // Serializes bridging heads to pillars; a cleaner solution than a shared mutex would be welcome.
     execution::BlockingMutex<ExecutionTBB> m_bridge_mutex;
 
     inline AABBMesh::hit_result ray_mesh_intersect(const Vec3d& s,

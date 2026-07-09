@@ -2159,7 +2159,7 @@ public:
 
 private:
     // use the string representation for cereal archive, as it's convenient.
-    // TODO: try to save/load the vector of pair of double and the two bits.
+    // Alternative: save/load the vector of pairs of doubles and the two bits directly.
     friend class cereal::access;
     template<class Archive> void save(Archive& archive) const {
         archive(flags);

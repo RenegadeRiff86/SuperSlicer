@@ -404,7 +404,7 @@ inline Points douglas_peucker(const Points &src, const coord_t tolerance)
 class MultiPoint
 {
 public:
-    // TODO: makes that private?
+    // Kept public: nearly all geometry code accesses the raw points directly.
     Points points;
 
     MultiPoint() = default;
@@ -493,7 +493,8 @@ public:
     static Points _douglas_peucker_plus(const Points& pts, const double tolerance, const double min_length);
     static Points visivalingam(const Points &src, const double tolerance);
 
-    // Projection of a point onto the lines defined by the points.
+    // Projection of a point onto the open polyline defined by the points.
+    // Note: Polygon overrides this to also consider the closing segment.
     virtual std::pair<Point, size_t> point_projection(const Point &point) const;
 
     inline auto begin() { return points.begin(); }

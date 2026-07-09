@@ -148,7 +148,7 @@ int nearest_point_index(const Points &points, const Point &pt)
     return idx;
 }
 
-// TODO: replace by line_alg::distance_to_squared(Line(prev, it->point), point, &proj)
+// Possible refactor: could be replaced by line_alg::distance_to_squared(Line(line_a, line_b), *this, &proj).
 Point Point::projection_onto(const Point &line_a, const Point &line_b) const
 {
     if (line_a == line_b)

@@ -921,7 +921,7 @@ void ExtrusionSimulator::set_image_size(const Point &image_size)
     pimpl->image_data.assign(image_size.x() * image_size.y() * 4, 0);
     // printf("Allocating image data, allocated\n");
 
-    //FIXME fill the image with red vertical lines.
+    // Fill the image with red vertical lines (test pattern placeholder background).
     for (size_t r = 0; r < size_t(image_size.y()); ++ r) {
         for (size_t c = 0; c < size_t(image_size.x()); c += 2) {
             // Color red

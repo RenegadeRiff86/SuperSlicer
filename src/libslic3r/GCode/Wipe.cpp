@@ -401,7 +401,7 @@ std::string Wipe::wipe(GCodeGenerator &gcodegen, bool toolchange)
         // if the current path is very short, then use the boundaries (if any).
         if (wipe_length > wipe_total_length / 5 && m_boundaries && !m_boundaries->empty() && gcodegen.config().wipe_min.get_at(extruder.id()).value != 0) {
             Point start = gcodegen.gcode_to_point(prev);
-            //TODO: optimisatin if it takes too long.
+            // Performance note: optimise if this ever shows up in profiles;
             // imo, it shouldn't be triggered that often.
             //choose the right one
             ExPolygon my_boundary;

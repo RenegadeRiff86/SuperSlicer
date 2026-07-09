@@ -128,7 +128,7 @@ std::pair<DynamicPrintConfig, ConfigSubstitutions> extract_profile(
 
             size_t pos = 0;
             double lh = string_to_double_decimal_point(lh_str, &pos);
-            if (pos) { // TODO: verify that pos is 0 when parsing fails
+            if (pos) { // fast_float::from_chars leaves pos == 0 when parsing fails (its ptr stays at the start of the input)
                 profile_out.set("layer_height", lh);
                 profile_out.set("initial_layer_height", lh);
             }

@@ -117,8 +117,8 @@ GCodeSender::connect(std::string devname, unsigned int baud_rate)
     this->background_thread.swap(t);
     
     // always send a M105 to check for connection because firmware might be silent on connect
-    //FIXME Vojtech: This is being sent too early, leading to line number synchronization issues,
-    // from which the GCodeSender never recovers.
+    // Note (Vojtech): disabled because it was sent too early, leading to line number
+    // synchronization issues from which the GCodeSender never recovers.
     // this->send("M105", true);
     
     return true;

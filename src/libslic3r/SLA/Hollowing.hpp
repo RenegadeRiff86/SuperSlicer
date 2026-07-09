@@ -149,7 +149,7 @@ InteriorPtr generate_interior(const Range<It>       &csgparts,
     if (!ptr || (ctl.stopcondition && ctl.stopcondition()))
         return {};
 
-    // TODO: figure out issues without the redistance
+    // The redistance is required: skipping it (e.g. for a single non-splittable mesh) caused issues.
 //    if (csgparts.size() > 1 || its_is_splittable(*csg::get_mesh(*csgparts.begin())))
 
     ptr = redistance_grid(*ptr, 0.0f, 3.f, 3.f);

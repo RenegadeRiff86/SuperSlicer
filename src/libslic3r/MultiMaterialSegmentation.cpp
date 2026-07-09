@@ -510,7 +510,7 @@ static std::vector<ColoredLines> colorize_contours(const std::vector<EdgeGrid::C
 // Determines if the line points from the point between two contour lines is pointing inside polygon or outside.
 static inline bool points_inside(const Line &contour_first, const Line &contour_second, const Point &new_point)
 {
-    // TODO: Used in points_inside for decision if line leading thought the common point of two lines is pointing inside polygon or outside
+    // Used in points_inside for the decision if a line leading through the common point of two lines is pointing inside the polygon or outside.
     auto three_points_inward_normal = [](const Point &left, const Point &middle, const Point &right) -> Vec2d {
         assert(left != middle);
         assert(middle != right);

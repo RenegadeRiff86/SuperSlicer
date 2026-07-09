@@ -32,7 +32,7 @@
 
 #define FLAVOR_IS(val) this->config.gcode_flavor.value == val
 #define FLAVOR_IS_NOT(val) this->config.gcode_flavor.value != val
-// TODO: switch to gcodeformatter classes
+// Possible refactor: switch to the GCodeFormatter classes (as upstream PrusaSlicer).
 #define COMMENT(comment) if (this->config.gcode_comments.value && !comment.empty()) gcode << " ; " << comment;
 #define PRECISION(val, precision) to_string_nozero(val, precision)
 #define XYZ_NUM(val) PRECISION(val, this->config.gcode_precision_xyz.value)

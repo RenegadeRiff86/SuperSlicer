@@ -410,7 +410,7 @@ std::pair<SkeletalTrapezoidationGraph::edge_t*, SkeletalTrapezoidationGraph::edg
     }
 
     first->data.setIsCentral(true);
-    outward_edge->data.setIsCentral(false); // TODO verify this is always the case.
+    outward_edge->data.setIsCentral(false); // Assumed (unverified upstream) to always be the case.
     inward_edge->data.setIsCentral(false);
     second->data.setIsCentral(true);
 

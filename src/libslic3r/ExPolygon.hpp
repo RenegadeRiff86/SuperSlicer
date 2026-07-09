@@ -395,7 +395,7 @@ inline Polygons to_polygons(const ExPolygon &src)
 
 inline Polygons to_polygons(const ExPolygons &src)
 {
-    // FIXME: put "inside" polygon after the "outside" ones, so the holes of the "outside" don't erase the "inside" contour
+    // Known limitation: an "inside" polygon should be put after the "outside" ones, so the holes of the "outside" don't erase the "inside" contour.
     Polygons polygons;
     polygons.reserve(number_polygons(src));
     for (const ExPolygon& ex_poly : src) {

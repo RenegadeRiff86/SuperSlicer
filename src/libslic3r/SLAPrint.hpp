@@ -540,7 +540,7 @@ public:
     };
 
     // The aggregated and leveled print records from various objects.
-    // TODO: use this structure for the preview in the future.
+    // This structure could also drive the preview in the future.
     const std::vector<PrintLayer>& print_layers() const { return m_printer_input; }
 
     void export_print(const std::string &fname, const std::string &projectname = "")

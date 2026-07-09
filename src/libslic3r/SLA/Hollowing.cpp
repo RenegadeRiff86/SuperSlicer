@@ -410,7 +410,7 @@ void remove_inside_triangles(indexed_triangle_set &mesh, const Interior &interio
         return use_exclude_mask && exclude_mask[face_id];
     };
 
-    // TODO: Parallel mode not working yet
+    // Known limitation: parallel execution does not work here yet; keep ex_seq.
     constexpr auto &exec_policy = ex_seq;
 
     // Info about the needed modifications on the input mesh.

@@ -384,7 +384,7 @@ static std::optional<Circle> try_create_circle(const Points::const_iterator begi
                     if (circle_approximation_sufficient_from_first_last(*circle, begin, end, tolerance)) {
                         out = circle;
                     } else {
-                        //FIXME One may consider adjusting the arc to fit the worst offender as a last effort,
+                        // One may consider adjusting the arc to fit the worst offender as a last effort,
                         // however Vojtech is not sure whether it is worth it.
                     }
                 }
@@ -657,7 +657,7 @@ Path fit_path(const Points &src_in, double tolerance, double fit_circle_percent_
         std::transform(src_in.begin(), src_in.end(), std::back_inserter(out), [](const Point &p) -> Segment { return { p }; });
         out.erase(douglas_peucker_in_place(out.begin(), out.end(), tolerance), out.end());
     } else {
-//TODO: to improve complexity, instead of trying from scratch every time, keep best circle and try to add an additional point to it.
+// Potential optimization: instead of trying from scratch every time, keep the best circle and try to add an additional point to it;
 // if outside of tolerance, then try to pull/push/wiggle it a bit (depending of the current angle, orientation & radius) if not possible, then this point can't be added and stop here. 
         // Simplify the polyline first using a fine threshold.
         Points src = douglas_peucker(src_in, tolerance_fine);

@@ -328,7 +328,7 @@ VoronoiDiagram::try_to_repair_degenerated_voronoi_diagram_by_rotation(const Segm
             }
         }
 
-        // FIXME @hejllukas: Implement mapping also for source points and not just for source segments.
+        // Known limitation (@hejllukas): mapping is implemented only for source segments, not for source points.
     }
 
     // Rotate all Voronoi vertices back.

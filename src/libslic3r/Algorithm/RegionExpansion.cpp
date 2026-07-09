@@ -508,7 +508,7 @@ std::vector<ExPolygon> merge_expansions_into_expolygons(ExPolygons &&src, std::v
         assert(it->src_id == last);
         for (; it != expanded.end() && it->src_id == last; ++ it)
             acc.emplace_back(std::move(it->polygon));
-        //FIXME offset & merging could be more efficient, for example one does not need to copy the source expolygon
+        // Potential optimization: offset & merging could be more efficient, for example one does not need to copy the source expolygon.
         ExPolygon &src_ex = src[last ++];
         assert(! src_ex.contour.empty());
 #if 0

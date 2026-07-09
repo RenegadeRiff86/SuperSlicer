@@ -681,7 +681,7 @@ std::vector<PerExtruderAdjustments> CoolingBuffer::parse_layer_gcode(const std::
         } else if (boost::starts_with(sline, ";_RESTORE_FAN_SPEED_WT")) {
             line.type = CoolingLine::TYPE_RESTORE_AFTER_WT;
         }
-//FIXME use TYPE_EXTRUDE_START & to_extrusion_role_gcode
+// Possible refactor: use TYPE_EXTRUDE_START & to_extrusion_role_gcode instead of string matching.
         if (boost::contains(sline, ";_SET_MIN_FAN_SPEED")) {
             auto speed_start = sline.find_last_of('D');
             int  speed       = 0;
@@ -1048,7 +1048,7 @@ std::string CoolingBuffer::apply_layer_cooldown(
         for (int i = 0; i < uint8_t(GCodeExtrusionRole::Count); i++) {
             // this setting is disbaled. As default is not, it will use the default value
             // (but for overhangs that use perimeter/external (they are given by the gcode tags)
-            //TODO: a different tag for both
+            // (a distinct gcode tag for each overhang kind would remove this special case)
             if (default_fan_speed[i] < 0 && i != uint8_t(GCodeExtrusionRole::OverhangPerimeter)) {
                 default_fan_speed[i] = initial_default_fan_speed;
             }

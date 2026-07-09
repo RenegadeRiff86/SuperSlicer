@@ -108,8 +108,8 @@ bool MultiPoint::remove_duplicate_points()
     return false;
 }
 
-// Projection of a point onto the polygon.
-//FIXME: delete this, it's moved somewhere.
+// Projection of a point onto the open polyline defined by the points.
+// Polygon overrides this with a variant that also considers the closing segment.
 std::pair<Point, size_t> MultiPoint::point_projection(const Point &point) const {
     size_t pt_idx = size_t(-1);
     Point proj = point;

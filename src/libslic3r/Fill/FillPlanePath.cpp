@@ -84,7 +84,7 @@ void FillPlanePath::_fill_surface_single(
 {
     expolygon.rotate(-direction.first);
 
-    //FIXME Vojtech: We are not sure whether the user expects the fill patterns on visible surfaces to be aligned across all the islands of a single layer.
+    // Note (Vojtech): We are not sure whether the user expects the fill patterns on visible surfaces to be aligned across all the islands of a single layer.
     // One may align for this->centered() to align the patterns for Archimedean Chords and Octagram Spiral patterns.
     const bool align = params.density < 0.995;
 
@@ -178,7 +178,7 @@ static void generate_archimedean_chords(coord_t min_x, coord_t min_y, coord_t ma
     coordf_t theta = 0.;
     coordf_t r = 1;
     Pointfs out;
-    //FIXME Vojtech: If used as a solid infill, there is a gap left at the center.
+    // Known limitation (Vojtech): If used as a solid infill, there is a gap left at the center.
     output.add_point({ 0, 0 });
     output.add_point({ 1, 0 });
     while (r < rmax) {

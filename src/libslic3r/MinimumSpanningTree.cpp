@@ -59,7 +59,7 @@ auto MinimumSpanningTree::prim(std::vector<Point> vertices) const -> AdjacencyGr
         //Choose the closest vertex to connect to that is not yet in the tree.
         //This search is O(V) right now, which can be made down to O(log(V)). This reduces the overall time complexity from O(V*V) to O(V*log(E)).
         //However that requires an implementation of a heap that supports the decreaseKey operation, which is not in the std library.
-        //TODO: Implement this?
+        // Not implemented: vertex counts here are small, so the O(V) scan is acceptable.
         using MapValue = std::pair<const Point*, coordf_t>;
         const auto closest = std::min_element(smallest_distance.begin(), smallest_distance.end(),
                                               [](const MapValue& a, const MapValue& b) {

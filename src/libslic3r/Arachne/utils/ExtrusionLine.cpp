@@ -55,7 +55,7 @@ void ExtrusionLine::simplify(const int64_t smallest_line_segment_squared, const 
     if (junctions.size() <= min_path_size)
         return;
 
-    // TODO: allow for the first point to be removed in case of simplifying closed Extrusionlines.
+    // Known limitation: the first point is never removed when simplifying closed ExtrusionLines.
 
     /* ExtrusionLines are treated as (open) polylines, so in case an ExtrusionLine is actually a closed polygon, its
      * starting and ending points will be equal (or almost equal). Therefore, the simplification of the ExtrusionLine

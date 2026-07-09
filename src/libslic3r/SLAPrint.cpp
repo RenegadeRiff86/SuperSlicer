@@ -233,7 +233,7 @@ static t_config_option_keys print_config_diffs(const StaticPrintConfig     &curr
         const ConfigOption *opt_new = new_full_config.option(opt_key);
         // assert(opt_new != nullptr);
         if (opt_new == nullptr)
-            //FIXME This may happen when executing some test cases.
+            // May happen when executing some test cases.
             continue;
         const ConfigOption *opt_new_override = std::binary_search(overriden_keys.begin(), overriden_keys.end(), opt_key) ? new_full_config.option(material_ow_prefix + opt_key) : nullptr;
         if (opt_new_override != nullptr) {
@@ -551,7 +551,7 @@ SLAPrint::ApplyStatus SLAPrint::apply(const Model &model, DynamicPrintConfig con
         } else if (! new_instances.empty()) {
             auto print_object = new SLAPrintObject(this, &model_object);
 
-            // FIXME: this invalidates the transformed mesh in SLAPrintObject
+            // Performance note: this invalidates the transformed mesh in SLAPrintObject,
             // which is expensive to calculate (especially the raw_mesh() call)
             print_object->set_trafo(sla_trafo(model_object), model_object.instances.front()->is_left_handed());
 

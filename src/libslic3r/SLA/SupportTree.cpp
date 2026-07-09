@@ -46,7 +46,9 @@ indexed_triangle_set create_support_tree(const SupportableMesh &sm,
             break;
         }
         case SupportTreeType::Organic: {
-            // TODO: implement Organic support tree (stub for future; see create_default_tree and create_branching_tree for patterns)
+            // Organic SLA support tree is not implemented and this value is not selectable in
+            // the UI (its label is omitted from "support_tree_type" in PrintConfig). If it is
+            // ever exposed, follow the create_default_tree / create_branching_tree patterns.
         }
         default:;
         }

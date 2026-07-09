@@ -858,7 +858,7 @@ static bool copy_file_linux(const boost::filesystem::path &from, const boost::fi
     }
 
     //! copy_file implementation that uses sendfile loop. Requires sendfile to support file descriptors.
-    //FIXME Vojtech: This is a copy loop valid for Linux 2.6.33 and newer.
+    // Note (Vojtech): This is a copy loop valid for Linux 2.6.33 and newer.
     // copy_file_data_copy_file_range() supports cross-filesystem copying since 5.3, but Vojtech did not want to polute this
     // function with that, we don't think the performance gain is worth it for the types of files we are copying,
     // and our build server based on CentOS 7 with Linux 3.10 does not support that anyways.
@@ -1241,7 +1241,7 @@ unsigned get_current_pid()
 #endif
 }
 
-//FIXME this has potentially O(n^2) time complexity!
+// Performance note: this has potentially O(n^2) time complexity (each replace shifts the tail).
 std::string xml_escape(std::string_view input, bool is_marked/* = false*/)
 {
     std::string text(input);

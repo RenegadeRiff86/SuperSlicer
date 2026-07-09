@@ -45,7 +45,7 @@ public:
     // Too fast = ripping of existing material; too slow = short wipe path, thus more blob.
     static std::pair<double, bool>   calc_wipe_speed(const GCodeWriter &writer);
     // Reduce retraction length a bit to avoid effective retraction speed to be greater than the configured one
-    // due to rounding (TODO: test and/or better math for this).
+    // due to rounding (the 0.95 factor is a safety margin; a more precise derivation could replace it).
     static double calc_xy_to_e_ratio(const GCodeWriter &writer, unsigned int extruder_id) 
         { return 0.95 * floor(writer.gcode_config().retract_speed.get_at(extruder_id) + 0.5) / calc_wipe_speed(writer).first; }
     

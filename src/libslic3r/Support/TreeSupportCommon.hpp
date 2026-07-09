@@ -92,7 +92,7 @@ struct TreeSupportMeshGroupSettings {
     // Support Bottom Distance
     // Distance from the print to the bottom of the support.
     coord_t                         support_bottom_distance                 { scaled<coord_t>(0.1) };
-    //FIXME likely not needed, optimization for clipping of interface layers
+    // Likely not needed; an optimization for clipping of interface layers.
     // When checking where there's model above and below the support, take steps of the given height. Lower values will slice slower, while higher values 
     // may cause normal support to be printed in some places where there should have been support interface.
     coord_t                         support_interface_skip_height           { scaled<coord_t>(0.3) };

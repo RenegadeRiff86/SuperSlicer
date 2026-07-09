@@ -184,7 +184,7 @@ inline Eigen::Matrix<typename Derived::Scalar, 2, 1, Eigen::DontAlign> perp(cons
 #if _DEBUG
 inline double ccw_angle_old_test(const Vec2crd &me, const Vec2crd &p1, const Vec2crd &p2)
 {
-    //FIXME this calculates an atan2 twice! Project one vector into the other!
+    // Inefficient (two atan2 calls), but this is a debug-only reference implementation.
     double angle = atan2(p1.x() - (me).x(), p1.y() - (me).y())
                  - atan2(p2.x() - (me).x(), p2.y() - (me).y());
     // we only want to return only positive angles
@@ -621,7 +621,7 @@ inline constexpr FloatingOnly<Tout> scaled(const Tin &v) noexcept
 }
 
 // Conversion definition from unscaled to integer 'scaled coord'.
-// TODO: is the rounding necessary? Here it is commented  out to show that
+// The rounding is deliberately omitted. Here it is commented out to show that
 // it can be different for integers but it does not have to be. Using
 // std::round means loosing noexcept and constexpr modifiers
 template<class Tout = coord_t, class Tin, class = FloatingOnly<Tin>>

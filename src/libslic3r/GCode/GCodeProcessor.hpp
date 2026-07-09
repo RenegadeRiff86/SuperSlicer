@@ -141,7 +141,7 @@ namespace Slic3r {
             float mm3_per_mm{ 0.0f };
             float fan_speed{ 0.0f }; // percentage
             float temperature{ 0.0f }; // Celsius degrees
-            float move_time{ 0.0f }; // s (TODO: for each mode (silent or not) )
+            float move_time{ 0.0f }; // s (single value; not tracked separately per normal/silent mode)
             uint16_t layer_id{ 0 };
             bool internal_only{ false };
 

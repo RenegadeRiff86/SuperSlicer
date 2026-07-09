@@ -43,7 +43,7 @@ deposition modeling" by Kuipers et al.
  * This visual explanation aid explains the use of "upward", "lower" etc,
  * i.e. the radial distance and/or the bead count are used as heights of this visualization, there is no coordinate called 'Z'.
  *
- * TODO: split this class into two:
+ * A possible refactor would split this class into two:
  * 1. Class for generating the decomposition and aux functions for performing updates
  * 2. Class for editing the structure for our purposes.
  */
