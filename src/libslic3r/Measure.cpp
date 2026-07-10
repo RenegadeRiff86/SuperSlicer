@@ -66,7 +66,7 @@ public:
     explicit MeasuringImpl(const indexed_triangle_set& its);
     struct PlaneData {
         std::vector<int> facets;
-        std::vector<std::vector<Vec3d>> borders; // FIXME: should be in fact local in update_planes()
+        std::vector<std::vector<Vec3d>> borders; // Possible refactor: should in fact be local in update_planes()
         std::vector<SurfaceFeature> surface_features;
         Vec3d normal;
         float area;
@@ -538,7 +538,7 @@ std::optional<SurfaceFeature> MeasuringImpl::get_feature(size_t face_idx, const 
         // The -1 is there to prevent measuring distance to the plane itself,
         // which is needless and relatively expensive.
         res = get_measurement(plane.surface_features[i], point_sf);
-        if (res.distance_strict) { // TODO: this should become an assert after all combinations are implemented.
+        if (res.distance_strict) { // Note: should become an assert once distance_strict is implemented for all feature combinations.
             double dist = res.distance_strict->dist;
             if (dist < feature_hover_limit && dist < min_dist) {
                 min_dist = std::min(dist, min_dist);
@@ -859,14 +859,14 @@ MeasurementResult get_measurement(const SurfaceFeature& a, const SurfaceFeature&
                     (f1.get_point() - proj).squaredNorm());
 
                 const Vec3d p_on_circle = c + radius * (proj - c).normalized();
-                result.distance_strict = std::make_optional(DistAndPoints{ dist, f1.get_point(), p_on_circle }); // TODO
+                result.distance_strict = std::make_optional(DistAndPoints{ dist, f1.get_point(), p_on_circle });
             }
     ///////////////////////////////////////////////////////////////////////////
         } else if (f2.get_type() == SurfaceFeatureType::Plane) {
             const auto [idx, normal, pt] = f2.get_plane();
             Eigen::Hyperplane<double, 3> plane(normal, pt);
-            result.distance_infinite = std::make_optional(DistAndPoints{plane.absDistance(f1.get_point()), f1.get_point(), plane.projection(f1.get_point())}); // TODO
-            // TODO: result.distance_strict =
+            result.distance_infinite = std::make_optional(DistAndPoints{plane.absDistance(f1.get_point()), f1.get_point(), plane.projection(f1.get_point())});
+            // TODO: implement distance_strict for the point-plane combination.
         }
     ///////////////////////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////
@@ -1040,8 +1040,8 @@ MeasurementResult get_measurement(const SurfaceFeature& a, const SurfaceFeature&
                 // stores the roots. We need only the unique ones, which is
                 // the responsibility of the set uniqueRoots. The pairs[]
                 // array stores the (cosine,sine) information mentioned in the
-                // PDF. TODO: Choose the maximum number of iterations for root
-                // finding based on specific polynomial data?
+                // PDF. Possible improvement: choose the maximum number of iterations
+                // for root finding based on specific polynomial data.
                 const uint32_t maxIterations = 128;
                 int32_t degree = 0;
                 size_t numRoots = 0;
@@ -1192,7 +1192,7 @@ MeasurementResult get_measurement(const SurfaceFeature& a, const SurfaceFeature&
                 info.sqrDistance = distance * distance + N0dD * N0dD;
             }
 
-            result.distance_infinite = std::make_optional(DistAndPoints{ std::sqrt(candidates[0].sqrDistance), candidates[0].circle0Closest, candidates[0].circle1Closest }); // TODO
+            result.distance_infinite = std::make_optional(DistAndPoints{ std::sqrt(candidates[0].sqrDistance), candidates[0].circle0Closest, candidates[0].circle1Closest }); // TODO: implement distance_strict for the circle-circle combination.
     ///////////////////////////////////////////////////////////////////////////
         } else if (f2.get_type() == SurfaceFeatureType::Plane) {
             assert(measuring != nullptr);
@@ -1234,7 +1234,7 @@ MeasurementResult get_measurement(const SurfaceFeature& a, const SurfaceFeature&
         if (are_parallel(normal1, normal2)) {
             // The planes are parallel, calculate distance.
             const Eigen::Hyperplane<double, 3> plane(normal1, pt1);
-            result.distance_infinite = std::make_optional(DistAndPoints{ plane.absDistance(pt2), pt2, plane.projection(pt2) }); // TODO
+            result.distance_infinite = std::make_optional(DistAndPoints{ plane.absDistance(pt2), pt2, plane.projection(pt2) }); // TODO: implement distance_strict for the plane-plane combination.
         }
         else
             result.angle = angle_plane_plane(f1.get_plane(), f2.get_plane());
