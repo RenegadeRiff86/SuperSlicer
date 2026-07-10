@@ -429,8 +429,8 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
                                                                         // union with the smaller polygons, to avoid offset2_ex artifacts
                                                                         smaller_worse_expolys = union_ex(medium_size_worse_expolys, smaller_worse_expolys);
                                                                         ensure_valid(smaller_worse_expolys);
-                                                                        // TODO: now, be sure 'best_poly' is wide enough.
-                                                                        // If not, then remove a bit more material from smaller_worse_expolys
+                                                                        // Possible improvement: ensure 'best_poly' is wide enough here;
+                                                                        // if not, remove a bit more material from smaller_worse_expolys
                                                                     }
                                                                     is_modified = true;
                                                                     // assign the result
@@ -572,7 +572,7 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
                 for (ExPolygons& polys : region_polys)
                     for (ExPolygon& poly : polys)
                         poly.scale(scale);
-                //FIXME: merge regions overlapping, don't shrink inside
+                // Known limitation: overlapping regions created by the shrink scaling are not merged, and interior boundaries are not preserved.
             }
         }
     }
@@ -690,19 +690,6 @@ void PrintObject::slice()
     m_layers = new_layers(this, generate_object_layers(*m_slicing_params, layer_height_profile));
     this->slice_volumes();
     m_print->throw_if_canceled();
-#if 0
-    // Layer::slicing_errors is no more set since 1.41.1 or possibly earlier, thus this code
-    // was not really functional for a long day and nobody missed it.
-    // Could we reuse this fixing code one day?
-
-    // Fix the model.
-    //FIXME is this the right place to do? It is done repeateadly at the UI and now here at the backend.
-    std::string warning = fix_slicing_errors(m_layers, [this](){ m_print->throw_if_canceled(); });
-    m_print->throw_if_canceled();
-    if (! warning.empty())
-        BOOST_LOG_TRIVIAL(info) << warning;
-#endif
-
     //create polyholes
     this->_transform_hole_to_polyholes();
 
@@ -990,7 +977,7 @@ void PrintObject::_max_overhang_threshold() {
                                         }
                                     }
                                 }
-                                // TODO: if overhangs_bridge_upper_layers goes from 2+ to 0, detect that you can't go higher inside the region.
+                                // Possible improvement: if overhangs_bridge_upper_layers goes from 2+ to 0, detect that you can't go higher inside the region.
                             }
                             if (!new_bridged_area.empty()) {
                                 append(bridged_other_layers_areas, new_bridged_area);
@@ -1012,7 +999,7 @@ void PrintObject::_max_overhang_threshold() {
             // enlarge supported area & intersect it with full area
             //also modify region surfaces
             //std::map<coord_t, ExPolygons> enlargement_2_support_area;
-            // TODO: fuse region with same enlargement
+            // Possible improvement: fuse regions with the same enlargement.
             coord_t enlargement = scale_t(lregion->region().config().overhangs_max_slope.get_abs_value(unscaled(max_nz_diam)));
             if (enlargement > 0) {
                 ExPolygons enlarged_support = offset_ex(supported_area, double(enlargement));
@@ -1333,7 +1320,7 @@ void apply_mm_segmentation(PrintObject &print_object, ThrowOnCancel throw_on_can
                                 for (; int(it_painted_region->extruder_id) < extruder_id; ++ it_painted_region)
                                     assert(it_painted_region != layer_range.painted_regions.end());
                                 assert(layer_range.volume_regions[it_painted_region->parent].region == &layerm.region() && int(it_painted_region->extruder_id) == extruder_id);
-                                //FIXME Don't trim by self, it is not reliable.
+                                // Do not trim by self, it is not reliable.
                                 if (&layerm.region() == it_painted_region->region) {
                                     self_extruder_id = extruder_id;
                                     continue;
@@ -1744,7 +1731,7 @@ void PrintObject::slice_volumes()
 
 
                     coord_t scaled_resolution = std::max(scale_t(m_print->config().resolution), SCALED_EPSILON);
-                    //TODO: test it's done for multi-region and not
+                    // Note: the single-region fast path and the multi-region path below must apply the same compensations; parity has not been fully verified.
                     if (layer->regions().size() == 1) {
                         // Optimized version for a single region layer.
                         // Single region, growing or shrinking.
@@ -1876,16 +1863,9 @@ void PrintObject::slice_volumes()
                     }
                     // Merge all regions' slices to get islands, sorted topologically, chain them by a shortest path in separate index list
                     layer->make_slices();
-                    //FIXME: can't make it work in multi-region object, it seems useful to avoid bridge on top of first layer compensation
-                    //so it's disable, if you want an offset, use the offset field.
-                    //if (layer->regions().size() == 1 && ! m_layers.empty() && layer_id == 0 && first_layer_compensation < 0 && m_config.raft_layers == 0) {
-                    //    // The Elephant foot has been compensated, therefore the 1st layer's lslices() are shrank with the Elephant foot compensation value.
-                    //    // Store the uncompensated value there.
-                    //    assert(! m_layers.empty());
-                    //    assert(m_layers.front()->id() == 0);
-                    //    m_layers.front()->set_lslices() = offset_ex(std::move(m_layers.front()->lslices()), -first_layer_compensation);
-                    //    m_layers.front()->lslice_indices_sorted_by_print_order = chain_expolygons(layer.lslices());
-                    //}
+                    // Note: storing the uncompensated lslices for the first layer (useful to avoid bridges on top of the first
+                    // layer compensation) is disabled: it couldn't be made to work on multi-region objects. If you want an
+                    // offset, use the offset field.
                     for(auto &layerm : layer->regions()) for(auto &srf : layerm->slices().surfaces) srf.expolygon.assert_valid();
                 }
             );
