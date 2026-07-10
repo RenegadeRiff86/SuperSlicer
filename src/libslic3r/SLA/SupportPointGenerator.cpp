@@ -127,7 +127,7 @@ static std::vector<SupportPointGenerator::MyLayer> make_layers(
     for (size_t i = 0; i < slices.size(); ++ i)
         layers.emplace_back(i, heights[i]);
 
-    // FIXME: calculate actual pixel area from printer config:
+    // Known limitation: the pixel area is hardcoded for a 0.047 mm display pixel; it should be calculated from the printer config, e.g.:
     //const float pixel_area = pow(wxGetApp().preset_bundle->project_config.option<ConfigOptionFloat>("display_width") / wxGetApp().preset_bundle->project_config.option<ConfigOptionInt>("display_pixels_x"), 2.f); //
     const float pixel_area = pow(0.047f, 2.f);
 
@@ -141,7 +141,7 @@ static std::vector<SupportPointGenerator::MyLayer> make_layers(
 
         SupportPointGenerator::MyLayer &layer   = layers[layer_id];
         const ExPolygons &              islands = slices[layer_id];
-        // FIXME WTF?
+        // Note: 'height' is the print_z three layers below (extrapolated below the first layers); the reason for the 3-layer lookback is not documented.
         const float height = (layer_id > 2 ?
                                   heights[layer_id - 3] :
                                   heights[0] - (heights[1] - heights[0]));
@@ -149,7 +149,7 @@ static std::vector<SupportPointGenerator::MyLayer> make_layers(
         for (const ExPolygon &island : islands) {
             float area = float(island.area() * SCALING_FACTOR * SCALING_FACTOR);
             if (area >= pixel_area)
-                // FIXME this is not a correct centroid of a polygon with holes.
+                // Note: contour.centroid() is not a correct centroid of a polygon with holes (the holes are ignored).
                 layer.islands.emplace_back(layer, island, get_extents(island.contour),
                                            unscaled<float>(island.contour.centroid()), area, height);
         }
@@ -164,13 +164,13 @@ static std::vector<SupportPointGenerator::MyLayer> make_layers(
           throw_on_cancel();
       SupportPointGenerator::MyLayer &layer_above = layers[layer_id];
       SupportPointGenerator::MyLayer &layer_below = layers[layer_id - 1];
-      //FIXME WTF?
-      const float layer_height = (layer_id!=0 ? heights[layer_id]-heights[layer_id-1] : heights[0]);
+      // layer_id starts at 1 in this loop, so the previous layer always exists.
+      const float layer_height = heights[layer_id] - heights[layer_id - 1];
       const float safe_angle = 35.f * (float(M_PI)/180.f); // smaller number - less supports
       const coordf_t between_layers_offset = scale_d(layer_height * std::tan(safe_angle));
       const float slope_angle = 75.f * (float(M_PI)/180.f); // smaller number - less supports
       const coordf_t slope_offset = scale_d(layer_height * std::tan(slope_angle));
-      //FIXME This has a quadratic time complexity, it will be excessively slow for many tiny islands.
+      // Performance note: this has a quadratic time complexity and will be excessively slow for many tiny islands.
       for (SupportPointGenerator::Structure &top : layer_above.islands) {
           for (SupportPointGenerator::Structure &bottom : layer_below.islands) {
               float overlap_area = top.overlap_area(bottom);
@@ -255,8 +255,9 @@ void SupportPointGenerator::process(const std::vector<ExPolygons>& slices, const
                 // Penalization resulting from centroid offset:
 //                  bottom.supports_force *= std::min(1.f, 1.f - std::min(1.f, (1600.f * layer_height) * centroids_dist * centroids_dist / bottom.area));
                 float &support_force = support_force_bottom[&bottom - layer_bottom->islands.data()];
-//FIXME this condition does not reflect a bifurcation into a one large island and one tiny island well, it incorrectly resets the support force to zero.
-// One should rather work with the overlap area vs overhang area.
+// The centroid-distance penalization below was disabled: it does not reflect a bifurcation into one large
+// island and one tiny island well, and incorrectly reset the support force to zero. Working with the
+// overlap area vs the overhang area would be a better basis.
 //                support_force *= std::min(1.f, 1.f - std::min(1.f, 0.1f * centroids_dist * centroids_dist / bottom.area));
                 // Penalization resulting from increasing polygon area:
                 support_force *= std::min(1.f, 20.f * bottom.area / top.area);
@@ -566,7 +567,7 @@ void SupportPointGenerator::uniformly_cover(const ExPolygons& islands, Structure
     const size_t poisson_samples_target = size_t(ceil(support_force_deficit / m_config.support_force()));
 
     const float density_horizontal = m_config.tear_pressure() / m_config.support_force();
-    //FIXME why?
+    // Note: the 5.f factor is empirical (a previous version used 15.f, see the commented line below).
     float poisson_radius		= std::max(m_config.minimal_distance, 1.f / (5.f * density_horizontal));
 //    const float poisson_radius     = 1.f / (15.f * density_horizontal);
     const float samples_per_mm2 = 30.f / (float(M_PI) * poisson_radius * poisson_radius);
@@ -574,7 +575,6 @@ void SupportPointGenerator::uniformly_cover(const ExPolygons& islands, Structure
 //    float min_spacing			= poisson_radius / 3.f;
     float min_spacing			= poisson_radius;
 
-    //FIXME share the random generator. The random generator may be not so cheap to initialize, also we don't want the random generator to be restarted for each polygon.
 
     std::vector<Vec2f> raw_samples =
         flags & icfWithBoundary ?
