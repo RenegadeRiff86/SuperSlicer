@@ -126,7 +126,7 @@ static std::vector<std::pair<OrcaTreeSupportSettings, std::vector<size_t>>> grou
 {
     std::vector<std::pair<OrcaTreeSupportSettings, std::vector<size_t>>> grouped_meshes;
 
-    //FIXME this is ugly, it does not belong here.
+    // Possible refactor: this validation/filtering does not belong here.
     for (size_t object_id : print_object_ids) {
         const PrintObject       &print_object  = *print.get_object(object_id);
         const PrintObjectConfig &object_config = print_object.config();
@@ -144,7 +144,7 @@ static std::vector<std::pair<OrcaTreeSupportSettings, std::vector<size_t>>> grou
 
         bool found_existing_group = false;
         OrcaTreeSupportSettings next_settings{ OrcaTreeSupportMeshGroupSettings{ print_object }, print_object.slicing_parameters() };
-        //FIXME for now only a single object per group is enabled.
+        // Known limitation: only a single object per group is enabled for now (the grouping code below is disabled).
 #if 0
         for (size_t idx = 0; idx < grouped_meshes.size(); ++ idx)
             if (next_settings == grouped_meshes[idx].first) {
@@ -174,163 +174,6 @@ static std::vector<std::pair<OrcaTreeSupportSettings, std::vector<size_t>>> grou
 
     return grouped_meshes;
 }
-
-#if 0
-// todo remove as only for debugging relevant
-[[nodiscard]] static std::string getPolygonAsString(const Polygons& poly)
-{
-    std::string ret;
-    for (auto path : poly)
-        for (Point p : path) {
-            if (ret != "")
-                ret += ",";
-            ret += "(" + std::to_string(p.x()) + "," + std::to_string(p.y()) + ")";
-        }
-    return ret;
-}
-
-[[nodiscard]] static const std::vector<Polygons> generate_overhangs(const OrcaTreeSupportSettings &settings, PrintObject &print_object, std::function<void()> throw_on_cancel)
-{
-    const size_t num_raft_layers   = settings.raft_layers.size();
-    const size_t num_object_layers = print_object.layer_count();
-    const size_t num_layers        = num_object_layers + num_raft_layers;
-    std::vector<Polygons> out(num_layers, Polygons{});
-
-    const PrintConfig       &print_config           = print_object.print()->config();
-    const PrintObjectConfig &config                 = print_object.config();
-    const bool               support_auto           = config.enable_support.value && is_auto(config.support_type.value);
-    const int                support_enforce_layers = config.enforce_support_layers.value;
-    std::vector<Polygons>    enforcers_layers{ print_object.slice_support_enforcers() };
-    std::vector<Polygons>    blockers_layers{ print_object.slice_support_blockers() };
-    print_object.project_and_append_custom_facets(false, EnforcerBlockerType::ENFORCER, enforcers_layers);
-    print_object.project_and_append_custom_facets(false, EnforcerBlockerType::BLOCKER, blockers_layers);
-    const int                support_threshold      = config.support_threshold_angle.value;
-    const bool               support_threshold_auto = support_threshold == 0;
-    // +1 makes the threshold inclusive
-    double                   tan_threshold          = support_threshold_auto ? 0. : tan(M_PI * double(support_threshold + 1) / 180.);
-    //FIXME this is a fudge constant!
-    auto                     enforcer_overhang_offset = scaled<double>(config.tree_support_tip_diameter.value);
-    const coordf_t radius_sample_resolution = g_config_tree_support_collision_resolution;
-
-    // calc the extrudable expolygons of each layer
-    const coordf_t extrusion_width = config.line_width.value;
-    const coordf_t extrusion_width_scaled = scale_(extrusion_width);
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, print_object.layer_count()),
-        [&](const tbb::blocked_range<size_t>& range) {
-            for (size_t layer_nr = range.begin(); layer_nr < range.end(); layer_nr++) {
-                if (print_object.print()->canceled())
-                    break;
-                Layer* layer = print_object.get_layer(layer_nr);
-                // Filter out areas whose diameter that is smaller than extrusion_width, but we don't want to lose any details.
-                layer->lslices_extrudable = intersection_ex(layer->lslices, offset2_ex(layer->lslices, -extrusion_width_scaled / 2, extrusion_width_scaled));
-            }
-        });
-
-    size_t num_overhang_layers = support_auto ? num_object_layers : std::min(num_object_layers, std::max(size_t(support_enforce_layers), enforcers_layers.size()));
-    tbb::parallel_for(tbb::blocked_range<LayerIndex>(1, num_overhang_layers),
-        [&print_object, &config, &print_config, &enforcers_layers, &blockers_layers,
-         support_auto, support_enforce_layers, support_threshold_auto, tan_threshold, enforcer_overhang_offset, num_raft_layers, radius_sample_resolution, &throw_on_cancel, &out]
-        (const tbb::blocked_range<LayerIndex> &range) {
-        for (LayerIndex layer_id = range.begin(); layer_id < range.end(); ++ layer_id) {
-            const Layer   &current_layer  = *print_object.get_layer(layer_id);
-            const Layer   &lower_layer    = *print_object.get_layer(layer_id - 1);
-            // Full overhangs with zero lower_layer_offset and no blockers applied.
-            Polygons       raw_overhangs;
-            bool           raw_overhangs_calculated = false;
-            // Final overhangs.
-            Polygons       overhangs;
-            // For how many layers full overhangs shall be supported.
-            const bool     enforced_layer = layer_id < support_enforce_layers;
-            if (support_auto || enforced_layer) {
-                float lower_layer_offset;
-                if (enforced_layer)
-                    lower_layer_offset = 0;
-                else if (support_threshold_auto) {
-                    float external_perimeter_width = 0;
-                    for (const LayerRegion *layerm : lower_layer.regions())
-                        external_perimeter_width += layerm->flow(frExternalPerimeter).scaled_width();
-                    external_perimeter_width /= lower_layer.region_count();
-                    lower_layer_offset = external_perimeter_width - float(scale_(config.support_threshold_overlap.get_abs_value(unscale_(external_perimeter_width))));
-                } else
-                    lower_layer_offset = scaled<float>(lower_layer.height / tan_threshold);
-                Polygons lower_layer_offseted = offset(lower_layer.lslices_extrudable, lower_layer_offset);
-                overhangs = diff(current_layer.lslices_extrudable, lower_layer_offseted);
-                if (lower_layer_offset == 0) {
-                    raw_overhangs = overhangs;
-                    raw_overhangs_calculated = true;
-                }
-                if (! (enforced_layer || blockers_layers.empty() || blockers_layers[layer_id].empty()))
-                    overhangs = diff(overhangs, offset_ex(union_(blockers_layers[layer_id]), scale_(radius_sample_resolution)), ApplySafetyOffset::Yes);
-                //if (config.bridge_no_support) {
-                //    for (const LayerRegion *layerm : current_layer.regions())
-                //        remove_bridges_from_contacts(print_config, lower_layer, *layerm,
-                //            float(layerm->flow(frExternalPerimeter).scaled_width()), overhangs);
-                //}
-            }
-            //check_self_intersections(overhangs, "generate_overhangs1");
-            if (! enforcers_layers.empty() && ! enforcers_layers[layer_id].empty()) {
-                // Has some support enforcers at this layer, apply them to the overhangs, don't apply the support threshold angle.
-                //enforcers_layers[layer_id] = union_(enforcers_layers[layer_id]);
-                //check_self_intersections(enforcers_layers[layer_id], "generate_overhangs - enforcers");
-                //check_self_intersections(to_polygons(lower_layer.lslices), "generate_overhangs - lowerlayers");
-                if (Polygons enforced_overhangs = intersection(raw_overhangs_calculated ? raw_overhangs : diff(current_layer.lslices, lower_layer.lslices), enforcers_layers[layer_id] /*, ApplySafetyOffset::Yes */);
-                    ! enforced_overhangs.empty()) {
-                    //FIXME this is a hack to make enforcers work on steep overhangs.
-                    //check_self_intersections(enforced_overhangs, "generate_overhangs - enforced overhangs1");
-                    //Polygons enforced_overhangs_prev = enforced_overhangs;
-                    //check_self_intersections(to_polygons(union_ex(enforced_overhangs)), "generate_overhangs - enforced overhangs11");
-                    //check_self_intersections(offset(union_ex(enforced_overhangs),
-                    //FIXME enforcer_overhang_offset is a fudge constant!
-                    enforced_overhangs = diff(offset(union_ex(enforced_overhangs), enforcer_overhang_offset),
-                        lower_layer.lslices);
-#ifdef TREESUPPORT_DEBUG_SVG
-//                    if (! intersecting_edges(enforced_overhangs).empty())
-                    {
-                        static int irun = 0;
-                        SVG::export_expolygons(debug_out_path("treesupport-self-intersections-%d.svg", ++irun),
-                            { { { current_layer.lslices },        { "current_layer.lslices", "yellow", 0.5f } },
-                              { { lower_layer.lslices },          { "lower_layer.lslices", "gray", 0.5f } },
-                              { { union_ex(enforced_overhangs) }, { "enforced_overhangs", "red",  "black", "", scaled<coord_t>(0.1f), 0.5f } } });
-                    }
-#endif // TREESUPPORT_DEBUG_SVG
-                    //check_self_intersections(enforced_overhangs, "generate_overhangs - enforced overhangs2");
-                    overhangs = overhangs.empty() ? std::move(enforced_overhangs) : union_(overhangs, enforced_overhangs);
-                    //check_self_intersections(overhangs, "generate_overhangs - enforcers");
-                }
-            }
-            out[layer_id + num_raft_layers] = std::move(overhangs);
-            throw_on_cancel();
-        }
-    });
-
-#if 0
-    if (num_raft_layers > 0) {
-        const Layer   &first_layer = *print_object.get_layer(0);
-        // Final overhangs.
-        Polygons       overhangs = 
-            // Don't apply blockes on raft layer.
-            //(! blockers_layers.empty() && ! blockers_layers[layer_id].empty() ? 
-            //    diff(first_layer.lslices, blockers_layers[layer_id], ApplySafetyOffset::Yes) :
-                to_polygons(first_layer.lslices);
-#if 0
-        if (! enforcers_layers.empty() && ! enforcers_layers[layer_id].empty()) {
-            if (Polygons enforced_overhangs = intersection(first_layer.lslices, enforcers_layers[layer_id] /*, ApplySafetyOffset::Yes */);
-                ! enforced_overhangs.empty()) {
-                //FIXME this is a hack to make enforcers work on steep overhangs.
-                //FIXME enforcer_overhang_offset is a fudge constant!
-                enforced_overhangs = offset(union_ex(enforced_overhangs), enforcer_overhang_offset);
-                overhangs = overhangs.empty() ? std::move(enforced_overhangs) : union_(overhangs, enforced_overhangs);
-            }
-        }   
-#endif
-        out[num_raft_layers] = std::move(overhangs);
-        throw_on_cancel();
-    }
-#endif
-
-    return out;
-}
-#endif
 
 [[nodiscard]] static const std::vector<Polygons> generate_overhangs(const OrcaTreeSupportSettings &settings, const PrintObject &print_object, std::function<void()> throw_on_cancel)
 {
@@ -673,7 +516,7 @@ static std::optional<std::pair<Point, size_t>> polyline_sample_next_point_at_dis
         if (len < 2 * distance && min_points <= 1)
         {
             // Insert the opposite point of the first one.
-            //FIXME pretty expensive
+            // Note: this copy and clip is pretty expensive.
             Polyline pl(part);
             pl.clip_end(len / 2);
             line.points.emplace_back(pl.points.back());
@@ -1005,15 +848,9 @@ public:
             size_t this_layer_idx = insert_layer_idx - dtt_roof_tip;
             const size_t roof_recovery_depth = dtt_roof_tip + supports_roof_layers;
             auto evaluateRoofWillGenerate = [&](const std::pair<Point, LineStatus> &p) {
-                //FIXME Vojtech: The circle is just shifted, it has a known size, the infill should fit all the time!
-    #if 0
-                Polygon roof_circle;
-                for (Point corner : base_circle)
-                    roof_circle.points.emplace_back(p.first + corner * config.min_radius);
-                return !generate_support_infill_lines({ roof_circle }, config, true, insert_layer_idx - dtt_roof_tip, config.support_roof_line_distance).empty();
-    #else
+                // Note (Vojtech): the circle is just shifted and has a known size, so the infill is assumed
+                // to always fit (an explicit generate_support_infill_lines check was removed here).
                 return true;
-    #endif
             };
 
             {
@@ -1043,7 +880,7 @@ public:
             // add all tips as roof to the roof storage
             Polygons new_roofs;
             for (const LineInformation &line : lines)
-                //FIXME sweep the tip radius along the line?
+                // Possible enhancement: sweep the tip radius along the line?
                 for (const std::pair<Point, LineStatus> &p : line) {
                     Polygon roof_circle{ m_base_circle };
                     roof_circle.scale(config.min_radius / m_base_radius);
@@ -1257,7 +1094,7 @@ void sample_overhang_area(
                     interface_placer.volumes.getCollision(interface_placer.config.getRadius(0), layer_idx - (dtt_roof + 1), min_xy_dist) :
                     interface_placer.volumes.getAvoidance(interface_placer.config.getRadius(0), layer_idx - (dtt_roof + 1), OrcaTreeModelVolumes::AvoidanceType::Fast, false, min_xy_dist);
                 // prevent rounding errors down the line
-                //FIXME maybe use SafetyOffset::Yes at the following diff() instead?
+                // Note: SafetyOffset::Yes at the following diff() might be an alternative.
                 forbidden_next = offset(union_ex(forbidden_next_raw), scaled<float>(0.005), jtMiter, 1.2);
             }
             Polygons overhang_area_next = diff(overhang_area, forbidden_next);
@@ -1387,13 +1224,10 @@ static void generate_initial_areas(
         config.min_radius / 2 :
         scale_(sqrt(sqr(unscale<double>(config.min_radius)) - sqr(unscale<double>(config.min_radius - config.support_line_width / 2))));
     // Extra support offset to compensate for larger tip radiis. Also outset a bit more when z overwrites xy, because supporting something with a part of a support line is better than not supporting it at all.
-    //FIXME Vojtech: This is not sufficient for support enforcers to work.
-    //FIXME There is no account for the support overhang angle.
-    //FIXME There is no account for the width of the collision regions.
-    const coord_t extra_outset = std::max(coord_t(0), config.min_radius - config.support_line_width / 2) + (min_xy_dist ? config.support_line_width / 2 : 0)
-        //FIXME this is a heuristic value for support enforcers to work.
-//        + 10 * config.support_line_width;
-        ;
+    // Known limitation (Vojtech): this is not sufficient for support enforcers to work; it accounts for
+    // neither the support overhang angle nor the width of the collision regions. A disabled heuristic
+    // (+ 10 * support_line_width) existed to make enforcers work.
+    const coord_t extra_outset = std::max(coord_t(0), config.min_radius - config.support_line_width / 2) + (min_xy_dist ? config.support_line_width / 2 : 0);
     const size_t  num_support_roof_layers = mesh_group_settings.support_roof_layers;
     const bool    roof_enabled        = num_support_roof_layers > 0;
     const bool    force_tip_to_roof   = roof_enabled && (interface_placer.support_parameters.soluble_interface || coord_sqr(config.min_radius) * M_PI > mesh_group_settings.minimum_roof_area);
@@ -1406,9 +1240,8 @@ static void generate_initial_areas(
     if (config.z_distance_top_layers > 0) {
         max_overhang_insert_lag = 2 * config.z_distance_top_layers;
 
-    //FIXME
         if (mesh_group_settings.support_angle > EPSILON && mesh_group_settings.support_angle < 0.5 * M_PI - EPSILON) {
-            //FIXME mesh_group_settings.support_angle does not apply to enforcers and also it does not apply to automatic support angle (by half the external perimeter width).
+            // Known limitation: mesh_group_settings.support_angle applies neither to enforcers nor to the automatic support angle (by half the external perimeter width).
             //used by max_overhang_insert_lag, only if not min_xy_dist.
             const auto max_overhang_speed  = coord_t(tan(mesh_group_settings.support_angle) * config.layer_height);
             max_overhang_insert_lag = std::max(max_overhang_insert_lag, round_up_divide(config.xy_distance, max_overhang_speed / 2));
@@ -1471,7 +1304,7 @@ static void generate_initial_areas(
 
                 // Offset the area to compensate for large tip radiis. Offset happens in multiple steps to ensure the tip is as close to the original overhang as possible.
                 //+config.support_line_width / 80  to avoid calculating very small (useless) offsets because of rounding errors.
-                //FIXME likely a better approach would be to find correspondences between the full overhang and the trimmed overhang
+                // Possible refactor: a better approach would be to find correspondences between the full overhang and the trimmed overhang
                 // and if there is no correspondence, project the missing points to the clipping curve.
                 for (coord_t extra_total_offset_acc = 0; ! remaining_overhang.empty() && extra_total_offset_acc + config.support_line_width / 8 < extra_outset; ) {
                     const coord_t offset_current_step = std::min(
@@ -1483,7 +1316,7 @@ static void generate_initial_areas(
                     const Polygons &raw_collision = volumes.getCollision(0, layer_idx, true);
                     const coord_t   offset_step   = config.xy_min_distance + config.support_line_width;
                     // Reducing the remaining overhang by the areas already supported.
-                    //FIXME 1.5 * extra_total_offset_acc seems to be too much, it may remove some remaining overhang without being supported at all.
+                    // Note: 1.5 * extra_total_offset_acc may be too much; it may remove some remaining overhang without it being supported at all.
                     remaining_overhang = diff(remaining_overhang, safe_offset_inc(overhang_regular, 1.5 * extra_total_offset_acc, raw_collision, offset_step, 0, 1));
                     // Extending the overhangs by the inflated remaining overhangs.
                     overhang_regular   = union_(overhang_regular, diff(safe_offset_inc(remaining_overhang, extra_total_offset_acc, raw_collision, offset_step, 0, 1), relevant_forbidden));
@@ -1802,9 +1635,7 @@ static Point move_inside_if_outside(const Polygons &polygons, Point from, int di
         // Is nearly all of the time 1, but sometimes an increase of 1 could cause the radius to become bigger than recommendedMinRadius,
         // which could cause the radius to become bigger than precalculated.
         double planned_foot_increase = std::min(1.0, double(config.recommendedMinRadius(layer_idx - 1) - support_element_radius(config, current_elem)) / foot_radius_increase);
-//FIXME
         bool increase_bp_foot = planned_foot_increase > 0 && current_elem.to_buildplate;
-//        bool increase_bp_foot = false;
 
         if (increase_bp_foot && support_element_radius(config, current_elem) >= config.branch_radius && support_element_radius(config, current_elem) >= config.increase_radius_until_radius)
             if (validWithRadius(config.getRadius(current_elem.effective_radius_height, current_elem.elephant_foot_increases + planned_foot_increase))) {
@@ -2485,7 +2316,7 @@ static void merge_influence_areas(
     // The actual merge logic is found in merge_influence_areas_two_sets.
 
     // Build an AABB tree over the influence areas.
-    //FIXME A full tree does not need to be built, the lowest level branches will be always bucketed.
+    // Note: a full tree does not need to be built - the lowest-level branches will always be bucketed.
     // However the additional time consumed is negligible.
     AABBTreeIndirect::Tree<2, coord_t> tree;
     // Sort influence_areas in place.
@@ -2888,7 +2719,7 @@ static void create_nodes_from_area(
                         double radius_increase = support_element_radius(config, elem) - support_element_radius(config, parent);
                         assert(radius_increase >= 0);
                         double shift = (elem.state.result_on_layer - parent.state.result_on_layer).cast<double>().norm();
-                        //FIXME this assert fails a lot. Is it correct?
+                        // Note: this disabled assert fails a lot; it is unclear whether it is correct.
 //                        assert(shift < radius_increase + 2. * config.maximum_move_distance_slow);
                     }
                 }
@@ -2913,7 +2744,7 @@ static void create_nodes_from_area(
                     double radius_increase = support_element_radius(config, elem) - support_element_radius(config, parent);
                     assert(radius_increase >= 0);
                     double shift = (elem.state.result_on_layer - parent.state.result_on_layer).cast<double>().norm();
-                    //FIXME this assert fails a lot. Is it correct?
+                    // Note: this disabled assert fails a lot; it is unclear whether it is correct.
 //                    assert(shift < radius_increase + 2. * config.maximum_move_distance_slow);
                 }
             }
@@ -3168,7 +2999,7 @@ static void organic_smooth_branches_avoid_collisions(
         if (LayerCollisionCache& l = layer_collision_cache[layer_idx]; !l.min_element_radius_known())
             l.min_element_radius = 0;
         else {
-            //FIXME
+            //FIXME the computed min_element_radius is discarded and 0 is used, making the collision lower-bound query pessimistic.
             l.min_element_radius = 0;
             std::optional<std::pair<coord_t, std::reference_wrapper<const Polygons>>> res = volumes.get_collision_lower_bound_area(layer_idx, l.min_element_radius);
             assert(res.has_value());
@@ -3243,7 +3074,7 @@ static void organic_smooth_branches_avoid_collisions(
     }
     // Update min_z / max_z to limit the search Z span of a given sphere for collision detection.
     for (CollisionSphere &collision_sphere : collision_spheres) {
-        //FIXME limit the collision span by the tree slope.
+        // Possible optimization: limit the collision span by the tree slope.
         collision_sphere.min_z = std::max(collision_sphere.min_z, collision_sphere.position.z() - collision_sphere.radius);
         collision_sphere.max_z = std::min(collision_sphere.max_z, collision_sphere.position.z() + collision_sphere.radius);
         collision_sphere.layer_begin = std::min(collision_sphere.element.state.layer_idx, layer_idx_ceil(slicing_params, config, collision_sphere.min_z));
@@ -3390,7 +3221,7 @@ static void organic_smooth_branches_avoid_collisions(
                     ++ num_moved;
                     double dxy = sqrt(sqr(radius) - sqr(v.z()));
                     double nudge_dist_max = dxy - std::hypot(v.x(), v.y())
-                        //FIXME 1mm gap
+                        // Note: collision_extra_gap is an arbitrary 1mm safety gap.
                         + collision_extra_gap;
                     // Shift by maximum 2mm.
                     double nudge_dist = std::min(std::max(0., nudge_dist_max), max_nudge_collision_avoidance);
@@ -3467,7 +3298,6 @@ static void generate_support_areas(Print &print, OrcaTreeSupport* tree_support, 
     {
         // process each combination of meshes
         // this struct is used to easy retrieve setting. No other function except those in OrcaTreeModelVolumes and generate_initial_areas() have knowledge of the existence of multiple meshes being processed.
-        //FIXME this is a copy
         // Contains config settings to avoid loading them in every function. This was done to improve readability of the code.
         const OrcaTreeSupportSettings &config = processing.first;
         BOOST_LOG_TRIVIAL(info) << "Processing support tree mesh group " << counter + 1 << " of " << grouped_meshes.size() << " containing " << grouped_meshes[counter].second.size() << " meshes.";
@@ -3499,7 +3329,7 @@ static void generate_support_areas(Print &print, OrcaTreeSupport* tree_support, 
 #endif // SLIC3R_TREESUPPORTS_PROGRESS
             /* additional_excluded_areas */{} };
 
-        //FIXME generating overhangs just for the first mesh of the group.
+        // Known limitation: overhangs are generated just for the first mesh of the group (groups currently hold a single object).
         assert(processing.second.size() == 1);
 
 #if 0
@@ -3898,14 +3728,6 @@ void organic_draw_branches(
                 trees.push_back({});
                 TreeVisitor::visit_recursive(move_bounds, start_element, trees.back());
                 assert(!trees.back().branches.empty());
-                //FIXME debugging
-#if 0
-                if (start_element.state.lost) {
-                }
-                else if (start_element.state.verylost) {
-                } else
-                    trees.pop_back();
-#endif
             }
 //            ++ ielement;
         }
@@ -3939,7 +3761,7 @@ void organic_draw_branches(
                     }
                     std::vector<Polygons> slices = slice_mesh(partial_mesh, slice_z, mesh_slicing_params, throw_on_cancel);
                     bottom_contacts.clear();
-                    //FIXME parallelize?
+                    // Possible optimization: parallelize this loop.
                     for (LayerIndex i = 0; i < LayerIndex(slices.size()); ++i) {
                         slices[i] = diff_clipped(slices[i], volumes.getCollision(0, layer_begin + i, true)); // FIXME parent_uses_min || draw_area.element->state.use_min_xy_dist);
                         slices[i] = intersection(slices[i], Polygons{ volumes.m_bed_area });
@@ -3952,7 +3774,7 @@ void organic_draw_branches(
                         if (branch.has_root) {
                             if (config.support_rests_on_model && branch.path.front()->state.to_model_gracious) {
                                 if (config.settings.support_floor_layers > 0)
-                                    //FIXME one may just take the whole tree slice as bottom interface.
+                                    // Possible enhancement: one may just take the whole tree slice as bottom interface.
                                     bottom_contacts.emplace_back(intersection_clipped(slices.front(), volumes.getPlaceableAreas(0, layer_begin, [] {})));
                             } else if (layer_begin > 0) {
                                 // Drop down areas that do rest non - gracefully on the model to ensure the branch actually rests on something.
@@ -4101,7 +3923,7 @@ void organic_draw_branches(
 
             if (! base_layer_polygons.empty()) {
                 // Most of the time in this function is this union call. Can take 300+ ms when a lot of areas are to be unioned.
-                base_layer_polygons = smooth_outward(union_(base_layer_polygons), config.support_line_width); //FIXME was .smooth(50);
+                base_layer_polygons = smooth_outward(union_(base_layer_polygons), config.support_line_width); // Note: was .smooth(50) in the original implementation.
                 //smooth_outward(closing(std::move(bottom), closing_distance + minimum_island_radius, closing_distance, SUPPORT_SURFACES_OFFSET_PARAMETERS), smoothing_distance) :
                 // simplify a bit, to ensure the output does not contain outrageous amounts of vertices. Should not be necessary, just a precaution.
                 base_layer_polygons = polygons_simplify(base_layer_polygons, std::min(scaled<double>(0.03), double(config.resolution)), polygons_strictly_simple);
@@ -4112,7 +3934,7 @@ void organic_draw_branches(
             if (top_contact_layer && ! top_contact_layer->polygons.empty() && ! base_layer_polygons.empty()) {
                 base_layer_polygons = diff(base_layer_polygons, top_contact_layer->polygons);
                 if (! bottom_contact_polygons.empty())
-                    //FIXME it may be better to clip bottom contacts with top contacts first after they are propagated to produce interface layers.
+                    // Possible refactor: it may be better to clip bottom contacts with top contacts first after they are propagated to produce interface layers.
                     bottom_contact_polygons = diff(bottom_contact_polygons, top_contact_layer->polygons);
             }
             if (! bottom_contact_polygons.empty()) {
