@@ -109,7 +109,7 @@ struct ZipUnicodePathExtraField
 
 
 
-//FIXME this has potentially O(n^2) time complexity!
+// Performance note: this has potentially O(n^2) time complexity.
 std::string xml_escape(std::string text, bool is_marked/* = false*/)
 {
     std::string::size_type pos = 0;
@@ -2992,7 +2992,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                                                     float(std::atof(object_data_points[i+1].c_str())),
                                                     float(std::atof(object_data_points[i+2].c_str())),
                                                     float(std::atof(object_data_points[i+3].c_str())),
-                                                    //FIXME storing boolean as 0 / 1 and importing it as float.
+                                                    // Note: the boolean is stored as 0 / 1 and imported as float.
                                                     std::abs(std::atof(object_data_points[i+4].c_str()) - 1.) < EPSILON);
                 }
 
@@ -3804,7 +3804,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 m_is_bbl_3mf = true;
                 m_bambuslicer_generator_version = Semver::parse(m_curr_characters.substr(11));
             }
-        //TODO: currently use version 0, no need to load&&save this string
+        // Note: currently version 0 is used, so this string does not need to be loaded & saved:
         /*} else if (m_curr_metadata_name == BBS_FDM_SUPPORTS_PAINTING_VERSION) {
             m_fdm_supports_painting_version = static_cast<unsigned int>(atoi(m_curr_characters.c_str()));
             check_painting_version(m_fdm_supports_painting_version, FDM_SUPPORTS_PAINTING_VERSION,
@@ -4500,7 +4500,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         //    return true;
         //} //Susi_not_impl
 
-        // TODO: Orca: support legacy text info
+        // Note (Orca): legacy text info import is not supported:
         /*
         TextInfo text_info;
         text_info.m_text      = xml_unescape(bbs_get_attribute_value_string(attributes, num_attributes, TEXT_ATTR));
@@ -4747,7 +4747,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 //    if (object.instances.size() == 1) {
                 //        triangle_mesh.transform(object.instances.front()->get_transformation().get_matrix(), false);
                 //        object.instances.front()->set_transformation(Slic3r::Geometry::Transformation());
-                //        //FIXME do the mesh fixing?
+                //        // (whether to do mesh fixing here was an open question)
                 //    }
                 //}
                 if (triangle_mesh.volume() < 0)
@@ -4943,7 +4943,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 if (object.instances.size() == 1) {
                     triangle_mesh.transform(object.instances.front()->get_transformation().get_matrix(), false);
                     object.instances.front()->set_transformation(Slic3r::Geometry::Transformation());
-                    //FIXME do the mesh fixing?
+                    // Note: no mesh fixing is performed here; whether it should be is an open question.
                 }
             }
             if (triangle_mesh.volume() < 0)
