@@ -43,7 +43,7 @@ using namespace std::literals;
 // had to use a define beacuse the macro processing inside macro BOOST_LOG_TRIVIAL()
 #define error_level_not_in_cache error
 
-//FIXME Machine border is currently ignored.
+// Known limitation: the machine border is currently ignored (see below).
 static Polygons calculateMachineBorderCollision(Polygon machine_border)
 {
     // Put a border of 1m around the print volume so that we don't collide.
@@ -51,7 +51,7 @@ static Polygons calculateMachineBorderCollision(Polygon machine_border)
     //FIXME just returning no border will let tree support legs collide with print bed boundary
     return {};
 #else
-    //FIXME offsetting by 1000mm easily overflows int32_tr coordinate.
+    // Note: this branch is disabled because offsetting by 1000mm easily overflows an int32 coordinate.
     Polygons out = offset(machine_border, scaled<float>(1000.), jtMiter, 1.2);
     machine_border.reverse(); // Makes the polygon negative so that we subtract the actual volume from the collision area.
     out.emplace_back(std::move(machine_border));
@@ -149,11 +149,8 @@ TreeModelVolumes::TreeModelVolumes(
             for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++ layer_idx) {
                 if (layer_idx < coord_t(additional_excluded_areas.size()))
                     append(m_anti_overhang[layer_idx], union_ex(additional_excluded_areas[layer_idx]));
-    //          if (SUPPORT_TREE_AVOID_SUPPORT_BLOCKER)
-    //              append(m_anti_overhang[layer_idx], storage.support.supportLayers[layer_idx].anti_overhang);
-    //FIXME block wipe tower
-    //          if (storage.primeTower.enabled)
-    //              append(m_anti_overhang[layer_idx], layer_idx == 0 ? storage.primeTower.outer_poly_first_layer : storage.primeTower.outer_poly);
+    // Note: Cura's original code also excluded the support blocker and prime tower areas here;
+    // these exclusions were not ported.
                 m_anti_overhang[layer_idx] = union_ex(m_anti_overhang[layer_idx]);
             }
         });
@@ -453,7 +450,7 @@ void TreeModelVolumes::calculateCollision(const coord_t radius, const LayerIndex
                 // avoiding this would require saving each collision for each outline_idx separately.
                 // and later for each avoidance... But avoidance calculation has to be for the whole scene and can NOT be done for each outline_idx separately and combined later.
                 // so avoiding this inaccuracy seems infeasible as it would require 2x the avoidance calculations => 0.5x the performance.
-                //FIXME support_xy_distance is not corrected for "soluble" flag, see TreeSupportSettings constructor.
+                // Note: support_xy_distance is not corrected for the "soluble" flag either, see the TreeSupportSettings constructor.
                 settings.support_xy_distance;
 
             // 1) Calculate offsets of collision areas in parallel.
@@ -660,7 +657,6 @@ void TreeModelVolumes::calculateAvoidance(const std::vector<RadiusLayerPair> &ke
             assert(! task.holefree() || task.radius < m_increase_until_radius + m_current_min_xy_dist_delta);
             if (task.to_model)
                 // ensuring Placeableareas are calculated
-                //FIXME pass throw_on_cancel
                 getPlaceableAreas(task.radius, task.max_required_layer, throw_on_cancel);
             // The following loop propagating avoidance regions bottom up is inherently serial.
             const bool  collision_holefree = (task.slow() || task.holefree()) && task.radius < m_increase_until_radius + m_current_min_xy_dist_delta;

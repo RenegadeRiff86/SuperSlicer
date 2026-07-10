@@ -66,7 +66,7 @@ struct OrcaTreeSupportMeshGroupSettings {
         this->support_angle             = 0.5 * M_PI - std::clamp<double>((config.support_material_threshold + 1) * M_PI / 180., 0., 0.5 * M_PI);
         this->support_line_width        = support_material_flow(&print_object, layer_height_mm).scaled_width();
         this->support_roof_line_width   = support_material_interface_flow(&print_object, layer_height_mm).scaled_width();
-        //FIXME add it to SlicingParameters and reuse in both tree and normal supports?
+        // Possible refactor: add this to SlicingParameters and reuse in both tree and normal supports.
         this->support_bottom_enable = config.support_material_interface_layers.value > 0 &&
             (!config.support_material_bottom_interface_layers.is_enabled() ||
              config.support_material_bottom_interface_layers.value > 0);
@@ -153,7 +153,7 @@ struct OrcaTreeSupportMeshGroupSettings {
     // Support Bottom Distance
     // Distance from the print to the bottom of the support.
     coord_t                         support_bottom_distance                 { scaled<coord_t>(0.1) };
-    //FIXME likely not needed, optimization for clipping of interface layers
+    // Note: likely not needed - optimization for clipping of interface layers.
     // When checking where there's model above and below the support, take steps of the given height. Lower values will slice slower, while higher values 
     // may cause normal support to be printed in some places where there should have been support interface.
     coord_t                         support_interface_skip_height           { scaled<coord_t>(0.3) };
@@ -326,13 +326,8 @@ public:
             xy_distance     = std::max(xy_distance, xy_min_distance);
         }
     
-    // const std::unordered_map<std::string, InterfacePreference> interface_map = { { "support_area_overwrite_interface_area", InterfacePreference::SupportAreaOverwritesInterface }, {
-    // "interface_area_overwrite_support_area", InterfacePreference::InterfaceAreaOverwritesSupport }, { "support_lines_overwrite_interface_area", InterfacePreference::SupportLinesOverwriteInterface
-    // }, { "interface_lines_overwrite_support_area", InterfacePreference::InterfaceLinesOverwriteSupport }, { "nothing", InterfacePreference::Nothing } };
-    //            interface_preference = interface_map.at(mesh_group_settings.get<std::string>("support_interface_priority"));
-    //FIXME this was the default
-    //            interface_preference = InterfacePreference::SupportLinesOverwriteInterface;
-        //interface_preference = InterfacePreference::SupportAreaOverwritesInterface;
+        // Note: Cura read this from the "support_interface_priority" setting (default
+        // SupportLinesOverwriteInterface); this port hardcodes InterfaceAreaOverwritesSupport.
         interface_preference = InterfacePreference::InterfaceAreaOverwritesSupport;
     
         if (slicing_params.raft_layers() > 0) {

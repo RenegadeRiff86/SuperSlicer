@@ -286,7 +286,7 @@ static void draw_layer_mst
 // @return success(true) or not(false)
 static bool move_inside_expoly(const ExPolygon &polygon, Point& from, double distance = 0, double max_move_distance = std::numeric_limits<double>::max())
 {
-    //TODO: This is copied from the moveInside of Polygons.
+    // Note: copied from the moveInside of Polygons.
     /*
     We'd like to use this function as subroutine in moveInside(Polygons...), but
     then we'd need to recompute the distance of the point to the polygon, which
@@ -373,7 +373,7 @@ static bool move_inside_expoly(const ExPolygon &polygon, Point& from, double dis
                     Point inward_dir;
                     if (dot_prod <= 0)
                     {
-                        // TODO: check whether it needs scale_()
+                        // Note: no scale_() needed here; only the direction of inward_dir is used (it is rescaled below).
                         inward_dir = turn90_ccw(normal(ab, 10.0) + normal(p1 - p0, 10.0));
                         ret = x + normal(inward_dir, scale_(distance));
                         is_already_on_correct_side_of_boundary = dot_with_unscale(inward_dir, p - x) * distance >= 0;
@@ -672,7 +672,7 @@ void OrcaTreeSupport::detect_overhangs(bool check_support_necessity/* = false*/)
     double thresh_angle = config.support_threshold_angle.value > EPSILON ? config.support_threshold_angle.value + 1 : 30;
     thresh_angle = std::min(thresh_angle, 89.); // should be smaller than 90
     const double threshold_rad = Geometry::deg2rad(thresh_angle);
-    // FIXME this is a fudge constant!
+    // Note: fudge constant (nominal support tree tip diameter).
     double support_tree_tip_diameter = 0.8;
     auto   enforcer_overhang_offset  = scaled<double>(support_tree_tip_diameter);
 
@@ -1073,7 +1073,7 @@ void OrcaTreeSupport::detect_overhangs(bool check_support_necessity/* = false*/)
         if (layer_nr < enforcers.size() && lower_layer) {
             ExPolygons enforced_overhangs   = intersection_ex(diff_ex(layer->lslices_extrudable, lower_layer->lslices_extrudable), enforcers[layer_nr]);
             if (!enforced_overhangs.empty()) {
-                // FIXME this is a hack to make enforcers work on steep overhangs. See STUDIO-7538.
+                // Note: intentional workaround to make enforcers work on steep overhangs. See STUDIO-7538.
                 enforced_overhangs = diff_ex(offset_ex(enforced_overhangs, enforcer_overhang_offset), lower_layer->lslices_extrudable);
                 append(layer->loverhangs, enforced_overhangs);
             }
@@ -2157,7 +2157,7 @@ void OrcaTreeSupport::draw_circles()
                     if (layer_nr >= bottom_interface_layers + bottom_gap_layers)
                     {
                         // find the lowest interface layer
-                        // TODO the gap may not be exact when "independent support layer height" is enabled
+                        // Known limitation: the gap may not be exact when "independent support layer height" is enabled.
                         size_t layer_nr_next = layer_nr - bottom_interface_layers;
                         size_t obj_layer_nr_next = m_ts_data->layer_heights[layer_nr_next].obj_layer_nr;
                         for (size_t i = 0; i <= bottom_gap_layers && i <= obj_layer_nr_next; i++)
@@ -2995,7 +2995,7 @@ void OrcaTreeSupport::smooth_nodes()
 
                 std::vector<Point> pts1 = pts;
                 std::vector<double> radii1 = radii;
-                // TODO here we assume layer height gap is constant. If not true, need to consider height jump
+                // Known limitation: assumes a constant layer height gap; height jumps are not considered.
                 const int iterations = 100;
                 for (size_t k = 0; k < iterations; k++) {
                     for (size_t i = 1; i < pts.size() - 1; i++) {
