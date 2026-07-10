@@ -161,7 +161,7 @@ void Polyline::split_at(const Point &point, Polyline* p1, Polyline* p2) const
     }
 
     if (this->points.front() == point) {
-        //FIXME why is p1 NOT empty as in the case above?
+        // Note: unlike the size<2 case above, p1 is not left empty: it holds the single split point, so both halves share it.
         *p1 = { point };
         *p2 = *this;
         return;
@@ -1242,7 +1242,7 @@ bool ArcPolyline::split_at_index(const size_t index, ArcPolyline &p1, ArcPolylin
     return true;
 }
 
-//TODO: find a way to avoid duplication of get_point_from_end / get_point_from_begin
+// Possible refactor: find a way to deduplicate get_point_from_end / get_point_from_begin.
 Point ArcPolyline::get_point_from_begin(distf_t distance) const {
     size_t idx = 1;
     while (distance > 0 && idx < m_path.size()) {
@@ -1426,10 +1426,10 @@ Geometry::ArcWelder::Path ArcPolyline::_from_polyline(std::initializer_list<Poin
     return path;
 }
 
-//TODO: unit tests
+// Note: not covered by unit tests.
 // it will return the size of the buffer still used. It will try to not use d more than half, unless buffer_init < 0, then it will try to not use any at the end.
-//TODO: improvement: instead of watching at three point -> deleting the center (2 instead of 3), look at four -> add center of two center ones -> keep new & start & end (3 instead of 4)
-// choose between both based on the result: is the deviation better? is path less stuttery? 
+// Possible improvement: instead of watching at three points -> deleting the center (2 instead of 3), look at four -> add center of the two center ones -> keep new & start & end (3 instead of 4),
+// choosing between both based on the result: is the deviation better? is the path less stuttery?
 int ArcPolyline::simplify_straits(coordf_t min_tolerance,
                                    coordf_t fl_min_point_distance,
                                    coordf_t mean_dist_per_line,
@@ -1482,7 +1482,7 @@ int ArcPolyline::simplify_straits(coordf_t min_tolerance,
 
         // try add a point in the buffer
         Point new_point = m_path[idx_end].point;
-        //TODO better arc (here the length is minimized)
+        // Note: for arcs this under-estimates the segment length (the chord distance is used).
         coord_t new_seg_length = coord_t(m_path[idxs.back()].point.distance_to(new_point));
         assert(new_seg_length > 0);
 
@@ -1656,7 +1656,7 @@ int ArcPolyline::simplify_straits(coordf_t min_tolerance,
         }
     } else {
         assert(!erased.empty());
-        // faster? to construct a new one. (TODO: speed tests)
+        // Performance note: constructing a new path is assumed faster here for many erasures; not benchmarked.
         Geometry::ArcWelder::Path new_path;
         size_t erased_idx = 0;
         size_t next_erased = erased[erased_idx];
@@ -1919,7 +1919,7 @@ bool ArcPolyline::is_valid() const {
 
 // return false if the length of this path is (now) too short. 
 bool ArcPolyline::normalize() {
-    assert(!has_arc() ); // TODO: with arc, if needed.
+    assert(!has_arc() ); // Known limitation: only implemented for arc-less paths (extend if ever needed).
     // remove points that are too near each other (if possible)
     if (size() > 2) {
         Point prev = get_point(size() - 2);
