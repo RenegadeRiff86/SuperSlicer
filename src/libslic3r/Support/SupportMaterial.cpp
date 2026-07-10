@@ -68,7 +68,7 @@ using namespace Slic3r::FFFSupport;
 namespace Slic3r {
 
     // how much we extend support around the actual contact area
-    //FIXME this should be dependent on the nozzle diameter!
+    // Known limitation: fixed margin; arguably it should depend on the nozzle diameter.
 #define SUPPORT_MATERIAL_MARGIN 1.5 
 
 // Increment used to reach MARGIN in steps to avoid trespassing thin objects
@@ -720,7 +720,7 @@ public:
                         Points::const_iterator i = contour.points.begin();
                         Points::const_iterator j = contour.points.end() - 1;
                         for (; i != contour.points.end(); j = i ++) {
-                            //FIXME this test is not numerically robust. Particularly, it does not handle horizontal segments at y == point(1) well.
+                            // Known limitation: this test may not be numerically robust, particularly for horizontal segments at y == point(1).
                             // Does the ray with y == point(1) intersect this line segment?
                             for (auto &sample_inside : samples_inside) {
                                 if (((*i)(1) > sample_inside.first(1)) != ((*j)(1) > sample_inside.first(1))) {
@@ -782,7 +782,7 @@ public:
                   { { union_ex(*m_support_polygons) },                                                                                                              { "src",   "green",  0.5f } },
                 });
 #endif /* SLIC3R_DEBUG */
-            //FIXME do we want to trim with the object here? On one side the columns will be thinner, on the other side support interfaces may disappear for snug supports.
+            // Note (open question): trimming with the object here would make the columns thinner, but support interfaces may disappear for snug supports.
             // return diff(smooth_outward(closing(*m_support_polygons, closing_distance, SUPPORT_SURFACES_OFFSET_PARAMETERS), smoothing_distance), *m_trimming_polygons);
             return smooth_outward(closing(*m_support_polygons, closing_distance, SUPPORT_SURFACES_OFFSET_PARAMETERS), smoothing_distance);
         }
@@ -842,8 +842,6 @@ public:
 
         ::fread(&m_support_spacing, 8, 1, file);
         ::fread(&m_support_angle, 8, 1, file);
-        //FIXME
-        //m_support_spacing *= 0.01 / 2;
         uint32_t n_polygons;
         ::fread(&n_polygons, 4, 1, file);
         m_support_polygons_deserialized.reserve(n_polygons);
@@ -968,43 +966,14 @@ private:
     }
 #endif // SUPPORT_USE_AGG_RASTERIZER
 
-#if 0
-    // Get some internal point of an expolygon, to be used as a representative
-    // sample to test, whether this island is inside another island.
-    //FIXME this was quick, but not sufficiently robust.
-    static Point island_sample(const ExPolygon &expoly)
-    {
-        // Find the lowest point lexicographically.
-        const Point *pt_min = &expoly.contour.points.front();
-        for (size_t i = 1; i < expoly.contour.points.size(); ++ i)
-            if (expoly.contour.points[i] < *pt_min)
-                pt_min = &expoly.contour.points[i];
-
-        // Lowest corner will always be convex, in worst case denegenerate with zero angle.
-        const Point &p1 = (pt_min == &expoly.contour.points.front()) ? expoly.contour.points.back() : *(pt_min - 1);
-        const Point &p2 = *pt_min;
-        const Point &p3 = (pt_min == &expoly.contour.points.back()) ? expoly.contour.points.front() : *(pt_min + 1);
-
-        Vector v  = (p3 - p2) + (p1 - p2);
-        double l2 = double(v(0))*double(v(0))+double(v(1))*double(v(1));
-        if (l2 == 0.)
-            return p2;
-        double coef = 20. / sqrt(l2);
-        return Point(p2(0) + coef * v(0), p2(1) + coef * v(1));
-    }
-#endif
-
     // Sample one internal point per expolygon.
-    // FIXME this is quite an overkill to calculate a complete offset just to get a single point, but at least it is robust.
+    // Note: quite an overkill to calculate a complete offset just to get a single point, but at least it is robust.
     static Points island_samples(const ExPolygons &expolygons)
     {
         Points pts;
         pts.reserve(expolygons.size());
         for (const ExPolygon &expoly : expolygons)
             if (expoly.contour.points.size() > 2) {
-                #if 0
-                    pts.push_back(island_sample(expoly));
-                #else 
                     Polygons polygons = offset(expoly, - 20.f);
                     for (const Polygon &poly : polygons)
                         if (! poly.points.empty()) {
@@ -1016,7 +985,6 @@ private:
                                 pts.push_back(poly.points[i]);
                             break;
                         }
-                #endif
             }
         // Sort the points lexicographically, so a binary search could be used to locate points inside a bounding box.
         std::sort(pts.begin(), pts.end());
@@ -1061,7 +1029,7 @@ namespace SupportMaterialInternal {
         return false;
     }
     static bool has_bridging_perimeters(const ExtrusionEntityCollection &perimeters)
-    { //FIXME
+    {
         for (const ExtrusionEntity *ee : perimeters.entities()) {
             if (ee->is_collection()) {
                 for (const ExtrusionEntity *ee2 : static_cast<const ExtrusionEntityCollection*>(ee)->entities()) {
@@ -1083,7 +1051,7 @@ namespace SupportMaterialInternal {
                     return true;
             } else {
                 assert(! ee->is_loop());
-                // TODO: a bit dangerous, is there possible to have a bridge infill with mixed role?
+                // Note: possibly fragile - can a bridge infill have a mixed role?
                 if (ee->role().is_bridge())
                     return true;
             }
@@ -1148,7 +1116,7 @@ std::vector<Polygons> PrintObjectSupportMaterial::buildplate_covered(const Print
     if (buildplate_only) {
         BOOST_LOG_TRIVIAL(debug) << "PrintObjectSupportMaterial::buildplate_covered() - start";
         buildplate_covered.assign(object.layers().size(), Polygons());
-        //FIXME prefix sum algorithm, parallelize it! Parallelization will also likely be more numerically stable.
+        // Possible optimization: prefix-sum algorithm, parallelized; that will also likely be more numerically stable.
         for (size_t layer_id = 1; layer_id < object.layers().size(); ++ layer_id) {
             const Layer &lower_layer = *object.layers()[layer_id-1];
             // Merge the new slices with the preceding slices.
@@ -1332,24 +1300,13 @@ static inline std::tuple<Polygons, Polygons, Polygons, float> detect_overhangs(
                 ensure_valid(diff_polygons, resolution);
             } else if (support_auto) {
                 // Get the regions needing a suport, collapse very tiny spots.
-                //FIXME cache the lower layer offset if this layer has multiple regions.
-#if 0
-                //FIXME this solution will trigger stupid supports for sharp corners, see GH #4874
-                diff_polygons = opening_ex(
-                    diff_ex(layerm_expolygons,
-                            // Likely filtering out thin regions from the lower layer, that will not be covered by perimeters, thus they
-                            // are not supporting this layer.
-                            // However this may lead to a situation where regions at the current layer that are narrow thus not extrudable will generate unnecessary supports.
-                            // For example, see GH issue #3094
-                            opening_ex(lower_layer_polygons, 0.5f * flow_width, lower_layer_offset + 0.5f * flow_width, SUPPORT_SURFACES_OFFSET_PARAMETERS)), 
-                    //FIXME This opening is targeted to reduce very thin regions to support, but it may lead to
-                    // no support at all for not so steep overhangs.
-                    0.1f * fflow_widthw);
-#else
+                // Possible optimization: cache the lower layer offset if this layer has multiple regions.
+                // Note: an earlier opening_ex-based variant also filtered out thin lower-layer regions not covered
+                // by perimeters (see GH #3094), but it triggered spurious supports for sharp corners (GH #4874)
+                // and was removed.
                 diff_polygons = 
                     diff_ex(layerm_expolygons,
                             expand_ex(lower_layer_polygons, lower_layer_offset, SUPPORT_SURFACES_OFFSET_PARAMETERS));
-#endif
                 if (buildplate_only && ! annotations.buildplate_covered[layer_id].empty()) {
                     // Don't support overhangs above the top surfaces.
                     // This step is done before the contact surface is calculated by growing the overhang region.
@@ -1363,7 +1320,7 @@ static inline std::tuple<Polygons, Polygons, Polygons, float> detect_overhangs(
                         intersection_ex(offset_ex(diff_polygons, lower_layer_offset, SUPPORT_SURFACES_OFFSET_PARAMETERS), layerm_expolygons),
                         lower_layer_polygons);
                 }
-                //FIXME add user defined filtering here based on minimal area or minimum radius or whatever.
+                // Possible enhancement: add user-defined filtering here based on minimal area or minimum radius.
                 ensure_valid(diff_polygons, resolution);
             }
 
@@ -1393,7 +1350,7 @@ static inline std::tuple<Polygons, Polygons, Polygons, float> detect_overhangs(
             #endif /* SLIC3R_DEBUG */
 
             if (object_config.dont_support_bridges) {
-                // FIXME Expensive, potentially not precise enough. Misses gap fill extrusions, which bridge.
+                // Known limitation: expensive and potentially imprecise; misses gap-fill extrusions, which bridge.
                 assert_valid(diff_polygons);
                 remove_bridges_from_contacts(print_config, lower_layer, *layerm, double(flow_width), diff_polygons);
                 ensure_valid(diff_polygons, resolution);
@@ -1411,8 +1368,8 @@ static inline std::tuple<Polygons, Polygons, Polygons, float> detect_overhangs(
                 union_ex(diff_polygons));
             #endif /* SLIC3R_DEBUG */
 
-            //FIXME the overhang_polygons are used to construct the support towers as well.
-            //if (this->has_contact_loops())
+            // Note: the overhang_polygons are used to construct the support towers as well,
+            // so they are collected even when contact loops are disabled.
                 // Store the exact contour of the overhang for the contact loops.
                 polygons_append(overhang_polygons, diff_polygons);
 
@@ -1421,8 +1378,8 @@ static inline std::tuple<Polygons, Polygons, Polygons, float> detect_overhangs(
             // We increment the area in steps because we don't want our support to overflow
             // on the other side of the object (if it's very thin).
             {
-                //FIMXE 1) Make the offset configurable, 2) Make the Z span configurable.
-                //FIXME one should trim with the layer span colliding with the support layer, this layer
+                // Possible enhancement: 1) make the offset configurable, 2) make the Z span configurable.
+                // Known limitation: one should trim with the layer span colliding with the support layer; this layer
                 // may be lower than lower_layer, so the support area needed may need to be actually bigger!
                 // For the same reason, the non-bridging support area may be smaller than the bridging support area!
                 slices_margin_update(std::min(lower_layer_offset, float(scale_(gap_xy))), no_interface_offset);
@@ -1514,7 +1471,7 @@ static inline std::pair<SupportGeneratorLayer*, SupportGeneratorLayer*> new_cont
         height   = 0.;
         // Ignore this contact area if it's too low.
         // Don't want to print a layer below the first layer height as it may not stick well.
-        //FIXME there may be a need for a single layer support, then one may decide to print it either as a bottom contact or a top contact
+        // Possible enhancement: there may be a need for a single-layer support printed either as a bottom contact or a top contact,
         // and it may actually make sense to do it with a thinner layer than the first layer height.
         if (print_z < slicing_params.first_print_layer_height - EPSILON) {
             // This contact layer is below the first layer height, therefore not printable. Don't support this surface.
@@ -1600,7 +1557,7 @@ static inline void fill_contact_layer(
     auto lower_layer_polygons_for_dense_interface = [&lower_layer_polygons_for_dense_interface_cache, &lower_layer_polygons, no_interface_offset]() -> const Polygons& {
         if (lower_layer_polygons_for_dense_interface_cache.empty())
             lower_layer_polygons_for_dense_interface_cache = 
-                //FIXME no_interface_offset * 0.6f offset is not quite correct, one shall derive it based on an angle thus depending on layer height.
+                // Known limitation: the no_interface_offset * 0.6f offset is not quite correct; it should be derived from an angle, thus depend on layer height.
             opening(lower_layer_polygons, no_interface_offset * 0.5f, no_interface_offset * (0.6f + 0.5f), SUPPORT_SURFACES_OFFSET_PARAMETERS);
         return lower_layer_polygons_for_dense_interface_cache;
     };
@@ -1628,7 +1585,7 @@ static inline void fill_contact_layer(
                     expand(dense_interface_polygons, no_interface_offset * 0.1f),
                     slices_margin.polygons);
             // Support islands, to be stretched into a grid.
-            //FIXME The regularization of dense_interface_polygons above may stretch dense_interface_polygons outside of the contact polygons,
+            // Note: the regularization of dense_interface_polygons above may stretch dense_interface_polygons outside of the contact polygons,
             // thus some dense interface areas may not get supported. Trim the excess with contact_polygons at the following line.
             // See for example GH #4874.
             Polygons dense_interface_polygons_trimmed = intersection(dense_interface_polygons, *new_layer.contact_polygons);
@@ -1691,7 +1648,7 @@ static inline void fill_contact_layer(
                         expand(dense_interface_polygons, no_interface_offset * 0.1f),
                         slices_margin.all_polygons);
                 // Support islands, to be stretched into a grid.
-                //FIXME The regularization of dense_interface_polygons above may stretch dense_interface_polygons outside of the contact polygons,
+                // Note: the regularization of dense_interface_polygons above may stretch dense_interface_polygons outside of the contact polygons,
                 // thus some dense interface areas may not get supported. Trim the excess with contact_polygons at the following line.
                 // See for example GH #4874.
                 Polygons dense_interface_polygons_trimmed = intersection(dense_interface_polygons, *new_layer.enforcer_polygons);
@@ -1931,8 +1888,8 @@ static inline SupportGeneratorLayer* detect_bottom_contacts(
     // Grow top surfaces so that interface and support generation are generated
     // with some spacing from object - it looks we don't need the actual
     // top shapes so this can be done here
-    //FIXME calculate layer height based on the actual thickness of the layer:
-    // If the layer is extruded with no bridging flow, support just the normal extrusions.
+    // Note: the height set here is provisional (soluble-interface vs bridging-flow height);
+    // it is recomputed below from print_z - bottom_z.
     layer_new.height = slicing_params.soluble_interface ?
         // Align the interface layer with the object's layer height.
         layer.upper_layer->height :
@@ -1947,10 +1904,9 @@ static inline SupportGeneratorLayer* detect_bottom_contacts(
     layer_new.height = layer_new.print_z - layer_new.bottom_z;
     layer_new.idx_object_layer_below = layer_id;
     layer_new.bridging = !slicing_params.soluble_interface;
-    //FIXME how much to inflate the bottom surface, as it is being extruded with a bridging flow? The following line uses a normal flow.
+    // Note (open question): how much to inflate the bottom surface, as it is extruded with a bridging flow? The following line uses a normal flow.
     layer_new.polygons = expand(touching, double(support_params.support_material_flow.scaled_width()), SUPPORT_SURFACES_OFFSET_PARAMETERS);
     ensure_valid(layer_new.polygons, support_params.resolution);
-    for (Polygon &poly : layer_new.polygons);
 
     if (! slicing_params.soluble_interface) {
         // Walk the top surfaces, snap the top of the new bottom surface to the closest top of the top surface,
@@ -1989,7 +1945,7 @@ static inline SupportGeneratorLayer* detect_bottom_contacts(
 #endif /* SLIC3R_DEBUG */
 
     // Trim the already created base layers above the current layer intersecting with the new bottom contacts layer.
-    //FIXME Maybe this is no more needed, as the overlapping base layers are trimmed by the bottom layers at the final stage?
+    // Note (open question): possibly no longer needed, as the overlapping base layers are trimmed by the bottom layers at the final stage.
     touching = expand(touching, double(SCALED_EPSILON));
     for (int layer_id_above = layer_id + 1; layer_id_above < int(object.total_layer_count()); ++ layer_id_above) {
         const Layer &layer_above = *object.layers()[layer_id_above];
@@ -2109,7 +2065,7 @@ SupportGeneratorLayersPtr PrintObjectSupportMaterial::bottom_contact_layers_and_
     size_t iRun = s_iRun ++;
 #endif /* SLIC3R_DEBUG */
 
-    //FIXME higher expansion_to_slice here? why?
+    // Note (open question): should expansion_to_slice be higher here?
     //const auto   expansion_to_slice = m_support_material_flow.scaled_spacing() / 2 + 25;
     const SupportGridParams grid_params(*m_object_config, m_support_params.support_material_flow);
     const bool buildplate_only = ! buildplate_covered.empty();
