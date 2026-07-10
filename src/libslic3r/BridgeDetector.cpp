@@ -145,7 +145,7 @@ bool BridgeDetector::detect_angle(double bridge_direction_override /* = -1*/)
             double s = sin(angle);
             double c = cos(angle);
             // As The lines be spaced half the line width from the edge
-            // FIXME: some of the test cases may fail. Need to adjust the test cases
+            // Note: this half-spacing edge offset (vs the old version below) may require adjusting some upstream test cases.
             for (coord_t y = bbox.min.y() + this->spacing / 2; y <= bbox.max.y(); y += this->spacing)
             //for (coord_t y = bbox.min.y(); y <= bbox.max.y(); y += this->spacing) //this is the old version
                 lines.push_back(Line(
@@ -404,14 +404,14 @@ stop_fake_bridge_test: ;
 
     }
     
-    // if any other direction is within extrusion width of coverage, prefer it if shorter
-    // shorter = shorter max length, or if in espilon (10) range, the shorter mean length.
-    // TODO: There are two options here - within width of the angle with most coverage, or within width of the currently perferred?
+    // Pick the candidate with the best coverage. (A duplicated dead 'else if' with the exact
+    // same condition was removed here.) Unimplemented idea: if another direction is within one
+    // extrusion width of the best coverage, prefer it if shorter (shorter max length, or within
+    // epsilon (10), the shorter mean length); open question whether "within width" should be
+    // measured against the most-covered angle or the currently preferred one.
     size_t i_best = 0;
     for (size_t i = 1; i < candidates.size(); ++ i)
         if (candidates[i].coverage > candidates[i_best].coverage)
-            i_best = i;
-        else if (candidates[i].coverage > candidates[i_best].coverage)
             i_best = i;
 
     this->angle = candidates[i_best].angle;
@@ -674,7 +674,7 @@ void BridgeDetector::unsupported_edges(double angle, Polylines* unsupported) con
         // get unsupported bridge edges (both contour and holes)
         Lines unsupported_lines = to_lines(diff_pl(to_polylines(*it_expoly), grown_lower));
         /*  Split into individual segments and filter out edges parallel to the bridging angle
-            TODO: angle tolerance should probably be based on segment length and flow width,
+            Possible improvement: angle tolerance should probably be based on segment length and flow width,
             so that we build supports whenever there's a chance that at least one or two bridge
             extrusions would be anchored within such length (i.e. a slightly non-parallel bridging
             direction might still benefit from anchors if long enough)

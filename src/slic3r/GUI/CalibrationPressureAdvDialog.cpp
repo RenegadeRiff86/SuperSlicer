@@ -660,7 +660,8 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                     //look at maps to match speed/width ect to the selected ER role
                     er_width = print_config->get_abs_value(er_width_ToOptionKey[selected_extrusion_role].c_str(), nozzle_diameter);
                     const ConfigOptionFloatOrPercent* first_layer_speed_option = dynamic_cast<const ConfigOptionFloatOrPercent*>(full_print_config.option("first_layer_speed"));
-                    er_speed = (first_layer_speed_option && first_layer_speed_option->percent && selected_extrusion_role == ROLE_FIRST_LAYER) ? default_er_speed : full_print_config.get_computed_value(er_speed_ToOptionKey[selected_extrusion_role].c_str());
+                    er_speed = (first_layer_speed_option && first_layer_speed_option->percent && selected_extrusion_role == ROLE_FIRST_LAYER) ?
+                        default_er_speed : full_print_config.get_computed_value(er_speed_ToOptionKey[selected_extrusion_role].c_str());
                     er_accel = full_print_config.get_computed_value(er_accel_ToOptionKey[selected_extrusion_role].c_str());
                     if (/*selected_extrusion_role == choice_extrusion_role[5] ||*/ selected_extrusion_role == choice_extrusion_role[9] || selected_extrusion_role == choice_extrusion_role[10]){//ironing, SupportMaterial, SupportMaterialInterface, 
                         er_spacing = print_config->option<ConfigOptionFloat>(er_spacing_ToOptionKey[selected_extrusion_role].c_str())->value;
@@ -808,7 +809,8 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
     
         for (int nb_bends = 0; nb_bends < count_increments;nb_bends++){
 
-            if(nb_bends == 1 && selected_extrusion_role != ROLE_CHECK_ALL) {//only load once. this only determines when the borders get loaded, keeping at top of list makes it easier to scroll down to. it can't be '0' since it needs the numbers positions!
+            if(nb_bends == 1 && selected_extrusion_role != ROLE_CHECK_ALL) {// only load once. this only determines when the borders get loaded, keeping at top of list makes it easier to scroll down to. it can't be '0' since it needs the numbers
+                                                                            // positions!
 
                 Eigen::Vector3d bend_pos_first = bend_90_positions[0];
                 Eigen::Vector3d bend_pos_mid = bend_90_positions[count_increments/2];
@@ -841,7 +843,8 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                 double numbers_total_width = (number_pos_last.x() + (xy_scaled_number_x / 2)) - (number_pos_first.x() - (xy_scaled_number_x / 2));// scaled to include gap between end of 90_bend and first number,perfection
                 double total_height = (bend_pos_last.y() + (xy_scaled_90_bend_y / 2)) - (bend_pos_first.y() - (xy_scaled_90_bend_y / 2));
                 double scalred_r_border_x_mm = numbers_total_width + (nozzle_diameter * 2);
-                double left_border_x_offset = (bend_pos_mid.x() - (xy_scaled_90_bend_x/2) - nozzle_diameter + ( xy_scaled_border_x / 2) ) - (bend_pos_mid.x() - (xy_scaled_90_bend_x/2));//left border is positioned slightly inside the 90_bend model this is that distance.
+                double left_border_x_offset = (bend_pos_mid.x() - (xy_scaled_90_bend_x/2) - nozzle_diameter + ( xy_scaled_border_x / 2) ) - (bend_pos_mid.x() - (xy_scaled_90_bend_x/2));// left border is positioned slightly inside the 90_bend
+                    // model this is that distance.
                 double tb_total_width_mm = (xy_scaled_border_x - left_border_x_offset) + xy_scaled_90_bend_x + scalred_r_border_x_mm;
                 
                 double scaled_l_border_x_percentage  = xy_scaled_border_x / initial_border_x;
@@ -868,8 +871,10 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                         /*scale*/Vec3d{ scaled_r_border_x_percentage , scaled_lr_border_y_percentage , z_scale_others}, false);count_borders++;        //right border
                 
 
-                add_part(model.objects[objs_idx[id_item]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / "pa_border.3mf").string(),// Tracked in #46: odd increment counts can leave the bottom border disconnected.
-                    Vec3d{ tb_border_x_pos , bend_pos_first.y() - (xy_scaled_90_bend_y / 2) - (xy_scaled_border_y / 2) - nozzle_diameter, z_others_pos },                      // Border offsets/scale need shared handling with top and side calculations.
+                add_part(model.objects[objs_idx[id_item]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / "pa_border.3mf").string(),// Tracked in #46: odd increment counts can leave the bottom border
+                    // disconnected.
+                    Vec3d{ tb_border_x_pos , bend_pos_first.y() - (xy_scaled_90_bend_y / 2) - (xy_scaled_border_y / 2) - nozzle_diameter, z_others_pos },                      // Border offsets/scale need shared handling with top and side
+                        // calculations.
                         /*scale*/Vec3d{ scaled_tb_border_x_percentage , scaled_tb_border_y_percentage, z_scale_others }, false);count_borders++;       //bottom border
                 //----------
                 add_part(model.objects[objs_idx[id_item]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / "pa_border.3mf").string(),
@@ -911,14 +916,16 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
 
                     if (j != 0  ) {//don't apply the offset for first number
                         xpos = xpos + space_numbers_distance_x;}
-                    if (pa_values_string[j] == '.') { //maybe if ! isdigit(pa_values_string[j]) if it's not a '.' it could be ',' part fix for localization issue. but also this character could be anything else..(it shouldn't though..) and it shouldn't be 'fixed' here..
+                    if (pa_values_string[j] == '.') { // maybe if ! isdigit(pa_values_string[j]) if it's not a '.' it could be ',' part fix for localization issue. but also this character could be anything else..(it shouldn't though..) and it
+                                                      // shouldn't be 'fixed' here..
 
                         double right_edge_of_left_number = xpos + (xy_scaled_number_x / 2) - space_numbers_distance_x;//this can be simplified,values represent the inner edges of the numbers between the '.' model
                         double left_edge_of_right_number = xpos + (xy_scaled_number_x / 2) + (nozzle_diameter * 2) + (xy_scaled_number_x / 2) - space_numbers_distance_x;
                         double point_xpos = (right_edge_of_left_number + left_edge_of_right_number) / 2;
 
                         add_part(model.objects[objs_idx[id_item]],(boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / "point.3mf").string(),
-                            Vec3d{ point_xpos, ypos - (xy_scaled_number_y / 2) + (xy_scaled_point_y / 2), z_scaled_model_height },//FIXED: // point gets moved to wrong position on all nozzle_sizes, guessing it's exported offset position doesn't get scaled with the model.
+                            Vec3d{ point_xpos, ypos - (xy_scaled_number_y / 2) + (xy_scaled_point_y / 2), z_scaled_model_height },// FIXED: // point gets moved to wrong position on all nozzle_sizes, guessing it's exported offset position doesn't
+                                // get scaled with the model.
                                 /*scale*/Vec3d{ xyzScale * er_width_to_scale, (xyzScale + (xyzScale / 2)) * er_width_to_scale, z_scale_numbers }, false);
                         number_positions.push_back(Eigen::Vector3d(point_xpos, ypos - (xy_scaled_number_y / 2) + (xy_scaled_point_y / 2), z_scaled_model_height));
                         xpos -= (xy_scaled_number_x / 2);
@@ -1058,7 +1065,8 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         }
         model.objects[objs_idx[id_item]]->config.set_key_value("min_width_top_surface", new ConfigOptionFloatOrPercent(0.0,false));
         model.objects[objs_idx[id_item]]->config.set_key_value("only_one_perimeter_top", new ConfigOptionBool(false));
-        model.objects[objs_idx[id_item]]->config.set_key_value("only_one_perimeter_first_layer", new ConfigOptionBool(false));//, if borderers - right are scaled correctly there shouldn't be any gap fill in them. it would be nice to keep the *4 extrusion lines for the borders only.
+        model.objects[objs_idx[id_item]]->config.set_key_value("only_one_perimeter_first_layer", new ConfigOptionBool(false));// , if borderers - right are scaled correctly there shouldn't be any gap fill in them. it would be nice to keep the *4
+            // extrusion lines for the borders only.
         //model.objects[objs_idx[id_item]]->config.set_key_value("perimeter_overlap", new ConfigOptionPercent(100));//
         model.objects[objs_idx[id_item]]->config.set_key_value("seam_position", new ConfigOptionEnum<SeamPosition>(spRear)); // Tracked in #48: verify seam_position dirty-state/UI marking.
         model.objects[objs_idx[id_item]]->config.set_key_value("top_solid_layers", new ConfigOptionInt(0));
@@ -1167,7 +1175,8 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                 er_role = "defaults for " + er_role + " width spacing";
             }
             if (er_role == choice_extrusion_role[11] || er_role == ROLE_THIN_WALL){
-                er_width = default_er_width;//since the model gets scaled to thinwall size,it should use the default modifer? if it uses the thin_wall width modifer it fails to slice "ERROR:Layer height can't be greater than perimeter extrusion width"
+                er_width = default_er_width;// since the model gets scaled to thinwall size,it should use the default modifer? if it uses the thin_wall width modifer it fails to slice "ERROR:Layer height can't be greater than perimeter extrusion
+                                            // width"
                 er_width = std::round((default_er_width * 100 / nozzle_diameter) * 100.0) / 100.0;
             }
             else{
@@ -1215,7 +1224,8 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
             const std::string next_layer_scope_suffix = " {endif}";
 
             if (selected_extrusion_role == ROLE_CHECK_ALL) {
-                model.objects[objs_idx[id_item]]->volumes[num_part + extra_vol]->config.set_key_value("region_gcode", new ConfigOptionString(first_layer_scope_prefix + ";" + set_advance_prefix + " ; " + er_role ));//user manual type in values commented out to stop errors
+                model.objects[objs_idx[id_item]]->volumes[num_part + extra_vol]->config.set_key_value("region_gcode", new ConfigOptionString(first_layer_scope_prefix + ";" + set_advance_prefix + " ; " + er_role ));// user manual type in values
+                    // commented out to stop errors
                 //will need to adjust layerheight for infill,support, other er roles that needs a different layerheight for CheckAll mode.
 
                 /*ModelConfig range_conf;
@@ -1574,7 +1584,8 @@ void CalibrationPressureAdvDialog::create_row_controls(wxBoxSizer* parentSizer, 
 
         rowSizer->AddSpacer(15);
 
-        wxComboBox* erPaCombo = new wxComboBox(parentSizer->GetContainingWindow(), wxID_ANY, wxString{ choices_extrusion_role[current_selection] }, wxDefaultPosition, wxSize(200, -1), 15, choices_extrusion_role, wxCB_READONLY);//disable user edit this one :)
+        wxComboBox* erPaCombo = new wxComboBox(parentSizer->GetContainingWindow(), wxID_ANY, wxString{ choices_extrusion_role[current_selection] }, wxDefaultPosition, wxSize(200, -1), 15, choices_extrusion_role, wxCB_READONLY);
+            // disable user edit this one :)
         wxStaticText* text_extrusion_role = new wxStaticText(parentSizer->GetContainingWindow(), wxID_ANY, _L("Extrusion role: "));
         text_extrusion_role->SetForegroundColour(text_color);
         rowSizer->Add(text_extrusion_role, 1, wxALIGN_CENTER_VERTICAL | wxALL, 5);
@@ -1593,7 +1604,8 @@ void CalibrationPressureAdvDialog::create_row_controls(wxBoxSizer* parentSizer, 
             rowSizer->AddSpacer(15);
             wxCheckBox* enableST = new wxCheckBox(parentSizer->GetContainingWindow(), wxID_ANY, _L("Calibrate Smooth Time instead of Advance"), wxDefaultPosition, wxDefaultSize);
             enableST->SetForegroundColour(text_color);
-            enableST->SetToolTip(_L("When enabled, the start/end/increment values will sweep Klipper's SMOOTH_TIME parameter instead of ADVANCE.\n\nSmooth Time controls how long extruder velocity changes are averaged to smooth out rapid pressure changes.\nShorter times (e.g., 0.01s) suit fast printing; longer times (e.g., 0.4s) suit slower printing.\nKlipper default: 0.04s."));
+            enableST->SetToolTip(_L("When enabled, the start/end/increment values will sweep Klipper's SMOOTH_TIME parameter instead of ADVANCE.\n\nSmooth Time controls how long extruder velocity changes are averaged to smooth out rapid "
+                                    "pressure changes.\nShorter times (e.g., 0.01s) suit fast printing; longer times (e.g., 0.4s) suit slower printing.\nKlipper default: 0.04s."));
             enableST->SetValue(false);
             enableST->Bind(wxEVT_CHECKBOX, &CalibrationPressureAdvDialog::on_smooth_time_toggle, this);
             rowSizer->Add(enableST, 1, wxALIGN_CENTER_VERTICAL);

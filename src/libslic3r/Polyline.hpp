@@ -215,7 +215,7 @@ inline void assert_valid(const Polylines &polylines) {}
 //std::pair<int, Point> foot_pt(const Points &polyline, const Point &pt);
 
 /// ThickPolyline : a polyline with a width for each point
-/// This class has a vector of coordf_t, it must be the same size as points.
+/// This class has a vector of coord_t, and it must be the same size as points.
 /// it's used to store the size of the line at this point.
 /// Also, the endpoint let us know if the front() and back() of the polyline 
 /// join something or is a dead-end.
@@ -262,7 +262,7 @@ public:
 
 };
 
-inline ThickPolylines to_thick_polylines(Polylines &&polylines, const coordf_t width)
+inline ThickPolylines to_thick_polylines(Polylines &&polylines, const coord_t width)
 {
     ThickPolylines out;
     out.reserve(polylines.size());

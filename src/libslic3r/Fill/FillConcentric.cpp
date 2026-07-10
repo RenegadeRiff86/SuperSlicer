@@ -88,7 +88,7 @@ FillConcentric::_fill_surface_single(
     assert_valid(polylines_out);
 }
 
-void append_loop_into_collection(ExtrusionEntityCollection& storage, ExtrusionRole& good_role, const FillParams& params, Polygon& polygon) {
+static void append_loop_into_collection(ExtrusionEntityCollection& storage, ExtrusionRole& good_role, const FillParams& params, Polygon& polygon) {
     double flow = params.flow.mm3_per_mm();
     double width = params.flow.width();
     double height = params.flow.height();

@@ -401,7 +401,7 @@ void GCodeGenerator::PlaceholderParserIntegration::update_from_gcodewriter(const
             const std::vector<std::pair<float, std::vector<float>>>& wtuf = wipe_tower_data.used_filament_until_layer;
             if (!wtuf.empty()) {
                 auto it = std::lower_bound(wtuf.begin(), wtuf.end(), this->position[2] /*z*/,
-                                [](const auto& a, const float& val) { return a.first < val; });
+                                [](const auto& a, const double val) { return a.first < val; });
                 if (it == wtuf.end())
                     it = wtuf.end() - 1;
                 wt_vol = it->second[e.id()] * e.filament_crossection();
@@ -1481,9 +1481,9 @@ void GCodeGenerator::_do_export(Print& print_mod, GCodeOutputStream &file, Thumb
             }
             std::sort(zs.begin(), zs.end());
             std::sort(zs_with_supp.begin(), zs_with_supp.end());
-            m_layer_with_support_count += (uint32_t)(object->instances().size()
+            m_layer_with_support_count += static_cast<uint32_t>(object->instances().size()
                 * (std::unique(zs_with_supp.begin(), zs_with_supp.end()) - zs_with_supp.begin()));
-            m_layer_count += (uint32_t)(object->instances().size() * (std::unique(zs.begin(), zs.end()) - zs.begin()));
+            m_layer_count += static_cast<uint32_t>(object->instances().size() * (std::unique(zs.begin(), zs.end()) - zs.begin()));
         }
     } else {
         // Print all objects with the same print_z together.
@@ -1511,15 +1511,15 @@ void GCodeGenerator::_do_export(Print& print_mod, GCodeOutputStream &file, Thumb
         for (auto it = zs.begin(); it != end_it; ++it) {
             m_layers_z.push_back(*it);
         }
-        m_layer_count = (uint32_t)(end_it - zs.begin());
+        m_layer_count = static_cast<uint32_t>(end_it - zs.begin());
         end_it = std::unique(zs_with_supp.begin(), zs_with_supp.end());
         for (auto it = zs_with_supp.begin(); it != end_it; ++it) {
             m_layers_with_supp_z.push_back(*it);
         }
-        m_layer_with_support_count = (uint32_t)(end_it - zs_with_supp.begin());
+        m_layer_with_support_count = static_cast<uint32_t>(end_it - zs_with_supp.begin());
 #else
-        m_layer_count = (uint32_t)(std::unique(zs.begin(), zs.end()) - zs.begin());
-        m_layer_with_support_count = (uint32_t)(std::unique(zs_with_supp.begin(), zs_with_supp.end()) - zs_with_supp.begin());
+        m_layer_count = static_cast<uint32_t>(std::unique(zs.begin(), zs.end()) - zs.begin());
+        m_layer_with_support_count = static_cast<uint32_t>(std::unique(zs_with_supp.begin(), zs_with_supp.end()) - zs_with_supp.begin());
 #endif
     }
      this->m_throw_if_canceled();
@@ -2525,13 +2525,13 @@ void GCodeGenerator::process_layers(
                 || (config.fan_kickstart.value > 0 && config.fan_speedup_time.value != 0);
             fan_mover.reset(new Slic3r::FanMover(
                 writer,
-                std::abs((float)config.fan_speedup_time.value),
+                std::abs(static_cast<float>(config.fan_speedup_time.value)),
                 config.fan_speedup_time.value > 0,
                 config.use_relative_e_distances.value,
                 config.fan_speedup_overhangs.value,
-                (float)config.fan_kickstart.value,
+                static_cast<float>(config.fan_kickstart.value),
                 slowdown_overhang_fan,
-                (float)config.overhangs_speed.value,
+                static_cast<float>(config.overhangs_speed.value),
                 config.overhangs_speed.percent));
         }
         //flush as it's a whole layer
@@ -2679,13 +2679,13 @@ void GCodeGenerator::process_layers(
                 || (config.fan_kickstart.value > 0 && config.fan_speedup_time.value != 0);
             fan_mover.reset(new Slic3r::FanMover(
                 writer,
-                std::abs((float)config.fan_speedup_time.value),
+                std::abs(static_cast<float>(config.fan_speedup_time.value)),
                 config.fan_speedup_time.value > 0,
                 config.use_relative_e_distances.value,
                 config.fan_speedup_overhangs.value,
-                (float)config.fan_kickstart.value,
+                static_cast<float>(config.fan_kickstart.value),
                 slowdown_overhang_fan,
-                (float)config.overhangs_speed.value,
+                static_cast<float>(config.overhangs_speed.value),
                 config.overhangs_speed.percent));
         }
         this->m_throw_if_canceled();
@@ -3425,7 +3425,7 @@ namespace Skirt {
             // infinite or high skirt does not make sense for sequential print here
             //(if it is selected, it's done in the "extrude object-only skirt" in process_layer)
             // Not enough skirt layers printed yet.
-            (skirt_done.size() < (size_t)print.config().skirt_height.value || print.has_infinite_skirt())) {
+            (skirt_done.size() < static_cast<size_t>(print.config().skirt_height.value) || print.has_infinite_skirt())) {
             bool valid = ! skirt_done.empty() && skirt_done.back() < layer_tools.print_z - EPSILON;
             assert(valid);
             // This print_z has not been extruded yet (sequential print)
@@ -3570,7 +3570,7 @@ LayerResult GCodeGenerator::process_layer(
     // Just a reminder: A spiral vase mode is allowed for a single object, single material print only.
     m_enable_loop_clipping = true;
     if (m_spiral_vase && layers.size() == 1 && support_layer == nullptr) {
-        bool enable = (layer.id() > 0 || !layer.object()->has_brim()) && (layer.id() >= (size_t)print.config().skirt_height.value && ! print.has_infinite_skirt());
+        bool enable = (layer.id() > 0 || !layer.object()->has_brim()) && (layer.id() >= static_cast<size_t>(print.config().skirt_height.value) && ! print.has_infinite_skirt());
         if (enable) {
             for (const LayerRegion *layer_region : layer.regions())
                 if (size_t(layer_region->region().config().bottom_solid_layers.value) > layer.id() ||
@@ -3935,7 +3935,7 @@ LayerResult GCodeGenerator::process_layer(
             for (auto poly : print_layer.layer()->lslices()) layer_area += poly.area();
     }
     layer_area = unscaled(unscaled(layer_area));
-    status_monitor.stats().layer_area_stats.emplace_back(print_z, layer_area);
+    status_monitor.stats().layer_area_stats.emplace_back(print_z, static_cast<float>(layer_area));
 
     BOOST_LOG_TRIVIAL(trace) << "Exported layer " << layer.id() << " print_z " << print_z <<
     log_memory_info();
@@ -5505,7 +5505,7 @@ std::string GCodeGenerator::extrude_loop(const ExtrusionLoop &original_loop, con
             to_string_nozero(seam_gcode_point.x(), 3) + ":" + to_string_nozero(seam_gcode_point.y(), 3) + "\n";
     }
     // reset acceleration
-    m_writer.set_acceleration((uint16_t)floor(get_default_acceleration(m_config) + 0.5));
+    m_writer.set_acceleration(static_cast<uint16_t>(floor(get_default_acceleration(m_config) + 0.5)));
 
     //basic wipe, may be erased after if we need a more complex one
     add_wipe_points(wipe_paths, false, true);
@@ -5920,7 +5920,7 @@ std::string GCodeGenerator::extrude_multi_path(const ExtrusionMultiPath &multipa
     };
     this->visitor_flipped = saved_flipped;
     // reset acceleration
-    m_writer.set_acceleration((uint16_t)floor(get_default_acceleration(m_config) + 0.5));
+    m_writer.set_acceleration(static_cast<uint16_t>(floor(get_default_acceleration(m_config) + 0.5)));
     return gcode;
 }
 
@@ -5980,7 +5980,7 @@ std::string GCodeGenerator::extrude_multi_path3D(const ExtrusionMultiPath3D &mul
     }
     this->visitor_flipped = saved_flipped;
     // reset acceleration
-    m_writer.set_acceleration((uint16_t)floor(get_default_acceleration(m_config) + 0.5));
+    m_writer.set_acceleration(static_cast<uint16_t>(floor(get_default_acceleration(m_config) + 0.5)));
     return gcode;
 }
 
@@ -6162,7 +6162,7 @@ std::string GCodeGenerator::extrude_path(const ExtrusionPath &path, const std::s
         m_wipe.set_path(simplifed_path.polyline.get_arc(), false);
     }
     // reset acceleration
-    m_writer.set_acceleration((uint16_t)floor(get_default_acceleration(m_config) + 0.5));
+    m_writer.set_acceleration(static_cast<uint16_t>(floor(get_default_acceleration(m_config) + 0.5)));
     return gcode;
 }
 
@@ -6238,7 +6238,7 @@ std::string GCodeGenerator::extrude_path_3D(const ExtrusionPath3D &path, const s
         m_wipe.set_path(std::move(temp.get_arc()), false);
     }
     // reset acceleration
-    m_writer.set_acceleration((uint16_t)floor(get_default_acceleration(m_config) + 0.5));
+    m_writer.set_acceleration(static_cast<uint16_t>(floor(get_default_acceleration(m_config) + 0.5)));
     return gcode;
 }
 
@@ -6543,14 +6543,15 @@ void GCodeGenerator::GCodeOutputStream::write_format(const char* format, ...)
     }
 
     char buffer[1024];
-    bool buffer_dynamic = buflen > 1024;
-    char *bufptr = buffer_dynamic ? (char*)malloc(buflen) : buffer;
+    std::vector<char> dynamic_buffer;
+    char *bufptr = buffer;
+    if (buflen > static_cast<int>(sizeof(buffer))) {
+        dynamic_buffer.resize(static_cast<size_t>(buflen));
+        bufptr = dynamic_buffer.data();
+    }
     int res = ::vsnprintf(bufptr, buflen, format, args);
     if (res > 0)
         this->write(bufptr);
-
-    if (buffer_dynamic)
-        free(bufptr);
 
     va_end(args);
 }
@@ -7134,7 +7135,7 @@ double_t GCodeGenerator::_compute_speed_mm_per_sec(const ExtrusionPath& path, co
     // Don't modify bridge speed
     // modify overhang if it means slow down.
     if (factor < 1 && (!path.role().is_bridge() || path.role().is_overhang())) {
-        float small_speed = (float)m_config.small_perimeter_speed.get_abs_value(m_config.get_computed_value(KEY_PERIMETER_SPEED));
+        float small_speed = static_cast<float>(m_config.small_perimeter_speed.get_abs_value(m_config.get_computed_value(KEY_PERIMETER_SPEED)));
         // modify overhang if it means slow down.
         if (small_speed > 0 && (!path.role().is_overhang() || small_speed < speed)) {
             // apply factor between feature speed and small speed
@@ -7406,8 +7407,8 @@ std::string GCodeGenerator::_travel_before_extrude(const ExtrusionPath &path, co
     bool moved_to_point = last_pos_defined() && last_pos().coincides_with_epsilon(path.first_point());
     if (m_config.travel_deceleration_use_target) {
         if (travel_acceleration <= acceleration || travel_acceleration == 0 || acceleration == 0) {
-            m_writer.set_travel_acceleration((uint32_t)floor(acceleration + 0.5));
-            m_writer.set_acceleration((uint32_t)floor(acceleration + 0.5));
+            m_writer.set_travel_acceleration(static_cast<uint32_t>(floor(acceleration + 0.5)));
+            m_writer.set_acceleration(static_cast<uint32_t>(floor(acceleration + 0.5)));
             // go to first point of extrusion path (stop at midpoint to let us set the decel speed)
             if (!last_pos_defined() || !last_pos().coincides_with_epsilon(path.first_point())) {
                 Polyline polyline = this->travel_to(gcode, path.first_point(), path.role());
@@ -7467,8 +7468,8 @@ std::string GCodeGenerator::_travel_before_extrude(const ExtrusionPath &path, co
                     cant_use_deceleration = cant_use_deceleration ||
                         dist_to_go_extrude_speed < coordf_t(SCALED_EPSILON);
                     if (cant_use_deceleration) {
-                        m_writer.set_travel_acceleration((uint32_t) floor(acceleration + 0.5));
-                        m_writer.set_acceleration((uint32_t) floor(acceleration + 0.5));
+                        m_writer.set_travel_acceleration(static_cast<uint32_t>(floor(acceleration + 0.5)));
+                        m_writer.set_acceleration(static_cast<uint32_t>(floor(acceleration + 0.5)));
                         this->write_travel_to(gcode, poly_start,
                                               STR_MOVE_TO_FIRST + description + " point (minimum acceleration)");
                         assert(!moved_to_point);
@@ -7500,18 +7501,18 @@ std::string GCodeGenerator::_travel_before_extrude(const ExtrusionPath &path, co
                             poly_end.clip_start(length * (1 - ratio));
                         }
                         // gcode += "; acceleration to travel\n";
-                        m_writer.set_travel_acceleration((uint32_t) floor(travel_acceleration + 0.5));
+                        m_writer.set_travel_acceleration(static_cast<uint32_t>(floor(travel_acceleration + 0.5)));
                         this->write_travel_to(gcode, poly_start,
                                               STR_MOVE_TO_FIRST + description + " point (acceleration)");
                         // travel acceleration should be already set at startup via special gcode, and so it's
                         // automatically used by G0.
                         // gcode += "; decel to extrusion\n";
-                        m_writer.set_travel_acceleration((uint32_t) floor(acceleration + 0.5));
+                        m_writer.set_travel_acceleration(static_cast<uint32_t>(floor(acceleration + 0.5)));
                         this->write_travel_to(gcode, poly_end,
                                               STR_MOVE_TO_FIRST + description + " point (deceleration)");
                         // restore travel accel and ensure the new extrusion accel is set
-                        m_writer.set_travel_acceleration((uint32_t) floor(travel_acceleration + 0.5));
-                        m_writer.set_acceleration((uint32_t) floor(acceleration + 0.5));
+                        m_writer.set_travel_acceleration(static_cast<uint32_t>(floor(travel_acceleration + 0.5)));
+                        m_writer.set_acceleration(static_cast<uint32_t>(floor(acceleration + 0.5)));
                         // gcode += "; end travel\n";
                         assert(!moved_to_point);
                         moved_to_point = true;
@@ -7522,14 +7523,14 @@ std::string GCodeGenerator::_travel_before_extrude(const ExtrusionPath &path, co
                     // were's here because length is between SCALED_EPSILON / 2 and SCALED_EPSILON.
                     // => No travel needed.
                     assert(last_pos_defined());
-                    m_writer.set_acceleration((uint32_t)floor(acceleration + 0.5));
+                    m_writer.set_acceleration(static_cast<uint32_t>(floor(acceleration + 0.5)));
                     assert(!moved_to_point);
                     moved_to_point = true;
                 } else {
                     // this can only happen when !last_pos_defined(), and then poly_start has only one point
                     assert(!last_pos_defined() && poly_start.size() == 1);
-                    m_writer.set_travel_acceleration((uint32_t) floor(acceleration + 0.5));
-                    m_writer.set_acceleration((uint32_t) floor(acceleration + 0.5));
+                    m_writer.set_travel_acceleration(static_cast<uint32_t>(floor(acceleration + 0.5)));
+                    m_writer.set_acceleration(static_cast<uint32_t>(floor(acceleration + 0.5)));
                     this->write_travel_to(gcode, poly_start,
                                             STR_MOVE_TO_FIRST + description + " point (minimum acceleration)");
                     assert(!moved_to_point);
@@ -7538,19 +7539,19 @@ std::string GCodeGenerator::_travel_before_extrude(const ExtrusionPath &path, co
             } else {
                 assert(last_pos_defined());
                 assert(moved_to_point);
-                m_writer.set_acceleration((uint32_t)floor(acceleration + 0.5));
+                m_writer.set_acceleration(static_cast<uint32_t>(floor(acceleration + 0.5)));
             }
         }
     } else {
         if (!last_pos_defined() || !last_pos().coincides_with_epsilon(path.first_point())) {
-            m_writer.set_travel_acceleration((uint32_t)floor(travel_acceleration + 0.5));
+            m_writer.set_travel_acceleration(static_cast<uint32_t>(floor(travel_acceleration + 0.5)));
             Polyline polyline = this->travel_to(gcode, path.first_point(), path.role());
             this->write_travel_to(gcode, polyline, STR_MOVE_TO_FIRST + description + " point");
-            m_writer.set_acceleration((uint32_t)floor(acceleration + 0.5));
+            m_writer.set_acceleration(static_cast<uint32_t>(floor(acceleration + 0.5)));
             assert(!moved_to_point);
             moved_to_point = true;
         } else {
-            m_writer.set_acceleration((uint32_t)floor(acceleration + 0.5));
+            m_writer.set_acceleration(static_cast<uint32_t>(floor(acceleration + 0.5)));
         }
     }
     assert(moved_to_point);

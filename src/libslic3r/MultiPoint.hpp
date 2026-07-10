@@ -468,7 +468,7 @@ public:
     // Remove exact duplicates, return true if any duplicate has been removed.
     bool remove_duplicate_points();
     virtual void douglas_peucker(coord_t tolerance = SCALED_EPSILON) {
-        auto it_end = Slic3r::douglas_peucker(points.begin(), this->points.end(), this->points.begin(), double(tolerance));
+        auto it_end = Slic3r::douglas_peucker(points.begin(), this->points.end(), this->points.begin(), tolerance);
         assert(it_end <= points.end());
         points.resize(std::distance(points.begin(), it_end));
     }

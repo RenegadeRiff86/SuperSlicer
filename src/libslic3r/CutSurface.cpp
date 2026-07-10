@@ -82,7 +82,7 @@ using EI = CGAL::SM_Edge_index;
 using FI = CGAL::SM_Face_index;
 using P3 = CGAL::Epick::Point_3;
 
-inline Vec3d to_vec3d(const P3 &p) { return Vec3d(p.x(),p.y(),p.z()); }
+static inline Vec3d to_vec3d(const P3 &p) { return Vec3d(p.x(),p.y(),p.z()); }
 
 /// <summary>
 /// Convert triangle mesh model to CGAL Surface_mesh
@@ -173,7 +173,7 @@ struct IntersectingElement
     IntersectingElement &set_type(Type t)
     {
         attr = static_cast<unsigned char>(
-            attr + (int) t - (int) get_type());
+            attr + static_cast<int>(t) - static_cast<int>(get_type()));
         return *this;
     }
     void set_is_first(){ attr += 8; }
@@ -665,19 +665,26 @@ indexed_triangle_set Slic3r::cut2model(const SurfaceCut         &cut,
         result.vertices.push_back(vd2.cast<float>());
     }
 
-    size_t back_offset = cut.vertices.size();
+    const size_t back_offset = cut.vertices.size();
+    const auto to_triangle_index = [](size_t index) {
+        assert(index <= static_cast<size_t>(std::numeric_limits<int32_t>::max()));
+        return static_cast<int32_t>(index);
+    };
     for (const auto &i : cut.indices) {
         // check range of indices in cut
-        assert(i.x() + back_offset < result.vertices.size());
-        assert(i.y() + back_offset < result.vertices.size());
-        assert(i.z() + back_offset < result.vertices.size());
-        assert(i.x() >= 0 && i.x() < cut.vertices.size());
-        assert(i.y() >= 0 && i.y() < cut.vertices.size());
-        assert(i.z() >= 0 && i.z() < cut.vertices.size());
+        assert(i.x() >= 0 && static_cast<size_t>(i.x()) < cut.vertices.size());
+        assert(i.y() >= 0 && static_cast<size_t>(i.y()) < cut.vertices.size());
+        assert(i.z() >= 0 && static_cast<size_t>(i.z()) < cut.vertices.size());
+        const size_t back_x = static_cast<size_t>(i.x()) + back_offset;
+        const size_t back_y = static_cast<size_t>(i.y()) + back_offset;
+        const size_t back_z = static_cast<size_t>(i.z()) + back_offset;
+        assert(back_x < result.vertices.size());
+        assert(back_y < result.vertices.size());
+        assert(back_z < result.vertices.size());
         // Y and Z is swapped CCW triangles for back side
-        result.indices.emplace_back(i.x() + back_offset,
-                                    i.z() + back_offset,
-                                    i.y() + back_offset);
+        result.indices.emplace_back(to_triangle_index(back_x),
+                                    to_triangle_index(back_z),
+                                    to_triangle_index(back_y));
     }
 
     // zig zag indices
@@ -687,8 +694,12 @@ indexed_triangle_set Slic3r::cut2model(const SurfaceCut         &cut,
         for (size_t front_index : contour) {
             assert(front_index < cut.vertices.size());
             size_t back_index  = back_offset + front_index;
-            result.indices.emplace_back(front_index, prev_front_index, back_index);
-            result.indices.emplace_back(prev_front_index, prev_back_index, back_index);
+            result.indices.emplace_back(to_triangle_index(front_index),
+                                        to_triangle_index(prev_front_index),
+                                        to_triangle_index(back_index));
+            result.indices.emplace_back(to_triangle_index(prev_front_index),
+                                        to_triangle_index(prev_back_index),
+                                        to_triangle_index(back_index));
             prev_front_index = front_index;
             prev_back_index  = back_index;
         }
@@ -1045,16 +1056,18 @@ priv::CutMesh priv::to_cgal(const ExPolygons  &shapes,
         };
 
         uint32_t contour_index = static_cast<uint32_t>(num_vertices_old / 2);
-        for (int32_t i = 0; i < int32_t(indices.size()); i += 2) {
-            bool    is_first  = i == 0;
-            bool    is_last   = size_t(i + 2) >= indices.size();
-            int32_t j = is_last ? 0 : (i + 2);
+        for (size_t i = 0; i < indices.size(); i += 2) {
+            const bool   is_first = i == 0;
+            const size_t next     = i + 2;
+            const bool   is_last  = next >= indices.size();
+            const size_t j        = is_last ? 0 : next;
             
             FI fi1 = result.add_face(indices[i], indices[j], indices[i + 1]);
             EI ei1 = find_edge(fi1, indices[i + 1], indices[i]);
             EI ei2 = find_edge(fi1, indices[j], indices[i + 1]);
             FI fi2 = result.add_face(indices[j], indices[j + 1], indices[i + 1]);
-            IntersectingElement element {contour_index, (unsigned char)IntersectingElement::Type::undefined};
+            IntersectingElement element {
+                contour_index, static_cast<unsigned char>(IntersectingElement::Type::undefined)};
             if (is_first) element.set_is_first();
             if (is_last) element.set_is_last();
             edge_shape_map[ei1] = element.set_type(IntersectingElement::Type::edge_1);
@@ -1340,9 +1353,9 @@ bool priv::is_face_inside(HI                      hi,
     const IntersectingElement &shape_from = *vertex_shape_map[vi_from];
     const IntersectingElement &shape_to   = *vertex_shape_map[vi_to];
     assert(shape_from.shape_point_index != std::numeric_limits<uint32_t>::max());
-    assert(shape_from.attr != (unsigned char) IntersectingElement::Type::undefined);
+    assert(shape_from.attr != static_cast<unsigned char>(IntersectingElement::Type::undefined));
     assert(shape_to.shape_point_index != std::numeric_limits<uint32_t>::max());
-    assert(shape_to.attr != (unsigned char) IntersectingElement::Type::undefined);
+    assert(shape_to.attr != static_cast<unsigned char>(IntersectingElement::Type::undefined));
 
     // index into contour
     uint32_t                  i_from    = shape_from.shape_point_index;
@@ -1777,7 +1790,7 @@ priv::VDistances priv::calc_distances(const SurfacePatches &patches,
             const IntersectingElement *ie = vert_shape_map[vi_model];
             if (ie == nullptr) continue;
             assert(ie->shape_point_index != std::numeric_limits<uint32_t>::max());
-            assert(ie->attr != (unsigned char) IntersectingElement::Type::undefined);
+            assert(ie->attr != static_cast<unsigned char>(IntersectingElement::Type::undefined));
             uint32_t pi = ie->shape_point_index;
             assert(pi <= count_shapes_points);
             std::vector<ProjectionDistance> &pds = result[pi];
@@ -1904,11 +1917,11 @@ uint32_t priv::get_closest_point_index(const SearchData &sd,
     (const Vec2d &p, size_t i) -> bool {
         auto id = s2i.cvt(i);
         const ExPolygon &shape = shapes[id.expolygons_index];
-        const Polygon   &poly  = (id.polygon_index == 0) ?
-                                           shape.contour :
-                                           shape.holes[id.polygon_index - 1];
-        assert((p.cast<coord_t>() == poly[id.point_index]) == (Point::round(p) == poly[id.point_index]));
-        return Point::round(p) == poly[id.point_index];
+        const Polygon *poly = &shape.contour;
+        if (!id.is_contour())
+            poly = &shape.holes[id.hole_index()];
+        assert((p.cast<coord_t>() == (*poly)[id.point_index]) == (Point::round(p) == (*poly)[id.point_index]));
+        return Point::round(p) == (*poly)[id.point_index];
     };
 
     if (use_index) { 
@@ -1921,9 +1934,9 @@ uint32_t priv::get_closest_point_index(const SearchData &sd,
         return point_index - 1;
     }
     const ExPolygon &shape = shapes[id.expolygons_index];
-    size_t count_polygon_points = (id.polygon_index == 0) ?
-        shape.contour.size() :
-        shape.holes[id.polygon_index - 1].size();
+    size_t count_polygon_points = shape.contour.size();
+    if (!id.is_contour())
+        count_polygon_points = shape.holes[id.hole_index()].size();
     size_t prev_point_index = point_index  + (count_polygon_points - 1);
     assert(is_same(line.a, prev_point_index));
     // return previous point index
@@ -2032,12 +2045,15 @@ std::pair<uint32_t, uint32_t> priv::find_closest_point_pair(
     assert(index == s2i.get_count());
     // check that exists result
     if (cp.finish_idx == std::numeric_limits<size_t>::max()) {
-        return std::make_pair(std::numeric_limits<size_t>::max(),
-                              std::numeric_limits<size_t>::max());
+        return {std::numeric_limits<uint32_t>::max(),
+                std::numeric_limits<uint32_t>::max()};
     }
 
-    size_t unfinished_idx = get_closest_point_index(sd, cp.unfinished_line_idx, cp.hit_point, shapes, s2i);
-    return std::make_pair(cp.finish_idx, unfinished_idx);
+    const size_t unfinished_idx = get_closest_point_index(
+        sd, cp.unfinished_line_idx, cp.hit_point, shapes, s2i);
+    assert(cp.finish_idx <= std::numeric_limits<uint32_t>::max());
+    assert(unfinished_idx <= std::numeric_limits<uint32_t>::max());
+    return {static_cast<uint32_t>(cp.finish_idx), static_cast<uint32_t>(unfinished_idx)};
 }
 
 const priv::ProjectionDistance *priv::get_closest_projection(
@@ -2551,10 +2567,19 @@ void priv::create_face_types(FaceTypeMap           &map,
         if (!fi2.is_valid()) continue;
 
         HI hi2 = tm2.halfedge(fi2);
-        std::array<const P3 *, 3> t;
-        size_t ti =0;
-        for (VI vi2 : tm2.vertices_around_face(hi2))
-            t[ti++] = &tm2.point(vi2);
+        std::array<const P3 *, 3> triangle{};
+        size_t triangle_vertex_count = 0;
+        bool is_triangle = true;
+        for (VI vi2 : tm2.vertices_around_face(hi2)) {
+            if (triangle_vertex_count == triangle.size()) {
+                is_triangle = false;
+                break;
+            }
+            triangle[triangle_vertex_count++] = &tm2.point(vi2);
+        }
+        assert(is_triangle && triangle_vertex_count == triangle.size());
+        if (!is_triangle || triangle_vertex_count != triangle.size())
+            continue;
 
         // triangle tip from face f1a
         VI vi1a_tip = tm1.target(tm1.next(hi1));
@@ -2564,7 +2589,7 @@ void priv::create_face_types(FaceTypeMap           &map,
         // check if f1a is behinde f2a
         // inside mean it will be used
         // outside will be discarded
-        if (CGAL::orientation(*t[0], *t[1], *t[2], p) == CGAL::POSITIVE) {
+        if (CGAL::orientation(*triangle[0], *triangle[1], *triangle[2], p) == CGAL::POSITIVE) {
             map[f1a] = FaceType::inside;
             map[f1b] = FaceType::outside;
         } else {
@@ -2575,7 +2600,6 @@ void priv::create_face_types(FaceTypeMap           &map,
 }
 
 #include <CGAL/Polygon_mesh_processing/clip.h>
-#include <CGAL/Polygon_mesh_processing/corefinement.h>
 bool priv::clip_cut(SurfacePatch &cut, CutMesh clipper)
 {
     CutMesh& tm = cut.mesh; 
@@ -2609,9 +2633,9 @@ bool priv::clip_cut(SurfacePatch &cut, CutMesh clipper)
     // true if the output surface mesh is manifold. 
     // If false is returned tm and clipper are only corefined.
     assert(suc); 
-    // decide what TODO when can't clip source object !?!
+    // When the clip fails, restore the untouched backup and report failure.
     if (!exist_intersection  || !suc) {
-        // TODO: test if cut is fully in or fully out!!
+        // A finer recovery would test whether the cut is fully inside or fully outside the object.
         cut.mesh = backup_copy;
         return false;
     }
@@ -2902,7 +2926,7 @@ bool priv::is_patch_inside_of_model(const SurfacePatch &patch,
                                     const Tree         &tree,
                                     const Project3d    &projection)
 {
-    // TODO: Solve model with hole in projection direction !!!
+    // Known limitation: a hole in the model along the projection direction can fool this parity test.
     const P3 &a = patch.mesh.point(VI(0));
     Vec3d a_ = to_vec3d(a);
     Vec3d b_ = projection.project(a_);
@@ -3564,7 +3588,7 @@ SurfaceCut priv::patch2cut(SurfacePatch &patch)
         // assert(vi.idx() < vertices_size);
         convert_map[vi] = sc.vertices.size();
         const P3 &p = mesh.point(vi);
-        sc.vertices.emplace_back(p.x(), p.y(), p.z());
+        sc.vertices.push_back(to_vec3d(p).cast<float>());
     }
 
     for (FI fi : mesh.faces()) {
