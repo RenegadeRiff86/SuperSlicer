@@ -620,7 +620,7 @@ namespace ClipperUtils {
             }
         }
 
-        // hack bugfix https://github.com/prusa3d/PrusaSlicer/issues/13356
+        // workaround for https://github.com/prusa3d/PrusaSlicer/issues/13356: never return a degenerate (<3 point) polygon
         if (out.size() < 3) {
             out.clear();
             return;
@@ -688,7 +688,7 @@ namespace ClipperUtils {
                 out.emplace_back(src.back());
             }
         }
-        // hack bugfix https://github.com/prusa3d/PrusaSlicer/issues/13356
+        // workaround for https://github.com/prusa3d/PrusaSlicer/issues/13356: never return a degenerate (<3 point) polygon
         if(out.size() < 3)
             out.clear();
         assert(out.size() > 2 || out.empty());
@@ -1020,7 +1020,7 @@ TResult clipper_union(
 }
 
 // Perform union of input polygons using the positive rule, convert to ExPolygons.
-//FIXME is there any benefit of not doing the boolean / using pftEvenOdd?
+// Performance note: it is unclear whether there is any benefit of not doing the boolean / using pftEvenOdd.
 inline ExPolygons ClipperPaths_to_Slic3rExPolygons(const ClipperLib::Paths &input, bool do_union)
 {
     return PolyTreeToExPolygons(clipper_union<ClipperLib::PolyTree>(input, do_union ? ClipperLib::pftNonZero : ClipperLib::pftEvenOdd));
@@ -1231,7 +1231,7 @@ Slic3r::Polygons offset(const Slic3r::Surfaces &surfaces, const double delta, Cl
 Slic3r::Polygons offset(const Slic3r::SurfacesPtr &surfaces, const double delta, ClipperLib::JoinType joinType, double miterLimit)
     { return to_polygons(expolygons_offset(surfaces, delta, joinType, miterLimit)); }
 Slic3r::ExPolygons offset_ex(const Slic3r::ExPolygon &expolygon, const double delta, ClipperLib::JoinType joinType, double miterLimit)
-    //FIXME one may spare one Clipper Union call.
+    // Performance note: one may spare one Clipper Union call.
     { return ClipperPaths_to_Slic3rExPolygons(expolygon_offset(expolygon, delta, joinType, miterLimit), /* do union */ false); }
 Slic3r::ExPolygons offset_ex(const Slic3r::ExPolygons &expolygons, const double delta, ClipperLib::JoinType joinType, double miterLimit)
     { return PolyTreeToExPolygons(expolygons_offset_pt(expolygons, delta, joinType, miterLimit)); }
@@ -1250,7 +1250,7 @@ ExPolygons offset2_ex(const ExPolygons &expolygons, const double delta1, const d
 }
 ExPolygons offset2_ex(const Surfaces &surfaces, const double delta1, const double delta2, ClipperLib::JoinType joinType, double miterLimit)
 {
-    //FIXME it may be more efficient to offset to_expolygons(surfaces) instead of to_polygons(surfaces).
+    // Performance note: it may be more efficient to offset to_expolygons(surfaces) instead of to_polygons(surfaces).
     return PolyTreeToExPolygons(offset_paths<ClipperLib::PolyTree>(expolygons_offset(surfaces, delta1, joinType, miterLimit), delta2, joinType, miterLimit));
 }
 
@@ -1271,7 +1271,7 @@ Slic3r::ExPolygons closing_ex(const Slic3r::Surfaces &surfaces, const double del
 {
     assert(delta1 > 0);
     assert(delta2 > 0);
-    //FIXME it may be more efficient to offset to_expolygons(surfaces) instead of to_polygons(surfaces).
+    // Performance note: it may be more efficient to offset to_expolygons(surfaces) instead of to_polygons(surfaces).
     return PolyTreeToExPolygons(shrink_paths<ClipperLib::PolyTree>(expand_paths<ClipperLib::Paths>(ClipperUtils::SurfacesProvider(surfaces), delta1, joinType, miterLimit), delta2, joinType, miterLimit));
 }
 
@@ -1292,7 +1292,7 @@ Slic3r::Polygons opening(const Slic3r::Surfaces &surfaces, const double delta1, 
 {
     assert(delta1 > 0);
     assert(delta2 > 0);
-    //FIXME it may be more efficient to offset to_expolygons(surfaces) instead of to_polygons(surfaces).
+    // Performance note: it may be more efficient to offset to_expolygons(surfaces) instead of to_polygons(surfaces).
     return to_polygons(expand_paths<ClipperLib::Paths>(shrink_paths<ClipperLib::Paths>(ClipperUtils::SurfacesProvider(surfaces), delta1, joinType, miterLimit), delta2, joinType, miterLimit));
 }
 Slic3r::ExPolygons opening_ex(const Slic3r::Polygons& polygons, const double delta1, const double delta2, ClipperLib::JoinType joinType, double miterLimit)
@@ -2027,7 +2027,7 @@ Lines _clipper_ln(ClipperLib::ClipType clipType, const Lines &subject, const Pol
     Lines retval;
     for (Polylines::const_iterator polyline = polylines.begin(); polyline != polylines.end(); ++polyline)
         if (polyline->size() >= 2)
-            //FIXME It may happen, that Clipper produced a polyline with more than 2 collinear points by clipping a single line with polygons. It is a very rare issue, but it happens, see GH #6933.
+            // Note: Clipper may produce a polyline with more than 2 collinear points by clipping a single line with polygons (very rare, see GH #6933); taking front/back collapses it back to a single line.
             retval.push_back({ polyline->front(), polyline->back() });
     return retval;
 }
@@ -2080,7 +2080,7 @@ static void traverse_pt_outside_in(ClipperLib::PolyNodes &&nodes, Polygons *retv
         ordering_points.emplace_back(node->Contour.front().x(), node->Contour.front().y());
 
     // Perform the ordering, push results recursively.
-    //FIXME pass the last point to chain_clipper_polynodes?
+    // Possible improvement: pass the last point to chain_clipper_polynodes.
     for (ClipperLib::PolyNode *node : chain_clipper_polynodes(ordering_points, nodes)) {
         retval->emplace_back(std::move(node->Contour));
         if (node->IsHole()) 
@@ -2105,7 +2105,7 @@ Polygons simplify_polygons(const Polygons &subject)
     ClipperLib::Paths output;
         ClipperLib::Clipper c;
 //    c.PreserveCollinear(true);
-    //FIXME StrictlySimple is very expensive! Is it needed?
+    // Performance note: StrictlySimple is very expensive; it is unclear whether it is needed.
         c.StrictlySimple(true);
         c.AddPaths(ClipperUtils::PolygonsProvider(subject), ClipperLib::ptSubject, true);
         c.Execute(ClipperLib::ctUnion, output, ClipperLib::pftNonZero, ClipperLib::pftNonZero);
@@ -2121,7 +2121,7 @@ ExPolygons simplify_polygons_ex(const Polygons &subject, bool preserve_collinear
     ClipperLib::PolyTree polytree;
     ClipperLib::Clipper c;
     if (preserve_collinear) c.PreserveCollinear(preserve_collinear);
-    //FIXME StrictlySimple is very expensive! Is it needed?
+    // Performance note: StrictlySimple is very expensive; it is unclear whether it is needed.
     c.StrictlySimple(true);
     c.AddPaths(ClipperUtils::PolygonsProvider(subject), ClipperLib::ptSubject, true);
     c.Execute(ClipperLib::ctUnion, polytree, ClipperLib::pftNonZero, ClipperLib::pftNonZero);
@@ -2482,7 +2482,7 @@ Polygons variable_offset_outer(const ExPolygon &expoly, const std::vector<std::v
     if (holes.empty())
         output = std::move(contours);
     else {
-        //FIXME the difference is not needed as the holes may never intersect with other holes.
+        // Performance note: the difference may not be needed, as the holes may never intersect with other holes.
         ClipperLib::Clipper clipper;
         clipper.Clear();
         clipper.AddPaths(contours, ClipperLib::ptSubject, true);
@@ -2524,7 +2524,7 @@ ExPolygons variable_offset_outer_ex(const ExPolygon &expoly, const std::vector<s
             output.push_back(ExPolygon{ std::move(contours.front()) });
         }
     } else {
-        //FIXME the difference is not needed as the holes may never intersect with other holes.
+        // Performance note: the difference may not be needed, as the holes may never intersect with other holes.
         ClipperLib::Clipper clipper;
         // Contours may have holes if they were created by closing a C shape.
         clipper.AddPaths(contours, ClipperLib::ptSubject, true);
