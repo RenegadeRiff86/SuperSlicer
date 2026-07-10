@@ -338,7 +338,7 @@ inline FacetSliceType slice_facet(
         line_out.edge_a_id  = points[1].edge_id;
         line_out.edge_b_id  = points[0].edge_id;
         // Not a zero lenght edge.
-        //FIXME slice_facet() may create zero length edges due to rounding of doubles into coord_t.
+        // Known limitation: slice_facet() may create zero length edges due to rounding of doubles into coord_t, so the zero-length asserts stay disabled.
         //assert(line_out.a != line_out.b);
         // The plane cuts at least one edge in a general position.
         assert(line_out.a_id == -1 || line_out.b_id == -1);
@@ -879,72 +879,6 @@ inline std::pair<SlabLines, SlabLines> slice_slabs_make_lines(
     return out;
 }
 
-#if 0
-//FIXME Should this go away? For valid meshes the function slice_facet() returns Slicing
-// and sets edges of vertical triangles to produce only a single edge per pair of neighbor faces.
-// So the following code makes only sense now to handle degenerate meshes with more than two faces
-// sharing a single edge.
-static inline void remove_tangent_edges(std::vector<IntersectionLine> &lines)
-{
-    std::vector<IntersectionLine*> by_vertex_pair;
-    by_vertex_pair.reserve(lines.size());
-    for (IntersectionLine& line : lines)
-        if (line.edge_type != IntersectionLine::FacetEdgeType::General && line.a_id != -1)
-            // This is a face edge. Check whether there is its neighbor stored in lines.
-            by_vertex_pair.emplace_back(&line);
-    auto edges_lower_sorted = [](const IntersectionLine *l1, const IntersectionLine *l2) {
-        // Sort vertices of l1, l2 lexicographically
-        int l1a = l1->a_id;
-        int l1b = l1->b_id;
-        int l2a = l2->a_id;
-        int l2b = l2->b_id;
-        if (l1a > l1b)
-            std::swap(l1a, l1b);
-        if (l2a > l2b)
-            std::swap(l2a, l2b);
-        // Lexicographical "lower" operator on lexicographically sorted vertices should bring equal edges together when sored.
-        return l1a < l2a || (l1a == l2a && l1b < l2b);
-    };
-    std::sort(by_vertex_pair.begin(), by_vertex_pair.end(), edges_lower_sorted);
-    for (auto line = by_vertex_pair.begin(); line != by_vertex_pair.end(); ++ line) {
-        IntersectionLine &l1 = **line;
-        if (! l1.skip()) {
-            // Iterate as long as line and line2 edges share the same end points.
-            for (auto line2 = line + 1; line2 != by_vertex_pair.end() && ! edges_lower_sorted(*line, *line2); ++ line2) {
-                // Lines must share the end points.
-                assert(! edges_lower_sorted(*line, *line2));
-                assert(! edges_lower_sorted(*line2, *line));
-                IntersectionLine &l2 = **line2;
-                if (l2.skip())
-                    continue;
-                if (l1.a_id == l2.a_id) {
-                    assert(l1.b_id == l2.b_id);
-                    l2.set_skip();
-                    // If they are both oriented upwards or downwards (like a 'V'),
-                    // then we can remove both edges from this layer since it won't 
-                    // affect the sliced shape.
-                    // If one of them is oriented upwards and the other is oriented
-                    // downwards, let's only keep one of them (it doesn't matter which
-                    // one since all 'top' lines were reversed at slicing).
-                    if (l1.edge_type == l2.edge_type) {
-                        l1.set_skip();
-                        break;
-                    }
-                } else {
-                    assert(l1.a_id == l2.b_id && l1.b_id == l2.a_id);
-                    // If this edge joins two horizontal facets, remove both of them.
-                    if (l1.edge_type == IntersectionLine::FacetEdgeType::Horizontal && l2.edge_type == IntersectionLine::FacetEdgeType::Horizontal) {
-                        l1.set_skip();
-                        l2.set_skip();
-                        break;
-                    }
-                }
-            }
-        }
-    }
-}
-#endif
-
 struct OpenPolyline {
     OpenPolyline() = default;
     OpenPolyline(const IntersectionReference &start, const IntersectionReference &end, Points &&points) : 
@@ -1311,7 +1245,7 @@ static Polygons make_loops(
 {
     Polygons loops;
 #if 0
-//FIXME slice_facet() may create zero length edges due to rounding of doubles into coord_t.
+// Known limitation: slice_facet() may create zero length edges due to rounding of doubles into coord_t, so the zero-length asserts stay disabled.
 //#ifdef _DEBUG
     for (const Line &l : lines)
         assert(l.a != l.b);
@@ -1319,7 +1253,6 @@ static Polygons make_loops(
 
     // There should be no tangent edges, as the horizontal triangles are ignored and if two triangles touch at a cutting plane,
     // only the bottom triangle is considered to be cutting the plane.
-//    remove_tangent_edges(lines);
 
 #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
         BoundingBox bbox_svg;
@@ -1669,7 +1602,7 @@ static void make_expolygons(const Polygons &loops, const coord_t closing_radius,
         would ignore holes inside two concentric contours.
         So we're ordering loops and collapse consecutive concentric loops having the same 
         winding order.
-        TODO: find a faster algorithm for this, maybe with some sort of binary search.
+        Possible improvement: find a faster algorithm for this, maybe with some sort of binary search.
         If we computed a "nesting tree" we could also just remove the consecutive loops
         having the same winding order, and remove the extra one(s) so that we could just
         supply everything to offset() instead of performing several union/diff calls.
@@ -1679,37 +1612,8 @@ static void make_expolygons(const Polygons &loops, const coord_t closing_radius,
         loops correctly in some edge cases when original model had overlapping facets
     */
 
-    /* The following lines are commented out because they can generate wrong polygons,
-       see for example issue #661 */
-
-    //std::vector<double> area;
-    //std::vector<size_t> sorted_area;  // vector of indices
-    //for (Polygons::const_iterator loop = loops.begin(); loop != loops.end(); ++ loop) {
-    //    area.emplace_back(loop->area());
-    //    sorted_area.emplace_back(loop - loops.begin());
-    //}
-    //
-    //// outer first
-    //std::sort(sorted_area.begin(), sorted_area.end(),
-    //    [&area](size_t a, size_t b) { return std::abs(area[a]) > std::abs(area[b]); });
-
-    //// we don't perform a safety offset now because it might reverse cw loops
-    //Polygons p_slices;
-    //for (std::vector<size_t>::const_iterator loop_idx = sorted_area.begin(); loop_idx != sorted_area.end(); ++ loop_idx) {
-    //    /* we rely on the already computed area to determine the winding order
-    //       of the loops, since the Orientation() function provided by Clipper
-    //       would do the same, thus repeating the calculation */
-    //    Polygons::const_iterator loop = loops.begin() + *loop_idx;
-    //    if (area[*loop_idx] > +EPSILON)
-    //        p_slices.emplace_back(*loop);
-    //    else if (area[*loop_idx] < -EPSILON)
-    //        //FIXME This is arbitrary and possibly very slow.
-    //        // If the hole is inside a polygon, then there is no need to diff.
-    //        // If the hole intersects a polygon boundary, then diff it, but then
-    //        // there is no guarantee of an ordering of the loops.
-    //        // Maybe we can test for the intersection before running the expensive diff algorithm?
-    //        p_slices = diff(p_slices, *loop);
-    //}
+    // An area-sorted ordering + per-hole diff approach used to live here; it was removed because it can
+    // generate wrong polygons (see slic3r issue #661).
 
     //remove point in the same plane (have to do that before the safety offset to avoid working on a distored polygon)
     Polygons filered_polys = loops;
@@ -1719,7 +1623,7 @@ static void make_expolygons(const Polygons &loops, const coord_t closing_radius,
         }
     }
 
-    // Perform a safety offset to merge very close facets (TODO: find test case for this)
+    // Perform a safety offset to merge very close facets (no known test case exercises this)
     // 0.0499 comes from https://github.com/slic3r/Slic3r/issues/959
 //    double safety_offset = scale_(0.0499);
     // 0.0001 is set to satisfy GH #520, #1029, #1364
@@ -1806,7 +1710,7 @@ std::vector<Polygons> slice_mesh(
     std::vector<IntersectionLines> lines;
 
     {
-        //FIXME facets_edges is likely not needed and quite costly to calculate.
+        // Performance note: facets_edges is likely not needed and quite costly to calculate.
         // Instead of edge identifiers, one shall use a sorted pair of edge vertex indices.
         // However facets_edges assigns a single edge ID to two triangles only, thus when factoring facets_edges out, one will have
         // to make sure that no code relies on it.
@@ -1855,7 +1759,7 @@ std::vector<Polygons> slice_mesh(
                 svg.Close();
             }
 #if 0
-//FIXME slice_facet() may create zero length edges due to rounding of doubles into coord_t.
+// Known limitation: slice_facet() may create zero length edges due to rounding of doubles into coord_t, so the zero-length asserts stay disabled.
             for (Polygon &poly : polygons) {
                 for (size_t i = 1; i < poly.points.size(); ++ i)
                     assert(poly.points[i-1] != poly.points[i]);
@@ -1896,7 +1800,7 @@ Polygons slice_mesh(
             } else {
                 tf = make_trafo_for_slicing(params.trafo);
                 for (size_t i = 0; i < mesh.vertices.size(); ++ i) {
-                    //FIXME don't need to transform x & y, just Z.
+                    // Performance note: only Z of the transformed vertex is needed here.
                     float z = (tf * mesh.vertices[i]).z();
                     char  s = z < plane_z ? -1 : z == plane_z ? 0 : 1;
                     vertex_side[i] = s;
