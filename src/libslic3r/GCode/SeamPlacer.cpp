@@ -199,8 +199,8 @@ std::vector<float> raycast_visibility(const AABBTreeIndirect::Tree<3, float> &ra
                         Vec3f final_ray_dir = (f.to_world(dir));
                         if (!model_contains_negative_parts) {
                             igl::Hit hitpoint;
-                            // FIXME: This AABBTTreeIndirect query will not compile for float ray origin and
-                            // direction.
+                            // Note: the AABBTreeIndirect query does not compile for float ray origin and
+                            // direction, hence the double casts.
                             Vec3d final_ray_dir_d = final_ray_dir.cast<double>();
                             Vec3d ray_origin_d = (center + normal * 0.01f).cast<double>(); // start above surface.
                             bool hit = AABBTreeIndirect::intersect_ray_first_hit(triangles.vertices,
@@ -208,7 +208,7 @@ std::vector<float> raycast_visibility(const AABBTreeIndirect::Tree<3, float> &ra
                             if (hit && its_face_normal(triangles, hitpoint.id).dot(final_ray_dir) <= 0) {
                                 result[s_idx] -= decrease_step;
                             }
-                        } else { //TODO improve logic for order based boolean operations - consider order of volumes
+                        } else { // Known limitation: the visibility logic ignores the order of volumes for order-based boolean operations
                             bool casting_from_negative_volume = samples.triangle_indices[s_idx]
                                     >= negative_volumes_start_index;
 
@@ -559,7 +559,7 @@ PolylineWithEnds extract_perimeter_polylines(const Layer *layer, const SeamPosit
                     polylines->emplace_back(path.polyline.to_polyline().points,
                                             idx == 0 ? true : false,
                                             idx + 1 < collection.size() ? false : true,
-                                            PolylineWithEnd::PolyDir::BOTH); // TODO: more points for arcs
+                                            PolylineWithEnd::PolyDir::BOTH); // Possible improvement: generate more points for arcs
                     assert(path.polyline.front() != path.polyline.back());
                     assert(path.polyline.size() > 1);
                     m_corresponding_regions_out.push_back(current_layer_region);
@@ -575,7 +575,7 @@ PolylineWithEnds extract_perimeter_polylines(const Layer *layer, const SeamPosit
                     polylines->emplace_back(path.polyline.to_polyline().points,
                                             idx == 0 ? true : false,
                                             idx + 1 < collection.size() ? false : true,
-                                            PolylineWithEnd::PolyDir::BOTH); // TODO: more points for arcs
+                                            PolylineWithEnd::PolyDir::BOTH); // Possible improvement: generate more points for arcs
                     assert(path.polyline.front() != path.polyline.back());
                     assert(path.polyline.size() > 1);
                     m_corresponding_regions_out.push_back(current_layer_region);
@@ -1549,14 +1549,14 @@ void SeamPlacer::align_seam_points(const PrintObject *po, const SeamPlacerImpl::
             Perimeter& perimeter = points[seams[seam_idx].second].perimeter;
             layer2seams.back().push_back(&perimeter);
             if (current.type == EnforcedBlockedSeamPoint::Enforced) {
-                //// TODO: align as much as possible inside the enforcement
+                // Possible improvement: align as much as possible inside the enforcement
                 perimeter.seam_index = seams[seam_idx].second;
                 perimeter.final_seam_position = current.position;
                 perimeter.finalized = true;
             } else if (current.type == EnforcedBlockedSeamPoint::Sphere) {
                 //keep as-is
             } else if (current_layer_idx > 0 && !layer2seams[current_layer_idx - 1].empty()) {
-                //TODO: remove seam blocker
+                // Known limitation: the projected seam position is not checked against seam-blocked regions.
                 Point nearest_point;
                 Vec3f nearest_old_point;
                 size_t nearest_pt_idx;
@@ -1943,7 +1943,7 @@ std::tuple<bool,std::optional<Vec3f>> get_seam_from_modifier(const Layer& layer,
                     //get layer idx
                     size_t lidx = 0;
                     for (; lidx < seam_mesh->layers_contour.size() && seam_mesh->zs[lidx] + EPSILON < layer.print_z ; ++lidx) {}
-                    // TODO Grid optimisation
+                    // Performance note: a spatial grid could speed up this contour lookup.
                     Polyline loop_polyline = loop.as_polyline().to_polyline(scale_t(loop.paths.front().width()));
                     //move the object's polyline to its plater position.
                     loop_polyline.translate(po->instances()[print_object_instance_idx].shift);
@@ -2024,7 +2024,7 @@ Point SeamPlacer::place_seam(const Layer *layer, const ExtrusionLoop &loop, cons
     const size_t layer_index = layer->id() - po->slicing_parameters().raft_layers();
     const double unscaled_z = layer->slice_z;
 
-    //FIXME?: not working on arcs
+    // Known limitation: not working on arcs (steps over raw polyline points).
     auto get_next_loop_point = [&loop](ExtrusionLoop::ClosestPathPoint current) {
         current.segment_idx += 1;
         if (current.segment_idx >= loop.paths[current.path_idx].polyline.size()) {
@@ -2111,12 +2111,11 @@ Point SeamPlacer::place_seam(const Layer *layer, const ExtrusionLoop &loop, cons
                 depth = 1.4142 * depth / beta_angle;
                 //fix depth, it is sometimes strongly overestimated (if the angle is shallow)
                 if (std::abs(depth) > loop.paths[projected_point.path_idx].width() * 5) {
-                    // FIXME HACKFIX
                     depth = loop.paths[projected_point.path_idx].width() * 5;
                     if(depth < 0) depth = (-depth);
                 }
                 // There are some nice geometric identities in determination of the correct depth of the seam point.
-                //overshoot the target depth, in concave angles it will correctly snap to the corner; TODO: find out why such big overshoot is needed.
+                //overshoot the target depth, in concave angles it will correctly snap to the corner; it is not understood why such a big overshoot is needed.
                 Vec2f final_pos = perimeter_point.position.head<2>() + depth * dir_to_middle;
                 assert(std::abs(final_pos.x()) < 1000);
                 projected_point = loop.get_closest_path_and_point(Point::new_scale(final_pos.x(), final_pos.y()), false);
