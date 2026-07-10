@@ -361,8 +361,8 @@ std::vector<std::pair<size_t, bool>> chain_segments_greedy_constrained_reversals
 #endif /* NDEBUG */
                 // Update position of this end point in the queue based on the distance calculated at the line above.
                 queue.update(end_point1.heap_idx);
-                //FIXME Remove the other end point from the KD tree.
-                // As the KD tree update is expensive, do it only after some larger number of points is removed from the queue.
+                // Performance note: the other end point could be removed from the KD tree, but as the KD tree
+                // update is expensive, it would only pay off batched after a larger number of removed points.
                 assert(validate_graph_and_queue());
             }
         }
@@ -916,8 +916,7 @@ std::vector<std::pair<size_t, bool>> chain_segments_greedy_constrained_reversals
 #endif /* NDEBUG */
                     break;
                 } else {
-                    //FIXME update the 2nd end points on the queue.
-                    // Update end points of the flipped segments.
+                    // Update end points of the flipped segments (including the opposite end points) on the queue.
                     update_end_point_in_queue(queue, kdtree, chains, end_points, chain.begin->opposite(end_points), first_point_idx, first_point);
                     update_end_point_in_queue(queue, kdtree, chains, end_points, chain.end->opposite(end_points),   first_point_idx, first_point);
                     if (chain1_flip)
@@ -943,8 +942,8 @@ std::vector<std::pair<size_t, bool>> chain_segments_greedy_constrained_reversals
 //					printf("Warning: taking shorter length than previously is suspicious\n");
                 }
 #endif /* NDEBUG */
-                //FIXME Remove the other end point from the KD tree.
-                // As the KD tree update is expensive, do it only after some larger number of points is removed from the queue.
+                // Performance note: the other end point could be removed from the KD tree, but as the KD tree
+                // update is expensive, it would only pay off batched after a larger number of removed points.
             }
             assert(validate_graph_and_queue());
         }
@@ -1092,7 +1091,7 @@ std::vector<std::pair<size_t, bool>> chain_extrusion_paths(std::vector<Extrusion
     return chain_segments_greedy<Point, decltype(segment_end_point)>(segment_end_point, extrusion_paths.size(), start_near);
 }
 
-//TODO derecusify
+// Possible refactor: convert the recursion into an iterative form.
 bool brute_force_reorder(const std::vector<ExtrusionPath> &in, std::vector<bool> &used, std::vector<ExtrusionPath> &out, Point previous)
 {
     size_t nb_used = 0;
@@ -1136,8 +1135,7 @@ void reorder_extrusion_paths(std::vector<ExtrusionPath> &extrusion_paths, const 
         if (idx.second)
             out.back().reverse();
     }
-    //FIXME: TODO: find the real cause inside chain_extrusion_paths
-    // for now on, jsut verify & patch that
+    //TODO: find the real cause inside chain_extrusion_paths; for now, just verify & patch the first path orientation here.
     if (out.size() > 1
         && !out.front().last_point().coincides_with_epsilon(out[1].first_point())
         && out.front().first_point().coincides_with_epsilon(out[1].first_point())) {
@@ -1689,7 +1687,7 @@ static inline void do_crossover(const std::vector<FlipEdge> &edges_in, std::vect
 // Expected time complexity: O(min(n, 100) * (n * log n + k * n)
 // where n is the number of edges and k is the number of connection_lengths candidates after the first one
 // is found that improves the total cost.
-//FIXME there are likley better heuristics to lower the time complexity.
+// Performance note: there are likely better heuristics to lower the time complexity.
 static inline void reorder_by_two_exchanges_with_segment_flipping(std::vector<FlipEdge> &edges)
 {
     if (edges.size() < 2)
