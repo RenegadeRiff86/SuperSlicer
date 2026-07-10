@@ -64,14 +64,6 @@ namespace pt = boost::property_tree;
 
 #include <fast_float/fast_float.h>
 
-// Slightly faster than sprintf("%.9g"), but there is an issue with the karma floating point formatter,
-// https://github.com/boostorg/spirit/pull/586
-// where the exported string is one digit shorter than it should be to guarantee lossless round trip.
-// The code is left here for the ocasion boost guys improve.
-#define EXPORT_3MF_USE_SPIRIT_KARMA_FP 0
-
-#define WRITE_ZIP_LANGUAGE_ENCODING 1
-
 // @see https://commons.apache.org/proper/commons-compress/apidocs/src-html/org/apache/commons/compress/archivers/zip/AbstractUnicodeExtraField.html
 struct ZipUnicodePathExtraField
 {
@@ -110,7 +102,7 @@ struct ZipUnicodePathExtraField
 
 
 // Performance note: this has potentially O(n^2) time complexity.
-std::string xml_escape(std::string text, bool is_marked/* = false*/)
+static std::string xml_escape(std::string text, bool is_marked/* = false*/)
 {
     std::string::size_type pos = 0;
     for (;;)
@@ -140,7 +132,7 @@ std::string xml_escape(std::string text, bool is_marked/* = false*/)
 // Definition of escape symbols https://www.w3.org/TR/REC-xml/#AVNormalize
 // During the read of xml attribute normalization of white spaces is applied
 // Soo for not lose white space character it is escaped before store
-std::string xml_escape_double_quotes_attribute_value(std::string text)
+static std::string xml_escape_double_quotes_attribute_value(std::string text)
 {
     std::string::size_type pos = 0;
     for (;;) {
@@ -165,7 +157,7 @@ std::string xml_escape_double_quotes_attribute_value(std::string text)
     return text;
 }
 
-std::string xml_unescape(std::string s)
+static std::string xml_unescape(std::string s)
 {
     std::string ret;
     std::string::size_type i = 0;
@@ -201,7 +193,7 @@ std::string xml_unescape(std::string s)
     return ret;
 }
 
-void save_string_file(const std_path& p, const std::string& str)
+static void save_string_file(const std_path& p, const std::string& str)
 {
     boost::nowide::ofstream file;
     file.exceptions(std::ios_base::failbit | std::ios_base::badbit);
@@ -209,7 +201,7 @@ void save_string_file(const std_path& p, const std::string& str)
     file.write(str.c_str(), str.size());
 }
 
-#define BBL_JSON_KEY_VERSION        "version"
+static constexpr const char* BBL_JSON_KEY_VERSION = "version";
 
 // VERSION NUMBERS
 // 0 : .3mf, files saved by older slic3r or other applications. No version definition in them.
@@ -519,7 +511,7 @@ public:
     version_error(const char* what_arg) : Slic3r::FileIOError(what_arg) {}
 };
 
-const char* bbs_get_attribute_value_charptr(const char** attributes, unsigned int attributes_size, const char* attribute_key)
+static const char* bbs_get_attribute_value_charptr(const char** attributes, unsigned int attributes_size, const char* attribute_key)
 {
     if ((attributes == nullptr) || (attributes_size == 0) || (attributes_size % 2 != 0) || (attribute_key == nullptr))
         return nullptr;
@@ -532,13 +524,13 @@ const char* bbs_get_attribute_value_charptr(const char** attributes, unsigned in
     return nullptr;
 }
 
-std::string bbs_get_attribute_value_string(const char** attributes, unsigned int attributes_size, const char* attribute_key)
+static std::string bbs_get_attribute_value_string(const char** attributes, unsigned int attributes_size, const char* attribute_key)
 {
     const char* text = bbs_get_attribute_value_charptr(attributes, attributes_size, attribute_key);
     return (text != nullptr) ? text : "";
 }
 
-float bbs_get_attribute_value_float(const char** attributes, unsigned int attributes_size, const char* attribute_key)
+static float bbs_get_attribute_value_float(const char** attributes, unsigned int attributes_size, const char* attribute_key)
 {
     float value = 0.0f;
     if (const char *text = bbs_get_attribute_value_charptr(attributes, attributes_size, attribute_key); text != nullptr)
@@ -546,7 +538,7 @@ float bbs_get_attribute_value_float(const char** attributes, unsigned int attrib
     return value;
 }
 
-int bbs_get_attribute_value_int(const char** attributes, unsigned int attributes_size, const char* attribute_key)
+static int bbs_get_attribute_value_int(const char** attributes, unsigned int attributes_size, const char* attribute_key)
 {
     int value = 0;
     if (const char *text = bbs_get_attribute_value_charptr(attributes, attributes_size, attribute_key); text != nullptr)
@@ -554,13 +546,13 @@ int bbs_get_attribute_value_int(const char** attributes, unsigned int attributes
     return value;
 }
 
-bool bbs_get_attribute_value_bool(const char** attributes, unsigned int attributes_size, const char* attribute_key)
+static bool bbs_get_attribute_value_bool(const char** attributes, unsigned int attributes_size, const char* attribute_key)
 {
     const char* text = bbs_get_attribute_value_charptr(attributes, attributes_size, attribute_key);
     return (text != nullptr) ? (bool)::atoi(text) : true;
 }
 
-void add_vec3(std::stringstream &stream, const Slic3r::Vec3f &tr)
+static void add_vec3(std::stringstream &stream, const Slic3r::Vec3f &tr)
 {
     for (unsigned r = 0; r < 3; ++r) {
         stream << tr(r);
@@ -569,7 +561,7 @@ void add_vec3(std::stringstream &stream, const Slic3r::Vec3f &tr)
     }
 }
 
-Slic3r::Vec3f get_vec3_from_string(const std::string &pos_str)
+static Slic3r::Vec3f get_vec3_from_string(const std::string &pos_str)
 {
     Slic3r::Vec3f pos(0, 0, 0);
     if (pos_str.empty())
@@ -587,7 +579,7 @@ Slic3r::Vec3f get_vec3_from_string(const std::string &pos_str)
     return pos;
 }
 
-Slic3r::Transform3d bbs_get_transform_from_3mf_specs_string(const std::string& mat_str)
+static Slic3r::Transform3d bbs_get_transform_from_3mf_specs_string(const std::string& mat_str)
 {
     // check: https://3mf.io/3d-manufacturing-format/ or https://github.com/3MFConsortium/spec_core/blob/master/3MF%20Core%20Specification.md
     // to see how matrices are stored inside 3mf according to specifications
@@ -616,7 +608,7 @@ Slic3r::Transform3d bbs_get_transform_from_3mf_specs_string(const std::string& m
     return ret;
 }
 
-Slic3r::Vec3d bbs_get_offset_from_3mf_specs_string(const std::string& vec_str)
+static Slic3r::Vec3d bbs_get_offset_from_3mf_specs_string(const std::string& vec_str)
 {
     Slic3r::Vec3d ofs2ass(0, 0, 0);
 
@@ -639,7 +631,7 @@ Slic3r::Vec3d bbs_get_offset_from_3mf_specs_string(const std::string& vec_str)
     return ofs2ass;
 }
 
-float bbs_get_unit_factor(const std::string& unit)
+static float bbs_get_unit_factor(const std::string& unit)
 {
     const char* text = unit.c_str();
 
@@ -658,7 +650,7 @@ float bbs_get_unit_factor(const std::string& unit)
         return 1.0f;
 }
 
-bool bbs_is_valid_object_type(const std::string& type)
+static bool bbs_is_valid_object_type(const std::string& type)
 {
     // if the type is empty defaults to "model" (see specification)
     if (type.empty())
@@ -777,7 +769,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             // BBS
             std::vector<std::string> face_properties;
 
-            bool empty() { return vertices.empty() || triangles.empty(); }
+            bool empty() const { return vertices.empty() || triangles.empty(); }
 
             // backup & restore
             void swap(Geometry& o) {
@@ -1612,7 +1604,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 add_error("invalid plate index");
                 return false;
             }
-            PlateData * plate = plate_data_list[it->first-1];
+            PlateData * plate = plate_data_list[static_cast<size_t>(it->first) - 1];
             plate->locked = it->second->locked;
             plate->plate_index = it->second->plate_index-1;
             plate->obj_inst_map = it->second->obj_inst_map;
@@ -1758,7 +1750,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             int index = 0;
 
 #if 0
-            for (auto path : m_sub_model_paths) {
+            for (const auto &path : m_sub_model_paths) {
                 if (proFn) {
                     proFn(IMPORT_STAGE_READ_FILES, ++index, 3 + m_sub_model_paths.size(), cb_cancel);
                     if (cb_cancel)
@@ -1807,7 +1799,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             for (auto obj_importer : m_object_importers) {
                 for (const IdToCurrentObjectMap::value_type&  obj : obj_importer->object_list)
                     m_current_objects.insert({ std::move(obj.first), std::move(obj.second)});
-                for (auto group_color : obj_importer->object_group_id_to_color)
+                for (auto &group_color : obj_importer->object_group_id_to_color)
                     m_group_id_to_color.insert(std::move(group_color));
 
                 delete obj_importer;
@@ -2264,29 +2256,30 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 add_error("invalid plate index");
                 return false;
             }
-            plate_data_list[it->first-1]->locked = it->second->locked;
-            plate_data_list[it->first-1]->plate_index = it->second->plate_index-1;
-            plate_data_list[it->first-1]->plate_name = it->second->plate_name;
-            plate_data_list[it->first-1]->obj_inst_map = it->second->obj_inst_map;
-            plate_data_list[it->first-1]->gcode_file = (m_load_restore || it->second->gcode_file.empty()) ? it->second->gcode_file : m_backup_path + "/" + it->second->gcode_file;
-            plate_data_list[it->first-1]->gcode_prediction = it->second->gcode_prediction;
-            plate_data_list[it->first-1]->gcode_weight = it->second->gcode_weight;
-            plate_data_list[it->first-1]->toolpath_outside = it->second->toolpath_outside;
-            plate_data_list[it->first-1]->is_support_used = it->second->is_support_used;
-            plate_data_list[it->first-1]->is_label_object_enabled = it->second->is_label_object_enabled;
-            plate_data_list[it->first-1]->slice_filaments_info = it->second->slice_filaments_info;
-            plate_data_list[it->first-1]->skipped_objects = it->second->skipped_objects;
-            plate_data_list[it->first-1]->warnings = it->second->warnings;
-            plate_data_list[it->first-1]->thumbnail_file = (m_load_restore || it->second->thumbnail_file.empty()) ? it->second->thumbnail_file : m_backup_path + "/" + it->second->thumbnail_file;
-            //plate_data_list[it->first-1]->pattern_file = (m_load_restore || it->second->pattern_file.empty()) ? it->second->pattern_file : m_backup_path + "/" + it->second->pattern_file;
-            plate_data_list[it->first-1]->top_file = (m_load_restore || it->second->top_file.empty()) ? it->second->top_file : m_backup_path + "/" + it->second->top_file;
-            plate_data_list[it->first-1]->pick_file = (m_load_restore || it->second->pick_file.empty()) ? it->second->pick_file : m_backup_path + "/" + it->second->pick_file;
-            plate_data_list[it->first-1]->pattern_bbox_file = (m_load_restore || it->second->pattern_bbox_file.empty()) ? it->second->pattern_bbox_file : m_backup_path + "/" + it->second->pattern_bbox_file;
-            plate_data_list[it->first-1]->config = it->second->config;
+            PlateData *plate = plate_data_list[static_cast<size_t>(it->first) - 1];
+            plate->locked = it->second->locked;
+            plate->plate_index = it->second->plate_index-1;
+            plate->plate_name = it->second->plate_name;
+            plate->obj_inst_map = it->second->obj_inst_map;
+            plate->gcode_file = (m_load_restore || it->second->gcode_file.empty()) ? it->second->gcode_file : m_backup_path + "/" + it->second->gcode_file;
+            plate->gcode_prediction = it->second->gcode_prediction;
+            plate->gcode_weight = it->second->gcode_weight;
+            plate->toolpath_outside = it->second->toolpath_outside;
+            plate->is_support_used = it->second->is_support_used;
+            plate->is_label_object_enabled = it->second->is_label_object_enabled;
+            plate->slice_filaments_info = it->second->slice_filaments_info;
+            plate->skipped_objects = it->second->skipped_objects;
+            plate->warnings = it->second->warnings;
+            plate->thumbnail_file = (m_load_restore || it->second->thumbnail_file.empty()) ? it->second->thumbnail_file : m_backup_path + "/" + it->second->thumbnail_file;
+            //plate->pattern_file = (m_load_restore || it->second->pattern_file.empty()) ? it->second->pattern_file : m_backup_path + "/" + it->second->pattern_file;
+            plate->top_file = (m_load_restore || it->second->top_file.empty()) ? it->second->top_file : m_backup_path + "/" + it->second->top_file;
+            plate->pick_file = (m_load_restore || it->second->pick_file.empty()) ? it->second->pick_file : m_backup_path + "/" + it->second->pick_file;
+            plate->pattern_bbox_file = (m_load_restore || it->second->pattern_bbox_file.empty()) ? it->second->pattern_bbox_file : m_backup_path + "/" + it->second->pattern_bbox_file;
+            plate->config = it->second->config;
 
-            current_plate_data = plate_data_list[it->first - 1];
-            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ":" << __LINE__ << boost::format(", plate %1%, thumbnail_file=%2%")%it->first %plate_data_list[it->first-1]->thumbnail_file;
-            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ":" << __LINE__ << boost::format(", top_thumbnail_file=%1%, pick_thumbnail_file=%2%")%plate_data_list[it->first-1]->top_file %plate_data_list[it->first-1]->pick_file;
+            current_plate_data = plate;
+            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ":" << __LINE__ << boost::format(", plate %1%, thumbnail_file=%2%")%it->first %plate->thumbnail_file;
+            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ":" << __LINE__ << boost::format(", top_thumbnail_file=%1%, pick_thumbnail_file=%2%")%plate->top_file %plate->pick_file;
             it++;
 
             //update the arrange order
@@ -3905,7 +3898,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
     }
 
     // Definition of read/write method for EmbossShape
-    static void to_xml(std::stringstream &stream, /*const EmbossShape &es, */const ModelVolume &volume, mz_zip_archive &archive);
+    //static void to_xml(std::stringstream &stream, /*const EmbossShape &es, */const ModelVolume &volume, mz_zip_archive &archive); //Susi_not_impl
     //static std::optional<EmbossShape> read_emboss_shape(const char **attributes, unsigned int num_attributes); //Susi_not_impl
 
     bool _BBS_3MF_Importer::_handle_start_shape_configuration(const char **attributes, unsigned int num_attributes)
@@ -4604,7 +4597,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
 
         while (!id_list.empty())
         {
-            auto current_item = id_list.front();
+            auto current_item = std::move(id_list.front());
             Component current_id = current_item.first;
             id_list.pop_front();
             IdToCurrentObjectMap::iterator current_object = current_objects.find(current_id.object_id);
