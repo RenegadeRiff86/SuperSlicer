@@ -166,8 +166,6 @@ std::pair<float, Point> Fill::_infill_direction(const Surface *surface) const
 
     if (surface->bridge_angle >= 0) {
         // use bridge angle
-        //FIXME Vojtech: Add a debugf?
-        // Slic3r::debugf "Filling bridge with angle %d\n", rad2deg($surface->bridge_angle);
 #ifdef SLIC3R_DEBUG
         printf("Filling bridge with angle %f\n", surface->bridge_angle);
 #endif /* SLIC3R_DEBUG */
@@ -309,7 +307,7 @@ void Fill::fill_surface_extrusion_with_gap_fill(const Surface *surface,
     // check volume coverage
     if (!coll_nosort->empty()) {
         //note: the fill_surface_extrusion's extrusions should already be on point.
-        //TODO: change more the flow of the gap fill 
+        // Possible improvement: also adjust the flow of the gap fill.
         double mult_flow = 1;
         // check if not over-extruding
         if (!params.dont_adjust && params.full_infill() && !params.flow.bridge() && params.fill_exactly) {
@@ -496,7 +494,7 @@ coord_t Fill::_line_spacing_for_density(const FillParams& params) const
     return scale_t(this->get_spacing() / params.density);
 }
 
-//FIXME: add recent improvmeent from perimetergenerator: avoid thick gapfill
+// Possible improvement: port the recent improvement from PerimeterGenerator: avoid thick gapfill.
 void
 Fill::do_gap_fill(const ExPolygons& gapfill_areas, const FillParams& params, ExtrusionEntitiesPtr& coll_out) const {
 
@@ -843,7 +841,7 @@ Points getFrontier(Polylines& polylines, const Point& p1, const Point& p2, const
 ///             typical: N(infill_ordered) x ( N(boundary.points) + N(infill_ordered.points) )
 void connect_infill(const Polylines& infill_ordered, const ExPolygon& boundary, Polylines& polylines_out, const coord_t spacing, const FillParams& params) {
 
-    //TODO: fallback to the quick & dirty old algorithm when n(points) is too high.
+    // Performance note: could fall back to the quick & dirty old algorithm when n(points) is too high.
     Polylines polylines_frontier = to_polylines(to_polygons(boundary));
 
     Polylines polylines_blocker;
@@ -1212,7 +1210,7 @@ namespace PrusaSimpleConnect {
                 (start_point.idx_segment < end_point.idx_segment || (start_point.idx_segment == end_point.idx_segment && start_point.t < end_point.t))) {
                 // The clipped polyline is non-empty.
                 for (size_t point_idx = start_point.idx_segment; point_idx <= end_point.idx_segment; ++point_idx) {
-                    //FIXME extend the EdgeGrid to suport tracing a thick line.
+                    // Possible improvement: extend the EdgeGrid to support tracing a thick line.
 #if 0
                     Point pt1, pt2;
                     Vec2d pt1d, pt2d;
@@ -2258,8 +2256,7 @@ void mark_boundary_segments_touching_infill(
                     ip_high->trim_prev(trim_l);
                     assert(ip_low->next_trimmed == ip_high->prev_trimmed);
                     assert(validate_boundary_intersections(boundary_intersections));
-                    //FIXME mark point as consumed?
-                    //FIXME verify the sequence between prev and next?
+                    // Note: the point is not marked as consumed here and the prev/next sequence is not verified; unclear whether either is needed.
 #ifdef INFILL_DEBUG_OUTPUT
                     {
 #if 0
@@ -2312,7 +2309,7 @@ void mark_boundary_segments_touching_infill(
             visitor.perimeter_overlaps.clear();
 #endif // INFILL_DEBUG_OUTPUT
             for (size_t point_idx = start_point.idx_segment; point_idx <= end_point.idx_segment; ++point_idx) {
-                //FIXME extend the EdgeGrid to suport tracing a thick line.
+                // Possible improvement: extend the EdgeGrid to support tracing a thick line.
 #if 0
                 Point pt1, pt2;
                 Vec2d pt1d, pt2d;
@@ -2846,7 +2843,7 @@ void connect_infill(Polylines &&infill_ordered, const std::vector<const Polygon*
             arches.push_back({ &cp, path_length_along_contour_ccw(&cp, cp.next_on_contour, graph.boundary_params[cp.contour_idx].back()) });
     std::sort(arches.begin(), arches.end(), [](const auto &l, const auto &r) { return l.arc_length < r.arc_length; });
 
-    //FIXME improve the Traveling Salesman problem with 2-opt and 3-opt local optimization.
+    // Possible improvement: improve the Traveling Salesman heuristic with 2-opt and 3-opt local optimization.
     for (Arc &arc : arches)
         if (! arc.intersection->consumed && ! arc.intersection->next_on_contour->consumed) {
             // Indices of the polylines to be connected by a perimeter segment.
@@ -3661,7 +3658,7 @@ void Fill::connect_base_support(Polylines &&infill_ordered, const std::vector<co
             } else {
                 //bool    first     = ((&cp - graph.map_infill_end_point_to_boundary) & 1) == 0;
                 if (cp.prev_trimmed && cp.could_take_prev()) {
-                    //FIXME trace the trimmed line to decide what priority to assign to it.
+                    // Possible improvement: trace the trimmed line to decide what priority to assign to it.
                     // Is the end point close to the current vertical line or to the other vertical line?
                     const Point &pt   = graph.point(cp);
                     const Point &prev = graph.point(*cp.prev_on_contour);
@@ -3677,7 +3674,7 @@ void Fill::connect_base_support(Polylines &&infill_ordered, const std::vector<co
                     }
                 }
                 if (cp.next_trimmed && cp.could_take_next()) {
-                    //FIXME trace the trimmed line to decide what priority to assign to it.
+                    // Possible improvement: trace the trimmed line to decide what priority to assign to it.
                     const Point &pt   = graph.point(cp);
                     const Point &next = graph.point(*cp.next_on_contour);
                     if (std::abs(pt.x() - next.x()) < coord_t(0.5 * line_spacing)) {
