@@ -677,23 +677,16 @@ std::vector<SurfaceFill> group_fills(const Layer &layer)
         }
     }
 
-    // Use ipEnsuring pattern for all internal Solids. TODO remove after merge.
-    /*{
-        for (size_t surface_fill_id = 0; surface_fill_id < surface_fills.size(); ++surface_fill_id)
-            if (SurfaceFill &fill = surface_fills[surface_fill_id]; fill.surface.surface_type == stInternalSolid) {
-                fill.params.pattern = ipEnsuring;
-            }
-    }*/
     //union with safety offset to avoid separation from the appends of different surface with same settings.
     for (auto &surface_fill : surface_fills) {
         surface_fill.expolygons = union_safety_offset_ex(surface_fill.expolygons);
-        //assert_valid(surface_fill.expolygons); //TODO: uncomment when union_safety_offset_ex will be improve
+        //assert_valid(surface_fill.expolygons); // disabled: union_safety_offset_ex can still produce slightly invalid expolygons
         //simplify (also, it's possible rn that some point are below EPSILON distance).
         //ensure_valid(surface_fill.expolygons, surface_fill.params.fill_resolution);
         ensure_valid(surface_fill.expolygons);
         surface_fill.expolygons = simplify_polygons_ex(to_polygons(surface_fill.expolygons));
         ensure_valid(surface_fill.expolygons);
-        //assert_valid(surface_fill.expolygons); //TODO: uncomment when union_safety_offset_ex will be improve
+        //assert_valid(surface_fill.expolygons); // disabled: union_safety_offset_ex can still produce slightly invalid expolygons
     }
 
     return surface_fills;
@@ -1503,7 +1496,7 @@ void Layer::make_ironing()
                 }
             }
             if (ironing_params.extruder != -1) {
-                //TODO just_infill is currently not used.
+                // Note: just_infill is currently not used.
                 ironing_params.type         = config.ironing_type;
                 ironing_params.just_infill  = false;
                 ironing_params.line_spacing = config.get_computed_value("ironing_spacing", ironing_params.extruder);
@@ -1532,7 +1525,6 @@ void Layer::make_ironing()
     // Layer ID is used for orienting the infill in alternating directions.
     // Layer::id() returns layer ID including raft layers, subtract them to make the infill direction independent
     // from raft.
-    //FIXME ironing does not take fill angle into account. Shall it? Does it matter?
     fill.layer_id 			 = this->id() - this->object()->get_layer(0)->id();
     fill.z                  = this->print_z;
     fill.overlap            = 0;
@@ -1552,7 +1544,7 @@ void Layer::make_ironing()
         double nozzle_dmr = this->object()->print()->config().nozzle_diameter.get_at(static_cast<size_t>(ironing_extruder_idx));
         const PrintRegionConfig& region_config = ironing_params.layerm->region().config();
         if (ironing_params.just_infill) {
-            //TODO just_infill is currently not used.
+            // Note: just_infill is currently not used.
             // Just infill.
         } else {
             // Infill and perimeter.
@@ -1613,7 +1605,7 @@ void Layer::make_ironing()
         fill.angle = float(ironing_params.angle);
         fill.link_max_length = scale_t(3. * fill.get_spacing());
         double extrusion_height = ironing_params.height * fill.get_spacing() / nozzle_dmr;
-        //FIXME FLOW decide if it's good
+        // Note: unclear whether this flow computation is ideal for ironing.
         // note: don't use filament_max_overlap, as it's a top surface
         double overlap = region_config.top_solid_infill_overlap.get_abs_value(1.);
         float  extrusion_width = Flow::rounded_rectangle_extrusion_width_from_spacing(float(nozzle_dmr), float(extrusion_height), float(overlap));
@@ -1639,7 +1631,7 @@ void Layer::make_ironing()
                 extrusion_entities_append_paths(
                     *eec, std::move(polylines),
                     ExtrusionAttributes{ExtrusionRole::Ironing,
-                                        // TODO check FLOW, decide if it's good for an ironing?
+                                        // Note: unclear whether this flow is ideal for an ironing pass.
                                         ExtrusionFlow{flow_mm3_per_mm, extrusion_width, float(extrusion_height)}},
                     false);
                 // set the ironing indexes into the island tree, but it may doesn't belong to a region anyway...
