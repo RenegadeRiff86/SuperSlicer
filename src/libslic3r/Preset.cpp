@@ -56,7 +56,7 @@
 
 using boost::property_tree::ptree;
 
-// todo: arc_fitting and mlin_gcode_resolution switch from print to printer
+// Note: arc_fitting and gcode_min_resolution switched from print options to printer options.
 
 namespace Slic3r {
 
@@ -548,7 +548,7 @@ bool is_compatible_with_print(const PresetWithVendorProfile &preset, const Prese
         try {
             return PlaceholderParser::evaluate_boolean_expression(condition, active_print.preset.config);
         } catch (const std::runtime_error &err) {
-            //FIXME in case of an error, return "compatible with everything".
+            // Note: on a parsing error the preset is considered "compatible with everything" (fail-open).
             printf("Preset::is_compatible_with_print - parsing error of compatible_prints_condition %s:\n%s\n", active_print.preset.name.c_str(), err.what());
             return true;
         }
@@ -571,7 +571,7 @@ bool is_compatible_with_printer(const PresetWithVendorProfile &preset, const Pre
         try {
             return PlaceholderParser::evaluate_boolean_expression(condition, active_printer.preset.config, extra_config);
         } catch (const std::runtime_error &err) {
-            //FIXME in case of an error, return "compatible with everything".
+            // Note: on a parsing error the preset is considered "compatible with everything" (fail-open).
             printf("Preset::is_compatible_with_printer - parsing error of compatible_printers_condition %s:\n%s\n", active_printer.preset.name.c_str(), err.what());
             return true;
         }
@@ -1103,7 +1103,7 @@ static std::vector<std::string> s_Preset_printer_options {
     "arc_fitting",
     "arc_fitting_ignore_holes",
     "arc_fitting_resolution",
-    "arc_fitting_tolerance", //TODO: keep?
+    "arc_fitting_tolerance",
     "autoemit_temperature_commands",
     "printer_technology",
     "bed_shape", "bed_custom_texture", "bed_custom_model", "z_offset", "init_z_rotate",
@@ -1126,7 +1126,7 @@ static std::vector<std::string> s_Preset_printer_options {
     "gcode_min_length",
     "gcode_min_resolution",
     "max_gcode_per_second",
-    //FIXME the print host keys are left here just for conversion from the Printer preset to Physical Printer preset.
+    // Note: the print host keys are left here just for conversion from the Printer preset to the Physical Printer preset.
     "host_type", opt_key_print_host, opt_key_printhost_apikey, opt_key_printhost_cafile, opt_key_printhost_port,
     "single_extruder_multi_material", 
     // custom gcode
@@ -1303,7 +1303,7 @@ static std::vector<std::string> s_Preset_sla_printer_options {
     "min_initial_exposure_time", "max_initial_exposure_time", "sla_output_precision",
     "output_format",
     "sla_output_precision",
-    //FIXME the print host keys are left here just for conversion from the Printer preset to Physical Printer preset.
+    // Note: the print host keys are left here just for conversion from the Printer preset to the Physical Printer preset.
     opt_key_print_host, opt_key_printhost_apikey, opt_key_printhost_cafile, opt_key_printhost_port,
     "printer_custom_variables", // only for scripted widgets
     "printer_notes",
@@ -1461,7 +1461,7 @@ static bool profile_print_params_same(const DynamicPrintConfig &cfg_old, const D
                              "print_settings_id", "filament_settings_id", "sla_print_settings_id", "sla_material_settings_id", "printer_settings_id", "filament_vendor",
                              "print_settings_modified", "filament_settings_modified", "sla_print_settings_modified", "sla_material_settings_modified", "printer_settings_modified",
                              opt_key_printer_model, opt_key_printer_variant, "default_print_profile", "default_filament_profile", "default_sla_print_profile", "default_sla_material_profile",
-                             //FIXME remove the print host keys?
+                             // legacy print host keys (leftovers from before the Physical Printer conversion)
                              opt_key_print_host, opt_key_printhost_apikey, opt_key_printhost_cafile, opt_key_printhost_port })
         diff.erase(std::remove(diff.begin(), diff.end(), key), diff.end());
     // Preset with the same name as stored inside the config exists.
