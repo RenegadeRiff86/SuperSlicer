@@ -15,28 +15,6 @@ namespace Slic3r { namespace Geometry {
 
 //SUPERSLICER version
 
-
-//void MedialAxis::build(Polylines& polylines)
-//{
-//    //TODO: special case for triangles
-//    //  take the longest edge
-//    //  take the opposite vertex and get the otho dist
-//    //  move the longest edge by X% that dist (depends on angle? from 1/2 to 1/4? or always 1/3?) use move dist as width
-//    //  clip it and then enlarge it into anchor
-//    //  note: ensure that if anchor is over only one edge, it's not the one choosen.
-//
-//    //TODO: special case for quasi-rectangle
-//    //  take longest (not-anchor if any) edge
-//    //  get mid-dist for each adjascent edge
-//    //  use these point to get the line, with the mid-dist as widths.
-//    //  enlarge it into anchor
-//
-//    ThickPolylines tps;
-//    this->build(tps);
-//    for(ThickPolyline &tp : tps)
-//        polylines.push_back(Polyline(tps.points));
-//}
-
 void
 MedialAxis::polyline_from_voronoi(const ExPolygon& voronoi_polygon, ThickPolylines* polylines)
 {
@@ -114,7 +92,7 @@ MedialAxis::polyline_from_voronoi(const ExPolygon& voronoi_polygon, ThickPolylin
             if (edge->is_secondary() || edge->is_infinite()) continue;
 
             // don't re-validate twins
-            if (seen_edges.find(&*edge) != seen_edges.end()) continue;  // TODO: is this needed?
+            if (seen_edges.find(&*edge) != seen_edges.end()) continue;
             seen_edges.insert(&*edge);
             seen_edges.insert(edge->twin());
 
@@ -596,7 +574,7 @@ MedialAxis::fusion_curve(ThickPolylines& pp)
         if (crosspoint.size() != 2) continue;
         if (sum_dot > 0.2) continue;
         if (min_dot > 0.5) continue;
-        //don't remove useful bits. TODO: use the mindot to know by how much to multiply (1 when 90°, 1.42 when 45+, 1 when 0°)
+        //don't remove useful bits. Possible improvement: use the mindot to know by how much to multiply (1 when 90°, 1.42 when 45+, 1 when 0°)
         if (polyline.length() > polyline.points_width.front() * 1.42) continue;
 
         //don't pull, it distords the line if there are too many points.
@@ -693,7 +671,7 @@ MedialAxis::remove_bits(ThickPolylines& pp) const
         std::sort(pp.begin(), pp.end(), [](const ThickPolyline& a, const ThickPolyline& b) { return a.length() < b.length(); });
     }
 
-    //TODO: check if there is a U-turn (almost 180° direction change) : remove it.
+    // Possible improvement: check if there is a U-turn (almost 180° direction change) and remove it.
 }
 
 void
@@ -749,7 +727,7 @@ MedialAxis::fusion_corners(ThickPolylines& pp)
         if (pp[crosspoint[1]].endpoints.second && length > pp[crosspoint[1]].length()) continue;
 
         if (polyline.points_width.back() > 0) {
-            //FIXME: also pull (a bit less) points that are near to this one.
+            // Possible improvement: also pull (a bit less) points that are near to this one.
             // if true, pull it a bit, depends on my size, the dot?, and the coeff at my 0-end (~14% for a square, almost 0 for a gentle curve)
             coord_t length_pull = (coord_t)polyline.length();
             length_pull *= (coord_t)(0.144 * get_coeff_from_angle_countour(
@@ -1164,7 +1142,7 @@ MedialAxis::main_fusion(ThickPolylines& pp)
 
                 //get the angle of the nearest points of the contour to see : _| (good) \_ (average) __(bad)
                 //sqrt because the result are nicer this way: don't over-penalize /_ angles
-                //TODO: try if we can achieve a better result if we use a different algo if the angle is <90°
+                // Possible improvement: try if we can achieve a better result if we use a different algo if the angle is <90°
                 const double coeff_angle_poly = (coeff_angle_cache.find(polyline.points.back()) != coeff_angle_cache.end())
                     ? coeff_angle_cache[polyline.points.back()]
                     : (get_coeff_from_angle_countour(polyline.points.back(), this->m_expolygon, std::min(this->m_min_width, (coord_t)(polyline.length() / 2))));
@@ -1457,14 +1435,16 @@ MedialAxis::concatenate_small_polylines(ThickPolylines& pp) const
     const coordf_t shortest_size = (coordf_t)this->m_min_length;
     std::set<size_t> deleted;
     std::vector<size_t> idx_per_size;
-    //TODO: cache the length
+    // cache the lengths: polyline.length() walks every segment, don't recompute it in the sort comparator
+    std::vector<coordf_t> lengths(pp.size(), 0.);
     for (size_t i = 0; i < pp.size(); ++i) {
         ThickPolyline& polyline = pp[i];
         if (polyline.endpoints.first && polyline.endpoints.second) continue; // optimization
-        if(polyline.length() <= shortest_size)
+        lengths[i] = polyline.length();
+        if(lengths[i] <= shortest_size)
             idx_per_size.push_back(i);
     }
-    std::sort(idx_per_size.begin(), idx_per_size.end(), [&pp](size_t a, size_t b) -> bool {return pp[a].length() > pp[b].length(); });
+    std::sort(idx_per_size.begin(), idx_per_size.end(), [&lengths](size_t a, size_t b) -> bool {return lengths[a] > lengths[b]; });
     for (size_t idx_sorted = 0; idx_sorted < idx_per_size.size(); ++idx_sorted) {
         if (deleted.find(idx_per_size[idx_sorted]) != deleted.end()) continue;
         //all these polylines need to be saved
@@ -1746,64 +1726,8 @@ MedialAxis::remove_too_thick_points(ThickPolylines& pp) const
 void
 MedialAxis::remove_too_short_polylines(ThickPolylines& pp) const
 {
-    // reduce the flow at the intersection ( + ) points
-    //FIXME: TODO: note that crossings are unnafected right now. they may need a different codepath directly in their method
-    //TODO: unit tests for that.
-    //TODO: never triggered. ther's only the sections passed by crossing fusion that aren't edge-case and it's not treated by this. => comment for now
-    //for each not-endpoint point
-    //std::vector<bool> endpoint_not_used(pp.size() * 2, true);
-    //for (size_t idx_endpoint = 0; idx_endpoint < endpoint_not_used.size(); idx_endpoint++) {
-    //    ThickPolyline& polyline = pp[idx_endpoint / 2];
-    //    //update endpoint_not_used if not seen before
-    //    if (idx_endpoint % 2 == 0 && endpoint_not_used[idx_endpoint]) {
-    //        //update
-    //        endpoint_not_used[(idx_endpoint / 2)] = !polyline.endpoints.first;
-    //        endpoint_not_used[(idx_endpoint / 2) + 1] = endpoint_not_used[(idx_endpoint / 2) + 1] && !polyline.endpoints.second;
-    //    }
-    //    if (endpoint_not_used[idx_endpoint]) {
-    //        int nb_endpoints;
-    //        Point pt = idx_endpoint % 2 == 0 ? polyline.front() : polyline.back();
-    //        if (idx_endpoint % 2 == 0 && pt.coincides_with_epsilon(polyline.back())) {
-    //            nb_endpoints++;
-    //            endpoint_not_used[(idx_endpoint / 2) + 1] = false;
-    //        }
-    //        //good, now find other points
-    //        for (size_t idx_other_pp = (idx_endpoint / 2) + 1; idx_other_pp < pp.size(); idx_other_pp++) {
-    //            ThickPolyline& other = pp[idx_other_pp];
-    //            if (pt.coincides_with_epsilon(other.front())) {
-    //                nb_endpoints++;
-    //                endpoint_not_used[idx_other_pp * 2] = false;
-    //            }
-    //            if (pt.coincides_with_epsilon(other.back())) {
-    //                nb_endpoints++;
-    //                endpoint_not_used[idx_other_pp * 2 + 1] = false;
-    //            }
-    //        }
-    //        if (nb_endpoints < 3)
-    //            continue;
-    //        // reduce width accordingly
-    //        float reduction = 2.f / nb_endpoints;
-    //        std::cout << "reduce " << reduction << " points!\n";
-    //        if (idx_endpoint % 2 == 0 ) {
-    //            polyline.points_width.front() *= reduction;
-    //            if(pt.coincides_with_epsilon(polyline.back()))
-    //                polyline.points_width.back() *= reduction;
-    //        } else {
-    //            polyline.points_width.back() *= reduction;
-    //        }
-    //        //good, now find other points
-    //        for (size_t idx_other_pp = (idx_endpoint / 2) + 1; idx_other_pp < pp.size(); idx_other_pp++) {
-    //            ThickPolyline& other = pp[idx_other_pp];
-    //            if (pt.coincides_with_epsilon(other.front())) {
-    //                other.points_width.front() *= reduction;
-    //            }
-    //            if (pt.coincides_with_epsilon(other.back())) {
-    //                other.points_width.back() *= reduction;
-    //            }
-    //        }
-    //        //TODO: restore good width at width dist, or reduce other points up to width dist
-    //    }
-    //}
+    // Possible improvement: reduce the flow at the intersection ( + ) points. An earlier attempt lived here but
+    // never triggered (crossing fusion already handles the non-edge-case sections) and was removed.
 
     //remove too short polyline
     bool changes = true;
@@ -2119,7 +2043,7 @@ MedialAxis::build(ThickPolylines& polylines_out)
     // compute the Voronoi diagram and extract medial axis polylines
     ThickPolylines pp;
     this->polyline_from_voronoi(this->m_expolygon, &pp);
-    //FIXME this is a stop-gap for voronoi bug, see superslicer/issues/995
+    // Note: stop-gap for a voronoi robustness bug (see superslicer/issues/995): if the medial-axis area is way off the polygon area, retry on a slightly offset polygon.
     {
         double ori_area = 0;
         for (ThickPolyline& tp : pp) {
@@ -2348,7 +2272,7 @@ MedialAxis::build(ThickPolylines& polylines_out)
     //    svg.draw(pp, "red");
     //    svg.Close();
     //}
-    //TODO: reduce the flow at the intersection ( + ) points on crossing?
+    // Possible improvement: reduce the flow at the intersection ( + ) points on crossing.
     concatenate_small_polylines(pp);
     //{
     //    std::stringstream stri;
@@ -2427,7 +2351,7 @@ MedialAxis::build(ThickPolylines& polylines_out)
         for (size_t i = 0; i < pp.size(); ++i) {
             assert(pp[i].size() > 1);
             //pp[i].douglas_peucker(this->m_resolution);
-            // TODO do simplification when same width
+            // simplification is done per same-width run below: douglas_peucker can't run over the whole line, as the width can change at every point
             coord_t current_width = pp[i].points_width[0];
             size_t ipt_start_same_width = 0;
             for (size_t ipt = 1; ipt < pp[i].size(); ++ipt) {
@@ -2828,7 +2752,7 @@ ExtrusionEntitiesPtr
                     //also, keep the start, as the start should be already in a frontier where possible.
                     ExtrusionEntityCollection* unsortable_coll = new ExtrusionEntityCollection(std::move(multi_paths.paths));
                     unsortable_coll->set_can_sort_reverse(false, false);
-                    //TODO un-reversable multipath ?
+                    // Note: a collection is used because there is no un-reversable multipath type.
                     coll.push_back(unsortable_coll);
                 } else if (role == ExtrusionRole::GapFill) {
                     if (multi_paths.size() == 1) {
