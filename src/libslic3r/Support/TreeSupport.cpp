@@ -126,7 +126,7 @@ static std::vector<std::pair<TreeSupportSettings, std::vector<size_t>>> group_me
 {
     std::vector<std::pair<TreeSupportSettings, std::vector<size_t>>> grouped_meshes;
 
-    //FIXME this is ugly, it does not belong here.
+    // Possible refactor: this validation/filtering does not belong here.
     for (size_t object_id : print_object_ids) {
         const PrintObject       &print_object  = *print.get_object(object_id);
         const PrintObjectConfig &object_config = print_object.config();
@@ -150,7 +150,7 @@ static std::vector<std::pair<TreeSupportSettings, std::vector<size_t>>> group_me
 
         bool found_existing_group = false;
         TreeSupportSettings next_settings{ TreeSupportMeshGroupSettings{ print_object }, print_object.slicing_parameters() };
-        //FIXME for now only a single object per group is enabled.
+        // Known limitation: only a single object per group is enabled for now (the grouping code below is disabled).
 #if 0
         for (size_t idx = 0; idx < grouped_meshes.size(); ++ idx)
             if (next_settings == grouped_meshes[idx].first) {
@@ -226,7 +226,7 @@ static ExPolygons to_expolys(Polygons polys) {
     const bool               support_threshold_auto = support_threshold == 0;
     // +1 makes the threshold inclusive
     double                   tan_threshold          = support_threshold_auto ? 0. : tan(M_PI * double(support_threshold + 1) / 180.);
-    //FIXME this is a fudge constant!
+    // Note: the support tree tip diameter is used as the enforcer overhang offset.
     auto                     enforcer_overhang_offset = scaled<double>(config.support_tree_tip_diameter.value);
     const size_t num_overhang_layers = support_auto ?
         num_object_layers :
@@ -359,14 +359,7 @@ static ExPolygons to_expolys(Polygons polys) {
                                         diff_ex(current_layer.lslices(), lower_layer.lslices()),
                                     enforcers_layers[layer_id] /*, ApplySafetyOffset::Yes */);
             ! enforced_overhangs.empty()) {
-                //FIXME this is a hack to make enforcers work on steep overhangs.
-                //check_self_intersections(enforced_overhangs, "generate_overhangs - enforced overhangs1");
-                //Polygons enforced_overhangs_prev = enforced_overhangs;
-                //check_self_intersections(to_polygons(union_ex(enforced_overhangs)), "generate_overhangs - enforced overhangs11");
-                //check_self_intersections(offset(union_ex(enforced_overhangs),
-                //FIXME enforcer_overhang_offset is a fudge constant!
-                //enforced_overhangs = diff_ex(offset_ex(enforced_overhangs, enforcer_overhang_offset),
-                //    lower_layer.lslices());
+                // Note: intentional workaround to make enforcers work on steep overhangs.
                 ExPolygons to_union_enforced_overhangs = enforced_overhangs;
                 for (ExPolygon enforced_overhang : enforced_overhangs) {
                     ExPolygons grown_enforced_overhangs = diff_ex(offset_ex(enforced_overhang, enforcer_overhang_offset), lower_layer.lslices());
@@ -412,30 +405,6 @@ static ExPolygons to_expolys(Polygons polys) {
         }
     );
 
-#if 0
-    if (num_raft_layers > 0) {
-        const Layer   &first_layer = *print_object.get_layer(0);
-        // Final overhangs.
-        Polygons       overhangs = 
-            // Don't apply blockes on raft layer.
-            //(! blockers_layers.empty() && ! blockers_layers[layer_id].empty() ? 
-            //    diff(first_layer.lslices(), blockers_layers[layer_id], ApplySafetyOffset::Yes) :
-                to_polygons(first_layer.lslices());
-#if 0
-        if (! enforcers_layers.empty() && ! enforcers_layers[layer_id].empty()) {
-            if (Polygons enforced_overhangs = intersection(first_layer.lslices(), enforcers_layers[layer_id] /*, ApplySafetyOffset::Yes */);
-                ! enforced_overhangs.empty()) {
-                //FIXME this is a hack to make enforcers work on steep overhangs.
-                //FIXME enforcer_overhang_offset is a fudge constant!
-                enforced_overhangs = offset(union_ex(enforced_overhangs), enforcer_overhang_offset);
-                overhangs = overhangs.empty() ? std::move(enforced_overhangs) : union_ex(overhangs, enforced_overhangs);
-            }
-        }   
-#endif
-        out[num_raft_layers] = std::move(overhangs);
-        throw_on_cancel();
-    }
-#endif
 #ifdef TREESUPPORT_DEBUG_SVG
     for (size_t lidx =0;lidx < out.size(); lidx++) {
         ExPolygons &overhang = out[lidx];
@@ -676,7 +645,7 @@ static std::optional<std::pair<Point, size_t>> polyline_sample_next_point_at_dis
         if (len < 2 * distance && min_points <= 1)
         {
             // Insert the opposite point of the first one.
-            //FIXME pretty expensive
+            // Note: this copy and clip is pretty expensive.
             Polyline pl(part);
             pl.clip_end(len / 2);
             line.points.emplace_back(pl.points.back());
@@ -1004,15 +973,9 @@ public:
         for (dtt_roof_tip = 0; dtt_roof_tip < roof_tip_layers && insert_layer_idx - dtt_roof_tip >= 1; ++ dtt_roof_tip) {
             size_t this_layer_idx = insert_layer_idx - dtt_roof_tip;
             auto evaluateRoofWillGenerate = [&](const std::pair<Point, LineStatus> &p) {
-                //FIXME Vojtech: The circle is just shifted, it has a known size, the infill should fit all the time!
-    #if 0
-                Polygon roof_circle;
-                for (Point corner : base_circle)
-                    roof_circle.points.emplace_back(p.first + corner * config.min_radius);
-                return !generate_support_infill_lines({ roof_circle }, config, true, insert_layer_idx - dtt_roof_tip, config.support_roof_line_distance).empty();
-    #else
+                // Note (Vojtech): the circle is just shifted and has a known size, so the infill is assumed
+                // to always fit (an explicit generate_support_infill_lines check was removed here).
                 return true;
-    #endif
             };
 
             {
@@ -1040,7 +1003,7 @@ public:
             // add all tips as roof to the roof storage
             Polygons new_roofs;
             for (const LineInformation &line : lines)
-                //FIXME sweep the tip radius along the line?
+                // Possible enhancement: sweep the tip radius along the line?
                 for (const std::pair<Point, LineStatus> &p : line) {
                     Polygon roof_circle{ m_base_circle };
                     roof_circle.scale(config.min_radius / m_base_radius);
@@ -1252,7 +1215,7 @@ static void sample_overhang_area(
                     interface_placer.volumes.getCollision(interface_placer.config.getRadius(0), layer_idx - (dtt_roof + 1), min_xy_dist) :
                     interface_placer.volumes.getAvoidance(interface_placer.config.getRadius(0), layer_idx - (dtt_roof + 1), TreeModelVolumes::AvoidanceType::Fast, false, min_xy_dist);
                 // prevent rounding errors down the line
-                //FIXME maybe use SafetyOffset::Yes at the following diff() instead?
+                // Note: SafetyOffset::Yes at the following diff() might be an alternative.
                 forbidden_next = offset(union_ex(forbidden_next_raw), scaled<float>(0.005), jtMiter, 1.2);
             }
             Polygons overhang_area_next = diff(overhang_area, forbidden_next);
@@ -1382,13 +1345,10 @@ static void generate_initial_areas(
         config.min_radius / 2 : 
         scale_(sqrt(sqr(unscale<double>(config.min_radius)) - sqr(unscale<double>(config.min_radius - config.support_line_width / 2))));
     // Extra support offset to compensate for larger tip radiis. Also outset a bit more when z overwrites xy, because supporting something with a part of a support line is better than not supporting it at all.
-    //FIXME Vojtech: This is not sufficient for support enforcers to work.
-    //FIXME There is no account for the support overhang angle.
-    //FIXME There is no account for the width of the collision regions.
-    const coord_t extra_outset = std::max(coord_t(0), config.min_radius - config.support_line_width / 2) + (min_xy_dist ? config.support_line_width / 2 : 0)
-        //FIXME this is a heuristic value for support enforcers to work.
-//        + 10 * config.support_line_width;
-        ;
+    // Known limitation (Vojtech): this is not sufficient for support enforcers to work; it accounts for
+    // neither the support overhang angle nor the width of the collision regions. A disabled heuristic
+    // (+ 10 * support_line_width) existed to make enforcers work.
+    const coord_t extra_outset = std::max(coord_t(0), config.min_radius - config.support_line_width / 2) + (min_xy_dist ? config.support_line_width / 2 : 0);
     const size_t  num_support_roof_layers = mesh_group_settings.support_roof_layers;
     const bool    roof_enabled        = num_support_roof_layers > 0;
     const bool    force_tip_to_roof   = roof_enabled && (interface_placer.support_parameters.soluble_interface || coord_sqr(config.min_radius) * M_PI > mesh_group_settings.minimum_roof_area);
@@ -1401,7 +1361,7 @@ static void generate_initial_areas(
     if (config.z_distance_top_layers > 0) {
         max_overhang_insert_lag = 2 * config.z_distance_top_layers;
         if (mesh_group_settings.support_angle > EPSILON && mesh_group_settings.support_angle < 0.5 * M_PI - EPSILON) {
-            //FIXME mesh_group_settings.support_angle does not apply to enforcers and also it does not apply to automatic support angle (by half the external perimeter width).
+            // Known limitation: mesh_group_settings.support_angle applies neither to enforcers nor to the automatic support angle (by half the external perimeter width).
             //used by max_overhang_insert_lag, only if not min_xy_dist.
             const auto max_overhang_speed  = coord_t(tan(mesh_group_settings.support_angle) * config.layer_height);
             max_overhang_insert_lag = std::max(max_overhang_insert_lag, round_up_divide(config.xy_distance, max_overhang_speed / 2));
@@ -1464,7 +1424,7 @@ static void generate_initial_areas(
 
                 // Offset the area to compensate for large tip radiis. Offset happens in multiple steps to ensure the tip is as close to the original overhang as possible.
                 //+config.support_line_width / 80  to avoid calculating very small (useless) offsets because of rounding errors.
-                //FIXME likely a better approach would be to find correspondences between the full overhang and the trimmed overhang
+                // Possible refactor: a better approach would be to find correspondences between the full overhang and the trimmed overhang
                 // and if there is no correspondence, project the missing points to the clipping curve.
                 for (coord_t extra_total_offset_acc = 0; ! remaining_overhang.empty() && extra_total_offset_acc + config.support_line_width / 8 < extra_outset; ) {
                     const coord_t offset_current_step = std::min(
@@ -1476,7 +1436,7 @@ static void generate_initial_areas(
                     const Polygons &raw_collision = volumes.getCollision(0, layer_idx, true);
                     const coord_t   offset_step   = config.xy_min_distance + config.support_line_width;
                     // Reducing the remaining overhang by the areas already supported.
-                    //FIXME 1.5 * extra_total_offset_acc seems to be too much, it may remove some remaining overhang without being supported at all.
+                    // Note: 1.5 * extra_total_offset_acc may be too much; it may remove some remaining overhang without it being supported at all.
                     remaining_overhang = diff(remaining_overhang, safe_offset_inc(overhang_regular, 1.5 * extra_total_offset_acc, raw_collision, offset_step, 0, 1));
                     // Extending the overhangs by the inflated remaining overhangs.
                     overhang_regular   = union_(overhang_regular, diff(safe_offset_inc(remaining_overhang, extra_total_offset_acc, raw_collision, offset_step, 0, 1), relevant_forbidden));
@@ -1794,9 +1754,7 @@ static Point move_inside_if_outside(const Polygons &polygons, Point from, int di
         // Is nearly all of the time 1, but sometimes an increase of 1 could cause the radius to become bigger than recommendedMinRadius, 
         // which could cause the radius to become bigger than precalculated.
         double planned_foot_increase = std::min(1.0, double(config.recommendedMinRadius(layer_idx - 1) - support_element_radius(config, current_elem)) / foot_radius_increase);
-//FIXME
         bool increase_bp_foot = planned_foot_increase > 0 && current_elem.to_buildplate;
-//        bool increase_bp_foot = false;
 
         if (increase_bp_foot && support_element_radius(config, current_elem) >= config.branch_radius && support_element_radius(config, current_elem) >= config.increase_radius_until_radius)
             if (validWithRadius(config.getRadius(current_elem.effective_radius_height, current_elem.elephant_foot_increases + planned_foot_increase))) {
@@ -2473,7 +2431,7 @@ static void merge_influence_areas(
     // The actual merge logic is found in merge_influence_areas_two_sets.
 
     // Build an AABB tree over the influence areas.
-    //FIXME A full tree does not need to be built, the lowest level branches will be always bucketed.
+    // Note: a full tree does not need to be built - the lowest-level branches will always be bucketed.
     // However the additional time consumed is negligible.
     AABBTreeIndirect::Tree<2, coord_t> tree;
     // Sort influence_areas in place.
@@ -2874,7 +2832,7 @@ static void create_nodes_from_area(
                         double radius_increase = support_element_radius(config, elem) - support_element_radius(config, parent);
                         assert(radius_increase >= 0);
                         double shift = (elem.state.result_on_layer - parent.state.result_on_layer).cast<double>().norm();
-                        //FIXME this assert fails a lot. Is it correct?
+                        // Note: this disabled assert fails a lot; it is unclear whether it is correct.
 //                        assert(shift < radius_increase + 2. * config.maximum_move_distance_slow);
                     }
                 }
@@ -2899,7 +2857,7 @@ static void create_nodes_from_area(
                     double radius_increase = support_element_radius(config, elem) - support_element_radius(config, parent);
                     assert(radius_increase >= 0);
                     double shift = (elem.state.result_on_layer - parent.state.result_on_layer).cast<double>().norm();
-                    //FIXME this assert fails a lot. Is it correct?
+                    // Note: this disabled assert fails a lot; it is unclear whether it is correct.
 //                    assert(shift < radius_increase + 2. * config.maximum_move_distance_slow);
                 }
             }
@@ -2964,7 +2922,7 @@ static void generate_branch_areas(
                 for (int32_t parent_idx : draw_area.element->parents) {
                     const SupportElement &parent = (*layer_above)[parent_idx];
                     const Point movement = parent.state.result_on_layer - draw_area.element->state.result_on_layer;
-                    //FIXME why max(..., config.support_line_width)?
+                    // Note (open question): why max(..., config.support_line_width)?
                     movement_directions.emplace_back(movement, std::max(support_element_radius(config, parent), config.support_line_width));
                     parent_uses_min |= parent.state.use_min_xy_dist;
                 }
@@ -3034,7 +2992,7 @@ static void generate_branch_areas(
                         // Increase the area again, to ensure the nozzle path when calculated later is very similar to the one assumed above.
                         assert(contains(polygons, draw_area.element->state.result_on_layer));
                         polygons = diff_clipped(offset(polygons_with_correct_center, config.support_line_width / 2., jtMiter, 1.2),
-                            //FIXME Vojtech: Clipping may split the region into multiple pieces again, reversing the fixing effort.
+                            // Known limitation (Vojtech): clipping may split the region into multiple pieces again, reversing the fixing effort.
                             collision);
                     }
                 }
@@ -3275,7 +3233,7 @@ static void finalize_interface_and_support_areas(
 
             if (! base_layer_polygons.empty()) {
                 // Most of the time in this function is this union call. Can take 300+ ms when a lot of areas are to be unioned.
-                base_layer_polygons = smooth_outward(union_(base_layer_polygons), config.support_line_width); //FIXME was .smooth(50);
+                base_layer_polygons = smooth_outward(union_(base_layer_polygons), config.support_line_width); // Note: was .smooth(50) in the original implementation.
                 //smooth_outward(closing(std::move(bottom), closing_distance + minimum_island_radius, closing_distance, SUPPORT_SURFACES_OFFSET_PARAMETERS), smoothing_distance) :
                 // simplify a bit, to ensure the output does not contain outrageous amounts of vertices. Should not be necessary, just a precaution.
                 base_layer_polygons = polygons_simplify(base_layer_polygons, std::min(scaled<double>(0.03), double(config.resolution)), polygons_strictly_simple);
@@ -3291,7 +3249,8 @@ static void finalize_interface_and_support_areas(
                         case InterfacePreference::SupportAreaOverwritesInterface:
                             support_roof_polygons = diff(support_roof_polygons, base_layer_polygons);
                             break;
-    //FIXME
+    // Note: the line-based interface preferences below are not implemented; interface_preference
+    // is restricted to the area-based modes, so these cases are unreachable (hence the assert).
     #if 1
                         case InterfacePreference::InterfaceLinesOverwriteSupport:
                         case InterfacePreference::SupportLinesOverwriteInterface:
@@ -3565,7 +3524,6 @@ static void generate_support_areas(Print &print,
     {
         // process each combination of meshes
         // this struct is used to easy retrieve setting. No other function except those in TreeModelVolumes and generate_initial_areas() have knowledge of the existence of multiple meshes being processed.
-        //FIXME this is a copy
         // Contains config settings to avoid loading them in every function. This was done to improve readability of the code.
         const TreeSupportSettings &config = processing.first;
         BOOST_LOG_TRIVIAL(info) << "Processing support tree mesh group " << counter + 1 << " of " << grouped_meshes.size() << " containing " << grouped_meshes[counter].second.size() << " meshes.";
@@ -3597,7 +3555,7 @@ static void generate_support_areas(Print &print,
 #endif // SLIC3R_TREESUPPORTS_PROGRESS
             /* additional_excluded_areas */{} };
 
-        //FIXME generating overhangs just for the furst mesh of the group.
+        // Known limitation: overhangs are generated just for the first mesh of the group (groups currently hold a single object).
         assert(processing.second.size() == 1);
         std::vector<Polygons>      overhangs = generate_overhangs(config, *print.get_object(processing.second.front()), throw_on_cancel);
         // ### Precalculate avoidances, collision etc.
