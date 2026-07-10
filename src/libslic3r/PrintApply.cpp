@@ -82,7 +82,7 @@ static inline void model_volume_list_copy_configs(ModelObject &model_object_dst,
         mv_dst.seam_facets.assign(mv_src.seam_facets);
         assert(mv_dst.mm_segmentation_facets.id() == mv_src.mm_segmentation_facets.id());
         mv_dst.mm_segmentation_facets.assign(mv_src.mm_segmentation_facets);
-        //FIXME what to do with the materials?
+        // Note: m_material_id is deliberately not synchronized here; whether it should be is an open question.
         // mv_dst.m_material_id = mv_src.m_material_id;
         ++ i_src;
         ++ i_dst;
@@ -220,7 +220,7 @@ static t_config_option_keys print_config_diffs(
         const ConfigOption *opt_new = new_full_config.option(opt_key);
         // assert(opt_new != nullptr);
         if (opt_new == nullptr)
-            //FIXME This may happen when executing some test cases.
+            // Note: opt_new may be nullptr when executing some test cases.
             continue;
         const ConfigOption *opt_new_filament = std::binary_search(extruder_retract_keys.begin(), extruder_retract_keys.end(), opt_key) ? new_full_config.option(filament_prefix + opt_key) : nullptr;
         if (opt_new_filament != nullptr) {
@@ -1034,7 +1034,7 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
         m_placeholder_parser.apply_config(filament_overrides);
         // It is also safe to change m_config now after this->invalidate_state_by_config_options() call.
         m_config.apply_only(new_full_config, print_diff, true);
-        //FIXME use move semantics once ConfigBase supports it.
+        // Possible improvement: use move semantics once ConfigBase supports it.
         // Some filament_overrides may contain values different from new_full_config, but equal to m_config.
         // As long as these config options don't reallocate memory when copying, we are safe overriding a value, which is in use by a worker thread.
         m_config.apply(filament_overrides);
@@ -1075,7 +1075,7 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
 
             const bool multi_extruder_differ = (current_mode == next_mode) && (current_mode == CustomGCode::MultiExtruder || next_mode == CustomGCode::MultiExtruder);
             // Tool change G-codes are applied as color changes for a single extruder printer, no need to invalidate tool ordering.
-            // FIXME The tool ordering may be invalidated unnecessarily if the custom_gcode_per_print_z.mode is not applicable
+            // Note: the tool ordering may be invalidated unnecessarily if the custom_gcode_per_print_z.mode is not applicable
             // to the active print / model state, and then it is reset, so it is being applicable, but empty, thus the effect is the same.
             const bool tool_change_differ    = num_extruders > 1 && custom_per_printz_gcodes_tool_changes_differ(m_model.custom_gcode_per_print_z.gcodes, model.custom_gcode_per_print_z.gcodes, CustomGCode::ToolChange);
             // For multi-extruder printers, we perform a tool change before a color change.
@@ -1264,7 +1264,7 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
                 }
             }
             // Synchronize (just copy) the remaining data of ModelVolumes (name, config, custom supports data).
-            //FIXME What to do with m_material_id?
+            // Note: m_material_id is not synchronized; whether it should be is an open question.
             model_volume_list_copy_configs(model_object /* dst */, model_object_new /* src */, ModelVolumeType::MODEL_PART);
             model_volume_list_copy_configs(model_object /* dst */, model_object_new /* src */, ModelVolumeType::PARAMETER_MODIFIER);
             layer_height_ranges_copy_configs(model_object.layer_config_ranges /* dst */, model_object_new.layer_config_ranges /* src */);
@@ -1405,7 +1405,7 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
         if (const auto &volumes = print_object.model_object()->volumes;
             num_extruders > 1 &&
             std::find_if(volumes.begin(), volumes.end(), [](const ModelVolume *v) { return ! v->mm_segmentation_facets.empty(); }) != volumes.end()) {
-            //FIXME be more specific! Don't enumerate extruders that are not used for painting!
+            // Possible improvement: be more specific -- don't enumerate extruders that are not actually used for painting.
             painting_extruders.assign(num_extruders, 0);
             std::iota(painting_extruders.begin(), painting_extruders.end(), 1);
         }
