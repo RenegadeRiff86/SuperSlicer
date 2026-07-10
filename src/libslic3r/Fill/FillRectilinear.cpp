@@ -423,8 +423,8 @@ public:
         // for the infill pattern, don't cut the corners.
         // default miterLimt = 3
         //double miterLimit = 10.;
-        // FIXME: Resolve properly the cases when it is constructed with aoffset1 = 0 and aoffset2 = 0,
-        //        that is used in sample_grid_pattern() for Lightning infill.
+        // Note: aoffset1 == 0 && aoffset2 == 0 is used by sample_grid_pattern() for Lightning infill;
+        //       the zero-offset cases are special-cased below rather than handled uniformly (hence the relaxed asserts).
         // assert(aoffset1 < 0);
         assert(aoffset2 <= 0);
         // assert(aoffset2 == 0 || aoffset2 < aoffset1);
@@ -696,74 +696,6 @@ static inline void emit_perimeter_segment_on_vertical_line(
     out.points.push_back(Point(il.pos, itsct2.pos()));
 }
 
-//TBD: For precise infill, measure the area of a slab spanned by an infill line.
-/*
-static inline float measure_outer_contour_slab(
-    const ExPolygonWithOffset                     &poly_with_offset,
-    const std::vector<SegmentedIntersectionLine>  &segs,
-    size_t                                         i_vline,
-    size_t                                         iIntersection)
-{
-    const SegmentedIntersectionLine &il     = segs[i_vline];
-    const SegmentIntersection       &itsct  = il.intersections[i_vline];
-    const SegmentIntersection       &itsct2 = il.intersections[iIntersection2];
-    const Polygon                   &poly   = poly_with_offset.contour((itsct.iContour);
-    assert(itsct.is_outer());
-    assert(itsct2.is_outer());
-    assert(itsct.type != itsct2.type);
-    assert(itsct.iContour == itsct2.iContour);
-    if (! itsct.is_outer() || ! itsct2.is_outer() || itsct.type == itsct2.type || itsct.iContour != itsct2.iContour)
-        // Error, return zero area.
-        return 0.f;
-
-    // Find possible connection points on the previous / next vertical line.
-    int iPrev = intersection_on_prev_vertical_line(poly_with_offset, segs, i_vline, itsct.iContour, i_intersection);
-    int iNext = intersection_on_next_vertical_line(poly_with_offset, segs, i_vline, itsct.iContour, i_intersection);
-    // Find possible connection points on the same vertical line.
-    int iAbove = iBelow = -1;
-    // Does the perimeter intersect the current vertical line above intrsctn?
-    for (size_t i = i_intersection + 1; i + 1 < seg.intersections.size(); ++ i)
-        if (seg.intersections[i].iContour == itsct.iContour)
-            { iAbove = i; break; }
-    // Does the perimeter intersect the current vertical line below intrsctn?
-    for (int i = int(i_intersection) - 1; i > 0; -- i)
-        if (seg.intersections[i].iContour == itsct.iContour)
-            { iBelow = i; break; }
-
-    if (iSegAbove != -1 && seg.intersections[iAbove].type == SegmentIntersection::OUTER_HIGH) {
-        // Invalidate iPrev resp. iNext, if the perimeter crosses the current vertical line earlier than iPrev resp. iNext.
-        // The perimeter contour orientation.
-        const Polygon &poly = poly_with_offset.contour(itsct.iContour);
-        {
-            int d_horiz = (iPrev  == -1) ? std::numeric_limits<int>::max() :
-                distance_of_segmens(poly, segs[i_vline-1].intersections[iPrev].iSegment, itsct.iSegment, true);
-            int d_down  = (iBelow == -1) ? std::numeric_limits<int>::max() :
-                distance_of_segmens(poly, iSegBelow, itsct.iSegment, true);
-            int d_up    = (iAbove == -1) ? std::numeric_limits<int>::max() :
-                distance_of_segmens(poly, iSegAbove, itsct.iSegment, true);
-            if (intrsection_type_prev == INTERSECTION_TYPE_OTHER_VLINE_OK && d_horiz > std::min(d_down, d_up))
-                // The vertical crossing comes eralier than the prev crossing.
-                // Disable the perimeter going back.
-                intrsection_type_prev = INTERSECTION_TYPE_OTHER_VLINE_NOT_FIRST;
-            if (d_up > std::min(d_horiz, d_down))
-                // The horizontal crossing comes earlier than the vertical crossing.
-                vert_seg_dir_valid_mask &= ~DIR_BACKWARD;
-        }
-        {
-            int d_horiz = (iNext     == -1) ? std::numeric_limits<int>::max() :
-                distance_of_segmens(poly, itsct.iSegment, segs[i_vline+1].intersections[iNext].iSegment, true);
-            int d_down  = (iSegBelow == -1) ? std::numeric_limits<int>::max() :
-                distance_of_segmens(poly, itsct.iSegment, iSegBelow, true);
-            int d_up    = (iSegAbove == -1) ? std::numeric_limits<int>::max() :
-                distance_of_segmens(poly, itsct.iSegment, iSegAbove, true);
-            if (d_up > std::min(d_horiz, d_down))
-                // The horizontal crossing comes earlier than the vertical crossing.
-                vert_seg_dir_valid_mask &= ~DIR_FORWARD;
-        }
-    }
-}
-*/
-
 void
 FillRectilinear::init_spacing(coordf_t spacing, const FillParams& params)
 {
@@ -978,7 +910,8 @@ static void slice_region_by_vertical_lines(const FillRectilinear* filler, std::v
         if (j < sil.intersections.size())
             sil.intersections.erase(sil.intersections.begin() + j, sil.intersections.end());
     }
-    // TODO: delete this when the bug will be fixed (you can slice  InfillIssue.3mf)
+    // Note: workaround for an unfixed intersection-classification bug (repro: slice InfillIssue.3mf):
+    // drop mispaired intersections instead of failing the layer.
     for (size_t i_seg = 0; i_seg < segs.size(); ++i_seg) {
         SegmentedIntersectionLine& sil = segs[i_seg];
         if ((sil.intersections.size() & 1) == 1 && sil.intersections.size() > 1) {
@@ -1147,7 +1080,7 @@ static void connect_segment_intersections_by_contours(
             // Find an intersection point on il_prev, intersecting i_intersection
             // at the same orientation as i_intersection, and being closest to i_intersection
             // in the number of contour segments, when following the direction of the contour.
-            //FIXME this has O(n) time complexity. Likely an O(log(n)) scheme is possible.
+            // Performance note: this has O(n) time complexity; likely an O(log(n)) scheme is possible.
             int iprev = -1;
             int d_prev = std::numeric_limits<int>::max();
             if (il_prev) {
@@ -1531,8 +1464,8 @@ static void traverse_graph_generate_polylines(
                                         i_vline = int(i_vline2);
                                         assert(i <= size_t(std::numeric_limits<int>::max()));
                                         i_intersection = static_cast<int>(i);
-                                        //FIXME We are taking the first left point always. Verify, that the caller chains the paths
-                                        // by a shortest distance, while reversing the paths if needed.
+                                        // Note: we take the first left point always; the caller is expected to chain the paths
+                                        // by a shortest distance, reversing the paths if needed.
                                         //if (polylines_out.empty())
                                             // Initial state, take the first line, which is the first from the left.
                                         goto found;
@@ -1697,7 +1630,7 @@ static void traverse_graph_generate_polylines(
                 }
                 polyline_current->points.emplace_back(vline.pos, it->pos());
                 emit_perimeter_prev_next_segment(poly_with_offset, segs, i_vline, it->iContour, i_intersection, take_next ? i_next : i_prev, *polyline_current, take_next);
-                //FIXME consume the left / right connecting segments at the other end of this line? Currently it is not critical because a perimeter segment is not followed if the vertical segment at the other side has already been consumed.
+                // Note: the left / right connecting segments at the other end of this line are not consumed. Not critical, because a perimeter segment is not followed if the vertical segment at the other side has already been consumed.
                 // Advance to the neighbor line.
                 if (take_next) {
                     ++i_vline;
@@ -1899,7 +1832,7 @@ private:
     const ExPolygonWithOffset& m_poly_with_offset;
     const std::vector<SegmentedIntersectionLine>& m_segs;
     // From end of one region to the start of another region, both flipped or not flipped.
-    //FIXME one may possibly use sparse representation of the matrix, likely using hashing.
+    // Possible improvement: use a sparse representation of the matrix, likely using hashing.
     std::vector<AntPath>					         m_matrix;
 };
 
@@ -2251,8 +2184,8 @@ static float montonous_region_path_length(const MonotonicRegion& region, bool di
 
         if (inext == i_intersection && it->next_on_contour_quality == SegmentIntersection::LinkQuality::Valid) {
             // Summarize length of the connection line along the perimeter.
-            //FIXME should it be weighted with a lower weight than non-extruding connection line? What weight?
-            // Taking half of the length.
+            // Note: taking half of the length; whether it should be weighted lower than a non-extruding
+            // connection line (and by how much) is an open question.
             total_length += 0.5f * float(measure_perimeter_horizontal_segment_length(poly_with_offset, segs, i_vline, it - vline.intersections.data(), inext));
             // Don't add distance to the next vertical line start to the total length.
             no_perimeter = false;
@@ -2618,7 +2551,7 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
             left_neighbors_unprocessed = left_neighbors_unprocessed_initial;
             assert(validate_unprocessed());
             // Pick randomly the first from the queue at random orientation.
-            //FIXME picking the 1st monotonic region should likely be done based on accumulated pheromone level as well,
+            // Note: picking the 1st monotonic region should likely be done based on accumulated pheromone level as well,
             // but the inefficiency caused by the random pick of the 1st monotonic region is likely insignificant.
             int first_idx = std::uniform_int_distribution<>(0, int(queue.size()) - 1)(rng);
             path.emplace_back(MonotonicRegionLink{ queue[first_idx], rng() > rng.max() / 2 });
@@ -2656,7 +2589,7 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
                     }
                 }
                 size_t num_direct_neighbors = next_candidates.size();
-                //FIXME add the queue items to the candidates? These are valid moves as well.
+                // Possible improvement: also add the queue items to the candidates even when direct neighbors exist; they are valid moves as well.
                 if (num_direct_neighbors == 0) {
                     // Add the queue candidates.
                     for (MonotonicRegion* next : queue) {
@@ -3033,7 +2966,6 @@ bool FillRectilinear::fill_surface_by_lines(const Surface *surface, const FillPa
     svg.Close();
 #endif /* SLIC3R_DEBUG */
 
-    //FIXME this is a hack to get the monotonic infill rolling. We likely want a smarter switch, likely based on user decison.
     bool monotonic_infill = params.monotonic; // || params.density > 0.99;
     if (monotonic_infill) {
         // Sometimes the outer contour pinches the inner contour from both sides along a single vertical line.
