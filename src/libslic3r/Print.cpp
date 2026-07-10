@@ -386,7 +386,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
             steps.emplace_back(psWipeTower);
             // Soluble support interface / non-soluble base interface produces non-soluble interface layers below soluble interface layers.
             // Thus switching between soluble / non-soluble interface layer material may require recalculation of supports.
-            //FIXME Killing supports on any change of "filament_soluble" is rough. We should check for each object whether that is necessary.
+            // Performance note: killing supports on any change of "filament_soluble" is rough; checking for each object whether that is necessary would avoid recalculation.
             osteps.emplace_back(posSupportMaterial);
         } else if (
             opt_key == "arc_fitting"
@@ -421,7 +421,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
             osteps.emplace_back(posCount);
         else {
             // for legacy, if we can't handle this option let's invalidate all steps
-            //FIXME invalidate all steps of all objects as well?
+            // Note: unclear whether all steps of all objects should be invalidated here as well.
             invalidated |= this->invalidate_all_steps();
             // Continue with the other opt_keys to possibly invalidate any object specific steps.
         }
@@ -629,9 +629,9 @@ bool Print::sequential_print_horizontal_clearance_valid(const Print &print, Poly
           if (it_convex_hull == map_model_object_to_convex_hull.end()) {
               // Calculate the convex hull of a printable object. 
               // Grow convex hull with the clearance margin.
-              // FIXME: Arrangement has different parameters for offsetting (jtMiter, limit 2)
-              // which causes that the warning will be showed after arrangement with the
-              // appropriate object distance. Even if I set this to jtMiter the warning still shows up.
+              // Known limitation: Arrangement has different parameters for offsetting (jtMiter, limit 2),
+              // which causes the warning to be shown after arrangement with the appropriate object
+              // distance. Even with jtMiter here the warning still shows up.
             Geometry::Transformation trafo = model_instance0->get_transformation();
             trafo.set_offset(Vec3d{ 0.0, 0.0, model_instance0->get_offset().z() });
             Polygon ch2d = print_object->model_object()->convex_hull_2d(trafo.get_matrix());
@@ -645,7 +645,6 @@ bool Print::sequential_print_horizontal_clearance_valid(const Print &print, Poly
         }
         if (it_convex_hull != map_model_object_to_convex_hull.end()) {
             // Make a copy, so it may be rotated for instances.
-            //FIXME seems like the rotation isn't taken into account
             Polygon convex_hull0 = it_convex_hull->second;
             //this can create bugs in macos, for reasons.
             const double z_diff = Geometry::rotation_diff_z(model_instance0->get_matrix(), print_object->instances().front().model_instance->get_matrix());
@@ -803,7 +802,7 @@ std::pair<PrintBase::PrintValidationError, std::string> Print::validate(std::vec
     // Checks that the print does not exceed the max print height
     for (size_t print_object_idx = 0; print_object_idx < m_objects.size(); ++ print_object_idx) {
         const PrintObject &print_object = *m_objects[print_object_idx];
-        //FIXME It is quite expensive to generate object layers just to get the print height!
+        // Performance note: it is quite expensive to generate object layers just to get the print height.
         if (auto layers = generate_object_layers(print_object.slicing_parameters(), layer_height_profile(print_object_idx));
             ! layers.empty() && layers.back() > this->config().max_print_height + EPSILON) {
             return { PrintBase::PrintValidationError::pveWrongPosition, 
@@ -1195,7 +1194,7 @@ void Print::auto_assign_extruders(ModelObject* model_object) const
 //    size_t extruders = m_config.nozzle_diameter.size();
     for (size_t volume_id = 0; volume_id < model_object->volumes.size(); ++ volume_id) {
         ModelVolume *volume = model_object->volumes[volume_id];
-        //FIXME Vojtech: This assigns an extruder ID even to a modifier volume, if it has a material assigned.
+        // Note (Vojtech): this assigns an extruder ID even to a modifier volume, if it has a material assigned.
         if ((volume->is_model_part() || volume->is_modifier()) && ! volume->material_id().empty() && ! volume->config.has("extruder"))
             volume->config.set("extruder", int(volume_id + 1));
     }
@@ -1266,7 +1265,7 @@ void Print::process()
     );
 
     // The following step writes to m_shared_regions, it should not run in parallel.
-    //FIXME: only run it when the support is needed.
+    // Performance note: this could run only when the support is needed.
     secondary_status_counter_reset();
     for (PrintObject *obj : m_objects)
         obj->generate_support_spots();
@@ -2209,7 +2208,7 @@ const WipeTowerData& Print::wipe_tower_data(const ConfigBase* config, double noz
         //} else {
         //    first_layer_height = get_min_first_layer_height();
         //}
-        // FIXME: get layer height from layers instead of config.
+        // Note: the layer height is taken from the config; taking it from the actual layers would be more accurate.
         //float layer_height = std::min(first_layer_height, float(default_object_config().layer_height.value));
         float layer_height = float(config->option("layer_height")->get_float());
         if (first_layer_height > 0 && first_layer_height < layer_height) {
@@ -2273,7 +2272,7 @@ void Print::_make_wipe_tower()
                 lt.has_support = true;
                 // Insert the new support layer.
                 double height    = lt.print_z - (i == 0 ? 0. : m_wipe_tower_data.tool_ordering.layer_tools()[i-1].print_z);
-                //FIXME the support layer ID is set to -1, as Vojtech hopes it is not being used anyway.
+                // Note: the support layer ID is set to -1; it is hopefully not being used anyway.
                 it_layer = m_objects.front()->insert_support_layer(it_layer, -1, 0, height, lt.print_z, lt.print_z - 0.5 * height);
                 ++ it_layer;
             }
@@ -2407,7 +2406,7 @@ std::string Print::output_filename(const std::string &filename_base) const
     config.set_key_value("milling_count", new ConfigOptionInt(num_milling));
     config.set_key_value("default_output_extension", new ConfigOptionString(".gcode"));
 
-    // Handle output_filename_format. There is a hack related to binary G-codes: gcode / bgcode substitution.
+    // Handle output_filename_format, including the gcode / bgcode extension substitution for binary G-codes.
     std::string output_filename_format = m_config.output_filename_format.value;
     if (m_config.binary_gcode && boost::iends_with(output_filename_format, ".gcode"))
         output_filename_format.insert(output_filename_format.end()-5, 'b');
