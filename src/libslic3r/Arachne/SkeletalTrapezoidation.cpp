@@ -171,7 +171,7 @@ void SkeletalTrapezoidation::transferEdge(Point from, Point to, const VD::edge_t
         {
             BOOST_LOG_TRIVIAL(warning) << "Previous edge doesn't go anywhere.";
         }
-        node_t* v0 = (prev_edge)? prev_edge->to : &makeNode(*vd_edge.vertex0(), from); // TODO: investigate whether boost:voronoi can produce multiple verts and violates consistency
+        node_t* v0 = (prev_edge)? prev_edge->to : &makeNode(*vd_edge.vertex0(), from); // Note: it is not verified whether boost::voronoi can produce multiple verts and violate consistency
         Point p0 = discretized.front();
         for (size_t p1_idx = 1; p1_idx < discretized.size(); p1_idx++)
         {
@@ -705,7 +705,7 @@ void SkeletalTrapezoidation::updateBeadCount()
         }
     }
 
-    // Fix bead count at locally maximal R, also for central regions!! See TODO s in generateTransitionEnd(.)
+    // Fix bead count at locally maximal R, also for central regions!! See the notes in generateTransitionEnd(.)
     for (node_t& node : graph.nodes)
     {
         if (node.isLocalMaximum())
@@ -1145,7 +1145,7 @@ bool SkeletalTrapezoidation::generateTransitionEnd(edge_t& edge, coord_t start_p
     Point a = edge.from->p;
     Point b = edge.to->p;
     Point ab = b - a;
-    coord_t ab_size = ab.cast<int64_t>().norm(); // TODO: prevent recalculation of these values
+    coord_t ab_size = ab.cast<int64_t>().norm(); // Performance note: these values could be cached to prevent recalculation
 
     assert(start_pos <= ab_size);
     if(start_pos > ab_size)
@@ -1207,7 +1207,7 @@ bool SkeletalTrapezoidation::generateTransitionEnd(edge_t& edge, coord_t start_p
     }
     else // end_pos < ab_size
     { // Add transition end point here
-        bool is_lower_end = end_rest == 0; // TODO collapse this parameter into the bool for which it is used here!
+        bool is_lower_end = end_rest == 0; // Possible refactor: collapse this parameter into the bool for which it is used here.
         coord_t pos = -1;
 
         edge_t* upward_edge = nullptr;
@@ -1248,8 +1248,7 @@ bool SkeletalTrapezoidation::generateTransitionEnd(edge_t& edge, coord_t start_p
 
 bool SkeletalTrapezoidation::isGoingDown(edge_t* outgoing, coord_t traveled_dist, coord_t max_dist, coord_t lower_bead_count) const
 {
-    // NOTE: the logic below is not fully thought through.
-    // TODO: take transition mids into account
+    // NOTE: the logic below is not fully thought through; transition mids are not taken into account.
     if (outgoing->to->data.distance_to_boundary == 0)
     {
         return true;
@@ -1708,8 +1707,8 @@ SkeletalTrapezoidation::Beading SkeletalTrapezoidation::interpolate(const Beadin
     assert(ratio_left_to_whole >= 0.0 && ratio_left_to_whole <= 1.0);
     Beading ret = interpolate(left, ratio_left_to_whole, right);
 
-    // TODO: don't use toolpath locations past the middle!
-    // TODO: stretch bead widths and locations of the higher bead count beading to fit in the left over space
+    // Known limitations: toolpath locations past the middle are used, and the bead widths and locations of
+    // the higher bead count beading are not stretched to fit in the left over space.
     coord_t next_inset_idx;
     for (next_inset_idx = left.toolpath_locations.size() - 1; next_inset_idx >= 0; next_inset_idx--)
     {
@@ -1817,7 +1816,7 @@ void SkeletalTrapezoidation::generateJunctions(ptr_vector_t<BeadingPropagation>&
         }
 
         // Robustness against odd segments which might lie just slightly outside of the range due to rounding errors
-        // not sure if this is really needed (TODO)
+        // (not sure if this is really needed)
         if (junction_idx + 1 < num_junctions
             && beading->toolpath_locations[junction_idx + 1] <= start_R + scaled<coord_t>(0.005)
             && beading->total_thickness < start_R + scaled<coord_t>(0.005)
