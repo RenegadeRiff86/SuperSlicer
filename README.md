@@ -68,6 +68,19 @@ Other major features are:
 
 [Command-Line Interface](https://github.com/prusa3d/PrusaSlicer/wiki/Command-Line-Interface) wiki page.
 
+### Model-readable CLI slicing diagnostics
+
+The console executable can load the profiles already installed and selected in the GUI:
+
+```
+superslicer_console --list-profiles
+superslicer_console --load-user-profiles --slice-report report.json --slice-preview preview.svg model.stl
+```
+
+Use `--printer-profile`, `--print-profile`, and `--material-profile` to select installed profiles by name instead of using the currently selected profiles. The JSON report contains the effective profile IDs, print bounds, estimates, per-layer move counts, path lengths, extrusion-role counts, tool-change counts, and the extruders used (overall and per layer). The SVG is a deterministic 2D toolpath rendering; use `--slice-preview-layer N` to select a layer. Supplying either artifact option implies slicing, so an explicit `--slice` action is not required.
+
+`--extruders N` overrides the extruder count by replicating the loaded profile's per-extruder settings (including the multi-material wiping volumes), which makes it possible to exercise multi-extruder behavior such as per-extruder supports from a single-extruder profile.
+
 ## Development
 
 ### What language is it written in?

@@ -12402,6 +12402,12 @@ CLIActionsConfigDef::CLIActionsConfigDef()
     def->cli = "export-gcode|gcode|g";
     def->set_default_value(new ConfigOptionBool(false));
 
+    def = this->add("list_profiles", coBool);
+    def->label = L("List installed profiles");
+    def->tooltip = L("Load the user profile directory and write the available printer, print, and material profiles as JSON.");
+    def->cli = "list-profiles";
+    def->set_default_value(new ConfigOptionBool(false));
+
     def = this->add("gcodeviewer", coBool);
     def->label = L("G-code viewer");
     def->tooltip = L("Visualize an already sliced and saved G-code");
@@ -12582,6 +12588,58 @@ CLIMiscConfigDef::CLIMiscConfigDef()
     def = this->add("load", coStrings);
     def->label = L("Load config file");
     def->tooltip = L("Load configuration from the specified file. It can be used more than once to load options from multiple files.");
+
+    def = this->add("load_user_profiles", coBool);
+    def->label = L("Load current user profiles");
+    def->tooltip = L("Load the printer, print, and material profiles currently selected in the user profile directory.");
+    def->cli = "load-user-profiles";
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("printer_profile", coString);
+    def->label = L("Printer profile");
+    def->tooltip = L("Select an installed printer profile by name. This also enables --load-user-profiles.");
+    def->cli = "printer-profile";
+    def->set_default_value(new ConfigOptionString());
+
+    def = this->add("print_profile", coString);
+    def->label = L("Print profile");
+    def->tooltip = L("Select an installed print profile by name. This also enables --load-user-profiles.");
+    def->cli = "print-profile";
+    def->set_default_value(new ConfigOptionString());
+
+    def = this->add("material_profile", coString);
+    def->label = L("Material profile");
+    def->tooltip = L("Select an installed filament or SLA material profile by name. This also enables --load-user-profiles.");
+    def->cli = "material-profile";
+    def->set_default_value(new ConfigOptionString());
+
+    def = this->add("extruders", coInt);
+    def->label = L("Extruder count override");
+    def->tooltip = L("Override the number of extruders by resizing every per-extruder setting to the given count "
+                     "(growing replicates the values of the last defined extruder). Useful to exercise "
+                     "multi-extruder behavior such as the wipe tower from a single-extruder profile.");
+    def->cli = "extruders";
+    def->min = 0;
+    def->set_default_value(new ConfigOptionInt(0));
+
+    def = this->add("slice_report", coString);
+    def->label = L("Slice report");
+    def->tooltip = L("Write a model-readable JSON summary of the processed FFF toolpaths.");
+    def->cli = "slice-report";
+    def->set_default_value(new ConfigOptionString());
+
+    def = this->add("slice_preview", coString);
+    def->label = L("Slice preview");
+    def->tooltip = L("Write a standalone SVG preview of one processed FFF layer.");
+    def->cli = "slice-preview";
+    def->set_default_value(new ConfigOptionString());
+
+    def = this->add("slice_preview_layer", coInt);
+    def->label = L("Slice preview layer");
+    def->tooltip = L("Zero-based processed layer ID to render with --slice-preview. The middle extrusion layer is used by default.");
+    def->cli = "slice-preview-layer";
+    def->min = -1;
+    def->set_default_value(new ConfigOptionInt(-1));
 
     def = this->add("output", coString);
     def->label = L("Output File");
