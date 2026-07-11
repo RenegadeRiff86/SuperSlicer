@@ -39,20 +39,20 @@ using namespace std::literals;
 // had to use a define beacuse the macro processing inside macro BOOST_LOG_TRIVIAL()
 #define error_level_not_in_cache debug
 
-// Known limitation: the machine border is currently ignored (see below).
+// Collision area surrounding the print bed, so that tree branches are planned to stay
+// inside the printable area. Note: the layer-0 placeable areas are seeded from the bed
+// polygon itself (m_bed_area), not from this ring.
 static Polygons calculateMachineBorderCollision(Polygon machine_border)
 {
-    // Put a border of 1m around the print volume so that we don't collide.
-#if 1
-    //FIXME just returning no border will let tree support legs collide with print bed boundary
-    return {};
-#else
-    // Note: this branch is disabled because offsetting by 1000mm easily overflows an int32 coordinate.
-    Polygons out = offset(machine_border, scaled<float>(1000.), jtMiter, 1.2);
+    // Put a 100mm border around the print volume so that branches don't collide with it.
+    // The width only has to exceed the largest offset ever applied to a collision area
+    // (branch radius + xy distance); it must stay well below ClipperLib's loRange
+    // (~1.07e9 units, i.e. ~1073mm from the origin) - a 1m border overflows that range
+    // and silently breaks all collision/avoidance queries.
+    Polygons out = offset(machine_border, scaled<float>(100.), jtMiter, 1.2);
     machine_border.reverse(); // Makes the polygon negative so that we subtract the actual volume from the collision area.
     out.emplace_back(std::move(machine_border));
     return out;
-#endif
 }
 
 OrcaTreeModelVolumes::OrcaTreeModelVolumes(
@@ -734,7 +734,7 @@ void OrcaTreeModelVolumes::calculatePlaceables(const coord_t radius, const Layer
     std::vector<Polygons> data(max_required_layer + 1 - start_layer, Polygons{});
 
     if (start_layer == 0)
-        data[0] = diff(m_machine_border, getCollision(radius, 0, true));
+        data[0] = diff(Polygons{ m_bed_area }, getCollision(radius, 0, true));
 
     tbb::parallel_for(tbb::blocked_range<LayerIndex>(std::max(1, start_layer), max_required_layer + 1),
         [this, &data, radius, start_layer, &throw_on_cancel](const tbb::blocked_range<LayerIndex>& range) {
