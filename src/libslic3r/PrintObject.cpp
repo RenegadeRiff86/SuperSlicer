@@ -4700,11 +4700,12 @@ void PrintObject::combine_infill()
         const size_t every = region.config().infill_dense.value ? 1 : region.config().infill_every_layers.value;
         if (every < 2 || region.config().fill_density == 0.)
             continue;
-        // Limit the number of combined layers to the maximum height allowed by this regions' nozzle.
-        //FIXME limit the layer height to max_layer_height
+        // Limit the number of combined layers to the maximum height allowed by this regions' nozzle
+        // and by the maximum layer height of the extruders used by this object.
         double nozzle_diameter = std::min(
         this->print()->config().nozzle_diameter.get_at(region.config().infill_extruder.value - 1),
         this->print()->config().nozzle_diameter.get_at(region.config().solid_infill_extruder.value - 1));
+        double max_combine_height = std::min(nozzle_diameter, this->slicing_parameters().max_layer_height);
         // define the combinations
         std::vector<size_t> combine(m_layers.size(), 0);
         {
@@ -4718,7 +4719,7 @@ void PrintObject::combine_infill()
                     continue;
                 // Check whether the combination of this layer with the lower layers' buffer
                 // would exceed max layer height or max combined layer count.
-                if (current_height + layer->height >= nozzle_diameter + EPSILON || num_layers >= every) {
+                if (current_height + layer->height >= max_combine_height + EPSILON || num_layers >= every) {
                     // Append combination to lower layer.
                     combine[layer_idx - 1] = num_layers;
                     current_height = 0.;
