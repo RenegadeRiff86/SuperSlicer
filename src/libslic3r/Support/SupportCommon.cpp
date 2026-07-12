@@ -1774,7 +1774,10 @@ void generate_support_toolpaths(
             } else
                 continue;
             filler->link_max_length = scale_t(spacing * link_max_length_factor / density);
-            //fill_expolygons_with_sheath_generate_paths( //TODO 2.7 test if the pattern contains the sheath
+            // The sheath (where wanted) is emitted by the filler: the raft base flange uses filler_dense (a
+            // FillWithPerimeter) so it gets a perimeter loop, while raft interface layers use the plain
+            // filler_interface and intentionally have none. Verified via CLI raft slice (flange L0 traces a
+            // perimeter loop, interface L2 is bare rectilinear). The dedicated _with_sheath_ variant is obsolete.
             fill_expolygons_generate_paths(
                 // Destination
                 support_layer.support_fills.set_entities(), 
