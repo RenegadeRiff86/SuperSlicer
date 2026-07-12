@@ -646,10 +646,7 @@ std::vector<std::string> ConfigOptionDef::cli_args(const std::string &key) const
     std::vector<std::string> args;
     if (this->cli != ConfigOptionDef::nocli) {
         const std::string &cli = this->cli;
-        //FIXME What was that for? Check the "readline" documentation.
-        // Neither '=' nor '!' is used in any of the cli parameters currently defined by PrusaSlicer.
-//        std::string cli = this->cli.substr(0, this->cli.find("="));
-//        boost::trim_right_if(cli, boost::is_any_of("!"));
+        // Neither '=' nor '!' is used in any of the cli parameters currently defined, so no cli substring/trim handling is needed here.
         if (cli.empty()) {
             // Convert an option key to CLI argument by replacing underscores with dashes.
             std::string opt = key;
@@ -1330,7 +1327,7 @@ bool ConfigBase::set_deserialize_raw(const t_config_option_key &opt_key_src, con
     } else {
         bool substituted = false;
         if (optdef->type == coBools && substitutions_ctxt.rule != ForwardCompatibilitySubstitutionRule::Disable) {
-            //FIXME Special handling of vectors of bools, quick and not so dirty solution before PrusaSlicer 2.3.2 release.
+            // Note: special handling of vectors of bools - a pragmatic solution introduced for the PrusaSlicer 2.3.2 release.
             ConfigHelpers::DeserializationSubstitution default_value = ConfigHelpers::DeserializationSubstitution::DefaultsToFalse;
             if (optdef->default_value) {
                 // Default value for vectors of booleans used in a "per extruder" context, thus the default contains just a single value.
