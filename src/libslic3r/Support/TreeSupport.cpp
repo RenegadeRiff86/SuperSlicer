@@ -181,22 +181,6 @@ static std::vector<std::pair<TreeSupportSettings, std::vector<size_t>>> group_me
     return grouped_meshes;
 }
 
-#if 0
-// todo remove as only for debugging relevant
-[[nodiscard]] static std::string getPolygonAsString(const Polygons& poly)
-{
-    std::string ret;
-    for (auto path : poly)
-        for (Point p : path) {
-            if (ret != "")
-                ret += ",";
-            ret += "(" + std::to_string(p.x()) + "," + std::to_string(p.y()) + ")";
-        }
-    return ret;
-}
-#endif
-
-
 static ExPolygons to_expolys(Polygons polys) {
     ExPolygons ex_polys;
     ex_polys.assign(polys.size(), ExPolygon());

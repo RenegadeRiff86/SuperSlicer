@@ -404,14 +404,6 @@ void ExtrusionLoop::polygons_covered_by_spacing(Polygons &out, const float spaci
         path.polygons_covered_by_spacing(out, spacing_ratio, scaled_epsilon);
 }
 
-//TODO del
-//double ExtrusionLoop::min_mm3_per_mm() const
-//{
-//    double min_mm3_per_mm = std::numeric_limits<double>::max();
-//    for (const ExtrusionPath &path : this->paths)
-//        min_mm3_per_mm = std::min(min_mm3_per_mm, path.min_mm3_per_mm());
-//    return min_mm3_per_mm;
-//}
 
 void ExtrusionPrinter::use(const ExtrusionPath &path)
 {
