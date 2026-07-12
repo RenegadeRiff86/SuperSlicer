@@ -237,8 +237,8 @@ static int checked_config_int(T value, const char *field_name)
         }
         if (cooldown) {
             if (gcode.back() == '\n')
-                gcode.pop_back(); // delete \n if possible to insert our comment FIXME: allow set_temperature to get
-                                  // an extra comment
+                gcode.pop_back(); // delete \n if possible to insert our comment (set_temperature cannot take an
+                                  // extra comment)
             gcode += " ;cooldown\n"; // this is a marker for GCodeProcessor, so it can supress the commands when needed
         }
         return gcode;
@@ -450,24 +450,6 @@ GCodeGenerator::ObjectsLayerToPrint GCodeGenerator::collect_layers_to_print(cons
 {
     GCodeGenerator::ObjectsLayerToPrint layers_to_print;
     layers_to_print.reserve(object.layers().size() + object.support_layers().size());
-
-    /*
-    // Calculate a minimum support layer height as a minimum over all extruders, but not smaller than 10um.
-    // This is the same logic as in support generator.
-    //FIXME should we use the printing extruders instead?
-    double gap_over_supports = object.config().support_material_contact_distance_top;
-    // FIXME should we test object.config().support_material_synchronize_layers ? IN prusa code, the support layers are synchronized with object layers iff soluble supports.
-    //assert(!object.config().object.has_support() || gap_over_supports != 0. || object.config().support_material_synchronize_layers);
-    if (gap_over_supports != 0.) {
-        gap_over_supports = std::max(0., gap_over_supports);
-        // Not a soluble support,
-        double support_layer_height_min = 1000000.;
-        const ConfigOptionFloatsOrPercents& min_layer_height = object.print()->config().min_layer_height;
-        const ConfigOptionFloats& nozzle_diameter = object.print()->config().nozzle_diameter;
-        for(int extr_id = 0; extr_id < min_layer_height.size(); ++extr_id)
-            support_layer_height_min = std::min(support_layer_height_min, std::max(nozzle_diameter.get_at(extr_id)/40, min_layer_height.get_abs_value(extr_id, nozzle_diameter.get_at(extr_id))));
-        gap_over_supports += support_layer_height_min;
-    }*/
 
     std::vector<std::pair<double, double>> warning_ranges;
 
@@ -908,7 +890,7 @@ void GCodeGenerator::do_export(Print* print, const char* path, GCodeProcessorRes
 
     if (! this->m_placeholder_parser_integration.failed_templates.empty()) {
         // G-code export proceeded, but some of the PlaceholderParser substitutions failed.
-        //FIXME localize!
+        // Note: this message is not localized.
         std::string msg = std::string("G-code export to ") + path + " failed due to invalid custom G-code sections:\n\n";
         for (const auto &name_and_error : this->m_placeholder_parser_integration.failed_templates)
             msg += name_and_error.first + "\n" + name_and_error.second + "\n";
@@ -1610,7 +1592,7 @@ void GCodeGenerator::_do_export(Print& print_mod, GCodeOutputStream &file, Thumb
             file.write_format("; infill extrusion width = %.2fmm\n",              region.flow(*first_object, frInfill,            layer_height, 2).width());
             file.write_format("; solid infill extrusion width = %.2fmm\n",        region.flow(*first_object, frSolidInfill,       layer_height, 2).width());
             file.write_format("; top infill extrusion width = %.2fmm\n",          region.flow(*first_object, frTopSolidInfill,    layer_height, 2).width());
-            //TODO add others
+            // Note: only the main extrusion widths are listed here.
             if (print.has_support_material()) {
                 file.write_format("; support material extrusion width = %.2fmm\n", support_material_flow(first_object).width());
                 file.write_format("; support material interface extrusion width = %.2fmm\n", support_material_interface_flow(first_object).width());
@@ -1960,7 +1942,7 @@ void GCodeGenerator::_do_export(Print& print_mod, GCodeOutputStream &file, Thumb
             }
             if (!find) {
                 // Set initial extruder only after custom start G-code.
-                // Ugly hack: Do not set the initial extruder if the extruder is primed using the MMU priming towers at the edge of the print bed.
+                // Workaround: Do not set the initial extruder if the extruder is primed using the MMU priming towers at the edge of the print bed.
                 if (!(has_wipe_tower && print.config().single_extruder_multi_material_priming)) {
                     preamble_to_put_start_layer.append(this->set_extruder(initial_extruder_id, 0.));
                 } else {
@@ -2075,7 +2057,7 @@ void GCodeGenerator::_do_export(Print& print_mod, GCodeOutputStream &file, Thumb
                                                                         *print.wipe_tower_data().final_purge.get());
                     //can't prime both
                     //preamble_to_put_start_layer.append(m_wipe_tower->prime(*this));
-                    //TODO prime if  1nozzlemmu
+                    //TODO: prime here for single-nozzle MMU (parallel-objects wipe tower)
                     // parallel tool ordering to prime correctly the wipe tower
                     //tool_ordering = print.tool_ordering();
                     // Print first wipe tower layer
@@ -2735,7 +2717,7 @@ std::vector<std::optional<double>> compute_new_position(GCodeGenerator &gcodegen
                 auto [pend, ec] = fast_float::from_chars((&cmd.front())+1, (&cmd.back())+1, v);
                 if (pend == (&cmd.back())+1) {
                     // The axis value has been parsed correctly.
-                    //TODO: encounter G1XYZ -> reset current position to that
+                    // G1/G2/G3 with X/Y/Z: update the tracked current position to the commanded coordinates
                     if (cmd[0] == 'G' && (v >= 1 && v <= 3)) {
                         if (line.has(Axis::X)) {
                             position[0] = line.value(Axis::X);
@@ -2819,7 +2801,7 @@ std::string GCodeGenerator::placeholder_parser_process(
             m_writer.update_position_by_lift({ pos[0], pos[1], pos[2] - m_writer.config.z_offset.value});
             this->set_last_pos(this->gcode_to_point({pos[0], pos[1]}));
         } else {
-            // TODO that shouldn't be necessary if we didn't detect any problematic lines.
+            // Note: this fallback shouldn't be necessary if we didn't detect any problematic lines.
             auto position_vec = compute_new_position(*this, output);
             if (!position_vec[0] || !position_vec[1]) {
                 // to be sure, we should invalidate the position. But for simplicity's sake, we will keep the last good pos we know.
@@ -4127,7 +4109,7 @@ void GCodeGenerator::process_layer_single_object(
 
 void GCodeGenerator::emit_milling_commands(std::string& gcode, const ObjectsLayerToPrint& layers)
 {
-    //TODO: put post-process on their own thread.
+    // Performance note: post-process could be moved to its own thread.
 
     //add milling post-process if enabled
     if (!config().milling_diameter.empty()) {
@@ -4347,7 +4329,7 @@ std::string GCodeGenerator::change_layer(double print_z) {
     return gcode;
 }
 
-//TODO: rework: just change the core path extrusion to change z, and add extra loops in the middle.
+// Possible refactor: change the core path extrusion to vary z and add extra loops in the middle.
 // like extrude_loop but with varying z and two full round
 // ie scarf seam ie seam_slope_type
 std::string GCodeGenerator::extrude_loop_vase(const ExtrusionPaths &normal_loop_paths, const ExtrusionLoop &original_loop, const std::string_view description, double speed)
@@ -4600,7 +4582,7 @@ std::string GCodeGenerator::extrude_loop_vase(const ExtrusionPaths &normal_loop_
                                 (1 - mid_dist / scarf_length) +
                             end_first_loop_layer_height * (mid_dist / scarf_length);
                         current_layer_height_mm = std::min(current_layer_height_mm, end_first_loop_layer_height);
-                        // TODO: better flow computation than just a rectangle
+                        // Note: flow is approximated as a rectangle here
                         first_section.back().attributes_mutable().mm3_per_mm = first_section.back().mm3_per_mm() *
                             current_layer_height_mm / first_section.back().height();
                         first_section.back().attributes_mutable().height = current_layer_height_mm;
@@ -4620,7 +4602,7 @@ std::string GCodeGenerator::extrude_loop_vase(const ExtrusionPaths &normal_loop_
                         scale_t(std::min(end_first_loop_offset_mm,
                                          start_first_loop_offset_mm * (1 - current_length / scarf_length) +
                                              end_first_loop_offset_mm * (current_length / scarf_length))));
-                    //TODO flow as gradual as z_offsets
+                    //Note: flow is not made as gradual as the z_offsets
                 }
             }
         }
@@ -4636,7 +4618,7 @@ std::string GCodeGenerator::extrude_loop_vase(const ExtrusionPaths &normal_loop_
     //second_section.emplace_back(second_loop.front());
     //second_section.back().polyline.clear();
     //second_section.back().polyline.append(second_loop.front().first_point());
-    ////TODO: better flow computation than just a rectangle
+    ////Note: better flow computation than just a rectangle
     //second_section.back().attributes_mutable().mm3_per_mm = second_section.back().mm3_per_mm() * end_first_loop_layer_height / second_section.back().height();
     //second_section.back().attributes_mutable().height = end_first_loop_layer_height;
     for (const ExtrusionPath &path : second_loop) {
@@ -4677,7 +4659,7 @@ std::string GCodeGenerator::extrude_loop_vase(const ExtrusionPaths &normal_loop_
                         double current_layer_height_mm = end_first_loop_layer_height * (1 - mid_dist / scarf_length) +
                             end_second_loop_layer_height * (mid_dist / scarf_length);
                         current_layer_height_mm = std::max(current_layer_height_mm, 0.);
-                        // TODO: better flow computation than just a rectangle
+                        // Note: flow is approximated as a rectangle here
                         second_section.back().attributes_mutable().mm3_per_mm = second_section.back().mm3_per_mm() *
                             current_layer_height_mm / second_section.back().height();
                         second_section.back().attributes_mutable().height = current_layer_height_mm;
@@ -4693,7 +4675,7 @@ std::string GCodeGenerator::extrude_loop_vase(const ExtrusionPaths &normal_loop_
                     current_length_segment += new_length;
                     // add new point
                     second_section.back().polyline.append(path.polyline.get_arc(i));
-                    //TODO flow as gradual as z_offsets
+                    //Note: flow is not made as gradual as the z_offsets
                 }
             }
         }
@@ -6245,7 +6227,7 @@ std::string GCodeGenerator::extrude_path_3D(const ExtrusionPath3D &path, const s
 void GCodeGenerator::set_region_for_extrude(const Print &print, const PrintObject *print_object, const LayerRegion *layerm, std::string &gcode)
 {
     const PrintRegionConfig &region_config = this->m_region == nullptr ? 
-        //FIXME
+        //FIXME: confirm print_object->default_region_config is the right fallback when m_region is null
         (print_object == nullptr ? print.default_region_config() : print_object->default_region_config(print.default_region_config()) ) :
         //print.default_region_config() :
         m_region->config();
