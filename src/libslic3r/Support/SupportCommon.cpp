@@ -2115,8 +2115,10 @@ void generate_support_toolpaths(
                     ExPolygons base_expolys = closing_ex(base_layer.polygons_to_extrude(), float(SCALED_EPSILON),
                                    float(SCALED_EPSILON /*+ 0.5 * flow.scaled_width()*/));
                     ensure_valid(base_expolys, support_params.resolution);
-                    //fill_expolygons_with_sheath_generate_paths(
-                    fill_expolygons_generate_paths( //TODO: 2.7 test if pattern has the sheath
+                    // filler_support is a FillWithPerimeter when support_params.with_sheath (built above), so
+                    // the sheath is emitted by the filler itself here - the dedicated _with_sheath_ variant is
+                    // obsolete. Verified via CLI: grid support with_sheath=1 traces the perimeter loop, =0 does not.
+                    fill_expolygons_generate_paths(
                         // Destination
                         base_layer.extrusions.set_entities(),
                         // Regions to fill
