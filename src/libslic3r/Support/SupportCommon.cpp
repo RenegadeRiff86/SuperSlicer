@@ -1289,7 +1289,10 @@ static void modulate_extrusion_by_overlapping_layers(
         // The extrusions do not overlap with any other extrusion.
         return;
 
-    // TODO: should preserve the unsortable things
+    // Known limitation: flatten(false) discards any no_sort grouping - the entities are all kept, but an
+    // unsortable sub-collection's ordering constraint is lost (see FlatenEntities::use). Support extrusions
+    // are normally sortable so this has no practical effect here; preserving it (flatten(true)) would require
+    // the loops below to descend into nested collections.
     ExtrusionEntityCollection flatten_extrusions_in_out = extrusions_in_out.flatten(false);
 
     // Get the initial extrusion parameters.
