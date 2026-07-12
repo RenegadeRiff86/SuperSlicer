@@ -1345,7 +1345,7 @@ void PerimeterGenerator::_sort_overhangs(const Parameters &params,
                 // initialize original index locations
                 std::vector<size_t> idxs(paths.size() - (is_loop ? 0 : 2));
                 std::iota(idxs.begin(), idxs.end(), is_loop ? 0 : 1);
-                // sort indexes based (todo: optimise plz)
+                // sort indexes based on length (performance note: could be optimised)
                 std::stable_sort(idxs.begin(), idxs.end(), [&paths](size_t i1, size_t i2) {
                     return paths[i1].length() < paths[i2].length();
                 });
@@ -7253,17 +7253,6 @@ ExtrusionLoop PerimeterGenerator::_traverse_and_join_loops(const Parameters &   
                 travel_path_end[0].polyline.append(inner_end->polyline.back());
                 travel_path_end[0].polyline.append(outer_end->polyline.front());
             }
-            //check if we add path or reuse bits
-            //FIXME
-            /*if (outer_start->polyline.points.size() == 1) {
-                outer_start->polyline = travel_path_begin.front().polyline;
-                travel_path_begin.erase(travel_path_begin.begin());
-                outer_start->extruder_id = -1;
-            } else if (outer_end->polyline.points.size() == 1) {
-                outer_end->polyline = travel_path_end.back().polyline;
-                travel_path_end.erase(travel_path_end.end() - 1);
-                outer_end->extruder_id = -1;
-            }*/
             //add paths into my_loop => after that all ref are wrong!
             for (size_t i = travel_path_end.size() - 1; i < travel_path_end.size(); i--) {
                 my_loop.paths.insert(my_loop.paths.begin() + nearest.idx_polyline_outter + child_paths_size + 1, travel_path_end[i]);
