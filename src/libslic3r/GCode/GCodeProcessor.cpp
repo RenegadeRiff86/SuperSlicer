@@ -36,6 +36,10 @@ static const float DEFAULT_TOOLPATH_HEIGHT = 0.2f;
 
 static const float INCHES_TO_MM = 25.4f;
 static const float MMMIN_TO_MMSEC = 1.0f / 60.0f;
+// SI "milli" unit conversions used by the filament-usage statistics below.
+static constexpr double MM_TO_M     = 0.001; // millimetres to metres (filament length)
+static constexpr double MM3_TO_CM3  = 0.001; // cubic millimetres to cubic centimetres (filament volume)
+static constexpr double GRAMS_TO_KG = 0.001; // grams to kilograms (filament cost is specified per kg)
 static const float DEFAULT_ACCELERATION = 1500.0f; // Prusa Firmware 1_75mm_MK2
 static const float DEFAULT_RETRACT_ACCELERATION = 1500.0f; // Prusa Firmware 1_75mm_MK2
 static const float DEFAULT_TRAVEL_ACCELERATION = 1250.0f;
@@ -49,6 +53,9 @@ static const Slic3r::Vec3f DEFAULT_EXTRUDER_OFFSET = Slic3r::Vec3f::Zero();
 static const std::vector<std::string> DEFAULT_EXTRUDER_COLORS = { "#FF8000", "#DB5182", "#3EC0FF", "#FF4F4F", "#FBEB7D" };
 
 namespace Slic3r {
+
+// Named constant extracted for BP1002 (magic-number) cleanup.
+constexpr int SECONDS_PER_MINUTE = 60; // time-unit conversion for remaining/interaction time
 
 // Repeated string literals extracted to named constants (BP1001).
 static constexpr const char* kErrorReadingFile = "Error reading file %1%: %2%";
@@ -392,16 +399,16 @@ void GCodeProcessor::TimeProcessor::reset()
 
 void GCodeProcessor::UsedFilaments::reset()
 {
-    this->color_change_cache = 0.0;
+    this->color_change_cache = 0.;
     this->volumes_per_color_change = std::vector<double>();
 
-    this->tool_change_cache = 0.0;
+    this->tool_change_cache = 0.;
     this->volumes_per_extruder.clear();
     
-    this->object_change_cache = 0.0;
+    this->object_change_cache = 0.;
     this->volumes_per_role_per_extruder_per_object.clear();
 
-    this->role_cache = 0.0;
+    this->role_cache = 0.;
     this->filaments_per_role.clear();
 
     this->extruder_retracted_volume.clear();
@@ -440,9 +447,9 @@ void GCodeProcessor::UsedFilaments::process_color_change_cache()
 
 void GCodeProcessor::UsedFilaments::process_extruder_cache(uint16_t extruder_id, size_t object_id, GCodeExtrusionRole role)
  {
-    if (this->tool_change_cache != 0.0) {
+    if (this->tool_change_cache != 0.) {
         this->volumes_per_extruder[extruder_id] += this->tool_change_cache;
-        this->tool_change_cache = 0.0;
+        this->tool_change_cache = 0.;
         this->volumes_per_role_per_extruder_per_object[object_id][extruder_id][role] += this->object_change_cache;
         this->object_change_cache = 0;
      }
@@ -456,12 +463,12 @@ void GCodeProcessor::UsedFilaments::process_object_cache(uint16_t extruder_id, s
 
 void GCodeProcessor::UsedFilaments::process_role_cache(const GCodeProcessor* processor)
 {
-    if (this->role_cache != 0.0) {
+    if (this->role_cache != 0.) {
         std::pair<double, double> filament = { 0.0f, 0.0f };
 
         const double s = PI * sqr(0.5 * processor->m_result.filament_diameters[processor->m_extruder_id]);
-        filament.first = this->role_cache / s * 0.001;
-        filament.second = this->role_cache * processor->m_result.filament_densities[processor->m_extruder_id] * 0.001;
+        filament.first = this->role_cache / s * MM_TO_M;
+        filament.second = this->role_cache * processor->m_result.filament_densities[processor->m_extruder_id] * MM3_TO_CM3;
 
         GCodeExtrusionRole active_role = processor->m_extrusion_role;
         if (this->filaments_per_role.find(active_role) != this->filaments_per_role.end()) {
@@ -470,7 +477,7 @@ void GCodeProcessor::UsedFilaments::process_role_cache(const GCodeProcessor* pro
         }
         else
             this->filaments_per_role[active_role] = filament;
-        this->role_cache = 0.0;
+        this->role_cache = 0.;
     }
     if (this->object_change_cache > 0) {
         this->volumes_per_role_per_extruder_per_object[processor->m_current_object_id][processor->m_extruder_id][processor->m_extrusion_role] += this->object_change_cache;
@@ -1115,7 +1122,7 @@ void GCodeProcessor::reset()
 
     m_parking_position = 0.f;
     m_extra_loading_move = 0.f;
-    m_extruded_last_z = 0.0;
+    m_extruded_last_z = 0.;
     m_first_layer_height = 0.0f;
     m_g1_line_id = 0;
     m_layer_id = 0;
@@ -1723,10 +1730,10 @@ void GCodeProcessor::apply_config_simplify3d(const std::string& filename)
 {
     struct BedSize
     {
-        double x{ 0.0 };
-        double y{ 0.0 };
+        double x{ 0. };
+        double y{ 0. };
 
-        bool is_defined() const { return x > 0.0 && y > 0.0; }
+        bool is_defined() const { return x > 0. && y > 0.; }
     };
 
     BedSize bed_size;
@@ -1772,9 +1779,9 @@ void GCodeProcessor::apply_config_simplify3d(const std::string& filename)
                 if (begin != end) {
                     std::string_view comment(begin, end - begin);
                     if (producer_detected) {
-                        if (bed_size.x == 0.0 && comment.find("strokeXoverride") != comment.npos)
+                        if (bed_size.x == 0. && comment.find("strokeXoverride") != comment.npos)
                             extract_double(comment, "strokeXoverride", bed_size.x);
-                        else if (bed_size.y == 0.0 && comment.find("strokeYoverride") != comment.npos)
+                        else if (bed_size.y == 0. && comment.find("strokeYoverride") != comment.npos)
                             extract_double(comment, "strokeYoverride", bed_size.y);
                         else if (comment.find("filamentDiameters") != comment.npos) {
                             m_result.filament_diameters.clear();
@@ -1807,10 +1814,10 @@ void GCodeProcessor::apply_config_simplify3d(const std::string& filename)
 
     if (bed_size.is_defined()) {
         m_result.bed_shape = {
-            { 0.0, 0.0 },
-            { bed_size.x, 0.0 },
+            { 0., 0. },
+            { bed_size.x, 0. },
             { bed_size.x, bed_size.y },
-            { 0.0, bed_size.y }
+            { 0., bed_size.y }
         };
     }
 }
@@ -2961,7 +2968,7 @@ void GCodeProcessor::process_G1(const std::array<std::optional<double>, 4>& axes
                 m_height = m_first_layer_height + m_z_offset;
         }
         else if (origin == G1DiscretizationOrigin::G1) {
-            if (m_end_position[Z] > m_extruded_last_z + EPSILON && delta_pos[Z] == 0.0)
+            if (m_end_position[Z] > m_extruded_last_z + EPSILON && delta_pos[Z] == 0.)
                 m_height = m_end_position[Z] - m_extruded_last_z;
         }
 
@@ -3210,7 +3217,7 @@ void GCodeProcessor::process_G1(const std::array<std::optional<double>, 4>& axes
     }
 
     if (m_spiral_vase_active && !m_result.spiral_vase_layers.empty()) {
-        if (m_result.spiral_vase_layers.back().first == FLT_MAX && delta_pos[Z] >= 0.0)
+        if (m_result.spiral_vase_layers.back().first == FLT_MAX && delta_pos[Z] >= 0.)
             // replace layer height placeholder with correct value
             m_result.spiral_vase_layers.back().first = static_cast<float>(m_end_position[Z]);
         if (!m_result.moves.empty())
@@ -3255,7 +3262,7 @@ void GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line, bool cloc
     // relative center
     Vec3f rel_center = Vec3f::Zero();
 #ifndef NDEBUG
-    double radius = 0.0;
+    double radius = 0.;
 #endif // NDEBUG
     if (fitting == EFitting::R) {
         float raw_radius;
@@ -3288,7 +3295,7 @@ void GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line, bool cloc
         Vec3d end{ Vec3d::Zero() };
         Vec3d center{ Vec3d::Zero() };
 
-        double angle{ 0.0 };
+        double angle{ 0. };
         double delta_x() const { return end.x() - start.x(); }
         double delta_y() const { return end.y() - start.y(); }
         double delta_z() const { return end.z() - start.z(); }
@@ -3345,7 +3352,7 @@ void GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line, bool cloc
     else {
         arc.angle = std::atan2(rel_arc_start.x() * rel_arc_end.y() - rel_arc_start.y() * rel_arc_end.x(),
             rel_arc_start.x() * rel_arc_end.x() + rel_arc_start.y() * rel_arc_end.y());
-        if (arc.angle < 0.0)
+        if (arc.angle < 0.)
             arc.angle += 2.0 * PI;
         if (clockwise)
             arc.angle -= 2.0 * PI;
@@ -3405,7 +3412,7 @@ void GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line, bool cloc
     const double inv_segment = 1.0 / double(segments);
     const double theta_per_segment = arc.angle * inv_segment;
     const double z_per_segment = arc.delta_z() * inv_segment;
-    const double extruder_per_segment = (extrusion.has_value()) ? *extrusion * inv_segment : 0.0;
+    const double extruder_per_segment = (extrusion.has_value()) ? *extrusion * inv_segment : 0.;
 
     const double cos_T = 1.0 - 0.5 * sqr(theta_per_segment); // Small angle approximation
     const double sin_T = theta_per_segment;
@@ -3447,7 +3454,7 @@ void GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line, bool cloc
         arc_target[E] += extruder_per_segment;
 
         m_start_position = m_end_position; // this is required because we are skipping the call to process_gcode_line()
-        internal_only_g1_line(adjust_target(arc_target, prev_target), z_per_segment != 0.0,
+        internal_only_g1_line(adjust_target(arc_target, prev_target), z_per_segment != 0.,
                               (i == 1) ? feedrate : std::nullopt, extrusion, segments - i);
         prev_target = arc_target;
     }
@@ -3458,7 +3465,7 @@ void GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line, bool cloc
     arc_target[Y] = end_position[Y] - m_origin[Y];
     arc_target[Z] = end_position[Z] - m_origin[Z];
     arc_target[E] = end_position[E] - m_origin[E];
-    internal_only_g1_line(adjust_target(arc_target, prev_target), arc.delta_z() != 0.0, (segments == 1) ? feedrate : std::nullopt, extrusion);
+    internal_only_g1_line(adjust_target(arc_target, prev_target), arc.delta_z() != 0., (segments == 1) ? feedrate : std::nullopt, extrusion);
 }
 
 void GCodeProcessor::process_G10(const GCodeReader::GCodeLine& line)
@@ -4076,19 +4083,19 @@ void GCodeProcessor::post_process()
     if (out.f == nullptr)
         throw Slic3r::RuntimeError(std::string("GCode processor post process export failed.\nCannot open file for writing.\n"));
 
-    std::vector<double> filament_mm(m_result.extruders_count, 0.0);
-    std::vector<double> filament_cm3(m_result.extruders_count, 0.0);
-    std::vector<double> filament_g(m_result.extruders_count, 0.0);
-    std::vector<double> filament_cost(m_result.extruders_count, 0.0);
+    std::vector<double> filament_mm(m_result.extruders_count, 0.);
+    std::vector<double> filament_cm3(m_result.extruders_count, 0.);
+    std::vector<double> filament_g(m_result.extruders_count, 0.);
+    std::vector<double> filament_cost(m_result.extruders_count, 0.);
 
-    double filament_total_g = 0.0;
-    double filament_total_cost = 0.0;
+    double filament_total_g = 0.;
+    double filament_total_cost = 0.;
 
     for (const auto& [id, volume] : m_result.print_statistics.volumes_per_extruder) {
         filament_mm[id] = volume / (static_cast<double>(M_PI) * sqr(0.5 * m_result.filament_diameters[id]));
-        filament_cm3[id] = volume * 0.001;
+        filament_cm3[id] = volume * MM3_TO_CM3;
         filament_g[id] = filament_cm3[id] * double(m_result.filament_densities[id]);
-        filament_cost[id] = filament_g[id] * double(m_result.filament_cost[id]) * 0.001;
+        filament_cost[id] = filament_g[id] * double(m_result.filament_cost[id]) * GRAMS_TO_KG;
         filament_total_g += filament_g[id];
         filament_total_cost += filament_cost[id];
     }
@@ -4143,12 +4150,12 @@ void GCodeProcessor::post_process()
 
     auto time_in_minutes = [](float time_in_seconds) {
         assert(time_in_seconds >= 0.f);
-        return int((time_in_seconds + 0.5f) / 60.0f);
+        return int((time_in_seconds + 0.5f) / SECONDS_PER_MINUTE);
     };
 
     auto time_in_last_minute = [](float time_in_seconds) {
-        assert(time_in_seconds <= 60.0f);
-        return time_in_seconds / 60.0f;
+        assert(time_in_seconds <= SECONDS_PER_MINUTE);
+        return time_in_seconds / SECONDS_PER_MINUTE;
     };
 
     // superseeded by print_M73
@@ -4238,8 +4245,8 @@ void GCodeProcessor::post_process()
                 if (next_interaction_seconds > 0) {
                     if (last_time_left != time_left || last_next_interaction != next_interaction) {
                         ret.push_back((boost::format("M117 Pause in %1%h%2%m%3%s / %4%h%5%m%6%s\n")
-                            % std::to_string(next_interaction / 3600) % std::to_string((next_interaction / 60) % 60) % std::to_string(next_interaction % 60)
-                            % std::to_string(time_left / 3600) % std::to_string((time_left / 60) % 60) % std::to_string(time_left % 60)
+                            % std::to_string(next_interaction / 3600) % std::to_string((next_interaction / SECONDS_PER_MINUTE) % SECONDS_PER_MINUTE) % std::to_string(next_interaction % SECONDS_PER_MINUTE)
+                            % std::to_string(time_left / 3600) % std::to_string((time_left / SECONDS_PER_MINUTE) % SECONDS_PER_MINUTE) % std::to_string(time_left % SECONDS_PER_MINUTE)
                             ).str());
                         ++extra_lines_count;
                         last_time_left = time_left;
@@ -4247,7 +4254,7 @@ void GCodeProcessor::post_process()
                     }
                 } else if (last_time_elapsed != time_elapsed) {
                     ret.push_back((boost::format("M117 Time Left %1%h%2%m%3%s\n")
-                        % std::to_string(time_left / 3600) % std::to_string((time_left / 60) % 60) % std::to_string(time_left % 60)
+                        % std::to_string(time_left / 3600) % std::to_string((time_left / SECONDS_PER_MINUTE) % SECONDS_PER_MINUTE) % std::to_string(time_left % SECONDS_PER_MINUTE)
                         ).str());
                     last_time_elapsed = time_elapsed;
                 }
