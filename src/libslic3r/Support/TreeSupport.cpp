@@ -47,6 +47,13 @@ using namespace Slic3r::FFFSupport;
 namespace Slic3r
 {
 
+// Named constants extracted for BP1002 (magic-number) cleanup.
+constexpr double CLIPPER_MITER_LIMIT       = 1.2;   // miter limit passed to Clipper offset() calls
+constexpr double MICROSECONDS_TO_MS        = 0.001; // microseconds -> milliseconds for timing logs
+[[maybe_unused]] constexpr double DBG_SVG_OUTLINE_MM  = 0.05;  // debug SVG slice-outline stroke (mm)
+[[maybe_unused]] constexpr double DBG_SVG_OVERHANG_MM = 0.045; // debug SVG overhang-outline stroke (mm)
+constexpr double TEST_BUILD_VOLUME_HALF_MM = 300.;  // half-size of the fallback square build volume (mm)
+
 namespace FFFTreeSupport
 {
 
@@ -306,8 +313,8 @@ static ExPolygons to_expolys(Polygons polys) {
             if (!overhangs.empty()) {
                 SVG::export_expolygons(debug_out_path("%d-overhangs_without_bridges_areas.svg", layer_id),
                                        {
-                                           {current_layer.lslices(), {"gray", scale_t(0.05)}},
-                                           {union_ex(overhangs), {"yellow", scale_t(0.045)}},
+                                           {current_layer.lslices(), {"gray", scale_t(DBG_SVG_OUTLINE_MM)}},
+                                           {union_ex(overhangs), {"yellow", scale_t(DBG_SVG_OVERHANG_MM)}},
                                        });
             }
 #endif // TREESUPPORT_DEBUG_SVG
@@ -323,8 +330,8 @@ static ExPolygons to_expolys(Polygons polys) {
                 if (!overhangs.empty()) {
                     SVG::export_expolygons(debug_out_path("%d-overhangs_register.svg", layer_id),
                                            {
-                                               {current_layer.lslices(), {"gray", scale_t(0.05)}},
-                                               {(overhangs), /*ExPolygonAttributes*/ {"red", scale_t(0.045)}},
+                                               {current_layer.lslices(), {"gray", scale_t(DBG_SVG_OUTLINE_MM)}},
+                                               {(overhangs), /*ExPolygonAttributes*/ {"red", scale_t(DBG_SVG_OVERHANG_MM)}},
                                            });
                 }
 #endif // TREESUPPORT_DEBUG_SVG
@@ -363,8 +370,8 @@ static ExPolygons to_expolys(Polygons polys) {
                 SVG::export_expolygons(
                     debug_out_path("%d-forced-overhangs.svg", current_layer.id()),
                     {
-                        {current_layer.lslices(), {"gray", scale_t(0.05)}},
-                        {(overhangs), {"yellow", scale_t(0.045)}},
+                        {current_layer.lslices(), {"gray", scale_t(DBG_SVG_OUTLINE_MM)}},
+                        {(overhangs), {"yellow", scale_t(DBG_SVG_OVERHANG_MM)}},
                         {(enforced_overhangs), {"blue", scale_t(0.035)}},
                         {(overhangs.empty() ? std::move(enforced_overhangs) : union_ex(overhangs, enforced_overhangs)), {"green", scale_t(0.025)}},
                     }
@@ -379,8 +386,8 @@ static ExPolygons to_expolys(Polygons polys) {
             if (!overhangs.empty()) {
                 SVG::export_expolygons(debug_out_path("%d-overhangs_register.svg", layer_id),
                                        {
-                                           {current_layer.lslices(), {"gray", scale_t(0.05)}},
-                                           {(overhangs), /*ExPolygonAttributes*/ {"red", scale_t(0.045)}},
+                                           {current_layer.lslices(), {"gray", scale_t(DBG_SVG_OUTLINE_MM)}},
+                                           {(overhangs), /*ExPolygonAttributes*/ {"red", scale_t(DBG_SVG_OVERHANG_MM)}},
                                        });
             }
 #endif // TREESUPPORT_DEBUG_SVG
@@ -398,8 +405,8 @@ static ExPolygons to_expolys(Polygons polys) {
         SVG::export_expolygons(
             debug_out_path("%d-overhangs_areas_final.svg", lidx),
             {
-                {slice, {"gray", scale_t(0.05)}},
-                {(overhang), /*ExPolygonAttributes*/{"red", scale_t(0.045)}},
+                {slice, {"gray", scale_t(DBG_SVG_OUTLINE_MM)}},
+                {(overhang), /*ExPolygonAttributes*/{"red", scale_t(DBG_SVG_OVERHANG_MM)}},
             }
         );
     }
@@ -841,7 +848,7 @@ static std::optional<std::pair<Point, size_t>> polyline_sample_next_point_at_dis
         if (result.empty()) {
             BOOST_LOG_TRIVIAL(debug) << "Caught an area destroying union, enlarging areas a bit.";
             // just take the few lines we have, and offset them a tiny bit. Needs to be offsetPolylines, as offset may aleady have problems with the area.
-            result = union_(offset(to_polylines(first), scaled<float>(0.002), jtMiter, 1.2), offset(to_polylines(second), scaled<float>(0.002), jtMiter, 1.2));
+            result = union_(offset(to_polylines(first), scaled<float>(0.002), jtMiter, CLIPPER_MITER_LIMIT), offset(to_polylines(second), scaled<float>(0.002), jtMiter, CLIPPER_MITER_LIMIT));
         }
     }
     
@@ -1200,7 +1207,7 @@ static void sample_overhang_area(
                     interface_placer.volumes.getAvoidance(interface_placer.config.getRadius(0), layer_idx - (dtt_roof + 1), TreeModelVolumes::AvoidanceType::Fast, false, min_xy_dist);
                 // prevent rounding errors down the line
                 // Note: SafetyOffset::Yes at the following diff() might be an alternative.
-                forbidden_next = offset(union_ex(forbidden_next_raw), scaled<float>(0.005), jtMiter, 1.2);
+                forbidden_next = offset(union_ex(forbidden_next_raw), scaled<float>(0.005), jtMiter, CLIPPER_MITER_LIMIT);
             }
             Polygons overhang_area_next = diff(overhang_area, forbidden_next);
             if (area(overhang_area_next) < mesh_group_settings.minimum_roof_area) {
@@ -1256,11 +1263,11 @@ static void sample_overhang_area(
             // I assume that even small overhangs are over one line width wide, so lets try to place the support points in a way that the full support area generated from them 
             // will support the overhang (if this is not done it may only be half). This WILL NOT be the case when supporting an angle of about < 60� so there is a fallback, 
             // as some support is better than none.
-            Polygons reduced_overhang_area = offset(union_ex(overhang_area), - interface_placer.config.support_line_width / 2.2, jtMiter, 1.2);
+            Polygons reduced_overhang_area = offset(union_ex(overhang_area), - interface_placer.config.support_line_width / 2.2, jtMiter, CLIPPER_MITER_LIMIT);
             polylines = ensure_maximum_distance_polyline(
                 to_polylines(
                     ! reduced_overhang_area.empty() &&
-                        area(offset(diff_ex(overhang_area, reduced_overhang_area), std::max(interface_placer.config.support_line_width, connect_length), jtMiter, 1.2)) < sqr(scaled<double>(0.001)) ?
+                        area(offset(diff_ex(overhang_area, reduced_overhang_area), std::max(interface_placer.config.support_line_width, connect_length), jtMiter, CLIPPER_MITER_LIMIT)) < sqr(scaled<double>(0.001)) ?
                     reduced_overhang_area :
                     overhang_area),
                 connect_length, min_support_points);
@@ -1386,7 +1393,7 @@ static void generate_initial_areas(
                     volumes.getCollision(config.getRadius(0), layer_idx, min_xy_dist) :
                     volumes.getAvoidance(config.getRadius(0), layer_idx, AvoidanceType::Fast, false, min_xy_dist);
                 // prevent rounding errors down the line, points placed directly on the line of the forbidden area may not be added otherwise.
-                relevant_forbidden = offset(union_ex(relevant_forbidden_raw), scaled<float>(0.005), jtMiter, 1.2);
+                relevant_forbidden = offset(union_ex(relevant_forbidden_raw), scaled<float>(0.005), jtMiter, CLIPPER_MITER_LIMIT);
             }
 
             // every overhang has saved if a roof should be generated for it. This can NOT be done in the for loop as an area may NOT have a roof 
@@ -1402,8 +1409,8 @@ static void generate_initial_areas(
                 Polygons remaining_overhang = intersection(
                     diff(mesh_group_settings.support_offset == 0 ?
                             overhang_raw :
-                            offset(union_ex(overhang_raw), mesh_group_settings.support_offset, jtMiter, 1.2),
-                         offset(union_ex(overhang_regular), config.support_line_width * 0.5, jtMiter, 1.2)),
+                            offset(union_ex(overhang_raw), mesh_group_settings.support_offset, jtMiter, CLIPPER_MITER_LIMIT),
+                         offset(union_ex(overhang_regular), config.support_line_width * 0.5, jtMiter, CLIPPER_MITER_LIMIT)),
                     relevant_forbidden);
 
                 // Offset the area to compensate for large tip radiis. Offset happens in multiple steps to ensure the tip is as close to the original overhang as possible.
@@ -2009,7 +2016,7 @@ static void increase_areas_one_layer(
                 if (!settings.no_error) { 
                     // ERROR CASE
                     // if the area becomes for whatever reason something that clipper sees as a line, offset would stop working, so ensure that even if if wrongly would be a line, it still actually has an area that can be increased
-                    Polygons lines_offset = offset(to_polylines(parent.influence_area), scaled<float>(0.005), jtMiter, 1.2);
+                    Polygons lines_offset = offset(to_polylines(parent.influence_area), scaled<float>(0.005), jtMiter, CLIPPER_MITER_LIMIT);
                     Polygons base_error_area = union_(parent.influence_area, lines_offset);
                     result = increase_single_area(volumes, config, settings, layer_idx, parent, 
                         base_error_area, to_bp_data, to_model_data, inc_wo_collision, (config.maximum_move_distance + extra_speed) * 1.5, mergelayer);
@@ -2240,7 +2247,7 @@ static bool merge_influence_areas_two_elements(
         return false;
 
     // While 0.025 was guessed as enough, i did not have reason to change it.
-    if (area(offset(intersect, scaled<float>(-0.025), jtMiter, 1.2)) <= tiny_area_threshold)
+    if (area(offset(intersect, scaled<float>(-0.025), jtMiter, CLIPPER_MITER_LIMIT)) <= tiny_area_threshold)
         return false;
 
 #ifdef TREES_MERGE_RATHER_LATER
@@ -2942,7 +2949,7 @@ static void generate_branch_areas(
 
                 // There seem to be some rounding errors, causing a branch to be a tiny bit further away from the model that it has to be.
                 // This can cause the tip to be slightly further away front the overhang (x/y wise) than optimal. This fixes it, and for every other part, 0.05mm will not be noticed.
-                poly = diff_clipped(offset(union_(poly), std::min(coord_t(50), support_line_width / 4), jtMiter, 1.2), collision);
+                poly = diff_clipped(offset(union_(poly), std::min(coord_t(50), support_line_width / 4), jtMiter, CLIPPER_MITER_LIMIT), collision);
                 return poly;
             };
 
@@ -2975,7 +2982,7 @@ static void generate_branch_areas(
                         }
                         // Increase the area again, to ensure the nozzle path when calculated later is very similar to the one assumed above.
                         assert(contains(polygons, draw_area.element->state.result_on_layer));
-                        polygons = diff_clipped(offset(polygons_with_correct_center, config.support_line_width / 2., jtMiter, 1.2),
+                        polygons = diff_clipped(offset(polygons_with_correct_center, config.support_line_width / 2., jtMiter, CLIPPER_MITER_LIMIT),
                             // Known limitation (Vojtech): clipping may split the region into multiple pieces again, reversing the fixing effort.
                             collision);
                     }
@@ -3038,7 +3045,7 @@ static void smooth_branch_areas(
                 max_outer_wall_distance += max_radius_change_per_layer; // As this change is a bit larger than what usually appears, lost radius can be slowly reclaimed over the layers.
                 if (do_something) {
                     assert(contains(draw_area.polygons, draw_area.element->state.result_on_layer));
-                    Polygons max_allowed_area = offset(draw_area.polygons, float(max_outer_wall_distance), jtMiter, 1.2);
+                    Polygons max_allowed_area = offset(draw_area.polygons, float(max_outer_wall_distance), jtMiter, CLIPPER_MITER_LIMIT);
                     for (int32_t parent_idx : draw_area.element->parents) {
                         const SupportElement &parent = layer_above[parent_idx];
 #ifndef NDEBUG
@@ -3096,7 +3103,7 @@ static void smooth_branch_areas(
                 for (int32_t parent_idx : draw_area.element->parents) {
                     const SupportElement &parent = layer_above[parent_idx];
                     coord_t max_outer_line_increase = max_radius_change_per_layer;
-                    Polygons result = offset(linear_data[processing_base_above + parent_idx].polygons, max_outer_line_increase, jtMiter, 1.2);
+                    Polygons result = offset(linear_data[processing_base_above + parent_idx].polygons, max_outer_line_increase, jtMiter, CLIPPER_MITER_LIMIT);
                     Point direction = draw_area.element->state.result_on_layer - parent.state.result_on_layer;
                     // move the polygons object
                     for (auto &outer : result)
@@ -3271,7 +3278,7 @@ static void finalize_interface_and_support_areas(
             if (config.support_bottom_layers > 0 && ! base_layer_polygons.empty()) {
                 SupportGeneratorLayer*& support_bottom = bottom_contacts[layer_idx];
                 Polygons layer_outset = diff_clipped(
-                    config.support_bottom_offset > 0 ? offset(base_layer_polygons, config.support_bottom_offset, jtMiter, 1.2) : base_layer_polygons,
+                    config.support_bottom_offset > 0 ? offset(base_layer_polygons, config.support_bottom_offset, jtMiter, CLIPPER_MITER_LIMIT) : base_layer_polygons,
                     volumes.getCollision(0, layer_idx, false));
                 Polygons floor_layer;
                 size_t layers_below = 0;
@@ -3289,7 +3296,7 @@ static void finalize_interface_and_support_areas(
                     if (support_bottom == nullptr)
                         support_bottom = &layer_allocate(layer_storage, SupporLayerType::BottomContact, print_object.slicing_parameters(), config, layer_idx);
                     support_bottom->polygons = union_(floor_layer, support_bottom->polygons);
-                    base_layer_polygons = diff_clipped(base_layer_polygons, offset(support_bottom->polygons, scaled<float>(0.01), jtMiter, 1.2)); // Subtract the support floor from the normal support.
+                    base_layer_polygons = diff_clipped(base_layer_polygons, offset(support_bottom->polygons, scaled<float>(0.01), jtMiter, CLIPPER_MITER_LIMIT)); // Subtract the support floor from the normal support.
                 }
             }
 
@@ -3467,10 +3474,10 @@ static void draw_areas(
         bottom_contacts, top_contacts, intermediate_layers, layer_storage, throw_on_cancel);
     auto t_end = std::chrono::high_resolution_clock::now();
 
-    auto dur_gen_tips = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t_generate - t_start).count();
-    auto dur_smooth = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t_smooth - t_generate).count();
-    auto dur_drop = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t_drop - t_smooth).count();
-    auto dur_finalize = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_drop).count();
+    auto dur_gen_tips = MICROSECONDS_TO_MS * std::chrono::duration_cast<std::chrono::microseconds>(t_generate - t_start).count();
+    auto dur_smooth = MICROSECONDS_TO_MS * std::chrono::duration_cast<std::chrono::microseconds>(t_smooth - t_generate).count();
+    auto dur_drop = MICROSECONDS_TO_MS * std::chrono::duration_cast<std::chrono::microseconds>(t_drop - t_smooth).count();
+    auto dur_finalize = MICROSECONDS_TO_MS * std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_drop).count();
 
     BOOST_LOG_TRIVIAL(info) << 
         "Time used for drawing subfuctions: generate_branch_areas: " << dur_gen_tips << " ms "
@@ -3645,12 +3652,12 @@ static void generate_support_areas(Print &print,
                 bottom_contacts, top_contacts, interface_layers, base_interface_layers, intermediate_layers, layer_storage);
 
             auto t_draw = std::chrono::high_resolution_clock::now();
-            auto dur_pre_gen = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t_precalc - t_start).count();
-            auto dur_gen = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t_gen - t_precalc).count();
-            auto dur_path = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t_path - t_gen).count();
-            auto dur_place = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t_place - t_path).count();
-            auto dur_draw = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t_draw - t_place).count();
-            auto dur_total = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t_draw - t_start).count();
+            auto dur_pre_gen = MICROSECONDS_TO_MS * std::chrono::duration_cast<std::chrono::microseconds>(t_precalc - t_start).count();
+            auto dur_gen = MICROSECONDS_TO_MS * std::chrono::duration_cast<std::chrono::microseconds>(t_gen - t_precalc).count();
+            auto dur_path = MICROSECONDS_TO_MS * std::chrono::duration_cast<std::chrono::microseconds>(t_path - t_gen).count();
+            auto dur_place = MICROSECONDS_TO_MS * std::chrono::duration_cast<std::chrono::microseconds>(t_place - t_path).count();
+            auto dur_draw = MICROSECONDS_TO_MS * std::chrono::duration_cast<std::chrono::microseconds>(t_draw - t_place).count();
+            auto dur_total = MICROSECONDS_TO_MS * std::chrono::duration_cast<std::chrono::microseconds>(t_draw - t_start).count();
             BOOST_LOG_TRIVIAL(info) <<
                 "Total time used creating Tree support for the currently grouped meshes: " << dur_total << " ms. "
                 "Different subtasks:\nCalculating Avoidance: " << dur_pre_gen << " ms "
@@ -3727,7 +3734,7 @@ void fff_tree_support_generate(PrintObject &print_object, std::function<void()> 
         ++idx;
     }
     FFFTreeSupport::generate_support_areas(*print_object.print(), 
-        BuildVolume(Pointfs{ Vec2d{ -300., -300. }, Vec2d{ -300., +300. }, Vec2d{ +300., +300. }, Vec2d{ +300., -300. } }, 0.), { idx }, 
+        BuildVolume(Pointfs{ Vec2d{ -TEST_BUILD_VOLUME_HALF_MM, -TEST_BUILD_VOLUME_HALF_MM }, Vec2d{ -TEST_BUILD_VOLUME_HALF_MM, +TEST_BUILD_VOLUME_HALF_MM }, Vec2d{ +TEST_BUILD_VOLUME_HALF_MM, +TEST_BUILD_VOLUME_HALF_MM }, Vec2d{ +TEST_BUILD_VOLUME_HALF_MM, -TEST_BUILD_VOLUME_HALF_MM } }, 0.), { idx }, 
         throw_on_cancel);
 }
 
