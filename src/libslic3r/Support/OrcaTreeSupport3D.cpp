@@ -59,6 +59,11 @@
 namespace Slic3r
 {
 
+// Named constants extracted for BP1002 (magic-number) cleanup.
+constexpr double CLIPPER_MITER_LIMIT = 1.2;   // miter limit for Clipper offset() calls
+constexpr double MICROSECONDS_TO_MS  = 0.001; // microseconds -> milliseconds for timing logs
+constexpr double HALF                = 0.5;   // one-half factor (midpoints, half widths, PI*0.5)
+
 namespace OrcaTreeSupport3D
 {
 
@@ -224,7 +229,7 @@ static std::vector<std::pair<OrcaTreeSupportSettings, std::vector<size_t>>> grou
                         for (const LayerRegion *layerm : lower_layer.regions())
                             external_perimeter_width += layerm->flow(frExternalPerimeter).scaled_width();
                         external_perimeter_width /= lower_layer.region_count();
-                        lower_layer_offset = float(0.5 * external_perimeter_width);
+                        lower_layer_offset = float(HALF * external_perimeter_width);
                     } else {
                         lower_layer_offset = scaled<float>(lower_layer.height / tan_threshold);
                     }
@@ -728,7 +733,7 @@ static std::optional<std::pair<Point, size_t>> polyline_sample_next_point_at_dis
         if (result.empty()) {
             BOOST_LOG_TRIVIAL(debug) << "Caught an area destroying union, enlarging areas a bit.";
             // just take the few lines we have, and offset them a tiny bit. Needs to be offsetPolylines, as offset may aleady have problems with the area.
-            result = union_(offset(to_polylines(first), scaled<float>(0.002), jtMiter, 1.2), offset(to_polylines(second), scaled<float>(0.002), jtMiter, 1.2));
+            result = union_(offset(to_polylines(first), scaled<float>(0.002), jtMiter, CLIPPER_MITER_LIMIT), offset(to_polylines(second), scaled<float>(0.002), jtMiter, CLIPPER_MITER_LIMIT));
         }
     }
 
@@ -1095,7 +1100,7 @@ void sample_overhang_area(
                     interface_placer.volumes.getAvoidance(interface_placer.config.getRadius(0), layer_idx - (dtt_roof + 1), OrcaTreeModelVolumes::AvoidanceType::Fast, false, min_xy_dist);
                 // prevent rounding errors down the line
                 // Note: SafetyOffset::Yes at the following diff() might be an alternative.
-                forbidden_next = offset(union_ex(forbidden_next_raw), scaled<float>(0.005), jtMiter, 1.2);
+                forbidden_next = offset(union_ex(forbidden_next_raw), scaled<float>(0.005), jtMiter, CLIPPER_MITER_LIMIT);
             }
             Polygons overhang_area_next = diff(overhang_area, forbidden_next);
             if (area(overhang_area_next) < mesh_group_settings.minimum_roof_area) {
@@ -1151,11 +1156,11 @@ void sample_overhang_area(
             // I assume that even small overhangs are over one line width wide, so lets try to place the support points in a way that the full support area generated from them
             // will support the overhang (if this is not done it may only be half). This WILL NOT be the case when supporting an angle of about < 60 degrees so there is a fallback,
             // as some support is better than none.
-            Polygons reduced_overhang_area = offset(union_ex(overhang_area), -interface_placer.config.support_line_width / 2.2, jtMiter, 1.2);
+            Polygons reduced_overhang_area = offset(union_ex(overhang_area), -interface_placer.config.support_line_width / 2.2, jtMiter, CLIPPER_MITER_LIMIT);
             polylines = ensure_maximum_distance_polyline(
                 to_polylines(
                     ! reduced_overhang_area.empty() &&
-                        area(offset(diff_ex(overhang_area, reduced_overhang_area), std::max(interface_placer.config.support_line_width, connect_length), jtMiter, 1.2)) < sqr(scaled<double>(0.001)) ?
+                        area(offset(diff_ex(overhang_area, reduced_overhang_area), std::max(interface_placer.config.support_line_width, connect_length), jtMiter, CLIPPER_MITER_LIMIT)) < sqr(scaled<double>(0.001)) ?
                     reduced_overhang_area :
                     overhang_area),
                 connect_length, min_support_points);
@@ -1240,7 +1245,7 @@ static void generate_initial_areas(
     if (config.z_distance_top_layers > 0) {
         max_overhang_insert_lag = 2 * config.z_distance_top_layers;
 
-        if (mesh_group_settings.support_angle > EPSILON && mesh_group_settings.support_angle < 0.5 * M_PI - EPSILON) {
+        if (mesh_group_settings.support_angle > EPSILON && mesh_group_settings.support_angle < HALF * M_PI - EPSILON) {
             // Known limitation: mesh_group_settings.support_angle applies neither to enforcers nor to the automatic support angle (by half the external perimeter width).
             //used by max_overhang_insert_lag, only if not min_xy_dist.
             const auto max_overhang_speed  = coord_t(tan(mesh_group_settings.support_angle) * config.layer_height);
@@ -1282,7 +1287,7 @@ static void generate_initial_areas(
                     volumes.getCollision(config.getRadius(0), layer_idx, min_xy_dist) :
                     volumes.getAvoidance(config.getRadius(0), layer_idx, AvoidanceType::Fast, false, min_xy_dist);
                 // prevent rounding errors down the line, points placed directly on the line of the forbidden area may not be added otherwise.
-                relevant_forbidden = offset(union_ex(relevant_forbidden_raw), scaled<float>(0.005), jtMiter, 1.2);
+                relevant_forbidden = offset(union_ex(relevant_forbidden_raw), scaled<float>(0.005), jtMiter, CLIPPER_MITER_LIMIT);
             }
 
             // every overhang has saved if a roof should be generated for it. This can NOT be done in the for loop as an area may NOT have a roof
@@ -1298,8 +1303,8 @@ static void generate_initial_areas(
                 Polygons remaining_overhang = intersection(
                     diff(mesh_group_settings.support_offset == 0 ?
                             overhang_raw :
-                            offset(union_ex(overhang_raw), mesh_group_settings.support_offset, jtMiter, 1.2),
-                         offset(union_ex(overhang_regular), config.support_line_width * 0.5, jtMiter, 1.2)),
+                            offset(union_ex(overhang_raw), mesh_group_settings.support_offset, jtMiter, CLIPPER_MITER_LIMIT),
+                         offset(union_ex(overhang_regular), config.support_line_width * HALF, jtMiter, CLIPPER_MITER_LIMIT)),
                     relevant_forbidden);
 
                 // Offset the area to compensate for large tip radiis. Offset happens in multiple steps to ensure the tip is as close to the original overhang as possible.
@@ -1906,7 +1911,7 @@ static void increase_areas_one_layer(
                 if (!settings.no_error) {
                     // ERROR CASE
                     // if the area becomes for whatever reason something that clipper sees as a line, offset would stop working, so ensure that even if it would be a line wrongly, it still actually has an area that can be increased
-                    Polygons lines_offset = offset(to_polylines(parent.influence_area), scaled<float>(0.005), jtMiter, 1.2);
+                    Polygons lines_offset = offset(to_polylines(parent.influence_area), scaled<float>(0.005), jtMiter, CLIPPER_MITER_LIMIT);
                     Polygons base_error_area = union_(parent.influence_area, lines_offset);
                     result = increase_single_area(volumes, config, settings, layer_idx, parent,
                         base_error_area, to_bp_data, to_model_data, inc_wo_collision, (config.maximum_move_distance + extra_speed) * 1.5, mergelayer);
@@ -2141,7 +2146,7 @@ static bool merge_influence_areas_two_elements(
         return false;
 
     // While 0.025 was guessed as enough, i did not have reason to change it.
-    if (area(offset(intersect, scaled<float>(-0.025), jtMiter, 1.2)) <= _tiny_area_threshold)
+    if (area(offset(intersect, scaled<float>(-0.025), jtMiter, CLIPPER_MITER_LIMIT)) <= _tiny_area_threshold)
         return false;
 
 #ifdef TREES_MERGE_RATHER_LATER
@@ -3349,7 +3354,7 @@ static void generate_support_areas(Print &print, OrcaTreeSupport* tree_support, 
         }
         // add vertical enforcer points
         std::vector<float> zs = zs_from_layers(print_object.layers());
-        Polygon            base_circle = make_circle(scale_(0.5), SUPPORT_TREE_CIRCLE_RESOLUTION);
+        Polygon            base_circle = make_circle(scale_(HALF), SUPPORT_TREE_CIRCLE_RESOLUTION);
         for (auto &pt_and_normal :tree_support->m_vertical_enforcer_points) {
             auto pt     = pt_and_normal.first;
             auto normal = pt_and_normal.second; // normal seems useless
@@ -3461,12 +3466,12 @@ static void generate_support_areas(Print &print, OrcaTreeSupport* tree_support, 
                 bottom_contacts, top_contacts, interface_layers, base_interface_layers, intermediate_layers, layer_storage);
 
             auto t_draw = std::chrono::high_resolution_clock::now();
-            auto dur_pre_gen = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t_precalc - t_start).count();
-            auto dur_gen = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t_gen - t_precalc).count();
-            auto dur_path = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t_path - t_gen).count();
-            auto dur_place = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t_place - t_path).count();
-            auto dur_draw = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t_draw - t_place).count();
-            auto dur_total = 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t_draw - t_start).count();
+            auto dur_pre_gen = MICROSECONDS_TO_MS * std::chrono::duration_cast<std::chrono::microseconds>(t_precalc - t_start).count();
+            auto dur_gen = MICROSECONDS_TO_MS * std::chrono::duration_cast<std::chrono::microseconds>(t_gen - t_precalc).count();
+            auto dur_path = MICROSECONDS_TO_MS * std::chrono::duration_cast<std::chrono::microseconds>(t_path - t_gen).count();
+            auto dur_place = MICROSECONDS_TO_MS * std::chrono::duration_cast<std::chrono::microseconds>(t_place - t_path).count();
+            auto dur_draw = MICROSECONDS_TO_MS * std::chrono::duration_cast<std::chrono::microseconds>(t_draw - t_place).count();
+            auto dur_total = MICROSECONDS_TO_MS * std::chrono::duration_cast<std::chrono::microseconds>(t_draw - t_start).count();
             BOOST_LOG_TRIVIAL(info) <<
                 "Total time used creating Tree support for the currently grouped meshes: " << dur_total << " ms. "
                 "Different subtasks:\nCalculating Avoidance: " << dur_pre_gen << " ms "
@@ -3498,7 +3503,7 @@ static void generate_support_areas(Print &print, OrcaTreeSupport* tree_support, 
             raft_layers, bottom_contacts, top_contacts, intermediate_layers, interface_layers, base_interface_layers);
 
         auto t_end = std::chrono::high_resolution_clock::now();
-        BOOST_LOG_TRIVIAL(info) << "Total time of organic tree support: " << 0.001 * std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start).count() << " ms";
+        BOOST_LOG_TRIVIAL(info) << "Total time of organic tree support: " << MICROSECONDS_TO_MS * std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start).count() << " ms";
  #if 0
 //#ifdef SLIC3R_DEBUG
         {
@@ -3757,7 +3762,7 @@ void organic_draw_branches(
                     for (LayerIndex layer_idx = layer_begin; layer_idx < layer_end; ++ layer_idx) {
                         const double print_z  = layer_z(slicing_params, config, layer_idx);
                         const double bottom_z = layer_idx > 0 ? layer_z(slicing_params, config, layer_idx - 1) : 0.;
-                        slice_z.emplace_back(float(0.5 * (bottom_z + print_z)));
+                        slice_z.emplace_back(float(HALF * (bottom_z + print_z)));
                     }
                     std::vector<Polygons> slices = slice_mesh(partial_mesh, slice_z, mesh_slicing_params, throw_on_cancel);
                     bottom_contacts.clear();
@@ -3794,7 +3799,7 @@ void organic_draw_branches(
                                     //FIXME the "verylost" branches should stop when crossing another support.
                                     std::max(0, layer_begin - layers_propagate_max);
                                 double                          support_area_min_radius = M_PI * sqr(double(config.branch_radius));
-                                double                          support_area_stop = std::max(0.2 * M_PI * sqr(double(bottom_radius)), 0.5 * support_area_min_radius);
+                                double                          support_area_stop = std::max(0.2 * M_PI * sqr(double(bottom_radius)), HALF * support_area_min_radius);
                                  // Only propagate until the rest area is smaller than this threshold.
                                 //double                          support_area_min = 0.1 * support_area_min_radius;
                                 for (LayerIndex layer_idx = layer_begin - 1; layer_idx >= layer_bottommost; -- layer_idx) {

@@ -41,6 +41,9 @@
 
 namespace Slic3r { namespace Geometry {
 
+// Named constant extracted for BP1002 (magic-number) cleanup.
+constexpr double HALF = 0.5; // one-half factor (midpoints, cell-centre offsets, PI*0.5)
+
 bool directions_parallel(double angle1, double angle2, double max_diff)
 {
     double diff = fabs(angle1 - angle2);
@@ -52,7 +55,7 @@ bool directions_perpendicular(double angle1, double angle2, double max_diff)
 {
     double diff = fabs(angle1 - angle2);
     max_diff += EPSILON;
-    return fabs(diff - 0.5 * PI) < max_diff || fabs(diff - 1.5 * PI) < max_diff;
+    return fabs(diff - HALF * PI) < max_diff || fabs(diff - 1.5 * PI) < max_diff;
 }
 
 template<class T>
@@ -116,19 +119,19 @@ Pointfs arrange(size_t num_parts, const Vec2d &part_size, coordf_t gap, const Bo
     
     // Get a bounding box of cellw x cellh cells, centered at the center of the bed.
     Vec2d       cells_size(cellw * cell_size(0) - gap, cellh * cell_size(1) - gap);
-    Vec2d       cells_offset(bed_bbox.center() - 0.5 * cells_size);
+    Vec2d       cells_offset(bed_bbox.center() - HALF * cells_size);
     BoundingBoxf cells_bb(cells_offset, cells_size + cells_offset);
     
     // List of cells, sorted by distance from center.
     std::vector<ArrangeItem> cellsorder(cellw * cellh, ArrangeItem());
     for (size_t j = 0; j < cellh; ++ j) {
         // Center of the jth row on the bed.
-        coordf_t cy = linint(j + 0.5, 0., double(cellh), cells_bb.min(1), cells_bb.max(1));
+        coordf_t cy = linint(j + HALF, 0., double(cellh), cells_bb.min(1), cells_bb.max(1));
         // Offset from the bed center.
         coordf_t yd = cells_bb.center()(1) - cy;
         for (size_t i = 0; i < cellw; ++ i) {
             // Center of the ith column on the bed.
-            coordf_t cx = linint(i + 0.5, 0., double(cellw), cells_bb.min(0), cells_bb.max(0));
+            coordf_t cx = linint(i + HALF, 0., double(cellw), cells_bb.min(0), cells_bb.max(0));
             // Offset from the bed center.
             coordf_t xd = cells_bb.center()(0) - cx;
             // Cell with a distance from the bed center.
@@ -148,7 +151,7 @@ Pointfs arrange(size_t num_parts, const Vec2d &part_size, coordf_t gap, const Bo
     Pointfs positions;
     positions.reserve(num_parts);
     for (std::vector<ArrangeItem>::const_iterator it = cellsorder.begin(); it != cellsorder.end(); ++ it)
-        positions.push_back(Vec2d(it->pos(0) - 0.5 * part_size(0), it->pos(1) - 0.5 * part_size(1)));
+        positions.push_back(Vec2d(it->pos(0) - HALF * part_size(0), it->pos(1) - HALF * part_size(1)));
     return positions;
 }
 #else
@@ -211,8 +214,8 @@ arrange(size_t total_parts, const Vec2d &part_size, coordf_t dist, const Boundin
     // work out distance for all cells, sort into list
     for (size_t i = 0; i <= cellw-1; ++i) {
         for (size_t j = 0; j <= cellh-1; ++j) {
-            coordf_t cx = linint(i + 0.5, 0, cellw, cells_bb.min(0), cells_bb.max(0));
-            coordf_t cy = linint(j + 0.5, 0, cellh, cells_bb.min(1), cells_bb.max(1));
+            coordf_t cx = linint(i + HALF, 0, cellw, cells_bb.min(0), cells_bb.max(0));
+            coordf_t cy = linint(j + HALF, 0, cellh, cells_bb.min(1), cells_bb.max(1));
             
             coordf_t xd = fabs((area(0) / 2) - cx);
             coordf_t yd = fabs((area(1) / 2) - cy);
@@ -222,7 +225,7 @@ arrange(size_t total_parts, const Vec2d &part_size, coordf_t dist, const Boundin
             c.pos(1) = cy;
             c.index_x = i;
             c.index_y = j;
-            c.dist = xd * xd + yd * yd - fabs((cellw / 2) - (i + 0.5));
+            c.dist = xd * xd + yd * yd - fabs((cellw / 2) - (i + HALF));
             
             // binary insertion sort
             {
@@ -479,7 +482,7 @@ static bool contains_skew(const Transform3d& trafo)
     if (scale.isDiagonal())
       return false;
     
-    if (scale.determinant() >= 0.0)
+    if (scale.determinant() >= 0.)
       return true;
 
     // the matrix contains mirror
@@ -487,7 +490,7 @@ static bool contains_skew(const Transform3d& trafo)
 
     auto check_skew = [&ratio](int i, int j, bool& skew) {
       if (!std::isnan(ratio(i, j)) && !std::isnan(ratio(j, i)))
-        skew |= std::abs(ratio(i, j) * ratio(j, i) - 1.0) > EPSILON;
+        skew |= std::abs(ratio(i, j) * ratio(j, i) - 1.) > EPSILON;
     };
 
     bool has_skew = false;
@@ -518,7 +521,7 @@ void Transformation::set_rotation(Axis axis, double rotation)
 {
     rotation = angle_to_0_2PI(rotation);
     if (is_approx(std::abs(rotation), 2.0 * double(PI)))
-        rotation = 0.0;
+        rotation = 0.;
 
     auto [curr_rotation, scale] = extract_rotation_scale(m_matrix);
     Vec3d angles = extract_rotation(curr_rotation);
@@ -546,7 +549,7 @@ Transform3d Transformation::get_scaling_factor_matrix() const
 
 void Transformation::set_scaling_factor(const Vec3d& scaling_factor)
 {
-    assert(scaling_factor.x() > 0.0 && scaling_factor.y() > 0.0 && scaling_factor.z() > 0.0);
+    assert(scaling_factor.x() > 0. && scaling_factor.y() > 0. && scaling_factor.z() > 0.);
 
     const Vec3d offset = get_offset();
     m_matrix = extract_rotation_matrix(m_matrix) * scale_transform(scaling_factor);
@@ -555,7 +558,7 @@ void Transformation::set_scaling_factor(const Vec3d& scaling_factor)
 
 void Transformation::set_scaling_factor(Axis axis, double scaling_factor)
 {
-    assert(scaling_factor > 0.0);
+    assert(scaling_factor > 0.);
 
     auto [rotation, scale] = extract_rotation_scale(m_matrix);
     scale(axis, axis) = scaling_factor;
@@ -585,9 +588,9 @@ void Transformation::set_mirror(const Vec3d& mirror)
     Vec3d copy(mirror);
     const Vec3d abs_mirror = copy.cwiseAbs();
     for (int i = 0; i < 3; ++i) {
-        if (abs_mirror(i) == 0.0)
-            copy(i) = 1.0;
-        else if (abs_mirror(i) != 1.0)
+        if (abs_mirror(i) == 0.)
+            copy(i) = 1.;
+        else if (abs_mirror(i) != 1.)
             copy(i) /= abs_mirror(i);
     }
 
@@ -595,9 +598,9 @@ void Transformation::set_mirror(const Vec3d& mirror)
     const Vec3d curr_scales = { scale(0, 0), scale(1, 1), scale(2, 2) };
     const Vec3d signs = curr_scales.cwiseProduct(copy);
 
-    if (signs[0] < 0.0) scale(0, 0) = -scale(0, 0);
-    if (signs[1] < 0.0) scale(1, 1) = -scale(1, 1);
-    if (signs[2] < 0.0) scale(2, 2) = -scale(2, 2);
+    if (signs[0] < 0.) scale(0, 0) = -scale(0, 0);
+    if (signs[1] < 0.) scale(1, 1) = -scale(1, 1);
+    if (signs[2] < 0.) scale(2, 2) = -scale(2, 2);
 
     const Vec3d offset = get_offset();
     m_matrix = rotation * scale;
@@ -607,16 +610,16 @@ void Transformation::set_mirror(const Vec3d& mirror)
 void Transformation::set_mirror(Axis axis, double mirror)
 {
     double abs_mirror = std::abs(mirror);
-    if (abs_mirror == 0.0)
-        mirror = 1.0;
-    else if (abs_mirror != 1.0)
+    if (abs_mirror == 0.)
+        mirror = 1.;
+    else if (abs_mirror != 1.)
         mirror /= abs_mirror;
 
     auto [rotation, scale] = extract_rotation_scale(m_matrix);
     const double curr_scale = scale(axis, axis);
     const double sign = curr_scale * mirror;
 
-    if (sign < 0.0) scale(axis, axis) = -scale(axis, axis);
+    if (sign < 0.) scale(axis, axis) = -scale(axis, axis);
 
     const Vec3d offset = get_offset();
     m_matrix = rotation * scale;
@@ -683,11 +686,11 @@ bool Transformation::operator==(const Transformation& other) const
 TransformationSVD::TransformationSVD(const Transform3d& trafo)
 {
     const auto &m0 = trafo.matrix().block<3, 3>(0, 0);
-    mirror = m0.determinant() < 0.0;
+    mirror = m0.determinant() < 0.;
 
     Matrix3d m;
     if (mirror)
-        m = m0 * Eigen::DiagonalMatrix<double, 3, 3>(-1.0, 1.0, 1.0);
+        m = m0 * Eigen::DiagonalMatrix<double, 3, 3>(-1.0, 1., 1.);
     else
         m = m0;
     const Eigen::JacobiSVD<Matrix3d> svd(m, Eigen::ComputeFullU | Eigen::ComputeFullV);
