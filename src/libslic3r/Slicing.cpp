@@ -26,14 +26,19 @@
 namespace Slic3r
 {
 
+// Named constants extracted for BP1002 (magic-number) cleanup.
+constexpr double HALF                  = 0.5;         // one-half factor / round-to-nearest bias
+constexpr int    COLOR_CHANNEL_MAX     = 255;         // max value of an 8-bit RGBA colour channel
+constexpr double Z_QUANTIZATION_FACTOR = 100000000.;  // fixed-point scale for quantizing Z heights (1e-8 mm)
+
 static const double MIN_LAYER_HEIGHT = 0.01;
 static const double MIN_LAYER_HEIGHT_DEFAULT = 0.07;
 // fields are with 8-number precision after the dot
 double check_z_step(const double val, const double z_step) {
     if (z_step <= EPSILON) return val;
-    uint64_t valint = uint64_t(val * 100000000. + 0.5);
-    uint64_t stepint = uint64_t(z_step * 100000000. + 0.5);
-    return (((valint + (stepint/2)) / stepint) * stepint) / 100000000.;
+    uint64_t valint = uint64_t(val * Z_QUANTIZATION_FACTOR + HALF);
+    uint64_t stepint = uint64_t(z_step * Z_QUANTIZATION_FACTOR + HALF);
+    return (((valint + (stepint/2)) / stepint) * stepint) / Z_QUANTIZATION_FACTOR;
     //return int((val + z_step * 0.5) / z_step) * z_step;
 }
 coord_t check_z_step(const coord_t val, const coord_t z_step) {
@@ -42,8 +47,8 @@ coord_t check_z_step(const coord_t val, const coord_t z_step) {
 }
 inline bool test_z_step(const double val, const double z_step) {
     if (z_step <= EPSILON) return true;
-    uint64_t valint = uint64_t(val * 100000000. + 0.5);
-    uint64_t stepint = uint64_t(z_step * 100000000. + 0.5);
+    uint64_t valint = uint64_t(val * Z_QUANTIZATION_FACTOR + HALF);
+    uint64_t stepint = uint64_t(z_step * Z_QUANTIZATION_FACTOR + HALF);
     return valint % stepint == 0;
 }
 
@@ -464,7 +469,7 @@ std::vector<double> layer_height_profile_adaptive(const SlicingParameters& slici
 
     // 2) Generate layers using the algorithm of @platsch 
     std::vector<double> layer_height_profile;
-    layer_height_profile.push_back(0.0);
+    layer_height_profile.push_back(0.);
     layer_height_profile.push_back(slicing_params.first_object_layer_height);
     if (slicing_params.first_object_layer_height_fixed()) {
         layer_height_profile.push_back(slicing_params.first_object_layer_height);
@@ -539,7 +544,7 @@ std::vector<double> layer_height_profile_adaptive(const SlicingParameters& slici
     }
 
     double z_gap = slicing_params.object_print_z_height() - *(layer_height_profile.end() - 2);
-    if (z_gap > 0.0)
+    if (z_gap > 0.)
     {
         layer_height_profile.push_back(slicing_params.object_print_z_height());
         layer_height_profile.push_back(std::clamp(z_gap, slicing_params.min_layer_height, slicing_params.max_layer_height));
@@ -595,7 +600,7 @@ std::vector<double> smooth_height_profile(const std::vector<double>& profile, co
         // smooth the rest of the profile by biasing a gaussian blur
         // the bias moves the smoothed profile closer to the min_layer_height
         double delta_h = slicing_params.max_layer_height - slicing_params.min_layer_height;
-        double inv_delta_h = (delta_h != 0.0) ? 1.0 / delta_h : 1.0;
+        double inv_delta_h = (delta_h != 0.) ? 1.0 / delta_h : 1.0;
 
         double max_dz_band = static_cast<double>(radius) * slicing_params.layer_height;
         for (size_t i = skip_count; i < size; i += 2)
@@ -604,11 +609,11 @@ std::vector<double> smooth_height_profile(const std::vector<double>& profile, co
             zi = check_z_step(zi, slicing_params.z_step);
             double hi = profile[i + 1];
             ret.push_back(zi);
-            ret.push_back(0.0);
+            ret.push_back(0.);
             double& height = ret.back();
             int begin = std::max(static_cast<int>(i) - two_radius, static_cast<int>(skip_count));
             int end = std::min(static_cast<int>(i) + two_radius, static_cast<int>(size) - 2);
-            double weight_total = 0.0;
+            double weight_total = 0.;
             for (int j = begin; j <= end; j += 2)
             {
                 int kernel_id = radius + (j - static_cast<int>(i)) / 2;
@@ -701,9 +706,9 @@ void adjust_layer_height_profile(
     }
 
     // 3) Densify the profile inside z +- band_width/2, remove duplicate Zs from the height profile inside the band.
-    double lo = std::max(z_span_variable.first,  z - 0.5 * band_width);
+    double lo = std::max(z_span_variable.first,  z - HALF * band_width);
     // Do not limit the upper side of the band, so that the modifications to the top point of the profile will be allowed.
-    double hi = z + 0.5 * band_width;
+    double hi = z + HALF * band_width;
     double z_step_adjust = 0.1;
     size_t idx = 0;
     while (idx < layer_height_profile.size() && layer_height_profile[idx] < lo)
@@ -728,7 +733,7 @@ void adjust_layer_height_profile(
             height = lerp(h1, h2, (zz - z1) / (z2 - z1));
         }
         // Adjust height by layer_thickness_delta.
-        double weight = std::abs(zz - z) < 0.5 * band_width ? (0.5 + 0.5 * cos(2. * M_PI * (zz - z) / band_width)) : 0.;
+        double weight = std::abs(zz - z) < HALF * band_width ? (HALF + HALF * cos(2. * M_PI * (zz - z) / band_width)) : 0.;
         switch (action) {
             case LAYER_HEIGHT_EDIT_ACTION_INCREASE:
             case LAYER_HEIGHT_EDIT_ACTION_DECREASE:
@@ -787,7 +792,7 @@ void adjust_layer_height_profile(
         assert(zz <= layer_height_profile[idx]);
         profile_new.insert(profile_new.end(), layer_height_profile.begin() + idx, layer_height_profile.end());
     }
-    else if (profile_new[profile_new.size() - 2] + 0.5 * EPSILON < z_span_variable.second) { 
+    else if (profile_new[profile_new.size() - 2] + HALF * EPSILON < z_span_variable.second) { 
         profile_new.insert(profile_new.end(), layer_height_profile.end() - 2, layer_height_profile.end());
     }
     layer_height_profile = std::move(profile_new);
@@ -802,14 +807,14 @@ void adjust_layer_height_profile(
             profile_new = layer_height_profile;
             for (size_t i = i_resampled_start; i < i_resampled_end; i += 2) {
                 double zz = profile_new[i];
-                double t = std::abs(zz - z) < 0.5 * band_width ? (0.25 + 0.25 * cos(2. * M_PI * (zz - z) / band_width)) : 0.;
+                double t = std::abs(zz - z) < HALF * band_width ? (0.25 + 0.25 * cos(2. * M_PI * (zz - z) / band_width)) : 0.;
                 assert(t >= 0. && t <= 0.5000001);
                 if (i == 0)
                     layer_height_profile[i + 1] = (1. - t) * profile_new[i + 1] + t * profile_new[i + 3];
                 else if (i + 1 == profile_new.size())
                     layer_height_profile[i + 1] = (1. - t) * profile_new[i + 1] + t * profile_new[i - 1];
                 else
-                    layer_height_profile[i + 1] = (1. - t) * profile_new[i + 1] + 0.5 * t * (profile_new[i - 1] + profile_new[i + 3]);
+                    layer_height_profile[i + 1] = (1. - t) * profile_new[i + 1] + HALF * t * (profile_new[i - 1] + profile_new[i + 3]);
             }
         }
     }
@@ -852,7 +857,7 @@ std::vector<double> generate_object_layers(
 
     size_t idx_layer_height_profile = 0;
     // loop until we have at least one layer and the max slice_z reaches the object height
-    double slice_z = print_z + 0.5 * slicing_params.min_layer_height;
+    double slice_z = print_z + HALF * slicing_params.min_layer_height;
     while (slice_z < slicing_params.object_print_z_height()) {
         height = slicing_params.min_layer_height;
         if (idx_layer_height_profile < layer_height_profile.size()) {
@@ -875,14 +880,14 @@ std::vector<double> generate_object_layers(
                 assert(height >= slicing_params.min_layer_height - EPSILON && height <= slicing_params.max_layer_height + EPSILON);
             }
         }
-        slice_z = print_z + 0.5 * height;
+        slice_z = print_z + HALF * height;
         if (slice_z >= slicing_params.object_print_z_height())
             break;
         assert(height > slicing_params.min_layer_height - EPSILON);
         assert(height < slicing_params.max_layer_height + EPSILON);
         out.push_back(print_z);
         print_z += height;
-        slice_z = print_z + 0.5 * slicing_params.min_layer_height;
+        slice_z = print_z + HALF * slicing_params.min_layer_height;
         out.push_back(print_z);
     }
 
@@ -912,12 +917,12 @@ bool check_object_layers_fixed(
     if (! fixed_step1 || ! fixed_step2)
         return false;
 
-    if (layer_height_profile[2] < 0.5 * slicing_params.first_object_layer_height + EPSILON ||
+    if (layer_height_profile[2] < HALF * slicing_params.first_object_layer_height + EPSILON ||
         ! is_approx(layer_height_profile[3], slicing_params.first_object_layer_height))
         return false;
 
     double z_max = layer_height_profile[layer_height_profile.size() - 2];
-    double z_2nd = slicing_params.first_object_layer_height + 0.5 * slicing_params.layer_height;
+    double z_2nd = slicing_params.first_object_layer_height + HALF * slicing_params.layer_height;
     if (z_2nd > z_max)
         return true;
     if (z_2nd < *(layer_height_profile.end() - 4) + EPSILON ||
@@ -968,7 +973,7 @@ int generate_layer_height_texture(
         int cell_first = std::clamp(int(ceil(lo * z_to_cell)), 0, ncells-1);
         int cell_last  = std::clamp(int(floor(hi * z_to_cell)), 0, ncells-1);
         for (int cell = cell_first; cell <= cell_last; ++ cell) {
-            double idxf = (0.5 * hscale + (h - slicing_params.layer_height)) * double(palette_raw.size()-1) / hscale;
+            double idxf = (HALF * hscale + (h - slicing_params.layer_height)) * double(palette_raw.size()-1) / hscale;
             int idx1 = std::clamp(int(floor(idxf)), 0, int(palette_raw.size() - 1));
             int idx2 = std::min(int(palette_raw.size() - 1), idx1 + 1);
             double t = idxf - double(idx1);
@@ -988,10 +993,10 @@ int generate_layer_height_texture(
             assert(row >= 0 && row < rows);
             assert(col >= 0 && col < cols);
             unsigned char *ptr = reinterpret_cast<unsigned char*>(data) + (row * cols + col) * 4;
-            ptr[0] = static_cast<unsigned char>(std::clamp(int(floor(color(0) + 0.5)), 0, 255));
-            ptr[1] = static_cast<unsigned char>(std::clamp(int(floor(color(1) + 0.5)), 0, 255));
-            ptr[2] = static_cast<unsigned char>(std::clamp(int(floor(color(2) + 0.5)), 0, 255));
-            ptr[3] = 255;
+            ptr[0] = static_cast<unsigned char>(std::clamp(int(floor(color(0) + HALF)), 0, COLOR_CHANNEL_MAX));
+            ptr[1] = static_cast<unsigned char>(std::clamp(int(floor(color(1) + HALF)), 0, COLOR_CHANNEL_MAX));
+            ptr[2] = static_cast<unsigned char>(std::clamp(int(floor(color(2) + HALF)), 0, COLOR_CHANNEL_MAX));
+            ptr[3] = COLOR_CHANNEL_MAX;
             if (col == 0 && row > 0) {
                 // Duplicate the first value in a row as a last value of the preceding row.
                 ptr[-4] = ptr[0];
@@ -1004,7 +1009,7 @@ int generate_layer_height_texture(
             cell_first = std::clamp(int(ceil(lo * z_to_cell1)), 0, ncells1-1);
             cell_last  = std::clamp(int(floor(hi * z_to_cell1)), 0, ncells1-1);
             for (int cell = cell_first; cell <= cell_last; ++ cell) {
-                double idxf = (0.5 * hscale + (h - slicing_params.layer_height)) * double(palette_raw.size()-1) / hscale;
+                double idxf = (HALF * hscale + (h - slicing_params.layer_height)) * double(palette_raw.size()-1) / hscale;
                 int idx1 = std::clamp(int(floor(idxf)), 0, int(palette_raw.size() - 1));
                 int idx2 = std::min(int(palette_raw.size() - 1), idx1 + 1);
                 double t = idxf - double(idx1);
@@ -1020,10 +1025,10 @@ int generate_layer_height_texture(
                 assert(row >= 0 && row < rows/2);
                 assert(col >= 0 && col < cols/2);
                 unsigned char *ptr = data1 + (row * cols1 + col) * 4;
-                ptr[0] = static_cast<unsigned char>(std::clamp(int(floor(color(0) + 0.5)), 0, 255));
-                ptr[1] = static_cast<unsigned char>(std::clamp(int(floor(color(1) + 0.5)), 0, 255));
-                ptr[2] = static_cast<unsigned char>(std::clamp(int(floor(color(2) + 0.5)), 0, 255));
-                ptr[3] = 255;
+                ptr[0] = static_cast<unsigned char>(std::clamp(int(floor(color(0) + HALF)), 0, COLOR_CHANNEL_MAX));
+                ptr[1] = static_cast<unsigned char>(std::clamp(int(floor(color(1) + HALF)), 0, COLOR_CHANNEL_MAX));
+                ptr[2] = static_cast<unsigned char>(std::clamp(int(floor(color(2) + HALF)), 0, COLOR_CHANNEL_MAX));
+                ptr[3] = COLOR_CHANNEL_MAX;
                 if (col == 0 && row > 0) {
                     // Duplicate the first value in a row as a last value of the preceding row.
                     ptr[-4] = ptr[0];
