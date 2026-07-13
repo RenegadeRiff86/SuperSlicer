@@ -315,6 +315,19 @@ static constexpr double DEFAULT_EXPOSURE_S = 10;               // SLA exposure t
 static constexpr double SLA_CONNECTOR_STRIDE_MM = 10;          // SLA pad object-connector stride default
 static constexpr double LEGACY_SPEED_FLOOR_MM_S = 10;          // legacy first-layer speed conversion floor (mm/s)
 static constexpr double MAX_WIDTH_OVER_NOZZLE = 10;            // sanity cap: width may not exceed 10x nozzle diameter
+static constexpr double DEFAULT_MILLING_Z_LIFT_MM = 2;        // milling tool travel z-lift default
+static constexpr int    DEFAULT_PILLAR_BRIDGES_BRANCHING = 2; // default max bridges on a pillar (branching SLA tree)
+static constexpr int    DEFAULT_PILLAR_BRIDGES_CLASSIC = 3;   // default max bridges on a pillar (classic SLA tree)
+static constexpr float  MAX_PLAUSIBLE_RATIO = 2;              // legacy ratio values at/above this are clamped to 100%
+static constexpr size_t KEY_PAIR_STRIDE = 2;                  // flat key lists storing {key, companion} pairs
+static constexpr int    DISABLED_VALUE_THRESHOLD = std::numeric_limits<int32_t>::max() / 2; // deserialized values beyond this mark a disabled option
+static constexpr int    LEGACY_SUSI_VERSION_MAJOR = 2;        // configs from SuperSlicer <= 2.6 use the legacy overhang keys
+static constexpr int    LEGACY_SUSI_VERSION_MINOR = 6;
+static constexpr size_t EXTRUSION_MULT_GRAPH_USED_POINTS = 10; // active points of the default extrusion-multiplier-per-speed graph
+static constexpr size_t FLOW_COMPENSATION_GRAPH_POINTS = 10;  // points of the default small-area flow-compensation spline
+static constexpr double DEFAULT_JERK_XY_MM_S = 10.;           // default X/Y jerk machine limit (normal & stealth)
+static constexpr double DEFAULT_MAX_WEIGHT_ON_MODEL_MM = 10.; // default max sub-tree weight ending on the model (sum of branch lengths)
+static constexpr double SLA_SMALL_MM_MAX = 10;                // shared UI upper bound for small SLA gap/thickness fields
 static constexpr double LARGE_MAX_LIMIT = 1000;                // generous cap for numeric fields with no natural upper bound
 static constexpr double HUGE_MAX_LIMIT = 10000;                // cap for counts that can legitimately grow very large
 static constexpr double FULL_CIRCLE_DEGREES = 360;             // angle fields wrap at a full turn
@@ -2201,7 +2214,7 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("This string is edited by a Dialog and contains extusion multiplier for different speeds.");
     def->mode = comExpert | comSuSi;
     def->is_vector_extruder = true;
-    def->set_default_value(new ConfigOptionGraphs({ GraphData(0,10, GraphData::GraphType::LINEAR,
+    def->set_default_value(new ConfigOptionGraphs({ GraphData(0, EXTRUSION_MULT_GRAPH_USED_POINTS, GraphData::GraphType::LINEAR,
         {{10,1.},{20,1.},{30,1.},{40,1.},{60,1.},{80,1.},{120,1.},{160,1.},{240,1.},{320,1.},{480,1.},{640,1.},{960,1.},{1280,1.}}
     )}));
     def->graph_settings = std::make_shared<GraphSettings>();
@@ -3282,7 +3295,7 @@ void PrintConfigDef::init_fff_params()
                     "\nIt's always disabled on the first layer, to not compromise adhesion.");
     def->mode = comExpert | comSuSi;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionGraph(GraphData(0,10, GraphData::GraphType::SPLINE,
+    def->set_default_value(disable_default_option(new ConfigOptionGraph(GraphData(0, FLOW_COMPENSATION_GRAPH_POINTS, GraphData::GraphType::SPLINE,
         {{0,0},{0.2,0.44},{0.4,0.61},{0.6,0.7},{0.8,0.76},{1.5,0.86},{2,0.89},{3,0.92},{5,0.95},{10,1}}
     ))));
     def->graph_settings = std::make_shared<GraphSettings>();
@@ -4467,8 +4480,8 @@ void PrintConfigDef::init_fff_params()
         };
         std::vector<AxisDefault> axes {
             // name, max_feedrate,  max_acceleration, max_jerk
-            { "x", { 500., 200. }, {  9000., 1000. }, { 10. , 10.  } },
-            { "y", { 500., 200. }, {  9000., 1000. }, { 10. , 10.  } },
+            { "x", { 500., 200. }, {  9000., 1000. }, { DEFAULT_JERK_XY_MM_S, DEFAULT_JERK_XY_MM_S } },
+            { "y", { 500., 200. }, {  9000., 1000. }, { DEFAULT_JERK_XY_MM_S, DEFAULT_JERK_XY_MM_S } },
             { "z", {  12.,  12. }, {   500.,  200. }, {  0.2,  0.4 } },
             { "e", { 120., 120. }, { 10000., 5000. }, {  2.5,  2.5 } }
         };
@@ -8421,7 +8434,7 @@ void PrintConfigDef::init_milling_params()
     def->tooltip = L("Amount of lift for travel.");
     def->sidetext = L("mm");
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value(new ConfigOptionFloats(2));
+    def->set_default_value(new ConfigOptionFloats(DEFAULT_MILLING_Z_LIFT_MM));
 
     def = this->add("milling_toolchange_start_gcode", coStrings);
     def->label = L("G-Code to switch to this toolhead");
@@ -8551,7 +8564,7 @@ void PrintConfigDef::init_sla_support_params(const std::string &prefix)
     def->min = 0;
     def->max = 50;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionInt(prefix == KEY_BRANCHING ? 2 : 3));
+    def->set_default_value(new ConfigOptionInt(prefix == KEY_BRANCHING ? DEFAULT_PILLAR_BRIDGES_BRANCHING : DEFAULT_PILLAR_BRIDGES_CLASSIC));
 
     def = this->add(prefix + "support_max_weight_on_model", coFloat);
     def->label = L("Max weight on model");
@@ -8562,7 +8575,7 @@ void PrintConfigDef::init_sla_support_params(const std::string &prefix)
     def->sidetext = L("mm");
     def->min = 0;
     def->mode = comExpert | comPrusa;
-    def->set_default_value(new ConfigOptionFloat(10.));
+    def->set_default_value(new ConfigOptionFloat(DEFAULT_MAX_WEIGHT_ON_MODEL_MM));
 
     def = this->add(prefix + "support_pillar_connection_mode", coEnum);
     def->label = L("Pillar connection mode");
@@ -8626,7 +8639,7 @@ void PrintConfigDef::init_sla_support_params(const std::string &prefix)
         "to this parameter is inserted between the model and the pad.");
     def->sidetext = L("mm");
     def->min = 0;
-    def->max = 10;
+    def->max = SLA_SMALL_MM_MAX;
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionFloat(1));
 
@@ -9180,7 +9193,7 @@ void PrintConfigDef::init_sla_params()
                       "pad in zero elevation mode.");
     def->sidetext = L("mm");
     def->min = 0;
-    def->max = 10;
+    def->max = SLA_SMALL_MM_MAX;
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionFloat(1));
 
@@ -9225,7 +9238,7 @@ void PrintConfigDef::init_sla_params()
     def->tooltip  = L("Minimum wall thickness of a hollowed model.");
     def->sidetext = L("mm");
     def->min = 1;
-    def->max = 10;
+    def->max = SLA_SMALL_MM_MAX;
     def->mode = comSimpleAE | comPrusa;
     def->set_default_value(new ConfigOptionFloat(DEFAULT_HOLLOWING_THICKNESS_MM));
     
@@ -9249,7 +9262,7 @@ void PrintConfigDef::init_sla_params()
         "resemble the exterior the most.");
     def->sidetext = L("mm");
     def->min = 0;
-    def->max = 10;
+    def->max = SLA_SMALL_MM_MAX;
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionFloat(2.0));
 
@@ -9662,7 +9675,7 @@ static void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_c
             // need percent
             try {
                 float val = boost::lexical_cast<float>(value);
-                if (val < 2)
+                if (val < MAX_PLAUSIBLE_RATIO)
                     value = to_string_nozero(val * PERCENT_SCALE, PERCENT_PRECISION) + "%";
                 else
                     value = "100%";
@@ -9740,7 +9753,7 @@ static void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_c
     const std::vector<std::string> move_deactivate = {
         KEY_OVERHANGS_WIDTH, KEY_OVERHANGS_FLOW_RATIO
         };
-    for (size_t i = 0; i < move_deactivate.size(); i += 2) {
+    for (size_t i = 0; i < move_deactivate.size(); i += KEY_PAIR_STRIDE) {
         const size_t companion_idx = i + size_t{1};
         // get our keyf
         if (has(dict, move_deactivate[i])) {
@@ -9917,7 +9930,6 @@ static void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_c
             if (def && def->can_be_disabled) {
                 ConfigOption *default_opt = def->default_value->clone();
                 default_opt->deserialize(value);
-                float max_value = std::numeric_limits<int32_t>::max() / 2;
                 switch (default_opt->type()) {
                 case coInt:
                 case coPercent:
@@ -9928,7 +9940,7 @@ static void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_c
                 case coFloats:
                 case coFloatsOrPercents: {
                     for (size_t idx = 0; idx < default_opt->size(); idx++) {
-                        if (std::abs(default_opt->get_float(idx)) > std::numeric_limits<int>::max() / 2) {
+                        if (std::abs(default_opt->get_float(idx)) > DISABLED_VALUE_THRESHOLD) {
                             default_opt->set(*def->default_value, idx);
                             default_opt->set_enabled(false, idx);
                         }
@@ -10025,7 +10037,7 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
         if (!old) {
             std::optional<Semver> version = Semver::parse(str_version.substr(SUSI_VERSION_PREFIX_LEN + 1));
             if (version) {
-                if (version->maj() <= 2 && version->min() <= 6) {
+                if (version->maj() <= LEGACY_SUSI_VERSION_MAJOR && version->min() <= LEGACY_SUSI_VERSION_MINOR) {
                     old = true;
                 }
             } else {
@@ -10074,10 +10086,8 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
             enable_dynamic_overhang_speeds.deserialize(useful_items[KEY_ENABLE_DYNAMIC_OVERHANG_SPEEDS]);
         std::vector<ConfigOptionFloatOrPercent> values;
         values.resize(OVERHANG_SPEED_SLOTS);
-        values[0].deserialize(useful_items["overhang_speed_0"]);
-        values[1].deserialize(useful_items["overhang_speed_1"]);
-        values[2].deserialize(useful_items["overhang_speed_2"]);
-        values[3].deserialize(useful_items["overhang_speed_3"]);
+        for (size_t slot = 0; slot < OVERHANG_SPEED_SLOTS; ++slot)
+            values[slot].deserialize(useful_items["overhang_speed_" + std::to_string(slot)]);
         double external_perimeter_speed = config.get_computed_value("external_perimeter_speed");
         double max = external_perimeter_speed;
         double min = external_perimeter_speed;
@@ -10135,14 +10145,11 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
         auto *default_fan_speed = config.option<ConfigOptionInts>(KEY_DEFAULT_FAN_SPEED);
         std::vector<ConfigOptionFloats> values;
         values.resize(OVERHANG_SPEED_SLOTS);
-        if(useful_items.find("overhang_fan_speed_0") != useful_items.end())
-            values[0].deserialize(useful_items["overhang_fan_speed_0"]);
-        if(useful_items.find("overhang_fan_speed_1") != useful_items.end())
-            values[1].deserialize(useful_items["overhang_fan_speed_1"]);
-        if(useful_items.find("overhang_fan_speed_2") != useful_items.end())
-            values[2].deserialize(useful_items["overhang_fan_speed_2"]);
-        if(useful_items.find("overhang_fan_speed_3") != useful_items.end())
-            values[3].deserialize(useful_items["overhang_fan_speed_3"]);
+        for (size_t slot = 0; slot < OVERHANG_SPEED_SLOTS; ++slot) {
+            const std::string key = "overhang_fan_speed_" + std::to_string(slot);
+            if (useful_items.find(key) != useful_items.end())
+                values[slot].deserialize(useful_items[key]);
+        }
         ConfigOptionGraphs opt;
         opt.set_can_be_disabled();
         std::vector<GraphData> graph_data;
@@ -10153,34 +10160,22 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
             }
         }
         assert(enable_dynamic_fan_speeds.size() >= values[0].size());
-        assert(values[0].size() >= values[1].size());
-        assert(values[1].size() >= values[2].size());
-        assert(values[2].size() >= values[3].size());
+        for (size_t slot = 0; slot + 1 < OVERHANG_SPEED_SLOTS; ++slot)
+            assert(values[slot].size() >= values[slot + 1].size());
         const size_t overhang_fan_speed_size = enable_dynamic_fan_speeds.size();
         for (size_t extruder_id = 0; extruder_id < overhang_fan_speed_size; extruder_id++) {
             double default_value = 0;
-            if (values[0].size() <= extruder_id) {
-                assert(!enable_dynamic_fan_speeds.get_at(extruder_id));
-                assert(values[0].size() == extruder_id);
-                values[0].set_at(default_value, extruder_id);
-            } else {
-                default_value = values[0].get_at(extruder_id);
-            }
-            if (values[1].size() <= extruder_id) {
-                assert(values[1].size() == extruder_id);
-                values[1].set_at(default_value, extruder_id);
-            } else {
-                default_value = values[1].get_at(extruder_id);
-            }
-            if (values[2].size() <= extruder_id) {
-                assert(values[2].size() == extruder_id);
-                values[2].set_at(default_value, extruder_id);
-            } else {
-                default_value = values[2].get_at(extruder_id);
-            }
-            if (values[3].size() <= extruder_id) {
-                assert(values[3].size() == extruder_id);
-                values[3].set_at(default_value, extruder_id);
+            // each slot inherits the previous slot's value when missing for this extruder
+            for (size_t slot = 0; slot < OVERHANG_SPEED_SLOTS; ++slot) {
+                if (values[slot].size() <= extruder_id) {
+                    if (slot == 0) {
+                        assert(!enable_dynamic_fan_speeds.get_at(extruder_id));
+                    }
+                    assert(values[slot].size() == extruder_id);
+                    values[slot].set_at(default_value, extruder_id);
+                } else {
+                    default_value = values[slot].get_at(extruder_id);
+                }
             }
         }
         // while there is a value
@@ -11269,7 +11264,7 @@ std::map<std::string, std::string> PrintConfigDef::to_prusa(t_config_option_key&
         std::string coma = "";
         for (std::string &size : sizes) {
             //if first or second dimension is 0: ignore.
-            if (size.find("0x") == 0 || size.find("x0") + 2 == size.size())
+            if (size.find("0x") == 0 || size.find("x0") + sizeof("x0") - 1 == size.size())
                 continue;
             assert(size.find('/') == std::string::npos);
             value = value + coma + size + std::string("/") + format;
@@ -12410,7 +12405,7 @@ CLIActionsConfigDef::CLIActionsConfigDef()
 
     def = this->add("gcodeviewer", coBool);
     def->label = L("G-code viewer");
-    def->tooltip = L("Visualize an already sliced and saved G-code");
+    def->tooltip = L("Open saved G-code, or slice an FFF model and open the generated G-code in the viewer.");
     def->cli = "gcodeviewer";
     def->set_default_value(new ConfigOptionBool(false));
 
