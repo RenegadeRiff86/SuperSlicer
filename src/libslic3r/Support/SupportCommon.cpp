@@ -2,6 +2,7 @@
 ///|/
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
+#include "../BridgeDetector.hpp"
 #include "../ClipperUtils.hpp"
 #include "../ClipperZUtils.hpp"
 #include "../ExtrusionEntityCollection.hpp"
@@ -101,15 +102,29 @@ void remove_bridges_from_contacts(
         bridges = union_ex(bridges);
     }
     // remove the entire bridges and only support the unsupported edges
-    for (const Surface &surface : layerm.fill_surfaces()) {
-        if (surface.has_pos_bottom() && surface.has_mod_bridge() && surface.bridge_angle >= 0.0) {
-            // If max_bridge_length is set, only remove bridge surfaces that fit within it.
-            if (max_bridge_length > 0) {
-                auto bbox_size = get_extents(surface.expolygon).size();
-                if (bbox_size.x() > max_bridge_length || bbox_size.y() > max_bridge_length)
-                    continue;
+    // A surface flagged as a bottom bridge is only printable as a bridge where its extrusions
+    // can anchor on the lower layer at BOTH ends. Overhangs anchored on one side only (e.g. a
+    // plate jutting out sideways) are also flagged as bottom bridges, but most of their area
+    // would sag if printed over air, so support must be kept there. Veto only the area the
+    // BridgeDetector proves coverable by both-end-anchored bridge lines at the surface's
+    // bridging direction, instead of the whole flagged surface.
+    {
+        const Flow bridge_flow = layerm.bridging_flow(frInfill);
+        for (const Surface &surface : layerm.fill_surfaces()) {
+            if (surface.has_pos_bottom() && surface.has_mod_bridge() && surface.bridge_angle >= 0.0) {
+                // If max_bridge_length is set, only remove bridge surfaces that fit within it.
+                if (max_bridge_length > 0) {
+                    auto bbox_size = get_extents(surface.expolygon).size();
+                    if (bbox_size.x() > max_bridge_length || bbox_size.y() > max_bridge_length)
+                        continue;
+                }
+                BridgeDetector detector(surface.expolygon,
+                                        lower_layer.lslices(),
+                                        bridge_flow.scaled_spacing(),
+                                        scale_t(print_config.bridge_precision.get_abs_value(bridge_flow.spacing())),
+                                        lower_layer.id());
+                append(bridges, union_ex(detector.coverage(surface.bridge_angle)));
             }
-            bridges.push_back(surface.expolygon);
         }
     }
     // Possible enhancement: add the gap-filled areas; extrude the gaps with a bridge flow?

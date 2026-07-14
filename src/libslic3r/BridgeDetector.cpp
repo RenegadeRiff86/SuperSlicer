@@ -589,10 +589,18 @@ Polygons BridgeDetector::coverage(double angle) const
             // are inside the anchors and not on their contours leading to false negatives.
             ExPolygons unsupported_bigger = offset_ex(unsupported, 0.5f * float(this->spacing));
             assert(unsupported_bigger.size() == 1); // growing don't split
+            if (unsupported_bigger.empty())
+                // Degenerate (zero-area or self-intersecting) bridge region: offsetting erased it,
+                // so there is no coverable area to report. Asserts are disabled in release builds,
+                // and unsupported_bigger.front() on an empty vector is undefined behavior.
+                continue;
             ExPolygons small_anchors = intersection_ex({unsupported_bigger.front()}, anchors);
             unsupported_bigger       = small_anchors;
             unsupported_bigger.push_back(unsupported);
             unsupported_bigger = union_safety_offset_ex(unsupported_bigger);
+            if (unsupported_bigger.empty())
+                // The region collapsed under the safety offset and no anchor overlaps it.
+                continue;
             // now unsupported_bigger is unsupported but with a little extra inside the anchors
             // clean it up if needed (remove bits unlinked to 'unsupported'
             if (unsupported_bigger.size() > 1) {

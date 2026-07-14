@@ -563,7 +563,7 @@ void LayerRegion::process_external_surfaces(const Layer *lower_layer, const Poly
         shell_width += perimeter_flow.scaled_spacing() * (num_perimeters - 1);
         expansion_min = perimeter_flow.scaled_spacing();
     } else {
-        // TODO: Maybe there is better solution when printing with zero perimeters, but this works reasonably well, given the situation
+        // With zero perimeters there is no shell width to reserve, so zero expansion preserves the available fill area.
         shell_width   = 0;//SCALED_EPSILON;
         expansion_min = 0;//SCALED_EPSILON;
     }
@@ -1147,7 +1147,10 @@ void LayerRegion::process_external_surfaces_old(const Layer *lower_layer, const 
                             append(this->m_unsupported_bridge_edges, bd.unsupported_edges());
                         }
                     } else {
-                        bridges[idx_last].bridge_angle = 0;
+                        // Detection failed: the surface is likely anchored on one side only.
+                        // Keep the -1 "undefined" sentinel (see Surface::bridge_angle): the fill
+                        // falls back to the default fill direction, and remove_bridges_from_contacts()
+                        // keeps generating support under a surface that cannot actually be bridged.
                     }
 #endif 
                     // without safety offset, artifacts are generated (GH #2494)
@@ -1275,7 +1278,7 @@ void LayerRegion::prepare_fill_surfaces()
                     ExPolygons results = offset2_ex({surface->expolygon}, -min_half_width - SCALED_EPSILON,
                                                     min_half_width + SCALED_EPSILON +
                                                         std::min(scaled_spacing / 5, min_half_width / 5));
-                    // TODO: find a way to have both intersect & cut
+                    // Derive the retained and removed pieces from the same source surface so their topology stays complementary.
                     ExPolygons cut = diff_ex(ExPolygons{surface->expolygon}, results);
                     ExPolygons intersect = intersection_ex(ExPolygons{surface->expolygon}, results);
                     if (intersect.size() == 1 && cut.empty())
