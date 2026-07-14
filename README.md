@@ -75,11 +75,24 @@ The console executable can load the profiles already installed and selected in t
 ```
 superslicer_console --list-profiles
 superslicer_console --load-user-profiles --slice-report report.json --slice-preview preview.svg model.stl
+superslicer_console --load-user-profiles --gcodeviewer model.stl
 ```
 
-Use `--printer-profile`, `--print-profile`, and `--material-profile` to select installed profiles by name instead of using the currently selected profiles. The JSON report contains the effective profile IDs, print bounds, estimates, per-layer move counts, path lengths, extrusion-role counts, tool-change counts, and the extruders used (overall and per layer). The SVG is a deterministic 2D toolpath rendering; use `--slice-preview-layer N` to select a layer. Supplying either artifact option implies slicing, so an explicit `--slice` action is not required.
+Use `--printer-profile`, `--print-profile`, and `--material-profile` to select installed profiles by name instead of using the currently selected profiles. The JSON report contains the effective profile IDs, print bounds, estimates, per-layer move counts, path lengths, extrusion-role counts, tool-change counts, and the extruders used (overall and per layer). The SVG is a deterministic 2D toolpath rendering; use `--slice-preview-layer N` to select a layer. Supplying either artifact option implies slicing, so an explicit `--slice` action is not required. `--gcodeviewer` still opens an existing `.gcode` directly; when given an FFF model instead, it slices the model and opens the finalized generated G-code in the full interactive viewer.
 
 `--extruders N` overrides the extruder count by replicating the loaded profile's per-extruder settings (including the multi-material wiping volumes), which makes it possible to exercise multi-extruder behavior such as per-extruder supports from a single-extruder profile.
+
+On Windows, the developer helper `gcode_viewer_control.py` can drive the standalone viewer or attach to a debugger-owned main window, slice its loaded model, select the integrated preview, control its custom sliders, resize the real HWND, and capture the result (it requires `pywinauto`):
+
+```
+python gcode_viewer_control.py --layer-ratio 0.35 --move-ratio 0.60 --screenshot viewer.png model.stl -- --load profile.ini --output model.gcode
+python gcode_viewer_control.py --process-id 19332 --main-window --slice --select-view gcode --window-x 100 --window-y 100 --window-width 1200 --window-height 800 --screenshot integrated.png --keep-open
+python gcode_viewer_control.py --process-id 19332 --main-window --rotate-x 90 --slice --select-view gcode --layer-ratio 0.36 --screenshot rotated.png --keep-open
+```
+
+`--rotate-x DEG` selects all plater objects and applies a relative rotation through the sidebar Rotation X field before slicing, so support scenarios that need the model laid on its side can be scripted end to end.
+
+Use `--window-state normal|maximized|minimized` for state changes. The helper closes a launched or attached window after capture by default; pass `--keep-open` for interactive follow-up.
 
 ## Development
 
