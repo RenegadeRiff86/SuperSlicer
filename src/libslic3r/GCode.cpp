@@ -2494,20 +2494,20 @@ void GCodeGenerator::process_layers(
              return cooling_buffer->process_layer(std::move(in.gcode), in.layer_id, in.cooling_buffer_flush);
         });
     const auto find_replace = tbb::make_filter<std::string, std::string>(slic3r_tbb_filtermode::serial_in_order,
-        [this, find_replace = this->m_find_replace.get()](std::string s) -> std::string {
+        [this, find_replace = this->m_find_replace.get()](const std::string &s) -> std::string {
             CNumericLocalesSetter locales_setter;
             this->m_throw_if_canceled();
-            return find_replace->process_layer(std::move(s));
+            return find_replace->process_layer(s);
         });
     const auto output = tbb::make_filter<std::string, void>(slic3r_tbb_filtermode::serial_in_order,
-        [this, &output_stream](std::string s) {
+        [this, &output_stream](const std::string &s) {
             CNumericLocalesSetter locales_setter;
             this->m_throw_if_canceled();
             output_stream.write(s);
         });
 
     const auto fan_mover = tbb::make_filter<std::string, std::string>(slic3r_tbb_filtermode::serial_in_order,
-            [this, &fan_mover = this->m_fan_mover, &config = this->config(), &writer = this->m_writer](std::string in)->std::string {
+            [this, &fan_mover = this->m_fan_mover, &config = this->config(), &writer = this->m_writer](const std::string &in)->std::string {
         CNumericLocalesSetter locales_setter;
 
         if (fan_mover.get() == nullptr) {
@@ -2650,20 +2650,20 @@ void GCodeGenerator::process_layers(
             return cooling_buffer->process_layer(std::move(in.gcode), in.layer_id, in.cooling_buffer_flush);
         });
     const auto find_replace = tbb::make_filter<std::string, std::string>(slic3r_tbb_filtermode::serial_in_order,
-        [this, find_replace = this->m_find_replace.get()](std::string s) -> std::string {
+        [this, find_replace = this->m_find_replace.get()](const std::string &s) -> std::string {
             this->m_throw_if_canceled();
             CNumericLocalesSetter locales_setter;
-            return find_replace->process_layer(std::move(s));
+            return find_replace->process_layer(s);
         });
     const auto output = tbb::make_filter<std::string, void>(slic3r_tbb_filtermode::serial_in_order,
-        [this, &output_stream](std::string s) {
+        [this, &output_stream](const std::string &s) {
             this->m_throw_if_canceled();
             CNumericLocalesSetter locales_setter;
             output_stream.write(s);
         });
 
     const auto fan_mover = tbb::make_filter<std::string, std::string>(slic3r_tbb_filtermode::serial_in_order,
-        [this, &fan_mover = this->m_fan_mover, &config = this->config(), &writer = this->m_writer](std::string in)->std::string {
+        [this, &fan_mover = this->m_fan_mover, &config = this->config(), &writer = this->m_writer](const std::string &in)->std::string {
         if (fan_mover.get() == nullptr) {
             const bool slowdown_overhang_fan = config.overhangs_fan_speedup_slowdown.value
                 || (config.fan_kickstart.value > 0 && config.fan_speedup_time.value != 0);
@@ -7181,6 +7181,10 @@ double_t GCodeGenerator::_compute_speed_mm_per_sec(const ExtrusionPath& path, co
     path_mm3_per_mm *= this->config().print_extrusion_multiplier.get_abs_value(1);
     double filament_extrusion_multiplier = EXTRUDER_CONFIG_WITH_DEFAULT(extrusion_multiplier, 1);
     path_mm3_per_mm *= filament_extrusion_multiplier;
+    // Remember what the feature/config asked for before the flow caps, so an infeasible
+    // width x height (one where even slowing down cannot satisfy the volumetric limit)
+    // can be told apart from a deliberately slow user setting.
+    const double speed_before_flow_caps = speed;
     // cap speed with max_volumetric_speed anyway (even if user is not using autospeed)
     if (m_config.max_volumetric_speed.value > 0 && path_mm3_per_mm > 0 && m_config.max_volumetric_speed.value / path_mm3_per_mm < speed) {
         speed = m_config.max_volumetric_speed.value / path_mm3_per_mm;
@@ -7196,6 +7200,35 @@ double_t GCodeGenerator::_compute_speed_mm_per_sec(const ExtrusionPath& path, co
     if (filament_max_speed > 0 && filament_max_speed < speed) {
         speed = filament_max_speed;
         if(comment) *comment += ", reduced by filament_max_speed";
+    }
+
+    // The caps above can only slow the move down. If they pushed it below the minimum
+    // usable speed, this line's width x height cannot be extruded at ANY acceptable
+    // speed: fail the slice now instead of exporting a print that will starve the
+    // extruder (or crawl) partway through. Only fire when the caps caused the drop -
+    // a feature speed the user deliberately set below the floor is not an error.
+    double min_feasible_speed = EXTRUDER_CONFIG_WITH_DEFAULT(min_print_speed, 0);
+    if (m_config.machine_limits_usage <= MachineLimitsUsage::Limits)
+        min_feasible_speed = std::max(min_feasible_speed, m_config.machine_min_extruding_rate.get_at(0));
+    if (this->on_first_layer())
+        min_feasible_speed = std::max(min_feasible_speed, m_config.first_layer_min_speed.value);
+    if (min_feasible_speed > 0 && speed + EPSILON < min_feasible_speed &&
+        speed_before_flow_caps + EPSILON > min_feasible_speed) {
+        const std::string role_name =
+            gcode_extrusion_role_to_string(extrusion_role_to_gcode_extrusion_role(path.role()));
+        std::ostringstream message;
+        message << _u8L("Impossible extrusion flow") << ": " << role_name
+                << " at z=" << m_layer->print_z
+                << " (" << _u8L("width") << " " << path.width()
+                << ", " << _u8L("height") << " " << path.height() << ") "
+                << _u8L("needs") << " " << path_mm3_per_mm * min_feasible_speed
+                << " mm3/s " << _u8L("even at the minimum speed of") << " "
+                << min_feasible_speed << " mm/s, "
+                << _u8L("but the configured speed/volumetric limits only allow") << " "
+                << speed * path_mm3_per_mm << " mm3/s (" << speed << " mm/s).\n"
+                << _u8L("Lower the extrusion width or layer height, lower the minimum print speed, "
+                        "or raise the (filament) max volumetric speed.");
+        throw Slic3r::SlicingError(message.str());
     }
 
     return speed;
