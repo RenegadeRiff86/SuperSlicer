@@ -190,6 +190,84 @@ def set_rotation(window, axis: int, degrees: float) -> None:
     time.sleep(1.5)
 
 
+def export_gcode(window, out_path, timeout: float) -> None:
+    """Click the plater's Export G-code button and drive the native Save dialog."""
+    if out_path.exists():
+        out_path.unlink()  # avoid the overwrite-confirmation dialog
+    button = next(
+        (
+            control
+            for control in window.descendants(control_type="Button")
+            if control.window_text().startswith("Export G-code")
+        ),
+        None,
+    )
+    if button is None:
+        raise RuntimeError("Could not locate the Export G-code button (is the plate sliced?)")
+    button.click_input()
+    process_id = window.element_info.process_id
+    deadline = time.monotonic() + timeout
+    dialog = None
+    while time.monotonic() < deadline and dialog is None:
+        # The Save dialog may surface as its own top-level window or as an owned
+        # child window of the plater - check both.
+        candidates = list(Desktop(backend="uia").windows(process=process_id))
+        candidates.extend(window.descendants(control_type="Window"))
+        for candidate in candidates:
+            if candidate.handle != window.handle and "save" in candidate.window_text().lower():
+                dialog = candidate
+                break
+        time.sleep(0.25)
+    if dialog is None:
+        raise TimeoutError(f"Save G-code dialog did not appear within {timeout:g} seconds")
+    # Set the path on the dialog's File name field - the ComboBox labelled
+    # "File name:" owns the real edit; the first Edit descendant is the Explorer
+    # search box, which must never receive the path.
+    combo = next(
+        (
+            control
+            for control in dialog.descendants(control_type="ComboBox")
+            if control.window_text().strip().lower().startswith("file name")
+        ),
+        None,
+    )
+    if combo is not None:
+        name_edit = combo.descendants(control_type="Edit")[0]
+    else:
+        edits = dialog.descendants(control_type="Edit")
+        named = [
+            control for control in edits
+            if control.window_text().strip().lower().startswith("file name")
+            or control.element_info.automation_id == "1001"
+        ]
+        if not named:
+            raise RuntimeError("Could not locate the File name field in the Save dialog")
+        name_edit = named[0]
+    try:
+        name_edit.set_edit_text(str(out_path))
+    except Exception:
+        name_edit.click_input()
+        name_edit.type_keys("^a{DEL}", pause=0.05)
+        name_edit.type_keys(str(out_path), with_spaces=True, pause=0.01)
+    time.sleep(0.3)
+    save_button = next(
+        control
+        for control in dialog.descendants(control_type="Button")
+        if control.window_text().strip().lower().startswith("save")
+    )
+    save_button.click_input()
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if out_path.is_file() and out_path.stat().st_size > 0:
+            size = out_path.stat().st_size
+            time.sleep(1.0)
+            if out_path.stat().st_size == size:
+                print(f"exported={out_path}")
+                return
+        time.sleep(0.5)
+    raise TimeoutError(f"exported G-code did not appear: {out_path}")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -244,6 +322,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--zoom-x", type=ratio, default=0.5, help="Horizontal focus point for zoom within the window, 0=left 1=right (default 0.5)")
     parser.add_argument("--zoom-y", type=ratio, default=0.5, help="Vertical focus point for zoom within the window, 0=top 1=bottom (default 0.5)")
     parser.add_argument("--screenshot", type=Path, help="Save the controlled viewer window as PNG")
+    parser.add_argument(
+        "--export-gcode",
+        type=Path,
+        help="After slicing, click Export G-code and save the file to this path",
+    )
     parser.add_argument("--timeout", type=float, default=120.0)
     parser.add_argument("--keep-open", action="store_true")
     parser.add_argument(
@@ -287,8 +370,8 @@ def main() -> int:
             raise ValueError("input and slicer arguments cannot be used with --process-id")
         process_id = args.process_id
 
-    if (args.slice or args.select_view or args.rotate_x is not None) and not args.main_window:
-        raise ValueError("--slice, --select-view, and --rotate-x require --main-window")
+    if (args.slice or args.select_view or args.rotate_x is not None or args.export_gcode is not None) and not args.main_window:
+        raise ValueError("--slice, --select-view, --rotate-x, and --export-gcode require --main-window")
 
     window = None
     try:
@@ -338,6 +421,8 @@ def main() -> int:
             screenshot.parent.mkdir(parents=True, exist_ok=True)
             window.capture_as_image().save(screenshot)
             print(screenshot)
+        if args.export_gcode is not None:
+            export_gcode(window, args.export_gcode.resolve(), args.timeout)
         if args.window_state == "minimized":
             set_window_state(window, "minimized")
         print(f"viewer_pid={process_id}")
