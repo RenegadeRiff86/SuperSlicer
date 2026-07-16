@@ -33,6 +33,10 @@ namespace Slic3r {
 // signed-distance-field PNG visualizations below. [[maybe_unused]] because those
 // blocks are only compiled when the debug macro is defined.
 [[maybe_unused]] static constexpr int PIXEL_CHANNEL_MAX = 255;
+// Dimmed channel value marking pixels outside the narrow band in the debug PNGs.
+[[maybe_unused]] static constexpr int PIXEL_CHANNEL_DIM = 100;
+// Upscaling factor applied when writing the debug PNG visualizations.
+[[maybe_unused]] static constexpr int DBG_PNG_UPSCALE = 10;
 
 void EdgeGrid::Grid::create(const Polygon &polygon, coord_t resolution)
 {
@@ -815,7 +819,7 @@ void EdgeGrid::Grid::calculate_sdf()
                 }
             }
         }
-        png::write_rgb_to_file_scaled(debug_out_path("unsigned_df-%d.png", iRun), ncols, nrows, pixels, 10);
+        png::write_rgb_to_file_scaled(debug_out_path("unsigned_df-%d.png", iRun), ncols, nrows, pixels, DBG_PNG_UPSCALE);
     }
     {
         std::vector<uint8_t> pixels(ncols * nrows * 3, 0);
@@ -846,7 +850,7 @@ void EdgeGrid::Grid::calculate_sdf()
                 }
             }
         }
-        png::write_rgb_to_file_scaled(debug_out_path("signed_df-%d.png", iRun), ncols, nrows, pixels, 10);
+        png::write_rgb_to_file_scaled(debug_out_path("signed_df-%d.png", iRun), ncols, nrows, pixels, DBG_PNG_UPSCALE);
     }
 #endif // EDGE_GRID_DEBUG_OUTPUT
 
@@ -943,15 +947,15 @@ void EdgeGrid::Grid::calculate_sdf()
                     break;
                 case 2:
                     // Positive, outside of a narrow band.
-                    pxl[0] = 100;
-                    pxl[1] = 100;
+                    pxl[0] = PIXEL_CHANNEL_DIM;
+                    pxl[1] = PIXEL_CHANNEL_DIM;
                     pxl[2] = PIXEL_CHANNEL_MAX;
                     break;
                 case 3:
                     // Negative, outside of a narrow band.
                     pxl[0] = PIXEL_CHANNEL_MAX;
-                    pxl[1] = 100; 
-                    pxl[2] = 100;
+                    pxl[1] = PIXEL_CHANNEL_DIM; 
+                    pxl[2] = PIXEL_CHANNEL_DIM;
                     break;
                 case 4:
                     // This shall not happen. Undefined signum.
@@ -968,7 +972,7 @@ void EdgeGrid::Grid::calculate_sdf()
                 }
             }
         }
-        png::write_rgb_to_file_scaled(debug_out_path("signed_df-signs-%d.png", iRun), ncols, nrows, pixels, 10);
+        png::write_rgb_to_file_scaled(debug_out_path("signed_df-signs-%d.png", iRun), ncols, nrows, pixels, DBG_PNG_UPSCALE);
     }
 #endif // EDGE_GRID_DEBUG_OUTPUT
 
@@ -994,7 +998,7 @@ void EdgeGrid::Grid::calculate_sdf()
                 }
             }
         }
-        png::write_rgb_to_file_scaled(debug_out_path("signed_df2-%d.png", iRun), ncols, nrows, pixels, 10);
+        png::write_rgb_to_file_scaled(debug_out_path("signed_df2-%d.png", iRun), ncols, nrows, pixels, DBG_PNG_UPSCALE);
     }
 #endif // EDGE_GRID_DEBUG_OUTPUT
 }
