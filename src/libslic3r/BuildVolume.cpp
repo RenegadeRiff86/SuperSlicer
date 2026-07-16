@@ -287,7 +287,7 @@ BuildVolume::ObjectState BuildVolume::object_state(const indexed_triangle_set& i
         BoundingBox3Base<Vec3f> build_volumef(build_volume.min.cast<float>(), build_volume.max.cast<float>());
         // The following test correctly interprets intersection of a non-convex object with a rectangular build volume.
         //return rectangle_test(its, trafo, to_2d(build_volume.min), to_2d(build_volume.max), build_volume.max.z());
-        //FIXME This test does NOT correctly interprets intersection of a non-convex object with a rectangular build volume.
+        // Known limitation: this test does NOT correctly interpret intersection of a non-convex object with a rectangular build volume.
         return object_state_templ(its, trafo, may_be_below_bed, [build_volumef](const Vec3f &pt) { return build_volumef.contains(pt); });
     }
     case Type::Circle:
@@ -298,7 +298,7 @@ BuildVolume::ObjectState BuildVolume::object_state(const indexed_triangle_set& i
             object_state_templ(its, trafo, may_be_below_bed, [circle, z = m_max_print_height + SceneEpsilon](const Vec3f &pt) { return pt.z() < z && circle.contains(to_2d(pt)); });
     }
     case Type::Convex:
-    //FIXME doing test on convex hull until we learn to do test on non-convex polygons efficiently.
+    // Known limitation: testing on the convex hull until we learn to test non-convex polygons efficiently.
     case Type::Custom:
         return m_max_print_height == 0.0 ? 
             object_state_templ(its, trafo, may_be_below_bed, [this](const Vec3f &pt) { return Geometry::inside_convex_polygon(m_top_bottom_convex_hull_decomposition_scene, to_2d(pt).cast<double>()); }) :
@@ -352,7 +352,7 @@ bool BuildVolume::all_paths_inside(const GCodeProcessorResult& paths, const Boun
                 { return ! move_valid(move) || ((to_2d(move.position) - c).squaredNorm() <= r2 && move.position.z() <= z); });
     }
     case Type::Convex:
-    //FIXME doing test on convex hull until we learn to do test on non-convex polygons efficiently.
+    // Known limitation: testing on the convex hull until we learn to test non-convex polygons efficiently.
     case Type::Custom:
         return m_max_print_height == 0.0 ?
             std::all_of(paths.moves.begin(), paths.moves.end(), [move_valid, this](const GCodeProcessorResult::MoveVertex &move) 
@@ -400,7 +400,7 @@ bool BuildVolume::all_paths_inside_vertices_and_normals_interleaved(const std::v
             all_inside_vertices_normals_interleaved(paths, [c, r2, z = m_max_print_height + epsilon](Vec3f p) { return (to_2d(p) - c).squaredNorm() <= r2 && p.z() <= z; });
     }
     case Type::Convex:
-        //FIXME doing test on convex hull until we learn to do test on non-convex polygons efficiently.
+        // Known limitation: testing on the convex hull until we learn to test non-convex polygons efficiently.
     case Type::Custom:
         return m_max_print_height == 0.0 ?
             all_inside_vertices_normals_interleaved(paths, [this](Vec3f p) { return Geometry::inside_convex_polygon(m_top_bottom_convex_hull_decomposition_bed, to_2d(p).cast<double>()); }) :

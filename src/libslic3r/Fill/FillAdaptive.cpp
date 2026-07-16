@@ -50,7 +50,7 @@ static constexpr double InfillLineTolScaled = 1000.;
 // Original MathGeoLib benchmark:
 //    Best: 17.282 nsecs / 46.496 ticks, Avg: 17.804 nsecs, Worst: 18.434 nsecs
 //
-//FIXME Vojtech: The MathGeoLib contains a vectorized implementation.
+// Performance note (Vojtech): The MathGeoLib contains a vectorized implementation.
 template<typename Vector> 
 bool triangle_AABB_intersects(const Vector &a, const Vector &b, const Vector &c, const BoundingBoxBase<Vector> &aabb)
 {
@@ -222,7 +222,7 @@ struct Octree
 };
 
 void OctreeDeleter::operator()(Octree *p) {
-    delete p;
+    std::default_delete<Octree>{}(p);
 }
 
 std::pair<double, double> adaptive_fill_line_spacing(const PrintObject &print_object)

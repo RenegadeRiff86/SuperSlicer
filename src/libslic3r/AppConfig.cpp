@@ -35,7 +35,7 @@
 #include <boost/log/trivial.hpp>
 
 #ifdef WIN32
-//FIXME replace the two following includes with <boost/md5.hpp> after it becomes mainstream.
+// Note: replace the two following includes with <boost/md5.hpp> if boost ever promotes MD5 out of boost::uuids::detail.
 #include <boost/uuid/detail/md5.hpp>
 #include <boost/algorithm/hex.hpp>
 #endif
@@ -45,7 +45,7 @@
 namespace Slic3r {
 
 constexpr bool starts_with_http(const char* str) {
-    return str[0] == 'h' && str[1] == 't' && str[2] == 't' && str[3] == 'p';
+    return str[0] == 'h' && str[1] == 't' && str[2] == 't' && str[3] == 'p'; // Match the four zero-based characters of the HTTP prefix.
 }
 
 static const std::string VENDOR_PREFIX = "vendor:";
@@ -647,7 +647,7 @@ void AppConfig::init_ui_layout() {
     boost::filesystem::path resources_dir_path = boost::filesystem::path(resources_dir()) / APP_UI_LAYOUT;
     if (!boost::filesystem::is_directory(resources_dir_path)) {
         //Error
-        throw new RuntimeError("error, can't find datadir '" + resources_dir_path.string() + "'");
+        throw RuntimeError("error, can't find datadir '" + resources_dir_path.string() + "'");
     }
 
     auto get_versions = [](boost::filesystem::path& root_path, std::map<std::string, LayoutEntry>& name_2_version_description_path) {
@@ -682,11 +682,11 @@ void AppConfig::init_ui_layout() {
     //init
     m_ui_layout.clear();
 
-    //get all boost::filesystem::path(resources_dir()) / APP_UI_LAYOUT / XXX / "version.ini"
+    //get all boost::filesystem::path(resources_dir()) / APP_UI_LAYOUT / <layout> / "version.ini"
     std::map<std::string, LayoutEntry> resources_map;
     get_versions(resources_dir_path, resources_map);
 
-    //get all boost::filesystem::path(Slic3r::data_dir()) / APP_UI_LAYOUT / XXX / "version.ini"
+    //get all boost::filesystem::path(Slic3r::data_dir()) / APP_UI_LAYOUT / <layout> / "version.ini"
     std::map<std::string, LayoutEntry> datadir_map;
     boost::filesystem::path data_dir_path = boost::filesystem::path(Slic3r::data_dir()) / APP_UI_LAYOUT;
     if (!boost::filesystem::is_directory(data_dir_path)) {
@@ -695,7 +695,7 @@ void AppConfig::init_ui_layout() {
     } else {
         get_versions(data_dir_path, datadir_map);
     }
-    // TODO test the version of the datadir_map layout to see if compatible
+    // Bundled layouts replace matching data-directory layouts below, so compatibility follows the bundled resource version.
 
 
     //copy all resources that aren't in datadir or newer
@@ -726,7 +726,7 @@ void AppConfig::init_ui_layout() {
         if (default_layout != datadir_map.end()) {
             set(APP_UI_LAYOUT, default_layout->first);
         } else {
-            throw new RuntimeError("Error, cannot find any layout for the gui.");
+            throw RuntimeError("Error, cannot find any layout for the gui.");
         }
     }
 
@@ -843,7 +843,7 @@ void AppConfig::init_ui_layout() {
 #ifdef WIN32
 std::string AppConfig::appconfig_md5_hash_line(const std::string_view data)
 {
-    //FIXME replace the two following includes with <boost/md5.hpp> after it becomes mainstream.
+    // Note: replace with <boost/md5.hpp> if boost ever promotes MD5 out of boost::uuids::detail.
     // return boost::md5(data).hex_str_value();
     // boost::uuids::detail::md5 is an internal namespace thus it may change in the future.
     // Also this implementation is not the fastest, it was designed for short blocks of text.
@@ -1362,7 +1362,7 @@ AppConfig::LayoutEntry AppConfig::get_ui_layout()
     }
     if (!get_ui_layouts().empty())
         return get_ui_layouts().front();
-    throw new RuntimeError("Error, no setting ui_layout.");
+    throw RuntimeError("Error, no setting ui_layout.");
 }
 
 std::string AppConfig::splashscreen(bool is_editor) {
