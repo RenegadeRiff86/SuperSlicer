@@ -352,7 +352,7 @@ class ModelObject final : public ObjectBase
 {
 public:
     std::string             name;
-    std::string             input_file;    // XXX: consider fs::path
+    std::string             input_file;    // Possible refactor: consider boost::filesystem::path
     // Instances of this ModelObject. Each instance defines a shift on the print bed, rotation around the Z axis and a uniform scaling.
     // Instances are owned by this ModelObject.
     ModelInstancePtrs       instances;
@@ -527,6 +527,7 @@ public:
 
 private:
     friend class Model;
+    friend struct std::default_delete<ModelObject>;
     // This constructor assigns new ID to this ModelObject and its config.
     explicit ModelObject(Model* model) : m_model(model), origin_translation(Vec3d::Zero())
     { 
@@ -787,8 +788,8 @@ public:
         bool is_from_builtin_objects{ false };
 
         template<class Archive> void serialize(Archive& ar) { 
-            //FIXME Vojtech: Serialize / deserialize only if the Source is set.
-            // likely testing input_file or object_idx would be sufficient.
+            // Performance note (Vojtech): all fields are serialized even when the Source is unset;
+            // skipping unset sources (testing input_file or object_idx) would shrink the archive.
             ar(input_file, object_idx, volume_idx, mesh_offset, transform, is_converted_from_inches, is_converted_from_meters, is_from_builtin_objects);
         }
     };

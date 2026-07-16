@@ -304,7 +304,7 @@ ModelObject* Model::add_object(const ModelObject &other)
 void Model::delete_object(size_t idx)
 {
     ModelObjectPtrs::iterator i = this->objects.begin() + idx;
-    delete *i;
+    std::unique_ptr<ModelObject> removed_object{*i};
     this->objects.erase(i);
 }
 
@@ -314,7 +314,7 @@ bool Model::delete_object(ModelObject* object)
         size_t idx = 0;
         for (ModelObject *model_object : objects) {
             if (model_object == object) {
-                delete model_object;
+                std::unique_ptr<ModelObject> removed_object{model_object};
                 objects.erase(objects.begin() + idx);
                 return true;
             }
@@ -330,7 +330,7 @@ bool Model::delete_object(ObjectID id)
         size_t idx = 0;
         for (ModelObject *model_object : objects) {
             if (model_object->id() == id) {
-                delete model_object;
+                std::unique_ptr<ModelObject> removed_object{model_object};
                 objects.erase(objects.begin() + idx);
                 return true;
             }
@@ -342,8 +342,9 @@ bool Model::delete_object(ObjectID id)
 
 void Model::clear_objects()
 {
-    for (ModelObject *o : this->objects)
-        delete o;
+    for (ModelObject *object : this->objects) {
+        std::unique_ptr<ModelObject> object_owner{object};
+    }
     this->objects.clear();
 }
 
@@ -351,15 +352,16 @@ void Model::delete_material(t_model_material_id material_id)
 {
     ModelMaterialMap::iterator i = this->materials.find(material_id);
     if (i != this->materials.end()) {
-        delete i->second;
+        std::unique_ptr<ModelMaterial> removed_material{i->second};
         this->materials.erase(i);
     }
 }
 
 void Model::clear_materials()
 {
-    for (auto &m : this->materials)
-        delete m.second;
+    for (auto &material_entry : this->materials) {
+        std::unique_ptr<ModelMaterial> material_owner{material_entry.second};
+    }
     this->materials.clear();
 }
 
@@ -375,13 +377,20 @@ ModelMaterial* Model::add_material(t_model_material_id material_id)
 ModelMaterial* Model::add_material(t_model_material_id material_id, const ModelMaterial &other)
 {
     assert(! material_id.empty());
-    // delete existing material if any
-    ModelMaterial* material = this->get_material(material_id);
-    delete material;
-    // set new material
-    material = new ModelMaterial(other);
-    material->set_model(this);
-    this->materials[material_id] = material;
+
+    std::unique_ptr<ModelMaterial> material_owner{new ModelMaterial(other)};
+    material_owner->set_model(this);
+    ModelMaterial *material = material_owner.get();
+
+    auto existing_material = this->materials.find(material_id);
+    if (existing_material != this->materials.end()) {
+        std::unique_ptr<ModelMaterial> replaced_material{existing_material->second};
+        existing_material->second = material;
+    } else {
+        this->materials.emplace(material_id, material);
+    }
+
+    material_owner.release();
     return material;
 }
 
@@ -491,9 +500,9 @@ bool Model::looks_like_multipart_object() const
 
         BoundingBoxf3 bb_this = obj->volumes[0]->mesh().bounding_box();
 
-        // FIXME: There is sadly the case when instances are empty (AMF files). The normalization of instances in that
-        // case is performed only after this function is called. For now (shortly before the 2.7.2 release), let's
-        // just do this non-invasive check. Reordering all the functions could break it much more.
+        // Note: instances can be empty at this point (AMF files) because instance normalization runs
+        // only after this function is called; fall back to the untransformed bounding box in that case.
+        // A non-invasive check chosen shortly before the 2.7.2 release - reordering the load steps would be riskier.
         BoundingBoxf3 tbb_this = (! obj->instances.empty() ? obj->instances[0]->transform_bounding_box(bb_this) : bb_this);
 
         if (!tbb.defined)
@@ -867,7 +876,7 @@ ModelVolume* ModelObject::add_volume(const ModelVolume &other, TriangleMesh &&me
 void ModelObject::delete_volume(size_t idx)
 {
     ModelVolumePtrs::iterator i = this->volumes.begin() + idx;
-    delete *i;
+    std::unique_ptr<ModelVolume> removed_volume{*i};
     this->volumes.erase(i);
 
     if (this->volumes.size() == 1)
@@ -891,8 +900,9 @@ void ModelObject::delete_volume(size_t idx)
 
 void ModelObject::clear_volumes()
 {
-    for (ModelVolume *v : this->volumes)
-        delete v;
+    for (ModelVolume *volume : this->volumes) {
+        std::unique_ptr<ModelVolume> volume_owner{volume};
+    }
     this->volumes.clear();
     this->invalidate_bounding_box();
 }
@@ -959,7 +969,7 @@ ModelInstance* ModelObject::add_instance(const Geometry::Transformation& trafo)
 void ModelObject::delete_instance(size_t idx)
 {
     ModelInstancePtrs::iterator i = this->instances.begin() + idx;
-    delete *i;
+    std::unique_ptr<ModelInstance> removed_instance{*i};
     this->instances.erase(i);
     this->invalidate_bounding_box();
 }
@@ -971,8 +981,9 @@ void ModelObject::delete_last_instance()
 
 void ModelObject::clear_instances()
 {
-    for (ModelInstance *i : this->instances)
-        delete i;
+    for (ModelInstance *instance : this->instances) {
+        std::unique_ptr<ModelInstance> instance_owner{instance};
+    }
     this->instances.clear();
     this->invalidate_bounding_box();
 }
@@ -1493,11 +1504,11 @@ void ModelObject::split(ModelObjectPtrs* new_objects)
 
         size_t counter = 1;
         for (TriangleMesh &mesh : meshes) {
-            // FIXME: crashes if not satisfied
+            // Guard: downstream processing crashes on degenerate fragments (fewer than 3 facets or zero volume), so skip them.
             if (mesh.facets_count() < 3 || mesh.has_zero_volume())
                 continue;
 
-            // XXX: this seems to be the only real usage of m_model, maybe refactor this so that it's not needed?
+            // Possible refactor: this seems to be the only real usage of m_model; it could go away if the caller created the new objects instead.
             ModelObject* new_object = m_model->add_object();
             if (meshes.size() == 1) {
                 new_object->name = volume->name;
