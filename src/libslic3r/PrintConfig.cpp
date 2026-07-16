@@ -2178,8 +2178,8 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::output;
     def->tooltip = L("Set this to the vertical distance between your nozzle tip and (usually) the X carriage rods. "
                    "In other words, this is the height of the clearance cylinder around your extruder, "
-                   "and it represents the maximum depth the extruder can peek before colliding with "
-                   "other printed objects."); // TODO: "peek?" is this the correct word?
+                   "and it represents the maximum depth the extruder can reach before colliding with "
+                   "other printed objects.");
     def->sidetext = L("mm");
     def->min = 0;
     def->mode = comExpert | comPrusa;
@@ -2296,8 +2296,8 @@ void PrintConfigDef::init_fff_params()
         "this setting to get nice surface finish and correct single wall widths. "
         "Usual values are between 90% and 110%. If you think you need to change this more, "
         "check filament diameter and your firmware E steps."
-        " This print setting is multiplied against the extrusion_multiplier from the filament tab."
-        " Its only purpose is to offer the same functionality but on a per-object basis."); // TODO: replace "against" with "with"?
+        " This print setting is multiplied with the extrusion_multiplier from the filament tab."
+        " Its only purpose is to offer the same functionality but on a per-object basis.");
     def->sidetext = L("%");
     def->mode = comSimpleAE | comSuSi;
     def->min = 0;
@@ -2457,12 +2457,12 @@ void PrintConfigDef::init_fff_params()
     def->label = L("Max speed on the wipe tower");
     def->tooltip = L("This setting is used to set the maximum speed when extruding inside the wipe tower (use M220)."
         " In %, set 0 to disable and use the Filament type instead."
-        "\nIf disabled, these filament types will have a defaut value of:"
+        "\nIf disabled, these filament types will have a default value of:"
         "\n - PVA: 80% to 60%"
         "\n - SCAFF: 35%"
         "\n - FLEX: 35%"
         "\n - OTHERS: 100%"
-        "\nNote that the wipe tower reset the speed at 100% for the unretract in any case." // TODO: "reset" -> "resets"?
+        "\nNote that the wipe tower resets the speed to 100% for the unretract in any case."
         "\nIf using marlin, M220 B/R is used to save the speed override before the wipe tower print.");
     def->sidetext = L("%");
     def->min = 0;
@@ -9517,14 +9517,6 @@ static void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_c
         oss << "0x0," << p.value(0) << "x0," << p.value(0) << "x" << p.value(1) << ",0x" << p.value(1);
         value() = oss.str();
     }
-    //if ((opt_key == "perimeter_acceleration" && value == "25")
-    //    || (opt_key == "infill_acceleration" && value == "50")) {
-    //    /*  For historical reasons, the world's full of configs having these very low values;
-    //        to avoid unexpected behavior we need to ignore them. Banning these two hard-coded
-    //        values is a dirty hack and will need to be removed sometime in the future, but it
-    //        will avoid lots of complaints for now. */
-    //    value = "0";
-    //} // i think it's time now.
     // Historical follow-up: change the default from 0 (no forbidden) to 100% for all speed and acceleration values.
     //if ("0" == value && ("infill_acceleration" == opt_key || KEY_SOLID_INFILL_ACCELERATION == opt_key ||
     //    "top_solid_infill_acceleration" == opt_key || "bridge_acceleration" == opt_key ||

@@ -915,7 +915,7 @@ int CLI::run(int argc, char **argv)
             const int y = ints.size() > 1 ? ints.at(1) : 1;
             const double distance = fff_print_config.duplicate_distance.value;
             for (auto &model : m_models)
-                model.duplicate_objects_grid(x, y, (distance > 0) ? distance : 6);  // TODO: this is not the right place for setting a default
+                model.duplicate_objects_grid(x, y, (distance > 0) ? distance : 6);  // Note: the 6mm fallback default belongs in the option definition, not here.
         } else if (opt_key == "center") {
         	user_center_specified = true;
             for (auto &model : m_models) {
@@ -1001,7 +1001,7 @@ int CLI::run(int argc, char **argv)
                 }
             }
 
-            // TODO: copy less stuff around using pointers
+            // Performance note: could copy less stuff around by using pointers.
             m_models = new_models;
 
             if (m_actions.empty())
@@ -1025,7 +1025,7 @@ int CLI::run(int argc, char **argv)
                 }
             }
 
-            // TODO: copy less stuff around using pointers
+            // Performance note: could copy less stuff around by using pointers.
             m_models = new_models;
 
             if (m_actions.empty())
