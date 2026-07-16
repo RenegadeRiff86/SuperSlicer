@@ -38,6 +38,16 @@
 
 namespace Slic3r {
 
+// Named literals for BP1002; values unchanged from the prior inline literals.
+static constexpr double SHORT_LINE_MERGE_THRESHOLD_MM = 0.2;
+static constexpr size_t MIN_SEGMENTS_FOR_COMPARISON   = 2;
+static constexpr size_t MIN_SEGMENTS_FOR_TRIPLE        = 3;
+static constexpr int    TOP_BOTTOM_LAYER_CAP           = 100000; // effectively unlimited: solid infill covers every layer
+static constexpr size_t DOUBLE_LAYER_SLOTS             = 2;      // two half-layer triangle slots per layer
+static constexpr int    NUM_FACET_VERTICES             = 3;
+static constexpr int    LAST_FACET_VERTEX_IDX          = NUM_FACET_VERTICES - 1;
+[[maybe_unused]] static constexpr double DEBUG_SVG_STROKE_MM = 0.05;
+
 // Assumes that is at most same projected_l length or below than projection_l
 static bool project_line_on_line(const Line &projection_l, const Line &projected_l, Line *new_projected)
 {
@@ -318,13 +328,13 @@ static ColoredLines colorize_line(const Line &line_to_process,
     // Make sure all the lines are connected.
     assert(are_lines_connected(final_lines));
 
-    for (size_t line_idx = 2; line_idx < final_lines.size(); ++line_idx) {
-        const ColoredLine &line_0 = final_lines[line_idx - 2];
+    for (size_t line_idx = 2; line_idx < final_lines.size(); ++line_idx) {  // need 2 lines of history for a 3-line window
+        const ColoredLine &line_0 = final_lines[line_idx - 2];  // oldest line in the 3-line window
         ColoredLine       &line_1 = final_lines[line_idx - 1];
         const ColoredLine &line_2 = final_lines[line_idx - 0];
 
         if (line_0.color == line_2.color && line_0.color != line_1.color)
-            if (line_1.line.length() <= scale_(0.2)) line_1.color = line_0.color;
+            if (line_1.line.length() <= scale_(SHORT_LINE_MERGE_THRESHOLD_MM)) line_1.color = line_0.color;
     }
 
     ColoredLines colored_lines_simple;
@@ -341,13 +351,13 @@ static ColoredLines colorize_line(const Line &line_to_process,
     final_lines = colored_lines_simple;
 
     if (final_lines.size() > 1)
-        if (final_lines.front().color != final_lines[1].color && final_lines.front().line.length() <= scale_(0.2)) {
+        if (final_lines.front().color != final_lines[1].color && final_lines.front().line.length() <= scale_(SHORT_LINE_MERGE_THRESHOLD_MM)) {
             final_lines[1].line.a = final_lines.front().line.a;
             final_lines.erase(final_lines.begin());
         }
 
     if (final_lines.size() > 1)
-        if (final_lines.back().color != final_lines[final_lines.size() - 2].color && final_lines.back().line.length() <= scale_(0.2)) {
+        if (final_lines.back().color != final_lines[final_lines.size() - 2].color && final_lines.back().line.length() <= scale_(SHORT_LINE_MERGE_THRESHOLD_MM)) {
             final_lines[final_lines.size() - 2].line.b = final_lines.back().line.b;
             final_lines.pop_back();
         }
@@ -356,8 +366,8 @@ static ColoredLines colorize_line(const Line &line_to_process,
 }
 
 static ColoredLines filter_colorized_polygon(ColoredLines &&new_lines) {
-    for (size_t line_idx = 2; line_idx < new_lines.size(); ++line_idx) {
-        const ColoredLine &line_0 = new_lines[line_idx - 2];
+    for (size_t line_idx = 2; line_idx < new_lines.size(); ++line_idx) {  // need 2 lines of history for a 3-line window
+        const ColoredLine &line_0 = new_lines[line_idx - 2];  // oldest line in the 3-line window
         ColoredLine       &line_1 = new_lines[line_idx - 1];
         const ColoredLine &line_2 = new_lines[line_idx - 0];
 
@@ -366,9 +376,9 @@ static ColoredLines filter_colorized_polygon(ColoredLines &&new_lines) {
         }
     }
 
-    for (size_t line_idx = 3; line_idx < new_lines.size(); ++line_idx) {
-        const ColoredLine &line_0 = new_lines[line_idx - 3];
-        ColoredLine       &line_1 = new_lines[line_idx - 2];
+    for (size_t line_idx = 3; line_idx < new_lines.size(); ++line_idx) {  // need 3 lines of history for a 4-line window
+        const ColoredLine &line_0 = new_lines[line_idx - 3];  // oldest line in the 4-line window
+        ColoredLine       &line_1 = new_lines[line_idx - 2];  // second-oldest line in the 4-line window
         ColoredLine       &line_2 = new_lines[line_idx - 1];
         const ColoredLine &line_3 = new_lines[line_idx - 0];
 
@@ -389,7 +399,7 @@ static ColoredLines filter_colorized_polygon(ColoredLines &&new_lines) {
         return total_length;
     };
 
-    if (segments.size() >= 2)
+    if (segments.size() >= MIN_SEGMENTS_FOR_COMPARISON)
         for (size_t curr_idx = 0; curr_idx < segments.size(); ++curr_idx) {
             size_t next_idx = next_idx_modulo(curr_idx, segments.size());
             assert(curr_idx != next_idx);
@@ -400,7 +410,7 @@ static ColoredLines filter_colorized_polygon(ColoredLines &&new_lines) {
             double seg0l = segment_length(segments[curr_idx]);
             double seg1l = segment_length(segments[next_idx]);
 
-            if (color0 != color1 && seg0l >= scale_(0.1) && seg1l <= scale_(0.2)) {
+            if (color0 != color1 && seg0l >= scale_(0.1) && seg1l <= scale_(SHORT_LINE_MERGE_THRESHOLD_MM)) {
                 for (size_t seg_start_idx = segments[next_idx].first; seg_start_idx != segments[next_idx].second; seg_start_idx = (seg_start_idx + 1 < new_lines.size()) ? seg_start_idx + 1 : 0)
                     new_lines[seg_start_idx].color = color0;
                 new_lines[segments[next_idx].second].color = color0;
@@ -408,7 +418,7 @@ static ColoredLines filter_colorized_polygon(ColoredLines &&new_lines) {
         }
 
     segments = get_segments(new_lines);
-    if (segments.size() >= 2)
+    if (segments.size() >= MIN_SEGMENTS_FOR_COMPARISON)
         for (size_t curr_idx = 0; curr_idx < segments.size(); ++curr_idx) {
             size_t next_idx = next_idx_modulo(curr_idx, segments.size());
             assert(curr_idx != next_idx);
@@ -417,7 +427,7 @@ static ColoredLines filter_colorized_polygon(ColoredLines &&new_lines) {
             int    color1 = new_lines[segments[next_idx].first].color;
             double seg1l  = segment_length(segments[next_idx]);
 
-            if (color0 >= 1 && color0 != color1 && seg1l <= scale_(0.2)) {
+            if (color0 >= 1 && color0 != color1 && seg1l <= scale_(SHORT_LINE_MERGE_THRESHOLD_MM)) {
                 for (size_t seg_start_idx = segments[next_idx].first; seg_start_idx != segments[next_idx].second; seg_start_idx = (seg_start_idx + 1 < new_lines.size()) ? seg_start_idx + 1 : 0)
                     new_lines[seg_start_idx].color = color0;
                 new_lines[segments[next_idx].second].color = color0;
@@ -425,7 +435,7 @@ static ColoredLines filter_colorized_polygon(ColoredLines &&new_lines) {
         }
 
     segments = get_segments(new_lines);
-    if (segments.size() >= 3)
+    if (segments.size() >= MIN_SEGMENTS_FOR_TRIPLE)
         for (size_t curr_idx = 0; curr_idx < segments.size(); ++curr_idx) {
             size_t next_idx      = next_idx_modulo(curr_idx, segments.size());
             size_t next_next_idx = next_idx_modulo(next_idx, segments.size());
@@ -527,7 +537,7 @@ static inline bool points_inside(const Line &contour_first, const Line &contour_
 
 enum VD_ANNOTATION : Voronoi::VD::cell_type::color_type {
     VERTEX_ON_CONTOUR = 1,
-    DELETED           = 2
+    DELETED           = 2  // Voronoi cell/edge marked for removal
 };
 
 #ifdef MM_SEGMENTATION_DEBUG_GRAPH
@@ -629,7 +639,7 @@ static inline double calc_total_edge_length(const VD::edge_type &starting_edge)
     double               total_edge_length = edge_length(starting_edge);
     const VD::edge_type *prev              = &starting_edge;
     do {
-        if (prev->is_finite() && non_deleted_edge_count(*prev->vertex1()) > 2)
+        if (prev->is_finite() && non_deleted_edge_count(*prev->vertex1()) > 2)  // branching vertex: connects to more than 2 edges
             break;
 
         bool                 found_next_edge = false;
@@ -841,7 +851,7 @@ static void cut_segmented_layers(const std::vector<ExPolygons>        &input_exp
     tbb::parallel_for(tbb::blocked_range<size_t>(0, segmented_regions.size()),[&segmented_regions, &input_expolygons, &cut_width, &interlocking_cut_width, &throw_on_cancel_callback](const tbb::blocked_range<size_t>& range) {
         for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
             throw_on_cancel_callback();
-            const float  region_cut_width       = (layer_idx % 2 == 0 && interlocking_cut_width > 0.f) ? interlocking_cut_width : cut_width;
+            const float  region_cut_width       = (layer_idx % 2 == 0 && interlocking_cut_width > 0.f) ? interlocking_cut_width : cut_width;  // alternate the cut direction every other layer
             const size_t num_extruders_plus_one = segmented_regions[layer_idx].size();
             if (region_cut_width > 0.f) {
                 std::vector<ExPolygons> segmented_regions_cuts(num_extruders_plus_one); // Indexed by extruder_id
@@ -881,8 +891,8 @@ static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_botto
         max_top_layers    = std::max(max_top_layers, config.top_solid_layers.value);
         max_bottom_layers = std::max(max_bottom_layers, config.bottom_solid_layers.value);
         if (config.solid_infill_every_layers == 1  && config.fill_density.value > 0) {
-            max_top_layers = 100000;
-            max_bottom_layers = 100000;
+            max_top_layers = TOP_BOTTOM_LAYER_CAP;
+            max_bottom_layers = TOP_BOTTOM_LAYER_CAP;
         }
         granularity       = std::max(granularity, std::max(config.top_solid_layers.value, config.bottom_solid_layers.value) - 1);
     }
@@ -989,8 +999,8 @@ static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_botto
 
     std::vector<std::vector<ExPolygons>> triangles_by_color_bottom(num_extruders);
     std::vector<std::vector<ExPolygons>> triangles_by_color_top(num_extruders);
-    triangles_by_color_bottom.assign(num_extruders, std::vector<ExPolygons>(num_layers * 2));
-    triangles_by_color_top.assign(num_extruders, std::vector<ExPolygons>(num_layers * 2));
+    triangles_by_color_bottom.assign(num_extruders, std::vector<ExPolygons>(num_layers * DOUBLE_LAYER_SLOTS));
+    triangles_by_color_top.assign(num_extruders, std::vector<ExPolygons>(num_layers * DOUBLE_LAYER_SLOTS));
 
     struct LayerColorStat {
         // Number of regions for a queried color.
@@ -1018,8 +1028,8 @@ static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_botto
                 out.top_solid_layers    = std::max<int>(out.top_solid_layers, config.top_solid_layers);
                 out.bottom_solid_layers = std::max<int>(out.bottom_solid_layers, config.bottom_solid_layers);
                 if (config.solid_infill_every_layers.value == 1 && config.fill_density.value > 0) {
-                    out.top_solid_layers = 100000;
-                    out.bottom_solid_layers = 100000;
+                    out.top_solid_layers = TOP_BOTTOM_LAYER_CAP;
+                    out.bottom_solid_layers = TOP_BOTTOM_LAYER_CAP;
                 }
                 out.small_region_threshold = config.gap_fill_enabled.value ?
                                              // Gap fill enabled. Enable a single line of 1/2 extrusion width.
@@ -1158,7 +1168,7 @@ static std::vector<std::vector<ExPolygons>> merge_segmented_layers(
 static void export_regions_to_svg(const std::string &path, const std::vector<ExPolygons> &regions, const ExPolygons &lslices)
 {
     const std::vector<std::string> colors       = {"blue", "cyan", "red", "orange", "magenta", "pink", "purple", "yellow"};
-    coordf_t                       stroke_width = scale_(0.05);
+    coordf_t                       stroke_width = scale_(DEBUG_SVG_STROKE_MM);
     BoundingBox                    bbox         = get_extents(lslices);
     bbox.offset(scale_(1.));
     ::Slic3r::SVG svg(path.c_str(), bbox);
@@ -1177,7 +1187,7 @@ static void export_regions_to_svg(const std::string &path, const std::vector<ExP
 #ifdef MM_SEGMENTATION_DEBUG_INPUT
 void export_processed_input_expolygons_to_svg(const std::string &path, const LayerRegionPtrs &regions, const ExPolygons &processed_input_expolygons)
 {
-    coordf_t    stroke_width = scale_(0.05);
+    coordf_t    stroke_width = scale_(DEBUG_SVG_STROKE_MM);
     BoundingBox bbox         = get_extents(regions);
     bbox.merge(get_extents(processed_input_expolygons));
     bbox.offset(scale_(1.));
@@ -1195,7 +1205,7 @@ void export_processed_input_expolygons_to_svg(const std::string &path, const Lay
 static void export_painted_lines_to_svg(const std::string &path, const std::vector<std::vector<PaintedLine>> &all_painted_lines, const ExPolygons &lslices)
 {
     const std::vector<std::string> colors       = {"blue", "cyan", "red", "orange", "magenta", "pink", "purple", "yellow"};
-    coordf_t                       stroke_width = scale_(0.05);
+    coordf_t                       stroke_width = scale_(DEBUG_SVG_STROKE_MM);
     BoundingBox                    bbox         = get_extents(lslices);
     bbox.offset(scale_(1.));
     ::Slic3r::SVG svg(path.c_str(), bbox);
@@ -1213,7 +1223,7 @@ static void export_painted_lines_to_svg(const std::string &path, const std::vect
 static void export_colorized_polygons_to_svg(const std::string &path, const std::vector<ColoredLines> &colorized_polygons, const ExPolygons &lslices)
 {
     const std::vector<std::string> colors       = {"blue", "cyan", "red", "orange", "magenta", "pink", "purple", "green", "yellow"};
-    coordf_t                       stroke_width = scale_(0.05);
+    coordf_t                       stroke_width = scale_(DEBUG_SVG_STROKE_MM);
     BoundingBox                    bbox         = get_extents(lslices);
     bbox.offset(scale_(1.));
     ::Slic3r::SVG svg(path.c_str(), bbox);
@@ -1330,8 +1340,8 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
                         float min_z = std::numeric_limits<float>::max();
                         float max_z = std::numeric_limits<float>::lowest();
 
-                        std::array<Vec3f, 3> facet;
-                        for (int p_idx = 0; p_idx < 3; ++p_idx) {
+                        std::array<Vec3f, NUM_FACET_VERTICES> facet;
+                        for (int p_idx = 0; p_idx < NUM_FACET_VERTICES; ++p_idx) {
                             facet[p_idx] = tr * custom_facets.vertices[custom_facets.indices[facet_idx](p_idx)];
                             max_z        = std::max(max_z, facet[p_idx].z());
                             min_z        = std::min(min_z, facet[p_idx].z());
@@ -1350,12 +1360,12 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
                         for (auto layer_it = first_layer; layer_it != (last_layer + 1); ++layer_it) {
                             const Layer *layer     = *layer_it;
                             size_t       layer_idx = layer_it - layers.begin();
-                            if (input_expolygons[layer_idx].empty() || facet[0].z() > layer->slice_z || layer->slice_z > facet[2].z())
+                            if (input_expolygons[layer_idx].empty() || facet[0].z() > layer->slice_z || layer->slice_z > facet[LAST_FACET_VERTEX_IDX].z())
                                 continue;
 
                             // https://kandepet.com/3d-printing-slicing-3d-objects/
-                            float t            = (float(layer->slice_z) - facet[0].z()) / (facet[2].z() - facet[0].z());
-                            Vec3f line_start_f = facet[0] + t * (facet[2] - facet[0]);
+                            float t            = (float(layer->slice_z) - facet[0].z()) / (facet[LAST_FACET_VERTEX_IDX].z() - facet[0].z());
+                            Vec3f line_start_f = facet[0] + t * (facet[LAST_FACET_VERTEX_IDX] - facet[0]);
                             Vec3f line_end_f;
 
                             if (facet[1].z() > layer->slice_z) {
@@ -1364,8 +1374,8 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
                                 line_end_f = facet[0] + t1 * (facet[1] - facet[0]);
                             } else {
                                 // [P0, P2] and [P1, P2]
-                                float t2   = (float(layer->slice_z) - facet[1].z()) / (facet[2].z() - facet[1].z());
-                                line_end_f = facet[1] + t2 * (facet[2] - facet[1]);
+                                float t2   = (float(layer->slice_z) - facet[1].z()) / (facet[LAST_FACET_VERTEX_IDX].z() - facet[1].z());
+                                line_end_f = facet[1] + t2 * (facet[LAST_FACET_VERTEX_IDX] - facet[1]);
                             }
 
                             Line line_to_test(Point(scale_(line_start_f.x()), scale_(line_start_f.y())),
