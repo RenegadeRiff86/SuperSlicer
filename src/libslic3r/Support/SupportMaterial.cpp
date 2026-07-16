@@ -67,6 +67,20 @@ using namespace Slic3r::FFFSupport;
 
 namespace Slic3r {
 
+// Maximum oversampling of the AGG support rasterizer grid.
+[[maybe_unused]] static constexpr int MAX_RASTER_OVERSAMPLING = 8;
+// Small fixed number of samples taken from each support polygon for robustness.
+static constexpr int POLYGON_SAMPLE_COUNT = 4;
+// Closing radius applied to the collected overhang / contact polygons, as a fraction of the maximum flow width.
+static constexpr double CLOSING_RADIUS_FLOW_FRACTION = 0.1;
+// ClipperLib arc tolerance (unscaled mm) used for jtRound offsets.
+static constexpr double ROUND_JOIN_ARC_TOLERANCE_MM = 0.05;
+// Index-cache sentinel: -2 = not initialized yet, -1 = initialized and decremented past the first element.
+static constexpr int IDX_UNINITIALIZED = -2;
+// Debug visualization helpers.
+[[maybe_unused]] static constexpr double DBG_SVG_OUTLINE_MM = 0.05;
+[[maybe_unused]] static constexpr int    DBG_PNG_UPSCALE = 4;
+
     // how much we extend support around the actual contact area
     // Known limitation: fixed margin; arguably it should depend on the nozzle diameter.
 #define SUPPORT_MATERIAL_MARGIN 1.5 
@@ -611,7 +625,7 @@ public:
             m_bbox       = bbox;
             // Oversample the grid to avoid leaking of supports through or around the object walls.
             int extrusion_width_scaled = scale_(params.extrusion_width);
-            int oversampling = std::clamp(int(scale_(m_support_spacing) / (extrusion_width_scaled + 100)), 1, 8);
+            int oversampling = std::clamp(int(scale_(m_support_spacing) / (extrusion_width_scaled + 100)), 1, MAX_RASTER_OVERSAMPLING);
             m_pixel_size = std::max<double>(extrusion_width_scaled + 21, scale_(m_support_spacing / oversampling));
             // Add one empty column / row boundaries.
             m_bbox.offset(m_pixel_size);
@@ -634,7 +648,7 @@ public:
     #ifdef SLIC3R_DEBUG
             {
                 static int irun;
-                Slic3r::png::write_gray_to_file_scaled(debug_out_path("support-rasterizer-%d.png", irun++), m_grid_size.x(), m_grid_size.y(), m_grid2.data(), 4);
+                Slic3r::png::write_gray_to_file_scaled(debug_out_path("support-rasterizer-%d.png", irun++), m_grid_size.x(), m_grid_size.y(), m_grid2.data(), DBG_PNG_UPSCALE);
             }
     #endif // SLIC3R_DEBUG
 
@@ -755,9 +769,9 @@ public:
             svg.draw(islands, "red", 0.5f);
             svg.draw(union_ex(out), "green", 0.5f);
             svg.draw(union_ex(*m_support_polygons), "blue", 0.5f);
-            svg.draw_outline(islands, "red", "red", scale_(0.05));
-            svg.draw_outline(union_ex(out), "green", "green", scale_(0.05));
-            svg.draw_outline(union_ex(*m_support_polygons), "blue", "blue", scale_(0.05));
+            svg.draw_outline(islands, "red", "red", scale_(DBG_SVG_OUTLINE_MM));
+            svg.draw_outline(union_ex(out), "green", "green", scale_(DBG_SVG_OUTLINE_MM));
+            svg.draw_outline(union_ex(*m_support_polygons), "blue", "blue", scale_(DBG_SVG_OUTLINE_MM));
             for (const Point &pt : samples)
                 svg.draw(pt, "black", coord_t(scale_(0.15)));
             svg.Close();
@@ -794,14 +808,14 @@ public:
     void serialize(const std::string &path)
     {
         FILE *file = boost::nowide::fopen(path.c_str(), "wb");
-        ::fwrite(&m_support_spacing, 8, 1, file);
-        ::fwrite(&m_support_angle, 8, 1, file);
+        ::fwrite(&m_support_spacing, sizeof(m_support_spacing), 1, file);
+        ::fwrite(&m_support_angle, sizeof(m_support_angle), 1, file);
         uint32_t n_polygons = m_support_polygons->size();
-        ::fwrite(&n_polygons, 4, 1, file);
+        ::fwrite(&n_polygons, sizeof(n_polygons), 1, file);
         for (uint32_t i = 0; i < n_polygons; ++ i) {
             const Polygon &poly = (*m_support_polygons)[i];
             uint32_t n_points = poly.size();
-            ::fwrite(&n_points, 4, 1, file);
+            ::fwrite(&n_points, sizeof(n_points), 1, file);
             for (uint32_t j = 0; j < n_points; ++ j) {
                 const Point &pt = poly.points[j];
                 ::fwrite(&pt.x(), sizeof(coord_t), 1, file);
@@ -809,11 +823,11 @@ public:
             }
         }
         n_polygons = m_trimming_polygons->size();
-        ::fwrite(&n_polygons, 4, 1, file);
+        ::fwrite(&n_polygons, sizeof(n_polygons), 1, file);
         for (uint32_t i = 0; i < n_polygons; ++ i) {
             const Polygon &poly = (*m_trimming_polygons)[i];
             uint32_t n_points = poly.size();
-            ::fwrite(&n_points, 4, 1, file);
+            ::fwrite(&n_points, sizeof(n_points), 1, file);
             for (uint32_t j = 0; j < n_points; ++ j) {
                 const Point &pt = poly.points[j];
                 ::fwrite(&pt.x(), sizeof(coord_t), 1, file);
@@ -840,16 +854,16 @@ public:
         m_support_polygons = &m_support_polygons_deserialized;
         m_trimming_polygons = &m_trimming_polygons_deserialized;
 
-        ::fread(&m_support_spacing, 8, 1, file);
-        ::fread(&m_support_angle, 8, 1, file);
+        ::fread(&m_support_spacing, sizeof(m_support_spacing), 1, file);
+        ::fread(&m_support_angle, sizeof(m_support_angle), 1, file);
         uint32_t n_polygons;
-        ::fread(&n_polygons, 4, 1, file);
+        ::fread(&n_polygons, sizeof(n_polygons), 1, file);
         m_support_polygons_deserialized.reserve(n_polygons);
         int32_t scale = 1;
         for (uint32_t i = 0; i < n_polygons; ++ i) {
             Polygon poly;
             uint32_t n_points;
-            ::fread(&n_points, 4, 1, file);
+            ::fread(&n_points, sizeof(n_points), 1, file);
             poly.points.reserve(n_points);
             for (uint32_t j = 0; j < n_points; ++ j) {
                 coord_t x, y;
@@ -861,12 +875,12 @@ public:
                 m_support_polygons_deserialized.emplace_back(std::move(poly));
             printf("Polygon %d, area: %lf\n", i, area(poly.points));
         }
-        ::fread(&n_polygons, 4, 1, file);
+        ::fread(&n_polygons, sizeof(n_polygons), 1, file);
         m_trimming_polygons_deserialized.reserve(n_polygons);
         for (uint32_t i = 0; i < n_polygons; ++ i) {
             Polygon poly;
             uint32_t n_points;
-            ::fread(&n_points, 4, 1, file);
+            ::fread(&n_points, sizeof(n_points), 1, file);
             poly.points.reserve(n_points);
             for (uint32_t j = 0; j < n_points; ++ j) {
                 coord_t x, y;
@@ -979,7 +993,7 @@ private:
                         if (! poly.points.empty()) {
                             // Take a small fixed number of samples of this polygon for robustness.
                             int num_points  = int(poly.points.size());
-                            int num_samples = std::min(num_points, 4);
+                            int num_samples = std::min(num_points, POLYGON_SAMPLE_COUNT);
                             int stride = num_points / num_samples;
                             for (int i = 0; i < num_points; i += stride)
                                 pts.push_back(poly.points[i]);
@@ -1392,7 +1406,7 @@ static inline std::tuple<Polygons, Polygons, Polygons, float> detect_overhangs(
                             scaled<float>(SUPPORT_MATERIAL_MARGIN / NUM_MARGIN_STEPS),
                             ClipperLib::jtRound,
                             // round mitter limit
-                            scale_(0.05)),
+                            scale_(ROUND_JOIN_ARC_TOLERANCE_MM)),
                         slices_margin.polygons);
                 }
 #else
@@ -1431,9 +1445,9 @@ static inline std::tuple<Polygons, Polygons, Polygons, float> detect_overhangs(
                 }
             }
         }
-    overhang_polygons = closing(overhang_polygons, double(max_flow_width) * 0.1);
-    contact_polygons = closing(contact_polygons, double(max_flow_width) * 0.1);
-    enforcer_polygons = closing(enforcer_polygons, double(max_flow_width) * 0.1);
+    overhang_polygons = closing(overhang_polygons, double(max_flow_width) * CLOSING_RADIUS_FLOW_FRACTION);
+    contact_polygons = closing(contact_polygons, double(max_flow_width) * CLOSING_RADIUS_FLOW_FRACTION);
+    enforcer_polygons = closing(enforcer_polygons, double(max_flow_width) * CLOSING_RADIUS_FLOW_FRACTION);
 
     return std::make_tuple(std::move(overhang_polygons), std::move(contact_polygons), std::move(enforcer_polygons), no_interface_offset);
 }
@@ -2209,7 +2223,7 @@ void PrintObjectSupportMaterial::trim_top_contacts_by_bottom_contacts(
 {
     tbb::parallel_for(tbb::blocked_range<int>(0, int(top_contacts.size())),
         [&bottom_contacts, &top_contacts](const tbb::blocked_range<int>& range) {
-            int idx_bottom_overlapping_first = -2;
+            int idx_bottom_overlapping_first = IDX_UNINITIALIZED;
             // For all top contact layers, counting downwards due to the way idx_higher_or_equal caches the last index to avoid repeated binary search.
             for (int idx_top = range.end() - 1; idx_top >= range.begin(); -- idx_top) {
                 SupportGeneratorLayer &layer_top = *top_contacts[idx_top];
@@ -2599,9 +2613,9 @@ void PrintObjectSupportMaterial::generate_base_layers(
         tbb::blocked_range<size_t>(0, intermediate_layers.size()),
         [this, &object, &bottom_contacts, &top_contacts, &intermediate_layers, &layer_support_areas](const tbb::blocked_range<size_t>& range) {
             // index -2 means not initialized yet, -1 means intialized and decremented to 0 and then -1.
-            int idx_top_contact_above           = -2;
-            int idx_bottom_contact_overlapping  = -2;
-            int idx_object_layer_above          = -2;
+            int idx_top_contact_above           = IDX_UNINITIALIZED;
+            int idx_bottom_contact_overlapping  = IDX_UNINITIALIZED;
+            int idx_object_layer_above          = IDX_UNINITIALIZED;
             // Counting down due to the way idx_lower_or_equal caches indices to avoid repeated binary search over the complete sequence.
             for (int idx_intermediate = int(range.end()) - 1; idx_intermediate >= int(range.begin()); -- idx_intermediate)
             {
