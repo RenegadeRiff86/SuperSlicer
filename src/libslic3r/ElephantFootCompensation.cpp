@@ -21,6 +21,14 @@
 
 namespace Slic3r {
 
+// Named literals for BP1002 (see policy doc); values unchanged from the prior inline literals.
+static constexpr size_t MIN_CONTOUR_POINTS        = 2;    // a contour needs more than this many points to have well-defined per-vertex directions
+static constexpr int    NUM_2D_AXES                = 2;    // X, Y
+static constexpr double SHARP_ANGLE_DOT_THRESHOLD  = 0.5;  // dot(prev,next) above this means the corner turn is wider than ~60 degrees
+static constexpr double RESAMPLE_INTERVAL_MM       = 0.5;
+[[maybe_unused]] static constexpr double DBG_SVG_STROKE_MM       = 0.01;
+[[maybe_unused]] static constexpr double DBG_SVG_POINT_RADIUS_MM = 0.1;
+
 struct ResampledPoint {
     ResampledPoint(size_t idx_src, bool interpolated, double curve_parameter) : idx_src(idx_src), interpolated(interpolated), curve_parameter(curve_parameter) {}
 
@@ -38,11 +46,11 @@ struct ResampledPoint {
 std::vector<float> contour_distance(const EdgeGrid::Grid &grid, const size_t idx_contour, const Slic3r::Points &contour, const std::vector<ResampledPoint> &resampled_point_parameters, double search_radius)
 {
     assert(! contour.empty());
-    assert(contour.size() >= 2);
+    assert(contour.size() >= MIN_CONTOUR_POINTS);
 
     std::vector<float> out;
 
-    if (contour.size() > 2) 
+    if (contour.size() > MIN_CONTOUR_POINTS) 
     {
 #ifdef CONTOUR_DISTANCE_DEBUG_SVG
         static int iRun = 0;
@@ -66,7 +74,7 @@ std::vector<float> contour_distance(const EdgeGrid::Grid &grid, const size_t idx
                 // Trim the vector by the grid's bounding box.
                 const BoundingBox &bbox = this->grid.bbox();
                 double t = 1.;
-                for (size_t axis = 0; axis < 2; ++ axis) {
+                for (size_t axis = 0; axis < NUM_2D_AXES; ++ axis) {
                     double dx = std::abs(dir(axis));
                     if (dx >= EPSILON) {
                         double tedge = (dir(axis) > 0) ? (double(bbox.max(axis)) - SCALED_EPSILON - this->pt(axis)) : (this->pt(axis) - double(bbox.min(axis)) - SCALED_EPSILON);
@@ -167,7 +175,7 @@ std::vector<float> contour_distance(const EdgeGrid::Grid &grid, const size_t idx
             Vec2d    dir_perp = perp(dir);
             double   cross   = cross2(vprev, vnext);
             double   dot     = vprev.dot(vnext);
-            double   a       = (cross < 0 || dot > 0.5) ? (M_PI / 3.) : (0.48 * acos(std::min(1., - dot)));
+            double   a       = (cross < 0 || dot > SHARP_ANGLE_DOT_THRESHOLD) ? (M_PI / 3.) : (0.48 * acos(std::min(1., - dot)));
             // Throw rays, collect distances.
             std::vector<double> distances;
             int num_rays = 15;
@@ -175,8 +183,8 @@ std::vector<float> contour_distance(const EdgeGrid::Grid &grid, const size_t idx
 #ifdef CONTOUR_DISTANCE_DEBUG_SVG
             SVG svg(debug_out_path("contour_distance_raycasted-%d-%d.svg", iRun, &pt_next - contour.data()).c_str(), bbox);
             svg.draw(expoly_grid);
-            svg.draw_outline(Polygon(contour), "blue", scale_(0.01));
-            svg.draw(*pt_this, "red", coord_t(scale_(0.1)));
+            svg.draw_outline(Polygon(contour), "blue", scale_(DBG_SVG_STROKE_MM));
+            svg.draw(*pt_this, "red", coord_t(scale_(DBG_SVG_POINT_RADIUS_MM)));
 #endif /* CONTOUR_DISTANCE_DEBUG_SVG */
 
             for (int i = - num_rays + 1; i < num_rays; ++ i) {
@@ -188,10 +196,10 @@ std::vector<float> contour_distance(const EdgeGrid::Grid &grid, const size_t idx
                 grid.visit_cells_intersecting_line(visitor.pt_start, visitor.pt_end, visitor);
                 distances.emplace_back(visitor.t_min);
 #ifdef CONTOUR_DISTANCE_DEBUG_SVG
-                svg.draw(Line(visitor.pt_start, visitor.pt_end), "yellow", scale_(0.01));
+                svg.draw(Line(visitor.pt_start, visitor.pt_end), "yellow", scale_(DBG_SVG_STROKE_MM));
                 if (visitor.t_min < 1.) {
                     Vec2d pt = visitor.pt + visitor.dir * visitor.t_min;
-                    svg.draw(Point(pt), "red", coord_t(scale_(0.1)));
+                    svg.draw(Point(pt), "red", coord_t(scale_(DBG_SVG_POINT_RADIUS_MM)));
                 }
 #endif /* CONTOUR_DISTANCE_DEBUG_SVG */
             }
@@ -200,7 +208,7 @@ std::vector<float> contour_distance(const EdgeGrid::Grid &grid, const size_t idx
 #endif /* CONTOUR_DISTANCE_DEBUG_SVG */
             std::sort(distances.begin(), distances.end());
 #if 0
-            double median = distances[distances.size() / 2];
+            double median = distances[distances.size() / 2]; // median = middle of the sorted array
             double standard_deviation = 0;
             for (double d : distances)
                 standard_deviation += (d - median) * (d - median);
@@ -237,11 +245,11 @@ std::vector<float> contour_distance(const EdgeGrid::Grid &grid, const size_t idx
 std::vector<float> contour_distance2(const EdgeGrid::Grid &grid, const size_t idx_contour, const Slic3r::Points &contour, const std::vector<ResampledPoint> &resampled_point_parameters, double compensation, double search_radius)
 {
     assert(! contour.empty());
-    assert(contour.size() >= 2);
+    assert(contour.size() >= MIN_CONTOUR_POINTS);
 
     std::vector<float> out;
 
-    if (contour.size() > 2) 
+    if (contour.size() > MIN_CONTOUR_POINTS) 
     {
 #ifdef CONTOUR_DISTANCE_DEBUG_SVG
         static int iRun = 0;
@@ -385,7 +393,7 @@ std::vector<float> contour_distance2(const EdgeGrid::Grid &grid, const size_t id
                 Vec2d        v       = (pt_next - pt_this).cast<double>();
                 return cross2(v, pt - pt_this.cast<double>()) > 0.;
             }
-        } visitor(grid, idx_contour, resampled_point_parameters, 0.5 * compensation * M_PI, search_radius);
+        } visitor(grid, idx_contour, resampled_point_parameters, 0.5 * compensation * M_PI, search_radius); // dist_same_contour_reject: quarter of the compensation-radius circle circumference
 
         out.reserve(contour.size());
         Point radius_vector(search_radius, search_radius);
@@ -399,9 +407,9 @@ std::vector<float> contour_distance2(const EdgeGrid::Grid &grid, const size_t id
             if (out.back() < search_radius) {
                 SVG svg(debug_out_path("contour_distance_filtered-%d-%d.svg", iRun, int(&pt - contour.data())).c_str(), bbox);
                 svg.draw(expoly_grid);
-                svg.draw_outline(Polygon(contour), "blue", scale_(0.01));
-                svg.draw(pt, "green", coord_t(scale_(0.1)));
-                svg.draw(visitor.closest_point, "red", coord_t(scale_(0.1)));
+                svg.draw_outline(Polygon(contour), "blue", scale_(DBG_SVG_STROKE_MM));
+                svg.draw(pt, "green", coord_t(scale_(DBG_SVG_POINT_RADIUS_MM)));
+                svg.draw(visitor.closest_point, "red", coord_t(scale_(DBG_SVG_POINT_RADIUS_MM)));
                 printf("contour_distance_filtered-%d-%d.svg - distance %lf\n", iRun, int(&pt - contour.data()), unscale<double>(out.back()));
             }
 #endif /* CONTOUR_DISTANCE_DEBUG_SVG */
@@ -410,9 +418,9 @@ std::vector<float> contour_distance2(const EdgeGrid::Grid &grid, const size_t id
         if (out.back() < search_radius) {
             SVG svg(debug_out_path("contour_distance_filtered-final-%d.svg", iRun).c_str(), bbox);
             svg.draw(expoly_grid);
-            svg.draw_outline(Polygon(contour), "blue", scale_(0.01));
+            svg.draw_outline(Polygon(contour), "blue", scale_(DBG_SVG_STROKE_MM));
             for (size_t i = 0; i < contour.size(); ++ i)
-                svg.draw(contour[i], out[i] < float(search_radius - SCALED_EPSILON) ? "red" : "green", coord_t(scale_(0.1)));
+                svg.draw(contour[i], out[i] < float(search_radius - SCALED_EPSILON) ? "red" : "green", coord_t(scale_(DBG_SVG_POINT_RADIUS_MM)));
         }
 #endif /* CONTOUR_DISTANCE_DEBUG_SVG */
     }
@@ -425,7 +433,7 @@ Points resample_polygon(const Points &contour, double dist, std::vector<Resample
     Points out;
     out.reserve(contour.size());
     resampled_point_parameters.reserve(contour.size());
-    if (contour.size() > 2) {
+    if (contour.size() > MIN_CONTOUR_POINTS) {
         Vec2d  pt_prev  = contour.back().cast<double>();
         for (const Point &pt : contour) {
             size_t idx_this = &pt - contour.data();
@@ -470,7 +478,7 @@ static inline void smooth_compensation(std::vector<float> &compensation, float s
 static inline void smooth_compensation_banded(const Points &contour, float band, std::vector<float> &compensation, float strength, size_t num_iterations)
 {
     assert(contour.size() == compensation.size());
-    assert(contour.size() > 2);
+    assert(contour.size() > MIN_CONTOUR_POINTS);
     std::vector<float> out(compensation);
     float dist_min2 = band * band;
     static constexpr bool use_min = false;
@@ -552,9 +560,9 @@ ExPolygon elephant_foot_compensation(const ExPolygon &input_expoly, double min_c
 
     coordf_t scaled_compensation = scale_d(compensation);
     coordf_t scaled_min_contour_width = scale_d(min_contour_width);
-    coordf_t min_contour_width_compensated = scaled_min_contour_width + 2. * scaled_compensation;
+    coordf_t min_contour_width_compensated = scaled_min_contour_width + 2. * scaled_compensation; // add compensation on both sides of the contour
     // Make the search radius a bit larger for the averaging in contour_distance over a fan of rays to work.
-    coordf_t search_radius = min_contour_width_compensated + scaled_min_contour_width * 0.5;
+    coordf_t search_radius = min_contour_width_compensated + scaled_min_contour_width * 0.5; // extra margin: half the min contour width so the ray fan converges
 
     BoundingBox bbox = get_extents(input_expoly.contour);
     Point 		bbox_size = bbox.size();
@@ -579,7 +587,7 @@ ExPolygon elephant_foot_compensation(const ExPolygon &input_expoly, double min_c
         std::vector<std::vector<float>> deltas;
         deltas.reserve(simplified.holes.size() + 1);
         ExPolygon resampled(simplified);
-        double resample_interval = scale_(0.5);
+        double resample_interval = scale_(RESAMPLE_INTERVAL_MM);
         for (size_t idx_contour = 0; idx_contour <= simplified.holes.size(); ++ idx_contour) {
             Polygon &poly = (idx_contour == 0) ? resampled.contour : resampled.holes[idx_contour - 1];
             std::vector<ResampledPoint> resampled_point_parameters;
@@ -594,7 +602,7 @@ ExPolygon elephant_foot_compensation(const ExPolygon &input_expoly, double min_c
                 else if (d > min_contour_width_compensated)
                     d = - float(scaled_compensation);
                 else
-                    d = - (d - float(scaled_min_contour_width)) / 2.f;
+                    d = - (d - float(scaled_min_contour_width)) / 2.f; // split the excess width evenly between both sides
                 assert(d >= - float(scaled_compensation) && d <= 0.f);
             }
     //		smooth_compensation(dists, 0.4f, 10);
@@ -602,7 +610,7 @@ ExPolygon elephant_foot_compensation(const ExPolygon &input_expoly, double min_c
             deltas.emplace_back(dists);
         }
 
-        ExPolygons out_vec = variable_offset_inner_ex(resampled, deltas, 2.);
+        ExPolygons out_vec = variable_offset_inner_ex(resampled, deltas, DefaultVariableOffsetMiterLimit);
         if (out_vec.size() == 1 && out_vec.front().holes.size() == resampled.holes.size())
             // No contour of the original compensated expolygon was lost.
             out = std::move(out_vec.front());
