@@ -26,9 +26,9 @@ public:
 private:
     enum class Side {
         Left   = 1,
-        Right  = 2,
-        Top    = 4,
-        Bottom = 8
+        Right  = 2,  // 2^1: second clip-region bit
+        Top    = 4,  // 2^2: third clip-region bit
+        Bottom = 8  // 2^3: fourth clip-region bit
     };
 
     int sides(const Point &p) const {
@@ -50,7 +50,7 @@ void InfillPolylineClipper::add_point(const Vec2d &fpt)
 {
     const Point pt{ this->scaled(fpt) };
 
-    if (m_out.size() < 2) {
+    if (m_out.size() < 2) {  // still collecting the first two points
         // Collect the two first points and their status.
         (m_out.empty() ? m_sides_prev : m_sides_this) = sides(pt);
         m_out.emplace_back(pt);
@@ -171,10 +171,10 @@ template<typename Output>
 static void generate_archimedean_chords(coord_t min_x, coord_t min_y, coord_t max_x, coord_t max_y, const coordf_t resolution, Output &output)
 {
     // Radius to achieve.
-    coordf_t rmax = std::sqrt(coordf_t(max_x)*coordf_t(max_x)+coordf_t(max_y)*coordf_t(max_y)) * std::sqrt(2.) + 1.5;
+    coordf_t rmax = std::sqrt(coordf_t(max_x)*coordf_t(max_x)+coordf_t(max_y)*coordf_t(max_y)) * std::sqrt(2.) + 1.5;  // safety margin: overshoot the diagonal by sqrt(2) so the spiral covers the whole bbox
     // Now unwind the spiral.
     coordf_t a = 1.;
-    coordf_t b = 1./(2.*M_PI);
+    coordf_t b = 1./(2.*M_PI);  // b = pitch / full turn (2*PI radians)
     coordf_t theta = 0.;
     coordf_t r = 1;
     Pointfs out;
@@ -183,7 +183,7 @@ static void generate_archimedean_chords(coord_t min_x, coord_t min_y, coord_t ma
     output.add_point({ 1, 0 });
     while (r < rmax) {
         // Discretization angle to achieve a discretization error lower than resolution.
-        theta += 2. * acos(1. - resolution / r);
+        theta += 2. * acos(1. - resolution / r);  // full angle subtended by a chord whose sagitta equals the target resolution
         r = a + b * theta;
         output.add_point({ r * cos(theta), r * sin(theta) });
     }
@@ -216,7 +216,7 @@ void FillArchimedeanChords::generate(coord_t min_x, coord_t min_y, coord_t max_x
 //
 static inline Point hilbert_n_to_xy(const size_t n)
 {
-    static constexpr const int next_state[16] { 4,0,0,12, 0,4,4,8, 12,8,8,4, 8,12,12,0 };
+    static constexpr const int next_state[16] { 4,0,0,12, 0,4,4,8, 12,8,8,4, 8,12,12,0 };  // Hilbert-curve state transition table (see ASCII diagrams above)
     static constexpr const int digit_to_x[16] { 0,1,1,0, 0,0,1,1, 1,0,0,1, 1,1,0,0 };
     static constexpr const int digit_to_y[16] { 0,0,1,1, 0,1,1,0, 1,1,0,0, 1,0,0,1 };
 
@@ -225,15 +225,15 @@ static inline Point hilbert_n_to_xy(const size_t n)
     {
         size_t nc = n;
         while(nc > 0) {
-            nc >>= 2;
+            nc >>= 2;  // consume 2 bits (one base-4 Hilbert digit) at a time
             ++ ndigits;
         }
     }
-    int state    = (ndigits & 1) ? 4 : 0;
+    int state    = (ndigits & 1) ? 4 : 0;  // initial orientation state: 4 (transposed) for odd digit count, 0 (plain) for even
     coord_t x = 0;
     coord_t y = 0;
     for (int i = static_cast<int>(ndigits) - 1; i >= 0; -- i) {
-        int digit = (n >> (i * 2)) & 3;
+        int digit = (n >> (i * 2)) & 3;  // extract the i-th base-4 (2-bit) digit
         state += digit;
         x |= digit_to_x[state] << i;
         y |= digit_to_y[state] << i;
@@ -246,7 +246,7 @@ template<typename Output>
 static void generate_hilbert_curve(coord_t min_x, coord_t min_y, coord_t max_x, coord_t max_y, Output &output)
 {
     // Minimum power of two square to fit the domain.
-    size_t sz = 2;
+    size_t sz = 2;  // smallest power-of-two grid edge length to start doubling from
     size_t pw = 1;
     {
         size_t sz0 = std::max(max_x + 1 - min_x, max_y + 1 - min_y);
@@ -276,14 +276,14 @@ template<typename Output>
 static void generate_octagram_spiral(coord_t min_x, coord_t min_y, coord_t max_x, coord_t max_y, Output &output)
 {
     // Radius to achieve.
-    coordf_t rmax = std::sqrt(coordf_t(max_x)*coordf_t(max_x)+coordf_t(max_y)*coordf_t(max_y)) * std::sqrt(2.) + 1.5;
+    coordf_t rmax = std::sqrt(coordf_t(max_x)*coordf_t(max_x)+coordf_t(max_y)*coordf_t(max_y)) * std::sqrt(2.) + 1.5;  // safety margin: overshoot the diagonal by sqrt(2) so the spiral covers the whole bbox
     // Now unwind the spiral.
     coordf_t r = 0;
-    coordf_t r_inc = sqrt(2.);
+    coordf_t r_inc = sqrt(2.);  // ring radius step (matches the octagram's diagonal-to-axis vertex spacing)
     output.add_point({ 0., 0. });
     while (r < rmax) {
         r += r_inc;
-        coordf_t rx = r / sqrt(2.);
+        coordf_t rx = r / sqrt(2.);  // decompose a diagonal (45-degree) offset into its x/y magnitude
         coordf_t r2 = r + rx;
         output.add_point({ r,   0. });
         output.add_point({ r2,  rx });
