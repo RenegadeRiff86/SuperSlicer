@@ -1457,7 +1457,7 @@ void GCodeProcessor::initialize(const std::string& filename)
 
 void GCodeProcessor::process_buffer(const std::string &buffer)
 {
-    //FIXME maybe cache GCodeLine gline to be over multiple parse_buffer() invocations.
+    // Performance note: maybe cache GCodeLine gline to live over multiple parse_buffer() invocations.
     m_parser.parse_buffer(buffer, [this](GCodeReader&, const GCodeReader::GCodeLine& line) { 
         this->process_gcode_line(line, false);
     });
@@ -5029,7 +5029,7 @@ void GCodeProcessor::set_travel_acceleration(PrintEstimatedStatistics::ETimeMode
 float GCodeProcessor::get_filament_load_time(size_t extruder_id)
 {
     if (m_is_XL_printer)
-        return 4.5f; // FIXME
+        return 4.5f; // FIXME: hardcoded XL filament load time; should come from filament_load_times
     return (m_time_processor.filament_load_times.empty() || m_time_processor.extruder_unloaded) ?
         0.0f :
         ((extruder_id < m_time_processor.filament_load_times.size()) ?
@@ -5039,7 +5039,7 @@ float GCodeProcessor::get_filament_load_time(size_t extruder_id)
 float GCodeProcessor::get_filament_unload_time(size_t extruder_id)
 {
     if (m_is_XL_printer)
-        return 0.f; // FIXME
+        return 0.f; // FIXME: hardcoded XL filament unload time; should come from filament_unload_times
     return (m_time_processor.filament_unload_times.empty() || m_time_processor.extruder_unloaded) ?
         0.0f :
         ((extruder_id < m_time_processor.filament_unload_times.size()) ?
