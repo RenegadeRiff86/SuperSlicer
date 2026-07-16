@@ -188,7 +188,7 @@ static void trianglemesh_repair_on_import(stl_file &stl)
     stl_verify_neighbors(&stl);
     assert(stl_validate(&stl));
 
-    //FIXME The admesh repair function may break the face connectivity, rather refresh it here as the slicing code relies on it.
+    // The admesh repair function may break the face connectivity; refresh it here since the slicing code relies on it.
     if (auto nr_degenerated = stl.stats.degenerate_facets; stl.stats.number_of_facets > 0 && nr_degenerated > 0)
         stl_check_facets_exact(&stl);
 
@@ -445,7 +445,7 @@ void TriangleMesh::merge(const TriangleMesh &mesh)
 }
 
 // Calculate projection of the mesh into the XY plane, in scaled coordinates.
-//FIXME This could be extremely slow! Use it for tiny meshes only!
+// Performance note: this could be extremely slow! Use it for tiny meshes only!
 ExPolygons TriangleMesh::horizontal_projection() const
 {
     return union_ex(project_mesh(this->its, Transform3d::Identity(), []() {}));
@@ -625,7 +625,7 @@ static inline std::vector<Vec3i32> its_face_edge_ids_impl(const indexed_triangle
                 break;
             }
         if (! found) {
-            //FIXME Vojtech: Trying to find an edge with equal orientation. This smells.
+            // Fallback (Vojtech): try to find an edge with equal orientation.
             // admesh can assign the same edge ID to more than two facets (which is 
             // still topologically correct), so we have to search for a duplicate of 
             // this edge too in case it was already seen in this orientation

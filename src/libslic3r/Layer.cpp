@@ -27,8 +27,9 @@ namespace Slic3r {
 Layer::~Layer()
 {
     this->lower_layer = this->upper_layer = nullptr;
-    for (LayerRegion *region : m_regions)
-        delete region;
+    for (LayerRegion *region : m_regions) {
+        std::unique_ptr<LayerRegion> region_owner{region};
+    }
     m_regions.clear();
 }
 
@@ -44,8 +45,9 @@ bool Layer::empty() const
 
 LayerRegion* Layer::add_region(const PrintRegion *print_region)
 {
-    m_regions.emplace_back(new LayerRegion(this, print_region));
-    return m_regions.back();
+    auto region = std::make_unique<LayerRegion>(this, print_region);
+    m_regions.emplace_back(region.get());
+    return region.release();
 }
 
 // merge all regions' slices to get islands
@@ -115,10 +117,6 @@ void Layer::make_slices()
     co.MiterLimit = 3.;
 // Use the default zero edge merging distance. For this kind of safety offset the accuracy of normal direction is not important.
 //    co.ShortestEdgeLength = delta * ClipperOffsetShortestEdgeFactor;
-//    static constexpr const double accept_area_threshold_ccw = sqr(scaled<double>(0.1 * delta));
-    // Such a small hole should not survive the shrinkage, it should grow over 
-//    static constexpr const double accept_area_threshold_cw  = sqr(scaled<double>(0.2 * delta));
-
     for (const ExPolygon &expoly : expolygons) {
         contours.clear();
         co.Clear();
@@ -145,29 +143,15 @@ void Layer::make_slices()
                 contours.clear();
                 clipper.Execute(ClipperLib::ctDifference, contours, ClipperLib::pftNonZero, ClipperLib::pftNonZero);
             }
+            // A small-contour area filter was disabled and removed here: it tried to drop offset artifacts
+            // caused by numerical issues in the offsetting algorithm or self-intersections in the source
+            // polygons, but it did more harm than good, tending to punch holes into existing ExPolygons.
             for (const auto &contour : contours) {
-                bool accept = true;
-                // Trying to get rid of offset artifacts, that may be created due to numerical issues in offsetting algorithm
-                // or due to self-intersections in the source polygons.
-                //FIXME how reliable is it? Is it helpful or harmful? It seems to do more harm than good as it tends to punch holes
-                // into existing ExPolygons.
-#if 0
-                if (contour.size() < 8) {
-                    // Only accept contours with area bigger than some threshold.
-                    double a = ClipperLib::Area(contour);
-                    // Polygon has to be bigger than some threshold to be accepted.
-                    // Hole to be accepted has to have an area slightly bigger than the non-hole, so it will not happen due to rounding errors,
-                    // that a hole will be accepted without its outer contour.
-                    accept = a > 0 ? a > accept_area_threshold_ccw : a < - accept_area_threshold_cw;
-                }
-#endif
-                if (accept) {
-                    out.emplace_back();
-                    ClipperLib_Z::Path &path = out.back();
-                    path.reserve(contour.size());
-                    for (const Point &p : contour)
-                        path.push_back({ p.x(), p.y(), isrc });
-                }
+                out.emplace_back();
+                ClipperLib_Z::Path &path = out.back();
+                path.reserve(contour.size());
+                for (const Point &p : contour)
+                    path.push_back({ p.x(), p.y(), isrc });
             }
         }
 #if 0 // #ifndef NDEBUG
@@ -839,7 +823,7 @@ void Layer::make_perimeters()
                     this->m_object->print()->throw_if_canceled();
                     layerm_config->make_perimeters(new_slices, regions, perimeter_and_gapfill_ranges, fill_expolygons, fill_expolygons_ranges);
 
-                    //// TODO: review if it's not useless or creates bugs.
+                    //// Disabled experiment: assigning fill polygons here duplicates LayerRegion ownership and can invalidate later processing.
                     //// assign fill_expolygons to each LayerRegion
                     //if (!fill_expolygons.empty()) { 
                     //    for (uint32_t layer_region_id : layer_region_ids) {
@@ -1042,7 +1026,8 @@ void Layer::sort_perimeters_into_islands(
                 ExPolygons l_slices_exp = to_expolygons(layer_region.slices().surfaces);
                 layer_region.m_fill_expolygons = intersection_ex(l_slices_exp, fill_expolygons);
                 ensure_valid(layer_region.m_fill_expolygons);
-                //copy m_fill_no_overlap_expolygons in sister LayerRegion. It will serve as a mask (with intersection). TODO: maybe to intersection(m_fill_no_overlap_expolygons, layer_region.slices().surfaces)
+                //copy m_fill_no_overlap_expolygons in sister LayerRegion. It will serve as a mask (with intersection).
+                // Possible refinement: store intersection(m_fill_no_overlap_expolygons, layer_region.slices().surfaces) instead.
                 if (&this_layer_region != &layer_region) {
                     assert(layer_region.m_fill_no_overlap_expolygons.empty());
                     layer_region.m_fill_no_overlap_expolygons = this_layer_region.m_fill_no_overlap_expolygons;

@@ -446,7 +446,7 @@ Surfaces expand_bridges_detect_orientations(
                         for (; it_bridge_expansion != bridge_expansions.end() && it_bridge_expansion->src_id == bridge_id2; ++ it_bridge_expansion)
                             append(acc, to_polygons(std::move(it_bridge_expansion->expolygon)));
                     }
-                //FIXME try to be smart and pick the best bridging angle for all?
+                // Possible enhancement: pick the best bridging angle for the whole group instead of the group head's angle.
                 templ.bridge_angle = bridges[bridge_id].angle;
                 //NOTE: The current regularization of the shells can create small unasigned regions in the object (E.G. benchy)
                 // without the following closing operation, those regions will stay unfilled and cause small holes in the expanded surface.

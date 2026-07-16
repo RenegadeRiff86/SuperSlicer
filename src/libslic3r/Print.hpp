@@ -87,7 +87,7 @@ enum PrintStep : uint8_t {
     // should be refreshed.
     psSlicingFinished = psSkirtBrim,
     psGCodeExport,
-   //TODO: psGCodeLoader (for params that are only used for time display and such)
+   // Possible enhancement: a psGCodeLoader step for params that are only used for time display and such.
     psCount,
 };
 
@@ -203,8 +203,6 @@ using SpanOfConstPtrs           = tcb::span<const T* const>;
 
 using LayerPtrs                 = std::vector<Layer*>;
 using SupportLayerPtrs          = std::vector<SupportLayer*>;
-
-class BoundingBoxf3;        // TODO: for temporary constructor parameter
 
 // Single instance of a PrintObject.
 // As multiple PrintObjects may be generated for a single ModelObject (their instances differ in rotation around Z),
@@ -385,7 +383,7 @@ public:
 
     size_t                      num_printing_regions() const throw() { assert(m_shared_regions); return m_shared_regions->all_regions.size(); }
     const PrintRegion&          printing_region(size_t idx) const throw() { assert(m_shared_regions); return *m_shared_regions->all_regions[idx].get(); }
-    //FIXME returing all possible regions before slicing, thus some of the regions may not be slicing at the end.
+    // Note: returns all candidate regions before slicing, so some of them may end up unused by the final slice.
     std::vector<std::reference_wrapper<const PrintRegion>> all_regions() const;
     const PrintObjectRegions*   shared_regions() const throw() { return m_shared_regions; }
 
@@ -419,6 +417,7 @@ protected:
     // to be called from Print only.
     friend class Print;
     friend class PrintBaseWithState<PrintStep, psCount>;
+    friend struct std::default_delete<PrintObject>;
 
     PrintObject(Print* print, ModelObject* model_object, const Transform3d& trafo, PrintInstances&& instances);
     ~PrintObject() override {
@@ -793,7 +792,7 @@ public:
     bool                invalidate_step(PrintStep step);
 
     // just a little wrapper to let the user know that this print can only be modified to emit warnings & update advancement status, change stats.
-    // TODO: have the status out of the printbase class and into another one, so we can have a const print & a mutable statusmonitor
+    // Possible refactor: move the status out of PrintBase into a separate class, so we could have a const Print and a mutable status monitor.
     class StatusMonitor
     {
     private:
