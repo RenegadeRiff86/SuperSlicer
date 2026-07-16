@@ -31,10 +31,10 @@ template<class PxT> struct Image {
 using ImageGreyscale = Image<uint8_t>;
 
 // Only decodes true 8 bit grayscale png images. Returns false for other formats
-// TODO (if needed): implement transformation of rgb images into grayscale...
+// Possible extension: implement transformation of rgb images into grayscale if ever needed.
 bool decode_png(IStream &stream, ImageGreyscale &out_img);
 
-// TODO (if needed)
+// Possible extension (if ever needed):
 // struct RGB { uint8_t r, g, b; };
 // using ImageRGB = Image<RGB>;
 // bool decode_png(IStream &stream, ImageRGB &img);
@@ -69,7 +69,7 @@ template<class Img> bool decode_png(const ReadBuf &in_buf, Img &out_img)
     return decode_png(stream, out_img);
 }
 
-// TODO: std::istream of FILE* could be similarly adapted in case its needed...
+// Possible extension: std::istream or FILE* could be similarly adapted in case it's needed.
 
 
 

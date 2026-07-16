@@ -740,7 +740,7 @@ void AMFParserContext::endElement(const char * /* name */)
 
     case NODE_TYPE_METADATA:
         if ((m_config != nullptr) && strncmp(m_value[0].c_str(), SLIC3R_CONFIG_TYPE, strlen(SLIC3R_CONFIG_TYPE)) == 0) {
-            //FIXME Loading a "will be one day a legacy format" of configuration in a form of a G-code comment.
+            // Note: loads a "will be one day a legacy format" configuration stored in the form of G-code comments.
             // Each config line is prefixed with a semicolon (G-code comment), that is ugly.
 
             // Replacing the legacy function with load_from_ini_string_commented leads to issues when
@@ -769,7 +769,7 @@ void AMFParserContext::endElement(const char * /* name */)
                 if (config) {
                     std::string opt_key = key;
                     std::string value = m_value[1];
-                    //FIXME: put them into a map, and do the handle & config deserialize after evrything is parsed.
+                    // Possible refactor: collect the pairs into a map and run handle_legacy_pair & config deserialization after everything is parsed.
                     PrintConfigDef::handle_legacy_pair(opt_key, value, true);
                     // PrintConfigDef::handle_legacy(opt_key, value, true);
                     if (opt_key.empty()) {
@@ -1338,7 +1338,6 @@ bool store_amf(std::string &path, Model *model, const DynamicPrintConfig *config
                     << "      <printable>" << instance->printable << "</printable>\n"
                     << "    </instance>\n";
 
-                //FIXME missing instance->scaling_factor
                 instances.append(buf.str());
             }
         }

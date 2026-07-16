@@ -2581,10 +2581,10 @@ private:
     // For enums (when type == coEnum). Maps enums to enum names.
     // These are stored in a global static const storage, defined in PrintConfig
     // for scripted widget, there is no hardcoded storage, so m_enum_names is m_values and m_enum_keys_map is m_enum_keys_map_storage_for_script
-    // Initialized by ConfigOptionEnum<xxx>::get_enum_names()
+    // Initialized by ConfigOptionEnum<EnumType>::get_enum_names()
     const t_config_enum_names*  m_enum_names{ nullptr };
     // For enums (when type == coEnum). Maps enum_values to enums.
-    // Initialized by ConfigOptionEnum<xxx>::get_enum_values()
+    // Initialized by ConfigOptionEnum<EnumType>::get_enum_values()
     const t_config_enum_values* m_enum_keys_map{ nullptr };
     std::shared_ptr<t_config_enum_values> m_enum_keys_map_storage_for_script{ nullptr };
 };
@@ -2768,7 +2768,7 @@ public:
     // Currently used for aliasing "solid_layers" to "top_solid_layers", "bottom_solid_layers".
     std::vector<t_config_option_key>    shortcut;
     
-    // Initialized by ConfigOptionEnum<xxx>::get_enum_values()
+    // Initialized by ConfigOptionEnum<EnumType>::get_enum_values()
     std::shared_ptr<GraphSettings>      graph_settings;
 
     // list of opt_key#idx strings that changes our computed value
