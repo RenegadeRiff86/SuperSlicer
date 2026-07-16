@@ -344,11 +344,11 @@ void TriangleMesh::mirror(const Axis axis)
         break;
     case Y:
         for (stl_vertex& v : this->its.vertices)
-            v.y() *= -1.0;
+            v.y() *= -1.;
         break;
     case Z:
         for (stl_vertex &v : this->its.vertices)
-            v.z() *= -1.0;
+            v.z() *= -1.;
         break;
     default:
         assert(false);
@@ -357,8 +357,8 @@ void TriangleMesh::mirror(const Axis axis)
     its_flip_triangles(this->its);
     int iaxis = int(axis);
     std::swap(m_stats.min[iaxis], m_stats.max[iaxis]);
-    m_stats.min[iaxis] *= -1.0;
-    m_stats.max[iaxis] *= -1.0;
+    m_stats.min[iaxis] *= -1.;
+    m_stats.max[iaxis] *= -1.;
 }
 
 void TriangleMesh::transform(const Transform3d& t, bool fix_left_handed)
@@ -1156,6 +1156,8 @@ indexed_triangle_set its_make_sphere(double radius, double fa)
     float z, xy;
     float hAngle1 = -float(PI) / 2 - H_ANGLE / 2;
 
+    constexpr int ICOSA_BOTTOM_APEX = 11; // index of the last of the 12 icosahedron vertices (the bottom pole)
+
     vertices[0] = stl_vertex(0, 0, radius); // the first top vertex at (0, 0, r)
 
     for (int i = 1; i <= 5; ++i) {
@@ -1167,10 +1169,10 @@ indexed_triangle_set its_make_sphere(double radius, double fa)
 
         indices.emplace_back(stl_triangle_vertex_indices(i, i < 5 ? i+1 : 1, 0));
         indices.emplace_back(stl_triangle_vertex_indices(i, i+5, i < 5 ? i+1 : 1));
-        indices.emplace_back(stl_triangle_vertex_indices(i+5, i+6 < 11 ? i+6 : 6, i+6 < 11 ? i+1 : 1));
-        indices.emplace_back(stl_triangle_vertex_indices(i+5, 11, i+6 < 11 ? i+6 : 6));
+        indices.emplace_back(stl_triangle_vertex_indices(i+5, i+6 < ICOSA_BOTTOM_APEX ? i+6 : 6, i+6 < ICOSA_BOTTOM_APEX ? i+1 : 1));
+        indices.emplace_back(stl_triangle_vertex_indices(i+5, ICOSA_BOTTOM_APEX, i+6 < ICOSA_BOTTOM_APEX ? i+6 : 6));
     }
-    vertices[11] = stl_vertex(0, 0, -radius); // the last bottom vertex at (0, 0, -r)
+    vertices[ICOSA_BOTTOM_APEX] = stl_vertex(0, 0, -radius); // the last bottom vertex at (0, 0, -r)
 
     
     // We have a beautiful icosahedron. Now subdivide the triangles.
