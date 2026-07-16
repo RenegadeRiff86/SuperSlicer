@@ -1911,7 +1911,7 @@ namespace client
                 }
             }
             msg += '\n';
-            // This hack removes all non-UTF8 characters from the source line, so that the upstream wxWidgets conversions
+            // This workaround removes all non-UTF8 characters from the source line, so that the upstream wxWidgets conversions
             // from UTF8 to UTF16 don't bail out.
             msg += boost::nowide::narrow(boost::nowide::widen(error_line));
             msg += '\n';

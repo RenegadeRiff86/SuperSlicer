@@ -11406,36 +11406,6 @@ OutputFormat output_format(const ConfigBase& cfg)
     return ofUnknown;
 }
 
-/*
-double min_object_distance(const ConfigBase &cfg)
-{
-    const ConfigOptionEnum<PrinterTechnology> *opt_printer_technology = cfg.option<ConfigOptionEnum<PrinterTechnology>>("printer_technology");
-    auto printer_technology = opt_printer_technology ? opt_printer_technology->value : ptUnknown;
-    double ret = 0.;
-
-    if (printer_technology == ptSLA)
-        ret = 6.;
-    else {
-        auto ecr_opt = cfg.option<ConfigOptionFloat>("extruder_clearance_radius");
-        auto dd_opt  = cfg.option<ConfigOptionFloat>("duplicate_distance");
-        auto co_opt  = cfg.option<ConfigOptionBool>("complete_objects");
-
-        if (!ecr_opt || !dd_opt || !co_opt) ret = 0.;
-        else {
-            // min object distance is max(duplicate_distance, clearance_radius)
-            ret = (co_opt->value && ecr_opt->value > dd_opt->value) ?
-                      ecr_opt->value : dd_opt->value;
-        }
-    }
-
-    return ret;
-}*/
-
-double min_object_distance(const PrintConfig& config)
-{
-    return min_object_distance(static_cast<const ConfigBase*>(&config));
-}
-
 double min_object_distance(const ConfigBase *config, double ref_height /* = 0*/)
 {
     if (printer_technology(*config) == ptSLA) return SLA_OBJECT_DISTANCE_MM;

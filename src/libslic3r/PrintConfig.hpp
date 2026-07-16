@@ -412,7 +412,6 @@ class StaticPrintConfig;
 
 OutputFormat output_format(const ConfigBase &cfg);
 // Minimum object distance for arrangement, based on printer technology
-// double min_object_distance(const ConfigBase &cfg);
 
 // Slic3r dynamic configuration, used to override the configuration
 // per object, per modification volume or per printing material.
@@ -1409,10 +1408,8 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
 
 )
 
-//static inline 
-double min_object_distance(const PrintConfig& config); //TODO: remove
-//static inline 
-double min_object_distance(const ConfigBase* config, double height = 0); //TODO: remove
+// Possible refactor: to be removed once callers use Print-level clearance logic instead.
+double min_object_distance(const ConfigBase* config, double height = 0);
 
 // This object is mapped to Perl as Slic3r::Config::Full.
 PRINT_CONFIG_CLASS_DERIVED_DEFINE0(
@@ -1477,10 +1474,9 @@ PRINT_CONFIG_CLASS_DEFINE(
     // Generate only ground facing supports
     ((ConfigOptionBool, support_enforcers_only))
 
-    // TODO: unimplemented at the moment. This coefficient will have an impact
-    // when bridges and pillars are merged. The resulting pillar should be a bit
-    // thicker than the ones merging into it. How much thicker? I don't know
-    // but it will be derived from this value.
+    // Note: only effective for the branching support tree (the field is permanently
+    // disabled in the GUI for the classic tree, see ConfigManipulation). When bridges
+    // and pillars merge, the resulting pillar is thickened proportionally to this factor.
     ((ConfigOptionFloat, support_pillar_widening_factor))
 
     // Radius in mm of the pillar base.
