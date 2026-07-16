@@ -26,6 +26,18 @@
 
 namespace Slic3r {
 
+static constexpr int kColorComponentMax = 255;
+static constexpr int kColorComponentLevels = 256;
+
+// Named literals for BP1002; values unchanged from the prior inline literals.
+constexpr int ARRAY_2D_RANK             = 2;
+constexpr int RECT_CORNER_COUNT         = 4;
+constexpr int MAX_CLIP_POLY_POINTS      = 2 * RECT_CORNER_COUNT; // Sutherland-Hodgman clip of a rect against an AABB can at most double the point count
+constexpr int MAX_LINE_CIRCLE_INTERSECTIONS = 2;
+constexpr int RGB_CHANNEL_COUNT         = 3;
+constexpr int RGBA_STRIDE_BYTES         = 4;
+constexpr int RGBA_ALPHA_OFFSET         = RGBA_STRIDE_BYTES - 1;
+
 // Replacement for a template alias.
 // Shorthand for the point_xy.
 template<typename T>
@@ -39,7 +51,7 @@ struct V2
 template<typename T>
 struct V3
 {
-    typedef boost::geometry::model::point<T, 3, boost::geometry::cs::cartesian> Type;
+    typedef boost::geometry::model::point<T, RGB_CHANNEL_COUNT, boost::geometry::cs::cartesian> Type;
 };
 
 // Replacement for a template alias.
@@ -47,7 +59,7 @@ struct V3
 template<typename T>
 struct V4
 {
-    typedef boost::geometry::model::point<T, 4, boost::geometry::cs::cartesian> Type;
+    typedef boost::geometry::model::point<T, RGBA_STRIDE_BYTES, boost::geometry::cs::cartesian> Type;
 };
 
 typedef V2<int   >::Type V2i;
@@ -63,10 +75,10 @@ typedef boost::geometry::model::box<V2i> B2i;
 typedef boost::geometry::model::box<V2f> B2f;
 typedef boost::geometry::model::box<V2d> B2d;
 
-typedef boost::multi_array<unsigned char, 2> 	 A2uc;
-typedef boost::multi_array<int   		, 2> 	 A2i;
-typedef boost::multi_array<float 		, 2> 	 A2f;
-typedef boost::multi_array<double		, 2> 	 A2d;
+typedef boost::multi_array<unsigned char, ARRAY_2D_RANK> 	 A2uc;
+typedef boost::multi_array<int   		, ARRAY_2D_RANK> 	 A2i;
+typedef boost::multi_array<float 		, ARRAY_2D_RANK> 	 A2f;
+typedef boost::multi_array<double		, ARRAY_2D_RANK> 	 A2d;
 
 template<typename T>
 inline void operator+=(
@@ -204,15 +216,15 @@ int line_circle_intersection(
     const boost::geometry::model::d2::point_xy<T>	&p1,
     const boost::geometry::model::d2::point_xy<T>	&center,
     const T 										 radius,
-    boost::geometry::model::d2::point_xy<T>			 intersection[2])
+    boost::geometry::model::d2::point_xy<T>			 intersection[MAX_LINE_CIRCLE_INTERSECTIONS])
 {
     typedef typename V2<T>::Type V2T;
     V2T v  = p1 - p0;
     V2T vc = p0 - center;
     T   a = dot(v);
-    T   b = T(2.) * dot(vc, v);
+    T   b = T(2.) * dot(vc, v);  // quadratic formula: b = 2 * (v . vc)
     T   c = dot(vc) - radius * radius;
-    T   d = b * b - T(4.) * a * c;
+    T   d = b * b - T(4.) * a * c;  // quadratic formula: discriminant = b^2 - 4ac
 
     if (d < T(0))
         // The circle misses the ray.
@@ -221,16 +233,16 @@ int line_circle_intersection(
     int n = 0;
     if (d == T(0)) {
         // The circle touches the ray at a single tangent point.
-        T t = - b / (T(2.) * a);
+        T t = - b / (T(2.) * a);  // quadratic formula: t = -b / 2a
         if (t >= T(0.) && t <= T(1.))
             intersection[n ++] = p0 + t * v;
     } else {
         // The circle intersects the ray in two points.
         d = sqrt(d);
-        T t = (- b - d) / (T(2.) * a);
+        T t = (- b - d) / (T(2.) * a);  // quadratic formula: t = (-b - sqrt(d)) / 2a
         if (t >= T(0.) && t <= T(1.))
             intersection[n ++] = p0 + t * v;
-        t = (- b + d) / (T(2.) * a);
+        t = (- b + d) / (T(2.) * a);  // quadratic formula: t = (-b + sqrt(d)) / 2a
         if (t >= T(0.) && t <= T(1.))
             intersection[n ++] = p0 + t * v;
     }
@@ -243,12 +255,12 @@ int line_circle_intersection(
 // Returns the number of resulting points.
 template<typename T>
 int clip_rect_by_AABB(
-    boost::geometry::model::d2::point_xy<T>			   					         rect[8], 
+    boost::geometry::model::d2::point_xy<T>			   					         rect[MAX_CLIP_POLY_POINTS], 
     const boost::geometry::model::box<boost::geometry::model::d2::point_xy<T> > &aabb)
 {
     typedef typename V2<T>::Type V2T;
-    V2T  result[8];
-    int  nin  = 4;
+    V2T  result[MAX_CLIP_POLY_POINTS];
+    int  nin  = RECT_CORNER_COUNT;
     int  nout = 0;
     V2T *in   = rect;
     V2T *out  = result;
@@ -277,7 +289,7 @@ int clip_rect_by_AABB(
             }
             S = &E;
         }
-        assert(nout <= 8);
+        assert(nout <= MAX_CLIP_POLY_POINTS);
     }
     // Clip bottom
     {
@@ -307,7 +319,7 @@ int clip_rect_by_AABB(
             }
             S = &E;
         }
-        assert(nout <= 8);
+        assert(nout <= MAX_CLIP_POLY_POINTS);
     }
     // Clip right
     {
@@ -337,7 +349,7 @@ int clip_rect_by_AABB(
             }
             S = &E;
         }
-        assert(nout <= 8);
+        assert(nout <= MAX_CLIP_POLY_POINTS);
     }
     // Clip top
     {
@@ -367,10 +379,10 @@ int clip_rect_by_AABB(
             }
             S = &E;
         }
-        assert(nout <= 8);
+        assert(nout <= MAX_CLIP_POLY_POINTS);
     }
 
-    assert(nout <= 8);
+    assert(nout <= MAX_CLIP_POLY_POINTS);
     return nout;
 }
 
@@ -382,12 +394,12 @@ int clip_circle_by_AABB(
     const boost::geometry::model::d2::point_xy<T>							    &center,
     const T 																	 radius,
     const boost::geometry::model::box<boost::geometry::model::d2::point_xy<T> > &aabb,
-    boost::geometry::model::d2::point_xy<T>			   					         result[8],
-    bool											   					         result_arc[8])
+    boost::geometry::model::d2::point_xy<T>			   					         result[MAX_CLIP_POLY_POINTS],
+    bool											   					         result_arc[MAX_CLIP_POLY_POINTS])
 {
     typedef typename V2<T>::Type V2T;
 
-    V2T rect[4] = {
+    V2T rect[RECT_CORNER_COUNT] = {
         aabb.min_corner(),
         V2T(aabb.max_corner().x(), aabb.min_corner().y()),
         aabb.max_corner(),
@@ -396,15 +408,15 @@ int clip_circle_by_AABB(
 
     int  bits_corners = 0;
     T    r2 = sqr(radius);
-    for (int i = 0; i < 4; ++ i, bits_corners <<= 1)
+    for (int i = 0; i < RECT_CORNER_COUNT; ++ i, bits_corners <<= 1)
         bits_corners |= dot(rect[i] - center) >= r2;
     bits_corners >>= 1;
 
     if (bits_corners == 0) {
         // all inside
         memcpy(result, rect, sizeof(rect));
-        memset(result_arc, true, 4);
-        return 4;
+        memset(result_arc, true, RECT_CORNER_COUNT);
+        return RECT_CORNER_COUNT;
     }
 
     if (bits_corners == 0x0f)
@@ -413,12 +425,12 @@ int clip_circle_by_AABB(
 
     // Some corners are outside, some are inside. Trim the rectangle.
     int n = 0;
-    for (int i = 0; i < 4; ++ i) {
+    for (int i = 0; i < RECT_CORNER_COUNT; ++ i) {
         bool inside = (bits_corners & 0x08) == 0;
         bits_corners <<= 1;
-        V2T chordal_points[2];
-        int n_chordal_points = line_circle_intersection(rect[i], rect[(i + 1)%4], center, radius, chordal_points);
-        if (n_chordal_points == 2) {
+        V2T chordal_points[MAX_LINE_CIRCLE_INTERSECTIONS];
+        int n_chordal_points = line_circle_intersection(rect[i], rect[(i + 1) % RECT_CORNER_COUNT], center, radius, chordal_points);
+        if (n_chordal_points == MAX_LINE_CIRCLE_INTERSECTIONS) {
             result_arc[n] = true;
             result[n ++] = chordal_points[0];
             result_arc[n] = true;
@@ -547,12 +559,12 @@ void gcode_paint_layer(
         V2f vperp(- dir.y(), dir.x());
         vperp = vperp * 0.5f * width / l2(vperp);
         // Rectangle of the extrusion.
-        V2f rect[4] = { p1 + vperp, p1 - vperp, p2 - vperp, p2 + vperp };
+        V2f rect[RECT_CORNER_COUNT] = { p1 + vperp, p1 - vperp, p2 - vperp, p2 + vperp };
         // Bounding box of the extrusion.
         B2f bboxLine(rect[0], rect[0]);
         boost::geometry::expand(bboxLine, rect[1]);
-        boost::geometry::expand(bboxLine, rect[2]);
-        boost::geometry::expand(bboxLine, rect[3]);
+        boost::geometry::expand(bboxLine, rect[2]);  // corner 2 of the rect
+        boost::geometry::expand(bboxLine, rect[3]);  // corner 3 of the rect
         B2i bboxLinei(
             V2i(std::clamp(int(floor(bboxLine.min_corner().x())), 0, nc-1),
                 std::clamp(int(floor(bboxLine.min_corner().y())), 0, nr-1)),
@@ -560,12 +572,12 @@ void gcode_paint_layer(
                 std::clamp(int(ceil(bboxLine.max_corner().y())), 0, nr-1)));
         // printf("bboxLinei %d,%d %d,%d\n", bboxLinei.min_corner().x(), bboxLinei.min_corner().y(), bboxLinei.max_corner().x(), bboxLinei.max_corner().y());
 #ifdef _DEBUG
-        float area = polyArea(rect, 4);
+        float area = polyArea(rect, RECT_CORNER_COUNT);
         assert(area > 0.f);
 #endif /* _DEBUG */
         for (int j = bboxLinei.min_corner().y(); j + 1 < bboxLinei.max_corner().y(); ++ j) {
             for (int i = bboxLinei.min_corner().x(); i + 1 < bboxLinei.max_corner().x(); ++i) {
-                V2f rect2[8];
+                V2f rect2[MAX_CLIP_POLY_POINTS];
                 memcpy(rect2, rect, sizeof(rect));
                 int n = clip_rect_by_AABB(rect2, B2f(V2f(float(i), float(j)), V2f(float(i + 1), float(j + 1))));
                 float area = polyArea(rect2, n);
@@ -594,12 +606,12 @@ void gcode_paint_bitmap(
         dir = dir * 0.5f * width / l2(dir);
         V2f vperp(- dir.y(), dir.x());
         // Rectangle of the extrusion.
-        V2f rect[4] = { (p1 + vperp - dir) * scale, (p1 - vperp - dir) * scale, (p2 - vperp + dir) * scale, (p2 + vperp + dir) * scale };
+        V2f rect[RECT_CORNER_COUNT] = { (p1 + vperp - dir) * scale, (p1 - vperp - dir) * scale, (p2 - vperp + dir) * scale, (p2 + vperp + dir) * scale };
         // Bounding box of the extrusion.
         B2f bboxLine(rect[0], rect[0]);
         boost::geometry::expand(bboxLine, rect[1]);
-        boost::geometry::expand(bboxLine, rect[2]);
-        boost::geometry::expand(bboxLine, rect[3]);
+        boost::geometry::expand(bboxLine, rect[2]);  // corner 2 of the rect
+        boost::geometry::expand(bboxLine, rect[3]);  // corner 3 of the rect
         B2i bboxLinei(
             V2i(std::clamp(int(floor(bboxLine.min_corner().x())), 0, nc-1),
                 std::clamp(int(floor(bboxLine.min_corner().y())), 0, nr-1)),
@@ -655,7 +667,7 @@ void gcode_spread_points(
     float rmax = 0.f;
     for (ExtrusionPoints::const_iterator it = points.begin(); it != points.end(); ++ it)
         rmax = std::max(rmax, it->radius);
-    size_t n_rows_max  = size_t(ceil(rmax * 2.f + 2.f));
+    size_t n_rows_max  = size_t(ceil(rmax * 2.f + 2.f));  // 2*rmax = diameter, +2 = 1px margin on each side
     assert(n_rows_max < std::numeric_limits<int32_t>::max());
     size_t n_cells_max = n_rows_max * n_rows_max;
     std::vector<std::pair<float, float> > spans;
@@ -750,8 +762,8 @@ void gcode_spread_points(
         for (int j = bboxi.min_corner().y(); j < bboxi.max_corner().y(); ++ j) {
             for (int i = bboxi.min_corner().x(); i < bboxi.max_corner().x(); ++i) {
                 B2f bb(V2f(float(i), float(j)), V2f(float(i + 1), float(j + 1)));
-                V2f poly[8];
-                bool poly_arc[8];
+                V2f poly[MAX_CLIP_POLY_POINTS];
+                bool poly_arc[MAX_CLIP_POLY_POINTS];
                 int n = clip_circle_by_AABB(center, radius, bb, poly, poly_arc);
                 float area = polyArea(poly, n);
                 assert(area >= 0.f && area <= 1.000001f);
@@ -826,7 +838,7 @@ void gcode_spread_points(
             // 3) Prefix sum the areas per excess height.
             // The excess height is discrete with the number of excess cells.
             areas_sum[n_cells-1] = cells[n_cells-1].area * cells[n_cells-1].fraction_covered;
-            for (int i = n_cells - 2; i >= 0; -- i) {
+            for (int i = n_cells - 2; i >= 0; -- i) {  // start one before the last (areas_sum[n_cells-1] is already set above)
                 const Cell &cell = cells[i];
                 areas_sum[i] = areas_sum[i + 1] + cell.area * cell.fraction_covered;
             }
@@ -867,19 +879,19 @@ inline std::vector<V3uc> CreatePowerColorGradient24bit()
 {
     int i;
     int iColor = 0;
-    std::vector<V3uc> out(6 * 255 + 1, V3uc(0, 0, 0));
-    for (i = 0; i < 256; ++i)
+    std::vector<V3uc> out(6 * kColorComponentMax + 1, V3uc(0, 0, 0));
+    for (i = 0; i < kColorComponentLevels; ++i)
         out[iColor++] = V3uc(0, 0, i);
-    for (i = 1; i < 256; ++i)
-        out[iColor++] = V3uc(0, i, 255);
-    for (i = 1; i < 256; ++i)
-        out[iColor++] = V3uc(0, 255, 256 - i);
-    for (i = 1; i < 256; ++i)
-        out[iColor++] = V3uc(i, 255, 0);
-    for (i = 1; i < 256; ++i)
-        out[iColor++] = V3uc(255, 256 - i, 0);
-    for (i = 1; i < 256; ++i)
-        out[iColor++] = V3uc(255, 0, i);
+    for (i = 1; i < kColorComponentLevels; ++i)
+        out[iColor++] = V3uc(0, i, kColorComponentMax);
+    for (i = 1; i < kColorComponentLevels; ++i)
+        out[iColor++] = V3uc(0, kColorComponentMax, kColorComponentLevels - i);
+    for (i = 1; i < kColorComponentLevels; ++i)
+        out[iColor++] = V3uc(i, kColorComponentMax, 0);
+    for (i = 1; i < kColorComponentLevels; ++i)
+        out[iColor++] = V3uc(kColorComponentMax, kColorComponentLevels - i, 0);
+    for (i = 1; i < kColorComponentLevels; ++i)
+        out[iColor++] = V3uc(kColorComponentMax, 0, i);
     return out;
 }
 
@@ -891,21 +903,17 @@ public:
     unsigned int 				bitmap_oversampled;
     ExtrusionPoints 			extrusion_points;
     // RGB gradient to color map the fullness of an accumulator bucket into the output image.
-    std::vector<boost::geometry::model::point<unsigned char, 3, boost::geometry::cs::cartesian> > color_gradient;
+    std::vector<boost::geometry::model::point<unsigned char, RGB_CHANNEL_COUNT, boost::geometry::cs::cartesian> > color_gradient;
 };
 
 ExtrusionSimulator::ExtrusionSimulator() :
-    pimpl(new ExtrusionSimulatorImpl)
+    pimpl(std::make_unique<ExtrusionSimulatorImpl>())
 {
     pimpl->color_gradient = CreatePowerColorGradient24bit();
-    pimpl->bitmap_oversampled = 4;
+    pimpl->bitmap_oversampled = 4;  // 4x4 supersampling for anti-aliasing
 }
 
-ExtrusionSimulator::~ExtrusionSimulator()
-{
-    delete pimpl;
-    pimpl = NULL;
-}
+ExtrusionSimulator::~ExtrusionSimulator() = default;
 
 void ExtrusionSimulator::set_image_size(const Point &image_size)
 {
@@ -918,16 +926,16 @@ void ExtrusionSimulator::set_image_size(const Point &image_size)
     this->image_size = image_size;
     // Allocate the image data in an RGBA format.
     // printf("Allocating image data, size %d\n", image_size.x * image_size.y * 4);
-    pimpl->image_data.assign(image_size.x() * image_size.y() * 4, 0);
+    pimpl->image_data.assign(image_size.x() * image_size.y() * RGBA_STRIDE_BYTES, 0);
     // printf("Allocating image data, allocated\n");
 
     // Fill the image with red vertical lines (test pattern placeholder background).
     for (size_t r = 0; r < size_t(image_size.y()); ++ r) {
-        for (size_t c = 0; c < size_t(image_size.x()); c += 2) {
+        for (size_t c = 0; c < size_t(image_size.x()); c += 2) {  // every other column: alternating vertical stripes
             // Color red
-            pimpl->image_data[r * image_size.x() * 4 + c * 4] = 255;
+            pimpl->image_data[r * image_size.x() * RGBA_STRIDE_BYTES + c * RGBA_STRIDE_BYTES] = kColorComponentMax;
             // Opacity full
-            pimpl->image_data[r * image_size.x() * 4 + c * 4 + 3] = 255;
+            pimpl->image_data[r * image_size.x() * RGBA_STRIDE_BYTES + c * RGBA_STRIDE_BYTES + RGBA_ALPHA_OFFSET] = kColorComponentMax;
         }
     }
     // printf("Allocating image data, set\n");
@@ -985,7 +993,7 @@ void ExtrusionSimulator::extrude_to_accumulator(const ExtrusionPath &path, const
         // printf("point %d,%d\n", it->x+shift.x(), it->y+shift.y);
         ExtrusionPoint ept;
         ept.center = V2f(float(p.x()+shift.x()-bbox.min.x()) * scalex, float(p.y()+shift.y()-bbox.min.y()) * scaley);
-        ept.radius = w/2.f;
+        ept.radius = w/2.f;  // diameter to radius
         ept.height = 0.5f;
         polyline.push_back(ept.center);
         pimpl->extrusion_points.push_back(ept);
@@ -1018,7 +1026,7 @@ void ExtrusionSimulator::evaluate_accumulator(ExtrusionSimulationType simulation
                             p += 1.f;
                     }
                 }
-                p /= float(pimpl->bitmap_oversampled * pimpl->bitmap_oversampled * 2);
+                p /= float(pimpl->bitmap_oversampled * pimpl->bitmap_oversampled * 2);  // normalize hit count by total subpixels, doubled (empirical coverage scaling)
                 mask[r][c] = p;
             }
         }
@@ -1029,7 +1037,7 @@ void ExtrusionSimulator::evaluate_accumulator(ExtrusionSimulationType simulation
 
     // Color map the accumulator.
     for (int r = 0; r < sz.y(); ++r) {
-        unsigned char *ptr = &pimpl->image_data[(image_size.x() * (viewport.min.y() + r) + viewport.min.x()) * 4];
+        unsigned char *ptr = &pimpl->image_data[(image_size.x() * (viewport.min.y() + r) + viewport.min.x()) * RGBA_STRIDE_BYTES];
         for (int c = 0; c < sz.x(); ++c) {
             #if 1
             float p   = pimpl->accumulator[r][c];
@@ -1040,8 +1048,8 @@ void ExtrusionSimulator::evaluate_accumulator(ExtrusionSimulationType simulation
             V3uc  clr = pimpl->color_gradient[std::clamp(idx, 0, int(pimpl->color_gradient.size()-1))];
             *ptr ++ = clr.get<0>();
             *ptr ++ = clr.get<1>();
-            *ptr ++ = clr.get<2>();
-            *ptr ++ = (idx == 0) ? 0 : 255;
+            *ptr ++ = clr.get<2>();  // blue channel (get<0>=R, get<1>=G, get<2>=B)
+            *ptr ++ = (idx == 0) ? 0 : kColorComponentMax;
         }
     }
 }
