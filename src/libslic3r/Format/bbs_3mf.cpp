@@ -24,6 +24,7 @@
 
 
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <stdexcept>
 #include <iomanip>
@@ -65,6 +66,13 @@ namespace pt = boost::property_tree;
 #include <fast_float/fast_float.h>
 
 // @see https://commons.apache.org/proper/commons-compress/apidocs/src-html/org/apache/commons/compress/archivers/zip/AbstractUnicodeExtraField.html
+// Named literals for BP1002; values unchanged from the prior inline literals.
+constexpr int ZIP_EXTRA_FIELD_HEADER_LEN    = 4; // 2-byte tag + 2-byte length
+constexpr int ZIP_EXTRA_LEN_OFFSET          = 2; // offset of the 2-byte length field within the header
+constexpr int ZIP_UNICODE_EXTRA_MIN_DATA_LEN = 5; // 1-byte version + 4-byte CRC32
+constexpr int HEX_DIGITS_PER_BYTE           = 2;
+constexpr size_t ERROR_MESSAGE_BUFFER_SIZE  = 1024;
+
 struct ZipUnicodePathExtraField
 {
     static std::string encode(std::string const& u8path, std::string const& path) {
@@ -73,7 +81,7 @@ struct ZipUnicodePathExtraField
             // 0x7075 - for Unicode filenames
             extra.push_back('\x75');
             extra.push_back('\x70');
-            boost::uint16_t len = 5 + u8path.length();
+            boost::uint16_t len = ZIP_UNICODE_EXTRA_MIN_DATA_LEN + u8path.length();
             extra.push_back(static_cast<char>(len & 0xff));
             extra.push_back(static_cast<char>(len >> 8));
             auto crc = mz_crc32(0, reinterpret_cast<const unsigned char *>(path.c_str()), path.length());
@@ -86,13 +94,13 @@ struct ZipUnicodePathExtraField
     static std::string decode(std::string const& extra, std::string const& path = {}) {
         char const * p = extra.data();
         char const * e = p + extra.length();
-        while (p + 4 < e) {
-            boost::uint16_t len = ((boost::uint16_t)p[2]) | ((boost::uint16_t)p[3] << 8);
-            if (p[0] == '\x75' && p[1] == '\x70' && len >= 5 && p + 4 + len < e && p[4] == '\x01') {
-                return std::string(p + 9, p + 4 + len);
+        while (p + ZIP_EXTRA_FIELD_HEADER_LEN < e) {
+            boost::uint16_t len = ((boost::uint16_t)p[ZIP_EXTRA_LEN_OFFSET]) | ((boost::uint16_t)p[3] << 8);  // high byte of the length field (low byte is at ZIP_EXTRA_LEN_OFFSET)
+            if (p[0] == '\x75' && p[1] == '\x70' && len >= ZIP_UNICODE_EXTRA_MIN_DATA_LEN && p + ZIP_EXTRA_FIELD_HEADER_LEN + len < e && p[ZIP_EXTRA_FIELD_HEADER_LEN] == '\x01') {
+                return std::string(p + 9, p + ZIP_EXTRA_FIELD_HEADER_LEN + len);
             }
             else {
-                p += 4 + len;
+                p += ZIP_EXTRA_FIELD_HEADER_LEN + len;
             }
         }
         return Slic3r::decode_path(path.c_str());
@@ -102,8 +110,9 @@ struct ZipUnicodePathExtraField
 
 
 // Performance note: this has potentially O(n^2) time complexity.
-static std::string xml_escape(std::string text, bool is_marked/* = false*/)
+static std::string xml_escape(const std::string& input, bool is_marked/* = false*/)
 {
+    std::string text = input;
     std::string::size_type pos = 0;
     for (;;)
     {
@@ -132,8 +141,9 @@ static std::string xml_escape(std::string text, bool is_marked/* = false*/)
 // Definition of escape symbols https://www.w3.org/TR/REC-xml/#AVNormalize
 // During the read of xml attribute normalization of white spaces is applied
 // Soo for not lose white space character it is escaped before store
-static std::string xml_escape_double_quotes_attribute_value(std::string text)
+static std::string xml_escape_double_quotes_attribute_value(const std::string& input)
 {
+    std::string text = input;
     std::string::size_type pos = 0;
     for (;;) {
         pos = text.find_first_of("\"&<\r\n\t", pos);
@@ -157,7 +167,7 @@ static std::string xml_escape_double_quotes_attribute_value(std::string text)
     return text;
 }
 
-static std::string xml_unescape(std::string s)
+static std::string xml_unescape(const std::string& s)
 {
     std::string ret;
     std::string::size_type i = 0;
@@ -165,19 +175,19 @@ static std::string xml_unescape(std::string s)
     while (i < s.size()) {
         std::string rep;
         if (s[i] == '&') {
-            if (s.substr(i, 4) == "&lt;") {
+            if (s.substr(i, sizeof("&lt;") - 1) == "&lt;") {
                 ret += s.substr(pos, i - pos) + "<";
-                i += 4;
+                i += sizeof("&lt;") - 1;
                 pos = i;
             }
-            else if (s.substr(i, 4) == "&gt;") {
+            else if (s.substr(i, sizeof("&gt;") - 1) == "&gt;") {
                 ret += s.substr(pos, i - pos) + ">";
-                i += 4;
+                i += sizeof("&gt;") - 1;
                 pos = i;
             }
-            else if (s.substr(i, 5) == "&amp;") {
+            else if (s.substr(i, sizeof("&amp;") - 1) == "&amp;") {
                 ret += s.substr(pos, i - pos) + "&";
-                i += 5;
+                i += sizeof("&amp;") - 1;
                 pos = i;
             }
             else {
@@ -497,7 +507,7 @@ namespace std {
     basic_ostream<_Elem, _Traits>& operator<<(basic_ostream<_Elem, _Traits>& ostr,
         const hex_wrap<_Arg>& wrap) { // insert by calling function with output stream and argument
         auto of = ostr.fill('0');
-        ostr << setw(sizeof(_Arg) * 2) << std::hex << wrap.t;
+        ostr << setw(sizeof(_Arg) * HEX_DIGITS_PER_BYTE) << std::hex << wrap.t;
         ostr << std::dec << setw(0);
         ostr.fill(of);
         return ostr;
@@ -513,10 +523,10 @@ public:
 
 static const char* bbs_get_attribute_value_charptr(const char** attributes, unsigned int attributes_size, const char* attribute_key)
 {
-    if ((attributes == nullptr) || (attributes_size == 0) || (attributes_size % 2 != 0) || (attribute_key == nullptr))
+    if ((attributes == nullptr) || (attributes_size == 0) || (attributes_size % 2 != 0) || (attribute_key == nullptr))  // attributes come as [key, value] pairs
         return nullptr;
 
-    for (unsigned int a = 0; a < attributes_size; a += 2) {
+    for (unsigned int a = 0; a < attributes_size; a += 2) {  // step by pairs (key, value)
         if (::strcmp(attributes[a], attribute_key) == 0)
             return attributes[a + 1];
     }
@@ -554,9 +564,9 @@ static bool bbs_get_attribute_value_bool(const char** attributes, unsigned int a
 
 static void add_vec3(std::stringstream &stream, const Slic3r::Vec3f &tr)
 {
-    for (unsigned r = 0; r < 3; ++r) {
+    for (unsigned r = 0; r < 3; ++r) {  // X, Y, Z
         stream << tr(r);
-        if (r != 2)
+        if (r != 2)  // last component (Z): no trailing separator
             stream << " ";
     }
 }
@@ -570,10 +580,10 @@ static Slic3r::Vec3f get_vec3_from_string(const std::string &pos_str)
     std::vector<std::string> values;
     boost::split(values, pos_str, boost::is_any_of(" "), boost::token_compress_on);
 
-    if (values.size() != 3)
+    if (values.size() != 3)  // expect exactly X, Y, Z
         return pos;
 
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < 3; ++i)  // X, Y, Z
         pos(i) = ::atof(values[i].c_str());
 
     return pos;
@@ -600,8 +610,8 @@ static Slic3r::Transform3d bbs_get_transform_from_3mf_specs_string(const std::st
     unsigned int i = 0;
     // matrices are stored into 3mf files as 4x3
     // we need to transpose them
-    for (unsigned int c = 0; c < 4; ++c) {
-        for (unsigned int r = 0; r < 3; ++r) {
+    for (unsigned int c = 0; c < 4; ++c) {  // 4 columns (see comment above: 3mf stores matrices as 4x3)
+        for (unsigned int r = 0; r < 3; ++r) {  // 3 rows (see comment above: 3mf stores matrices as 4x3)
             ret(r, c) = ::atof(mat_elements_str[i++].c_str());
         }
     }
@@ -620,11 +630,11 @@ static Slic3r::Vec3d bbs_get_offset_from_3mf_specs_string(const std::string& vec
     boost::split(vec_elements_str, vec_str, boost::is_any_of(" "), boost::token_compress_on);
 
     unsigned int size = static_cast<unsigned int>(vec_elements_str.size());
-    if (size != 3)
+    if (size != 3)  // expect exactly X, Y, Z
         // invalid data, return zero offset
         return ofs2ass;
 
-    for (unsigned int i = 0; i < 3; i++) {
+    for (unsigned int i = 0; i < 3; i++) {  // X, Y, Z
         ofs2ass(i) = ::atof(vec_elements_str[i].c_str());
     }
 
@@ -926,7 +936,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         struct ObjectImporter
         {
             IdToCurrentObjectMap object_list;
-            CurrentObject *current_object{nullptr};
+            std::unique_ptr<CurrentObject> current_object;
             std::string object_path;
             std::string zip_path;
             _BBS_3MF_Importer *top_importer{nullptr};
@@ -942,7 +952,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             std::map<int, std::string> object_group_id_to_color;
             bool is_bbl_3mf { false };
 
-            ObjectImporter(_BBS_3MF_Importer *importer, std::string file_path, std::string obj_path)
+            ObjectImporter(_BBS_3MF_Importer *importer, const std::string& file_path, const std::string& obj_path)
             {
                 top_importer = importer;
                 object_path = obj_path;
@@ -1099,7 +1109,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         std::string m_parse_error_message;
         Model* m_model;
         float m_unit_factor;
-        CurrentObject* m_curr_object{nullptr};
+        std::unique_ptr<CurrentObject> m_curr_object;
         IdToCurrentObjectMap m_current_objects;
         IndexToPathMap       m_index_paths;
         IdToModelObjectMap m_objects;
@@ -1125,14 +1135,15 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         std::string m_thumbnail_middle;
         std::string m_thumbnail_small;
         std::vector<std::string> m_sub_model_paths;
-        std::vector<ObjectImporter*> m_object_importers;
+        std::vector<std::unique_ptr<ObjectImporter>> m_object_importers;
 
         std::map<int, ModelVolume*> m_shared_meshes;
 
         //BBS: plater related structures
         bool m_is_bbl_3mf { false };
         bool m_parsing_slice_info { false };
-        PlateDataMaps m_plater_data;
+        std::map<int, std::unique_ptr<PlateData>> m_plater_data;
+        std::unique_ptr<PlateData> m_pending_plater;
         PlateData* m_curr_plater;
         CurrentInstance m_curr_instance;
 
@@ -1166,7 +1177,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
 
         //BBS: add plate data related logic
         // add backup & restore logic
-        bool _load_model_from_file(std::string filename, Model& model, PlateDataPtrs& plate_data_list, std::vector<Preset*>& project_presets, DynamicPrintConfig& config,
+        bool _load_model_from_file(const std::string& filename, Model& model, PlateDataPtrs& plate_data_list, std::vector<Preset*>& project_presets, DynamicPrintConfig& config,
             ConfigSubstitutionContext& config_substitutions, Import3mfProgressFn proFn = nullptr,
             /*BBLProject* project = nullptr, */int plate_id = 0);
         bool _is_svg_shape_file(const std::string &filename) const;
@@ -1330,10 +1341,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         _destroy_xml_parser();
         clear_errors();
 
-        if (m_curr_object) {
-            delete m_curr_object;
-            m_curr_object = nullptr;
-        }
+        m_curr_object.reset();
         m_current_objects.clear();
         m_index_paths.clear();
         m_objects.clear();
@@ -1342,12 +1350,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         m_curr_metadata_name.clear();
         m_curr_characters.clear();
 
-        std::map<int, PlateData*>::iterator it = m_plater_data.begin();
-        while (it != m_plater_data.end())
-        {
-            delete it->second;
-            it++;
-        }
+        m_pending_plater.reset();
+        m_curr_plater = nullptr;
         m_plater_data.clear();
     }
 
@@ -1368,7 +1372,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         m_load_config = strategy & LoadStrategy::LoadConfig;
         m_model = &model;
         m_unit_factor = 1.0f;
-        m_curr_object = nullptr;
+        m_curr_object.reset();
         m_current_objects.clear();
         m_index_paths.clear();
         m_objects.clear();
@@ -1384,6 +1388,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         m_curr_metadata_name.clear();
         m_curr_characters.clear();
         //BBS: plater data init
+        m_pending_plater.reset();
+        m_curr_plater = nullptr;
         m_plater_data.clear();
         m_curr_instance.object_id = -1;
         m_curr_instance.instance_id = -1;
@@ -1589,7 +1595,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         }
 
         //BBS: load the plate info into plate_data_list
-        std::map<int, PlateData*>::iterator it = m_plater_data.begin();
+        auto it = m_plater_data.begin();
         plate_data_list.clear();
         plate_data_list.reserve(m_plater_data.size());
         for (unsigned int i = 0; i < m_plater_data.size(); i++)
@@ -1664,7 +1670,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
 
     //BBS: add plate data related logic
     bool _BBS_3MF_Importer::_load_model_from_file(
-        std::string filename,
+        const std::string& filename,
         Model& model,
         PlateDataPtrs& plate_data_list,
         std::vector<Preset*>& project_presets,
@@ -1725,7 +1731,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         //BBS progress point
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ":" << __LINE__ << boost::format("import 3mf IMPORT_STAGE_READ_FILES\n");
         if (proFn) {
-            proFn(IMPORT_STAGE_READ_FILES, 0, 3, cb_cancel);
+            proFn(IMPORT_STAGE_READ_FILES, 0, 3, cb_cancel);  // progress: step 0 of 3
             if (cb_cancel)
                 return false;
         }
@@ -1752,7 +1758,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
 #if 0
             for (const auto &path : m_sub_model_paths) {
                 if (proFn) {
-                    proFn(IMPORT_STAGE_READ_FILES, ++index, 3 + m_sub_model_paths.size(), cb_cancel);
+                    proFn(IMPORT_STAGE_READ_FILES, ++index, 3 + m_sub_model_paths.size(), cb_cancel);  // total = 3 fixed steps + one per sub-model
                     if (cb_cancel)
                         return false;
                 }
@@ -1769,10 +1775,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 m_sub_model_path.clear();
             }
 #else
-            for (auto path : m_sub_model_paths) {
-                ObjectImporter *object_importer = new ObjectImporter(this, filename, path);
-                m_object_importers.push_back(object_importer);
-            }
+            for (const auto &path : m_sub_model_paths)
+                m_object_importers.emplace_back(std::make_unique<ObjectImporter>(this, filename, path));
 
             bool object_load_result = true;
             std::mutex mutex_load;
@@ -1796,19 +1800,17 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             }
 
             //merge these objects into one
-            for (auto obj_importer : m_object_importers) {
+            for (const auto &obj_importer : m_object_importers) {
                 for (const IdToCurrentObjectMap::value_type&  obj : obj_importer->object_list)
                     m_current_objects.insert({ std::move(obj.first), std::move(obj.second)});
                 for (auto &group_color : obj_importer->object_group_id_to_color)
                     m_group_id_to_color.insert(std::move(group_color));
-
-                delete obj_importer;
             }
             m_object_importers.clear();
 #endif
             // BBS: load root model
             if (proFn) {
-                proFn(IMPORT_STAGE_READ_FILES, 2, 3, cb_cancel);
+                proFn(IMPORT_STAGE_READ_FILES, 2, 3, cb_cancel);  // progress: step 2 of 3
                 if (cb_cancel)
                     return false;
             }
@@ -2038,9 +2040,9 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         //only load objects in plate_id
         PlateData* current_plate_data = nullptr;
         if ((plate_id > 0) && (plate_id <= m_plater_data.size())) {
-            std::map<int, PlateData*>::iterator it =m_plater_data.find(plate_id);
+            auto it =m_plater_data.find(plate_id);
             if (it != m_plater_data.end()) {
-                current_plate_data = it->second;
+                current_plate_data = it->second.get();
             }
         }
         for (const IdToModelObjectMap::value_type& object : m_objects) {
@@ -2241,7 +2243,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         }
 
         //BBS: load the plate info into plate_data_list
-        std::map<int, PlateData*>::iterator it = m_plater_data.begin();
+        auto it = m_plater_data.begin();
         plate_data_list.clear();
         plate_data_list.reserve(m_plater_data.size());
         for (unsigned int i = 0; i < m_plater_data.size(); i++)
@@ -2365,7 +2367,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         }
         if (index < 0) {
             // try unicode path extra
-            std::string extra(1024, 0);
+            std::string extra(ERROR_MESSAGE_BUFFER_SIZE, 0);
             for (mz_uint i = 0; i < archive.m_total_files; ++i) {
                 size_t n = mz_zip_reader_get_extra(&archive, i, extra.data(), extra.size());
                 if (n > 0 && path2 == ZipUnicodePathExtraField::decode(extra.substr(0, n))) {
@@ -2391,8 +2393,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                     if (result) return result;
                 }
             }
-            char error_buf[1024];
-            ::snprintf(error_buf, 1024, "File %s not found from archive", path.c_str());
+            char error_buf[ERROR_MESSAGE_BUFFER_SIZE];
+            ::snprintf(error_buf, ERROR_MESSAGE_BUFFER_SIZE, "File %s not found from archive", path.c_str());
             add_error(error_buf);
             return false;
         }
@@ -2450,8 +2452,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         }
 
         if (!XML_ParseBuffer(m_xml_parser, static_cast<int>(stat.m_uncomp_size), 1)) {
-            char error_buf[1024];
-            ::snprintf(error_buf, 1024, "Error (%s) while parsing xml file at line %d", XML_ErrorString(XML_GetErrorCode(m_xml_parser)), static_cast<int>(XML_GetCurrentLineNumber(m_xml_parser)));
+            char error_buf[ERROR_MESSAGE_BUFFER_SIZE];
+            ::snprintf(error_buf, ERROR_MESSAGE_BUFFER_SIZE, "Error (%s) while parsing xml file at line %d", XML_ErrorString(XML_GetErrorCode(m_xml_parser)), static_cast<int>(XML_GetCurrentLineNumber(m_xml_parser)));
             add_error(error_buf);
             return false;
         }
@@ -2496,8 +2498,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             mz_file_write_func callback = [](void* pOpaque, mz_uint64 file_ofs, const void* pBuf, size_t n)->size_t {
                 CallbackData* data = (CallbackData*)pOpaque;
                 if (!XML_Parse(data->parser, reinterpret_cast<const char*>(pBuf), static_cast<int>(n), (file_ofs + n == data->stat.m_uncomp_size) ? 1 : 0) || data->importer.parse_error()) {
-                    char error_buf[1024];
-                    ::snprintf(error_buf, 1024, "Error (%s) while parsing '%s' at line %d", data->importer.parse_error_message(), data->stat.m_filename, static_cast<int>(XML_GetCurrentLineNumber(data->parser)));
+                    char error_buf[ERROR_MESSAGE_BUFFER_SIZE];
+                    ::snprintf(error_buf, ERROR_MESSAGE_BUFFER_SIZE, "Error (%s) while parsing '%s' at line %d", data->importer.parse_error_message(), data->stat.m_filename, static_cast<int>(XML_GetCurrentLineNumber(data->parser)));
                     throw Slic3r::FileIOError(error_buf);
                 }
                 return n;
@@ -2740,7 +2742,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             if (stat.m_is_utf8) {
                 dest_file = stat.m_filename;
             } else {
-                std::string extra(1024, 0);
+                std::string extra(ERROR_MESSAGE_BUFFER_SIZE, 0);
                 size_t n = mz_zip_reader_get_extra(&archive, stat.m_file_index, extra.data(), extra.size());
                 dest_file = ZipUnicodePathExtraField::decode(extra.substr(0, n), stat.m_filename);
             }
@@ -2808,14 +2810,14 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             for (const std::string& object : objects)             {
                 std::vector<std::string> object_data;
                 boost::split(object_data, object, boost::is_any_of("|"), boost::token_compress_off);
-                if (object_data.size() != 2) {
+                if (object_data.size() != 2) {  // expect exactly [id, profile]
                     add_error("Error while reading object data");
                     continue;
                 }
 
                 std::vector<std::string> object_data_id;
                 boost::split(object_data_id, object_data[0], boost::is_any_of("="), boost::token_compress_off);
-                if (object_data_id.size() != 2) {
+                if (object_data_id.size() != 2) {  // expect exactly [key, value]
                     add_error("Error while reading object id");
                     continue;
                 }
@@ -2834,7 +2836,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
 
                 std::vector<std::string> object_data_profile;
                 boost::split(object_data_profile, object_data[1], boost::is_any_of(";"), boost::token_compress_off);
-                if (object_data_profile.size() <= 4 || object_data_profile.size() % 2 != 0) {
+                if (object_data_profile.size() <= 4 || object_data_profile.size() % 2 != 0) {  // profile is flattened (height, thickness) pairs: need >= 2 pairs and an even count
                     add_error("Found invalid layer heights profile");
                     continue;
                 }
@@ -3420,16 +3422,13 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
     bool _BBS_3MF_Importer::_handle_start_object(const char** attributes, unsigned int num_attributes)
     {
         // reset current object data
-        if (m_curr_object) {
-            delete m_curr_object;
-            m_curr_object = nullptr;
-        }
+        m_curr_object.reset();
 
         std::string object_type = bbs_get_attribute_value_string(attributes, num_attributes, TYPE_ATTR);
 
         if (bbs_is_valid_object_type(object_type)) {
             if (!m_curr_object) {
-                m_curr_object = new CurrentObject();
+                m_curr_object = std::make_unique<CurrentObject>();
                 // create new object (it may be removed later if no instances are generated from it)
                 /*m_curr_object->model_object_idx = static_cast<int>(m_model->objects.size());
                 m_curr_object.object = m_model->add_object();
@@ -3455,8 +3454,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
     bool _BBS_3MF_Importer::_handle_end_object()
     {
         if (!m_load_model) {
-            delete m_curr_object;
-            m_curr_object = nullptr;
+            m_curr_object.reset();
             return true;
         }
         if (!m_curr_object || (m_curr_object->id == -1)) {
@@ -3492,8 +3490,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                         }
                         else {
                             add_error("can not find object for component, id=" + std::to_string(component.object_id.second));
-                            delete m_curr_object;
-                            m_curr_object = nullptr;
+                            m_curr_object.reset();
                             return false;
                         }
                         component.object_id.second = new_id.second;
@@ -3506,13 +3503,11 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             Id id = std::make_pair(m_sub_model_path, m_curr_object->id);
             if (m_current_objects.find(id) == m_current_objects.end()) {
                 m_current_objects.insert({ id, std::move(*m_curr_object) });
-                delete m_curr_object;
-                m_curr_object = nullptr;
+                m_curr_object.reset();
             }
             else {
                 add_error("Found object with duplicate id");
-                delete m_curr_object;
-                m_curr_object = nullptr;
+                m_curr_object.reset();
                 return false;
             }
         }
@@ -4282,9 +4277,9 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             else if (key == PLATE_IDX_ATTR)
             {
                 int plate_index = atoi(value.c_str());
-                std::map<int, PlateData*>::iterator it = m_plater_data.find(plate_index);
+                auto it = m_plater_data.find(plate_index);
                 if (it != m_plater_data.end())
-                    m_curr_plater = it->second;
+                    m_curr_plater = it->second.get();
             }
             else if (key == SLICE_PREDICTION_ATTR)
             {
@@ -4375,7 +4370,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
     bool _BBS_3MF_Importer::_handle_start_config_plater(const char** attributes, unsigned int num_attributes)
     {
         if (!m_parsing_slice_info) {
-            m_curr_plater = new PlateData();
+            m_pending_plater = std::make_unique<PlateData>();
+            m_curr_plater = m_pending_plater.get();
         }
 
         return true;
@@ -4388,7 +4384,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             add_error("_handle_end_config_plater: don't find plate created before");
             return false;
         }
-        m_plater_data.emplace(m_curr_plater->plate_index, m_curr_plater);
+        if (m_pending_plater)
+            m_plater_data.emplace(m_curr_plater->plate_index, std::move(m_pending_plater));
         m_curr_plater = nullptr;
         return true;
     }
@@ -4670,7 +4667,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": line %1%, shared_mesh_id %2%")%__LINE__%shared_mesh_id;
                     }
 
-                    if (found_count >= 2)
+                    if (found_count >= 2)  // more than one match found: ambiguous, stop looking
                         break;
                 }
             }
@@ -4838,7 +4835,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 else if (metadata.key == SOURCE_OFFSET_Y_KEY)
                     volume->source.mesh_offset(1) = ::atof(metadata.value.c_str());
                 else if (metadata.key == SOURCE_OFFSET_Z_KEY)
-                    volume->source.mesh_offset(2) = ::atof(metadata.value.c_str());
+                    volume->source.mesh_offset(2) = ::atof(metadata.value.c_str());  // Z component
                 else if (metadata.key == SOURCE_IN_INCHES)
                     volume->source.is_converted_from_inches = metadata.value == "1";
                 else if (metadata.key == SOURCE_IN_METERS)
@@ -4990,7 +4987,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 else if (metadata.key == SOURCE_OFFSET_Y_KEY)
                     volume->source.mesh_offset(1) = ::atof(metadata.value.c_str());
                 else if (metadata.key == SOURCE_OFFSET_Z_KEY)
-                    volume->source.mesh_offset(2) = ::atof(metadata.value.c_str());
+                    volume->source.mesh_offset(2) = ::atof(metadata.value.c_str());  // Z component
                 else if (metadata.key == SOURCE_IN_INCHES)
                     volume->source.is_converted_from_inches = metadata.value == "1";
                 else if (metadata.key == SOURCE_IN_METERS)
@@ -5076,17 +5073,13 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
     bool _BBS_3MF_Importer::ObjectImporter::_handle_object_start_object(const char** attributes, unsigned int num_attributes)
     {
         // reset current object data
-        if (current_object) {
-            delete current_object;
-            current_object = nullptr;
-        }
+        current_object.reset();
 
         std::string object_type = bbs_get_attribute_value_string(attributes, num_attributes, TYPE_ATTR);
 
         if (bbs_is_valid_object_type(object_type)) {
-            if (!current_object) {
-                current_object = new CurrentObject();
-            }
+            if (!current_object)
+                current_object = std::make_unique<CurrentObject>();
 
             current_object->id = bbs_get_attribute_value_int(attributes, num_attributes, ID_ATTR);
             current_object->name = bbs_get_attribute_value_string(attributes, num_attributes, NAME_ATTR);
@@ -5138,8 +5131,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                         }
                         else {
                             top_importer->add_error("can not find object for component, id=" + std::to_string(component.object_id.second));
-                            delete current_object;
-                            current_object = nullptr;
+                            current_object.reset();
                             return false;
                         }
 
@@ -5150,13 +5142,11 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             Id id = std::make_pair(object_path, current_object->id);
             if (object_list.find(id) == object_list.end()) {
                 object_list.insert({ id, std::move(*current_object) });
-                delete current_object;
-                current_object = nullptr;
+                current_object.reset();
             }
             else {
                 top_importer->add_error("Found object with duplicate id for "+object_path);
-                delete current_object;
-                current_object = nullptr;
+                current_object.reset();
                 return false;
             }
         }
@@ -5481,8 +5471,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             mz_file_write_func callback = [](void* pOpaque, mz_uint64 file_ofs, const void* pBuf, size_t n)->size_t {
                 CallbackData* data = static_cast<CallbackData*>(pOpaque);
                 if (!XML_Parse(data->parser, static_cast<const char*>(pBuf), static_cast<int>(n), (file_ofs + n == data->stat.m_uncomp_size) ? 1 : 0) || data->importer.object_parse_error()) {
-                    char error_buf[1024];
-                    ::snprintf(error_buf, 1024, "Error (%s) while parsing '%s' at line %d", data->importer.object_parse_error_message(), data->stat.m_filename, static_cast<int>(XML_GetCurrentLineNumber(data->parser)));
+                    char error_buf[ERROR_MESSAGE_BUFFER_SIZE];
+                    ::snprintf(error_buf, ERROR_MESSAGE_BUFFER_SIZE, "Error (%s) while parsing '%s' at line %d", data->importer.object_parse_error_message(), data->stat.m_filename, static_cast<int>(XML_GetCurrentLineNumber(data->parser)));
                     throw Slic3r::FileIOError(error_buf);
                 }
                 return n;
