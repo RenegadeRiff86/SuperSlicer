@@ -405,15 +405,15 @@ enum ConfigOptionType : uint16_t{
     // vector of floats
     coFloats        = coFloat + coVectorType,
     // single int
-    coInt           = 2,
+    coInt           = 2,  // single int
     // vector of ints
     coInts          = coInt + coVectorType,
     // single string
-    coString        = 3,
+    coString        = 3,  // single string
     // vector of strings
     coStrings       = coString + coVectorType,
     // percent value. Currently only used for infill & flow ratio.
-    coPercent       = 4,
+    coPercent       = 4,  // percent value
     // percents value. Currently used for retract before wipe only.
     coPercents      = coPercent + coVectorType,
     // a fraction or an absolute value
@@ -442,11 +442,11 @@ enum ConfigOptionMode : uint64_t {
     comNone = 0,
     comSimple = 1,
     comAdvanced = 1 << 1,
-    comExpert = 1 << 2,
+    comExpert = 1 << 2,  // bit 2
     comAdvancedE = comAdvanced | comExpert,
     comSimpleAE = comSimple | comAdvanced | comExpert,
-    comPrusa = 1 << 3,
-    comSuSi = 1 << 4,
+    comPrusa = 1 << 3,  // bit 3
+    comSuSi = 1 << 4,  // bit 4
     comHidden = 1 << 5,
     
 };
@@ -474,11 +474,11 @@ enum PrinterTechnology : uint8_t
     // Stereolitography
     ptSLA = 1 << 1,
     // Selective Laser-Sintering
-    ptSLS = 1 << 2,
+    ptSLS = 1 << 2,  // bit 2
     // CNC
-    ptMill = 1 << 3,
+    ptMill = 1 << 3,  // bit 3
     // Laser engraving
-    ptLaser = 1 << 4,
+    ptLaser = 1 << 4,  // bit 4
     // Any technology, useful for parameters compatible with both ptFFF and ptSLA
     ptAny = ptFFF | ptSLA | ptSLS | ptMill | ptLaser,
     // Unknown, useful for command line processing
@@ -594,9 +594,9 @@ public:
     enum FlagsConfigOption : uint32_t {
         FCO_PHONY = 1,
         FCO_EXTRUDER_ARRAY = 1 << 1,
-        FCO_PLACEHOLDER_TEMP = 1 << 2,
-        FCO_ENABLED = 1 << 3,
-        FCO_CAN_DISABLED = 1 << 4,
+        FCO_PLACEHOLDER_TEMP = 1 << 2,  // bit 2
+        FCO_ENABLED = 1 << 3,  // bit 3
+        FCO_CAN_DISABLED = 1 << 4,  // bit 4
     };
 
     ConfigOption() : flags(uint32_t(FCO_ENABLED)) { assert(this->flags != 0); }
@@ -1469,7 +1469,7 @@ public:
         } else {
             this->set_enabled(true);
         }
-        return unescape_string_cstyle(this->is_enabled() ? str : str.substr(2), this->value);
+        return unescape_string_cstyle(this->is_enabled() ? str : str.substr(2), this->value);  // skip the 2-char "!:" disabled-prefix
     }
 
 private:
@@ -1545,6 +1545,8 @@ private:
     friend class cereal::access;
     template<class Archive> void serialize(Archive &ar) { ar(cereal::base_class<ConfigOptionVector<std::string>>(this)); }
 };
+static constexpr double PERCENT_SCALE = 100.;  // percent -> fraction divisor for get_abs_value()
+
 
 class ConfigOptionPercent : public ConfigOptionFloat
 {
@@ -1558,7 +1560,7 @@ public:
     bool                    operator==(const ConfigOptionPercent &rhs) const throw() { return this->is_enabled() == rhs.is_enabled() && this->value == rhs.value; }
     bool                    operator< (const ConfigOptionPercent &rhs) const throw() { return this->is_enabled() < rhs.is_enabled() || (this->is_enabled() == rhs.is_enabled() && this->value < rhs.value); }
     
-    double                  get_abs_value(double ratio_over) const { return ratio_over * this->value / 100.; }
+    double                  get_abs_value(double ratio_over) const { return ratio_over * this->value / PERCENT_SCALE; }
     bool                    is_percent(size_t idx = 0) const override { return true; }
     
     std::string serialize() const override 
@@ -1610,7 +1612,7 @@ public:
     bool operator==(const ConfigOptionPercents &rhs) const throw() { return this->m_enabled == rhs.m_enabled && this->m_values == rhs.m_values; }
     bool operator<(const ConfigOptionPercents &rhs) const throw()
         { return this->m_enabled < rhs.m_enabled || (this->m_enabled == rhs.m_enabled && this->m_values < rhs.m_values); }
-    double                  get_abs_value(size_t i, double ratio_over) const { return ratio_over * this->get_at(i) / 100; }
+    double                  get_abs_value(size_t i, double ratio_over) const { return ratio_over * this->get_at(i) / PERCENT_SCALE; }
     bool                    is_percent(size_t idx = 0) const override { return true; }
 
     std::string serialize() const override
@@ -1676,7 +1678,7 @@ public:
     }
 
     double                      get_abs_value(double ratio_over) const 
-        { return this->percent ? (ratio_over * this->value / 100) : this->value; }
+        { return this->percent ? (ratio_over * this->value / PERCENT_SCALE) : this->value; }
     double                      get_float(size_t idx = 0) const override { return get_abs_value(1.); }
     bool                        is_percent(size_t idx = 0) const override { return this->percent;  }
     // special case for get/set any: use a FloatOrPercent like for FloatsOrPercents, to have the is_percent
@@ -1749,7 +1751,7 @@ public:
         { return this->m_enabled < rhs.m_enabled || (this->m_enabled == rhs.m_enabled && this->m_values < rhs.m_values); }
     double                  get_abs_value(size_t i, double ratio_over) const {
         const FloatOrPercent& data = this->get_at(i);
-        if (data.percent) return ratio_over * data.value / 100;
+        if (data.percent) return ratio_over * data.value / PERCENT_SCALE;
         return data.value;
     }
     double                  get_float(size_t idx = 0) const override { return get_abs_value(idx, 1.); }
@@ -2010,7 +2012,7 @@ public:
         ss << ",";
         ss << this->value(1);
         ss << ",";
-        ss << this->value(2);
+        ss << this->value(2);  // Z component
         return ss.str();
     }
     
@@ -2026,8 +2028,8 @@ public:
         Vec2d point(Vec2d::Zero());
         std::string str = (this->is_enabled() ? str_raw : str_raw.substr(1));
         char dummy;
-        return sscanf(str.data(), " %lf , %lf , %lf %c", &this->value(0), &this->value(1), &this->value(2), &dummy) == 3 ||
-               sscanf(str.data(), " %lf x %lf x %lf %c", &this->value(0), &this->value(1), &this->value(2), &dummy) == 3;
+        return sscanf(str.data(), " %lf , %lf , %lf %c", &this->value(0), &this->value(1), &this->value(2), &dummy) == 3 ||  // third component (Z); expect all 3 fields to parse
+               sscanf(str.data(), " %lf x %lf x %lf %c", &this->value(0), &this->value(1), &this->value(2), &dummy) == 3;  // third component (Z); expect all 3 fields to parse
     }
 
 private:
@@ -3279,27 +3281,27 @@ public:
     bool                    empty() const { return options.empty(); }
 
     // Set a value for an opt_key. Returns true if the value did not exist yet.
-    // This DynamicConfig will take ownership of opt.
     // Be careful, as this method does not test the existence of opt_key in this->def().
-    bool                    set_key_value(const std::string &opt_key, ConfigOption *opt)
+    bool set_key_value(const std::string &opt_key, std::unique_ptr<ConfigOption> opt)
     {
-        // ensure set_can_be_disabled is set
-        if (def()) {
-            const ConfigOptionDef* opt_def = def()->get(opt_key);
-            if (opt_def && opt_def->can_enable && !opt->can_be_disabled()) {
-                opt->set_can_be_disabled();
-            }
-        }
-        // replace or insert
         assert(opt != nullptr);
-        auto it = this->options.find(opt_key);
-        if (it == this->options.end()) {
-            this->options[opt_key].reset(opt);
-            return true;
-        } else {
-            it->second.reset(opt);
-            return false;
+
+        // Ensure set_can_be_disabled is set.
+        if (def()) {
+            const ConfigOptionDef *opt_def = def()->get(opt_key);
+            if (opt_def && opt_def->can_enable && !opt->can_be_disabled())
+                opt->set_can_be_disabled();
         }
+
+        auto [it, inserted] = this->options.try_emplace(opt_key);
+        it->second = std::move(opt);
+        return inserted;
+    }
+
+    // Compatibility overload for existing ownership-transferring callers.
+    bool set_key_value(const std::string &opt_key, ConfigOption *opt)
+    {
+        return set_key_value(opt_key, std::unique_ptr<ConfigOption>{opt});
     }
 
     // Are the two configs equal? Ignoring options not present in both configs and phony fields.
