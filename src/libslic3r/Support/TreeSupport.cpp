@@ -355,7 +355,7 @@ static ExPolygons to_expolys(Polygons polys) {
                 for (ExPolygon enforced_overhang : enforced_overhangs) {
                     ExPolygons grown_enforced_overhangs = diff_ex(offset_ex(enforced_overhang, enforcer_overhang_offset), lower_layer.lslices());
                     // one fix: remove thin areas that where created from jumps into other islands.
-                    append(to_union_enforced_overhangs, offset2_ex(grown_enforced_overhangs, -enforcer_overhang_offset/2, enforcer_overhang_offset/2));
+                    append(to_union_enforced_overhangs, offset2_ex(grown_enforced_overhangs, -enforcer_overhang_offset/2, enforcer_overhang_offset/2));  // half the enforcer overhang offset (both sides)
                 }
                 enforced_overhangs = union_ex(to_union_enforced_overhangs);
 #ifdef TREESUPPORT_DEBUG_SVG
@@ -584,7 +584,7 @@ static std::optional<std::pair<Point, size_t>> polyline_sample_next_point_at_dis
             double      l2v = v.squaredNorm();
             if (l2v < sqr(eps)) {
                 // Very short segment.
-                Point c = (p0 + p1) / 2;
+                Point c = (p0 + p1) / 2;  // segment midpoint = (p0 + p1) / 2
                 if (std::abs((start_pt - c).cast<double>().norm() - dist) < eps)
                     return std::pair<Point, size_t>{ c, i - 1 };
                 else
@@ -633,12 +633,12 @@ static std::optional<std::pair<Point, size_t>> polyline_sample_next_point_at_dis
         double len = length(part.points);
         Polyline line;
         double current_distance = std::max(distance, scaled<double>(0.1));
-        if (len < 2 * distance && min_points <= 1)
+        if (len < 2 * distance && min_points <= 1)  // shorter than twice the spacing
         {
             // Insert the opposite point of the first one.
             // Note: this copy and clip is pretty expensive.
             Polyline pl(part);
-            pl.clip_end(len / 2);
+            pl.clip_end(len / 2);  // clip to half the length
             line.points.emplace_back(pl.points.back());
         }
         else
@@ -696,7 +696,7 @@ static std::optional<std::pair<Point, size_t>> polyline_sample_next_point_at_dis
                             BOOST_LOG_TRIVIAL(warning) << "Tree Support: Encountered a fixpoint in polyline_sample_next_point_at_distance. This is expected to happen if the distance (currently " << next_distance << 
                                 ") is smaller than 100";
                             tree_supports_show_error("Encountered issue while placing tips. Some tips may be missing."sv, true);
-                            if (next_distance > 2 * current_distance)
+                            if (next_distance > 2 * current_distance)  // more than double the current spacing
                                 // This case should never happen, but better safe than sorry.
                                 break;
                             next_distance += current_distance;
@@ -744,7 +744,7 @@ static std::optional<std::pair<Point, size_t>> polyline_sample_next_point_at_dis
     constexpr coord_t support_roof_overlap = 0;
     constexpr size_t infill_multiplier = 1;
     constexpr coord_t outline_offset = 0;
-    const int support_shift = roof ? 0 : support_infill_distance / 2;
+    const int support_shift = roof ? 0 : support_infill_distance / 2;  // half the infill spacing
     const size_t wall_line_count = include_walls && !roof ? config.support_wall_count : 0;
     const Point infill_origin;
     constexpr Polygons* perimeter_gaps = nullptr;
@@ -1007,7 +1007,7 @@ public:
         for (const LineInformation &line : lines) {
             // If a line consists of enough tips, the assumption is that it is not a single tip, but part of a simulated support pattern.
             // Ovalisation should be disabled for these to improve the quality of the lines when tip_diameter=line_width
-            bool disable_ovalistation = config.min_radius < 3 * config.support_line_width && roof_tip_layers == 0 && dtt_roof_tip == 0 && line.size() > 5;
+            bool disable_ovalistation = config.min_radius < 3 * config.support_line_width && roof_tip_layers == 0 && dtt_roof_tip == 0 && line.size() > 5;  // radius below 3x the line width
             for (const std::pair<Point, LineStatus> &point_data : line)
                 add_point_as_influence_area(point_data, insert_layer_idx - dtt_roof_tip,
                     // don't move until
@@ -1116,7 +1116,7 @@ static void finalize_raft_contact(
             EdgeGrid::Grid grid(get_extents(raft_polygons).inflated(SCALED_EPSILON));
             grid.create(raft_polygons, Polylines{}, coord_t(scale_(10.)));
             SupportElements &first_layer_move_bounds = move_bounds[first_tree_layer];
-            double threshold = scaled<double>(print_object.config().raft_expansion.value) * 2.;
+            double threshold = scaled<double>(print_object.config().raft_expansion.value) * 2.;  // raft expansion counted on both sides
             first_layer_move_bounds.erase(std::remove_if(first_layer_move_bounds.begin(), first_layer_move_bounds.end(),
                 [&grid, threshold](const SupportElement &el) {
                     coordf_t dist;
@@ -1253,11 +1253,11 @@ static void sample_overhang_area(
         Polylines polylines = ensure_maximum_distance_polyline(
             generate_support_infill_lines(overhang_area, interface_placer.support_parameters, supports_roof, layer_idx - layer_generation_dtt,
                 supports_roof ? mesh_group_settings.support_roof_line_distance : mesh_group_settings.support_tree_branch_distance),
-            continuous_tips ? interface_placer.config.min_radius / 2. : double(connect_length), 1);
+            continuous_tips ? interface_placer.config.min_radius / 2. : double(connect_length), 1);  // half the min radius
         size_t point_count = 0;
         for (const Polyline &poly : polylines)
             point_count += poly.size();
-        const size_t min_support_points = std::max(coord_t(1), std::min(coord_t(3), coord_t(total_length(overhang_area) / connect_length)));
+        const size_t min_support_points = std::max(coord_t(1), std::min(coord_t(3), coord_t(total_length(overhang_area) / connect_length)));  // at least 1, at most 3 support points
         if (point_count <= min_support_points) {
             // add the outer wall (of the overhang) to ensure it is correct supported instead. Try placing the support points in a way that they fully support the outer wall, instead of just the with half of the the support line width.
             // I assume that even small overhangs are over one line width wide, so lets try to place the support points in a way that the full support area generated from them 
@@ -1327,19 +1327,19 @@ static void generate_initial_areas(
         return;
 #endif
 
-    const coord_t connect_length = (config.support_line_width * 100. / mesh_group_settings.support_tree_top_rate) + std::max(2. * config.min_radius - 1.0 * config.support_line_width, 0.0);
+    const coord_t connect_length = (config.support_line_width * 100. / mesh_group_settings.support_tree_top_rate) + std::max(2. * config.min_radius - 1.0 * config.support_line_width, 0.0);  // connect length: 2x min radius minus line width
     // As r*r=x*x+y*y (circle equation): If a circle with center at (0,0) the top most point is at (0,r) as in y=r.
     // This calculates how far one has to move on the x-axis so that y=r-support_line_width/2. 
     // In other words how far does one need to move on the x-axis to be support_line_width/2 away from the circle line.
     // As a circle is round this length is identical for every axis as long as the 90 degrees angle between both remains.
     const coord_t circle_length_to_half_linewidth_change = config.min_radius < config.support_line_width ? 
-        config.min_radius / 2 : 
-        scale_(sqrt(sqr(unscale<double>(config.min_radius)) - sqr(unscale<double>(config.min_radius - config.support_line_width / 2))));
+        config.min_radius / 2 :  // half the min radius
+        scale_(sqrt(sqr(unscale<double>(config.min_radius)) - sqr(unscale<double>(config.min_radius - config.support_line_width / 2))));  // half line width (circle offset via Pythagoras)
     // Extra support offset to compensate for larger tip radiis. Also outset a bit more when z overwrites xy, because supporting something with a part of a support line is better than not supporting it at all.
     // Known limitation (Vojtech): this is not sufficient for support enforcers to work; it accounts for
     // neither the support overhang angle nor the width of the collision regions. A disabled heuristic
     // (+ 10 * support_line_width) existed to make enforcers work.
-    const coord_t extra_outset = std::max(coord_t(0), config.min_radius - config.support_line_width / 2) + (min_xy_dist ? config.support_line_width / 2 : 0);
+    const coord_t extra_outset = std::max(coord_t(0), config.min_radius - config.support_line_width / 2) + (min_xy_dist ? config.support_line_width / 2 : 0);  // half line width outset
     const size_t  num_support_roof_layers = mesh_group_settings.support_roof_layers;
     const bool    roof_enabled        = num_support_roof_layers > 0;
     const bool    force_tip_to_roof   = roof_enabled && (interface_placer.support_parameters.soluble_interface || coord_sqr(config.min_radius) * M_PI > mesh_group_settings.minimum_roof_area);
@@ -1350,12 +1350,12 @@ static void generate_initial_areas(
     // Used only if not min_xy_dist.
     coord_t max_overhang_insert_lag = 0;
     if (config.z_distance_top_layers > 0) {
-        max_overhang_insert_lag = 2 * config.z_distance_top_layers;
+        max_overhang_insert_lag = 2 * config.z_distance_top_layers;  // twice the top z-distance in layers
         if (mesh_group_settings.support_angle > EPSILON && mesh_group_settings.support_angle < 0.5 * M_PI - EPSILON) {
             // Known limitation: mesh_group_settings.support_angle applies neither to enforcers nor to the automatic support angle (by half the external perimeter width).
             //used by max_overhang_insert_lag, only if not min_xy_dist.
             const auto max_overhang_speed  = coord_t(tan(mesh_group_settings.support_angle) * config.layer_height);
-            max_overhang_insert_lag = std::max(max_overhang_insert_lag, round_up_divide(config.xy_distance, max_overhang_speed / 2));
+            max_overhang_insert_lag = std::max(max_overhang_insert_lag, round_up_divide(config.xy_distance, max_overhang_speed / 2));  // half the max overhang speed
         }
     }
 
@@ -1419,7 +1419,7 @@ static void generate_initial_areas(
                 // and if there is no correspondence, project the missing points to the clipping curve.
                 for (coord_t extra_total_offset_acc = 0; ! remaining_overhang.empty() && extra_total_offset_acc + config.support_line_width / 8 < extra_outset; ) {
                     const coord_t offset_current_step = std::min(
-                        extra_total_offset_acc + 2 * config.support_line_width > config.min_radius ?
+                        extra_total_offset_acc + 2 * config.support_line_width > config.min_radius ?  // twice the support line width
                             config.support_line_width / 8 : 
                             circle_length_to_half_linewidth_change,
                         extra_outset - extra_total_offset_acc);
@@ -1449,9 +1449,9 @@ static void generate_initial_areas(
                         Polylines polylines = ensure_maximum_distance_polyline(
                             generate_support_infill_lines(remaining_overhang, support_params, false, layer_idx, mesh_group_settings.support_tree_branch_distance),
                             config.min_radius, 1);
-                        if (polylines.size() <= 3)
+                        if (polylines.size() <= 3)  // 3 or fewer polylines
                             // add the outer wall to ensure it is correct supported instead
-                            polylines = ensure_maximum_distance_polyline(to_polylines(remaining_overhang), connect_length, 3);
+                            polylines = ensure_maximum_distance_polyline(to_polylines(remaining_overhang), connect_length, 3);  // keep at least 3 points
                         for (const auto &line : polylines) {
                             LineInformation res_line;
                             for (Point p : line)
@@ -1486,7 +1486,7 @@ static void generate_initial_areas(
             if (roof_enabled) {
                 // Try to support the overhangs by dense interfaces for num_support_roof_layers, cover the bottom most interface with tree tips.
                 static constexpr const coord_t support_roof_offset = 0;
-                Polygons overhang_roofs = safe_offset_inc(overhang_raw, support_roof_offset, relevant_forbidden, config.min_radius * 2 + config.xy_min_distance, 0, 1);
+                Polygons overhang_roofs = safe_offset_inc(overhang_raw, support_roof_offset, relevant_forbidden, config.min_radius * 2 + config.xy_min_distance, 0, 1);  // twice min radius plus xy clearance
                 if (mesh_group_settings.minimum_support_area > 0)
                     remove_small(overhang_roofs, mesh_group_settings.minimum_roof_area);
                 overhang_regular = diff(overhang_regular, overhang_roofs, ApplySafetyOffset::Yes);
@@ -1521,9 +1521,9 @@ static unsigned int move_inside(const Polygons &polygons, Point &from, int dista
     bool   is_already_on_correct_side_of_boundary = false; // whether [from] is already on the right side of the boundary
     for (unsigned int poly_idx = 0; poly_idx < polygons.size(); ++ poly_idx) {
         const Polygon &poly = polygons[poly_idx];
-        if (poly.size() < 2)
+        if (poly.size() < 2)  // a polygon needs at least 2 points
             continue;
-        Point p0 = poly[poly.size() - 2];
+        Point p0 = poly[poly.size() - 2];  // second-to-last polygon point
         Point p1 = poly.back();
         // because we compare with vSize2 here (no division by zero), we also need to compare by vSize2 inside the loop
         // to avoid integer rounding edge cases
@@ -1798,10 +1798,10 @@ struct SupportElementMerging {
 
     SupportElementInfluenceAreas            areas;
     // Bounding box of all influence areas.
-    Eigen::AlignedBox<coord_t, 2>           bbox_data;
+    Eigen::AlignedBox<coord_t, 2>           bbox_data;  // 2D bounding box
 
-    const Eigen::AlignedBox<coord_t, 2>&    bbox() const { return bbox_data;}
-    const Point                             centroid() const { return (bbox_data.min() + bbox_data.max()) / 2; }
+    const Eigen::AlignedBox<coord_t, 2>&    bbox() const { return bbox_data;}  // 2D bounding box
+    const Point                             centroid() const { return (bbox_data.min() + bbox_data.max()) / 2; }  // bbox center (min + max) / 2
     void                                    set_bbox(const BoundingBox& abbox) 
         { Point eps { coord_t(SCALED_EPSILON), coord_t(SCALED_EPSILON) }; bbox_data = { abbox.min - eps, abbox.max + eps }; }
 
@@ -1942,7 +1942,7 @@ static void increase_areas_one_layer(
                 insertSetting({ AvoidanceType::Slow, slow_speed, increase_radius, no_error, !use_min_radius, !move }, true); // did we go through the hole
                 // in many cases the definition of hole is overly restrictive, so to avoid unnecessary fast movement in the tip, it is ignored there for a bit.
                 // This CAN cause a branch to go though a hole it otherwise may have avoided.
-                if (elem.distance_to_top < round_up_divide(config.tip_layers, size_t(2)))
+                if (elem.distance_to_top < round_up_divide(config.tip_layers, size_t(2)))  // half the tip layers
                     insertSetting({ AvoidanceType::Fast, slow_speed, increase_radius, no_error, !use_min_radius, !move }, true);
                 insertSetting({ AvoidanceType::FastSafe, fast_speed, increase_radius, no_error, !use_min_radius, !move }, true); // did we manage to avoid the hole
                 insertSetting({ AvoidanceType::FastSafe, fast_speed, !increase_radius, no_error, !use_min_radius, move }, true);
@@ -1989,7 +1989,7 @@ static void increase_areas_one_layer(
                         // offsetting in 2 steps makes our offsetted area rounder preventing (rounding) errors created by to pointy areas. At this point one can see that the Polygons class 
                         // was never made for precision in the single digit micron range.
                         offset_slow = safe_offset_inc(parent.influence_area, extra_speed + extra_slow_speed + config.maximum_move_distance_slow, 
-                            wall_restriction, safe_movement_distance, offset_independant_faster ? safe_movement_distance + radius : 0, 2);
+                            wall_restriction, safe_movement_distance, offset_independant_faster ? safe_movement_distance + radius : 0, 2);  // safe-offset in 2 steps
 #ifdef TREESUPPORT_DEBUG_SVG
                         SVG::export_expolygons(debug_out_path("treesupport-increase_areas_one_layer-slow-%d-%ld.svg", layer_idx, int(merging_area_idx)),
                             { { { union_ex(wall_restriction) }, { "wall_restricrictions", "gray", 0.5f } },
@@ -2002,7 +2002,7 @@ static void increase_areas_one_layer(
                                 wall_restriction, safe_movement_distance, offset_independant_faster ? safe_movement_distance + radius : 0, 1);
                         else {
                             const coord_t delta_slow_fast = config.maximum_move_distance - (config.maximum_move_distance_slow + extra_slow_speed);
-                            offset_fast = safe_offset_inc(offset_slow, delta_slow_fast, wall_restriction, safe_movement_distance, safe_movement_distance + radius, offset_independant_faster ? 2 : 1);
+                            offset_fast = safe_offset_inc(offset_slow, delta_slow_fast, wall_restriction, safe_movement_distance, safe_movement_distance + radius, offset_independant_faster ? 2 : 1);  // 2 offset steps if faster, else 1
                         }
 #ifdef TREESUPPORT_DEBUG_SVG
                         SVG::export_expolygons(debug_out_path("treesupport-increase_areas_one_layer-fast-%d-%ld.svg", layer_idx, int(merging_area_idx)),
@@ -2171,7 +2171,7 @@ static bool merge_influence_areas_two_elements(
         // Because the lambda intersect_small_with_bigger() applies a rounded offset, a snug offset of the bounding box
         // is sufficient. On the other side, if a mitered offset was used by the lambda,
         // the bounding box expansion would have to account for the mitered extension of the sharp corners.
-        Eigen::AlignedBox<coord_t, 2> smaller_bbox = smaller_rad.bbox();
+        Eigen::AlignedBox<coord_t, 2> smaller_bbox = smaller_rad.bbox();  // 2D bounding box
         smaller_bbox.min() -= Point{ real_radius_delta, real_radius_delta };
         smaller_bbox.max() += Point{ real_radius_delta, real_radius_delta };
         if (! smaller_bbox.intersects(bigger_rad.bbox()))
@@ -2228,7 +2228,7 @@ static bool merge_influence_areas_two_elements(
             safe_offset_inc(
                 small, real_radius_delta, collision,
                 // -3 avoids possible rounding errors
-                2 * (config.xy_distance + smaller_collision_radius - 3), 0, 0),
+                2 * (config.xy_distance + smaller_collision_radius - 3), 0, 0),  // 2x margin minus 3 scaled epsilon
             bigger);
     };
 //#define TREES_MERGE_RATHER_LATER
@@ -2424,7 +2424,7 @@ static void merge_influence_areas(
     // Build an AABB tree over the influence areas.
     // Note: a full tree does not need to be built - the lowest-level branches will always be bucketed.
     // However the additional time consumed is negligible.
-    AABBTreeIndirect::Tree<2, coord_t> tree;
+    AABBTreeIndirect::Tree<2, coord_t> tree;  // 2D AABB tree
     // Sort influence_areas in place.
     tree.build_modify_input(influence_areas);
 
@@ -2440,11 +2440,11 @@ static void merge_influence_areas(
         // How many buckets per first merge iteration?
         const size_t num_threads     = tbb::this_task_arena::max_concurrency();
         // 4 buckets per thread if possible,
-        const size_t num_buckets_min = (input_size + 2) / 4;
+        const size_t num_buckets_min = (input_size + 2) / 4;  // ceil-divide into buckets
         // 2 buckets per thread otherwise.
-        const size_t num_buckets_max = input_size / 2;
+        const size_t num_buckets_max = input_size / 2;  // half the input size
         num_buckets_initial          = num_buckets_min >= num_threads ? num_buckets_min : num_buckets_max;
-        const size_t bucket_size     = num_buckets_min >= num_threads ? 4 : 2;
+        const size_t bucket_size     = num_buckets_min >= num_threads ? 4 : 2;  // 2 or 4 buckets per thread
         // Fill in the buckets.
         SupportElementMerging *it = influence_areas.data();
         // Reserve one more bucket to keep a single influence area which will not be merged in the first iteration.
@@ -2475,10 +2475,10 @@ static void merge_influence_areas(
     // Further merge iterations, merging one AABB subtree with another one, hopefully minimizing intersections between the elements
     // of each of the subtree.
     while (buckets.size() > 1) {
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, buckets.size() / 2),
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, buckets.size() / 2),  // process bucket pairs (half the count)
             [&](const tbb::blocked_range<size_t> &range) {
             for (size_t idx = range.begin(); idx < range.end(); ++ idx) {
-                const size_t bucket_pair_idx = idx * 2;
+                const size_t bucket_pair_idx = idx * 2;  // bucket-pair start index = idx * 2
                 // Merge bucket_count adjacent to each other, merging uneven bucket numbers into even buckets
                 buckets[bucket_pair_idx].second = merge_influence_areas_two_sets(volumes, config, layer_idx,
                     buckets[bucket_pair_idx].first, buckets[bucket_pair_idx].second,
@@ -2487,9 +2487,9 @@ static void merge_influence_areas(
             }
         });
         // Remove odd buckets, which were merged into even buckets.
-        size_t new_size = (buckets.size() + 1) / 2;
+        size_t new_size = (buckets.size() + 1) / 2;  // half the count, rounded up
         for (size_t i = 1; i < new_size; ++ i)
-            buckets[i] = std::move(buckets[i * 2]);
+            buckets[i] = std::move(buckets[i * 2]);  // even-indexed bucket of each pair
         buckets.erase(buckets.begin() + new_size, buckets.end());
     }
 }
@@ -2930,7 +2930,7 @@ static void generate_branch_areas(
                     // Visualization: https://jsfiddle.net/0zvcq39L/2/
                     // Ovalizes the circle to an ellipse, that contains both old center and new target position.
                     double used_scale = (movement.second + aoffset) / (1.0 * branch_radius);
-                    Point center_position = draw_area.element->state.result_on_layer + movement.first / 2;
+                    Point center_position = draw_area.element->state.result_on_layer + movement.first / 2;  // half the movement vector
                     const double moveX = movement.first.x() / (used_scale * branch_radius);
                     const double moveY = movement.first.y() / (used_scale * branch_radius);
                     const double vsize_inv = 0.5 / (0.01 + std::sqrt(moveX * moveX + moveY * moveY));
@@ -2943,7 +2943,7 @@ static void generate_branch_areas(
                     };
                     Polygon circle;
                     for (Point vertex : branch_circle)
-                        circle.points.emplace_back(center_position + Point(matrix[0] * vertex.x() + matrix[1] * vertex.y(), matrix[2] * vertex.x() + matrix[3] * vertex.y()));
+                        circle.points.emplace_back(center_position + Point(matrix[0] * vertex.x() + matrix[1] * vertex.y(), matrix[2] * vertex.x() + matrix[3] * vertex.y()));  // apply the 2x2 rotation matrix (elements 0..3)
                     poly.emplace_back(std::move(circle));
                 }
 
@@ -2961,11 +2961,11 @@ static void generate_branch_areas(
             if (fast_relative_movement || support_element_radius(config, *draw_area.element) - support_element_collision_radius(config, draw_area.element->state) > config.support_line_width) {
                 // Simulate the path the nozzle will take on the outermost wall.
                 // If multiple parts exist, the outer line will not go all around the support part potentially causing support material to be printed mid air.
-                ExPolygons nozzle_path = offset_ex(polygons, - config.support_line_width / 2.);
+                ExPolygons nozzle_path = offset_ex(polygons, - config.support_line_width / 2.);  // half the line width
                 if (nozzle_path.size() > 1) {
                     // Just try to make the area a tiny bit larger.
-                    polygons = generateArea(config.support_line_width / 2, max_speed);
-                    nozzle_path = offset_ex(polygons, -config.support_line_width / 2.);
+                    polygons = generateArea(config.support_line_width / 2, max_speed);  // half the line width
+                    nozzle_path = offset_ex(polygons, -config.support_line_width / 2.);  // half the line width
                     // If larger area did not fix the problem, all parts off the nozzle path that do not contain the center point are removed, hoping for the best.
                     if (nozzle_path.size() > 1) {
                         ExPolygons polygons_with_correct_center;
@@ -2982,7 +2982,7 @@ static void generate_branch_areas(
                         }
                         // Increase the area again, to ensure the nozzle path when calculated later is very similar to the one assumed above.
                         assert(contains(polygons, draw_area.element->state.result_on_layer));
-                        polygons = diff_clipped(offset(polygons_with_correct_center, config.support_line_width / 2., jtMiter, CLIPPER_MITER_LIMIT),
+                        polygons = diff_clipped(offset(polygons_with_correct_center, config.support_line_width / 2., jtMiter, CLIPPER_MITER_LIMIT),  // half the line width
                             // Known limitation (Vojtech): clipping may split the region into multiple pieces again, reversing the fixing effort.
                             collision);
                     }
@@ -3054,7 +3054,7 @@ static void smooth_branch_areas(
                         double radius_increase = support_element_radius(config, *draw_area.element) - support_element_radius(config, parent);
                         assert(radius_increase >= 0);
                         double shift = (draw_area.element->state.result_on_layer - parent.state.result_on_layer).cast<double>().norm();
-                        assert(shift < radius_increase + 2. * config.maximum_move_distance_slow);
+                        assert(shift < radius_increase + 2. * config.maximum_move_distance_slow);  // twice the slow max move distance
 #endif // NDEBUG
                         if (support_element_radius(config, parent) != support_element_collision_radius(config, parent)) {
                             // No other element on this layer than the current one may be connected to &parent,
@@ -3082,7 +3082,7 @@ static void smooth_branch_areas(
     }
 
 #ifdef SLIC3R_TREESUPPORTS_PROGRESS
-    progress_total += TREE_PROGRESS_SMOOTH_BRANCH_AREAS / 2;
+    progress_total += TREE_PROGRESS_SMOOTH_BRANCH_AREAS / 2;  // half the branch-smoothing progress budget
     Progress::messageProgress(Progress::Stage::SUPPORT, progress_total * m_progress_multiplier + m_progress_offset, TREE_PROGRESS_TOTAL);
     // It is just assumed that both smoothing loops together are one third of the time spent in this function. This was guessed. As the whole function is only 10%, and the smoothing is hard to predict a progress report in the loop may be not useful.
 #endif
@@ -3090,7 +3090,7 @@ static void smooth_branch_areas(
     // smooth downwards
     for (auto& element : move_bounds.back())
         element.state.marked = false;
-    for (int layer_idx = int(move_bounds.size()) - 2; layer_idx >= 0; -- layer_idx) {
+    for (int layer_idx = int(move_bounds.size()) - 2; layer_idx >= 0; -- layer_idx) {  // start from the second-to-last layer
         const size_t processing_base       = linear_data_layers[layer_idx];
         const size_t processing_base_above = linear_data_layers[size_t(layer_idx) + 1];
         const SupportElements &layer_above = move_bounds[size_t(layer_idx) + 1];
@@ -3127,7 +3127,7 @@ static void smooth_branch_areas(
     }
 
 #ifdef SLIC3R_TREESUPPORTS_PROGRESS
-    progress_total += TREE_PROGRESS_SMOOTH_BRANCH_AREAS / 2;
+    progress_total += TREE_PROGRESS_SMOOTH_BRANCH_AREAS / 2;  // half the branch-smoothing progress budget
     Progress::messageProgress(Progress::Stage::SUPPORT, progress_total * m_progress_multiplier + m_progress_offset, TREE_PROGRESS_TOTAL);
 #endif
 }
@@ -3253,7 +3253,7 @@ static void finalize_interface_and_support_areas(
                             // Hatch the support roof interfaces, offset them by their line width and subtract them from support base.
                             Polygons interface_lines = offset(to_polylines(
                                 generate_support_infill_lines(support_roof->polygons, true, layer_idx, config.support_roof_line_distance)),
-                                config.support_roof_line_width / 2);
+                                config.support_roof_line_width / 2);  // half the roof line width
                             base_layer_polygons = diff(base_layer_polygons, interface_lines);
                             break;
                         }
@@ -3262,7 +3262,7 @@ static void finalize_interface_and_support_areas(
                             // Hatch the support roof interfaces, offset them by their line width and subtract them from support base.
                             Polygons tree_lines = union_(offset(to_polylines(
                                 generate_support_infill_lines(base_layer_polygons, false, layer_idx, config.support_line_distance, true)),
-                                config.support_line_width / 2));
+                                config.support_line_width / 2));  // half the line width
                             // do not draw roof where the tree is. I prefer it this way as otherwise the roof may cut of a branch from its support below.
                             support_roof->polygons = diff(support_roof->polygons, tree_lines);
                             break;
