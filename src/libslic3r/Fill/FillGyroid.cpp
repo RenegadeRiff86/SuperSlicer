@@ -14,6 +14,8 @@
 
 namespace Slic3r {
 
+static constexpr double GYROID_PERIOD_RADIANS = 2 * M_PI;
+
 static inline double f(double x, double z_sin, double z_cos, bool vertical, bool flip)
 {
     if (vertical) {
@@ -70,7 +72,7 @@ static std::vector<Vec2d> make_one_period(double width, double scaleFactor, doub
 {
     std::vector<Vec2d> points;
     double dx = M_PI_2; // exact coordinates on main inflexion lobes
-    double limit = std::min(2*M_PI, width);
+    double limit = std::min(GYROID_PERIOD_RADIANS, width);
     points.reserve(size_t(ceil(limit / tolerance / 3)));
 
     for (double x = 0.; x < limit - EPSILON; x += dx) {
@@ -85,7 +87,7 @@ static std::vector<Vec2d> make_one_period(double width, double scaleFactor, doub
         for (unsigned int i = 1;i < size; ++i) {
             auto& lp = points[i-1]; // left point
             auto& rp = points[i];   // right point
-            double x = lp(0) + (rp(0) - lp(0)) / 2;
+            double x = lp(0) + (rp(0) - lp(0)) / 2; // Bisect the interval between neighboring samples.
             double y = f(x, z_sin, z_cos, vertical, flip);
             Vec2d ip = {x, y};
             if (std::abs(cross2(Vec2d(ip - lp), Vec2d(ip - rp))) > sqr(tolerance)) {
@@ -162,7 +164,7 @@ void FillGyroid::_fill_surface_single(
     line_spacing /= FillGyroid::DENSITY_ADJUST;
 
     // align bounding box to a multiple of our grid module
-    bb.merge(align_to_grid(bb.min, Point(2*M_PI*line_spacing, 2*M_PI*line_spacing)));
+    bb.merge(align_to_grid(bb.min, Point(GYROID_PERIOD_RADIANS * line_spacing, GYROID_PERIOD_RADIANS * line_spacing)));
 
     // tolerance in scaled units. clamp the maximum tolerance as there's
     // no processing-speed benefit to do so beyond a certain point

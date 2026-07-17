@@ -21,6 +21,7 @@ namespace Slic3r {
 
 static NullStream log_null;
 static std::ostream null_log(&log_null);
+static constexpr int log_level_field_width = 6;
 
 std::unique_ptr<_Log> slic3r_log {_Log::make_log()};
 
@@ -67,7 +68,7 @@ std::ostream& _Log::fatal_error(const char topic[], bool multiline) {
 std::ostream& _Log::fatal_error(const std::string& topic, bool multiline) {
     if (this->_has_log_level(log_t::FERR) && this->_has_topic(topic)) {
         if (!multiline)
-            _out << topic << std::setfill(' ') << std::setw(6) << "FERR" << ": ";
+            _out << topic << std::setfill(' ') << std::setw(log_level_field_width) << "FERR" << ": ";
         return _out;
     }
     return null_log;
@@ -90,7 +91,7 @@ std::ostream& _Log::error(const char topic[], bool multiline) {
 std::ostream& _Log::error(const std::string& topic, bool multiline) {
     if (this->_has_log_level(log_t::ERR) && this->_has_topic(topic)) {
         if (!multiline)
-            _out << topic << std::setfill(' ') << std::setw(6) << "ERR" << ": ";
+            _out << topic << std::setfill(' ') << std::setw(log_level_field_width) << "ERR" << ": ";
         return _out;
     }
     return null_log;
@@ -116,7 +117,7 @@ std::ostream& _Log::info(const char topic[], bool multiline) {
 std::ostream& _Log::info(const std::string& topic, bool multiline) {
     if (this->_has_log_level(log_t::INFO) && this->_has_topic(topic)) {
         if (!multiline)
-            _out << topic << std::setfill(' ') << std::setw(6) << "INFO" << ": ";
+            _out << topic << std::setfill(' ') << std::setw(log_level_field_width) << "INFO" << ": ";
         return _out;
     }
     return null_log;
@@ -141,7 +142,7 @@ std::ostream& _Log::warn(const char topic[], bool multiline) {
 std::ostream& _Log::warn(const std::string& topic, bool multiline) {
     if (this->_has_log_level(log_t::WARN) && this->_has_topic(topic)) {
         if (!multiline)
-            _out << topic << std::setfill(' ') << std::setw(6) << "WARN" << ": ";
+            _out << topic << std::setfill(' ') << std::setw(log_level_field_width) << "WARN" << ": ";
         return _out;
     }
     return null_log;
@@ -166,7 +167,7 @@ std::ostream& _Log::debug(const char topic[], bool multiline) {
 std::ostream& _Log::debug(const std::string& topic, bool multiline) {
     if (this->_has_log_level(log_t::DBG) && this->_has_topic(topic)) {
         if (!multiline)
-            _out << topic << std::setfill(' ') << std::setw(6) << "DEBUG" << ": ";
+            _out << topic << std::setfill(' ') << std::setw(log_level_field_width) << "DEBUG" << ": ";
         return _out;
     }
     return null_log;

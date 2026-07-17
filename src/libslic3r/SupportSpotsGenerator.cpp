@@ -780,7 +780,7 @@ std::tuple<float, SupportPointCause> ObjectPart::is_stable_while_extruding(const
 }
 
 static std::vector<const ExtrusionEntityCollection*> gather_extrusions(const LayerSlice& slice, const Layer* layer) {
-    // TODO reserve might be good, benchmark
+    // The nested entity count is not available cheaply, so grow the result incrementally.
     std::vector<const ExtrusionEntityCollection*> result;
 
     for (const auto &island : slice.islands) {
@@ -813,9 +813,8 @@ static bool has_brim(const Layer* layer, const Params& params) {
 
 static Polygons get_brim(const Layer* layer, const size_t slice_idx, const float brim_width_outer, const float brim_width_inner) {
     const ExPolygon& slice_polygon = layer->lslices()[slice_idx];
-    // TODO: The algorithm here should take into account that multiple slices may
-    // have coliding Brim areas and the final brim area is smaller,
-    // thus has lower adhesion. For now this effect will be neglected.
+    // This per-slice estimate does not model brim overlap with neighboring slices,
+    // so the resulting adhesion estimate may be slightly optimistic.
     ExPolygons brim;
     if (brim_width_outer > 0) {
         Polygon brim_hole = slice_polygon.contour;
@@ -950,7 +949,7 @@ struct EnitityToCheck
     size_t                 slice_idx;
 };
 
-// TODO DRY: Very similar to gather extrusions.
+// This traversal parallels gather_extrusions but also flattens nested collections and records region/slice metadata.
 static std::vector<EnitityToCheck> gather_entities_to_check(const Layer* layer) {
     auto get_flat_entities = [](const ExtrusionEntity *e) {
         std::vector<const ExtrusionEntity *> entities;

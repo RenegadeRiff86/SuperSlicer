@@ -179,13 +179,20 @@ float GCodeProcessor::Trapezoid::cruise_distance() const
 void GCodeProcessor::TimeBlock::calculate_trapezoid()
 {
     trapezoid.cruise_feedrate = feedrate_profile.cruise;
+    if (minimum_cruise_ratio > 0.0f && acceleration > 0.0f) {
+        const float max_cruise_speed_sqr = acceleration * distance * (1.0f - minimum_cruise_ratio)
+            + 0.5f * (sqr(feedrate_profile.entry) + sqr(feedrate_profile.exit));
+        trapezoid.cruise_feedrate = std::max(
+            std::max(feedrate_profile.entry, feedrate_profile.exit),
+            std::min(trapezoid.cruise_feedrate, std::sqrt(std::max(0.0f, max_cruise_speed_sqr))));
+    }
 
-    float accelerate_distance = std::max(0.0f, estimated_acceleration_distance(feedrate_profile.entry, feedrate_profile.cruise, acceleration));
-    float decelerate_distance = std::max(0.0f, estimated_acceleration_distance(feedrate_profile.cruise, feedrate_profile.exit, -acceleration));
+    float accelerate_distance = std::max(0.0f, estimated_acceleration_distance(feedrate_profile.entry, trapezoid.cruise_feedrate, acceleration));
+    float decelerate_distance = std::max(0.0f, estimated_acceleration_distance(trapezoid.cruise_feedrate, feedrate_profile.exit, -acceleration));
     float cruise_distance = distance - accelerate_distance - decelerate_distance;
 
     // Not enough space to reach the nominal feedrate.
-    // This means no cruising, and we'll have to use intersection_distance() to calculate when to abort acceleration 
+    // This means no cruising, and we'll have to use intersection_distance() to calculate when to abort acceleration
     // and start braking in order to reach the exit_feedrate exactly at the end of this block.
     if (cruise_distance < 0.0f) {
         accelerate_distance = std::clamp(intersection_distance(feedrate_profile.entry, feedrate_profile.exit, acceleration, distance), 0.0f, distance);
@@ -228,6 +235,14 @@ void GCodeProcessor::TimeMachine::reset()
     max_retract_acceleration = 0.0f;
     travel_acceleration = 0.0f;
     max_travel_acceleration = 0.0f;
+    max_velocity = 0.0f;
+    max_z_velocity = 0.0f;
+    max_z_acceleration = 0.0f;
+    max_extrude_only_velocity = 0.0f;
+    max_extrude_only_acceleration = 0.0f;
+    instantaneous_corner_velocity = 0.0f;
+    square_corner_velocity = 0.0f;
+    minimum_cruise_ratio = 0.0f;
     extrude_factor_override_percentage = 1.0f;
     time = 0.0f;
     travel_time = 0.0f;
@@ -702,21 +717,61 @@ void GCodeProcessor::apply_config(const PrintConfig& config)
         m_extra_loading_move = float(config.extra_loading_move);
     }
 
-for (size_t i = 0; i < static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Count); ++i) {
-        float max_acceleration = get_option_value(m_time_processor.machine_limits.machine_max_acceleration_extruding, i);
-        m_time_processor.machines[i].max_acceleration = max_acceleration;
-        m_time_processor.machines[i].acceleration = (max_acceleration > 0.0f) ? max_acceleration : DEFAULT_ACCELERATION;
-        float max_retract_acceleration = get_option_value(m_time_processor.machine_limits.machine_max_acceleration_retracting, i);
-        m_time_processor.machines[i].max_retract_acceleration = max_retract_acceleration;
-        m_time_processor.machines[i].retract_acceleration = (max_retract_acceleration > 0.0f) ? max_retract_acceleration : DEFAULT_RETRACT_ACCELERATION;
-
-        float max_travel_acceleration = get_option_value(m_time_processor.machine_limits.machine_max_acceleration_travel, i);
-        if ( ! GCodeWriter::supports_separate_travel_acceleration(config.gcode_flavor.value) || config.machine_limits_usage.value != MachineLimitsUsage::EmitToGCode) {
-            // Only clamp travel acceleration when it is accessible in machine limits.
-            max_travel_acceleration = 0;
+    const bool is_klipper = config.gcode_flavor.value == gcfKlipper;
+    const float klipper_max_velocity = is_klipper ? float(config.machine_klipper_max_velocity.value) : 0.0f;
+    const float klipper_max_acceleration = is_klipper ? float(config.machine_klipper_max_acceleration.value) : 0.0f;
+    m_klipper_default_max_extrude_only_velocities.assign(extruders_count, 0.0f);
+    m_klipper_default_max_extrude_only_accelerations.assign(extruders_count, 0.0f);
+    if (is_klipper) {
+        constexpr float DEFAULT_MAX_EXTRUDE_CROSS_SECTION_FACTOR = 4.0f;
+        for (size_t extruder_id = 0; extruder_id < extruders_count; ++extruder_id) {
+            const float nozzle_diameter = float(config.nozzle_diameter.get_at(extruder_id));
+            const float filament_diameter = float(config.filament_diameter.get_at(extruder_id));
+            const float filament_area = float(PI) * sqr(0.5f * filament_diameter);
+            if (filament_area > 0.0f) {
+                const float default_max_extrude_ratio =
+                    DEFAULT_MAX_EXTRUDE_CROSS_SECTION_FACTOR * sqr(nozzle_diameter) / filament_area;
+                m_klipper_default_max_extrude_only_velocities[extruder_id] =
+                    klipper_max_velocity * default_max_extrude_ratio;
+                m_klipper_default_max_extrude_only_accelerations[extruder_id] =
+                    klipper_max_acceleration * default_max_extrude_ratio;
+            }
         }
-        m_time_processor.machines[i].max_travel_acceleration = max_travel_acceleration;
-        m_time_processor.machines[i].travel_acceleration = (max_travel_acceleration > 0.0f) ? max_travel_acceleration : DEFAULT_TRAVEL_ACCELERATION;
+    }
+
+    for (size_t i = 0; i < static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Count); ++i) {
+        TimeMachine& machine = m_time_processor.machines[i];
+        const float max_acceleration = is_klipper
+            ? klipper_max_acceleration
+            : get_option_value(m_time_processor.machine_limits.machine_max_acceleration_extruding, i);
+        machine.max_acceleration = max_acceleration;
+        machine.acceleration = (max_acceleration > 0.0f) ? max_acceleration : DEFAULT_ACCELERATION;
+
+        const float max_retract_acceleration = get_option_value(m_time_processor.machine_limits.machine_max_acceleration_retracting, i);
+        machine.max_retract_acceleration = max_retract_acceleration;
+        machine.retract_acceleration = (max_retract_acceleration > 0.0f) ? max_retract_acceleration : DEFAULT_RETRACT_ACCELERATION;
+
+        float max_travel_acceleration = is_klipper
+            ? max_acceleration
+            : get_option_value(m_time_processor.machine_limits.machine_max_acceleration_travel, i);
+        if (!is_klipper
+            && (!GCodeWriter::supports_separate_travel_acceleration(config.gcode_flavor.value)
+                || config.machine_limits_usage.value != MachineLimitsUsage::EmitToGCode)) {
+            // Only clamp travel acceleration when it is accessible in machine limits.
+            max_travel_acceleration = 0.0f;
+        }
+        machine.max_travel_acceleration = max_travel_acceleration;
+        machine.travel_acceleration = (max_travel_acceleration > 0.0f) ? max_travel_acceleration : DEFAULT_TRAVEL_ACCELERATION;
+        machine.max_velocity = klipper_max_velocity;
+        machine.max_z_velocity = is_klipper ? float(config.machine_klipper_max_z_velocity.value) : 0.0f;
+        machine.max_z_acceleration = is_klipper ? float(config.machine_klipper_max_z_acceleration.value) : 0.0f;
+        machine.max_extrude_only_velocity =
+            is_klipper ? float(config.machine_klipper_max_extrude_only_velocity.value) : 0.0f;
+        machine.max_extrude_only_acceleration =
+            is_klipper ? float(config.machine_klipper_max_extrude_only_acceleration.value) : 0.0f;
+        machine.instantaneous_corner_velocity = is_klipper ? float(config.machine_klipper_instantaneous_corner_velocity.value) : 0.0f;
+        machine.square_corner_velocity = is_klipper ? float(config.machine_klipper_square_corner_velocity.value) : 0.0f;
+        machine.minimum_cruise_ratio = is_klipper ? float(config.machine_min_cruise_ratio.value) : 0.0f;
     }
 
     m_time_processor.export_remaining_time_enabled = config.remaining_times.value;
@@ -1686,25 +1741,56 @@ std::vector<float> GCodeProcessor::get_layers_time(PrintEstimatedStatistics::ETi
         std::vector<float>();;
 }
 
-static std::string get_klipper_param(const std::string& key, const std::string& line) {
-    size_t key_pos = line.find(key);
-    if (key_pos == std::string::npos) {
-        std::string lowercase_key = key;
-        boost::to_lower(lowercase_key);
-        key_pos = line.find(lowercase_key);
-    }
-    if (key_pos != std::string::npos) {
-        size_t data_pos = key_pos + key.size();
-        while (data_pos < line.size() && (line[data_pos] == ' ' || line[data_pos] == '='))
-            data_pos++;
-        if (data_pos < line.size()) {
-            size_t end_pos = line.find(" ", data_pos);
-            if (end_pos == std::string::npos)
-                end_pos = line.size();
-            return line.substr(data_pos, end_pos - data_pos);
+static std::string get_klipper_param(const std::string& key, const std::string& line)
+{
+    const std::string uppercase_key = boost::to_upper_copy(key);
+    const std::string uppercase_line = boost::to_upper_copy(line);
+    const size_t key_pos = uppercase_line.find(uppercase_key);
+    if (key_pos == std::string::npos)
+        return "";
+
+    size_t data_pos = key_pos + key.size();
+    while (data_pos < line.size() && (line[data_pos] == ' ' || line[data_pos] == '\t' || line[data_pos] == '='))
+        ++data_pos;
+    if (data_pos == line.size())
+        return "";
+
+    const size_t end_pos = line.find_first_of(" \t;", data_pos);
+    return line.substr(data_pos, end_pos == std::string::npos ? std::string::npos : end_pos - data_pos);
+}
+
+static std::optional<float> get_klipper_float_param(const std::string& key, const std::string& line)
+{
+    const std::string value = get_klipper_param(key, line);
+    if (value.empty())
+        return std::nullopt;
+
+    size_t parsed_characters = 0;
+    const float parsed_value = std::stof(value, &parsed_characters);
+    return parsed_characters == value.size() ? std::optional<float>(parsed_value) : std::nullopt;
+}
+
+void GCodeProcessor::process_klipper_SET_VELOCITY_LIMIT(const GCodeReader::GCodeLine& line)
+{
+    const std::optional<float> velocity = get_klipper_float_param(" VELOCITY", line.raw());
+    const std::optional<float> acceleration = get_klipper_float_param(" ACCEL", line.raw());
+    const std::optional<float> square_corner_velocity = get_klipper_float_param(" SQUARE_CORNER_VELOCITY", line.raw());
+    const std::optional<float> minimum_cruise_ratio = get_klipper_float_param(" MINIMUM_CRUISE_RATIO", line.raw());
+
+    for (TimeMachine& machine : m_time_processor.machines) {
+        if (velocity.has_value() && *velocity > 0.0f)
+            machine.max_velocity = *velocity;
+        if (acceleration.has_value() && *acceleration > 0.0f) {
+            machine.max_acceleration = *acceleration;
+            machine.acceleration = *acceleration;
+            machine.max_travel_acceleration = *acceleration;
+            machine.travel_acceleration = *acceleration;
         }
+        if (square_corner_velocity.has_value() && *square_corner_velocity >= 0.0f)
+            machine.square_corner_velocity = *square_corner_velocity;
+        if (minimum_cruise_ratio.has_value() && *minimum_cruise_ratio >= 0.0f && *minimum_cruise_ratio < 1.0f)
+            machine.minimum_cruise_ratio = *minimum_cruise_ratio;
     }
-    return "";
 }
 
 void GCodeProcessor::process_klipper_ACTIVATE_EXTRUDER(const GCodeReader::GCodeLine& line) {
@@ -1856,6 +1942,8 @@ void GCodeProcessor::process_gcode_line(const GCodeReader::GCodeLine& line, bool
                 set_extruder_temp(0.0f, m_extruder_id);
             else if (cmd_up == "ACTIVATE_EXTRUDER")
                 process_klipper_ACTIVATE_EXTRUDER(line);
+            else if (cmd_up == "SET_VELOCITY_LIMIT")
+                process_klipper_SET_VELOCITY_LIMIT(line);
         }
         catch (...) {
             BOOST_LOG_TRIVIAL(error) << "GCodeProcessor failed to parse the klipper command '" << line.raw() << "'.";
@@ -2848,7 +2936,7 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line)
 }
 
 void GCodeProcessor::process_G1(const std::array<std::optional<double>, 4>& axes, const std::optional<double>& feedrate,
-    G1DiscretizationOrigin origin, const std::optional<unsigned int>& remaining_internal_g1_lines)
+    G1DiscretizationOrigin origin, const std::optional<size_t>& remaining_internal_g1_lines)
 {
     const float filament_diameter = (static_cast<size_t>(m_extruder_id) < m_result.filament_diameters.size()) ? m_result.filament_diameters[m_extruder_id] : m_result.filament_diameters.back();
     const float filament_radius = 0.5f * filament_diameter;
@@ -3046,8 +3134,27 @@ void GCodeProcessor::process_G1(const std::array<std::optional<double>, 4>& axes
         block.remaining_internal_g1_lines = remaining_internal_g1_lines.has_value() ? *remaining_internal_g1_lines : 0;
         block.layer_id = std::max<unsigned int>(1, m_layer_id);
 
-        // calculates block cruise feedrate
-        double min_feedrate_factor = 1.0;
+        const bool extrusion_only = is_extrusion_only_move(delta_pos);
+        const float z_r = float(std::abs(delta_pos[Z]) * inv_distance);
+        const float e_r = float(std::abs(delta_pos[E]) * inv_distance);
+        block.extrude_r = float(delta_pos[E] * inv_distance);
+
+        float max_extrude_only_velocity = machine.max_extrude_only_velocity;
+        float max_extrude_only_acceleration = machine.max_extrude_only_acceleration;
+        const size_t extruder_id = static_cast<size_t>(m_extruder_id);
+        if (max_extrude_only_velocity <= 0.0f
+            && extruder_id < m_klipper_default_max_extrude_only_velocities.size()) {
+            max_extrude_only_velocity = m_klipper_default_max_extrude_only_velocities[extruder_id];
+        }
+        if (max_extrude_only_acceleration <= 0.0f
+            && extruder_id < m_klipper_default_max_extrude_only_accelerations.size()) {
+            max_extrude_only_acceleration = m_klipper_default_max_extrude_only_accelerations[extruder_id];
+        }
+
+        // Calculate the cruise feedrate using the same component limits Klipper applies in Move.limit_speed().
+        float min_feedrate_factor = 1.0f;
+        if (m_flavor == gcfKlipper && !extrusion_only && machine.max_velocity > 0.0f && curr.feedrate > 0.0f)
+            min_feedrate_factor = std::min(min_feedrate_factor, machine.max_velocity / curr.feedrate);
         for (unsigned char a = X; a <= E; ++a) {
             curr.axis_feedrate[a] = curr.feedrate * delta_pos[a] * inv_distance;
             //if (a == E) // can't see what it does, so i deactive it for now (merill) and use the M221 directly in the G1 code.
@@ -3055,13 +3162,20 @@ void GCodeProcessor::process_G1(const std::array<std::optional<double>, 4>& axes
 
             curr.abs_axis_feedrate[a] = std::abs(curr.axis_feedrate[a]);
             if (curr.abs_axis_feedrate[a] != 0.0f) {
-                const double axis_max_feedrate = get_axis_max_feedrate(static_cast<PrintEstimatedStatistics::ETimeMode>(i), static_cast<Axis>(a));
-                if (axis_max_feedrate != 0.0f)
-                    min_feedrate_factor = std::min<float>(min_feedrate_factor, axis_max_feedrate / curr.abs_axis_feedrate[a]);
+                const float axis_max_feedrate = float(get_axis_max_feedrate(
+                    static_cast<PrintEstimatedStatistics::ETimeMode>(i), static_cast<Axis>(a)));
+                if (axis_max_feedrate > 0.0f)
+                    min_feedrate_factor = std::min(min_feedrate_factor, axis_max_feedrate / float(curr.abs_axis_feedrate[a]));
             }
         }
+        if (m_flavor == gcfKlipper && curr.feedrate > 0.0f) {
+            if (extrusion_only && max_extrude_only_velocity > 0.0f && e_r > 0.0f)
+                min_feedrate_factor = std::min(min_feedrate_factor, max_extrude_only_velocity / (curr.feedrate * e_r));
+            else if (!extrusion_only && machine.max_z_velocity > 0.0f && z_r > 0.0f)
+                min_feedrate_factor = std::min(min_feedrate_factor, machine.max_z_velocity / (curr.feedrate * z_r));
+        }
 
-        block.feedrate_profile.cruise = float(min_feedrate_factor * curr.feedrate);
+        block.feedrate_profile.cruise = min_feedrate_factor * curr.feedrate;
 
         if (min_feedrate_factor < 1.0f) {
             for (unsigned char a = X; a <= E; ++a) {
@@ -3070,88 +3184,157 @@ void GCodeProcessor::process_G1(const std::array<std::optional<double>, 4>& axes
             }
         }
 
-        // calculates block acceleration
+        // Calculate path acceleration from each axis component instead of treating an axis limit as a path limit.
         float acceleration = (type == EMoveType::Travel) ? get_travel_acceleration(static_cast<PrintEstimatedStatistics::ETimeMode>(i)) :
-            (is_extrusion_only_move(delta_pos) ? get_retract_acceleration(static_cast<PrintEstimatedStatistics::ETimeMode>(i)) :
+            (extrusion_only ? get_retract_acceleration(static_cast<PrintEstimatedStatistics::ETimeMode>(i)) :
             get_acceleration(static_cast<PrintEstimatedStatistics::ETimeMode>(i)));
 
         for (unsigned char a = X; a <= E; ++a) {
-            const float axis_max_acceleration = get_axis_max_acceleration(static_cast<PrintEstimatedStatistics::ETimeMode>(i), static_cast<Axis>(a));
-            if (acceleration * std::abs(delta_pos[a]) * inv_distance > axis_max_acceleration)
-                acceleration = axis_max_acceleration;
+            const float axis_r = float(std::abs(delta_pos[a]) * inv_distance);
+            const float axis_max_acceleration = get_axis_max_acceleration(
+                static_cast<PrintEstimatedStatistics::ETimeMode>(i), static_cast<Axis>(a));
+            if (axis_r > 0.0f && axis_max_acceleration > 0.0f)
+                acceleration = std::min(acceleration, axis_max_acceleration / axis_r);
+        }
+        if (m_flavor == gcfKlipper) {
+            if (extrusion_only && max_extrude_only_acceleration > 0.0f && e_r > 0.0f)
+                acceleration = std::min(acceleration, max_extrude_only_acceleration / e_r);
+            else if (!extrusion_only && machine.max_z_acceleration > 0.0f && z_r > 0.0f)
+                acceleration = std::min(acceleration, machine.max_z_acceleration / z_r);
         }
 
         block.acceleration = acceleration;
 
-        // calculates block exit feedrate
-        curr.safe_feedrate = block.feedrate_profile.cruise;
-
-        for (unsigned char a = X; a <= E; ++a) {
-            const float axis_max_jerk = get_axis_max_jerk(static_cast<PrintEstimatedStatistics::ETimeMode>(i), static_cast<Axis>(a));
-            if (curr.abs_axis_feedrate[a] > axis_max_jerk)
-                curr.safe_feedrate = std::min(curr.safe_feedrate, axis_max_jerk);
-        }
-
-        block.feedrate_profile.exit = curr.safe_feedrate;
-
-        static const float PREVIOUS_FEEDRATE_THRESHOLD = 0.0001f;
-
-        // calculates block entry feedrate
-        float vmax_junction = curr.safe_feedrate;
-        if (!blocks.empty() && prev.feedrate > PREVIOUS_FEEDRATE_THRESHOLD) {
-            const bool prev_speed_larger = prev.feedrate > block.feedrate_profile.cruise;
-            const float smaller_speed_factor = prev_speed_larger ? (block.feedrate_profile.cruise / prev.feedrate) : (prev.feedrate / block.feedrate_profile.cruise);
-            // Pick the smaller of the nominal speeds. Higher speed shall not be achieved at the junction during coasting.
-            vmax_junction = prev_speed_larger ? block.feedrate_profile.cruise : prev.feedrate;
-
-            float v_factor = 1.0f;
-            bool limited = false;
-
-            for (unsigned char a = X; a <= E; ++a) {
-                // Limit an axis. We have to differentiate coasting from the reversal of an axis movement, or a full stop.
-                double v_exit = prev.axis_feedrate[a];
-                double v_entry = curr.axis_feedrate[a];
-
-                if (prev_speed_larger)
-                    v_exit *= smaller_speed_factor;
-
-                if (limited) {
-                    v_exit *= v_factor;
-                    v_entry *= v_factor;
-                }
-
-                // Calculate the jerk depending on whether the axis is coasting in the same direction or reversing a direction.
-                const double jerk =
-                    (v_exit > v_entry) ?
-                    ((v_entry > 0.0f || v_exit < 0.0f) ?
-                        // coasting
-                        (v_exit - v_entry) :
-                        // axis reversal
-                        std::max(v_exit, -v_entry)) :
-                    // v_exit <= v_entry
-                    ((v_entry < 0.0f || v_exit > 0.0f) ?
-                        // coasting
-                        (v_entry - v_exit) :
-                        // axis reversal
-                        std::max(-v_exit, v_entry));
-
-                const float axis_max_jerk = get_axis_max_jerk(static_cast<PrintEstimatedStatistics::ETimeMode>(i), static_cast<Axis>(a));
-                if (float(jerk) > axis_max_jerk) {
-                    v_factor *= axis_max_jerk / float(jerk);
-                    limited = true;
-                }
+        float vmax_junction = 0.0f;
+        if (m_flavor == gcfKlipper) {
+            curr.safe_feedrate = 0.0f;
+            block.feedrate_profile.exit = 0.0f;
+            block.minimum_cruise_ratio = machine.minimum_cruise_ratio;
+            if (!extrusion_only) {
+                block.axes_r = {
+                    float(delta_pos[X] * inv_distance),
+                    float(delta_pos[Y] * inv_distance),
+                    float(delta_pos[Z] * inv_distance)
+                };
+            }
+            if (acceleration > 0.0f) {
+                block.junction_deviation = sqr(machine.square_corner_velocity)
+                    * (std::sqrt(2.0f) - 1.0f) / acceleration;
             }
 
-            if (limited)
-                vmax_junction *= v_factor;
+            if (!blocks.empty()) {
+                const TimeBlock& previous_block = blocks.back();
+                const bool previous_is_kinematic = std::any_of(
+                    previous_block.axes_r.begin(), previous_block.axes_r.end(),
+                    [](float component) { return component != 0.0f; });
+                const bool current_is_kinematic = std::any_of(
+                    block.axes_r.begin(), block.axes_r.end(),
+                    [](float component) { return component != 0.0f; });
+                if (previous_is_kinematic && current_is_kinematic) {
+                    float junction_cos_theta = 0.0f;
+                    for (size_t axis = 0; axis < block.axes_r.size(); ++axis)
+                        junction_cos_theta -= block.axes_r[axis] * previous_block.axes_r[axis];
 
-            // Now the transition velocity is known, which maximizes the shared exit / entry velocity while
-            // respecting the jerk factors, it may be possible, that applying separate safe exit / entry velocities will achieve faster prints.
-            const float vmax_junction_threshold = vmax_junction * 0.99f;
+                    if (junction_cos_theta <= 0.999999f) {
+                        junction_cos_theta = std::max(-0.999999f, junction_cos_theta);
+                        const float sin_theta_d2 = std::sqrt(std::max(0.5f * (1.0f - junction_cos_theta), 0.0f));
+                        const float cos_theta_d2 = std::sqrt(std::max(0.5f * (1.0f + junction_cos_theta), 0.0f));
+                        float max_start_v2 = std::min(
+                            sqr(block.feedrate_profile.cruise),
+                            sqr(previous_block.feedrate_profile.cruise));
+                        if (sin_theta_d2 < 1.0f && cos_theta_d2 > 0.0f) {
+                            const float junction_radius_factor = sin_theta_d2 / (1.0f - sin_theta_d2);
+                            const float quarter_tan_theta_d2 = 0.25f * sin_theta_d2 / cos_theta_d2;
+                            const float current_delta_v2 = 2.0f * block.distance * block.acceleration;
+                            const float previous_delta_v2 = 2.0f * previous_block.distance * previous_block.acceleration;
+                            max_start_v2 = std::min({
+                                max_start_v2,
+                                junction_radius_factor * block.junction_deviation * block.acceleration,
+                                junction_radius_factor * previous_block.junction_deviation * previous_block.acceleration,
+                                current_delta_v2 * quarter_tan_theta_d2,
+                                previous_delta_v2 * quarter_tan_theta_d2
+                            });
+                        }
+                        const float extruder_delta_r = block.extrude_r - previous_block.extrude_r;
+                        if (machine.instantaneous_corner_velocity > 0.0f && extruder_delta_r != 0.0f) {
+                            max_start_v2 = std::min(max_start_v2,
+                                sqr(machine.instantaneous_corner_velocity / std::abs(extruder_delta_r)));
+                        }
+                        vmax_junction = std::sqrt(std::max(0.0f, max_start_v2));
+                    }
+                }
+            }
+        } else {
+            // calculates block exit feedrate
+            curr.safe_feedrate = block.feedrate_profile.cruise;
 
-            // Not coasting. The machine will stop and start the movements anyway, better to start the segment from start.
-            if (prev.safe_feedrate > vmax_junction_threshold && curr.safe_feedrate > vmax_junction_threshold)
-                vmax_junction = curr.safe_feedrate;
+            for (unsigned char a = X; a <= E; ++a) {
+                const float axis_max_jerk = get_axis_max_jerk(static_cast<PrintEstimatedStatistics::ETimeMode>(i), static_cast<Axis>(a));
+                if (curr.abs_axis_feedrate[a] > axis_max_jerk)
+                    curr.safe_feedrate = std::min(curr.safe_feedrate, axis_max_jerk);
+            }
+
+            block.feedrate_profile.exit = curr.safe_feedrate;
+
+            static const float PREVIOUS_FEEDRATE_THRESHOLD = 0.0001f;
+
+            // calculates block entry feedrate
+            vmax_junction = curr.safe_feedrate;
+            if (!blocks.empty() && prev.feedrate > PREVIOUS_FEEDRATE_THRESHOLD) {
+                const bool prev_speed_larger = prev.feedrate > block.feedrate_profile.cruise;
+                const float smaller_speed_factor = prev_speed_larger ? (block.feedrate_profile.cruise / prev.feedrate) : (prev.feedrate / block.feedrate_profile.cruise);
+                // Pick the smaller of the nominal speeds. Higher speed shall not be achieved at the junction during coasting.
+                vmax_junction = prev_speed_larger ? block.feedrate_profile.cruise : prev.feedrate;
+
+                float v_factor = 1.0f;
+                bool limited = false;
+
+                for (unsigned char a = X; a <= E; ++a) {
+                    // Limit an axis. We have to differentiate coasting from the reversal of an axis movement, or a full stop.
+                    double v_exit = prev.axis_feedrate[a];
+                    double v_entry = curr.axis_feedrate[a];
+
+                    if (prev_speed_larger)
+                        v_exit *= smaller_speed_factor;
+
+                    if (limited) {
+                        v_exit *= v_factor;
+                        v_entry *= v_factor;
+                    }
+
+                    // Calculate the jerk depending on whether the axis is coasting in the same direction or reversing a direction.
+                    const double jerk =
+                        (v_exit > v_entry) ?
+                        ((v_entry > 0.0f || v_exit < 0.0f) ?
+                            // coasting
+                            (v_exit - v_entry) :
+                            // axis reversal
+                            std::max(v_exit, -v_entry)) :
+                        // v_exit <= v_entry
+                        ((v_entry < 0.0f || v_exit > 0.0f) ?
+                            // coasting
+                            (v_entry - v_exit) :
+                            // axis reversal
+                            std::max(-v_exit, v_entry));
+
+                    const float axis_max_jerk = get_axis_max_jerk(static_cast<PrintEstimatedStatistics::ETimeMode>(i), static_cast<Axis>(a));
+                    if (float(jerk) > axis_max_jerk) {
+                        v_factor *= axis_max_jerk / float(jerk);
+                        limited = true;
+                    }
+                }
+
+                if (limited)
+                    vmax_junction *= v_factor;
+
+                // Now the transition velocity is known, which maximizes the shared exit / entry velocity while
+                // respecting the jerk factors, it may be possible, that applying separate safe exit / entry velocities will achieve faster prints.
+                const float vmax_junction_threshold = vmax_junction * 0.99f;
+
+                // Not coasting. The machine will stop and start the movements anyway, better to start the segment from start.
+                if (prev.safe_feedrate > vmax_junction_threshold && curr.safe_feedrate > vmax_junction_threshold)
+                    vmax_junction = curr.safe_feedrate;
+            }
         }
 
         const float v_allowable = max_allowable_speed(-acceleration, curr.safe_feedrate, block.distance);
@@ -3338,7 +3521,7 @@ void GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line, bool cloc
             feedrate = line.f() * MMMIN_TO_MMSEC;
 
     // updates extrusion from line
-    std::optional<float> extrusion;
+    std::optional<double> extrusion;
     if (line.has_e())
         extrusion = end_position[E] - m_start_position[E];
 
@@ -3383,7 +3566,7 @@ void GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line, bool cloc
     };
 
     auto internal_only_g1_line = [this](const AxisCoords& target, bool has_z, const std::optional<float>& feedrate,
-        const std::optional<float>& extrusion, const std::optional<unsigned int>& remaining_internal_g1_lines = std::nullopt) {
+        const std::optional<double>& extrusion, const std::optional<size_t>& remaining_internal_g1_lines = std::nullopt) {
           std::array<std::optional<double>, 4> g1_axes = { target[X], target[Y], std::nullopt, std::nullopt };
           std::optional<double> g1_feedrate = std::nullopt;
           if (has_z)
@@ -3433,7 +3616,7 @@ void GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line, bool cloc
     for (size_t i = 1; i < segments; ++i) {
         if (count < N_ARC_CORRECTION) {
             // Apply vector rotation matrix
-            const float r_axisi = curr_rel_arc_start.x() * sin_T + curr_rel_arc_start.y() * cos_T;
+            const double r_axisi = curr_rel_arc_start.x() * sin_T + curr_rel_arc_start.y() * cos_T;
             curr_rel_arc_start.x() = curr_rel_arc_start.x() * cos_T - curr_rel_arc_start.y() * sin_T;
             curr_rel_arc_start.y() = r_axisi;
             ++count;
@@ -4896,7 +5079,7 @@ void GCodeProcessor::store_move_vertex(EMoveType type, bool internal_only)
         m_mm3_per_mm,
         m_fan_speed,
         m_extruder_temps[m_extruder_id],
-        m_current_time[0], // note: m_time_processor.machines[0].time, is too slow to recompute. it will be updated when recomputed.
+        static_cast<float>(m_current_time[0]), // MoveVertex stores preview time as float; it is updated when timing is recomputed.
         m_layer_id,
         internal_only
     );

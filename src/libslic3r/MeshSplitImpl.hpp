@@ -152,13 +152,13 @@ void its_split(const Its &m, OutputIt out_it)
         // Create a new mesh for the part that was just split off.
         indexed_triangle_set mesh;
         mesh.indices.reserve(facets.size());
-        mesh.vertices.reserve(std::min(facets.size() * 3, its.vertices.size()));
+        mesh.vertices.reserve(std::min(facets.size() * 3, its.vertices.size())); // A triangle contributes at most three unique vertices.
 
         // Assign the facets to the new mesh.
         for (size_t face_id : facets) {
             const auto &face = its.indices[face_id];
             Vec3i32     new_face;
-            for (size_t v = 0; v < 3; ++v) {
+            for (size_t v = 0; v < 3; ++v) { // Visit each of the triangle's three vertices.
                 auto vi = face(v);
 
                 if (vidx_conv[vi].part_id != part_id) {
@@ -180,7 +180,7 @@ void its_split(const Its &m, OutputIt out_it)
 template<class Its>
 std::vector<indexed_triangle_set> its_split(const Its &its)
 {
-    auto ret = reserve_vector<indexed_triangle_set>(3);
+    auto ret = reserve_vector<indexed_triangle_set>(3); // Most meshes split into only a few components.
     its_split(its, std::back_inserter(ret));
 
     return ret;
@@ -236,7 +236,7 @@ std::vector<Vec3i32> create_face_neighbors_index(ExPolicy &&ex, const indexed_tr
         {
             Vec3i32& neighbor = neighbors[face_idx];
             const stl_triangle_vertex_indices & triangle_indices = indices[face_idx];
-            for (int edge_index = 0; edge_index < 3; ++edge_index) {
+            for (int edge_index = 0; edge_index < 3; ++edge_index) { // Visit each of the triangle's three edges.
                 // check if done
                 int& neighbor_edge = neighbor[edge_index];
                 if (neighbor_edge != no_value) 
@@ -249,9 +249,11 @@ std::vector<Vec3i32> create_face_neighbors_index(ExPolicy &&ex, const indexed_tr
                     const stl_triangle_vertex_indices &face_indices = indices[other_face];
                     int vertex_index = its_triangle_vertex_index(face_indices, edge_indices[1]);
                     // NOT Contain second vertex?
-                    if (vertex_index < 0) continue;
+                    if (vertex_index < 0 || vertex_index >= 3) continue; // Triangle vertex indices are limited to 0 through 2.
+                    static constexpr int next_vertex_indices[] = {1, 2, 0}; // Triangle vertex cycle: 0 -> 1 -> 2 -> 0.
+                    const int next_vertex_index = next_vertex_indices[vertex_index];
                     // Has NOT oposite direction?
-                    if (edge_indices[0] != face_indices[(vertex_index + 1) % 3]) continue;
+                    if (edge_indices[0] != face_indices[next_vertex_index]) continue;
                     neighbor_edge = other_face;
                     neighbors[other_face][vertex_index] = face_idx;
                     break;

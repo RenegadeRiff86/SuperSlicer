@@ -1322,8 +1322,9 @@ Polygons PrintObject::get_brim_patch(ModelVolumeType brim_type, const PrintInsta
 
 void PrintObject::clear_layers()
 {
-    for (Layer *l : m_layers)
-        delete l;
+    for (Layer *layer : m_layers) {
+        std::unique_ptr<Layer> layer_owner{layer};
+    }
     m_layers.clear();
 }
 
@@ -1335,8 +1336,9 @@ Layer* PrintObject::add_layer(int id, coordf_t height, coordf_t print_z, coordf_
 
 void PrintObject::clear_support_layers()
 {
-    for (Layer *l : m_support_layers)
-        delete l;
+    for (Layer *layer : m_support_layers) {
+        std::unique_ptr<Layer> layer_owner{layer};
+    }
     m_support_layers.clear();
 }
 
@@ -3213,7 +3215,7 @@ void PrintObject::discover_vertical_shells()
 
 // #define DEBUG_BRIDGE_OVER_INFILL
 #ifdef DEBUG_BRIDGE_OVER_INFILL
-template<typename T> void debug_draw(std::string name, const T& a, const T& b, const T& c, const T& d)
+template<typename T> void debug_draw(const std::string &name, const T& a, const T& b, const T& c, const T& d)
 {
     std::vector<std::string> colors = {"red", "green", "blue", "orange"};
     BoundingBox              bbox   = get_extents(a);

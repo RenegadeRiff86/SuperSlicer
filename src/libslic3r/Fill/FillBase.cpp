@@ -230,7 +230,7 @@ void Fill::fill_surface_extrusion_with_gap_fill(const Surface *surface,
 
     assert(params.add_gap_fill);
 
-    ExtrusionEntityCollection *coll_nosort = new ExtrusionEntityCollection();
+    auto coll_nosort = std::make_unique<ExtrusionEntityCollection>();
     coll_nosort->set_can_sort_reverse(false, false); //can be sorted inside the pass but thew two pass need to be done one after the other
     ExtrusionRole good_role = getRoleFromSurfaceType(params, surface);
 
@@ -342,11 +342,8 @@ void Fill::fill_surface_extrusion_with_gap_fill(const Surface *surface,
     }
 
     // === end ===
-    if (!coll_nosort->empty()) {
-        out.push_back(coll_nosort);
-    } else {
-        delete coll_nosort;
-    }
+    if (!coll_nosort->empty())
+        out.push_back(coll_nosort.release());
 
 }
 
@@ -378,7 +375,7 @@ void Fill::fill_surface_extrusion(const Surface *surface, const FillParams &para
             ExtrusionRole good_role = getRoleFromSurfaceType(params, surface);
 
             // to paths
-            ExtrusionEntityCollection* all_new_paths = new ExtrusionEntityCollection();
+            auto all_new_paths = std::make_unique<ExtrusionEntityCollection>();
             double extruded_volume = 0;
             for (const ThickPolyline& thick_polyline : thick_polylines) {
                 ExtrusionEntitiesPtr entities = Geometry::thin_variable_width(
@@ -415,11 +412,8 @@ void Fill::fill_surface_extrusion(const Surface *surface, const FillParams &para
             }
 
             //save into layer
-            if (all_new_paths->entities().size() > 0) {
-                out.push_back(all_new_paths);
-            } else {
-                delete all_new_paths;
-            }
+            if (!all_new_paths->entities().empty())
+                out.push_back(all_new_paths.release());
 
         } else {
             Polylines simple_polylines = this->fill_surface(surface, params);
@@ -3854,7 +3848,7 @@ void Fill::connect_infill(Polylines&& infill_ordered, const ExPolygon& boundary,
 void FillWithPerimeter::fill_surface_extrusion(const Surface *surface,
                                                const FillParams &params,
                                                ExtrusionEntitiesPtr &out) const {
-    ExtrusionEntityCollection *eecroot = new ExtrusionEntityCollection();
+    auto eecroot = std::make_unique<ExtrusionEntityCollection>();
     // you don't want to sort the extrusions: big infill first, small second
     eecroot->set_can_sort_reverse(true, true);
 
@@ -3874,7 +3868,7 @@ void FillWithPerimeter::fill_surface_extrusion(const Surface *surface,
     for (ExPolygon &expolygon : path_perimeter) {
         expolygon.assert_valid();
 
-        ExtrusionEntityCollection *eec_expoly = path_perimeter.size() == 1 ? eecroot :
+        ExtrusionEntityCollection *eec_expoly = path_perimeter.size() == 1 ? eecroot.get() :
                                                                              new ExtrusionEntityCollection();
         if (path_perimeter.size() > 1)
             eecroot->append(ExtrusionEntitiesPtr{eec_expoly});
@@ -3974,11 +3968,8 @@ void FillWithPerimeter::fill_surface_extrusion(const Surface *surface,
     }
 
     // === end ===
-    if (!eecroot->empty()) {
-        out.push_back(eecroot);
-    } else {
-        delete eecroot;
-    }
+    if (!eecroot->empty())
+        out.push_back(eecroot.release());
 }
 
 

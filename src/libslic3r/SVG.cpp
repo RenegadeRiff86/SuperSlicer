@@ -41,8 +41,8 @@ bool SVG::open(const char* afilename, const BoundingBox &bbox, const coord_t bbo
     this->f        = boost::nowide::fopen(afilename, "w");
     if (f == NULL)
         return false;
-    float w = to_svg_coord(bbox.max(0) - bbox.min(0) + 2 * bbox_offset);
-    float h = to_svg_coord(bbox.max(1) - bbox.min(1) + 2 * bbox_offset);
+    float w = to_svg_coord(bbox.max(0) - bbox.min(0) + 2 * bbox_offset); // Apply the offset on both horizontal sides.
+    float h = to_svg_coord(bbox.max(1) - bbox.min(1) + 2 * bbox_offset); // Apply the offset on both vertical sides.
     this->height   = h;
     fprintf(this->f,
         "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
@@ -209,7 +209,7 @@ void SVG::draw(const ThickPolylines& thickpolylines, const std::string& stroke) 
 void SVG::draw(const ThickPolylines& thickpolylines, const float scale, const std::string& stroke)
 {
     for (const ThickPolyline& poly : thickpolylines) {
-        if (poly.points.size() < 2) continue;
+        if (poly.points.size() < 2) continue; // A drawable line needs at least two points.
         Line l{ poly.points.front(), poly.points[1] };
         this->draw(Line{ poly.points.front(), l.midpoint() }, stroke, poly.points_width.front()  * scale);
         for (int i = 1; i < poly.points.size()-1; ++i) {
@@ -278,7 +278,7 @@ void SVG::path(const std::string &d, bool fill, coordf_t stroke_width, const flo
 {
     float lineWidth = 0.f;
     if (! fill)
-        lineWidth = (stroke_width == 0) ? 2.f : to_svg_coord(stroke_width);
+        lineWidth = (stroke_width == 0) ? 2.f : to_svg_coord(stroke_width); // Default SVG stroke width when none is specified.
 
     fprintf(
         this->f,

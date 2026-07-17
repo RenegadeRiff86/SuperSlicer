@@ -3,6 +3,7 @@ get_filename_component(_TEST_NAME ${CMAKE_CURRENT_LIST_DIR} NAME)
 set(_SUPERSLICERLIBSLIC3R_WIN32_SMOKE_TESTS
     test_clipper_utils
     test_dense_infill
+    test_gcodeprocessor
     test_thin
 )
 
@@ -37,6 +38,7 @@ create_test(test_extrusion_entity)
 create_test(test_fan_mover)
 create_test(test_fill)
 create_test(test_flow)
+create_test(test_gcodeprocessor)
 create_test(test_gcodewriter)
 create_test(test_geometry)
 create_test(test_model)

@@ -14,6 +14,8 @@
 #include "Core/ArrangeItemTraits.hpp"
 #include "Geometry/ConvexHull.hpp"
 
+#include <memory>
+
 namespace Slic3r { namespace arr2 {
 
 // to compute the max skirt, to be sure the skirt won't go out of the bed.
@@ -860,18 +862,17 @@ void DuplicableModel::apply_duplicates()
     for (ModelObject *o : m_model->objects) {
         // make a copy of the pointers in order to avoid recursion
         // when appending their copies
-        ModelInstancePtrs instances = o->instances;
+        std::vector<std::unique_ptr<ModelInstance>> instances;
+        instances.reserve(o->instances.size());
+        for (ModelInstance *instance : o->instances)
+            instances.emplace_back(instance);
         o->instances.clear();
-        for (const ModelInstance *i : instances) {
+        for (const std::unique_ptr<ModelInstance> &i : instances) {
             for (const ModelDuplicate &md : m_duplicates) {
                 ModelInstance *instance = o->add_instance(*i);
                 arr2::transform_instance(*instance, md.tr, md.rot);
             }
         }
-        for (auto *i : instances)
-            delete i;
-
-        instances.clear();
 
         o->invalidate_bounding_box();
     }

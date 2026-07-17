@@ -18,6 +18,7 @@
 #include "MainFrame.hpp"
 #include "OG_CustomCtrl.hpp"
 #include "MsgDialog.hpp"
+#include "ThemeMetrics.hpp"
 #include "format.hpp"
 #include "Tab.hpp"
 
@@ -260,8 +261,8 @@ void OptionsGroup::append_line(const Line& line)
 		)
 		return;
 
-	auto option_set = line.get_options();
-	for (auto opt : option_set)
+	const auto& option_set = line.get_options();
+	for (const auto& opt : option_set)
         m_options.emplace(OptionKeyIdx{opt.opt_key, opt.opt_idx}, opt);
 
     //if first control don't have a label, use the line one for the tooltip
@@ -306,7 +307,7 @@ void OptionsGroup::activate_line(Line& line)
 			sizer->Add(h_sizer, 1, wxEXPAND | wxALL, wxOSX ? 0 : 15);
 
             bool is_first_item = true;
-			for (auto extra_widget : line.get_extra_widgets()) {
+			for (const auto& extra_widget : line.get_extra_widgets()) {
 				h_sizer->Add(extra_widget(this->ctrl_parent()), is_first_item ? 1 : 0, wxLEFT, 15);
 				is_first_item = false;
 			}
@@ -323,7 +324,8 @@ void OptionsGroup::activate_line(Line& line)
 		if (is_legend_line)
 			sizer->Add(custom_ctrl, 0, wxEXPAND | wxLEFT, wxOSX ? 0 : 10);
 		else
-            sizer->Add(custom_ctrl, 0, wxEXPAND | wxALL, wxOSX || !staticbox ? 0 : 5);
+            sizer->Add(custom_ctrl, 0, wxEXPAND | wxALL,
+                       wxOSX || !staticbox ? 0 : ThemeMetrics::settings_group_padding(m_parent));
     }
 
 	// Set sidetext width for a better alignment of options in line
@@ -520,7 +522,7 @@ void OptionsGroup::activate_line(Line& line)
     }
 
     // add extra sizers if any
-    for (auto extra_widget : line.get_extra_widgets())
+    for (const auto& extra_widget : line.get_extra_widgets())
     {
         if (line.get_extra_widgets().size() == 1 && !staticbox)
         {
@@ -571,7 +573,8 @@ bool OptionsGroup::activate(std::function<void()> throw_if_canceled/* = [](){}*/
 		static_cast<wxFlexGridSizer*>(m_grid_sizer)->SetFlexibleDirection(wxBOTH);
 		static_cast<wxFlexGridSizer*>(m_grid_sizer)->AddGrowableCol(grow_col);
 
-		sizer->Add(m_grid_sizer, 0, wxEXPAND | wxALL, wxOSX || !staticbox ? 0 : 5);
+        sizer->Add(m_grid_sizer, 0, wxEXPAND | wxALL,
+                   wxOSX || !staticbox ? 0 : ThemeMetrics::settings_group_padding(m_parent));
 
 		// activate lines
 		for (Line& line: m_lines) {
@@ -778,7 +781,7 @@ void ConfigOptionsGroup::Show(const bool show)
 #endif /* __WXGTK__ */
 }
 
-std::vector<size_t> get_visible_idx(const std::map<ConfigOptionMode, std::vector<size_t>>& map, ConfigOptionMode mode) {
+static std::vector<size_t> get_visible_idx(const std::map<ConfigOptionMode, std::vector<size_t>>& map, ConfigOptionMode mode) {
     std::vector<size_t> ret;
     for (const auto& entry : map) {
         if (entry.first == comNone || (entry.first & mode) == mode)
@@ -786,7 +789,7 @@ std::vector<size_t> get_visible_idx(const std::map<ConfigOptionMode, std::vector
     }
     return ret;
 }
-std::vector<size_t> get_invisible_idx(const std::map<ConfigOptionMode, std::vector<size_t>>& map, ConfigOptionMode mode) {
+static std::vector<size_t> get_invisible_idx(const std::map<ConfigOptionMode, std::vector<size_t>>& map, ConfigOptionMode mode) {
     std::vector<size_t> ret;
     for (const auto& entry : map) {
         if (entry.first != comNone && (entry.first & mode) != mode)

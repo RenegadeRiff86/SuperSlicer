@@ -52,6 +52,8 @@
 
 namespace Slic3r {
 
+static constexpr int kDegreesPerHalfTurn = 180;
+
 // Having a segment of a closed polygon, calculate its Euclidian length.
 // The segment indices seg1 and seg2 signify an end point of an edge in the forward direction of the loop,
 // therefore the point p1 lies on poly.points[seg1-1], poly.points[seg1] etc.
@@ -3321,7 +3323,7 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
         BOOST_LOG_TRIVIAL(info) << "Sawtooth infill can't \"fill exactly\", setting ignored.";
     }
     if (!polylines_out.empty()) {
-        ExtrusionEntityCollection *eec = new ExtrusionEntityCollection();
+        auto eec = std::make_unique<ExtrusionEntityCollection>();
         /// pass the no_sort attribute to the extrusion path
         eec->set_can_sort_reverse(!this->no_sort(), !this->no_sort());
 
@@ -3330,7 +3332,7 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
         for (const Polyline &poly : polylines_out) {
             if (!poly.is_valid()) continue;
 
-            ExtrusionMultiPath3D *extrusions = new ExtrusionMultiPath3D();
+            auto extrusions = std::make_unique<ExtrusionMultiPath3D>();
             extrusions->paths.push_back(ExtrusionPath3D(ExtrusionAttributes{good_role,
                                                                             {params.flow.mm3_per_mm() * params.flow_mult,
                                                                              params.flow.width() * params.flow_mult, params.flow.height()}},
@@ -3348,9 +3350,9 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
                 //go next hop line
                 //do not use the "return" line nor the tangent ones.
                 while (idx < poly.size() && maxLength > tooth_spacing_min && (next_zhop >= line_length || line_length < clearance
-                    || (std::abs(std::abs(static_cast<int>(this->angle * 180 / PI) % 180) - 90) > 45 ? pts[idx].y() < pts[idx - 1].y() : pts[idx].x() < pts[idx - 1].x()))) {
+                    || (std::abs(std::abs(static_cast<int>(this->angle * kDegreesPerHalfTurn / PI) % kDegreesPerHalfTurn) - 90) > 45 ? pts[idx].y() < pts[idx - 1].y() : pts[idx].x() < pts[idx - 1].x()))) {
                     if (line_length < clearance 
-                        || (std::abs(std::abs(static_cast<int>(this->angle * 180 / PI) % 180) - 90) > 45 ? pts[idx].y() < pts[idx - 1].y() : pts[idx].x() < pts[idx - 1].x())) {
+                        || (std::abs(std::abs(static_cast<int>(this->angle * kDegreesPerHalfTurn / PI) % kDegreesPerHalfTurn) - 90) > 45 ? pts[idx].y() < pts[idx - 1].y() : pts[idx].x() < pts[idx - 1].x())) {
                         // not becasue of next_zhop too big, so don't reduce it.
                     } else {
                         next_zhop -= line_length;
@@ -3437,15 +3439,12 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
                 assert(b.polyline.is_valid());
             }
 #endif
-            if (!extrusions->paths.empty()) eec->append(ExtrusionEntitiesPtr{ extrusions });
-            else delete extrusions;
+            if (!extrusions->paths.empty())
+                eec->append(ExtrusionEntitiesPtr{ extrusions.release() });
         }
         // === end ===
-        if (!eec->empty()) {
-            out.push_back(eec);
-        } else {
-            delete eec;
-        }
+        if (!eec->empty())
+            out.push_back(eec.release());
     }
 }
 

@@ -30,13 +30,15 @@ typedef std::vector<ThickPolyline> ThickPolylines;
 //typedef std::vector<PolylineOrArc> PolylinesOrArcs;
 typedef std::vector<ArcPolyline> ArcPolylines;
 
+constexpr size_t polyline_min_point_count = 2;
+
 class Polyline : public MultiPoint {
 public:
     Polyline() = default;
     Polyline(const Polyline& other) : MultiPoint(other.points) {}
     Polyline(Polyline&& other) noexcept : MultiPoint(std::move(other.points)) {}
     Polyline(std::initializer_list<Point> list) : MultiPoint(list) {}
-    explicit Polyline(const Point& p1, const Point& p2) { points.reserve(2); points.emplace_back(p1); points.emplace_back(p2); }
+    explicit Polyline(const Point& p1, const Point& p2) { points.reserve(polyline_min_point_count); points.emplace_back(p1); points.emplace_back(p2); }
     explicit Polyline(const Points& points) : MultiPoint(points) {}
     explicit Polyline(Points&& points) : MultiPoint(std::move(points)) {}
     Polyline& operator=(const Polyline& other) { points = other.points; return *this; }
@@ -125,7 +127,7 @@ inline double total_length(const Polylines &polylines) {
 inline Lines to_lines(const Polyline &poly) 
 {
     Lines lines;
-    if (poly.points.size() >= 2) {
+    if (poly.points.size() >= polyline_min_point_count) {
         lines.reserve(poly.points.size() - 1);
         for (Points::const_iterator it = poly.points.begin(); it != poly.points.end()-1; ++it)
             lines.push_back(Line(*it, *(it + 1)));
@@ -236,7 +238,7 @@ public:
     const Point& front()        const { assert(points.size() == points_width.size()); return this->points.front(); }
     const Point& back()         const { assert(points.size() == points_width.size()); return this->points.back(); }
     size_t       size()         const { assert(points.size() == points_width.size()); return this->points.size(); }
-    bool         is_valid()     const { assert(points.size() == points_width.size()); return this->points.size() >= 2; }
+    bool         is_valid()     const { assert(points.size() == points_width.size()); return this->points.size() >= polyline_min_point_count; }
     bool         empty()        const { assert(points.size() == points_width.size()); return this->points.empty(); }
     double       length()       const { assert(points.size() == points_width.size()); return Slic3r::length(this->points); }
 

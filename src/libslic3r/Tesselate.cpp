@@ -8,6 +8,9 @@
 
 #include <glu-libtess.h>
 
+#include <limits>
+#include <stdexcept>
+
 namespace Slic3r {
 
 class GluTessWrapper {
@@ -269,13 +272,18 @@ indexed_triangle_set wall_strip(const Polygon &poly, double lower_z_mm, double u
     for (const Point &p : poly.points)
         ret.vertices.emplace_back(to_3d(unscaled(p).cast<float>().eval(), float(upper_z_mm)));
 
-    for (size_t i = startidx + 1; i < startidx + offs; ++i) {
-        ret.indices.emplace_back(i - 1, i, i + offs - 1);
-        ret.indices.emplace_back(i, i + offs, i + offs - 1);
+    if (ret.vertices.size() > static_cast<size_t>(std::numeric_limits<int32_t>::max()))
+        throw std::overflow_error("Wall strip exceeds the 32-bit mesh index range");
+
+    const int32_t start_idx = static_cast<int32_t>(startidx);
+    const int32_t offset    = static_cast<int32_t>(offs);
+    for (int32_t i = start_idx + 1; i < start_idx + offset; ++i) {
+        ret.indices.emplace_back(i - 1, i, i + offset - 1);
+        ret.indices.emplace_back(i, i + offset, i + offset - 1);
     }
 
-    ret.indices.emplace_back(startidx + offs - 1, startidx, startidx + 2 * offs - 1);
-    ret.indices.emplace_back(startidx, startidx + offs, startidx + 2 * offs - 1);
+    ret.indices.emplace_back(start_idx + offset - 1, start_idx, start_idx + 2 * offset - 1);
+    ret.indices.emplace_back(start_idx, start_idx + offset, start_idx + 2 * offset - 1);
 
     return ret;
 }

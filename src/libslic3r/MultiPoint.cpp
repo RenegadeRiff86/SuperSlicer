@@ -195,16 +195,15 @@ Points MultiPoint::visivalingam(const Points &pts, const double tolerance)
     areas.reserve(pts.size());
      // Construct the initial set of nodes. We will make a heap out of the "heap" vector using 
     // std::make_heap. node_list is used later.
-    std::vector<vis_node*> node_list;
-    node_list.resize(pts.size());
+    std::vector<std::unique_ptr<vis_node>> node_list(pts.size());
     std::vector<vis_node*> heap;
     heap.reserve(pts.size());
     for (size_t i = 1; i < pts.size() - 1; ++ i) {
         // Get effective area of current node.
         coordf_t area = effective_area(i, i - 1, i + 1);
         // If area is greater than some arbitrarily small value, use it.
-        node_list[i] = new vis_node(i, i - 1, i + 1, area);
-        heap.push_back(node_list[i]);
+        node_list[i] = std::make_unique<vis_node>(i, i - 1, i + 1, area);
+        heap.push_back(node_list[i].get());
     }
      // Call std::make_heap, which uses the < operator by default to make "heap" into 
     // a binheap, sorted by the < operator we defind in the vis_node struct
@@ -219,13 +218,13 @@ Points MultiPoint::visivalingam(const Points &pts, const double tolerance)
         std::pop_heap(heap.begin(), heap.end());
         heap.pop_back();
          // Sanity assert check
-        assert(curr == node_list[curr->pt_idx]);
+        assert(curr == node_list[curr->pt_idx].get());
          // If the current pt'ss area is less than that of the previous pt's area
         // use the last pt's area instead. This ensures we don't elimate the current
         // point without eliminating the previous 
         min_area = std::max(min_area, curr->area);
          // Update prev
-        vis_node* prev = node_list[curr->prev_idx];
+        vis_node* prev = node_list[curr->prev_idx].get();
         if(prev != nullptr){
             prev->next_idx = curr->next_idx;
             prev->area = effective_area(prev->pt_idx, prev->prev_idx, prev->next_idx);
@@ -233,15 +232,14 @@ Points MultiPoint::visivalingam(const Points &pts, const double tolerance)
             std::make_heap(heap.begin(), heap.end());
         }
          // Update next
-        vis_node* next = node_list[curr->next_idx];
+        vis_node* next = node_list[curr->next_idx].get();
         if(next != nullptr){
             next->prev_idx = curr->prev_idx;
             next->area = effective_area(next->pt_idx, next->prev_idx, next->next_idx);
             std::make_heap(heap.begin(), heap.end());
         }
          areas[curr->pt_idx] = min_area;
-        node_list[curr->pt_idx] = nullptr;
-        delete curr;
+        node_list[curr->pt_idx].reset();
     }
     // Clear node list and shrink_to_fit() (to free actual memory). Not necessary. Could be removed.
     node_list.clear();

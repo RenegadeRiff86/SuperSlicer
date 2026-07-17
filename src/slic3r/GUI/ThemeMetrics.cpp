@@ -30,6 +30,13 @@ struct TokenTable {
     double notebook_line_margin_em;
     double notebook_min_height_em;
 
+    double settings_row_gap_em;
+    double settings_horizontal_gap_em;
+    double settings_sidebar_width_em;
+    double settings_group_margin_em;
+    double settings_group_padding_em;
+    double settings_scroll_step_em;
+
     float toolbar_border_px;
     float toolbar_separator_px;
     float toolbar_main_gap_px;
@@ -40,18 +47,24 @@ struct TokenTable {
 constexpr std::array<std::array<TokenTable, 2>, 3> TOKEN_TABLE = {{
     // Windows
     {{
-        {0.10, 0.20, 0.30, 0.40, 0.20, 0.30, 0.10, 0.30, 0.10, 2.40, 5.0f, 5.0f, 4.0f, 1.0f, 2.0f},
-        {0.08, 0.15, 0.23, 0.30, 0.16, 0.24, 0.08, 0.23, 0.08, 1.80, 4.0f, 4.0f, 3.0f, 1.0f, 1.0f}
+        {0.10, 0.20, 0.30, 0.40, 0.20, 0.30, 0.10, 0.30, 0.10, 2.40,
+         1.15, 0.35, 22.0, 0.75, 0.55, 2.40, 5.0f, 5.0f, 4.0f, 1.0f, 2.0f},
+        {0.08, 0.15, 0.23, 0.30, 0.16, 0.24, 0.08, 0.23, 0.08, 1.80,
+         0.80, 0.20, 19.0, 0.45, 0.35, 1.80, 4.0f, 4.0f, 3.0f, 1.0f, 1.0f}
     }},
     // macOS
     {{
-        {0.12, 0.24, 0.40, 0.50, 0.22, 0.34, 0.10, 0.40, 0.10, 2.40, 5.0f, 5.0f, 4.0f, 1.0f, 2.0f},
-        {0.09, 0.18, 0.30, 0.38, 0.17, 0.26, 0.08, 0.30, 0.08, 1.80, 4.0f, 4.0f, 3.0f, 1.0f, 1.0f}
+        {0.12, 0.24, 0.40, 0.50, 0.22, 0.34, 0.10, 0.40, 0.10, 2.40,
+         1.20, 0.40, 22.0, 0.80, 0.60, 2.40, 5.0f, 5.0f, 4.0f, 1.0f, 2.0f},
+        {0.09, 0.18, 0.30, 0.38, 0.17, 0.26, 0.08, 0.30, 0.08, 1.80,
+         0.85, 0.25, 19.0, 0.50, 0.40, 1.80, 4.0f, 4.0f, 3.0f, 1.0f, 1.0f}
     }},
     // Linux and others
     {{
-        {0.12, 0.24, 0.40, 0.50, 0.22, 0.34, 0.10, 0.40, 0.10, 2.40, 5.0f, 5.0f, 4.0f, 1.0f, 2.0f},
-        {0.09, 0.18, 0.30, 0.38, 0.17, 0.26, 0.08, 0.30, 0.08, 1.80, 4.0f, 4.0f, 3.0f, 1.0f, 1.0f}
+        {0.12, 0.24, 0.40, 0.50, 0.22, 0.34, 0.10, 0.40, 0.10, 2.40,
+         1.20, 0.40, 22.0, 0.80, 0.60, 2.40, 5.0f, 5.0f, 4.0f, 1.0f, 2.0f},
+        {0.09, 0.18, 0.30, 0.38, 0.17, 0.26, 0.08, 0.30, 0.08, 1.80,
+         0.85, 0.25, 19.0, 0.50, 0.40, 1.80, 4.0f, 4.0f, 3.0f, 1.0f, 1.0f}
     }}
 }};
 
@@ -115,6 +128,13 @@ int stroke_thin(wxWindow* win) { return em_scaled_min1(win, table().stroke_thin_
 int notebook_button_margin(wxWindow* win) { return em_scaled_min1(win, table().notebook_btn_margin_em); }
 int notebook_line_margin(wxWindow* win) { return em_scaled_min1(win, table().notebook_line_margin_em); }
 int notebook_min_height(wxWindow* win) { return em_scaled_min1(win, table().notebook_min_height_em); }
+
+int settings_row_gap(wxWindow* win) { return em_scaled_min1(win, table().settings_row_gap_em); }
+int settings_horizontal_gap(wxWindow* win) { return em_scaled_min1(win, table().settings_horizontal_gap_em); }
+int settings_sidebar_width(wxWindow* win) { return em_scaled_min1(win, table().settings_sidebar_width_em); }
+int settings_group_margin(wxWindow* win) { return em_scaled_min1(win, table().settings_group_margin_em); }
+int settings_group_padding(wxWindow* win) { return em_scaled_min1(win, table().settings_group_padding_em); }
+int settings_scroll_step(wxWindow* win) { return em_scaled_min1(win, table().settings_scroll_step_em); }
 
 float toolbar_border() { return table().toolbar_border_px; }
 float toolbar_separator() { return table().toolbar_separator_px; }

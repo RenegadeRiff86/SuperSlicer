@@ -5,6 +5,7 @@
 #ifndef slic3r_MultiMaterialSegmentation_hpp_
 #define slic3r_MultiMaterialSegmentation_hpp_
 
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -16,10 +17,12 @@ using ExPolygons = std::vector<ExPolygon>;
 
 struct ColoredLine
 {
-    Line line;
-    int  color;
-    int  poly_idx       = -1;
-    int  local_line_idx = -1;
+    static constexpr size_t invalid_index = std::numeric_limits<size_t>::max();
+
+    Line   line;
+    int    color;
+    size_t poly_idx       = invalid_index;
+    size_t local_line_idx = invalid_index;
 };
 
 using ColoredLines = std::vector<ColoredLine>;

@@ -22,6 +22,13 @@ int notebook_button_margin(wxWindow* win);
 int notebook_line_margin(wxWindow* win);
 int notebook_min_height(wxWindow* win);
 
+int settings_row_gap(wxWindow* win);
+int settings_horizontal_gap(wxWindow* win);
+int settings_sidebar_width(wxWindow* win);
+int settings_group_margin(wxWindow* win);
+int settings_group_padding(wxWindow* win);
+int settings_scroll_step(wxWindow* win);
+
 float toolbar_border();
 float toolbar_separator();
 float toolbar_main_gap();

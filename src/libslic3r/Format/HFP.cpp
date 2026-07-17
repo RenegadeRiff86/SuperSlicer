@@ -25,7 +25,15 @@
 
 namespace Slic3r {
 
-HFP::HFP() : m_base_layer_height(0.0), m_layer_height(0.0) {}
+static void append_slider_values(const std::string &value, std::vector<int> &slider_values)
+{
+    std::istringstream value_stream(value);
+    int slider_value;
+    while (value_stream >> slider_value)
+        slider_values.push_back(slider_value + 1); // Convert HFP's zero-based indices to one-based indices.
+}
+
+HFP::HFP() : m_base_layer_height(0.0), m_layer_height(0.0) {} // Zero marks layer heights as not yet loaded.
 
 bool HFP::valid_hfp() const { return m_json_data.is_object(); }
 
@@ -48,8 +56,8 @@ bool HFP::load_hfp(const std::string &input_file) {
     m_filament_set.clear();
     m_json_data.clear();
     m_slider_values.clear();
-    m_base_layer_height = 0.0;
-    m_layer_height = 0.0;
+    m_base_layer_height = 0.0; // Reset the previous file's base layer height.
+    m_layer_height = 0.0;      // Reset the previous file's regular layer height.
 
     try {
         // Check if content is JSON format
@@ -62,13 +70,13 @@ bool HFP::load_hfp(const std::string &input_file) {
 
             // Load Base Layer Height
             if (m_json_data.contains("base_layer_height")) {
-                m_base_layer_height = m_json_data.value("base_layer_height", 0.0);
+                m_base_layer_height = m_json_data.value("base_layer_height", 0.0); // Zero is the format's unset height.
                 BOOST_LOG_TRIVIAL(info) << "Base Layer Height: " << m_base_layer_height;
             }
 
             // Load Layer Height
             if (m_json_data.contains("layer_height")) {
-                m_layer_height = m_json_data.value("layer_height", 0.0);
+                m_layer_height = m_json_data.value("layer_height", 0.0); // Zero is the format's unset height.
                 BOOST_LOG_TRIVIAL(info) << "Layer Height: " << m_layer_height;
             }
 
@@ -83,7 +91,7 @@ bool HFP::load_hfp(const std::string &input_file) {
                     filament.Color = filament_json.value("Color", "");
                     filament.Name = filament_json.value("Name", "");
                     filament.Owned = filament_json.value("Owned", false);
-                    filament.Transmissivity = filament_json.value("Transmissivity", 0.0);
+                    filament.Transmissivity = filament_json.value("Transmissivity", 0.0); // Zero means no light transmission.
                     filament.Type = filament_json.value("Type", "");
                     filament.uuid = filament_json.value("uuid", "");
 
@@ -120,38 +128,35 @@ bool HFP::load_hfp(const std::string &input_file) {
                 BOOST_LOG_TRIVIAL(info) << "Processing line: " << line;
 
                 size_t delimiter_pos = line.find(":");
-                if (delimiter_pos != std::string::npos) {
-                    std::string key = line.substr(0, delimiter_pos);
-                    std::string value = line.substr(delimiter_pos + 1);
+                if (delimiter_pos == std::string::npos)
+                    continue;
 
-                    // Trim spaces
-                    key.erase(0, key.find_first_not_of(" \t"));
-                    key.erase(key.find_last_not_of(" \t") + 1);
-                    value.erase(0, value.find_first_not_of(" \t"));
-                    value.erase(value.find_last_not_of(" \t") + 1);
+                std::string key = line.substr(0, delimiter_pos);
+                std::string value = line.substr(delimiter_pos + 1);
 
-                    // Process each key dynamically
-                    if (key == "base_layer_height") {
-                        m_base_layer_height = std::stof(value);
-                        BOOST_LOG_TRIVIAL(info) << "Base Layer Height: " << m_base_layer_height;
-                    } else if (key == "layer_height") {
-                        m_layer_height = std::stof(value);
-                        BOOST_LOG_TRIVIAL(info) << "Layer Height: " << m_layer_height;
-                    } else if (key == "slider_values") {
-                        std::istringstream value_stream(value);
-                        int slider_value;
-                        while (value_stream >> slider_value) {
-                            m_slider_values.push_back(slider_value + 1); // Always increment by 1
-                        }
-                        BOOST_LOG_TRIVIAL(info) << "Loaded slider values with +1 increment.";
-                    }
-                    // Handle filaments dynamically (if stored as key-value in this format)
-                    else if (key.find("filament_") == 0) {
-                        filament.Name = key;
-                        filament.Brand = value;
-                        m_filament_set.push_back(filament);
-                        BOOST_LOG_TRIVIAL(info) << "Loaded filament: " << filament.Brand;
-                    }
+                // Trim spaces
+                key.erase(0, key.find_first_not_of(" \t"));
+                key.erase(key.find_last_not_of(" \t") + 1);
+                value.erase(0, value.find_first_not_of(" \t"));
+                value.erase(value.find_last_not_of(" \t") + 1);
+
+                // Process each key dynamically
+                if (key == "base_layer_height") {
+                    m_base_layer_height = std::stof(value);
+                    BOOST_LOG_TRIVIAL(info) << "Base Layer Height: " << m_base_layer_height;
+                } else if (key == "layer_height") {
+                    m_layer_height = std::stof(value);
+                    BOOST_LOG_TRIVIAL(info) << "Layer Height: " << m_layer_height;
+                } else if (key == "slider_values") {
+                    append_slider_values(value, m_slider_values);
+                    BOOST_LOG_TRIVIAL(info) << "Loaded slider values with +1 increment.";
+                }
+                // Handle filaments dynamically (if stored as key-value in this format)
+                else if (key.find("filament_") == 0) {
+                    filament.Name = key;
+                    filament.Brand = value;
+                    m_filament_set.push_back(filament);
+                    BOOST_LOG_TRIVIAL(info) << "Loaded filament: " << filament.Brand;
                 }
             }
         }
@@ -180,9 +185,10 @@ void HFP::set_custom_gcode_z(Model &model) const {
 }
 
 void HFP::update_config(DynamicPrintConfig &fff_print_config) const {
-    fff_print_config.set_key_value("layer_height", new ConfigOptionFloat(this->get_layer_height()));
-    fff_print_config.set_key_value("first_layer_height",
-                                   new ConfigOptionFloatOrPercent(this->get_base_layer_height(), false));
+    fff_print_config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(this->get_layer_height()));
+    fff_print_config.set_key_value(
+        "first_layer_height",
+        std::make_unique<ConfigOptionFloatOrPercent>(this->get_base_layer_height(), false));
 }
 
 

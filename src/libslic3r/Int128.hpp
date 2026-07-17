@@ -263,6 +263,17 @@ private:
 
 /******************************************** Common methods ************************************************/
 
+private:
+    static int64_t rounded_upper_32_bits(int64_t value)
+    {
+        constexpr int64_t upper_word_divisor = int64_t{1} << 32; // Scale from the full 64-bit value to its upper 32 bits.
+        constexpr int64_t half_upper_word     = upper_word_divisor / 2;
+        const int64_t     quotient            = value / upper_word_divisor;
+        const int64_t     remainder           = value % upper_word_divisor;
+        return quotient + static_cast<int64_t>(remainder >= half_upper_word) -
+               static_cast<int64_t>(remainder < -half_upper_word);
+    }
+
 public:
 
     // Evaluate signum of a 2x2 determinant, use a numeric filter to avoid 128 bit multiply if possible.
@@ -270,10 +281,10 @@ public:
     {
         // First try to calculate the determinant over the upper 31 bits.
         // Round p1, p2, q1, q2 to 31 bits.
-        int64_t a11s = (a11 + (1 << 31)) >> 32;
-        int64_t a12s = (a12 + (1 << 31)) >> 32;
-        int64_t a21s = (a21 + (1 << 31)) >> 32;
-        int64_t a22s = (a22 + (1 << 31)) >> 32;
+        int64_t a11s = rounded_upper_32_bits(a11);
+        int64_t a12s = rounded_upper_32_bits(a12);
+        int64_t a21s = rounded_upper_32_bits(a21);
+        int64_t a22s = rounded_upper_32_bits(a22);
         // Result fits 63 bits, it is an approximate of the determinant divided by 2^64.
         int64_t det  = a11s * a22s - a12s * a21s;
         // Maximum absolute of the remainder of the exact determinant, divided by 2^64.
@@ -290,11 +301,11 @@ public:
         // First try to calculate the determinant over the upper 31 bits.
         // Round p1, p2, q1, q2 to 31 bits.
         int     invert = ((q1 < 0) == (q2 < 0)) ? 1 : -1;
-        int64_t q1s = (q1 + (1 << 31)) >> 32;
-        int64_t q2s = (q2 + (1 << 31)) >> 32;
+        int64_t q1s = rounded_upper_32_bits(q1);
+        int64_t q2s = rounded_upper_32_bits(q2);
         if (q1s != 0 && q2s != 0) {
-            int64_t p1s = (p1 + (1 << 31)) >> 32;
-            int64_t p2s = (p2 + (1 << 31)) >> 32;
+            int64_t p1s = rounded_upper_32_bits(p1);
+            int64_t p2s = rounded_upper_32_bits(p2);
             // Result fits 63 bits, it is an approximate of the determinant divided by 2^64.
             int64_t det = p1s * q2s - p2s * q1s;
             // Maximum absolute of the remainder of the exact determinant, divided by 2^64.

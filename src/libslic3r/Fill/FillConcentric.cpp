@@ -82,9 +82,8 @@ FillConcentric::_fill_surface_single(
     }
     if (j < polylines_out.size())
         polylines_out.erase(polylines_out.begin() + int(j), polylines_out.end());
-    //TODO: return ExtrusionLoop objects to get better chained paths,
-    // otherwise the outermost loop starts at the closest point to (0, 0).
-    // We want the loops to be split inside the G-code generator to get optimum path planning.
+    // Keep polylines here: the G-code generator splits loops later so path planning can choose an optimal start point
+    // instead of forcing the outermost loop to start nearest (0, 0).
     assert_valid(polylines_out);
 }
 
@@ -210,7 +209,7 @@ FillConcentric::fill_surface_extrusion(
         //get the role
         ExtrusionRole good_role = getRoleFromSurfaceType(params, surface);
 
-        ExtrusionEntityCollection* root_collection_nosort = new ExtrusionEntityCollection(false, false);
+        auto root_collection_nosort = std::make_unique<ExtrusionEntityCollection>(false, false);
 
         //pattern (don't modify/move it)
         const ExtrusionEntityCollection eec_pattern_no_sort{ false, false };
@@ -307,7 +306,7 @@ FillConcentric::fill_surface_extrusion(
                     }
                 }
             }
-            //TODO: move items that are alone in a collection to the upper collection.
+            // Keep single-item collections at this level so the bunch-to-gap index mapping below remains stable.
 
             //add gapfills
             if (idx_bunch < bunch_2_gaps.size() && !bunch_2_gaps[idx_bunch].empty() && params.density >= 1) {
@@ -413,8 +412,7 @@ FillConcentric::fill_surface_extrusion(
 
 
         if (!root_collection_nosort->entities().empty())
-            out_to_check.push_back(root_collection_nosort);
-        else delete root_collection_nosort;
+            out_to_check.push_back(root_collection_nosort.release());
     }
 
     // external gapfill

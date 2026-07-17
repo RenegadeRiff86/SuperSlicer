@@ -8,6 +8,9 @@
 #include "libslic3r.h"
 #include "ExtrusionEntity.hpp"
 #include "BoundingBox.hpp"
+
+#include <memory>
+
 //note: not used anymore
 namespace Slic3r {
 
@@ -55,7 +58,7 @@ private:
     BoundingBox				    	viewport;
     BoundingBox 					bbox;
 
-    ExtrusionSimulatorImpl		   *pimpl;
+    std::unique_ptr<ExtrusionSimulatorImpl> pimpl;
 };
 
 }

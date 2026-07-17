@@ -2765,7 +2765,7 @@ void setDefaultMPFSegmentHeader(MPF_HEADER* appHeader, const char* strId, uint16
  *  1: success
  *  0: error
  */
-static int readAppNSegmentHeader(FILE *fp, APP_HEADER* appHeader, size_t startOffset)
+static int readAppNSegmentHeader(FILE *fp, APP_HEADER* appHeader, long startOffset)
 {
     // read the APP1 header
     if (fseek(fp, startOffset, SEEK_SET) != 0 ||
@@ -2799,7 +2799,7 @@ static int readAppNSegmentHeader(FILE *fp, APP_HEADER* appHeader, size_t startOf
 *  1: success
 *  0: error
 */
-static int readMPFSegmentHeader(FILE *fp, MPF_HEADER* appHeader, size_t startOffset)
+static int readMPFSegmentHeader(FILE *fp, MPF_HEADER* appHeader, long startOffset)
 {
     // read the MPF header
     if (fseek(fp, startOffset, SEEK_SET) != 0 ||

@@ -127,8 +127,6 @@ public:
     bool intersect(const ExPolygon &expoly) { if (intersect(expoly.contour)) return true; for (size_t i = 0; i < expoly.holes.size(); ++ i) if (intersect(expoly.holes[i])) return true; return false; }
     bool intersect(const ExPolygons &expolygons) { for (size_t i = 0; i < expolygons.size(); ++ i) if (intersect(expolygons[i])) return true; return false; }
 
-    // Test, whether a point is inside a contour.
-    bool inside(const Point &pt);
 #endif
 
     // Fill in a rough m_signed_distance_field from the edge grid.

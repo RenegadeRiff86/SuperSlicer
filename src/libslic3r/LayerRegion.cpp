@@ -151,8 +151,8 @@ void LayerRegion::make_perimeters(
     const PrintRegionConfig &region_config = this->region().config();
     // This needs to be in sync with PrintObject::_slice() slicing_mode_normal_below_layer!
     bool spiral_vase = print_config.spiral_vase &&
-        //FIXME account for raft layers.
-        (this->layer()->id() >= size_t(region_config.bottom_solid_layers.value) &&
+        // Layer::id() is offset by the raft layer count (see new_layers() in PrintObjectSlice.cpp), so bottom_solid_layers must be compared against the object-relative layer index.
+        (this->layer()->id() >= this->layer()->object()->slicing_parameters().raft_layers() + size_t(region_config.bottom_solid_layers.value) &&
          this->layer()->print_z >= region_config.bottom_solid_min_thickness - EPSILON);
 
     Flow bridging_flow = (region_config.overhangs.get_bool() && region_config.overhangs_flow_ratio.is_enabled()) ?

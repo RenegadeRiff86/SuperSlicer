@@ -32,6 +32,7 @@ namespace Slic3r::OrcaTreeSupport3D
 // Repeated string literals extracted to named constants (BP1001).
 static constexpr const char* kAndLayer = " and layer ";
 static constexpr const char* kPrecalcPerfWarn = ", but precalculate was called. Performance may suffer!";
+static constexpr double kClipperMiterLimit = 1.2;
 
 using namespace std::literals;
 
@@ -49,7 +50,7 @@ static Polygons calculateMachineBorderCollision(Polygon machine_border)
     // (branch radius + xy distance); it must stay well below ClipperLib's loRange
     // (~1.07e9 units, i.e. ~1073mm from the origin) - a 1m border overflows that range
     // and silently breaks all collision/avoidance queries.
-    Polygons out = offset(machine_border, scaled<float>(100.), jtMiter, 1.2);
+    Polygons out = offset(machine_border, scaled<float>(100.), jtMiter, kClipperMiterLimit);
     machine_border.reverse(); // Makes the polygon negative so that we subtract the actual volume from the collision area.
     out.emplace_back(std::move(machine_border));
     return out;
@@ -463,7 +464,7 @@ void OrcaTreeModelVolumes::calculateCollision(const coord_t radius, const LayerI
                     // if a key does not exist when it is accessed it is added!
                     collision_areas_offsetted[layer_idx] = offset_value == 0 ?
                             union_(collision_areas) :
-                            offset(union_ex(collision_areas), offset_value, ClipperLib::jtMiter, 1.2);
+                            offset(union_ex(collision_areas), offset_value, ClipperLib::jtMiter, kClipperMiterLimit);
                     if(throw_on_cancel)
                         throw_on_cancel();
                 }
@@ -516,10 +517,10 @@ void OrcaTreeModelVolumes::calculateCollision(const coord_t radius, const LayerI
                                     // the conditional -0.5 ensures that plastic can never touch on the diagonal
                                     // downward when the z_distance_top_layers = 1. It is assumed to be better to
                                     // not support an overhang<90 degree than to risk fusing to it.
-                                append(collisions, offset(union_ex(collision_areas_original), radius + required_range_x, ClipperLib::jtMiter, 1.2));
+                                append(collisions, offset(union_ex(collision_areas_original), radius + required_range_x, ClipperLib::jtMiter, kClipperMiterLimit));
                             }
                         collisions = processing_last_mesh && layer_idx < int(anti_overhang.size()) ? 
-                                union_(collisions, offset(union_ex(anti_overhang[layer_idx]), radius, ClipperLib::jtMiter, 1.2)) : 
+                                union_(collisions, offset(union_ex(anti_overhang[layer_idx]), radius, ClipperLib::jtMiter, kClipperMiterLimit)) : 
                                 union_(collisions);
                         auto &dst = data[layer_idx];
                         if (processing_last_mesh) {
@@ -745,7 +746,7 @@ void OrcaTreeModelVolumes::calculatePlaceables(const coord_t radius, const Layer
                     // it can happen that a small line is considered a flat area to place something onto, even though it is mostly 
                     // xy_distance that cant support it. Making the area smaller by xy_distance fixes this.
                     - (radius + m_current_min_xy_dist + m_current_min_xy_dist_delta),
-                    jtMiter, 1.2);
+                    jtMiter, kClipperMiterLimit);
                 if(throw_on_cancel)
                     throw_on_cancel();
             }

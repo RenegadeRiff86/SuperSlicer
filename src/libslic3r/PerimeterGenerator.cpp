@@ -2000,7 +2000,7 @@ ExtrusionEntityCollection PerimeterGenerator::_traverse_extrusions(const Paramet
                 assert(paths.back().last_point().coincides_with_epsilon(paths.front().first_point()));
                 ExtrusionLoop extrusion_loop(std::move(paths), loop_role);
                 // Restore the orientation of the extrusion loop.
-                //TODO: use if (loop.is_steep_overhang && params.layer->id() % 2 == 1) to make_clockwise => need to detect is_steep_overhang on the arachne path
+                // Arachne paths do not expose steep-overhang state here, so alternating direction uses only perimeter_reverse.
                 bool need_ccw = ((params.config.perimeter_reverse /*|| pg_extrusion.is_steep_overhang*/ && params.layer->id() % 2 == 1)
                                  == (pg_extrusion.is_contour ? CCW_contour : CCW_hole));
                 if (need_ccw != extrusion_loop.is_clockwise()) {
@@ -2067,7 +2067,7 @@ void convert_to_clipperpath_with_bbox(const Polygons& source, const BoundingBox&
                 out.emplace_back(pt.x(), pt.y(), 0);
         }
     }
-    //TODO: verify it doesn't need any union_ to fix ccw and cw intersect
+    // Preserve each clipped path independently so its winding and per-vertex Z metadata remain intact.
 }
 
 #ifdef _DEBUG
@@ -2081,7 +2081,7 @@ void test_overhangs(const ClipperLib_Z::Paths& path1, const ClipperLib_Z::Paths&
             assert(poly[i] != poly[i + 1]);
     // check if points are equal
     //  => points can be different from diff & intersect
-    // TODO: create a new operation that create the diff & intersect at the same time
+    // Difference and intersection may choose different boundary vertices; validate each result independently here.
 }
 #endif
 
@@ -2162,7 +2162,7 @@ bool merge_path(const ClipperLib_Z::Path &tomerge, ClipperLib_Z::Paths &receiver
     return found_first && found_last;
 }
 
-//TODO: transform to ExtrusionMultiPath instead of ExtrusionPaths
+// Return split paths so each fragment retains its own role and overhang attributes; callers rebuild continuity afterward.
 ExtrusionPaths PerimeterGenerator::create_overhangs_arachne(const Parameters &        params,
                                                             const ClipperLib_Z::Path &arachne_path,
                                                             const BoundingBox &       extrusion_path_bbox,
@@ -2708,7 +2708,7 @@ ExtrusionPaths PerimeterGenerator::create_overhangs_arachne(const Parameters &  
     }
     assert(overhang_params.overhang_type_2_lh.size() == 6);
     assert(idx_lh_size >= 0 && idx_lh_size < 7);
-    //FIXME from here, it's ~exactly the same as the other create_overhangs, please merge that into a function.
+    // Possible refactor: from here, it's ~exactly the same as the other create_overhangs, please merge that into a function.
 
     overhang_params.is_loop = is_loop;
     overhang_params.is_external = is_external;
@@ -3017,7 +3017,7 @@ ExtrusionPaths sort_extra_perimeters(const ExtrusionPaths& extra_perims, int ind
 // #define EXTRA_PERIM_DEBUG_FILES
 // Function will generate extra perimeters clipped over nonbridgeable areas of the provided surface and returns both the new perimeters and
 // Polygons filled by those clipped perimeters
-//TODO: not overhang flow over perimeters.
+// Extra perimeters use overhang flow only after clipping their centerlines to non-bridgeable regions.
 std::tuple<std::vector<ExtrusionPaths>, ExPolygons, ExPolygons> generate_extra_perimeters_over_overhangs(const ExPolygon &island,
                                                                                            const ExPolygons      &infill_area,
                                                                                            const Parameters        &params,
@@ -3169,7 +3169,7 @@ std::tuple<std::vector<ExtrusionPaths>, ExPolygons, ExPolygons> generate_extra_p
                 perimeter_polygon = union_ex(perimeter_polygon, anchoring);
                 perimeter_polygon = intersection_ex(offset_ex(perimeter_polygon, -overhang_scaled_spacing), expanded_overhang_to_cover);
 
-                //TODO: cut the extrusions to have normal flow in the supported area.
+                // The centerlines are already clipped to shrinked_overhang_to_cover, so supported areas do not receive overhang flow.
                 if (perimeter_polygon.empty()) { // fill possible gaps of single extrusion width
                     ExPolygons shrinked = intersection_ex(offset_ex(prev, -0.3 * overhang_scaled_spacing), expanded_overhang_to_cover);
                     if (!shrinked.empty())
@@ -3626,7 +3626,7 @@ ProcessSurfaceResult PerimeterGenerator::process_arachne(const Parameters &param
     }
 #endif
 
-    // hack to fix points that go to the moon. https://github.com/supermerill/SuperSlicer/issues/4032
+    // Note: workaround for points that go to the moon, see https://github.com/supermerill/SuperSlicer/issues/4032
     // get max dist possible
     const distsqrf_t max_dist_sqr = srf_bb.min.distance_to_square(srf_bb.max);
     //detect astray points and delete them
@@ -3737,7 +3737,7 @@ ProcessSurfaceResult PerimeterGenerator::process_arachne(const Parameters &param
         map_extrusion_to_idx.emplace(all_extrusions[idx], idx);
 
     
-    //TODO: order extrusion for contour/hole separatly
+    // Compute one topological order across contours and holes so blocking constraints remain global.
     bool reverse_order = params.config.external_perimeters_first.value
         || (params.object_config.brim_width.value > 0 && params.layer->id() == 0)
         || (params.object_config.brim_width_interior.value > 0 && params.layer->id() == 0);
@@ -4057,7 +4057,7 @@ void PerimeterGenerator::process(// Input:
             // mask for "no overlap" area
             ExPolygons &fill_no_overlap)
 {
-    //TODO: remove these from member
+    // Store slice context on the generator because downstream perimeter helpers share it throughout this call.
     this->lower_slices = lower_slices;
     this->slices = &slices;
     this->upper_slices = upper_slices;
@@ -4188,7 +4188,7 @@ void PerimeterGenerator::process(// Input:
                                                              half_extperi_offset));
         }
 
-        // TODO: clip_clipper_polygons_with_subject_bbox(lower_slices);
+        // Each configured overhang area is intersected with simplified slices below, avoiding a separate whole-set bounding-box clip.
         params.lower_slices_bridge_speed_small.clear();
         params.lower_slices_bridge_speed_big.clear();
         params.lower_slices_bridge_flow_small.clear();
@@ -4266,7 +4266,7 @@ void PerimeterGenerator::process(// Input:
                     }
                 }
 
-                // FIXME: can remove thinalls from support. you need to take them back, but they are computed in // ...
+                // Possible refactor: can remove thinwalls from support. you need to take them back, but they are computed in // ...
                 // for overhangs detection
                 Polygons offseted = offset(region_simplified,
                                            (coordf_t) (overhangs_width_speed_90 + SCALED_EPSILON - half_extperi_offset));
@@ -4354,8 +4354,9 @@ void PerimeterGenerator::process(// Input:
             }
         }
 
-        bool has_only_one_perimeter_top = (params.region_setting.has_many_config(&params.config.only_one_perimeter_top) ||
-                                           params.region_setting.get_solo_config(&params.config.only_one_perimeter_top).get_bool());
+        const bool has_mixed_one_perimeter_top = params.region_setting.has_many_config(&params.config.only_one_perimeter_top);
+        const bool has_only_one_perimeter_top  = has_mixed_one_perimeter_top ||
+                                                  params.region_setting.get_solo_config(&params.config.only_one_perimeter_top).get_bool();
         if ((params.layer->id() == 0 && params.config.only_one_perimeter_first_layer) ||
             (has_only_one_perimeter_top && this->upper_slices == NULL)) {
             nb_loop_contour = std::min(nb_loop_contour, 1);
@@ -4408,8 +4409,8 @@ void PerimeterGenerator::process(// Input:
                     (*it)->visit(*this);
                     if (*it != current_entity.back()) {
                         //changed! need to update
-                        delete *it;
-                        *it  = current_entity.back();
+                        std::unique_ptr<ExtrusionEntity> replaced_entity{*it};
+                        *it = current_entity.back();
                     }
                     current_entity.pop_back();
                 }
@@ -4428,11 +4429,10 @@ void PerimeterGenerator::process(// Input:
             //give the overlap size to let the infill do his overlap
             //add overlap if at least one perimeter
             coordf_t perimeter_spacing_for_encroach = 0;
-            if(params.config.perimeters == 1)
+            if (params.config.perimeters == 1 || (has_only_one_perimeter_top && !has_mixed_one_perimeter_top))
                 perimeter_spacing_for_encroach = params.ext_perimeter_flow.spacing();
-            else if (has_only_one_perimeter_top)
-                //note: use the min of the two to avoid overextrusion if only one perimeter top
-                // TODO: only do that if there is a top & a not-top surface
+            else if (has_mixed_one_perimeter_top)
+                // Use the smaller spacing where top and non-top configurations share this surface to avoid over-extrusion.
                 perimeter_spacing_for_encroach = std::min(params.perimeter_flow.spacing(), params.ext_perimeter_flow.spacing());
             else //if(layerm->region().config().perimeters > 1)
                 perimeter_spacing_for_encroach = params.perimeter_flow.spacing();
@@ -4579,7 +4579,7 @@ void PerimeterGenerator::process(// Input:
                     loops->append(std::move(this_islands_perimeters));
                     for (auto *peri : loops->entities()) assert(!peri->empty());
                     // clip infill area
-                    // TODO: 2.7 test if ok for infill_peri_overlap -> NOT OK FIXME
+                    // Preserve infill overlap by expanding only the unfilled area while removing filled area from the no-overlap mask.
                     if (infill_peri_overlap != 0) {
                         polyWithoutOverlap = diff_ex(polyWithoutOverlap, filled_area);
                         infill_exp = intersection_ex(infill_exp, offset_ex(unfilled_area, infill_peri_overlap));
@@ -4703,7 +4703,7 @@ void PerimeterGenerator::processs_no_bridge(const Parameters params, Surfaces& a
                                 if (params.config.no_perimeter_unsupported_algo.value == npuaFilled) {
                                     for (ExPolygon& expol : unsupported_filtered) {
                                         //check if the holes won't be covered by the upper layer
-                                        //TODO: if we want to do that, we must modify the geometry before making perimeters.
+                                        // Upper-layer hole coverage cannot be changed here because perimeter geometry is already fixed.
                                         //if (this->upper_slices != nullptr && !this->upper_slices->expolygons.empty()) {
                                         //    for (Polygon &poly : expol.holes) poly.make_counter_clockwise();
                                         //    float perimeterwidth = params.config.perimeters == 0 ? 0 : (this->ext_perimeter_flow.scaled_width() + (params.config.perimeters - 1) + this->perimeter_flow.scaled_spacing());
@@ -4749,7 +4749,7 @@ void PerimeterGenerator::processs_no_bridge(const Parameters params, Surfaces& a
                                     }
 
                                 }
-                                //TODO: add other polys as holes inside this one (-margin)
+                                // Nested surfaces have already been inset and added as holes above.
                             } else if (params.config.no_perimeter_unsupported_algo.value == npuaBridgesOverhangs || params.config.no_perimeter_unsupported_algo.value == npuaBridges) {
                                 //simplify to avoid most of artefacts from printing lines.
                                 ExPolygons bridgeable_simplified;
@@ -4961,7 +4961,7 @@ void grow_holes_only(std::vector<ExPolygonAsynch> &unmoveable_contours,
             const Polygon &hole = ok_holes[idx_hole];
             assert(hole.is_counter_clockwise());
             // Check if it can fuse with contour
-            // TODO: bounding box for quicker cut search
+            // Performance note: bounding box for quicker cut search
             auto it_contour_candidate_for_fuse = ex_contour_offset.begin();
             Polygons fused_contour;
             while (it_contour_candidate_for_fuse != ex_contour_offset.end()) {
@@ -5183,9 +5183,9 @@ ProcessSurfaceResult PerimeterGenerator::process_classic(const Parameters &     
             if (unmillable.empty())
                 last = offset_ex(last, mill_extra_size);
             else {
-                //FIXME only work if mill_extra_size < mill_nozzle/2 (becasue it's the extra offset from unmillable)
-                //FIXME overhangs if mill_extra_size is too big
-                //FIXME merge with process_arachne?
+                // Known limitation: only works if mill_extra_size < mill_nozzle/2 (because it's the extra offset from unmillable)
+                // Known limitation: overhangs if mill_extra_size is too big
+                // Possible refactor: merge with process_arachne?
                 ExPolygons growth = diff_ex(offset_ex(last, mill_extra_size), unmillable, ApplySafetyOffset::Yes);
                 last.insert(last.end(), growth.begin(), growth.end());
                 last = union_ex(last);

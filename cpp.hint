@@ -12,6 +12,9 @@
 #define IM_MSVC_RUNTIME_CHECKS_RESTORE
 #define IMGUI_DEMO_MARKER(section)
 
+// Catch2 test registration macros.
+#define TEST_CASE(...)
+
 // libslic3r/PrintConfig.cpp tooltip-fragment macros (kept as #defines for
 // adjacent-string-literal concatenation inside L(...) translation keys)
 #define STR_SET_ZERO_TO_DISABLE ""

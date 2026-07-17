@@ -68,6 +68,8 @@ class OG_CustomCtrl;
 // Substitution Manager - helper for manipuation of the substitutions
 class SubstitutionManager
 {
+	static constexpr size_t SUBSTITUTION_FIELD_COUNT = 4;
+
 	DynamicPrintConfig* m_config{ nullptr };
 	wxWindow*			m_parent{ nullptr };
 	wxFlexGridSizer*	m_grid_sizer{ nullptr };
@@ -98,7 +100,7 @@ public:
 	void update_from_config();
 	void delete_all();
 	void edit_substitution(int substitution_id, 
-						   int opt_pos, // option position insubstitution [0, 2]
+						   int opt_pos, // option position in substitution [0, 3]
 						   const std::string& value);
 	void set_cb_edited_substitution(std::function<void()> cb_edited_substitution) {
 		m_cb_edited_substitution = cb_edited_substitution;
@@ -212,8 +214,8 @@ public:
     void        push_back(const std::string &plain_value = std::string());
     void        update_from_config();
     void        clear();
-    void        edit_value(int                opt_pos, // option position in vector
-                           const std::string &value);
+    void        edit_value(int32_t            opt_pos, // option position in vector
+                            const std::string &value);
     void        set_cb_edited(std::function<void()> cb_edited) { m_cb_edited = cb_edited; }
     void        call_ui_update()
     {
@@ -419,10 +421,9 @@ public:
     virtual void    update_description_lines();
     virtual void    activate_selected_page(std::function<void()> throw_if_canceled);
 
-	void		OnTreeSelChange(wxTreeEvent& event);
 	void		OnKeyDown(wxKeyEvent& event);
 
-	void		compare_preset();
+	void		compare_preset() const;
 	void		transfer_options(const std::string&name_from, const std::string&name_to, std::vector<std::string> options);
 	void		save_preset(std::string name = std::string(), bool detach = false);
 	void		rename_preset();
@@ -495,7 +496,7 @@ public:
     bool        validate_custom_gcodes_was_shown{ false };
 
 	// create a setting page from ui file. type_override is used by frequent settings.
-	std::vector<PageShp> create_pages(std::string setting_type_name, int32_t idx = -1, Preset::Type type_override = Preset::Type::TYPE_INVALID);
+	std::vector<PageShp> create_pages(const std::string& setting_type_name, int32_t idx = -1, Preset::Type type_override = Preset::Type::TYPE_INVALID);
 	static t_change set_or_add(t_change previous, t_change toadd);
 
     void                        edit_custom_gcode(const OptionKeyIdx &opt_key_idx);
@@ -505,7 +506,7 @@ public:
     ConfigManipulation &get_config_manipulation() { return m_config_manipulation; }
 
 protected:
-	void			create_line_with_widget(ConfigOptionsGroup* optgroup, const std::string& opt_key, const std::string& path, int32_t idx, widget_t widget);
+	void			create_line_with_widget(ConfigOptionsGroup* optgroup, const std::string& opt_key, const std::string& path, int32_t idx, widget_t widget) const;
 	wxSizer*		compatible_widget_create(wxWindow* parent, PresetDependencies &deps, int32_t setting_idx);
 	void 			compatible_widget_reload(PresetDependencies &deps);
     void            load_key_value(const t_config_option_key& opt_key, const boost::any& value, bool saved_value = false, int16_t extruder_id = -1);
@@ -657,7 +658,7 @@ public:
     bool        m_use_silent_mode = false;
     bool        m_supports_travel_acceleration = false;
 	bool        m_supports_min_feedrates = false;
-    void        append_option_line_kinematics(ConfigOptionsGroupShp optgroup, const std::string opt_key, const std::string override_units = "");
+    void        append_option_line_kinematics(ConfigOptionsGroupShp optgroup, const std::string& opt_key, const std::string& override_units = "") const;
     bool        m_rebuild_kinematics_page = false;
     
 	int16_t		m_unregular_page_pos = -1;
@@ -691,11 +692,9 @@ public:
     void		update_fff();
     void		update_sla();
     void        update_pages(); // update m_pages according to printer technology
-    void        update_printers();
 	void		extruders_count_changed(size_t extruders_count);
 	void		milling_count_changed(size_t extruders_count);
 	PageShp		build_kinematics_page();
-	void		build_extruder_pages(size_t n_before_extruders);
 	void		build_unregular_pages(bool from_initial_build = false);
 	void		on_preset_loaded() override;
 	void		init_options_list() override;
@@ -732,12 +731,6 @@ public:
 
 class TabSLAPrint : public Tab
 {
-    // Methods are a vector of method prefix -> method label pairs
-    // method prefix is the prefix whith which all the config values are prefixed
-    // for a particular method. The label is the friendly name for the method
-    void build_sla_support_params(const std::vector<SamePair<std::string>> &methods,
-                                  const Slic3r::GUI::PageShp &page);
-
 public:
     TabSLAPrint(wxBookCtrlBase* parent) :
         Tab(parent, _(L("Print Settings")), Slic3r::Preset::TYPE_SLA_PRINT) {}

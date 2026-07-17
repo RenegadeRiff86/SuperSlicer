@@ -321,7 +321,7 @@ void fill_header(anycubicsla_format_header &h,
     h.antialiasing       = 1;
     h.per_layer_override = 0;
 
-    // TODO - expose these variables to the UI rather than using material notes
+    // These Anycubic-specific fields come from material notes because they are not exposed as profile options.
     if (mat_cfg.has(CFG_ANTIALIASING)) {
         h.antialiasing = get_cfg_value_i(mat_cfg, CFG_ANTIALIASING);
         crop_value(h.antialiasing, (uint32_t) 0, (uint32_t) 1);

@@ -24,11 +24,14 @@
 #include <CGAL/intersections.h>
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 
+#include <algorithm>
 #include <iostream>
-#include <vector>
-#include <queue>
+#include <limits>
 #include <map>
+#include <queue>
 #include <set>
+#include <stdexcept>
+#include <vector>
 
 //#define EXTRACT_CELLS_DEBUG
 
@@ -170,7 +173,13 @@ IGL_INLINE size_t igl::copyleft::cgal::extract_cells(
   for (size_t i=0; i<num_components; i++)
   {
     Is[i].resize(components[i].size());
-    std::copy(components[i].begin(), components[i].end(),Is[i].data());
+    std::transform(components[i].begin(), components[i].end(), Is[i].data(), [](size_t face_index) {
+      if(face_index > static_cast<size_t>(std::numeric_limits<int>::max()))
+      {
+        throw std::length_error("Mesh face index exceeds Eigen index capacity");
+      }
+      return static_cast<int>(face_index);
+    });
     bool flipped = false;
     igl::copyleft::cgal::outer_facet(V, F, Is[i], outer_facets[i], flipped);
     outer_facet_orientation[i] = flipped?1:0;

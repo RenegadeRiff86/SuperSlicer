@@ -7,6 +7,23 @@
 
 namespace Slic3r { namespace ExtrusionProcessor {
 
+void update_split_perimeter_overhang_role(ExtrusionPath &path, const ExtrusionRole source_role)
+{
+    assert(path.attributes().overhang_attributes);
+    if (!path.attributes().overhang_attributes || !path.role().is_perimeter())
+        return;
+
+    const OverhangAttributes &overhang = *path.attributes().overhang_attributes;
+    const bool fully_supported = overhang.start_distance_from_prev_layer <= EPSILON &&
+                                 overhang.end_distance_from_prev_layer <= EPSILON;
+    if (fully_supported && path.role().is_overhang()) {
+        path.set_role(path.role() & ExtrusionRoleModifier(~ExtrusionRoleModifier::ERM_Bridge));
+    } else if (!fully_supported && source_role.is_overhang() && !path.role().is_overhang()) {
+        // Splitting must not discard the generator's overhang role on short unsupported fragments.
+        path.set_role(path.role() | ExtrusionRoleModifier::ERM_Bridge);
+    }
+}
+
 //
 //class CalculateAndSliptOverhangingExtrusionsVisitor : public ExtrusionVisitorConst {
 //public:
@@ -28,7 +45,7 @@ ExtrusionPaths calculate_and_split_overhanging_extrusions(const ExtrusionPath   
             return { path };
         }
     }
-    //TODO: 'split' lines if the dist of each point is between 0 and max_width, with a max length of path.width/2
+    // Preserve the slicer's existing path segmentation here; subdividing every eligible segment would inflate the emitted G-code.
 
     std::vector<ExtendedPoint>           extended_points = estimate_points_properties<true, true, true, true>(path.polyline.to_polyline().points,
                                                                                                     unscaled_prev_layer, path.width(), static_cast<float>(nozzle_diameter));
@@ -53,7 +70,7 @@ ExtrusionPaths calculate_and_split_overhanging_extrusions(const ExtrusionPath   
                 // of this long line
                 //  The whole segment gets slower unnecesarily. For these long lines, we do additional check whether it is worth slowing down.
                 // NOTE that this is still quite rough approximation, e.g. we are still checking lines only near the middle point
-                // TODO maybe split the lines into smaller segments before running this alg? but can be demanding, and GCode will be huge
+                // For long segments, use the influence-box check below instead of subdividing the path and greatly increasing G-code size.
                 if (len > 8) {
                     Vec2d dir   = Vec2d(next.position - curr.position) / len;
                     Vec2d right = Vec2d(-dir.y(), dir.x());
@@ -137,16 +154,10 @@ ExtrusionPaths calculate_and_split_overhanging_extrusions(const ExtrusionPath   
         //delete it
         result.pop_back();
     }
-    // Keep the overhang role on split segments so TYPE tags and preview coloring
-    // remain consistent even on short perimeter fragments.
-    for (ExtrusionPath &res_path : result) {
-        assert(res_path.attributes().overhang_attributes);
-        if (res_path.attributes().overhang_attributes.has_value() &&
-            res_path.role().is_perimeter() &&
-            !res_path.role().is_overhang()) {
-            res_path.set_role(res_path.role() | ExtrusionRoleModifier::ERM_Bridge);
-        }
-    }
+    // Dynamic overhang metadata is also attached to supported perimeter fragments so their fan and speed can
+    // vary smoothly. Keep the overhang role only where the current bead actually extends past the previous layer.
+    for (ExtrusionPath &res_path : result)
+        update_split_perimeter_overhang_role(res_path, path.role());
 #ifdef _DEBUG
     for (auto &path : result) {
         assert(path.attributes().overhang_attributes.has_value());

@@ -24,7 +24,7 @@ namespace Slic3r {
         if (srf_source.expolygon.empty()) return;
         
         // Save into layer smoothing path.
-        ExtrusionEntityCollection *eec = new ExtrusionEntityCollection();
+        auto eec = std::make_unique<ExtrusionEntityCollection>();
         eec->set_can_sort_reverse(!params.monotonic, !params.monotonic);
         FillParams params_modifided = params;
         if (params.config != NULL && idx > 0) params_modifided.density /= static_cast<float>(params.config->fill_smooth_width.get_abs_value(1));
@@ -57,8 +57,8 @@ namespace Slic3r {
             }
         }
         
-        if (eec->entities().empty()) delete eec;
-        else eecroot.append(ExtrusionEntitiesPtr{ eec });
+        if (!eec->entities().empty())
+            eecroot.append(ExtrusionEntitiesPtr{ eec.release() });
     }
     
     void FillSmooth::fill_expolygon(const int idx, ExtrusionEntityCollection &eec, const Surface &srf_to_fill, 
@@ -86,7 +86,7 @@ namespace Slic3r {
         coordf_t init_spacing = this->get_spacing();
 
         //create root node
-        ExtrusionEntityCollection *eecroot = new ExtrusionEntityCollection();
+        auto eecroot = std::make_unique<ExtrusionEntityCollection>();
         //you don't want to sort the extrusions: big infill first, small second
         eecroot->set_can_sort_reverse(false, false);
 
@@ -114,9 +114,7 @@ namespace Slic3r {
 #ifdef _DEBUGINFO
             eecroot->visit(LoopAssertVisitor());
 #endif
-            out.push_back(eecroot);
-        } else {
-            delete eecroot;
+            out.push_back(eecroot.release());
         }
     }
 

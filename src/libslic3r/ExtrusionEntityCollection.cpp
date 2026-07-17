@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <memory>
 
 namespace Slic3r {
 
@@ -54,8 +55,11 @@ void ExtrusionEntityCollection::swap(ExtrusionEntityCollection &c)
 
 void ExtrusionEntityCollection::clear()
 {
-    for (size_t i = 0; i < this->m_entities.size(); ++i)
-        delete this->m_entities[i];
+    for (ExtrusionEntity *&entity : this->m_entities) {
+        std::unique_ptr<ExtrusionEntity> owned_entity(entity);
+        entity = nullptr;
+        owned_entity.reset();
+    }
     this->m_entities.clear();
 }
 
@@ -83,14 +87,17 @@ void ExtrusionEntityCollection::reverse()
 
 void ExtrusionEntityCollection::replace(size_t i, const ExtrusionEntity &entity)
 {
-    delete this->m_entities[i];
-    this->m_entities[i] = entity.clone();
+    std::unique_ptr<ExtrusionEntity> replacement(entity.clone());
+    std::unique_ptr<ExtrusionEntity> previous(this->m_entities[i]);
+    this->m_entities[i] = replacement.release();
+    previous.reset();
 }
 
 void ExtrusionEntityCollection::remove(size_t i)
 {
-    delete this->m_entities[i];
+    std::unique_ptr<ExtrusionEntity> removed(this->m_entities[i]);
     this->m_entities.erase(this->m_entities.begin() + i);
+    removed.reset();
 }
 
 // note: chained_path_from only this collection. You still need to chained_path_from the child collections.

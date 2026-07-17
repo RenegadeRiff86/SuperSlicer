@@ -6,8 +6,10 @@
 #include "OptionsGroup.hpp"
 #include "Plater.hpp"
 #include "GUI_App.hpp"
+#include "ThemeMetrics.hpp"
 #include "libslic3r/AppConfig.hpp"
 
+#include <wx/dcbuffer.h>
 #include <wx/utils.h>
 #include <boost/algorithm/string/split.hpp>
 #include "libslic3r/Utils.hpp"
@@ -66,11 +68,12 @@ OG_CustomCtrl::OG_CustomCtrl(   wxWindow*            parent,
         m_has_icon = get_app_config()->get("setting_icon") == "1";
     if (!wxOSX)
         SetDoubleBuffered(true);// SetDoubleBuffered exists on Win and Linux/GTK, but is missing on OSX
+    SetBackgroundStyle(wxBG_STYLE_PAINT);
 
     m_font      = wxGetApp().normal_font();
     m_em_unit   = em_unit(m_parent);
-    m_v_gap     = lround(1.0 * m_em_unit);
-    m_h_gap     = lround(0.2 * m_em_unit);
+    m_v_gap     = ThemeMetrics::settings_row_gap(this);
+    m_h_gap     = ThemeMetrics::settings_horizontal_gap(this);
 
     m_bmp_mode_sz       = (!m_has_icon) ? wxSize(0,0) : get_bitmap_size(get_bmp_bundle("mode", wxOSX ? 10 : 12), this);
     m_bmp_blinking_sz   = get_bitmap_size(get_bmp_bundle("search_blink"), this);
@@ -129,7 +132,7 @@ void OG_CustomCtrl::init_ctrl_lines()
 
 int OG_CustomCtrl::get_height(const Line& line)
 {
-    for (auto ctrl_line : ctrl_lines)
+    for (const auto& ctrl_line : ctrl_lines)
         if (&ctrl_line.og_line == &line)
             return ctrl_line.height;
         
@@ -319,15 +322,28 @@ void OG_CustomCtrl::OnPaint(wxPaintEvent&)
     if(!this->opt_group->custom_ctrl)
         return;
 
-    wxPaintDC dc(this);
+    wxAutoBufferedPaintDC dc(this);
+    dc.SetBackground(wxBrush(GetBackgroundColour()));
+    dc.Clear();
     dc.SetFont(m_font);
 
     wxCoord v_pos = 0;
+    int visible_line = 0;
     for (CtrlLine& line : ctrl_lines) {
         if (!line.is_line_visible)
             continue;
+
+        if (visible_line == m_hovered_line) {
+            wxRect hover_rect(0, v_pos, GetClientSize().x, line.height);
+            hover_rect.Deflate(ThemeMetrics::space_xs(this), 1);
+            dc.SetPen(*wxTRANSPARENT_PEN);
+            dc.SetBrush(wxBrush(wxGetApp().get_style_role_color("tab.bg.hover")));
+            dc.DrawRoundedRectangle(hover_rect, ThemeMetrics::radius_sm(this));
+        }
+
         line.render(dc, v_pos);
         v_pos += line.height;
+        ++visible_line;
     }
 }
 
@@ -336,13 +352,28 @@ void OG_CustomCtrl::OnMotion(wxMouseEvent& event)
     const wxPoint pos = event.GetLogicalPosition(wxClientDC(this));
     wxString tooltip;
 
+    int hovered_line = -1;
+    wxCoord row_top = 0;
+    int visible_line = 0;
+    for (const CtrlLine& row : ctrl_lines) {
+        if (!row.is_line_visible)
+            continue;
+        if (pos.y >= row_top && pos.y < row_top + row.height) {
+            hovered_line = visible_line;
+            break;
+        }
+        row_top += row.height;
+        ++visible_line;
+    }
+    m_hovered_line = hovered_line;
+
     wxString language = wxGetApp().app_config->get("translation_language");
 
     const bool suppress_hyperlinks = get_app_config()->get("suppress_hyperlinks") == "disable";
 
     for (CtrlLine& line : ctrl_lines) {
         line.is_focused = false;
-        wxString *str_tooltip;
+        wxString* str_tooltip = nullptr;
         size_t idx = 0;
         for (; idx < line.rects_tooltip.size(); ++idx) {
             line.is_focused = is_point_in_rect(pos, line.rects_tooltip[idx].first);
@@ -411,8 +442,7 @@ void OG_CustomCtrl::OnMotion(wxMouseEvent& event)
     // Set tooltips with information for each icon
     this->SetToolTip(tooltip);
 
-    Refresh();
-    Update();
+    Refresh(false);
     event.Skip();
 }
 
@@ -476,8 +506,8 @@ void OG_CustomCtrl::OnLeaveWin(wxMouseEvent& event)
     for (CtrlLine& line : ctrl_lines)
         line.is_focused = false;
 
-    Refresh();
-    Update();
+    m_hovered_line = -1;
+    Refresh(false);
     event.Skip();
 }
 
@@ -508,7 +538,7 @@ void OG_CustomCtrl::correct_window_position(wxWindow* win, const Line& line, Fie
 };
 
 void OG_CustomCtrl::correct_widgets_position(wxSizer* widget, const Line& line, Field* field/* = nullptr*/) {
-    auto children = widget->GetChildren();
+    const auto& children = widget->GetChildren();
     wxPoint line_pos = get_pos(line, field);
     int line_height = get_height(line);
     for (auto child : children) {
@@ -554,8 +584,8 @@ void OG_CustomCtrl::msw_rescale()
 #endif
     m_font      = wxGetApp().normal_font();
     m_em_unit   = em_unit(m_parent);
-    m_v_gap     = lround(1.0 * m_em_unit);
-    m_h_gap     = lround(0.2 * m_em_unit);
+    m_v_gap     = ThemeMetrics::settings_row_gap(this);
+    m_h_gap     = ThemeMetrics::settings_horizontal_gap(this);
 
     m_bmp_mode_sz     = (!m_has_icon) ? wxSize(0, 0) : get_bitmap_size(get_bmp_bundle("mode", wxOSX ? 10 : 12), this);
     m_bmp_blinking_sz = get_bitmap_size(get_bmp_bundle("search_blink"), this);
@@ -603,7 +633,7 @@ int OG_CustomCtrl::CtrlLine::get_max_win_width()
     int max_win_width = 0;
     if (!draw_just_act_buttons) {
         const std::vector<Option>& option_set = og_line.get_options();
-        for (auto opt : option_set) {
+        for (const auto& opt : option_set) {
             Field* field = ctrl->opt_group->get_field(OptionKeyIdx{opt.opt_key, opt.opt_idx});
             if (field && field->getWindow())
                 max_win_width = field->getWindow()->GetSize().GetWidth();
@@ -626,7 +656,7 @@ void OG_CustomCtrl::CtrlLine::correct_items_positions()
         ctrl->correct_widgets_position(og_line.extra_widget_sizer, og_line);
 
     const std::vector<Option>& option_set = og_line.get_options();
-    for (auto opt : option_set) {
+    for (const auto& opt : option_set) {
         Field* field = ctrl->opt_group->get_field(OptionKeyIdx{opt.opt_key, opt.opt_idx});
         if (!field)
             continue;
@@ -682,7 +712,7 @@ void OG_CustomCtrl::CtrlLine::update_visibility(ConfigOptionMode mode)
             continue;
 
         if (field->getSizer()) {
-            auto children = field->getSizer()->GetChildren();
+            const auto& children = field->getSizer()->GetChildren();
             for (auto child : children)
                 if (child->IsWindow())
                     child->GetWindow()->Show(is_visible.back());
@@ -845,7 +875,7 @@ void OG_CustomCtrl::CtrlLine::render(wxDC& dc, wxCoord v_pos)
 
             if (field->getSizer())
             {
-                auto children = field->getSizer()->GetChildren();
+                const auto& children = field->getSizer()->GetChildren();
                 for (auto child : children)
                     if (child->IsWindow())
                         h_pos += child->GetWindow()->GetSize().x + ctrl->m_h_gap;

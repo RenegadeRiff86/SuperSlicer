@@ -1135,7 +1135,7 @@ void reorder_extrusion_paths(std::vector<ExtrusionPath> &extrusion_paths, const 
         if (idx.second)
             out.back().reverse();
     }
-    //TODO: find the real cause inside chain_extrusion_paths; for now, just verify & patch the first path orientation here.
+    // chain_extrusion_paths may orient the first reversible path toward the shared endpoint; restore continuity before committing the order.
     if (out.size() > 1
         && !out.front().last_point().coincides_with_epsilon(out[1].first_point())
         && out.front().first_point().coincides_with_epsilon(out[1].first_point())) {

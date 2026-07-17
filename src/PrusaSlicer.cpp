@@ -23,6 +23,7 @@
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/format.hpp>
 #include <boost/nowide/args.hpp>
 #include <boost/nowide/cenv.hpp>
 #include <boost/nowide/fstream.hpp>
@@ -464,10 +465,11 @@ bool write_slice_preview(
         return false;
     }
 
+    constexpr size_t median_divisor = 2;
     uint16_t layer_id = 0;
     if (requested_layer < 0) {
         auto middle = extrusion_layers.begin();
-        std::advance(middle, extrusion_layers.size() / 2);
+        std::advance(middle, extrusion_layers.size() / median_divisor);
         layer_id = *middle;
     } else if (requested_layer > std::numeric_limits<uint16_t>::max() ||
                extrusion_layers.count(uint16_t(requested_layer)) == 0) {
@@ -502,13 +504,15 @@ bool write_slice_preview(
         return false;
     }
 
+    constexpr float padding_side_count = 2.0f;
+    constexpr float maximum_preview_width = 2.0f;
     const float content_width = std::max(max_x - min_x, 1.0f);
     const float content_height = std::max(max_y - min_y, 1.0f);
     const float padding = std::max(content_width, content_height) * 0.04f;
     const float view_min_x = min_x - padding;
     const float view_min_y = min_y - padding;
-    const float view_width = content_width + 2.0f * padding;
-    const float view_height = content_height + 2.0f * padding;
+    const float view_width = content_width + padding_side_count * padding;
+    const float view_height = content_height + padding_side_count * padding;
 
     out << std::fixed << std::setprecision(4)
         << "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"" << view_min_x << " " << view_min_y
@@ -523,12 +527,31 @@ bool write_slice_preview(
         if (move.type != EMoveType::Extrude || move.layer_id != layer_id)
             continue;
         const Vec3f &start = result.moves[index - 1].position;
-        const float width = std::clamp(move.width, 0.08f, 2.0f);
+        const float width = std::clamp(move.width, 0.08f, maximum_preview_width);
         out << "<line x1=\"" << start.x() << "\" y1=\"" << start.y()
             << "\" x2=\"" << move.position.x() << "\" y2=\"" << move.position.y()
             << "\" stroke=\"" << role_color(move.extrusion_role) << "\" stroke-width=\"" << width << "\"/>\n";
     }
     out << "</g>\n</svg>\n";
+    return true;
+}
+
+bool write_requested_slice_artifacts(
+    const GCodeProcessorResult &result,
+    const DynamicPrintConfig &config,
+    const std::string &report_path,
+    const std::string &preview_path,
+    int preview_layer)
+{
+    std::string error;
+    if (!report_path.empty() && !write_slice_report(result, config, report_path, error)) {
+        boost::nowide::cerr << "Unable to write slice report: " << error << std::endl;
+        return false;
+    }
+    if (!preview_path.empty() && !write_slice_preview(result, preview_path, preview_layer, error)) {
+        boost::nowide::cerr << "Unable to write slice preview: " << error << std::endl;
+        return false;
+    }
     return true;
 }
 
@@ -540,6 +563,30 @@ static PrinterTechnology get_printer_technology(const DynamicConfig &config)
     return (opt == nullptr) ? ptUnknown : opt->value;
 }
 
+static bool duplicate_for_cli(Model &model, size_t copies, const arr2::ArrangeBed &bed,
+                              const arr2::ArrangeSettingsView &settings)
+{
+    try {
+        duplicate(model, copies, bed, settings);
+        return true;
+    } catch (const std::exception &ex) {
+        boost::nowide::cerr << "error: " << ex.what() << std::endl;
+        return false;
+    }
+}
+
+static bool rename_output_for_cli(std::string &output_path, const std::string &final_path)
+{
+    if (output_path == final_path)
+        return true;
+    if (Slic3r::rename_file(output_path, final_path)) {
+        boost::nowide::cerr << "Renaming file " << output_path << " to " << final_path << " failed" << std::endl;
+        return false;
+    }
+    output_path = final_path;
+    return true;
+}
+
 int CLI::run(int argc, char **argv)
 {
     // Mark the main thread for the debugger and for runtime checks.
@@ -548,7 +595,7 @@ int CLI::run(int argc, char **argv)
     save_main_thread_id();
 
     //init random generator
-    std::srand((unsigned int)std::time(nullptr));
+    std::srand(static_cast<unsigned int>(std::time(nullptr)));
 
 #ifdef __WXGTK__
     // On Linux, wxGTK has no support for Wayland, and the app crashes on
@@ -557,43 +604,45 @@ int CLI::run(int argc, char **argv)
     ::setenv("GDK_BACKEND", "x11", /* replace */ true);
 #endif
 
-	// Switch boost::filesystem to utf8.
+    // Switch boost::filesystem to utf8.
     try {
         boost::nowide::nowide_filesystem();
     } catch (const std::runtime_error& ex) {
         std::string caption = std::string(SLIC3R_APP_NAME) + " Error";
         std::string text = std::string("An error occured while setting up locale.\n") + (
 #if !defined(_WIN32) && !defined(__APPLE__)
-        	// likely some linux system
-        	"You may need to reconfigure the missing locales, likely by running the \"locale-gen\" and \"dpkg-reconfigure locales\" commands.\n"
+            // likely some linux system
+            "You may need to reconfigure the missing locales, likely by running the \"locale-gen\" and \"dpkg-reconfigure locales\" commands.\n"
 #endif
-        	SLIC3R_APP_NAME " will now terminate.\n\n") + ex.what();
+            SLIC3R_APP_NAME " will now terminate.\n\n") + ex.what();
     #if defined(_WIN32) && defined(SLIC3R_GUI)
         if (m_actions.empty())
-        	// Empty actions means Slicer is executed in the GUI mode. Show a GUI message.
+            // Empty actions means Slicer is executed in the GUI mode. Show a GUI message.
             MessageBoxA(NULL, text.c_str(), caption.c_str(), MB_OK | MB_ICONERROR);
     #endif
         boost::nowide::cerr << text.c_str() << std::endl;
         return 1;
     }
 
-	if (! this->setup(argc, argv))
-		return 1;
+    if (! this->setup(argc, argv))
+        return 1;
 
     m_extra_config.apply(m_config, true);
     m_extra_config.normalize_fdm();
     
     PrinterTechnology printer_technology = get_printer_technology(m_config);
 
-    bool							start_gui			= m_actions.empty() &&
+    bool                            start_gui            = m_actions.empty() &&
         // cutting transformations are setting an "export" action.
         std::find(m_transforms.begin(), m_transforms.end(), "cut") == m_transforms.end() &&
         std::find(m_transforms.begin(), m_transforms.end(), "cut_x") == m_transforms.end() &&
         std::find(m_transforms.begin(), m_transforms.end(), "cut_y") == m_transforms.end();
     bool                            start_downloader = false;
     bool                            delete_after_load = false;
+    bool                            slice_for_gcodeviewer = false;
     std::string                     download_url;
-    bool 							start_as_gcodeviewer =
+    std::vector<std::string>        gcodeviewer_input_files;
+    bool                             start_as_gcodeviewer =
 #ifdef _WIN32
             false;
 #else
@@ -601,7 +650,7 @@ int CLI::run(int argc, char **argv)
             boost::algorithm::iends_with(boost::filesystem::path(argv[0]).filename().string(), GCODEVIEWER_APP_CMD);
 #endif // _WIN32
 
-    const std::vector<std::string>              &load_configs		      = m_config.option<ConfigOptionStrings>("load", true)->get_values();
+    const std::vector<std::string>              &load_configs              = m_config.option<ConfigOptionStrings>("load", true)->get_values();
     const ForwardCompatibilitySubstitutionRule   config_substitution_rule = m_config.option<ConfigOptionEnum<ForwardCompatibilitySubstitutionRule>>("config_compatibility", true)->value;
 
     std::unique_ptr<PresetBundle> user_profiles;
@@ -670,7 +719,7 @@ int CLI::run(int argc, char **argv)
 
     it = std::find(m_actions.begin(), m_actions.end(), "opengl-version");
     if (it != m_actions.end()) {
-        const Semver opengl_minimum = Semver(3,2,0,0);
+        const Semver opengl_minimum = Semver(3, 2, 0, 0); // OpenGL 3.2 is the minimum supported version.
         const std::string opengl_version_str = m_config.opt_string("opengl-version");
         std::optional<Semver> semver = Semver::parse(opengl_version_str);
         if (semver.has_value() && (*semver) >= opengl_minimum ) {
@@ -726,13 +775,30 @@ int CLI::run(int argc, char **argv)
 #endif
 
 
-    // Read input file(s) if any.
-    for (const std::string& file : m_input_files)
+    // Read input file(s) if any. Existing G-code goes straight to the viewer;
+    // model input requested with --gcodeviewer is sliced first and the generated
+    // G-code is passed to the same viewer below.
+    bool has_gcode_input = false;
+    bool has_model_input = false;
+    for (const std::string& file : m_input_files) {
         if (is_gcode_file(file) && boost::filesystem::exists(file)) {
+            has_gcode_input = true;
             start_as_gcodeviewer = true;
             break;
         }
-    if (!start_as_gcodeviewer) {
+        if (!boost::starts_with(file, "prusaslicer://") && boost::filesystem::exists(file))
+            has_model_input = true;
+    }
+#ifdef SLIC3R_GUI
+    slice_for_gcodeviewer = start_as_gcodeviewer && !has_gcode_input && has_model_input;
+    if (slice_for_gcodeviewer) {
+        if (std::none_of(m_actions.begin(), m_actions.end(), [](const std::string &action) {
+                return action == "slice" || action == "export_gcode";
+            }))
+            m_actions.emplace_back("slice");
+    }
+#endif
+    if (!has_gcode_input) {
         for (const std::string& file : m_input_files) {
             if (boost::starts_with(file, "prusaslicer://")) {
                 start_downloader = true;
@@ -748,8 +814,8 @@ int CLI::run(int argc, char **argv)
                 // When loading an AMF or 3MF, config is imported as well, including the printer technology.
                 DynamicPrintConfig config;
                 ConfigSubstitutionContext config_substitutions(config_substitution_rule);
-                //FIXME should we check the version here? // | Model::LoadAttribute::CheckVersion ?
-                model = Model::read_from_file(file, &config, &config_substitutions, Model::LoadAttribute::AddDefaultInstances);
+                model = Model::read_from_file(file, &config, &config_substitutions,
+                    Model::LoadAttribute::AddDefaultInstances | Model::LoadAttribute::CheckVersion);
                 PrinterTechnology other_printer_technology = get_printer_technology(config);
                 if (printer_technology == ptUnknown) {
                     printer_technology = other_printer_technology;
@@ -805,6 +871,10 @@ int CLI::run(int argc, char **argv)
 
     if (printer_technology == ptUnknown)
         printer_technology = std::find(m_actions.begin(), m_actions.end(), "export_sla") == m_actions.end() ? ptFFF : ptSLA;
+    if (slice_for_gcodeviewer && printer_technology != ptFFF) {
+        boost::nowide::cerr << "The G-code viewer can only preview FFF slicing output." << std::endl;
+        return 1;
+    }
     m_print_config.option<ConfigOptionEnum<PrinterTechnology>>("printer_technology", true)->value = printer_technology;
 
     // Initialize full print configs for both the FFF and SLA technologies.
@@ -820,7 +890,7 @@ int CLI::run(int argc, char **argv)
         // multi-extruder behavior (wipe tower, per-extruder supports) from a single-extruder profile.
         if (const ConfigOptionInt *opt_extruders = m_config.option<ConfigOptionInt>("extruders");
             opt_extruders != nullptr && opt_extruders->value > 0) {
-            const unsigned int num_extruders = (unsigned int)opt_extruders->value;
+            const unsigned int num_extruders = static_cast<unsigned int>(opt_extruders->value);
             m_print_config.set_num_extruders(num_extruders);
             // Filament settings are per-extruder vectors as well, but are not covered by
             // set_num_extruders (it only handles the printer's extruder option keys).
@@ -838,18 +908,20 @@ int CLI::run(int argc, char **argv)
                 if (auto *opt_wipe_extruders = m_print_config.option<ConfigOptionFloats>("wiping_volumes_extruders");
                     opt_wipe_extruders != nullptr && num_extruders != old_num_extruders) {
                     std::vector<double> wipe_extruders = opt_wipe_extruders->get_values();
-                    while (wipe_extruders.size() < size_t(2) * num_extruders) {
+                    constexpr size_t wipe_values_per_extruder = 2;
+                    while (wipe_extruders.size() < wipe_values_per_extruder * num_extruders) {
                         wipe_extruders.push_back(wipe_extruders.size() > 1 ? wipe_extruders[0] : 50.);
                         wipe_extruders.push_back(wipe_extruders.size() > 1 ? wipe_extruders[1] : 50.);
                     }
-                    wipe_extruders.resize(size_t(2) * num_extruders);
+                    wipe_extruders.resize(wipe_values_per_extruder * num_extruders);
                     opt_wipe_extruders->set(wipe_extruders);
                     std::vector<double> new_matrix;
                     for (unsigned int i = 0; i < num_extruders; ++i)
                         for (unsigned int j = 0; j < num_extruders; ++j)
                             new_matrix.push_back(i < old_num_extruders && j < old_num_extruders ?
                                 old_matrix[i * old_num_extruders + j] :
-                                (i == j ? 0. : wipe_extruders[2 * i] + wipe_extruders[2 * j + 1]));
+                                (i == j ? 0. : wipe_extruders[wipe_values_per_extruder * i] +
+                                                 wipe_extruders[wipe_values_per_extruder * j + 1]));
                     opt_matrix->set(new_matrix);
                 }
             }
@@ -917,14 +989,12 @@ int CLI::run(int argc, char **argv)
             for (auto &model : m_models)
                 model.duplicate_objects_grid(x, y, (distance > 0) ? distance : 6);  // Note: the 6mm fallback default belongs in the option definition, not here.
         } else if (opt_key == "center") {
-        	user_center_specified = true;
+            user_center_specified = true;
             for (auto &model : m_models) {
                 model.add_default_instances();
                 // this affects instances:
                 model.center_instances_around_point(m_config.option<ConfigOptionPoint>("center")->value);
-                // this affects volumes:
-                //FIXME Vojtech: Who knows why the complete model should be aligned with Z as a single rigid body?
-                //model.align_to_ground();
+                // Preserve relative Z offsets while grounding all volumes as one rigid model.
                 BoundingBoxf3 bbox;
                 for (ModelObject *model_object : model.objects)
                     // We are interested into the Z span only, therefore it is sufficient to measure the bounding box of the 1st instance only.
@@ -993,8 +1063,8 @@ int CLI::run(int argc, char **argv)
 //                    model.objects.front()->cut(0, m_config.opt_float("cut"), ModelObjectCutAttribute::KeepLower | ModelObjectCutAttribute::KeepUpper | ModelObjectCutAttribute::FlipLower);
                     Cut cut(model.objects.front(), 0, Geometry::translation_transform(m_config.opt_float("cut") * Vec3d::UnitZ()),
                                                ModelObjectCutAttribute::KeepLower | ModelObjectCutAttribute::KeepUpper | ModelObjectCutAttribute::PlaceOnCutUpper);
-                    auto cut_objects = cut.perform_with_plane();
-                    for (ModelObject* obj : cut_objects)
+                    const auto &cut_objects = cut.perform_with_plane();
+                    for (ModelObject *obj : cut_objects)
                         model.add_object(*obj);
 #endif
                     model.delete_object(size_t(0));
@@ -1016,12 +1086,12 @@ int CLI::run(int argc, char **argv)
 
                 std::vector<TriangleMesh> meshes = mesh.cut_by_grid(m_config.option<ConfigOptionPoint>("cut_grid")->value);
                 size_t i = 0;
-                for (TriangleMesh* m : meshes) {
+                for (TriangleMesh *mesh_part : meshes) {
+                    std::unique_ptr<TriangleMesh> owned_mesh(mesh_part);
                     Model out;
                     auto o = out.add_object();
-                    o->add_volume(*m);
+                    o->add_volume(*owned_mesh);
                     o->input_file += "_" + std::to_string(i++);
-                    delete m;
                 }
             }
 
@@ -1076,9 +1146,14 @@ int CLI::run(int argc, char **argv)
             }
             write_profiles_json(boost::nowide::cout, *user_profiles);
         } else if (opt_key == "save") {
-            //FIXME check for mixing the FFF / SLA parameters.
-            // or better save fff_print_config vs. sla_print_config
-            m_print_config.save(m_config.opt_string("save"));
+            const std::string output_path = m_config.opt_string("save");
+            if (printer_technology == ptFFF) {
+                fff_print_config.apply(m_print_config, true);
+                fff_print_config.save(output_path);
+            } else {
+                sla_print_config.apply(m_print_config, true);
+                sla_print_config.save(output_path);
+            }
         } else if (opt_key == "info") {
             // --info works on unrepaired model
             for (Model &model : m_models) {
@@ -1124,11 +1199,17 @@ int CLI::run(int argc, char **argv)
                 std::string outfile = m_config.opt_string("output");
                 Print       fff_print;
                 SLAPrint    sla_print;
-                sla_print.set_status_callback(
-                            [](const PrintBase::SlicingStatus& s)
-                {
-                    if(s.percent >= 0 && s.args.empty()) // FIXME: is this sufficient?
-                        printf("%3d%s %s\n", s.percent, "% =>", s.main_text.c_str());
+                sla_print.set_status_callback([](const PrintBase::SlicingStatus &status) {
+                    if (status.percent < 0)
+                        return;
+                    std::string status_text = status.main_text;
+                    if (!status.args.empty()) {
+                        boost::format formatter(status_text);
+                        for (const std::string &arg : status.args)
+                            formatter % arg;
+                        status_text = formatter.str();
+                    }
+                    printf("%3d%s %s\n", status.percent, "% =>", status_text.c_str());
                 });
 
                 PrintBase  *print = (printer_technology == ptFFF) ? static_cast<PrintBase*>(&fff_print) : static_cast<PrintBase*>(&sla_print);
@@ -1140,15 +1221,9 @@ int CLI::run(int argc, char **argv)
                     //    arrange_cfg.min_obj_distance += scaled(m_print_config.opt_float("duplicate_distance"));
                     //else
                     //    arrange_cfg.min_obj_distance += 6;
-                    if (dups > 1) {
-                            try {
-                            // if all input objects have defined position(s) apply duplication to the whole model
-                            duplicate(model, size_t(dups), bed, arrange_cfg);
-                        } catch (std::exception & ex) {
-                            boost::nowide::cerr << "error: " << ex.what() << std::endl;
-                            return 1;
-                        }
-                    }
+                    // If all input objects have defined positions, duplicate the whole model.
+                    if (dups > 1 && !duplicate_for_cli(model, static_cast<size_t>(dups), bed, arrange_cfg))
+                        return 1;
                     if (user_center_specified) {
                         Vec2d c = m_config.option<ConfigOptionPoint>("center")->value;
                         arrange_objects(model, arr2::InfiniteBed{scaled(c)}, arrange_cfg);
@@ -1180,35 +1255,25 @@ int CLI::run(int argc, char **argv)
                             // The outfile is processed by a PlaceholderParser.
                             outfile = fff_print.export_gcode(outfile, result, nullptr);
                             outfile_final = fff_print.print_statistics().finalize_output_path(outfile);
-                            if (result != nullptr) {
-                                std::string artifact_error;
-                                const std::string report_path = m_config.opt_string("slice_report");
-                                if (!report_path.empty() && !write_slice_report(*result, m_print_config, report_path, artifact_error)) {
-                                    boost::nowide::cerr << "Unable to write slice report: " << artifact_error << std::endl;
-                                    return 1;
-                                }
-                                const std::string preview_path = m_config.opt_string("slice_preview");
-                                if (!preview_path.empty() && !write_slice_preview(
-                                        *result, preview_path, m_config.opt_int("slice_preview_layer"), artifact_error)) {
-                                    boost::nowide::cerr << "Unable to write slice preview: " << artifact_error << std::endl;
-                                    return 1;
-                                }
-                            }
+                            if (result != nullptr && !write_requested_slice_artifacts(
+                                    *result,
+                                    m_print_config,
+                                    m_config.opt_string("slice_report"),
+                                    m_config.opt_string("slice_preview"),
+                                    m_config.opt_int("slice_preview_layer")))
+                                return 1;
                         } else if (printer_technology == ptSLA) {
                             outfile = sla_print.output_filepath(outfile);
                             // We need to finalize the filename beforehand because the export function sets the filename inside the zip metadata
                             outfile_final = sla_print.print_statistics().finalize_output_path(outfile);
                             sla_print.export_print(outfile_final);
                         }
-                        if (outfile != outfile_final) {
-                            if (Slic3r::rename_file(outfile, outfile_final)) {
-                                boost::nowide::cerr << "Renaming file " << outfile << " to " << outfile_final << " failed" << std::endl;
-                                return 1;
-                            }
-                            outfile = outfile_final;
-                        }
+                        if (!rename_output_for_cli(outfile, outfile_final))
+                            return 1;
                         // Run the post-processing scripts if defined.
                         run_post_process_scripts(outfile, fff_print.full_print_config());
+                        if (slice_for_gcodeviewer && printer_technology == ptFFF)
+                            gcodeviewer_input_files.emplace_back(outfile);
                         boost::nowide::cout << "Slicing result exported to " << outfile << std::endl;
                     } catch (const std::exception &ex) {
                         boost::nowide::cerr << ex.what() << std::endl;
@@ -1240,7 +1305,7 @@ int CLI::run(int argc, char **argv)
                     << "Done. Process took " << (duration/60) << " minutes and "
                     << std::setprecision(3)
                     << std::fmod(duration, 60.0) << " seconds." << std::endl
-                    << std::setprecision(2)
+                    << std::setprecision(2) // Report elapsed times to two decimal places.
                     << "Filament required: " << print.total_used_filament() << "mm"
                     << " (" << print.total_extruded_volume()/1000 << "cm3)" << std::endl;
 */
@@ -1267,12 +1332,16 @@ int CLI::run(int argc, char **argv)
             return 1;
         }
     #endif // some linux / unix system
+        if (slice_for_gcodeviewer && gcodeviewer_input_files.empty()) {
+            boost::nowide::cerr << "No G-code was generated for the viewer." << std::endl;
+            return 1;
+        }
         Slic3r::GUI::GUI_InitParams params;
         params.argc = argc;
         params.argv = argv;
         params.load_configs = load_configs;
         params.extra_config = std::move(m_extra_config);
-        params.input_files  = std::move(m_input_files);
+        params.input_files  = slice_for_gcodeviewer ? std::move(gcodeviewer_input_files) : std::move(m_input_files);
         params.start_as_gcodeviewer = start_as_gcodeviewer;
         params.start_downloader = start_downloader;
         params.download_url = download_url;
@@ -1297,7 +1366,7 @@ int CLI::run(int argc, char **argv)
 bool CLI::setup(int argc, char **argv)
 {
     {
-	    Slic3r::set_logging_level(1);
+        Slic3r::set_logging_level(1);
         const char *loglevel = boost::nowide::getenv("SLIC3R_LOGLEVEL");
         if (loglevel != nullptr) {
             if (loglevel[0] >= '0' && loglevel[0] <= '9' && loglevel[1] == 0)
@@ -1404,13 +1473,12 @@ bool CLI::setup(int argc, char **argv)
             thread_count = opt_threads->value;
     }
 
-    //FIXME Validating at this stage most likely does not make sense, as the config is not fully initialized yet.
-    std::string validity = m_config.validate();
-
-    // Initialize with defaults.
+    // Initialize with defaults before validating the complete CLI configuration.
     for (const t_optiondef_map *options : { &cli_actions_config_def.options, &cli_transform_config_def.options, &cli_misc_config_def.options })
         for (const t_optiondef_map::value_type &optdef : *options)
             m_config.option(optdef.first, true);
+
+    const std::string validity = m_config.validate();
 
     // Debug artifacts imply slicing, so automation only needs to supply a model and
     // the desired artifact path.
@@ -1424,7 +1492,6 @@ bool CLI::setup(int argc, char **argv)
         set_data_dir(boost::filesystem::absolute(datadir).string());
     }
 
-    //FIXME Validating at this stage most likely does not make sense, as the config is not fully initialized yet.
     if (!validity.empty()) {
         boost::nowide::cerr << "error: " << validity << std::endl;
         return false;
@@ -1565,8 +1632,8 @@ extern "C" {
     __declspec(dllexport) int __stdcall slic3r_main(int argc, wchar_t **argv)
     {
         // Convert wchar_t arguments to UTF8.
-        std::vector<std::string> 	argv_narrow;
-        std::vector<char*>			argv_ptrs(argc + 1, nullptr);
+        std::vector<std::string>     argv_narrow;
+        std::vector<char*>            argv_ptrs(argc + 1, nullptr);
         for (size_t i = 0; i < argc; ++ i)
             argv_narrow.emplace_back(boost::nowide::narrow(argv[i]));
         for (size_t i = 0; i < argc; ++ i)

@@ -4592,23 +4592,145 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionFloats{ DEFAULT_MAX_ACCEL_MM_S2, DEFAULT_MAX_ACCEL_SILENT_MM_S2 });
 
-    // Klipper SET_VELOCITY_LIMIT MINIMUM_CRUISE_RATIO=<ratio>
-    // Klipper requires 0 <= ratio < 1 (default 0.5). Replaces the removed
-    // ACCEL_TO_DECEL parameter (Klipper commit 20240313 / removal 20250811).
+    // Klipper [printer] max_velocity and SET_VELOCITY_LIMIT VELOCITY.
+    def = this->add("machine_klipper_max_velocity", coFloat);
+    def->label = L("Maximum velocity (Klipper)");
+    def->full_label = L("Maximum velocity (Klipper)");
+    def->category = OptionCategory::limits;
+    def->tooltip = L("Klipper [printer] max_velocity. This is a toolhead path-speed limit, not an individual axis limit."
+                     "\nEnter the value from printer.cfg so time estimation applies the same limit as Klipper.");
+    def->sidetext = L("mm/s");
+    def->min = 0;
+    def->mode = comAdvancedE | comSuSi;
+    def->set_default_value(new ConfigOptionFloat(500.0)); // Klipper profiles must replace this with printer.cfg max_velocity.
+
+    // Klipper [printer] max_accel and SET_VELOCITY_LIMIT ACCEL.
+    def = this->add("machine_klipper_max_acceleration", coFloat);
+    def->label = L("Maximum acceleration (Klipper)");
+    def->full_label = L("Maximum acceleration (Klipper)");
+    def->category = OptionCategory::limits;
+    def->tooltip = L("Klipper [printer] max_accel. Klipper uses this as the toolhead acceleration limit for both"
+                     " printing and travel moves until an M204 or SET_VELOCITY_LIMIT command changes it."
+                     "\nEnter the value from printer.cfg for an accurate time estimate.");
+    def->sidetext = L("mm/s²");
+    def->min = 0;
+    def->mode = comAdvancedE | comSuSi;
+    def->set_default_value(new ConfigOptionFloat(DEFAULT_MAX_ACCEL_MM_S2));
+
+    def = this->add("machine_klipper_max_z_velocity", coFloat);
+    def->label = L("Maximum Z velocity (Klipper)");
+    def->category = OptionCategory::limits;
+    def->tooltip = L("Klipper kinematics max_z_velocity. A Z component limits the complete move so the Z axis does not exceed this speed.");
+    def->sidetext = L("mm/s");
+    def->min = 0;
+    def->mode = comAdvancedE | comSuSi;
+    def->set_default_value(new ConfigOptionFloat(0.0)); // Zero leaves the existing per-axis limit in control.
+
+    def = this->add("machine_klipper_max_z_acceleration", coFloat);
+    def->label = L("Maximum Z acceleration (Klipper)");
+    def->category = OptionCategory::limits;
+    def->tooltip = L("Klipper kinematics max_z_accel. A Z component limits the complete move so the Z axis does not exceed this acceleration.");
+    def->sidetext = L("mm/s²");
+    def->min = 0;
+    def->mode = comAdvancedE | comSuSi;
+    def->set_default_value(new ConfigOptionFloat(0.0)); // Zero leaves the existing per-axis limit in control.
+
+    // Klipper [printer] square_corner_velocity and SET_VELOCITY_LIMIT SQUARE_CORNER_VELOCITY.
+    def = this->add("machine_klipper_square_corner_velocity", coFloat);
+    def->label = L("Square corner velocity (Klipper)");
+    def->full_label = L("Square corner velocity (Klipper)");
+    def->category = OptionCategory::limits;
+    def->tooltip = L("Klipper [printer] square_corner_velocity. This drives Klipper's centripetal cornering model"
+                     " and is not equivalent to Marlin's per-axis jerk limits."
+                     "\nEnter the value from printer.cfg; Klipper's built-in default is 5 mm/s.");
+    def->sidetext = L("mm/s");
+    def->min = 0;
+    def->mode = comAdvancedE | comSuSi;
+    def->set_default_value(new ConfigOptionFloat(5.0)); // Klipper's documented default square_corner_velocity.
+
+    // Klipper SET_VELOCITY_LIMIT MINIMUM_CRUISE_RATIO=<ratio>.
     def = this->add("machine_min_cruise_ratio", coFloat);
     def->label = L("Minimum cruise ratio (Klipper)");
     def->full_label = L("Minimum cruise ratio (Klipper)");
     def->category = OptionCategory::limits;
-    def->tooltip = L("Klipper SET_VELOCITY_LIMIT MINIMUM_CRUISE_RATIO."
-                     " Forces the toolhead to spend at least this fraction of every move at the requested cruise velocity"
-                     " before decelerating; replaces the removed ACCEL_TO_DECEL parameter."
-                     "\nValid range is 0 (no enforcement) up to but not including 1; Klipper's built-in default is 0.5."
-                     "\nDisable to leave the value untouched and let printer.cfg / the Klipper default apply.");
+    def->tooltip = L("Klipper [printer] minimum_cruise_ratio and SET_VELOCITY_LIMIT MINIMUM_CRUISE_RATIO."
+                     " It reduces the peak speed of short moves so at least this fraction of each move is spent cruising."
+                     "\nValid range is 0 (disabled) up to but not including 1; Klipper's built-in default is 0.5.");
     def->min = 0;
     def->max = 0.99;
     def->mode = comAdvancedE | comSuSi;
-    def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloat(DEFAULT_MIN_CRUISE_RATIO)));
+    def->set_default_value(new ConfigOptionFloat(DEFAULT_MIN_CRUISE_RATIO));
+
+    def = this->add("machine_klipper_max_extrude_only_velocity", coFloat);
+    def->label = L("Maximum extrude-only velocity (Klipper)");
+    def->category = OptionCategory::limits;
+    def->tooltip = L("Klipper [extruder] max_extrude_only_velocity. This limits retractions, unretractions, and other moves with E but no XYZ motion.");
+    def->sidetext = L("mm/s");
+    def->min = 0;
+    def->mode = comAdvancedE | comSuSi;
+    def->set_default_value(new ConfigOptionFloat(0.0)); // Klipper derives its default from max_velocity and extrusion geometry.
+
+    def = this->add("machine_klipper_max_extrude_only_acceleration", coFloat);
+    def->label = L("Maximum extrude-only acceleration (Klipper)");
+    def->category = OptionCategory::limits;
+    def->tooltip = L("Klipper [extruder] max_extrude_only_accel. This limits acceleration of retractions and other E-only moves.");
+    def->sidetext = L("mm/s²");
+    def->min = 0;
+    def->mode = comAdvancedE | comSuSi;
+    def->set_default_value(new ConfigOptionFloat(0.0)); // Klipper derives its default from max_accel and extrusion geometry.
+
+    def = this->add("machine_klipper_instantaneous_corner_velocity", coFloat);
+    def->label = L("Extruder instantaneous corner velocity (Klipper)");
+    def->category = OptionCategory::limits;
+    def->tooltip = L("Klipper [extruder] instantaneous_corner_velocity. This limits junction speed when the ratio of extrusion to toolhead motion changes.");
+    def->sidetext = L("mm/s");
+    def->min = 0;
+    def->mode = comAdvancedE | comSuSi;
+    def->set_default_value(new ConfigOptionFloat(1.0)); // Klipper default.
+
+    def = this->add("machine_klipper_rotation_distance", coFloat);
+    def->label = L("Extruder rotation distance (Klipper)");
+    def->category = OptionCategory::limits;
+    def->tooltip = L("Klipper [extruder] rotation_distance. This converts commanded filament distance to stepper rotation; it is retained for machine parity but does not change the commanded move duration.");
+    def->sidetext = L("mm");
+    def->min = 0;
+    def->mode = comAdvancedE | comSuSi;
+    def->set_default_value(new ConfigOptionFloat(0.0)); // Zero means the profile has not recorded rotation_distance.
+
+    def = this->add("machine_klipper_pressure_advance", coFloat);
+    def->label = L("Pressure advance (Klipper)");
+    def->category = OptionCategory::limits;
+    def->tooltip = L("Klipper [extruder] pressure_advance. It reshapes extrusion step timing without extending the toolhead move duration.");
+    def->min = 0;
+    def->mode = comAdvancedE | comSuSi;
+    def->set_default_value(new ConfigOptionFloat(0.0)); // Klipper's default disables pressure advance.
+
+    def = this->add("machine_klipper_pressure_advance_smooth_time", coFloat);
+    def->label = L("Pressure advance smooth time (Klipper)");
+    def->category = OptionCategory::limits;
+    def->tooltip = L("Klipper [extruder] pressure_advance_smooth_time. It smooths extrusion step generation and does not add commanded motion time.");
+    def->sidetext = L("s");
+    def->min = 0;
+    def->mode = comAdvancedE | comSuSi;
+    def->set_default_value(new ConfigOptionFloat(0.04)); // Klipper default.
+
+    auto add_klipper_shaper_value = [this, &def](const char* key, const std::string& label, const std::string& tooltip, double default_value) {
+        def = this->add(key, coFloat);
+        def->label = label;
+        def->category = OptionCategory::limits;
+        def->tooltip = tooltip;
+        def->min = 0;
+        def->mode = comAdvancedE | comSuSi;
+        def->set_default_value(new ConfigOptionFloat(default_value));
+    };
+    add_klipper_shaper_value("machine_klipper_shaper_freq_x", L("Input shaper frequency X (Klipper)"),
+        L("Klipper [input_shaper] shaper_freq_x. Input shaping alters step timing around the planned move but does not add to its duration."), 0.0); // Zero means no X shaper frequency is recorded.
+    add_klipper_shaper_value("machine_klipper_shaper_freq_y", L("Input shaper frequency Y (Klipper)"),
+        L("Klipper [input_shaper] shaper_freq_y. Input shaping alters step timing around the planned move but does not add to its duration."), 0.0); // Zero means no Y shaper frequency is recorded.
+    add_klipper_shaper_value("machine_klipper_damping_ratio_x", L("Input shaper damping ratio X (Klipper)"),
+        L("Klipper [input_shaper] damping_ratio_x. It affects shaper coefficients, not the toolhead trapezoid duration."), 0.1);
+    add_klipper_shaper_value("machine_klipper_damping_ratio_y", L("Input shaper damping ratio Y (Klipper)"),
+        L("Klipper [input_shaper] damping_ratio_y. It affects shaper coefficients, not the toolhead trapezoid duration."), 0.1);
 
     def = this->add("max_gcode_per_second", coFloat);
     def->label = L("Maximum G1 per second (Experimental)");
@@ -9920,7 +10042,7 @@ static void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_c
         if (value.find("e+") != std::string::npos) {
             const ConfigOptionDef *def = print_config_def.get(opt_key);
             if (def && def->can_be_disabled) {
-                ConfigOption *default_opt = def->default_value->clone();
+                std::unique_ptr<ConfigOption> default_opt{def->default_value->clone()};
                 default_opt->deserialize(value);
                 switch (default_opt->type()) {
                 case coInt:
@@ -9941,7 +10063,6 @@ static void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_c
                 default:;
                 }
                 value = default_opt->serialize();
-                delete default_opt;
             }
         }
         // nil-> disabled
@@ -9951,10 +10072,9 @@ static void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_c
                 if (def->type != coString && def->type != coStrings) {
                     assert(def && def->can_be_disabled);
                     if (def && def->can_be_disabled) {
-                        ConfigOption *default_opt = def->default_value->clone();
+                        std::unique_ptr<ConfigOption> default_opt{def->default_value->clone()};
                         default_opt->set_enabled(false);
                         value = default_opt->serialize();
-                        delete default_opt;
                     }
                 }
             } else {
@@ -11545,13 +11665,13 @@ void DynamicPrintConfig::normalize_fdm()
             this->opt<ConfigOptionPercent>("fill_density", true)->value = 0;
             this->opt<ConfigOptionEnumGeneric>("perimeter_generator", true)->value = static_cast<int>(PerimeterGeneratorType::Classic);
             this->opt<ConfigOptionBool>("support_material", true)->value = false;
-            this->opt<ConfigOptionInt>("solid_over_perimeters")->value = 0;
-            this->opt<ConfigOptionInt>("support_material_enforce_layers")->value = 0;
+            this->opt<ConfigOptionInt>("solid_over_perimeters", true)->value = 0;
+            this->opt<ConfigOptionInt>("support_material_enforce_layers", true)->value = 0;
             // this->opt<ConfigOptionBool>("exact_last_layer_height", true)->value = false;
             this->opt<ConfigOptionBool>("infill_dense", true)->value = false;
             this->opt<ConfigOptionBool>("extra_perimeters", true)->value = false;
-            this->opt<ConfigOptionFloatOrPercent>("extra_perimeters_below_area")->value = 0;
-            this->opt<ConfigOptionInt>("extra_perimeters_count")->value = 0;
+            this->opt<ConfigOptionFloatOrPercent>("extra_perimeters_below_area", true)->value = 0;
+            this->opt<ConfigOptionInt>("extra_perimeters_count", true)->value = 0;
             this->opt<ConfigOptionBool>("extra_perimeters_odd_layers", true)->value = false;
             this->opt<ConfigOptionBool>("extra_perimeters_on_overhangs", true)->value = false;
             this->opt<ConfigOptionBool>("overhangs_reverse", true)->value = false; 

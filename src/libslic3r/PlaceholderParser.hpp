@@ -46,15 +46,16 @@ public:
     void apply_env_variables();
 
     // Add new ConfigOption values to m_config.
-    void set(const std::string &key, const std::string &value)  { this->set(key, new ConfigOptionString(value)); }
-    void set(const std::string &key, std::string_view value)    { this->set(key, new ConfigOptionString(std::string(value))); }
-    void set(const std::string &key, const char *value)         { this->set(key, new ConfigOptionString(value)); }
-    void set(const std::string &key, int value)                 { this->set(key, new ConfigOptionInt(value)); }
+    void set(const std::string &key, const std::string &value)  { this->set(key, std::make_unique<ConfigOptionString>(value)); }
+    void set(const std::string &key, std::string_view value)    { this->set(key, std::make_unique<ConfigOptionString>(std::string(value))); }
+    void set(const std::string &key, const char *value)         { this->set(key, std::make_unique<ConfigOptionString>(value)); }
+    void set(const std::string &key, int value)                 { this->set(key, std::make_unique<ConfigOptionInt>(value)); }
     void set(const std::string &key, unsigned int value)        { this->set(key, int(value)); }
-    void set(const std::string &key, bool value)                { this->set(key, new ConfigOptionBool(value)); }
-    void set(const std::string &key, double value)              { this->set(key, new ConfigOptionFloat(value)); }
-    void set(const std::string &key, const std::vector<std::string> &values) { this->set(key, new ConfigOptionStrings(values)); }
-    void set(const std::string &key, ConfigOption *opt)         { m_config.set_key_value(key, opt); }
+    void set(const std::string &key, bool value)                { this->set(key, std::make_unique<ConfigOptionBool>(value)); }
+    void set(const std::string &key, double value)              { this->set(key, std::make_unique<ConfigOptionFloat>(value)); }
+    void set(const std::string &key, const std::vector<std::string> &values) { this->set(key, std::make_unique<ConfigOptionStrings>(values)); }
+    void set(const std::string &key, std::unique_ptr<ConfigOption> opt) { m_config.set_key_value(key, std::move(opt)); }
+    void set(const std::string &key, ConfigOption *opt)         { this->set(key, std::unique_ptr<ConfigOption>{opt}); }
     DynamicConfig&			config_writable()					{ return m_config; }
     const DynamicConfig&    config() const                      { return m_config; }
     const ConfigOption*     option(const std::string &key) const { return m_config.option(key); }

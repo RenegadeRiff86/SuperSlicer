@@ -26,7 +26,7 @@
 // FormerLurker@pm.me
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // change for superslicer: better handling for 2Pi & PI arcs.
-// todo: move start & end point to have a better center (a diff of ~40 unit in radius can move the center by ~50000)
+// Limitation: fixed endpoints can amplify a small radius error into a much larger center displacement.
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "ArcWelder.hpp"
@@ -460,7 +460,7 @@ static std::optional<Circle> try_create_circle(const Points::const_iterator begi
                 if (circle_approximation_sufficient(test, begin, end, tolerance)) {
                     Point last = *std::prev(end);
                     // average the radius.
-                    // todo: if it was possible to move points a little (even by EPSILON/2), a better precision can be achevied.
+                    // Keep source endpoints fixed; moving them for a better fit would change the welded G-code path.
                     double r1 = begin->distance_to(test.center);
                     if(last != *begin){
                         double r2 = last.distance_to(test.center);

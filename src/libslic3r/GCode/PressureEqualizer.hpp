@@ -10,6 +10,7 @@
 #include "../PrintConfig.hpp"
 #include "../ExtrusionRole.hpp"
 
+#include <memory>
 #include <queue>
 
 namespace Slic3r {
@@ -28,7 +29,7 @@ class PressureEqualizer
 public:
     PressureEqualizer() = delete;
     explicit PressureEqualizer(const Slic3r::GCodeConfig &config);
-    ~PressureEqualizer() = default;
+    ~PressureEqualizer();
 
     // Process a next batch of G-code lines.
     // The last LayerResult must be LayerResult::make_nop_layer_result() because it always returns GCode for the previous layer.
@@ -80,7 +81,8 @@ private:
 
     // Internal data.
     // X,Y,Z,E,F
-    float                           m_current_pos[5];
+    static constexpr size_t         position_component_count = 5;
+    float                           m_current_pos[position_component_count];
     size_t                          m_current_extruder;
     std::vector<std::string>        m_extruder_names;
     GCodeExtrusionRole              m_current_extrusion_role;
@@ -106,6 +108,12 @@ private:
 
     struct GCodeLine
     {
+        static constexpr size_t x_component = 0;
+        static constexpr size_t y_component = 1;
+        static constexpr size_t z_component = 2;
+        static constexpr size_t e_component = 3;
+        static constexpr size_t feedrate_component = 4;
+
         GCodeLine() : 
             type(GCODELINETYPE_INVALID),
             raw_length(0),
@@ -116,19 +124,28 @@ private:
             volumetric_extrusion_rate_end(0.f) 
             {}
 
-        bool        moving_xy()     const { return fabs(pos_end[0] - pos_start[0]) > 0.f || fabs(pos_end[1] - pos_start[1]) > 0.f; }
-        bool        moving_z ()     const { return fabs(pos_end[2] - pos_start[2]) > 0.f; }
-        bool        extruding()     const { return moving_xy() && pos_end[3] > pos_start[3]; }
-        bool        retracting()    const { return pos_end[3] < pos_start[3]; }
-        bool        deretracting()  const { return ! moving_xy() && pos_end[3] > pos_start[3]; }
+        bool        moving_xy()     const { return fabs(pos_end[x_component] - pos_start[x_component]) > 0.f || fabs(pos_end[y_component] - pos_start[y_component]) > 0.f; }
+        bool        moving_z ()     const { return fabs(pos_end[z_component] - pos_start[z_component]) > 0.f; }
+        bool        extruding()     const { return moving_xy() && pos_end[e_component] > pos_start[e_component]; }
+        bool        retracting()    const { return pos_end[e_component] < pos_start[e_component]; }
+        bool        deretracting()  const { return ! moving_xy() && pos_end[e_component] > pos_start[e_component]; }
 
-        float       dist_xy2()      const { return (pos_end[0] - pos_start[0]) * (pos_end[0] - pos_start[0]) + (pos_end[1] - pos_start[1]) * (pos_end[1] - pos_start[1]); }
-        float       dist_xyz2()     const { return (pos_end[0] - pos_start[0]) * (pos_end[0] - pos_start[0]) + (pos_end[1] - pos_start[1]) * (pos_end[1] - pos_start[1]) + (pos_end[2] - pos_start[2]) * (pos_end[2] - pos_start[2]); }
+        float dist_xy2() const
+        {
+            const float delta_x = pos_end[x_component] - pos_start[x_component];
+            const float delta_y = pos_end[y_component] - pos_start[y_component];
+            return delta_x * delta_x + delta_y * delta_y;
+        }
+        float dist_xyz2() const
+        {
+            const float delta_z = pos_end[z_component] - pos_start[z_component];
+            return dist_xy2() + delta_z * delta_z;
+        }
         float       dist_xy()       const { return sqrt(dist_xy2()); }
         float       dist_xyz()      const { return sqrt(dist_xyz2()); }
-        float       dist_e()        const { return fabs(pos_end[3] - pos_start[3]); }
+        float       dist_e()        const { return fabs(pos_end[e_component] - pos_start[e_component]); }
 
-        float       feedrate()      const { return pos_end[4]; }
+        float       feedrate()      const { return pos_end[feedrate_component]; }
         float       time()          const { return dist_xyz() / feedrate(); }
         float       time_inv()      const { return feedrate() / dist_xyz(); }
         float       volumetric_correction_avg() const { 
@@ -149,15 +166,15 @@ private:
         bool                modified;
 
         // X,Y,Z,E,F. Storing the state of the currently active extruder only.
-        float       pos_start[5];
-        float       pos_end[5];
+        float       pos_start[position_component_count]{};
+        float       pos_end[position_component_count]{};
         // Was the axis found on the G-code line? X,Y,Z,E,F
-        bool        pos_provided[5];
+        bool        pos_provided[position_component_count]{};
 
         // Index of the active extruder.
         size_t      extruder_id;
         // Extrusion role of this segment.
-        GCodeExtrusionRole extrusion_role;
+        GCodeExtrusionRole extrusion_role { GCodeExtrusionRole::None };
 
         // Current volumetric extrusion rate.
         float       volumetric_extrusion_rate;
@@ -168,8 +185,8 @@ private:
 
         // Volumetric extrusion rate slope limiting this segment.
         // If set to zero, the slope is unlimited.
-        float       max_volumetric_extrusion_rate_slope_positive;
-        float       max_volumetric_extrusion_rate_slope_negative;
+        float       max_volumetric_extrusion_rate_slope_positive = 0.f;
+        float       max_volumetric_extrusion_rate_slope_negative = 0.f;
 
         bool        adjustable_flow       = false;
 
@@ -188,6 +205,9 @@ private:
 #endif
 
     bool process_line(const char *line, const char *line_end, GCodeLine &buf);
+    void parse_axis_values(const char *&line, const char *line_end, float *new_pos, bool *changed, GCodeLine &buf);
+    void process_gcode(int gcode, const char *&line, const char *line_end, GCodeLine &buf,
+                       bool found_extrude_set_speed_tag, bool found_extrude_end_tag);
     void output_gcode_line(size_t line_idx);
     void parse_activate_extruder(const std::string&);
 
@@ -203,7 +223,7 @@ private:
     void push_line_to_output(size_t line_idx, float new_feedrate, const char *comment);
 
 public:
-    std::queue<LayerResult*> m_layer_results;
+    std::queue<std::unique_ptr<LayerResult>> m_layer_results;
 
     std::vector<GCodeLine> m_gcode_lines;
 };

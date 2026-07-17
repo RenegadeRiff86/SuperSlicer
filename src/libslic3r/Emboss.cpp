@@ -789,7 +789,7 @@ const Glyph* get_glyph(
     Glyphs &         cache,
     fontinfo_opt &font_info_opt)
 {
-    // TODO: Use resolution by printer configuration, or add it into FontProp
+    // Use a fixed tessellation resolution so cached glyph geometry is independent of the active printer preset.
     const float RESOLUTION = 0.0125f; // [in mm]
     auto glyph_item = cache.find(unicode);
     if (glyph_item != cache.end()) return &glyph_item->second;
@@ -883,36 +883,33 @@ std::optional<std::wstring> Emboss::get_font_path(const std::wstring &font_face_
     if (result != ERROR_SUCCESS) return {};
 
     DWORD valueIndex = 0;
-    LPWSTR valueName = new WCHAR[maxValueNameSize];
-    LPBYTE valueData = new BYTE[maxValueDataSize];
+    std::vector<WCHAR> valueName(maxValueNameSize + 1);
+    std::vector<BYTE> valueData(maxValueDataSize);
     DWORD valueNameSize, valueDataSize, valueType;
     std::wstring wsFontFile;
 
     // Look for a matching font name
     do {
         wsFontFile.clear();
-        valueDataSize = maxValueDataSize;
-        valueNameSize = maxValueNameSize;
+        valueDataSize = static_cast<DWORD>(valueData.size());
+        valueNameSize = static_cast<DWORD>(valueName.size());
 
-        result = RegEnumValue(hKey, valueIndex, valueName, &valueNameSize, 0, &valueType, valueData, &valueDataSize);
+        result = RegEnumValue(hKey, valueIndex, valueName.data(), &valueNameSize, 0, &valueType,
+                              valueData.data(), &valueDataSize);
 
         valueIndex++;
         if (result != ERROR_SUCCESS || valueType != REG_SZ) {
             continue;
         }
 
-        std::wstring wsValueName(valueName, valueNameSize);
+        std::wstring wsValueName(valueName.data(), valueNameSize);
 
         // Found a match
         if (_wcsnicmp(font_face_name.c_str(), wsValueName.c_str(), font_face_name.length()) == 0) {
-
-            wsFontFile.assign((LPWSTR)valueData, valueDataSize);
+            wsFontFile.assign(reinterpret_cast<const WCHAR *>(valueData.data()));
             break;
         }
     }while (result != ERROR_NO_MORE_ITEMS);
-
-    delete[] valueName;
-    delete[] valueData;
 
     RegCloseKey(hKey);
 
@@ -967,21 +964,21 @@ EmbossStyles Emboss::get_font_list_by_register() {
     std::wstring font_path = std::wstring(winDir) + L"\\Fonts\\";
 
     EmbossStyles font_list;
-    DWORD    valueIndex = 0;
+    DWORD valueIndex = 0;
     // Look for a matching font name
-    LPWSTR font_name = new WCHAR[maxValueNameSize];
-    LPBYTE fileTTF_name = new BYTE[maxValueDataSize];
-    DWORD  font_name_size, fileTTF_name_size, valueType;
+    std::vector<WCHAR> font_name(maxValueNameSize + 1);
+    std::vector<BYTE> fileTTF_name(maxValueDataSize);
+    DWORD font_name_size, fileTTF_name_size, valueType;
     do {
-        fileTTF_name_size = maxValueDataSize;
-        font_name_size = maxValueNameSize;
+        fileTTF_name_size = static_cast<DWORD>(fileTTF_name.size());
+        font_name_size = static_cast<DWORD>(font_name.size());
 
-        result = RegEnumValue(hKey, valueIndex, font_name, &font_name_size, 0,
-                              &valueType, fileTTF_name, &fileTTF_name_size);
+        result = RegEnumValue(hKey, valueIndex, font_name.data(), &font_name_size, 0,
+                              &valueType, fileTTF_name.data(), &fileTTF_name_size);
         valueIndex++;
         if (result != ERROR_SUCCESS || valueType != REG_SZ) continue;
-        std::wstring font_name_w(font_name, font_name_size);
-        std::wstring file_name_w((LPWSTR) fileTTF_name, fileTTF_name_size);
+        std::wstring font_name_w(font_name.data(), font_name_size);
+        std::wstring file_name_w(reinterpret_cast<const WCHAR *>(fileTTF_name.data()));
         std::wstring path_w = font_path + file_name_w;
 
         // filtrate .fon from lists
@@ -991,14 +988,12 @@ EmbossStyles Emboss::get_font_list_by_register() {
         font_name_w = std::wstring(font_name_w, 0, pos);
         font_list.emplace_back(create_style(font_name_w, path_w));
     } while (result != ERROR_NO_MORE_ITEMS);
-    delete[] font_name;
-    delete[] fileTTF_name;
 
     RegCloseKey(hKey);
     return font_list;
 }
 
-// TODO: Fix global function
+// EnumFontFamiliesEx requires a free CALLBACK-compatible function.
 bool CALLBACK EnumFamCallBack(LPLOGFONT       lplf,
                               LPNEWTEXTMETRIC lpntm,
                               DWORD           FontType,
@@ -1045,7 +1040,7 @@ EmbossStyles Emboss::get_font_list_by_folder() {
             // skip folder . and ..
             if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
             std::wstring file_name(fd.cFileName);
-            // TODO: find font name instead of filename
+            // FindFirstFile exposes filenames only; use the filename as the display name until the font is loaded.
             result.emplace_back(create_style(file_name, search_dir + file_name));
         } while (::FindNextFile(hFind, &fd));
         ::FindClose(hFind);

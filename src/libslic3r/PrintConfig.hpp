@@ -1092,8 +1092,23 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloats,              machine_max_jerk_e))
     ((ConfigOptionFloats,              machine_min_travel_rate))
     ((ConfigOptionFloats,              machine_min_extruding_rate))
-    // Klipper SET_VELOCITY_LIMIT MINIMUM_CRUISE_RATIO (0.0..<1.0); single value, can be disabled.
+    // Klipper firmware limits and calibration values imported from printer.cfg.
+    ((ConfigOptionFloat,               machine_klipper_max_velocity))
+    ((ConfigOptionFloat,               machine_klipper_max_acceleration))
+    ((ConfigOptionFloat,               machine_klipper_max_z_velocity))
+    ((ConfigOptionFloat,               machine_klipper_max_z_acceleration))
+    ((ConfigOptionFloat,               machine_klipper_square_corner_velocity))
     ((ConfigOptionFloat,               machine_min_cruise_ratio))
+    ((ConfigOptionFloat,               machine_klipper_max_extrude_only_velocity))
+    ((ConfigOptionFloat,               machine_klipper_max_extrude_only_acceleration))
+    ((ConfigOptionFloat,               machine_klipper_instantaneous_corner_velocity))
+    ((ConfigOptionFloat,               machine_klipper_rotation_distance))
+    ((ConfigOptionFloat,               machine_klipper_pressure_advance))
+    ((ConfigOptionFloat,               machine_klipper_pressure_advance_smooth_time))
+    ((ConfigOptionFloat,               machine_klipper_shaper_freq_x))
+    ((ConfigOptionFloat,               machine_klipper_shaper_freq_y))
+    ((ConfigOptionFloat,               machine_klipper_damping_ratio_x))
+    ((ConfigOptionFloat,               machine_klipper_damping_ratio_y))
 )
 
 PRINT_CONFIG_CLASS_DEFINE(

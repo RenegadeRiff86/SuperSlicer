@@ -27,6 +27,7 @@
 
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 #include <algorithm>
+#include <limits>
 
 //#define MESH_BOOLEAN_TIMING
 //#define DOUBLE_CHECK_EXACT_OUTPUT
@@ -268,17 +269,21 @@ IGL_INLINE bool igl::copyleft::cgal::mesh_boolean(
   // cumulative sizes
   Derivedsizes cumsizes;
   igl::cumsum(sizes,1,cumsizes);
-  const size_t num_inputs = sizes.size();
+  const Eigen::Index num_inputs = sizes.size();
+  if(num_inputs > std::numeric_limits<int>::max())
+  {
+    return false;
+  }
   std::transform(
     CJ.data(), 
     CJ.data()+CJ.size(), 
     labels.data(),
     // Determine which input mesh birth face i comes from
-    [&num_inputs,&cumsizes](int i)->int
+    [&num_inputs,&cumsizes](typename DerivedJ::Scalar i)->int
     { 
-      for(int k = 0;k<num_inputs;k++)
+      for(Eigen::Index k = 0;k<num_inputs;k++)
       {
-        if(i<cumsizes(k)) return k;
+        if(i<cumsizes(k)) return static_cast<int>(k);
       }
       assert(false && "Birth parent index out of range");
       return -1;

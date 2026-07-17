@@ -33,15 +33,15 @@ public:
     BoostIndex m_store;
 };
 
-PointIndex::PointIndex(): m_impl(new Impl()) {}
+PointIndex::PointIndex(): m_impl(std::make_unique<Impl>()) {}
 PointIndex::~PointIndex() {}
 
-PointIndex::PointIndex(const PointIndex &cpy): m_impl(new Impl(*cpy.m_impl)) {}
+PointIndex::PointIndex(const PointIndex &cpy): m_impl(std::make_unique<Impl>(*cpy.m_impl)) {}
 PointIndex::PointIndex(PointIndex&& cpy): m_impl(std::move(cpy.m_impl)) {}
 
 PointIndex& PointIndex::operator=(const PointIndex &cpy)
 {
-    m_impl.reset(new Impl(*cpy.m_impl));
+    m_impl = std::make_unique<Impl>(*cpy.m_impl);
     return *this;
 }
 
@@ -106,15 +106,15 @@ public:
     BoostIndex m_store;
 };
 
-BoxIndex::BoxIndex(): m_impl(new Impl()) {}
+BoxIndex::BoxIndex(): m_impl(std::make_unique<Impl>()) {}
 BoxIndex::~BoxIndex() {}
 
-BoxIndex::BoxIndex(const BoxIndex &cpy): m_impl(new Impl(*cpy.m_impl)) {}
+BoxIndex::BoxIndex(const BoxIndex &cpy): m_impl(std::make_unique<Impl>(*cpy.m_impl)) {}
 BoxIndex::BoxIndex(BoxIndex&& cpy): m_impl(std::move(cpy.m_impl)) {}
 
 BoxIndex& BoxIndex::operator=(const BoxIndex &cpy)
 {
-    m_impl.reset(new Impl(*cpy.m_impl));
+    m_impl = std::make_unique<Impl>(*cpy.m_impl);
     return *this;
 }
 

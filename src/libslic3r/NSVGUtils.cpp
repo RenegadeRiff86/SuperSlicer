@@ -13,6 +13,23 @@
 
 namespace {    
 using namespace Slic3r; // Polygon
+
+constexpr size_t nsvg_shape_id_stride = 2; // fill and stroke IDs occupy two slots per SVG shape
+constexpr size_t nsvg_bounds_max_x_index = 2; // NanoSVG bounds order: min x, min y, max x, max y
+constexpr size_t nsvg_bounds_max_y_index = 3; // NanoSVG bounds order: min x, min y, max x, max y
+constexpr size_t nsvg_coordinate_pair_size = 2; // x and y values per NanoSVG point
+constexpr size_t nsvg_cubic_segment_stride = 3; // each cubic segment adds three points after its start
+constexpr float nsvg_cubic_degree = 3.f; // cubic Bezier curve degree
+constexpr size_t nsvg_cubic_control1_x_index = 2; // first control point x in NanoSVG's cubic array
+constexpr size_t nsvg_cubic_control1_y_index = 3; // first control point y in NanoSVG's cubic array
+constexpr size_t nsvg_cubic_control2_x_index = 4; // second control point x in NanoSVG's cubic array
+constexpr size_t nsvg_cubic_control2_y_index = 5; // second control point y in NanoSVG's cubic array
+constexpr size_t nsvg_cubic_end_x_index = 6; // endpoint x in NanoSVG's cubic array
+constexpr size_t nsvg_cubic_end_y_index = 7; // endpoint y in NanoSVG's cubic array
+constexpr float nsvg_doubled_dash_pattern = 2.0f; // odd SVG dash lists repeat once to form an even pattern
+constexpr double cubic_root_exponent = 1.0 / 3.0; // cubic root used for round-join tolerance
+constexpr float half_stroke_width = 0.5f; // stroke expansion uses the radius, not the full width
+
 // see function nsvg__lineTo(NSVGparser* p, float x, float y)
 bool is_line(const float *p, float precision = 1e-4f);
 // convert curve in path to lines
@@ -46,12 +63,12 @@ ExPolygonsWithIds create_shape_with_ids(const NSVGimage &image, const NSVGLinePa
         const LinesPath lines_path = linearize_path(shape.paths, param);
 
         if (is_fill_used) {
-            unsigned unique_id = static_cast<unsigned>(2 * shape_id);
+            unsigned unique_id = static_cast<unsigned>(nsvg_shape_id_stride * shape_id);
             HealedExPolygons expoly = fill_to_expolygons(lines_path, shape, param);
             result.push_back({unique_id, expoly.expolygons, expoly.is_healed});
         }        
         if (is_stroke_used) {
-            unsigned unique_id = static_cast<unsigned>(2 * shape_id + 1);
+            unsigned unique_id = static_cast<unsigned>(nsvg_shape_id_stride * shape_id + 1);
             HealedExPolygons expoly = stroke_to_expolygons(lines_path, shape, param);
             result.push_back({unique_id, expoly.expolygons, expoly.is_healed});
         }
@@ -87,10 +104,10 @@ void bounds(const NSVGimage &image, Vec2f& min, Vec2f &max)
                 min.x() = path->bounds[0];
             if (min.y() > path->bounds[1])
                 min.y() = path->bounds[1];
-            if (max.x() < path->bounds[2])
-                max.x() = path->bounds[2];
-            if (max.y() < path->bounds[3])
-                max.y() = path->bounds[3];
+            if (max.x() < path->bounds[nsvg_bounds_max_x_index])
+                max.x() = path->bounds[nsvg_bounds_max_x_index];
+            if (max.y() < path->bounds[nsvg_bounds_max_y_index])
+                max.y() = path->bounds[nsvg_bounds_max_y_index];
         }
 }
 
@@ -114,7 +131,7 @@ NSVGimage_ptr nsvgParse(const std::string& file_data, const char *units, float d
     // NOTE: nsvg parser consumes mutable, null-terminated input.
     size_t size = file_data.size();
     // file data could be big, so it is allocated on heap
-    std::unique_ptr<char[]> data_copy(new char[size+1]);
+    auto data_copy = std::make_unique<char[]>(size + 1);
     memcpy(data_copy.get(), file_data.c_str(), size);
     data_copy[size]  = '\0'; // data for nsvg must be null terminated
     NSVGimage *image = ::nsvgParse(data_copy.get(), units, dpi);
@@ -181,14 +198,14 @@ bool is_line(const float *p, float precision){
     //Vec2f p2(p[2], p[3]);
     //Vec2f p3(p[4], p[5]);
     //Vec2f p4(p[6], p[7]);
-    float dx_3 = (p[6] - p[0]) / 3.f;
-    float dy_3 = (p[7] - p[1]) / 3.f;
+    float dx_3 = (p[nsvg_cubic_end_x_index] - p[0]) / nsvg_cubic_degree;
+    float dy_3 = (p[nsvg_cubic_end_y_index] - p[1]) / nsvg_cubic_degree;
 
     return 
-        is_approx(p[2], p[0] + dx_3, precision) && 
-        is_approx(p[4], p[6] - dx_3, precision) && 
-        is_approx(p[3], p[1] + dy_3, precision) &&
-        is_approx(p[5], p[7] - dy_3, precision);
+        is_approx(p[nsvg_cubic_control1_x_index], p[0] + dx_3, precision) && 
+        is_approx(p[nsvg_cubic_control2_x_index], p[nsvg_cubic_end_x_index] - dx_3, precision) && 
+        is_approx(p[nsvg_cubic_control1_y_index], p[1] + dy_3, precision) &&
+        is_approx(p[nsvg_cubic_control2_y_index], p[nsvg_cubic_end_y_index] - dy_3, precision);
 }
 
 /// <summary>
@@ -240,19 +257,19 @@ LinesPath linearize_path(NSVGpath *first_path, const NSVGLineParams &param)
         Point::coord_type y = to_coor(path->pts[1], param.scale);
         points.emplace_back(x, y);
         size_t path_size = (path->npts > 1) ? static_cast<size_t>(path->npts - 1) : 0;
-        for (size_t i = 0; i < path_size; i += 3) {
-            const float *p = &path->pts[i * 2];
+        for (size_t i = 0; i < path_size; i += nsvg_cubic_segment_stride) {
+            const float *p = &path->pts[i * nsvg_coordinate_pair_size];
             if (is_line(p)) {
                 // point p4
-                Point::coord_type xx = to_coor(p[6], param.scale);
-                Point::coord_type yy = to_coor(p[7], param.scale);
+                Point::coord_type xx = to_coor(p[nsvg_cubic_end_x_index], param.scale);
+                Point::coord_type yy = to_coor(p[nsvg_cubic_end_y_index], param.scale);
                 points.emplace_back(xx, yy);
                 continue;
             }
             Vec2f p1(p[0], p[1]);
-            Vec2f p2(p[2], p[3]);
-            Vec2f p3(p[4], p[5]);
-            Vec2f p4(p[6], p[7]);
+            Vec2f p2(p[nsvg_cubic_control1_x_index], p[nsvg_cubic_control1_y_index]);
+            Vec2f p3(p[nsvg_cubic_control2_x_index], p[nsvg_cubic_control2_y_index]);
+            Vec2f p4(p[nsvg_cubic_end_x_index], p[nsvg_cubic_end_y_index]);
             flatten_cubic_bez(points, param.tesselation_tolerance, 
                 p1 * param.scale, p2 * param.scale, p3 * param.scale, p4 * param.scale, 
                 param.max_level);
@@ -323,7 +340,7 @@ struct DashesParam{
             all_dash_length += dash_array[j];
 
         if (dash_count%2 == 1) // (shape.strokeDashCount & 1)
-            all_dash_length *= 2.0f;
+            all_dash_length *= nsvg_doubled_dash_pattern;
 
         // Find location inside pattern
         float dash_offset = fmodf(static_cast<float>(shape.strokeDashOffset * scale), all_dash_length);
@@ -415,7 +432,7 @@ HealedExPolygons stroke_to_expolygons(const LinesPath &lines_path, const NSVGsha
     if (join_type == ClipperLib::JoinType::jtRound) {
         // mitter is used as ArcTolerance
         // http://www.angusj.com/delphi/clipper/documentation/Docs/Units/ClipperLib/Classes/ClipperOffset/Properties/ArcTolerance.htm
-        mitter = std::pow(param.tesselation_tolerance, 1/3.);
+        mitter = std::pow(param.tesselation_tolerance, cubic_root_exponent);
     }
     float stroke_width = static_cast<float>(shape.strokeWidth * param.scale);
 
@@ -434,10 +451,10 @@ HealedExPolygons stroke_to_expolygons(const LinesPath &lines_path, const NSVGsha
             polylines_append(dashes, to_dashes(polyline, params));
         for (const Polygon &polygon : lines_path.polygons)
             polylines_append(dashes, to_dashes(to_polyline(polygon), params));
-        result = offset(dashes, stroke_width / 2, join_type, mitter, end_type);
+        result = offset(dashes, stroke_width * half_stroke_width, join_type, mitter, end_type);
     } else {
         result = contour_to_polygons(lines_path.polygons, stroke_width, join_type, mitter);
-        polygons_append(result, offset(lines_path.polylines, stroke_width / 2, join_type, mitter, end_type));    
+        polygons_append(result, offset(lines_path.polylines, stroke_width * half_stroke_width, join_type, mitter, end_type));    
     }
 
     bool is_non_zero = true;

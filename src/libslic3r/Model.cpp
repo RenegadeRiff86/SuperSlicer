@@ -2296,7 +2296,11 @@ bool model_volume_list_changed(const ModelObject &model_object_old, const ModelO
         }
         if (mv_old.type() != mv_new.type() || mv_old.id() != mv_new.id())
             return true;
-        //FIXME test for the content of the mesh!
+        // m_mesh is a shared_ptr<const TriangleMesh> that is always replaced wholesale, never
+        // mutated in place (see ModelVolume::set_mesh()), so pointer identity is an exact,
+        // O(1) proxy for mesh content equality.
+        if (mv_old.mesh_ptr().get() != mv_new.mesh_ptr().get())
+            return true;
         if (! mv_old.get_matrix().isApprox(mv_new.get_matrix()))
             return true;
         ++ i_old;

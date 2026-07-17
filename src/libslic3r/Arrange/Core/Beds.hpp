@@ -36,7 +36,7 @@ struct RectangleBed {
 
     explicit RectangleBed(const BoundingBox &bedbb) : bb{bedbb} {}
     explicit RectangleBed(coord_t w, coord_t h, Point c = {0, 0}):
-        bb{{c.x() - w / 2, c.y() - h / 2}, {c.x() + w / 2, c.y() + h / 2}}
+        bb{{c.x() - w / 2, c.y() - h / 2}, {c.x() + w / 2, c.y() + h / 2}} // Extend half the width and height from the center to each edge.
     {}
 
     coord_t width() const { return bb.size().x(); }

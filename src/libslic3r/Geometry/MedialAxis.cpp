@@ -13,6 +13,8 @@
 
 namespace Slic3r { namespace Geometry {
 
+static constexpr double kDegreesPerHalfTurn = 180.0;
+
 //SUPERSLICER version
 
 void
@@ -1854,9 +1856,9 @@ MedialAxis::simplify_polygon_frontier()
 {
     //it will remove every point in the surface contour that aren't on the bounds contour
     this->m_expolygon = this->m_surface;
-    this->m_expolygon.contour.remove_collinear_angle(M_PI/180);
+    this->m_expolygon.contour.remove_collinear_angle(M_PI / kDegreesPerHalfTurn);
     for (Polygon& hole : this->m_expolygon.holes)
-        hole.remove_collinear_angle(M_PI / 180);
+        hole.remove_collinear_angle(M_PI / kDegreesPerHalfTurn);
     if (&this->m_surface != this->m_bounds) {
         bool need_intersect = false;
         for (size_t i = 0; i < this->m_expolygon.contour.points.size(); i++) {
@@ -1885,9 +1887,9 @@ MedialAxis::simplify_polygon_frontier()
             } else {
                 //can't simplify that much, reuse the given one
                 this->m_expolygon = this->m_surface;
-                this->m_expolygon.contour.remove_collinear_angle(M_PI / 180);
+                this->m_expolygon.contour.remove_collinear_angle(M_PI / kDegreesPerHalfTurn);
                 for (Polygon& hole : this->m_expolygon.holes)
-                    hole.remove_collinear_angle(M_PI / 180);
+                    hole.remove_collinear_angle(M_PI / kDegreesPerHalfTurn);
             }
         }
     }

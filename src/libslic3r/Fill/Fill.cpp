@@ -930,12 +930,12 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         std::map<LayerIsland*, std::vector<std::vector<ExtrusionEntityCollection*>>> island_2_fillsby_priority;
         for (size_t priority = 0; priority < fills_by_priority.size(); ++priority) {
             for (size_t fill_idx = 0; fill_idx < fills_by_priority[priority].size(); ++fill_idx) {
-                if (fills_by_priority[priority][fill_idx]->empty()) {
-                    delete fills_by_priority[priority][fill_idx];
-                    fills_by_priority[priority][fill_idx] = nullptr;
+                ExtrusionEntityCollection *&fill_slot = fills_by_priority[priority][fill_idx];
+                std::unique_ptr<ExtrusionEntityCollection> fill(fill_slot);
+                fill_slot = nullptr;
+                if (fill->empty())
                     continue;
-                }
-                LayerIsland *island = get_fill_island(*this, uint32_t(region_id), fills_by_priority[priority][fill_idx]->first_point());
+                LayerIsland *island = get_fill_island(*this, uint32_t(region_id), fill->first_point());
                 if (island == nullptr) {
                     assert(false);
                     assert(!this->lslices_ex.empty());
@@ -946,11 +946,7 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
                 while(fillsbypriority.size() < fills_by_priority.size())
                     fillsbypriority.emplace_back();
                 assert(priority < fills_by_priority.size());
-                if (!fills_by_priority[priority][fill_idx]->empty()) {
-                    fillsbypriority[priority].push_back(fills_by_priority[priority][fill_idx]);
-                } else {
-                    assert(false);
-                }
+                fillsbypriority[priority].push_back(fill.release());
             }
         }
         //now it's ordered, by island and then by priority

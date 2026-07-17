@@ -18,6 +18,8 @@
 
 namespace Slic3r {
 
+static constexpr int LINE_DIMENSION = 2;
+
 class BoundingBox;
 class Line;
 class Line3;
@@ -59,7 +61,7 @@ auto sqlength(L &&l)
     return (get_b(l).template cast<Scalar>() - get_a(l).template cast<Scalar>()).squaredNorm();
 }
 
-template<class L, class = std::enable_if_t<Dim<L> == 2> >
+template<class L, class = std::enable_if_t<Dim<L> == LINE_DIMENSION> >
 auto angle_to_x(const L &l)
 {
     auto dx = double(get_b(l).x()) - get_a(l).x();
@@ -69,7 +71,7 @@ auto angle_to_x(const L &l)
     auto s   = std::signbit(a);
 
     if(s)
-        a += 2. * PI;
+        a += 2. * PI; // Add one full turn to wrap a negative angle.
 
     return a;
 }
@@ -210,7 +212,7 @@ public:
     void   rotate(double angle, const Point &center) { this->a.rotate(angle, center); this->b.rotate(angle, center); }
     void   reverse() { std::swap(this->a, this->b); }
     coordf_t length() const { return (b.cast<coordf_t>() - a.cast<coordf_t>()).norm(); }
-    Point  midpoint() const { return (this->a + this->b) / 2; }
+    Point  midpoint() const { return (this->a + this->b) / 2; } // Average the two endpoints.
     bool   intersection_infinite(const Line &other, Point* point) const;
     bool   operator==(const Line &rhs) const { return this->a == rhs.a && this->b == rhs.b; }
     double distance_to_squared(const Point &point) const { return distance_to_squared(point, this->a, this->b); }
@@ -233,7 +235,7 @@ public:
     // Extend the line from both sides by an offset.
     void   extend(coordf_t offset);
 
-    static inline double distance_to_squared(const Point &point, const Point &a, const Point &b) { return line_alg::distance_to_squared(Line{a, b}, Vec<2, coord_t>{point}); }
+    static inline double distance_to_squared(const Point &point, const Point &a, const Point &b) { return line_alg::distance_to_squared(Line{a, b}, Vec<LINE_DIMENSION, coord_t>{point}); }
     static coordf_t distance_to(const Point &point, const Point &a, const Point &b) { return sqrt(distance_to_squared(point, a, b)); }
     Point point_at(coordf_t distance) const;
     coord_t dot(const Line &l2) const { return vector().dot(l2.vector()); }
@@ -242,7 +244,7 @@ public:
 
     // Returns a distance to the closest point on the infinite.
     // Closest point (and returned squared distance to this point) could be beyond the 'a' and 'b' ends of the segment.
-    static inline double distance_to_infinite_squared(const Point &point, const Point &a, const Point &b) { return line_alg::distance_to_infinite_squared(Line{a, b}, Vec<2, coord_t>{point}); }
+    static inline double distance_to_infinite_squared(const Point &point, const Point &a, const Point &b) { return line_alg::distance_to_infinite_squared(Line{a, b}, Vec<LINE_DIMENSION, coord_t>{point}); }
     static coordf_t distance_to_infinite(const Point &point, const Point &a, const Point &b) { return sqrt(distance_to_infinite_squared(point, a, b)); }
     // version optimized to work on int-4 Points, to reduce cast & to avoid precision issues.
     static double distance_to_squared_abp(const Point &a, const Point &b, const Point &point, Point *nearest_point = nullptr);
@@ -250,7 +252,7 @@ public:
     Point a;
     Point b;
 
-    static const constexpr int Dim = 2;
+    static const constexpr int Dim = LINE_DIMENSION;
     using Scalar = Point::Scalar;
 };
 
@@ -313,7 +315,7 @@ public:
     Linef3() : a(Vec3d::Zero()), b(Vec3d::Zero()) {}
     Linef3(const Vec3d& _a, const Vec3d& _b) : a(_a), b(_b) {}
 
-    Vec3d   intersect_plane(double z) const;
+    Vec3d   intersect_plane(coordf_t z) const;
     void    scale(double factor) { this->a *= factor; this->b *= factor; }
     Vec3d   vector() const { return this->b - this->a; }
     Vec3d   unit_vector() const { return (length() == 0.0) ? Vec3d::Zero() : vector().normalized(); }

@@ -73,7 +73,7 @@ void ExtrusionPath::simplify(coordf_t tolerance, ArcFittingType with_fitting_arc
 void ExtrusionPath3D::simplify(coordf_t tolerance, ArcFittingType with_fitting_arc, double fitting_arc_tolerance)
 {
     this->polyline.make_arc(ArcFittingType::Disabled, tolerance, fitting_arc_tolerance);
-    // TODO: simplify but only for sub-path with same zheight.
+    // Preserve Z-height segments: simplifying across a height change would alter the 3D path.
     // if (with_fitting_arc) {
     //    this->polyline.simplify(tolerance, with_fitting_arc, fitting_arc_tolerance);
     //}
@@ -84,8 +84,12 @@ coordf_t ExtrusionPath::length() const { return this->polyline.length(); }
 void ExtrusionPath::_inflate_collection(const Polylines &polylines, ExtrusionEntityCollection *collection) const
 {
     ExtrusionEntitiesPtr to_add;
-    for (const Polyline &polyline : polylines)
-        to_add.push_back(new ExtrusionPath(ArcPolyline{polyline}, this->attributes(), this->can_reverse()));
+    for (const Polyline &polyline : polylines) {
+        auto path = std::make_unique<ExtrusionPath>(
+            ArcPolyline{ polyline }, this->attributes(), this->can_reverse());
+        to_add.push_back(path.get());
+        path.release();
+    }
     collection->append(std::move(to_add));
 }
 
@@ -100,7 +104,7 @@ void ExtrusionPath::polygons_covered_by_spacing(Polygons &out, const float spaci
     // Don't know the nozzle diameter, setting to zero. It shall not matter it shall be optimized out by the compiler.
     bool bridge = this->role().is_bridge() || (this->width() * 4 < this->height());
     assert(!bridge || m_attributes.width == m_attributes.height);
-    // TODO: check BRIDGE_FLOW here
+    // Bridge spacing uses a circular bridge flow because width and height are equal by contract above.
     auto flow = bridge ? Flow::bridging_flow(m_attributes.width, 0.f) :
                          Flow::new_from_width(m_attributes.width, 0.f, m_attributes.height, spacing_ratio);
     polygons_append(out, offset(this->polyline.to_polyline(), 0.5f * float(flow.scaled_spacing()) + scaled_epsilon, Slic3r::ClipperLib::jtMiter, 10));

@@ -117,8 +117,8 @@ void GCodeReader::update_coordinates(GCodeLine &gline, std::pair<const char*, co
 {
     if (*command.first == 'G') {
         int cmd_len = int(command.second - command.first);
-        if ((cmd_len == 2 && (command.first[1] == '0' || command.first[1] == '1' || command.first[1] == '2' || command.first[1] == '3')) ||
-            (cmd_len == 3 &&  command.first[1] == '9' && command.first[2] == '2')) {
+        if ((cmd_len == 2 && (command.first[1] == '0' || command.first[1] == '1' || command.first[1] == '2' || command.first[1] == '3')) || // G0-G3 are two-character motion commands.
+            (cmd_len == 3 &&  command.first[1] == '9' && command.first[2] == '2')) { // G92 is the three-character coordinate reset command.
             for (size_t i = 0; i < NUM_AXES; ++ i)
                 if (gline.has(Axis(i)))
                     m_position[i] = gline.value(Axis(i));
@@ -307,7 +307,7 @@ void GCodeReader::GCodeLine::set(const GCodeReader &reader, const Axis axis, con
     }
 
     if (this->has(axis)) {
-        size_t pos = m_raw.find(match)+2;
+        size_t pos = m_raw.find(match)+2; // Skip the two-character axis prefix (for example, " X").
         size_t end = m_raw.find(' ', pos+1);
         m_raw = m_raw.replace(pos, end-pos, ss.str());
     } else {

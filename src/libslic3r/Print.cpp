@@ -80,8 +80,9 @@ void Print::clear()
     std::scoped_lock<std::mutex> lock(this->state_mutex());
     // The following call should stop background processing if it is running.
     this->invalidate_all_steps();
-    for (PrintObject *object : m_objects)
-        delete object;
+    for (PrintObject *object : m_objects) {
+        std::unique_ptr<PrintObject> object_owner{object};
+    }
     m_objects.clear();
     m_print_regions.clear();
     m_model.clear_objects();
@@ -181,7 +182,15 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "lift_min",
         "max_fan_speed",
         "max_gcode_per_second",
+        "machine_klipper_max_velocity",
+        "machine_klipper_max_acceleration",
+        "machine_klipper_max_z_velocity",
+        "machine_klipper_max_z_acceleration",
+        "machine_klipper_square_corner_velocity",
         "machine_min_cruise_ratio",
+        "machine_klipper_max_extrude_only_velocity",
+        "machine_klipper_max_extrude_only_acceleration",
+        "machine_klipper_instantaneous_corner_velocity",
         "max_print_height",
         "max_print_speed",
         "max_speed_reduction",

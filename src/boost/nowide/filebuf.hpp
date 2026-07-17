@@ -12,6 +12,7 @@
 #include <boost/config.hpp>
 #include <boost/nowide/stackstring.hpp>
 #include <fstream>
+#include <memory>
 #include <streambuf>
 #include <stdio.h>
 
@@ -53,7 +54,6 @@ namespace nowide {
             buffer_size_(4),
             buffer_(0),
             file_(0),
-            own_(true),
             mode_(std::ios::in | std::ios::out)
         {
             setg(0,0,0);
@@ -66,8 +66,6 @@ namespace nowide {
                 ::fclose(file_);
                 file_ = 0;
             }
-            if(own_ && buffer_)
-                delete [] buffer_;
         }
         
         ///
@@ -137,8 +135,8 @@ namespace nowide {
             if(buffer_)
                 return;
             if(buffer_size_ > 0) {
-                buffer_ = new char [buffer_size_];
-                own_ = true;
+                owned_buffer_ = std::make_unique<char[]>(buffer_size_);
+                buffer_ = owned_buffer_.get();
             }
         }
     protected:
@@ -148,7 +146,6 @@ namespace nowide {
             if(!buffer_ && n>=0) {
                 buffer_ = s;
                 buffer_size_ = n;
-                own_ = false;
             }
             return this;
         }
@@ -389,9 +386,9 @@ namespace nowide {
         
         size_t buffer_size_;
         char *buffer_;
+        std::unique_ptr<char[]> owned_buffer_;
         FILE *file_;
-        bool own_;
-        char last_char_;
+        char last_char_{};
         std::ios::openmode mode_;
     };
     

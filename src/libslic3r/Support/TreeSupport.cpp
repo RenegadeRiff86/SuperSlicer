@@ -778,8 +778,8 @@ static std::optional<std::pair<Point, size_t>> polyline_sample_next_point_at_dis
 
     filler->layer_id = layer_idx;
     filler->angle = roof ? 
-        //fixme support_layer.interface_id() instead of layer_idx
-        (support_params.interface_angle + (layer_idx & 1) ? float(- M_PI / 4.) : float(+ M_PI / 4.)) :
+        // Note (possible refactor): could use an interface-relative index instead of the absolute layer_idx here (layer_idx isn't guaranteed contiguous across interface layers).
+        (support_params.interface_angle + ((layer_idx & 1) ? float(- M_PI / 4.) : float(+ M_PI / 4.))) :
         support_params.base_angle;
 
     fill_params.density     = float(roof ? support_params.interface_density : scaled<float>(flow.spacing()) / (scaled<float>(flow.spacing()) + float(support_infill_distance)));
@@ -3733,8 +3733,17 @@ void fff_tree_support_generate(PrintObject &print_object, std::function<void()> 
             break;
         ++idx;
     }
-    FFFTreeSupport::generate_support_areas(*print_object.print(), 
-        BuildVolume(Pointfs{ Vec2d{ -TEST_BUILD_VOLUME_HALF_MM, -TEST_BUILD_VOLUME_HALF_MM }, Vec2d{ -TEST_BUILD_VOLUME_HALF_MM, +TEST_BUILD_VOLUME_HALF_MM }, Vec2d{ +TEST_BUILD_VOLUME_HALF_MM, +TEST_BUILD_VOLUME_HALF_MM }, Vec2d{ +TEST_BUILD_VOLUME_HALF_MM, -TEST_BUILD_VOLUME_HALF_MM } }, 0.), { idx }, 
+    FFFTreeSupport::generate_support_areas(
+        *print_object.print(),
+        BuildVolume(
+            Pointfs{
+                Vec2d{ -TEST_BUILD_VOLUME_HALF_MM, -TEST_BUILD_VOLUME_HALF_MM },
+                Vec2d{ -TEST_BUILD_VOLUME_HALF_MM, +TEST_BUILD_VOLUME_HALF_MM },
+                Vec2d{ +TEST_BUILD_VOLUME_HALF_MM, +TEST_BUILD_VOLUME_HALF_MM },
+                Vec2d{ +TEST_BUILD_VOLUME_HALF_MM, -TEST_BUILD_VOLUME_HALF_MM }
+            },
+            0.),
+        { idx },
         throw_on_cancel);
 }
 

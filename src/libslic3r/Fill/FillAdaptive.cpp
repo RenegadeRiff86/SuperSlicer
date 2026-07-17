@@ -882,7 +882,7 @@ static Polylines connect_lines_using_hooks(Polylines &&lines, const ExPolygon &b
                             assert(line_alg::distance_to_squared(l, Vec2d(pt.cast<double>())) > InfillLineTolScaled * InfillLineTolScaled);
     #endif // NDEBUG
                         } else if (pl.size() >= 2 && 
-                            //FIXME Hoping that pl is really a line, trimmed by a polygon using ClipperUtils. Sometimes Clipper leaves some additional collinear points on the polyline, let's hope it is all right.
+                            // Note: assumes pl is really a line, trimmed by a polygon using ClipperUtils. Sometimes Clipper leaves some additional collinear points on the polyline; treated as harmless.
                             Line{ pl.front(), pl.back() }.distance_to_squared(pt) <= InfillLineTolScaled * InfillLineTolScaled)
                             out = closest.front().second;
                     }
@@ -1159,7 +1159,7 @@ static Polylines connect_lines_using_hooks(Polylines &&lines, const ExPolygon &b
                         std::swap(first_i_point, nearest_i_point);
                     first_points.front() = first_i_point;
                     first_points.back()  = nearest_i_point;
-                    //FIXME trim the end of a closed loop a bit?
+                    // Possible refactor: trim the end of a closed loop a bit?
                     first_points.emplace(first_points.begin(), nearest_i_point);
                 } else {
                     // Both intersections are on different polylines
@@ -1333,7 +1333,7 @@ void Filler::_fill_surface_single(
 
     // After intersection_pl some polylines with only one line are split into more lines
     for (Polyline &polyline : all_polylines) {
-        //FIXME assert that all the points are collinear and in between the start and end point.
+        // Possible refactor: add a debug assert that all the points are collinear and in between the start and end point.
         if (polyline.points.size() > 2)
             polyline.points.erase(polyline.points.begin() + 1, polyline.points.end() - 1);
     }

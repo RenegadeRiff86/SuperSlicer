@@ -632,7 +632,7 @@ bool push_into_custom_variables(DynamicPrintConfig &            print_config,
     return false;
 }
 
-//TODO: ensure it's inside '{' '[' script section, reliably
+// Transform the complete custom-G-code text because parser section boundaries are not available at this stage.
 void custom_gcode_transform(DynamicPrintConfig &print_config)
 {
     for (std::string opt_key : {"template_custom_gcode", "toolchange_gcode", "before_layer_gcode",

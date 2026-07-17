@@ -300,6 +300,7 @@ protected:
     // to be called from SLAPrint only.
     friend class SLAPrint;
     friend class PrintBaseWithState<SLAPrintStep, slapsCount>;
+    friend struct std::default_delete<SLAPrintObject>;
 
     SLAPrintObject(SLAPrint* print, ModelObject* model_object);
     ~SLAPrintObject();

@@ -11,6 +11,7 @@
 #include <libslic3r/Print.hpp>
 #include <libslic3r/Layer.hpp>
 #include <libslic3r/GCodeReader.hpp>
+#include <libslic3r/GCode/ExtrusionProcessor.hpp>
 #include <cstdlib>
 
 using namespace Slic3r;
@@ -164,4 +165,25 @@ SCENARIO("ExtrusionEntityCollection: no sort") {
         REQUIRE(extrude_x[3] == 91);
         REQUIRE(extrude_x[4] == 92);
     }
+}
+
+SCENARIO("Split perimeter roles distinguish supported paths from true overhangs")
+{
+    ExtrusionPath supported(ExtrusionRole::OverhangPerimeter);
+    supported.overhang_attributes_mutable() = OverhangAttributes{0.f, 0.f, 0.f, false, false, true, true};
+
+    ExtrusionProcessor::update_split_perimeter_overhang_role(supported, ExtrusionRole::OverhangPerimeter);
+
+    CHECK(supported.role().is_perimeter());
+    CHECK_FALSE(supported.role().is_overhang());
+    REQUIRE(supported.attributes().overhang_attributes);
+    CHECK(supported.attributes().overhang_attributes->has_dynamic_overhangs_flow);
+    CHECK(supported.attributes().overhang_attributes->has_dynamic_overhangs_speed);
+
+    ExtrusionPath unsupported(ExtrusionRole::erPerimeter);
+    unsupported.overhang_attributes_mutable() = OverhangAttributes{0.2f, 0.2f, 0.f, false, false, true, true};
+
+    ExtrusionProcessor::update_split_perimeter_overhang_role(unsupported, ExtrusionRole::OverhangPerimeter);
+
+    CHECK(unsupported.role().is_overhang());
 }

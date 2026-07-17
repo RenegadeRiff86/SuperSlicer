@@ -553,68 +553,6 @@ bool EdgeGrid::Grid::line_cell_intersect(const Point &p1a, const Point &p2a, con
     return false;
 }
 
-// Test, whether a point is inside a contour.
-bool EdgeGrid::Grid::inside(const Point &pt_src)
-{
-    Point p = pt_src;
-    p(0) -= m_bbox.min(0);
-    p(1) -= m_bbox.min(1);
-    // Get the cell of the point.
-    if (p(0) < 0 || p(1) < 0)
-        return false;
-    coord_t ix = p(0) / m_resolution;
-    coord_t iy = p(1) / m_resolution;
-    if (ix >= m_cols || iy >= m_rows)
-        return false;
-
-    size_t i_closest = (size_t)-1;
-    bool   inside = false;
-
-    {
-        // Hit in the first cell?
-        const Cell &cell = m_cells[iy * m_cols + ix];
-        for (size_t i = cell.begin; i != cell.end; ++ i) {
-            const std::pair<size_t, size_t> &cell_data = m_cell_data[i];
-            // Contour indexed by the ith line of this cell.
-            const Slic3r::Points &contour = *m_contours[cell_data.first];
-            // Point indices in contour indexed by the ith line of this cell.
-            size_t idx1 = cell_data.second;
-            size_t idx2 = idx1 + 1;
-            if (idx2 == contour.size())
-                idx2 = 0;
-            const Point &p1 = contour[idx1];
-            const Point &p2 = contour[idx2];
-            if (p1(1) < p2(1)) {
-                if (p(1) < p1(1) || p(1) > p2(1))
-                    continue;
-                //FIXME finish this!
-                int64_t vx = 0;// pt_src
-                //FIXME finish this!
-                int64_t det = 0;
-            } else if (p1(1) != p2(1)) {
-                assert(p1(1) > p2(1));
-                if (p(1) < p2(1) || p(1) > p1(1))
-                    continue;
-            } else {
-                assert(p1(1) == p2(1));
-                if (p1(1) == p(1)) {
-                    if (p(0) >= p1(0) && p(0) <= p2(0))
-                        // On the segment.
-                        return true;
-                    // Before or after the segment.
-                    size_t idx0 = idx1 - 1;
-                    size_t idx2 = idx1 + 1;
-                    if (idx0 == (size_t)-1)
-                        idx0 = contour.size() - 1;
-                    if (idx2 == contour.size())
-                        idx2 = 0;
-                }
-            }
-        }
-    }
-
-    //FIXME This code follows only a single direction. Better to follow the direction closest to the bounding box.
-}
 #endif
 
 template<const int INCX, const int INCY>

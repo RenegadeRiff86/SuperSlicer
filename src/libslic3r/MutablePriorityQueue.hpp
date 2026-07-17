@@ -214,6 +214,7 @@ struct SkipHeapAddressing
 public:
     static const constexpr std::size_t block_size = blocking;
     static const constexpr std::size_t block_mask = block_size - 1;
+    static const constexpr std::size_t binary_heap_arity = 2;
     static_assert((block_size & block_mask) == 0U, "block size must be 2^n for some integer n");
 
     static inline std::size_t child_of(std::size_t node_no) noexcept {
@@ -223,24 +224,24 @@ public:
             // return block_base(node_no) + 2 * block_offset(node_no);
             return node_no + block_offset(node_no);
         // Otherwise skip to a root of a child miniheap.
-        return (block_base(node_no) + 1 + child_no(node_no) * 2) * block_size + 1;
+        return (block_base(node_no) + 1 + child_no(node_no) * binary_heap_arity) * block_size + 1;
     }
 
     static inline std::size_t parent_of(std::size_t node_no) noexcept {
         auto const node_root = block_base(node_no); // 16
         if (! is_block_root(node_no))
             // If not a block (miniheap) root, then it is sufficient to just traverse up inside a miniheap.
-            return node_root + block_offset(node_no) / 2;
+            return node_root + block_offset(node_no) / binary_heap_arity;
         // Otherwise skipping from a root of one miniheap into leaf of another miniheap.
         // Address of a parent miniheap block. One miniheap branches at (block_size / 2) leaves to (block_size) miniheaps.
         auto const parent_base = block_base(node_root / block_size - 1); // 0
         // Index of a leaf of a parent miniheap, which is a parent of node_no.
-        auto const child       = ((node_no - block_size) / block_size - parent_base) / 2;
+        auto const child       = ((node_no - block_size) / block_size - parent_base) / binary_heap_arity;
         return 
             // Address of a parent miniheap
             parent_base + 
             // Address of a leaf of a parent miniheap
-            block_size / 2 + child; // 30
+            block_size / binary_heap_arity + child; // 30
     }
 
     // Leafs are stored inside the second half of a block.

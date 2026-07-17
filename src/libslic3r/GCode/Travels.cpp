@@ -270,8 +270,8 @@ bool TravelObstacleTracker::is_extruded(const ObjectOrExtrusionLinef &line) cons
 namespace Slic3r::GCode::Impl::Travels {
 
 ElevatedTravelFormula::ElevatedTravelFormula(const ElevatedTravelParams &params)
-    : smoothing_from(params.slope_end - params.blend_width / 2.0)
-    , smoothing_to(params.slope_end + params.blend_width / 2.0)
+    : smoothing_from(params.slope_end - params.blend_width / 2.0) // Center the blend interval below slope_end.
+    , smoothing_to(params.slope_end + params.blend_width / 2.0)   // Center the blend interval above slope_end.
     , blend_width(params.blend_width)
     , lift_height(params.lift_height)
     , slope_end(params.slope_end) {
@@ -300,7 +300,7 @@ double ElevatedTravelFormula::operator()(const double distance_from_start) const
 
         // This is a part of a parabola going over a specific
         // range and with specific end slopes.
-        const double a = -slope / 2.0 / this->blend_width;
+        const double a = -slope / 2.0 / this->blend_width; // Quadratic coefficient joins the two end slopes across the blend.
         const double b = slope * this->smoothing_to / this->blend_width;
         const double c = this->lift_height + a * boost::math::pow<2>(this->smoothing_to);
         return parabola(distance_from_start, a, b, c);
@@ -488,7 +488,7 @@ SmoothingParams get_smoothing_params(
     const double xy_acceleration = config.machine_max_acceleration_travel.get_at(extruder_id);
 
     const double xy_acceleration_time = max_xy_velocity / xy_acceleration;
-    const double xy_acceleration_distance = 1.0 / 2.0 * xy_acceleration *
+    const double xy_acceleration_distance = 1.0 / 2.0 * xy_acceleration * // Constant-acceleration distance is one half a times t squared.
         boost::math::pow<2>(xy_acceleration_time);
 
     if (travel_length < xy_acceleration_distance) {
@@ -500,11 +500,11 @@ SmoothingParams get_smoothing_params(
         config.machine_max_acceleration_z.get_at(extruder_id);
     const double deceleration_xy_distance = deceleration_time * max_xy_velocity;
 
-    double blend_width = slope_end > deceleration_xy_distance / 2.0 ? deceleration_xy_distance :
-                                                                          slope_end * 2.0;
+    double blend_width = slope_end > deceleration_xy_distance / 2.0 ? deceleration_xy_distance : // Compare against half the available deceleration distance.
+                                                                          slope_end * 2.0; // A symmetric blend extends one slope length on each side.
 
     // not possible to blend into not-existing travel
-    if (travel_length < slope_end + blend_width / 2.0) {
+    if (travel_length < slope_end + blend_width / 2.0) { // The blend ends half its width beyond slope_end.
         blend_width = (travel_length - slope_end) * 2;
     }
 
@@ -573,7 +573,7 @@ std::vector<double> linspace(const double from, const double to, const unsigned 
     std::vector<double> result;
     result.reserve(count);
     if (count == 1) {
-        result.emplace_back((from + to) / 2.0);
+        result.emplace_back((from + to) / 2.0); // A single sample is the interval midpoint.
         return result;
     }
     const double step = (to - from) / count;

@@ -11,6 +11,8 @@
 #include <map>
 #include <functional>
 #include <atomic>
+#include <limits>
+#include <stdexcept>
 
 namespace Slic3r {
 
@@ -21,16 +23,14 @@ using Grids     = std::vector<IndexPair>;
 inline constexpr int64_t RasteXDistance = scale_(1);
 inline constexpr int64_t RasteYDistance = scale_(1);
 
-inline IndexPair point_map_grid_index(const Point &pt, int64_t xdist, int64_t ydist)
+static inline IndexPair point_map_grid_index(const Point &pt, int64_t xdist, int64_t ydist)
 {
     auto x = pt.x() / xdist;
     auto y = pt.y() / ydist;
     return std::make_pair(x, y);
 }
 
-inline bool nearly_equal(const Point &p1, const Point &p2) { return std::abs(p1.x() - p2.x()) < SCALED_EPSILON && std::abs(p1.y() - p2.y()) < SCALED_EPSILON; }
-
-inline Grids line_rasterization(const Line &line, int64_t xdist = RasteXDistance, int64_t ydist = RasteYDistance)
+static inline Grids line_rasterization(const Line &line, int64_t xdist = RasteXDistance, int64_t ydist = RasteYDistance)
 {
     Grids     res;
     Point     rayStart     = line.a;
@@ -212,11 +212,17 @@ static std::vector<ExtrusionPaths> getFakeExtrusionPathsFromWipeTower(const Wipe
 
 void LinesBucketQueue::emplace_back_bucket(std::vector<ExtrusionPaths> &&paths, const void *objPtr, Points offsets)
 {
-    if (_objsPtrToId.find(objPtr) == _objsPtrToId.end()) {
-        _objsPtrToId.insert({objPtr, _objsPtrToId.size()});
-        _idToObjsPtr.insert({_objsPtrToId.size() - 1, objPtr});
+    auto object_it = _objsPtrToId.find(objPtr);
+    if (object_it == _objsPtrToId.end()) {
+        const size_t next_object_id = _objsPtrToId.size();
+        if (next_object_id > static_cast<size_t>(std::numeric_limits<int>::max()))
+            throw std::overflow_error("Conflict checker exceeds the object ID range");
+
+        const int object_id = static_cast<int>(next_object_id);
+        object_it = _objsPtrToId.emplace(objPtr, object_id).first;
+        _idToObjsPtr.emplace(object_id, objPtr);
     }
-    _buckets.emplace_back(std::move(paths), _objsPtrToId[objPtr], offsets);
+    _buckets.emplace_back(std::move(paths), object_it->second, offsets);
 }
 
 void LinesBucketQueue::build_queue()
@@ -361,6 +367,9 @@ ConflictResultOpt ConflictChecker::find_inter_of_lines_in_diff_objs(SpanOfConstP
         layersLines.push_back(std::move(lines));
     }
 
+    if (layersLines.size() > static_cast<size_t>(std::numeric_limits<int>::max()))
+        throw std::overflow_error("Conflict checker exceeds the layer ID range");
+
     bool                                   find = false;
     tbb::concurrent_vector<std::tuple<ConflictComputeResult, double, int>> conflict;
 
@@ -369,7 +378,7 @@ ConflictResultOpt ConflictChecker::find_inter_of_lines_in_diff_objs(SpanOfConstP
             auto interRes = find_inter_of_lines(layersLines[i]);
             if (interRes.has_value()) {
                 find = true;
-                conflict.emplace_back(*interRes, heights[i], i);
+                conflict.emplace_back(*interRes, heights[i], static_cast<int>(i));
                 break;
             }
         }

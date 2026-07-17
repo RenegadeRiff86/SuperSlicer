@@ -1186,7 +1186,7 @@ ConfigSubstitutions PresetBundle::load_config_file_config_bundle_dont_save(
     auto [presets_substitutions, presets_imported] = this->load_configbundle(path, (from_prusa ? LoadConfigBundleAttributes{ LoadConfigBundleAttribute::ConvertFromPrusa } : LoadConfigBundleAttribute{ }), compatibility_rule);
     ConfigSubstitutions config_substitutions;
     this->update_compatible(PresetSelectCompatibleType::Never);
-     //TODO: check whether update_alias_maps() is needed here (CLI --load path).
+    this->update_alias_maps();
     for (PresetConfigSubstitutions &sub : presets_substitutions)
         append(config_substitutions, std::move(sub.substitutions));
     sort_remove_duplicates(config_substitutions);

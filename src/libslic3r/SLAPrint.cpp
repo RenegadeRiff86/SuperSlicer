@@ -15,8 +15,9 @@
 #include "Geometry.hpp"
 #include "Thread.hpp"
 
-#include <unordered_set>
+#include <memory>
 #include <numeric>
+#include <unordered_set>
 
 #include <oneapi/tbb/parallel_for.h>
 #include <boost/filesystem/path.hpp>
@@ -36,6 +37,7 @@
 
 namespace Slic3r {
 
+static constexpr double kRadiusPerDiameter = 0.5;
 
 bool is_zero_elevation(const SLAPrintObjectConfig &c)
 {
@@ -52,8 +54,8 @@ sla::SupportTreeConfig make_support_cfg(const SLAPrintObjectConfig& c)
 
     switch(scfg.tree_type) {
     case sla::SupportTreeType::Default: {
-        scfg.head_front_radius_mm = 0.5*c.support_head_front_diameter.value;
-        double pillar_r = 0.5 * c.support_pillar_diameter.value;
+        scfg.head_front_radius_mm = kRadiusPerDiameter*c.support_head_front_diameter.value;
+        double pillar_r = kRadiusPerDiameter * c.support_pillar_diameter.value;
         scfg.head_back_radius_mm = pillar_r;
         scfg.head_fallback_radius_mm =
             0.01 * c.support_small_pillar_diameter_percent.value * pillar_r;
@@ -67,7 +69,7 @@ sla::SupportTreeConfig make_support_cfg(const SLAPrintObjectConfig& c)
         scfg.pillar_connection_mode = c.support_pillar_connection_mode.value;
         scfg.ground_facing_only = c.support_buildplate_only.value;
         scfg.pillar_widening_factor = c.support_pillar_widening_factor.value;
-        scfg.base_radius_mm = 0.5*c.support_base_diameter.value;
+        scfg.base_radius_mm = kRadiusPerDiameter*c.support_base_diameter.value;
         scfg.base_height_mm = c.support_base_height.value;
         scfg.pillar_base_safety_distance_mm =
             c.support_base_safety_distance.value < EPSILON ?
@@ -80,8 +82,8 @@ sla::SupportTreeConfig make_support_cfg(const SLAPrintObjectConfig& c)
     case sla::SupportTreeType::Branching:
         [[fallthrough]];
     case sla::SupportTreeType::Organic:{
-        scfg.head_front_radius_mm = 0.5*c.branchingsupport_head_front_diameter.value;
-        double pillar_r = 0.5 * c.branchingsupport_pillar_diameter.value;
+        scfg.head_front_radius_mm = kRadiusPerDiameter*c.branchingsupport_head_front_diameter.value;
+        double pillar_r = kRadiusPerDiameter * c.branchingsupport_pillar_diameter.value;
         scfg.head_back_radius_mm = pillar_r;
         scfg.head_fallback_radius_mm =
             0.01 * c.branchingsupport_small_pillar_diameter_percent.value * pillar_r;
@@ -95,7 +97,7 @@ sla::SupportTreeConfig make_support_cfg(const SLAPrintObjectConfig& c)
         scfg.pillar_connection_mode = c.branchingsupport_pillar_connection_mode.value;
         scfg.ground_facing_only = c.branchingsupport_buildplate_only.value;
         scfg.pillar_widening_factor = c.branchingsupport_pillar_widening_factor.value;
-        scfg.base_radius_mm = 0.5*c.branchingsupport_base_diameter.value;
+        scfg.base_radius_mm = kRadiusPerDiameter*c.branchingsupport_base_diameter.value;
         scfg.base_height_mm = c.branchingsupport_base_height.value;
         scfg.pillar_base_safety_distance_mm =
             c.branchingsupport_base_safety_distance.value < EPSILON ?
@@ -156,8 +158,10 @@ void SLAPrint::clear()
     std::scoped_lock<std::mutex> lock(this->state_mutex());
     // The following call should stop background processing if it is running.
     this->invalidate_all_steps();
-    for (SLAPrintObject *object : m_objects)
-        delete object;
+    for (SLAPrintObject *object : m_objects) {
+        std::unique_ptr<SLAPrintObject> owned_object(object);
+        owned_object.reset();
+    }
     m_objects.clear();
     m_model.clear_objects();
 }
@@ -239,16 +243,15 @@ static t_config_option_keys print_config_diffs(const StaticPrintConfig     &curr
         if (opt_new_override != nullptr) {
             // An override is available at some of the material presets.
             if (*opt_old != *opt_new || opt_new->overriden_by(opt_new_override)) {
-                auto opt_copy = opt_new->clone();
+                std::unique_ptr<ConfigOption> opt_copy(opt_new->clone());
                 bool overriden = opt_copy->apply_override(opt_new_override);
                 bool changed = *opt_old != *opt_copy;
                 if (changed)
                     print_diff.emplace_back(opt_key);
                 if (changed || overriden) {
                     // overrides will be applied to the placeholder parser, which layers these parameters over full_print_config.
-                    material_overrides.set_key_value(opt_key, opt_copy);
-                } else
-                    delete opt_copy;
+                    material_overrides.set_key_value(opt_key, opt_copy.release());
+                }
             }
         } else if (*opt_new != *opt_old)
             print_diff.emplace_back(opt_key);
@@ -344,9 +347,9 @@ SLAPrint::ApplyStatus SLAPrint::apply(const Model &model, DynamicPrintConfig con
         this->call_cancel_callback();
         update_apply_status(this->invalidate_all_steps());
         for (SLAPrintObject *object : m_objects) {
-            model_object_status.emplace(object->model_object()->id(), ModelObjectStatus::Deleted);
-            update_apply_status(object->invalidate_all_steps());
-            delete object;
+            std::unique_ptr<SLAPrintObject> owned_object(object);
+            model_object_status.emplace(owned_object->model_object()->id(), ModelObjectStatus::Deleted);
+            update_apply_status(owned_object->invalidate_all_steps());
         }
         m_objects.clear();
         m_model.assign_copy(model);
@@ -406,16 +409,18 @@ SLAPrint::ApplyStatus SLAPrint::apply(const Model &model, DynamicPrintConfig con
                 m_objects.clear();
                 m_objects.reserve(print_objects_old.size());
                 for (SLAPrintObject *print_object : print_objects_old) {
-                    auto it_status = model_object_status.find(ModelObjectStatus(print_object->model_object()->id()));
+                    std::unique_ptr<SLAPrintObject> owned_object(print_object);
+                    auto it_status = model_object_status.find(ModelObjectStatus(owned_object->model_object()->id()));
                     assert(it_status != model_object_status.end());
-                    if (it_status->status == ModelObjectStatus::Deleted) {
-                        update_apply_status(print_object->invalidate_all_steps());
-                        delete print_object;
-                    } else
-                        m_objects.emplace_back(print_object);
+                    if (it_status->status == ModelObjectStatus::Deleted)
+                        update_apply_status(owned_object->invalidate_all_steps());
+                    else
+                        m_objects.emplace_back(owned_object.release());
                 }
-                for (ModelObject *model_object : model_objects_old)
-                    delete model_object;
+                for (ModelObject *model_object : model_objects_old) {
+                    std::unique_ptr<ModelObject> owned_object(model_object);
+                    owned_object.reset();
+                }
             }
         }
     }
@@ -571,8 +576,9 @@ SLAPrint::ApplyStatus SLAPrint::apply(const Model &model, DynamicPrintConfig con
         // Delete the PrintObjects marked as Unknown or Deleted.
         for (auto &pos : print_object_status)
             if (pos.status == PrintObjectStatus::Unknown || pos.status == PrintObjectStatus::Deleted) {
-                update_apply_status(pos.print_object->invalidate_all_steps());
-                delete pos.print_object;
+                std::unique_ptr<SLAPrintObject> owned_object(pos.print_object);
+                update_apply_status(owned_object->invalidate_all_steps());
+                owned_object.reset();
             }
         if (new_objects)
             update_apply_status(false);

@@ -48,8 +48,8 @@
 
 #include <LibBGCode/binarize/binarize.hpp>
 
-//FIXME for GCodeFlavor and gcfMarlin (for forward-compatibility conversion)
-// This is not nice, likely it would be better to pass the ConfigSubstitutionContext to handle_legacy().
+// PrintConfig.hpp provides GCodeFlavor and gcfMarlin for forward-compatible legacy conversion.
+// handle_legacy() consumes these definitions directly.
 #include "PrintConfig.hpp"
 
 #define L(s) (s)
@@ -423,7 +423,7 @@ double GraphData::interpolate(double x_value) const{
                     // Cubic spline interpolation: see https://en.wikiversity.org/wiki/Cubic_Spline_Interpolation#Methods
                     const bool boundary_first_derivative = true; // true - first derivative is 0 at the leftmost and
                                                                  // rightmost point false - second ---- || -------
-                    // TODO: cache (if the caller use my cache).
+                    // Recompute spline coefficients here because this method has no stable caller-owned cache.
                     const size_t N = end_idx - begin_idx - 1; // last point can be accessed as N, we have N+1 total points
                     std::vector<float> diag(N + 1);
                     std::vector<float> mu(N + 1);
@@ -613,7 +613,7 @@ bool GraphData::deserialize(const std::string &str)
     return true;
 }
 
-//TODO: replace ConfigOptionDef* by ConfigOptionDef&
+// ConfigSubstitution retains a non-owning definition pointer; callers must keep the definition alive.
 ConfigSubstitution::ConfigSubstitution(const ConfigOptionDef *def, const std::string &old, ConfigOptionUniquePtr &&new_v)
     : opt_def(def), old_name(def->opt_key), old_value(old), new_value(std::move(new_v)) { assert(def); }
 
@@ -638,7 +638,7 @@ bool ConfigSubstitutionContext::erase(const std::string &old_name) {
 }
 
 void ConfigOptionDeleter::operator()(ConfigOption* p) {
-    delete p;
+    std::default_delete<ConfigOption>{}(p);
 }
 
 std::vector<std::string> ConfigOptionDef::cli_args(const std::string &key) const

@@ -484,7 +484,7 @@ inline long build_ground_connection(SupportTreeBuilder &builder,
         gp.z() -= sm.pad_cfg.wall_thickness_mm;
     }
 
-// TODO: does not work yet
+// The head-id overload remains disabled because it does not produce valid pillar geometry.
 //    if (conn.path.back().id < 0) {
 //        // this is a head
 //        long head_id = std::abs(conn.path.back().id);

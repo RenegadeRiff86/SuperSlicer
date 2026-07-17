@@ -6,6 +6,7 @@
 #include "Print.hpp"
 
 #include <cfloat>
+#include <memory>
 
 namespace Slic3r {
 
@@ -16,26 +17,23 @@ namespace Slic3r {
 // static is not accepted by gcc if declared as a friend of ModelObject.
 /* static */ void model_volume_list_update_supports_seams(ModelObject &model_object_dst, const ModelObject &model_object_new)
 {
-    typedef std::pair<const ModelVolume*, bool> ModelVolumeWithStatus;
-    std::vector<ModelVolumeWithStatus> old_volumes;
+    using OwnedModelVolume = std::unique_ptr<ModelVolume>;
+    std::vector<OwnedModelVolume> old_volumes;
     old_volumes.reserve(model_object_dst.volumes.size());
-    for (const ModelVolume *model_volume : model_object_dst.volumes)
-        old_volumes.emplace_back(ModelVolumeWithStatus(model_volume, false));
-    auto model_volume_lower = [](const ModelVolumeWithStatus &mv1, const ModelVolumeWithStatus &mv2){ return mv1.first->id() <  mv2.first->id(); };
-    auto model_volume_equal = [](const ModelVolumeWithStatus &mv1, const ModelVolumeWithStatus &mv2){ return mv1.first->id() == mv2.first->id(); };
-    std::sort(old_volumes.begin(), old_volumes.end(), model_volume_lower);
+    for (ModelVolume *model_volume : model_object_dst.volumes)
+        old_volumes.emplace_back(model_volume);
+    auto model_volume_lower = [](const OwnedModelVolume &lhs, const ModelVolume *rhs) {
+        return lhs->id() < rhs->id();
+    };
+    std::sort(old_volumes.begin(), old_volumes.end(),
+              [](const OwnedModelVolume &lhs, const OwnedModelVolume &rhs) { return lhs->id() < rhs->id(); });
     model_object_dst.volumes.clear();
     model_object_dst.volumes.reserve(model_object_new.volumes.size());
     for (const ModelVolume *model_volume_src : model_object_new.volumes) {
-        ModelVolumeWithStatus key(model_volume_src, false);
-        auto it = std::lower_bound(old_volumes.begin(), old_volumes.end(), key, model_volume_lower);
-        if (it != old_volumes.end() && model_volume_equal(*it, key)) {
-            // The volume was found in the old list. Just copy it.
-            assert(! it->second); // not consumed yet
-            it->second = true;
-            ModelVolume *model_volume_dst = const_cast<ModelVolume*>(it->first);
-            // For support modifiers, the type may have been switched from blocker to enforcer and vice versa.
-            assert((model_volume_dst->is_support_modifier() && model_volume_src->is_support_modifier()) || model_volume_dst->type() == model_volume_src->type());
+        auto it = std::lower_bound(old_volumes.begin(), old_volumes.end(), model_volume_src, model_volume_lower);
+        if (it != old_volumes.end() && (*it)->id() == model_volume_src->id()) {
+            // The volume was found in the old list. Transfer its ownership back to the destination.
+            ModelVolume *model_volume_dst = it->release();
             model_object_dst.volumes.emplace_back(model_volume_dst);
             if (model_volume_dst->is_support_modifier() || model_volume_dst->is_seam_position() ||
                 model_volume_dst->is_brim()) {
@@ -48,14 +46,11 @@ namespace Slic3r {
             // The volume was not found in the old list. Create a new copy.
             assert(model_volume_src->is_support_modifier() || model_volume_src->is_seam_position() ||
                    model_volume_src->is_brim());
-            model_object_dst.volumes.emplace_back(new ModelVolume(*model_volume_src));
-            model_object_dst.volumes.back()->set_model_object(&model_object_dst);
+            std::unique_ptr<ModelVolume> model_volume_dst(new ModelVolume(*model_volume_src));
+            model_volume_dst->set_model_object(&model_object_dst);
+            model_object_dst.volumes.emplace_back(model_volume_dst.release());
         }
     }
-    // Release the non-consumed old volumes (those were deleted from the new list).
-    for (ModelVolumeWithStatus &mv_with_status : old_volumes)
-        if (! mv_with_status.second)
-            delete mv_with_status.first;
 }
 
 static inline void model_volume_list_copy_configs(ModelObject &model_object_dst, const ModelObject &model_object_src, const ModelVolumeType type)
@@ -226,16 +221,15 @@ static t_config_option_keys print_config_diffs(
         if (opt_new_filament != nullptr) {
             // An extruder retract override is available at some of the filament presets.
             if (*opt_old != *opt_new || opt_new->overriden_by(opt_new_filament)) {
-                auto opt_copy = opt_new->clone();
+                std::unique_ptr<ConfigOption> opt_copy(opt_new->clone());
                 bool overriden = opt_copy->apply_override(opt_new_filament);
                 bool changed = *opt_old != *opt_copy;
                 if (changed)
                     print_diff.emplace_back(opt_key);
                 if (changed || overriden) {
                     // filament_overrides will be applied to the placeholder parser, which layers these parameters over full_print_config.
-                    filament_overrides.set_key_value(opt_key, opt_copy);
-                } else
-                    delete opt_copy;
+                    filament_overrides.set_key_value(opt_key, opt_copy.release());
+                }
             }
         } else if (*opt_new != *opt_old)
             print_diff.emplace_back(opt_key);
@@ -1059,9 +1053,9 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
         this->call_cancel_callback();
         update_apply_status(this->invalidate_all_steps());
         for (PrintObject *object : m_objects) {
-            model_object_status_db.add(*object->model_object(), ModelObjectStatus::Deleted);
-            update_apply_status(object->invalidate_all_steps());
-            delete object;
+            std::unique_ptr<PrintObject> owned_object(object);
+            model_object_status_db.add(*owned_object->model_object(), ModelObjectStatus::Deleted);
+            update_apply_status(owned_object->invalidate_all_steps());
         }
         m_objects.clear();
         print_regions_reshuffled = true;
@@ -1142,15 +1136,17 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
                 m_objects.clear();
                 m_objects.reserve(print_objects_old.size());
                 for (PrintObject *print_object : print_objects_old) {
-                    const ModelObjectStatus &status = model_object_status_db.get(*print_object->model_object());
-                    if (status.status == ModelObjectStatus::Deleted) {
-                        update_apply_status(print_object->invalidate_all_steps());
-                        delete print_object;
-                    } else
-                        m_objects.emplace_back(print_object);
+                    std::unique_ptr<PrintObject> owned_object(print_object);
+                    const ModelObjectStatus &status = model_object_status_db.get(*owned_object->model_object());
+                    if (status.status == ModelObjectStatus::Deleted)
+                        update_apply_status(owned_object->invalidate_all_steps());
+                    else
+                        m_objects.emplace_back(owned_object.release());
                 }
-                for (ModelObject *model_object : model_objects_old)
-                    delete model_object;
+                for (ModelObject *model_object : model_objects_old) {
+                    std::unique_ptr<ModelObject> owned_object(model_object);
+                    owned_object.reset();
+                }
                 print_regions_reshuffled = true;
             }
         }
@@ -1371,8 +1367,9 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
             bool deleted_objects = false;
             for (const PrintObjectStatus &pos : print_object_status_db)
                 if (pos.status == PrintObjectStatus::Unknown || pos.status == PrintObjectStatus::Deleted) {
-                    update_apply_status(pos.print_object->invalidate_all_steps());
-                    delete pos.print_object;
+                    std::unique_ptr<PrintObject> owned_object(pos.print_object);
+                    update_apply_status(owned_object->invalidate_all_steps());
+                    owned_object.reset();
                     deleted_objects = true;
                 }
             if (new_objects || deleted_objects)

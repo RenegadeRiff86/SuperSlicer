@@ -195,7 +195,7 @@ Lines spanning_tree_to_lines(const std::vector<MinimumSpanningTree>& spanning_tr
 #ifdef SUPPORT_TREE_DEBUG_TO_SVG
 static void draw_contours_and_nodes_to_svg
 (
-    std::string fname,
+    const std::string& fname,
     const ExPolygons &overhangs,
     const ExPolygons &overhangs_after_offset,
     const ExPolygons &outlines_below,
@@ -1499,14 +1499,12 @@ void OrcaTreeSupport::generate_toolpaths()
                         // Note: spacing means the separation between two lines as if they are tightly extruded
                         filler_Roof1stLayer->spacing = interface_flow.spacing();
                         // generate a perimeter first to support interface better
-                        ExtrusionEntityCollection* temp_support_fills = new ExtrusionEntityCollection();
+                        auto temp_support_fills = std::make_unique<ExtrusionEntityCollection>();
                         make_perimeter_and_infill(temp_support_fills->entities, poly, 1, interface_flow, erSupportMaterial,
                             filler_Roof1stLayer.get(), interface_density, false);
                         temp_support_fills->no_sort = true; // make sure loops are first
                         if (!temp_support_fills->entities.empty())
-                            ts_layer->support_fills.entities.push_back(temp_support_fills);
-                        else
-                            delete temp_support_fills;
+                            ts_layer->support_fills.entities.push_back(temp_support_fills.release());
                     } else if (area_group.type == SupportLayer::FloorType) {
                         // floor_areas
                         fill_params.density = bottom_interface_density;
@@ -1567,12 +1565,10 @@ void OrcaTreeSupport::generate_toolpaths()
                     double print_z = ts_layer->print_z;
                     if (printZ_to_lightninglayer.find(print_z) == printZ_to_lightninglayer.end())
                         continue;
-                    //TODO:
-                    //1.the second parameter of convertToLines seems to decide how long the lightning should be trimmed from its root, so that the root wont overlap/detach the support contour.
-                    // whether current value works correctly remained to be tested
-                    //2.related to previous one, that lightning roots need to be trimed more when support has multiple walls
-                    //3.function connect_infill() and variable 'params' helps create connection pattern along contours between two lightning roots,
-                    // strengthen lightnings while it may make support harder. decide to enable it or not. if yes, proper values for params are remained to be tested
+                    // Lightning support constraints:
+                    // 1. convertToLines' second parameter trims each root to avoid overlap with or detachment from the support contour.
+                    // 2. Supports with multiple walls require additional root trimming.
+                    // 3. connect_infill() can reinforce roots along contours, but it also makes supports harder to remove, so it remains disabled here.
                     auto& lightning_layer = generator->getTreesForLayer(printZ_to_lightninglayer[print_z]);
 
                     Flow       flow  = (layer_id == 0 && m_raft_layers == 0) ? m_object->print()->brim_flow() :support_flow;

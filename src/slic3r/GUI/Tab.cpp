@@ -21,7 +21,6 @@
 ///|/
 // #include "libslic3r/GCodeSender.hpp"
 #include "slic3r/GUI/BedShapeDialog.hpp"
-#include "slic3r/Utils/Serial.hpp"
 #include "Tab.hpp"
 
 #include "libslic3r/Log.hpp"
@@ -45,6 +44,7 @@
 #include "MsgDialog.hpp"
 #include "Notebook.hpp"
 #include "OG_CustomCtrl.hpp"
+#include "ThemeMetrics.hpp"
 #include "PhysicalPrinterDialog.hpp"
 #include "Plater.hpp"
 #include "PresetComboBoxes.hpp"
@@ -315,13 +315,14 @@ void Tab::create_preset_tab()
     m_hsizer = new wxBoxSizer(wxHORIZONTAL);
     sizer->Add(m_hsizer, 1, wxEXPAND, 0);
 
-    //left vertical sizer
+    // Left navigation rail.
     m_left_sizer = new wxBoxSizer(wxVERTICAL);
-    m_hsizer->Add(m_left_sizer, 0, wxEXPAND | wxLEFT | wxTOP | wxBOTTOM, 3);
+    m_hsizer->Add(m_left_sizer, 0, wxEXPAND | wxLEFT | wxTOP | wxBOTTOM,
+        ThemeMetrics::space_sm(panel));
 
-    // tree
-    m_treectrl = new wxTreeCtrl(panel, wxID_ANY, wxDefaultPosition, wxSize(20 * m_em_unit, -1),
-        wxTR_NO_BUTTONS | wxTR_HIDE_ROOT | wxTR_SINGLE | wxTR_NO_LINES | wxBORDER_SUNKEN | wxWANTS_CHARS);
+    m_treectrl = new wxTreeCtrl(panel, wxID_ANY, wxDefaultPosition,
+        wxSize(ThemeMetrics::settings_sidebar_width(panel), -1),
+        wxTR_NO_BUTTONS | wxTR_HIDE_ROOT | wxTR_SINGLE | wxTR_NO_LINES | wxBORDER_NONE | wxWANTS_CHARS);
     m_treectrl->SetFont(wxGetApp().normal_font());
 #ifdef __linux__
     m_treectrl->SetBackgroundColour(m_parent->GetBackgroundColour());
@@ -368,8 +369,8 @@ void Tab::create_preset_tab()
     m_page_view = new wxScrolledWindow(page_parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL);
     m_page_sizer = new wxBoxSizer(wxVERTICAL);
     m_page_view->SetSizer(m_page_sizer);
-    m_page_view->SetScrollbars(1, 20, 1, 2);
-    m_hsizer->Add(m_page_view, 1, wxEXPAND | wxLEFT, 5);
+    m_page_view->SetScrollbars(1, ThemeMetrics::settings_scroll_step(m_page_view), 1, 2);
+    m_hsizer->Add(m_page_view, 1, wxEXPAND | wxLEFT, ThemeMetrics::space_md(panel));
 
     m_btn_compare_preset->Bind(wxEVT_BUTTON, ([this](wxCommandEvent e) { compare_preset(); }));
     m_btn_save_preset->Bind(wxEVT_BUTTON, ([this](wxCommandEvent e) {
@@ -637,7 +638,7 @@ void Tab::update_label_colours()
         return;
     while (cur_item) {
         auto title = m_treectrl->GetItemText(cur_item);
-        for (auto page : m_pages)
+        for (const auto& page : m_pages)
         {
             if (translate_category(page->title(), type()) != title)
                 continue;
@@ -981,7 +982,7 @@ void Tab::update_changed_tree_ui()
 
     while (cur_item) {
         auto title = m_treectrl->GetItemText(cur_item);
-        for (auto page : m_pages)
+        for (const auto& page : m_pages)
         {
             if (translate_category(page->title(), type()) != title)
                 continue;
@@ -1010,7 +1011,7 @@ void Tab::update_changed_tree_ui()
                     get_sys_and_mod_flags(OptionKeyIdx::scalar("compatible_printers"), sys_page, modified_page);
                 }
             }
-            for (auto group : page->m_optgroups)
+            for (const auto& group : page->m_optgroups)
             {
                 if (!sys_page && modified_page)
                     break;
@@ -1074,7 +1075,7 @@ void Tab::on_roll_back_value(const bool to_sys /*= true*/)
 
     m_postpone_update_ui = true;
     // TODO: / FIXME: remove group->title == "xx" for checks
-    for (auto group : m_active_page->m_optgroups) {
+    for (const auto& group : m_active_page->m_optgroups) {
         if (group->has_option_def(OptionKeyIdx::scalar("extruders_count"))) {
             assert(m_options_list.find(OptionKeyIdx::scalar("extruders_count")) != m_options_list.end());
             if ((m_options_list[OptionKeyIdx::scalar("extruders_count")] & os) == 0)
@@ -1180,7 +1181,7 @@ void Tab::load_config(const DynamicPrintConfig& config)
 {
     assert(m_config);
     bool modified = 0;
-    for (auto opt_key : m_config->diff(config)) {
+    for (const auto& opt_key : m_config->diff(config)) {
         m_config->set_key_value(opt_key, config.option(opt_key)->clone());
         modified = 1;
     }
@@ -1198,9 +1199,9 @@ void Tab::reload_config()
     if (m_active_page)
         m_active_page->reload_config();
     //also reload scripted that aren't on the active page.
-    for (PageShp page : m_pages) {
+    for (const PageShp& page : m_pages) {
         if (page.get() != m_active_page) {
-            for (auto group : page->m_optgroups) {
+            for (const auto& group : page->m_optgroups) {
                 // ask for activated the preset even if the gui isn't created, as the script may want to modify the conf.
                 group->update_script_presets(true);
             }
@@ -1235,7 +1236,7 @@ void Tab::update_visibility()
 {
     Freeze(); // There is needed Freeze/Thaw to avoid a flashing after Show/Layout
 
-    for (auto page : m_pages)
+    for (const auto& page : m_pages)
         page->update_visibility(m_mode, page.get() == m_active_page);
     rebuild_page_tree();
 
@@ -1329,7 +1330,7 @@ std::pair<OG_CustomCtrl*, bool*> Tab::get_custom_ctrl_with_blinking_ptr(const t_
 
     std::pair<OG_CustomCtrl*, bool*> ret = {nullptr, nullptr};
 
-    for (auto opt_group : m_active_page ? m_active_page->m_optgroups : m_pages.front()->m_optgroups) {
+    for (const auto& opt_group : m_active_page ? m_active_page->m_optgroups : m_pages.front()->m_optgroups) {
         ret = opt_group->get_custom_ctrl_with_blinking_ptr(opt_key, opt_index);
         if (ret.first && ret.second)
             break;
@@ -1340,7 +1341,7 @@ std::pair<OG_CustomCtrl*, bool*> Tab::get_custom_ctrl_with_blinking_ptr(const t_
 Field* Tab::get_field(Page*& selected_page, const t_config_option_key& opt_key, int32_t opt_index/* = -1*/) const
 {
     Field* field = nullptr;
-    for (auto page : m_pages) {
+    for (const auto& page : m_pages) {
         field = page->get_field(opt_key, opt_index);
         if (field != nullptr) {
             selected_page = page.get();
@@ -1379,7 +1380,7 @@ void Tab::load_key_value(const t_config_option_key& opt_key, const boost::any& v
 
 bool Tab::set_value(const OptionKeyIdx& opt_key_idx, const boost::any& value, bool enabled) {
     bool changed = false;
-    for (auto page : m_pages) {
+    for (const auto& page : m_pages) {
         if (page->set_value(opt_key_idx, value, enabled))
             changed = true;
     }
@@ -1831,7 +1832,7 @@ t_change Tab::set_or_add(t_change previous, t_change toadd) {
     };
 }
 
-std::vector<Slic3r::GUI::PageShp> Tab::create_pages(std::string setting_type_name, int32_t idx_page, Preset::Type type_override)
+std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_type_name, int32_t idx_page, Preset::Type type_override)
 {
     //search for the file
     const boost::filesystem::path ui_layout_file = Slic3r::GUI::get_app_config()->layout_config_path() / setting_type_name;
@@ -3646,7 +3647,7 @@ void TabPrinter::milling_count_changed(size_t milling_count)
     }
 }
 
-void TabPrinter::append_option_line_kinematics(ConfigOptionsGroupShp optgroup, const std::string opt_key, const std::string override_sidetext)
+void TabPrinter::append_option_line_kinematics(ConfigOptionsGroupShp optgroup, const std::string& opt_key, const std::string& override_sidetext) const
 {
     Option option = optgroup->get_option_and_register(opt_key, 0);
     if (!override_sidetext.empty()) {
@@ -3744,7 +3745,28 @@ PageShp TabPrinter::build_kinematics_page()
     append_option_line_kinematics(optgroup, "machine_max_acceleration_extruding");
     append_option_line_kinematics(optgroup, "machine_max_acceleration_retracting");
     append_option_line_kinematics(optgroup, "machine_max_acceleration_travel");
-    append_option_line_kinematics(optgroup, "machine_min_cruise_ratio");
+
+    optgroup = page->new_optgroup(L("Klipper motion planner"));
+    optgroup->append_single_option_line("machine_klipper_max_velocity");
+    optgroup->append_single_option_line("machine_klipper_max_acceleration");
+    optgroup->append_single_option_line("machine_klipper_max_z_velocity");
+    optgroup->append_single_option_line("machine_klipper_max_z_acceleration");
+    optgroup->append_single_option_line("machine_klipper_square_corner_velocity");
+    optgroup->append_single_option_line("machine_min_cruise_ratio");
+
+    optgroup = page->new_optgroup(L("Klipper extruder"));
+    optgroup->append_single_option_line("machine_klipper_max_extrude_only_velocity");
+    optgroup->append_single_option_line("machine_klipper_max_extrude_only_acceleration");
+    optgroup->append_single_option_line("machine_klipper_instantaneous_corner_velocity");
+    optgroup->append_single_option_line("machine_klipper_rotation_distance");
+    optgroup->append_single_option_line("machine_klipper_pressure_advance");
+    optgroup->append_single_option_line("machine_klipper_pressure_advance_smooth_time");
+
+    optgroup = page->new_optgroup(L("Klipper input shaping"));
+    optgroup->append_single_option_line("machine_klipper_shaper_freq_x");
+    optgroup->append_single_option_line("machine_klipper_shaper_freq_y");
+    optgroup->append_single_option_line("machine_klipper_damping_ratio_x");
+    optgroup->append_single_option_line("machine_klipper_damping_ratio_y");
 
     optgroup = page->new_optgroup(L("Jerk limits"));
     for (const std::string& axis : axes) {
@@ -4287,7 +4309,7 @@ void Tab::rebuild_page_tree()
     m_disable_tree_sel_changed_event = true;
     m_treectrl->DeleteChildren(rootItem);
 
-    for (auto p : m_pages)
+    for (const auto& p : m_pages)
     {
         if (!p->get_show())
             continue;
@@ -4586,7 +4608,7 @@ void Tab::clear_pages()
     m_highlighter.invalidate();
     m_page_sizer->Clear(true);
     // clear pages from the controlls
-    for (auto p : m_pages)
+    for (const auto& p : m_pages)
         p->clear();
 
     // nulling pointers
@@ -4671,7 +4693,7 @@ bool Tab::tree_sel_change_delayed()
     Page* page = nullptr;
     const auto sel_item = m_treectrl->GetSelection();
     const auto selection = sel_item ? m_treectrl->GetItemText(sel_item) : "";
-    for (auto p : m_pages)
+    for (const auto& p : m_pages)
         if (translate_category(p->title(), type()) == selection)
         {
             page = p.get();
@@ -4729,7 +4751,7 @@ void Tab::OnKeyDown(wxKeyEvent& event)
         event.Skip();
 }
 
-void Tab::compare_preset()
+void Tab::compare_preset() const
 {
     wxGetApp().mainframe->diff_dialog.show(type());
 }
@@ -4959,7 +4981,7 @@ void Tab::rename_preset()
 // Called for a currently selected preset.
 void Tab::delete_preset()
 {
-    auto current_preset = m_presets->get_selected_preset();
+    const Preset& current_preset = m_presets->get_selected_preset();
     // Don't let the user delete the ' - default - ' configuration.
     wxString action = current_preset.is_external ? _L("remove") : _L("delete");
 
@@ -5080,7 +5102,7 @@ void Tab::update_ui_from_settings()
         }
 }
 
-void Tab::create_line_with_widget(ConfigOptionsGroup* optgroup, const std::string& opt_key, const std::string& path, int32_t idx, widget_t widget)
+void Tab::create_line_with_widget(ConfigOptionsGroup* optgroup, const std::string& opt_key, const std::string& path, int32_t idx, widget_t widget) const
 {
     Line line = optgroup->create_single_option_line(opt_key, path, idx);
     line.widget = widget;
@@ -5154,8 +5176,8 @@ wxSizer* Tab::compatible_widget_create(wxWindow* parent, PresetDependencies &dep
         // Collect and set indices of depending_presets marked as compatible.
         wxArrayInt selections;
         auto *compatible_printers = dynamic_cast<const ConfigOptionStrings*>(m_config_base->option(deps.key_list));
-        if (compatible_printers != nullptr || !compatible_printers->empty())
-            for (auto preset_name : compatible_printers->get_values())
+        if (compatible_printers != nullptr && !compatible_printers->empty())
+            for (const auto& preset_name : compatible_printers->get_values())
                 for (size_t idx = 0; idx < presets.GetCount(); ++idx)
                     if (presets[idx] == preset_name) {
                         selections.Add(idx);
@@ -5205,10 +5227,11 @@ void SubstitutionManager::init(DynamicPrintConfig* config, wxWindow* parent, wxF
 
 void SubstitutionManager::validate_length()
 {
-    if ((m_substitutions.size() % 4) != 0) {
+    const size_t incomplete_field_count = m_substitutions.size() % SUBSTITUTION_FIELD_COUNT;
+    if (incomplete_field_count != 0) {
         WarningDialog(m_parent, "Value of gcode_substitutions parameter will be cut to valid length",
             "Invalid length of gcode_substitutions parameter").ShowModal();
-        m_substitutions.resize(m_substitutions.size() - (m_substitutions.size() % 4));
+        m_substitutions.resize(m_substitutions.size() - incomplete_field_count);
         // save changes from m_substitutions to config 
         m_config->option<ConfigOptionStrings>("gcode_substitutions")->set(m_substitutions);
     }
@@ -5216,7 +5239,9 @@ void SubstitutionManager::validate_length()
 
 bool SubstitutionManager::is_compatible_with_ui()
 {
-    if (int(m_substitutions.size() / 4) != m_grid_sizer->GetEffectiveRowsCount() - 1) {
+    const int ui_substitution_count = m_grid_sizer->GetEffectiveRowsCount() - 1;
+    if (ui_substitution_count < 0 ||
+        m_substitutions.size() / SUBSTITUTION_FIELD_COUNT != static_cast<size_t>(ui_substitution_count)) {
         ErrorDialog(m_parent, "Invalid compatibility between UI and BE", false).ShowModal();
         return false;
     }
@@ -5225,7 +5250,8 @@ bool SubstitutionManager::is_compatible_with_ui()
 
 bool SubstitutionManager::is_valid_id(int substitution_id, const wxString& message)
 {
-    if (int(m_substitutions.size() / 4) < substitution_id) {
+    const size_t substitution_count = m_substitutions.size() / SUBSTITUTION_FIELD_COUNT;
+    if (substitution_id < 0 || static_cast<size_t>(substitution_id) >= substitution_count) {
         ErrorDialog(m_parent, message, false).ShowModal();
         return false;
     }
@@ -5257,7 +5283,10 @@ void SubstitutionManager::delete_substitution(int substitution_id)
 
     // delete substitution
     std::vector<std::string> substitutions = m_config->option<ConfigOptionStrings>("gcode_substitutions")->get_values();
-    substitutions.erase(std::next(substitutions.begin(), substitution_id * 4), std::next(substitutions.begin(), substitution_id * 4 + 4));
+    const size_t substitution_offset = static_cast<size_t>(substitution_id) * SUBSTITUTION_FIELD_COUNT;
+    using IteratorDifference = std::vector<std::string>::difference_type;
+    const auto first = std::next(substitutions.begin(), static_cast<IteratorDifference>(substitution_offset));
+    substitutions.erase(first, std::next(first, static_cast<IteratorDifference>(SUBSTITUTION_FIELD_COUNT)));
     m_config->option<ConfigOptionStrings>("gcode_substitutions")->set(substitutions);
     call_ui_update();
 
@@ -5282,7 +5311,7 @@ void SubstitutionManager::add_substitution(int substitution_id,
 
         // create new substitution
         // it have to be added to config too
-        for (size_t i = 0; i < 4; i ++)
+        for (size_t i = 0; i < SUBSTITUTION_FIELD_COUNT; ++i)
             m_substitutions.push_back(std::string());
 
         // save changes from config to m_substitutions
@@ -5434,10 +5463,16 @@ void SubstitutionManager::delete_all()
 void SubstitutionManager::edit_substitution(int substitution_id, int opt_pos, const std::string& value)
 {
     validate_length();
-    if(!is_compatible_with_ui() || !is_valid_id(substitution_id, "Invalid substitution_id to edit"))
+    if (!is_compatible_with_ui() || !is_valid_id(substitution_id, "Invalid substitution_id to edit"))
         return;
+    if (opt_pos < 0 || static_cast<size_t>(opt_pos) >= SUBSTITUTION_FIELD_COUNT) {
+        ErrorDialog(m_parent, "Invalid substitution option position", false).ShowModal();
+        return;
+    }
 
-    m_substitutions[substitution_id * 4 + opt_pos] = value;
+    const size_t option_index = static_cast<size_t>(substitution_id) * SUBSTITUTION_FIELD_COUNT +
+                                static_cast<size_t>(opt_pos);
+    m_substitutions[option_index] = value;
     // save changes from m_substitutions to config 
     m_config->option<ConfigOptionStrings>("gcode_substitutions")->set(m_substitutions);
 
@@ -6007,20 +6042,20 @@ Page::Page(Tab* tab, wxWindow* parent, const wxString& title, int iconID) :
 
 void Page::reload_config()
 {
-    for (auto group : m_optgroups)
+    for (const auto& group : m_optgroups)
         group->reload_config();
 }
 
 void Page::update_script_presets()
 {
-    for (auto group : m_optgroups)
+    for (const auto& group : m_optgroups)
         group->update_script_presets();
 }
 
 void Page::update_visibility(ConfigOptionMode mode, bool update_contolls_visibility)
 {
     bool ret_val = false;
-    for (auto group : m_optgroups) {
+    for (const auto& group : m_optgroups) {
         if (update_contolls_visibility && group->get_grid_sizer() ? //if not created, use the method that works 
             group->update_visibility(mode) :  // update visibility for all controlls in group
             group->is_visible(mode)           // just detect visibility for the group
@@ -6035,10 +6070,11 @@ void Page::update_visibility(ConfigOptionMode mode, bool update_contolls_visibil
 
 void Page::activate(ConfigOptionMode mode, std::function<void()> throw_if_canceled)
 {
-    for (auto group : m_optgroups) {
+    for (const auto& group : m_optgroups) {
         if (!group->activate(throw_if_canceled))
             continue;
-        m_vsizer->Add(group->sizer, 0, wxEXPAND | (group->is_legend_line() ? (wxLEFT|wxTOP) : wxALL), 10);
+        m_vsizer->Add(group->sizer, 0, wxEXPAND | (group->is_legend_line() ? (wxLEFT|wxTOP) : wxALL),
+            ThemeMetrics::settings_group_margin(m_parent));
         group->update_visibility(mode);
         group->reload_config();
         throw_if_canceled();
@@ -6047,32 +6083,32 @@ void Page::activate(ConfigOptionMode mode, std::function<void()> throw_if_cancel
 
 void Page::clear()
 {
-    for (auto group : m_optgroups)
+    for (const auto& group : m_optgroups)
         group->clear();
 }
 
 void Page::msw_rescale()
 {
-    for (auto group : m_optgroups)
+    for (const auto& group : m_optgroups)
         group->msw_rescale();
 }
 
 void Page::sys_color_changed()
 {
-    for (auto group : m_optgroups)
+    for (const auto& group : m_optgroups)
         group->sys_color_changed();
 }
 
 void Page::refresh()
 {
-    for (auto group : m_optgroups)
+    for (const auto& group : m_optgroups)
         group->refresh();
 }
 
 Field* Page::get_field(const t_config_option_key& opt_key, int32_t opt_index /*= -1*/) const
 {
     Field* field = nullptr;
-    for (auto group : m_optgroups) {
+    for (const auto& group : m_optgroups) {
         field = group->get_field({opt_key, opt_index});
         if (field != nullptr)
             return field;
@@ -6082,7 +6118,7 @@ Field* Page::get_field(const t_config_option_key& opt_key, int32_t opt_index /*=
 
 Line* Page::get_line(const t_config_option_key& opt_key)
 {
-    for (auto opt : m_optgroups)
+    for (const auto& opt : m_optgroups)
         if (Line* line = opt->get_line(opt_key))
             return line;
     return nullptr;
@@ -6090,7 +6126,7 @@ Line* Page::get_line(const t_config_option_key& opt_key)
 
 bool Page::set_value(const OptionKeyIdx& opt_key_idx, const boost::any& value, bool enabled) {
     bool changed = false;
-    for(auto optgroup: m_optgroups) {
+    for (const auto& optgroup : m_optgroups) {
         if (optgroup->set_value(opt_key_idx, value, enabled, false))
             changed = true ;
     }

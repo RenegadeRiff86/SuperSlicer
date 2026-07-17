@@ -1649,10 +1649,10 @@ void PrintObject::slice_volumes()
 
     BOOST_LOG_TRIVIAL(debug) << "Slicing volumes - removing top empty layers";
     while (! m_layers.empty()) {
-        const Layer *layer = m_layers.back();
+        Layer *layer = m_layers.back();
         if (! layer->empty())
             break;
-        delete layer;
+        std::unique_ptr<Layer> empty_layer{layer};
         m_layers.pop_back();
     }
     if (! m_layers.empty())

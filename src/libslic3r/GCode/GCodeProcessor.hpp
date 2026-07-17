@@ -149,19 +149,19 @@ namespace Slic3r {
         };
 
         std::string filename;
-        bool is_binary_file;
-        unsigned int id;
+        bool is_binary_file{ false };
+        unsigned int id{ 0 };
         std::vector<MoveVertex> moves;
         // Positions of ends of lines of the final G-code this->filename after TimeProcessor::post_process() finalizes the G-code.
         // Binarized gcodes usually have several gcode blocks. Each block has its own list on ends of lines.
         // Ascii gcodes have only one list on ends of lines
         std::vector<std::vector<size_t>> lines_ends;
         Pointfs bed_shape;
-        float max_print_height;
-        float z_offset;
+        float max_print_height{ 0.0f };
+        float z_offset{ 0.0f };
         SettingsIds settings_ids;
-        size_t extruders_count;
-        bool backtrace_enabled;
+        size_t extruders_count{ 0 };
+        bool backtrace_enabled{ false };
         std::vector<std::string> extruder_colors;
         std::vector<std::string> filament_colors;
         std::vector<std::string> object_names;
@@ -289,12 +289,16 @@ namespace Slic3r {
             EMoveType move_type{ EMoveType::Noop };
             GCodeExtrusionRole role{ GCodeExtrusionRole::None };
             unsigned int g1_line_id{ 0 };
-            unsigned int remaining_internal_g1_lines;
+            size_t remaining_internal_g1_lines;
             unsigned int layer_id{ 0 };
             float distance{ 0.0f }; // mm
             float acceleration{ 0.0f }; // mm/s^2
             float max_entry_speed{ 0.0f }; // mm/s
             float safe_feedrate{ 0.0f }; // mm/s
+            std::array<float, 3> axes_r{ 0.0f, 0.0f, 0.0f };
+            float extrude_r{ 0.0f }; // commanded E distance per mm of toolhead path
+            float junction_deviation{ 0.0f }; // mm, Klipper centripetal corner model
+            float minimum_cruise_ratio{ 0.0f }; // Klipper short-move cruise constraint
             Flags flags;
             FeedrateProfile feedrate_profile;
             Trapezoid trapezoid;
@@ -332,7 +336,7 @@ namespace Slic3r {
             struct G1LinesCacheItem
             {
                 unsigned int id;
-                unsigned int remaining_internal_g1_lines;
+                size_t remaining_internal_g1_lines;
                 float elapsed_time;
             };
 
@@ -348,6 +352,14 @@ namespace Slic3r {
             float travel_acceleration; // mm/s^2
             // hard limit for the travel acceleration, to which the firmware will clamp.
             float max_travel_acceleration; // mm/s^2
+            float max_velocity; // mm/s, Klipper global path-speed limit
+            float max_z_velocity; // mm/s, Klipper kinematics Z-component limit
+            float max_z_acceleration; // mm/s², Klipper kinematics Z-component limit
+            float max_extrude_only_velocity; // mm/s of filament for E-only moves
+            float max_extrude_only_acceleration; // mm/s² of filament for E-only moves
+            float instantaneous_corner_velocity; // mm/s, Klipper extruder junction limit
+            float square_corner_velocity; // mm/s, Klipper 90-degree corner velocity
+            float minimum_cruise_ratio; // Klipper ratio in [0, 1)
             float extrude_factor_override_percentage;
             float time; // s
             float travel_time; // s
@@ -582,6 +594,8 @@ namespace Slic3r {
         EPositioningType m_e_local_positioning_type;
         std::vector<Vec3f> m_extruder_offsets;
         std::vector<std::string> m_extruder_names;
+        std::vector<float> m_klipper_default_max_extrude_only_velocities;
+        std::vector<float> m_klipper_default_max_extrude_only_accelerations;
         GCodeFlavor m_flavor;
 
         AxisCoords m_start_position; // mm
@@ -762,7 +776,7 @@ namespace Slic3r {
         };
         void process_G1(const std::array<std::optional<double>, 4>& axes = { std::nullopt, std::nullopt, std::nullopt, std::nullopt },
             const std::optional<double>& feedrate = std::nullopt, G1DiscretizationOrigin origin = G1DiscretizationOrigin::G1,
-            const std::optional<unsigned int>& remaining_internal_g1_lines = std::nullopt);
+            const std::optional<size_t>& remaining_internal_g1_lines = std::nullopt);
 
         // Arc Move
         void process_G2_G3(const GCodeReader::GCodeLine& line, bool clockwise);
@@ -871,6 +885,7 @@ namespace Slic3r {
         void process_T(const std::string_view command);
         void process_toolchange(uint16_t command_id);
         void process_klipper_ACTIVATE_EXTRUDER(const GCodeReader::GCodeLine& line);
+        void process_klipper_SET_VELOCITY_LIMIT(const GCodeReader::GCodeLine& line);
 
         // post process the file with the given filename to:
         // 1) add remaining time lines M73 and update moves' gcode ids accordingly

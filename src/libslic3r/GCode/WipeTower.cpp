@@ -33,6 +33,9 @@ namespace Slic3r
 
 // Repeated string literals extracted to named constants (BP1001).
 static constexpr const char* kSeparatorLine = ";--------------------\n";
+static constexpr float kSecondsPerMinute = 60.f;
+static constexpr float kMaxPrimeSectionWidth = 60.f;
+static constexpr float kPrimingTravelFeedrate = 7200.f;
 
 class WipeTowerWriter
 {
@@ -189,11 +192,11 @@ public:
 
         if (f != 0.f && f != m_current_feedrate) {
             if (limit_volumetric_flow) {
-                float e_speed = e / (((len == 0.f) ? std::abs(e) : len) / f * 60.f);
+                float e_speed = e / (((len == 0.f) ? std::abs(e) : len) / f * kSecondsPerMinute);
                 f /= std::max(1.f, e_speed / m_filpar[m_current_tool].max_e_speed);
                 if (len > 0 && m_filpar[m_current_tool].max_speed > 0) {
                     // don't forget to go from speed (mm/s) to Feedrate (mm/min)
-                    f = std::min(f, m_filpar[m_current_tool].max_speed * 60.f);
+                    f = std::min(f, m_filpar[m_current_tool].max_speed * kSecondsPerMinute);
                 }
             }
             gcode += set_format_F(f);
@@ -204,7 +207,7 @@ public:
 
         if (!gcode.empty()) {
             // Update the elapsed time with a rough estimate.
-            m_elapsed_time += ((len == 0.f) ? std::abs(e) : len) / m_current_feedrate * 60.f;
+            m_elapsed_time += ((len == 0.f) ? std::abs(e) : len) / m_current_feedrate * kSecondsPerMinute;
             m_gcode += "G1" + gcode + "\n";
         }
         return *this;
@@ -294,7 +297,7 @@ public:
         }
 
         float end_point = x() + (farthest_x > x() ? 1.f : -1.f) * x_distance;
-        return extrude_explicit(end_point, y(), loading_dist, x_speed * 60.f, false, false);
+        return extrude_explicit(end_point, y(), loading_dist, x_speed * kSecondsPerMinute, false, false);
     }
 
     // Elevate the extruder head above the current print_z position.
@@ -344,7 +347,7 @@ public:
         //snprintf(all, 80, "G1 E%.4f F%.0f\n", distance, downspeed*60 );
         this->append("G1");
         this->append(set_format_E(distance));
-        this->append(set_format_F(downspeed * 60));
+        this->append(set_format_F(downspeed * kSecondsPerMinute));
         this->append("\n");
         //snprintf(all, 80, "G4 P%d\n", meltpause);
         {
@@ -355,7 +358,7 @@ public:
         //snprintf(all, 80,  "G1 E-%.4f F%.0f\n", distance, upspeed*60);
         this->append("G1");
         this->append(set_format_E(-distance));
-        this->append(set_format_F(upspeed * 60));
+        this->append(set_format_F(upspeed * kSecondsPerMinute));
         this->append("\n");
         //snprintf(all, 80, "G4 P%d\n", coolpause);
         {
@@ -821,7 +824,7 @@ std::vector<WipeTower::ToolChangeResult> WipeTower::prime(
     // therefore the homing position is shifted inside the bed by 0.2 in the firmware to [0.2, -2.0].
 //	box_coordinates cleaning_box(xy(0.5f, - 1.5f), m_wipe_tower_width, wipe_area);
 
-    float prime_section_width = std::min((m_bed_shape == CircularBed ? 0.45f : 0.9f) * m_bed_width / tools.size(), 60.f);
+    float prime_section_width = std::min((m_bed_shape == CircularBed ? 0.45f : 0.9f) * m_bed_width / tools.size(), kMaxPrimeSectionWidth);
     box_coordinates cleaning_box(Vec2f(0.02f * m_bed_width, 0.01f + m_perimeter_width/2.f), prime_section_width, 100.f);
     if (m_bed_shape == CircularBed) {
         cleaning_box = box_coordinates(Vec2f(0.f, 0.f), prime_section_width, 100.f);
@@ -856,7 +859,7 @@ std::vector<WipeTower::ToolChangeResult> WipeTower::prime(
                   .speed_override_backup()
                   .speed_override(100)
                   .set_initial_position(Vec2f::Zero())	// Always move to the starting position
-                  .travel(cleaning_box.ld, 7200);
+                  .travel(cleaning_box.ld, kPrimingTravelFeedrate);
             if (m_set_extruder_trimpot)
                 writer.set_extruder_trimpot(750); 			// Increase the extruder driver current to allow fast ramming.
         }
@@ -880,7 +883,7 @@ std::vector<WipeTower::ToolChangeResult> WipeTower::prime(
             box.translate(0.f, writer.y() - cleaning_box.ld.y() + m_perimeter_width);
             toolchange_Unload(writer, box , m_filpar[tools[idx_tool + 1]].first_layer_temperature, idx_tool + 1);
             cleaning_box.translate(prime_section_width, 0.f);
-            writer.travel(cleaning_box.ld, 7200);
+            writer.travel(cleaning_box.ld, kPrimingTravelFeedrate);
         }
         ++ m_num_tool_changes;
 
@@ -895,7 +898,7 @@ std::vector<WipeTower::ToolChangeResult> WipeTower::prime(
             if (m_set_extruder_trimpot)
                 writer.set_extruder_trimpot(550);
             writer.speed_override_restore()
-                  .feedrate(m_travel_speed * 60.f)
+                  .feedrate(m_travel_speed * kSecondsPerMinute)
                   .flush_planner_queue()
                   .reset_extruder()
                   .append("; CP PRIMING END\n"
@@ -982,7 +985,7 @@ WipeTower::ToolChangeResult WipeTower::tool_change(size_t tool)
     if (m_set_extruder_trimpot)
         writer.set_extruder_trimpot(550);    // Reset the extruder current to a normal value.
     writer.speed_override_restore();
-    writer.feedrate(m_travel_speed * 60.f)
+    writer.feedrate(m_travel_speed * kSecondsPerMinute)
           .flush_planner_queue()
           .reset_extruder()
           .append("; CP TOOLCHANGE END\n"
@@ -1078,11 +1081,11 @@ void WipeTower::toolchange_Unload(
         const float e = m_filpar[m_current_tool].ramming_speed[i] * time_step / filament_area(); // transform volume per sec to E move;
         const float dist = std::min(x - e_done, remaining);		  // distance to travel for either the next time_step, or to the next turnaround
         const float actual_time = dist/x * time_step;
-        writer.ram(writer.x(), writer.x() + (m_left_to_right ? 1.f : -1.f) * dist, 0.f, 0.f, e * (dist / x), dist / (actual_time / 60.f));
+        writer.ram(writer.x(), writer.x() + (m_left_to_right ? 1.f : -1.f) * dist, 0.f, 0.f, e * (dist / x), dist / (actual_time / kSecondsPerMinute));
         remaining -= dist;
 
         if (remaining < WT_EPSILON)	{ // we reached a turning point
-            writer.travel(writer.x(), writer.y() + y_step, 7200);
+            writer.travel(writer.x(), writer.y() + y_step, kPrimingTravelFeedrate);
             m_left_to_right = !m_left_to_right;
             remaining = xr - xl;
         }
@@ -1112,10 +1115,10 @@ void WipeTower::toolchange_Unload(
 
         float total_retraction_distance = m_cooling_tube_retraction + m_cooling_tube_length/2.f - 15.f; // the 15mm is reserved for the first part after ramming
         writer.suppress_preview()
-              .retract(15.f, m_filpar[m_current_tool].unloading_speed_start * 60.f) // feedrate 5000mm/min = 83mm/s
-              .retract(0.70f * total_retraction_distance, 1.0f * m_filpar[m_current_tool].unloading_speed * 60.f)
-              .retract(0.20f * total_retraction_distance, 0.5f * m_filpar[m_current_tool].unloading_speed * 60.f)
-              .retract(0.10f * total_retraction_distance, 0.3f * m_filpar[m_current_tool].unloading_speed * 60.f)
+              .retract(15.f, m_filpar[m_current_tool].unloading_speed_start * kSecondsPerMinute) // feedrate 5000mm/min = 83mm/s
+              .retract(0.70f * total_retraction_distance, 1.0f * m_filpar[m_current_tool].unloading_speed * kSecondsPerMinute)
+              .retract(0.20f * total_retraction_distance, 0.5f * m_filpar[m_current_tool].unloading_speed * kSecondsPerMinute)
+              .retract(0.10f * total_retraction_distance, 0.3f * m_filpar[m_current_tool].unloading_speed * kSecondsPerMinute)
               .resume_preview();
     }
 
@@ -1256,7 +1259,7 @@ void WipeTower::toolchange_Change(
     // gcode could have left the extruder somewhere, we cannot just start extruding. We should also inform the
     // postprocessor that we absolutely want to have this in the gcode, even if it thought it is the same as before.
     Vec2f current_pos = writer.pos_rotated();
-    writer.feedrate(m_travel_speed * 60.f) // see https://github.com/prusa3d/PrusaSlicer/issues/5483
+    writer.feedrate(m_travel_speed * kSecondsPerMinute) // see https://github.com/prusa3d/PrusaSlicer/issues/5483
           .append(std::string("G1 X") + Slic3r::float_to_string_decimal_point(current_pos.x())
                              +  " Y"  + Slic3r::float_to_string_decimal_point(current_pos.y())
                              + never_skip_tag() + "\n"
@@ -1291,7 +1294,7 @@ void WipeTower::toolchange_Load(
 
         writer.append("; CP TOOLCHANGE LOAD\n")
               .suppress_preview()
-              .load(0.2f * edist, 60.f * m_filpar[m_current_tool].loading_speed_start)
+              .load(0.2f * edist, kSecondsPerMinute * m_filpar[m_current_tool].loading_speed_start)
               .load_move_x_advanced(turning_point, 0.7f * edist,        m_filpar[m_current_tool].loading_speed)  // Fast phase
               .load_move_x_advanced(oldx,          0.1f * edist, 0.1f * m_filpar[m_current_tool].loading_speed)  // Super slow*/
 
@@ -1333,7 +1336,7 @@ void WipeTower::toolchange_Wipe(
 
     // Speed override for the material. Go slow for flex and soluble materials.
     speed_factor *= get_speed_reduction();
-    speed_factor *= 60.f;  // mm/s -> mm/min
+    speed_factor *= kSecondsPerMinute;  // mm/s -> mm/min
 
     // Variables x_to_wipe and traversed_x are here to be able to make sure it always wipes at least
     //   the ordered volume, even if it means violating the box. This can later be removed and simply
@@ -1387,7 +1390,7 @@ void WipeTower::toolchange_Wipe(
         traversed_x -= writer.x();
         x_to_wipe -= std::abs(traversed_x);
         if (x_to_wipe < WT_EPSILON) {
-            writer.travel(m_left_to_right ? xl + 1.5f*m_perimeter_width : xr - 1.5f*m_perimeter_width, writer.y(), 7200);
+            writer.travel(m_left_to_right ? xl + 1.5f*m_perimeter_width : xr - 1.5f*m_perimeter_width, writer.y(), kPrimingTravelFeedrate);
             break;
         }
         // stepping to the next line:
@@ -1426,7 +1429,7 @@ WipeTower::ToolChangeResult WipeTower::finish_layer()
 
     // Slow down on the 1st layer.
     bool first_layer = is_first_layer();
-    float speed_factor = 60.f;
+    float speed_factor = kSecondsPerMinute;
     float print_speed = m_speed;
     if (first_layer && m_first_layer_speed > 0)
         print_speed = m_first_layer_speed;
@@ -1614,7 +1617,7 @@ WipeTower::ToolChangeResult WipeTower::finish_layer()
         return poly;
     };
 
-    feedrate = first_layer ? m_first_layer_speed * 60.f : m_perimeter_speed * 60.f;
+    feedrate = first_layer ? m_first_layer_speed * kSecondsPerMinute : m_perimeter_speed * kSecondsPerMinute;
 
     // outer contour (always)
     bool infill_cone = first_layer && m_wipe_tower_width > 2*spacing && m_wipe_tower_depth > 2*spacing;

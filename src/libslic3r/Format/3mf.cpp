@@ -913,7 +913,7 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
                     std::string name(stat.m_filename);
                     std::replace(name.begin(), name.end(), '\\', '/');
 
-                    // TODO use special methods to convert them better?
+                    // The format-specific extractors below own conversion for each legacy configuration entry.
 
                     if (boost::algorithm::iequals(name, layer_config_name)) {
                         // extract slic3r layer config ranges file
@@ -1281,7 +1281,7 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
                 add_error("Error while reading config data to buffer");
                 return;
             }
-            //FIXME Loading a "will be one day a legacy format" of configuration in a form of a G-code comment.
+            // Note: loading a "will be one day a legacy format" of configuration in a form of a G-code comment.
             // Each config line is prefixed with a semicolon (G-code comment), that is ugly.
 
             // Replacing the legacy function with load_from_ini_string_commented leads to issues when
@@ -1496,7 +1496,7 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
                                                     float(std::atof(object_data_points[i+1].c_str())),
                                                     float(std::atof(object_data_points[i+2].c_str())),
                                                     float(std::atof(object_data_points[i+3].c_str())),
-                                                    //FIXME storing boolean as 0 / 1 and importing it as float.
+                                                    // Note: this legacy format stores the boolean as 0 / 1 and imports it as a float.
                                                     std::abs(std::atof(object_data_points[i+4].c_str()) - 1.) < EPSILON);
                 }
 

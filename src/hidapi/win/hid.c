@@ -562,7 +562,7 @@ cont:
 
 void  HID_API_EXPORT HID_API_CALL hid_free_enumeration(struct hid_device_info *devs)
 {
-    /* TODO: Merge this with the Linux version. This function is platform-independent. */
+    /* This cleanup is platform-independent; keep it behaviorally aligned with the Linux backend. */
     struct hid_device_info *d = devs;
     while (d) {
         struct hid_device_info *next = d->next;
@@ -578,7 +578,7 @@ void  HID_API_EXPORT HID_API_CALL hid_free_enumeration(struct hid_device_info *d
 
 HID_API_EXPORT hid_device * HID_API_CALL hid_open(unsigned short vendor_id, unsigned short product_id, const wchar_t *serial_number)
 {
-    /* TODO: Merge this functions with the Linux version. This function should be platform independent. */
+    /* Opening by VID, PID, and serial is platform-independent in behavior; keep it aligned with the Linux backend. */
     struct hid_device_info *devs, *cur_dev;
     const char *path_to_open = NULL;
     hid_device *handle = NULL;

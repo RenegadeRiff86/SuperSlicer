@@ -16,18 +16,39 @@
 #include "Int128.hpp"
 #include "BoundingBox.hpp"
 #include <algorithm>
+#include <limits>
+#include <stdexcept>
 
 namespace Slic3r {
 
+static constexpr Eigen::Index POINT_COORDINATE_COUNT = 3;
+
+static Eigen::Index checked_eigen_vertex_count(size_t vertex_count)
+{
+    if (vertex_count > static_cast<size_t>(std::numeric_limits<Eigen::Index>::max()))
+        throw std::length_error("Point transform exceeds Eigen matrix capacity");
+    return static_cast<Eigen::Index>(vertex_count);
+}
+
+template<typename Scalar>
+static size_t checked_point_buffer_size(size_t vertex_count)
+{
+    constexpr size_t bytes_per_point = static_cast<size_t>(POINT_COORDINATE_COUNT) * sizeof(Scalar);
+    if (vertex_count > std::numeric_limits<size_t>::max() / bytes_per_point)
+        throw std::length_error("Point transform buffer size exceeds addressable memory");
+    return vertex_count * bytes_per_point;
+}
+
 std::vector<Vec3f> transform(const std::vector<Vec3f>& points, const Transform3f& t)
 {
-    unsigned int vertices_count = static_cast<unsigned int>(points.size());
+    const size_t vertices_count = points.size();
     if (vertices_count == 0)
         return std::vector<Vec3f>();
 
-    unsigned int data_size = 3 * vertices_count * sizeof(float);
+    const Eigen::Index matrix_vertex_count = checked_eigen_vertex_count(vertices_count);
+    const size_t       data_size           = checked_point_buffer_size<float>(vertices_count);
 
-    Eigen::MatrixXf src(3, vertices_count);
+    Eigen::MatrixXf src(POINT_COORDINATE_COUNT, matrix_vertex_count);
     ::memcpy(reinterpret_cast<void*>(src.data()), reinterpret_cast<const void*>(points.data()), data_size);
 
     Eigen::MatrixXf dst(3, vertices_count);
@@ -40,13 +61,14 @@ std::vector<Vec3f> transform(const std::vector<Vec3f>& points, const Transform3f
 
 Pointf3s transform(const Pointf3s& points, const Transform3d& t)
 {
-    unsigned int vertices_count = static_cast<unsigned int>(points.size());
+    const size_t vertices_count = points.size();
     if (vertices_count == 0)
         return Pointf3s();
 
-    unsigned int data_size = 3 * vertices_count * sizeof(double);
+    const Eigen::Index matrix_vertex_count = checked_eigen_vertex_count(vertices_count);
+    const size_t       data_size           = checked_point_buffer_size<double>(vertices_count);
 
-    Eigen::MatrixXd src(3, vertices_count);
+    Eigen::MatrixXd src(POINT_COORDINATE_COUNT, matrix_vertex_count);
     ::memcpy(static_cast<void*>(src.data()), static_cast<const void*>(points.data()), data_size);
 
     Eigen::MatrixXd dst(3, vertices_count);

@@ -1095,7 +1095,14 @@ static std::vector<std::string> s_Preset_machine_limits_options {
     "machine_max_feedrate_x", "machine_max_feedrate_y", "machine_max_feedrate_z", "machine_max_feedrate_e",
     "machine_min_extruding_rate", "machine_min_travel_rate",
     "machine_max_jerk_x", "machine_max_jerk_y", "machine_max_jerk_z", "machine_max_jerk_e",
-    "machine_min_cruise_ratio",
+    "machine_klipper_max_velocity", "machine_klipper_max_acceleration",
+    "machine_klipper_max_z_velocity", "machine_klipper_max_z_acceleration",
+    "machine_klipper_square_corner_velocity", "machine_min_cruise_ratio",
+    "machine_klipper_max_extrude_only_velocity", "machine_klipper_max_extrude_only_acceleration",
+    "machine_klipper_instantaneous_corner_velocity", "machine_klipper_rotation_distance",
+    "machine_klipper_pressure_advance", "machine_klipper_pressure_advance_smooth_time",
+    "machine_klipper_shaper_freq_x", "machine_klipper_shaper_freq_y",
+    "machine_klipper_damping_ratio_x", "machine_klipper_damping_ratio_y",
     "z_step"
 };
 

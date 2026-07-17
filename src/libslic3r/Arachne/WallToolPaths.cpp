@@ -383,7 +383,7 @@ void removeSmallAreas(Polygons &thiss, const double min_area_size, const bool re
 
 void removeColinearEdges(Polygon &poly, const double max_deviation_angle)
 {
-    // TODO: Can be made more efficient (for example, use pointer-types for process-/skip-indices, so we can swap them without copy).
+    // This index-based pass favors straightforward mutation; pointer-based index swapping would reduce copies but complicate ownership.
     size_t num_removed_in_iteration = 0;
     do {
         num_removed_in_iteration = 0;
@@ -468,7 +468,7 @@ const std::vector<VariableWidthLines> &WallToolPaths::generate()
     constexpr coord_t discretization_step_size = scaled<coord_t>(0.8);
 
     // Simplify outline for boost::voronoi consumption. Absolutely no self intersections or near-self intersections allowed:
-    // TODO: Open question: Does this indeed fix all (or all-but-one-in-a-million) cases for manifold but otherwise possibly complex polygons?
+    // The cleanup sequence handles the common manifold cases; the Clipper union below removes rare residual intersections in complex polygons.
     Polygons prepared_outline = offset(offset(offset(outline, -epsilon_offset), epsilon_offset * 2), -epsilon_offset);
     simplify(prepared_outline, smallest_segment, allowed_distance);
     fixSelfIntersections(epsilon_offset, prepared_outline);

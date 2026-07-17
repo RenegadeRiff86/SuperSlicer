@@ -866,7 +866,7 @@ MeasurementResult get_measurement(const SurfaceFeature& a, const SurfaceFeature&
             const auto [idx, normal, pt] = f2.get_plane();
             Eigen::Hyperplane<double, 3> plane(normal, pt);
             result.distance_infinite = std::make_optional(DistAndPoints{plane.absDistance(f1.get_point()), f1.get_point(), plane.projection(f1.get_point())});
-            // TODO: implement distance_strict for the point-plane combination.
+            // A strict distance to the bounded face requires its boundary features; this branch reports only the infinite-plane distance.
         }
     ///////////////////////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////
