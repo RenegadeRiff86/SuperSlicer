@@ -26,6 +26,9 @@ namespace Slic3r {
 
 namespace orientation {
 
+    // 1/sqrt(2): the x/z (or y/z) magnitude of a 45deg diagonal unit direction.
+    static constexpr float INV_SQRT2 = 0.70710678f;
+
     struct CostItems {
         float overhang;
         float bottom;
@@ -102,12 +105,12 @@ public:
 
     struct VecHash {
         size_t operator()(const Vec3f& n1) const {
-            return std::hash<coord_t>()(int(n1(0)*100+100)) + std::hash<coord_t>()(int(n1(1)*100+100)) * 101 + std::hash<coord_t>()(int(n1(2)*100+100)) * 10221;
+            return std::hash<coord_t>()(int(n1(0)*100+100)) + std::hash<coord_t>()(int(n1(1)*100+100)) * 101 + std::hash<coord_t>()(int(n1(2)*100+100)) * 10221;  // scale by 100 and bias +100 to hash normals as non-negative ints
         }
     };
 
     Vec3f quantize_vec3f(const Vec3f n1) {
-        return Vec3f(floor(n1(0) * 1000) / 1000, floor(n1(1) * 1000) / 1000, floor(n1(2) * 1000) / 1000);
+        return Vec3f(floor(n1(0) * 1000) / 1000, floor(n1(1) * 1000) / 1000, floor(n1(2) * 1000) / 1000);  // quantize each component to 3 decimals (milli-unit grid)
     }
 
     Vec3d process()
@@ -142,8 +145,8 @@ public:
 
             results[orientation] = cost_items;
 
-            BOOST_LOG_TRIVIAL(info) << std::fixed << std::setprecision(4) << "orientation:" << orientation.transpose() << ", cost:" << std::fixed << std::setprecision(4) << cost_items.field_values();
-            std::cout << std::fixed << std::setprecision(4) << "orientation:" << orientation.transpose() << ", cost:" << std::fixed << std::setprecision(4) << cost_items.field_values() << std::endl;
+            BOOST_LOG_TRIVIAL(info) << std::fixed << std::setprecision(4) << "orientation:" << orientation.transpose() << ", cost:" << std::fixed << std::setprecision(4) << cost_items.field_values();  // 4-decimal precision for the cost log
+            std::cout << std::fixed << std::setprecision(4) << "orientation:" << orientation.transpose() << ", cost:" << std::fixed << std::setprecision(4) << cost_items.field_values() << std::endl;  // 4-decimal precision for the cost log
         }
         if (progressind)
             progressind(60);
@@ -187,8 +190,8 @@ public:
             face_normals = its_face_normals(its);
             areas = Eigen::VectorXf::Zero(face_count);
             is_apperance = Eigen::VectorXf::Zero(face_count);
-            normals = Eigen::MatrixXf::Zero(face_count, 3);
-            normals_quantize = Eigen::MatrixXf::Zero(face_count, 3);
+            normals = Eigen::MatrixXf::Zero(face_count, 3);  // 3 columns: x, y, z normal components
+            normals_quantize = Eigen::MatrixXf::Zero(face_count, 3);  // 3 columns: x, y, z normal components
             for (size_t i = 0; i < face_count; i++)
             {
                 float area = its.facet_area(i);
@@ -213,8 +216,8 @@ public:
             face_count_hull = mesh_convex_hull.facets_count();
             face_normals_hull = its_face_normals(its);
             areas_hull = Eigen::VectorXf::Zero(face_count);
-            normals_hull = Eigen::MatrixXf::Zero(face_count_hull, 3);
-            normals_hull_quantize = Eigen::MatrixXf::Zero(face_count_hull, 3);
+            normals_hull = Eigen::MatrixXf::Zero(face_count_hull, 3);  // 3 columns: x, y, z normal components
+            normals_hull_quantize = Eigen::MatrixXf::Zero(face_count_hull, 3);  // 3 columns: x, y, z normal components
             for (size_t i = 0; i < face_count; i++)
             {
                 float area = its.facet_area(i);
@@ -283,12 +286,12 @@ public:
     }
     void add_supplements()
     {
-        std::vector<Vec3f> vecs = { {0, 0, -1} ,{0.70710678f, 0, -0.70710678f},{0, 0.70710678f, -0.70710678f},
-            {-0.70710678f, 0, -0.70710678f},{0, -0.70710678f, -0.70710678f},
-            {1, 0, 0},{0.70710678f, 0.70710678f, 0},{0, 1, 0},{-0.70710678f, 0.70710678f, 0},
-            {-1, 0, 0},{-0.70710678f, -0.70710678f, 0},{0, -1, 0},{0.70710678f, -0.70710678f, 0},
-            {0.70710678f, 0, 0.70710678f},{0, 0.70710678f, 0.70710678f},
-            {-0.70710678f, 0, 0.70710678f},{0, -0.70710678f, 0.70710678f},{0, 0, 1} };
+        std::vector<Vec3f> vecs = { {0, 0, -1} ,{INV_SQRT2, 0, -INV_SQRT2},{0, INV_SQRT2, -INV_SQRT2},
+            {-INV_SQRT2, 0, -INV_SQRT2},{0, -INV_SQRT2, -INV_SQRT2},
+            {1, 0, 0},{INV_SQRT2, INV_SQRT2, 0},{0, 1, 0},{-INV_SQRT2, INV_SQRT2, 0},
+            {-1, 0, 0},{-INV_SQRT2, -INV_SQRT2, 0},{0, -1, 0},{INV_SQRT2, -INV_SQRT2, 0},
+            {INV_SQRT2, 0, INV_SQRT2},{0, INV_SQRT2, INV_SQRT2},
+            {-INV_SQRT2, 0, INV_SQRT2},{0, -INV_SQRT2, INV_SQRT2},{0, 0, 1} };
         orientations.insert(orientations.end(), vecs.begin(), vecs.end());
     }
 
@@ -320,7 +323,7 @@ public:
     {
         int face_count = mesh->facets_count();
         auto its = mesh->its;
-        z_projected.resize(face_count, 3);
+        z_projected.resize(face_count, 3);  // 3 columns: the per-triangle vertex projections
         z_max.resize(face_count, 1);
         z_median.resize(face_count, 1);
         z_mean.resize(face_count, 1);
@@ -328,13 +331,13 @@ public:
         {
             float z0 = its.get_vertex(i,0).dot(orientation);
             float z1 = its.get_vertex(i,1).dot(orientation);
-            float z2 = its.get_vertex(i,2).dot(orientation);
+            float z2 = its.get_vertex(i,2).dot(orientation);  // third triangle vertex (index 2)
             z_projected(i, 0) = z0;
             z_projected(i, 1) = z1;
-            z_projected(i, 2) = z2;
+            z_projected(i, 2) = z2;  // store the third vertex projection in column 2
             z_max(i) = MAX3(z0,z1,z2);
             z_median(i) = MEDIAN3(z0,z1,z2);
-            z_mean(i) = (z0 + z1 + z2) / 3;
+            z_mean(i) = (z0 + z1 + z2) / 3;  // mean of the 3 triangle-vertex projections
         }
 
         z_max_hull.resize(mesh_convex_hull.facets_count(), 1);
@@ -343,7 +346,7 @@ public:
         {
             float z0 = its.get_vertex(i,0).dot(orientation);
             float z1 = its.get_vertex(i,1).dot(orientation);
-            float z2 = its.get_vertex(i,2).dot(orientation);
+            float z2 = its.get_vertex(i,2).dot(orientation);  // third triangle vertex (index 2)
             z_max_hull(i) = MAX3(z0, z1, z2);
         }
     }
@@ -384,7 +387,7 @@ public:
         // filter bottom area
         auto bottom_condition = (z_max.array() < total_min_z + this->params.FIRST_LAY_H - EPSILON).eval();
         auto bottom_condition_hull = (z_max_hull.array() < total_min_z + this->params.FIRST_LAY_H - EPSILON).eval();
-        auto bottom_condition_2nd  = (z_max.array() < total_min_z + this->params.FIRST_LAY_H / 2.f - EPSILON).eval();
+        auto bottom_condition_2nd  = (z_max.array() < total_min_z + this->params.FIRST_LAY_H / 2.f - EPSILON).eval();  // compare against half the first-layer height
         //The first layer is sliced on half of the first layer height. 
         //The bottom area is measured by accumulating first layer area with the facets area below first layer height.
         //By combining these two factors, we can avoid the wrong orientation of large planar faces while not influence the
@@ -414,7 +417,7 @@ public:
             // contour perimeter
 #if 1
             // the simple way for contour is even better for faces of small bridges
-            costs.contour = 4 * sqrt(costs.bottom);
+            costs.contour = 4 * sqrt(costs.bottom);  // empirical contour weight: 4x sqrt of bottom area
 #else
             float contour = 0;
             int face_count = mesh->facets_count();
@@ -487,7 +490,7 @@ void _orient(OrientMeshs& meshs_,
             AutoOrienter orienter(&mesh_, params, /*progressfn_i*/{}, stopfn);
             mesh_.orientation = orienter.process();
             Geometry::rotation_from_two_vectors(mesh_.orientation, { 0,0,1 }, mesh_.axis, mesh_.angle, &mesh_.rotation_matrix);
-            BOOST_LOG_TRIVIAL(info) << std::fixed << std::setprecision(3) << "v,phi: " << mesh_.axis.transpose() << ", " << mesh_.angle;
+            BOOST_LOG_TRIVIAL(info) << std::fixed << std::setprecision(3) << "v,phi: " << mesh_.axis.transpose() << ", " << mesh_.angle;  // 3-decimal precision in the log
             //flush_logs();
         }
     }
