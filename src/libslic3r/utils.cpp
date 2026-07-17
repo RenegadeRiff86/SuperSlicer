@@ -103,6 +103,11 @@
 
 namespace Slic3r {
 
+// Scratch buffer size for formatting debug output file names.
+static constexpr std::size_t DEBUG_OUT_BUF_SIZE = 2048;
+// Digit-grouping base used when formatting a byte count with thousands separators.
+static constexpr std::size_t THOUSANDS_BASE = 1000;
+
 static boost::log::trivial::severity_level logSeverity = boost::log::trivial::error;
 
 static boost::log::trivial::severity_level level_to_boost(unsigned level)
@@ -113,11 +118,11 @@ static boost::log::trivial::severity_level level_to_boost(unsigned level)
     // Report fatal errors and errors.
     case 1: return boost::log::trivial::error;
     // Report fatal errors, errors and warnings.
-    case 2: return boost::log::trivial::warning;
+    case 2: return boost::log::trivial::warning;  // verbosity level 2 (warnings)
     // Report all errors, warnings and infos.
-    case 3: return boost::log::trivial::info;
+    case 3: return boost::log::trivial::info;  // verbosity level 3 (info)
     // Report all errors, warnings, infos and debugging.
-    case 4: return boost::log::trivial::debug;
+    case 4: return boost::log::trivial::debug;  // verbosity level 4 (debug)
     // Report everyting including fine level tracing information.
     default: return boost::log::trivial::trace;
     }
@@ -138,9 +143,9 @@ unsigned get_logging_level()
     switch (logSeverity) {
     case boost::log::trivial::fatal : return 0;
     case boost::log::trivial::error : return 1;
-    case boost::log::trivial::warning : return 2;
-    case boost::log::trivial::info : return 3;
-    case boost::log::trivial::debug : return 4;
+    case boost::log::trivial::warning : return 2;  // verbosity level 2 (warnings)
+    case boost::log::trivial::info : return 3;  // verbosity level 3 (info)
+    case boost::log::trivial::debug : return 4;  // verbosity level 4 (debug)
     case boost::log::trivial::trace : return 5;
     default: return 1;
     }
@@ -366,10 +371,10 @@ std::string debug_out_path(const char *name, ...)
         std::string path = clean_absolute_path(boost::filesystem::system_complete(SLIC3R_DEBUG_OUT_PATH_PREFIX)).string();
         printf("Debugging output files will be written to %s\n", path.c_str());
     }
-    char buffer[2048];
+    char buffer[DEBUG_OUT_BUF_SIZE];
     va_list args;
     va_start(args, name);
-    std::vsnprintf(buffer, 2048, name, args);
+    std::vsnprintf(buffer, DEBUG_OUT_BUF_SIZE, name, args);
     va_end(args);
     return std::string(SLIC3R_DEBUG_OUT_PATH_PREFIX) + std::string(buffer);
 }
@@ -391,11 +396,11 @@ std::string debug_out_path_uniqueid(const char *name_format, ...) {
         std::string path = clean_absolute_path(boost::filesystem::system_complete(SLIC3R_DEBUG_OUT_PATH_PREFIX)).string();
         printf("Debugging output files will be written to %s\n", path.c_str());
     }
-    char buffer[2048];
+    char buffer[DEBUG_OUT_BUF_SIZE];
     va_list args;
     va_start(args, name_format);
     //name = debug_out_path(name.c_str(), args);
-    std::vsnprintf(buffer, 2048, name.c_str(), args);
+    std::vsnprintf(buffer, DEBUG_OUT_BUF_SIZE, name.c_str(), args);
     va_end(args);
     return std::string(SLIC3R_DEBUG_OUT_PATH_PREFIX) + std::string(buffer);
 }
@@ -1144,24 +1149,24 @@ size_t get_utf8_sequence_length(const char *seq, size_t size)
     // The number of one bits above the topmost zero bit indicates the number of bytes (including this one) in the whole sequence.
     else if (c < 0xE0) { // 0xC0-0xDF
      // add a utf-8 sequence (2 bytes)
-        if (2 > size) {
+        if (2 > size) {  // 2-byte UTF-8 sequence
             return size; // prevent overrun
         }
-        length += 2;
+        length += 2;  // 2-byte UTF-8 sequence
     }
     else if (c < 0xF0) { // 0xE0-0xEF
      // add a utf-8 sequence (3 bytes)
-        if (3 > size) {
+        if (3 > size) {  // 3-byte UTF-8 sequence
             return size; // prevent overrun
         }
-        length += 3;
+        length += 3;  // 3-byte UTF-8 sequence
     }
     else if (c < 0xF8) { // 0xF0-0xF7
      // add a utf-8 sequence (4 bytes)
-        if (4 > size) {
+        if (4 > size) {  // 4-byte UTF-8 sequence
             return size; // prevent overrun
         }
-        length += 4;
+        length += 4;  // 4-byte UTF-8 sequence
     }
     else if (c < 0xFC) { // 0xF8-0xFB
      // add a utf-8 sequence (5 bytes)
@@ -1362,16 +1367,16 @@ std::string format_memsize_MB(size_t n)
     // Round to MB
     n +=  500000;
     n /= 1000000;
-    while (n >= 1000) {
-        n2 = n2 + scale * (n % 1000);
-        n /= 1000;
-        scale *= 1000;
+    while (n >= THOUSANDS_BASE) {
+        n2 = n2 + scale * (n % THOUSANDS_BASE);
+        n /= THOUSANDS_BASE;
+        scale *= THOUSANDS_BASE;
     }
     char buf[8];
     sprintf(buf, "%d", static_cast<int>(n));
     out = buf;
     while (scale != 1) {
-        scale /= 1000;
+        scale /= THOUSANDS_BASE;
         n = n2 / scale;
         n2 = n2  % scale;
         sprintf(buf, ",%03d", static_cast<int>(n));
@@ -1476,7 +1481,7 @@ size_t total_physical_memory()
     // Prefer sysctl() over sysconf() except sysctl() HW_REALMEM and HW_PHYSMEM
 
 #if defined(CTL_HW) && (defined(HW_MEMSIZE) || defined(HW_PHYSMEM64))
-    int mib[2];
+    int mib[2];  // 2-level sysctl MIB name
     mib[0] = CTL_HW;
 #if defined(HW_MEMSIZE)
     mib[1] = HW_MEMSIZE;            // OSX. ---------------------
@@ -1485,7 +1490,7 @@ size_t total_physical_memory()
 #endif
     int64_t size = 0;               // 64-bit
     size_t len = sizeof( size );
-    if ( sysctl( mib, 2, &size, &len, NULL, 0 ) == 0 )
+    if ( sysctl( mib, 2, &size, &len, NULL, 0 ) == 0 )  // 2-level sysctl MIB name
         return static_cast<size_t>(size);
     return 0L;			// Failed?
 
@@ -1505,7 +1510,7 @@ size_t total_physical_memory()
 
 #elif defined(CTL_HW) && (defined(HW_PHYSMEM) || defined(HW_REALMEM))
     // DragonFly BSD, FreeBSD, NetBSD, OpenBSD, and OSX. --------
-    int mib[2];
+    int mib[2];  // 2-level sysctl MIB name
     mib[0] = CTL_HW;
 #if defined(HW_REALMEM)
     mib[1] = HW_REALMEM;		// FreeBSD. -----------------
@@ -1514,7 +1519,7 @@ size_t total_physical_memory()
 #endif
     unsigned int size = 0;		// 32-bit
     size_t len = sizeof( size );
-    if ( sysctl( mib, 2, &size, &len, NULL, 0 ) == 0 )
+    if ( sysctl( mib, 2, &size, &len, NULL, 0 ) == 0 )  // 2-level sysctl MIB name
         return static_cast<size_t>(size);
     return 0L;			// Failed?
 #endif // sysctl and sysconf variants
