@@ -9590,6 +9590,198 @@ static inline void erase() {
     last_search_result->second.first = "";
 }
 
+using LegacyConfigDictionary = std::unordered_map<t_config_option_key, std::pair<t_config_option_key, std::string>>;
+
+static void normalize_legacy_fan_speed(t_config_option_key &opt_key, std::string &value)
+{
+    assert(print_config_def.get(opt_key) && print_config_def.get(opt_key)->type == coInts);
+
+    ConfigOptionInts opt_decoder;
+    opt_decoder.set_can_be_disabled();
+    opt_decoder.deserialize(value);
+    for (size_t idx = 0; idx < opt_decoder.size(); ++idx) {
+        if (!opt_decoder.is_enabled(idx))
+            continue;
+        if (opt_decoder.get_at(idx) < 0) {
+            opt_decoder.set_at(FULL_PERCENT, idx);
+            opt_decoder.set_enabled(false, idx);
+        } else if (opt_decoder.get_at(idx) <= 1) {
+            // Old profiles used 1 to mean zero because zero disabled the option.
+            opt_decoder.set_at(0, idx);
+        }
+    }
+    value = opt_decoder.serialize();
+}
+
+static void translate_legacy_alias(t_config_option_key &opt_key, bool remove_unknown_keys)
+{
+    if (opt_key.empty() || print_config_def.has(opt_key))
+        return;
+
+    for (const auto &entry : print_config_def.options) {
+        if (std::find(entry.second.aliases.begin(), entry.second.aliases.end(), opt_key) != entry.second.aliases.end()) {
+            opt_key = entry.first;
+            return;
+        }
+    }
+    if (remove_unknown_keys)
+        opt_key.clear();
+}
+
+static void move_legacy_disabled_value(
+    LegacyConfigDictionary &dict,
+    const t_config_option_key &key,
+    const t_config_option_key &companion_key)
+{
+    auto current = dict.find(key);
+    if (current == dict.end() || current->second.first != key)
+        return;
+
+    std::string &current_value = current->second.second;
+    if (current_value.empty() || current_value.front() != '!')
+        return;
+    current_value.erase(current_value.begin());
+
+    auto companion = dict.find(companion_key);
+    if (companion == dict.end() || companion->second.first != companion_key) {
+        dict[companion_key] = {companion_key, "!100"};
+        return;
+    }
+
+    std::string &companion_value = companion->second.second;
+    if (companion_value.empty())
+        companion_value = "!100";
+    else if (companion_value.front() != '!')
+        companion_value.insert(companion_value.begin(), '!');
+}
+
+static void normalize_legacy_max_layer_height(const t_config_option_key &opt_key, std::string &value)
+{
+    if (opt_key != KEY_MAX_LAYER_HEIGHT)
+        return;
+
+    bool changed = false;
+    std::vector<std::string> value_array;
+    boost::split(value_array, value, boost::is_any_of(","), boost::token_compress_off);
+    for (std::string &element : value_array) {
+        if (element == "0") {
+            element = "!75%";
+            changed = true;
+        }
+    }
+    if (!changed)
+        return;
+
+    value.clear();
+    for (const std::string &element : value_array) {
+        if (!value.empty())
+            value += ",";
+        value += element;
+    }
+}
+
+static void normalize_legacy_disabled_scalar(const t_config_option_key &opt_key, std::string &value)
+{
+    if (value == "0") {
+        if (opt_key == "max_gcode_per_second" || opt_key == "gcode_min_length" ||
+            opt_key == "print_temperature" || opt_key == "print_first_layer_temperature")
+            value = "!0";
+        return;
+    }
+    if (value != "-1")
+        return;
+
+    if (opt_key == "overhangs_bridge_threshold" || opt_key == "perimeters_hole" ||
+        opt_key == "support_material_bottom_interface_layers")
+        value = "!0";
+    else if (opt_key == "overhangs_bridge_upper_layers")
+        value = "!2";
+    else if (opt_key == "print_retract_length" || opt_key == "print_retract_lift")
+        value = "!200";
+}
+
+static void normalize_legacy_large_disabled_values(const t_config_option_key &opt_key, std::string &value)
+{
+    if (value.find("e+") == std::string::npos)
+        return;
+
+    const ConfigOptionDef *def = print_config_def.get(opt_key);
+    if (def == nullptr || !def->can_be_disabled)
+        return;
+
+    std::unique_ptr<ConfigOption> default_opt{def->default_value->clone()};
+    default_opt->deserialize(value);
+    switch (default_opt->type()) {
+    case coInt:
+    case coPercent:
+    case coFloat:
+    case coFloatOrPercent:
+    case coInts:
+    case coPercents:
+    case coFloats:
+    case coFloatsOrPercents:
+        for (size_t idx = 0; idx < default_opt->size(); ++idx) {
+            if (std::abs(default_opt->get_float(idx)) <= DISABLED_VALUE_THRESHOLD)
+                continue;
+            default_opt->set(*def->default_value, idx);
+            default_opt->set_enabled(false, idx);
+        }
+        break;
+    default:
+        break;
+    }
+    value = default_opt->serialize();
+}
+
+static void normalize_legacy_nil_value(t_config_option_key &opt_key, std::string &value)
+{
+    if (value.find("nil") == std::string::npos)
+        return;
+
+    const ConfigOptionDef *def = print_config_def.get(opt_key);
+    if (def == nullptr) {
+        opt_key.clear();
+        return;
+    }
+    if (def->type == coString || def->type == coStrings)
+        return;
+
+    assert(def->can_be_disabled);
+    if (!def->can_be_disabled)
+        return;
+
+    std::unique_ptr<ConfigOption> default_opt{def->default_value->clone()};
+    default_opt->set_enabled(false);
+    value = default_opt->serialize();
+}
+
+static void ensure_legacy_phony_pair(
+    LegacyConfigDictionary &dict,
+    const std::pair<t_config_option_key, t_config_option_key> &width_and_spacing)
+{
+    const t_config_option_key &width_key = width_and_spacing.first;
+    const t_config_option_key &spacing_key = width_and_spacing.second;
+    const auto width = dict.find(width_key);
+    const auto spacing = dict.find(spacing_key);
+    const bool has_width = width != dict.end() && width->second.first == width_key;
+    const bool has_spacing = spacing != dict.end() && spacing->second.first == spacing_key;
+
+    if (has_width && !has_spacing) {
+        dict[spacing_key] = {spacing_key, width->second.second.empty() ? "0" : ""};
+        return;
+    }
+    if (!has_width && has_spacing) {
+        dict[width_key] = {width_key, spacing->second.second.empty() ? "0" : ""};
+        return;
+    }
+    if (!has_width || !has_spacing ||
+        width->second.second.empty() != spacing->second.second.empty())
+        return;
+
+    // If both values have the same phony state, make width the real value.
+    dict[width_key] = {width_key, width->second.second.empty() ? "0" : ""};
+}
+
 static void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_config_option_key, std::string>> &dict, bool remove_unkown_keys)
 {
     using namespace std::literals;
@@ -9864,31 +10056,7 @@ static void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_c
         }
     });
 
-    const std::vector<std::string> move_deactivate = {
-        KEY_OVERHANGS_WIDTH, KEY_OVERHANGS_FLOW_RATIO
-        };
-    for (size_t i = 0; i < move_deactivate.size(); i += KEY_PAIR_STRIDE) {
-        const size_t companion_idx = i + size_t{1};
-        // get our keyf
-        if (has(dict, move_deactivate[i])) {
-            // is it (now wrongly) deactivated?
-            if (!value().empty() && value()[0] == '!') {
-                value() = value().substr(1);
-                // get our companion
-                if (has(dict, move_deactivate[companion_idx])) {
-                    // deactivate it
-                    if (value().empty()) {
-                        value() = "!100";
-                    } else if (value()[0] != '!') {
-                        value() = std::string("!") + value();
-                    }
-                } else {
-                    // or create it
-                    dict[move_deactivate[companion_idx]] = {move_deactivate[companion_idx], "!100"};
-                }
-            }
-        }
-    }
+    move_legacy_disabled_value(dict, KEY_OVERHANGS_WIDTH, KEY_OVERHANGS_FLOW_RATIO);
 
 
     // prusa renamed "sprinter" "reprap"
@@ -9928,194 +10096,32 @@ static void _handle_legacy(std::unordered_map<t_config_option_key, std::pair<t_c
         }
     }
 
-    // it's not needed to check aliases, because they are taken care of in deserialize().
-    // still need as some things check for def and emit a ConfigSubstitutionContext
-    for (auto it = dict.begin(); it != dict.end(); ++it) {
-        if (!it->second.first.empty() && !print_config_def.has(it->second.first)) {
-            // check the aliases
-            for (const auto &entry : print_config_def.options) {
-                for (const std::string &alias : entry.second.aliases) {
-                    if (alias == it->second.first) {
-                        // translate
-                        it->second.first = entry.first;
-                        goto use_alias;
-                    }
-                }
-            }
-            if (remove_unkown_keys) {
-                it->second.first = "";
-            }
-        use_alias:;
-        }
-    }
+    // Aliases are normally handled by deserialize(), but callers may still
+    // inspect definitions while collecting substitutions.
+    for (auto &entry : dict)
+        translate_legacy_alias(entry.second.first, remove_unkown_keys);
 
-    //fan speed: activate disable.
+    // Fan speeds changed from scalar enable/disable values to vectors.
     assert(!has(dict, "bridge_internal_fan_speed"s));
     for_ech_entry(dict, {
         "bridge_fan_speed"s, KEY_DEFAULT_FAN_SPEED, "min_fan_speed"s/* this is default_fan_speed's alias*/, "external_perimeter_fan_speed"s,
         "gap_fill_fan_speed"s, "infill_fan_speed"s, "internal_bridge_fan_speed"s, "bridge_internal_fan_speed"s, "overhangs_fan_speed"s,
         "perimeter_fan_speed"s, "solid_infill_fan_speed"s, "support_material_fan_speed"s, "support_material_interface_fan_speed"s, "top_fan_speed"s},
-                  [](Key &opt_key, Val &value) {
-            assert(print_config_def.get(opt_key) && print_config_def.get(opt_key)->type == coInts);
-            //if vector, split it.
-            ConfigOptionInts opt_decoder;
-            opt_decoder.set_can_be_disabled();
-            opt_decoder.deserialize(value);
-            for (size_t idx = 0; idx < opt_decoder.size(); ++idx) {
-                if (opt_decoder.is_enabled(idx)) {
-                    if (opt_decoder.get_at(idx) < 0) {
-                        opt_decoder.set_at(FULL_PERCENT, idx);
-                        opt_decoder.set_enabled(false, idx);
-                    } else if (opt_decoder.get_at(idx) <= 1) {
-                        // for now, still consider "1" as a "0", to be able to import old config where the 1 means 0
-                        // (and 0 was disable).
-                        opt_decoder.set_at(0, idx);
-                    }
-                }
-            }
-            value = opt_decoder.serialize();
-    });
-    for(auto it = dict.begin(); it != dict.end(); ++it){
-        std::string &opt_key = it->second.first;
-        if (opt_key.empty()) {
+        normalize_legacy_fan_speed);
+    for (auto &entry : dict) {
+        t_config_option_key &opt_key = entry.second.first;
+        if (opt_key.empty())
             continue;
-        }
-        std::string &value = it->second.second;
-        //array?
-        if (KEY_MAX_LAYER_HEIGHT == opt_key) {
-            bool changed = false;
-            std::vector<std::string> value_array;
-            boost::split(value_array, value, boost::is_any_of(","), boost::token_compress_off);
-            for (std::string &val : value_array) {
-                if ("0" == val) {
-                    val = "!75%";
-                    changed = true;
-                }
-            }
-            if (changed) {
-                value = "";
-                for (std::string &val : value_array) {
-                    if (!value.empty()) {
-                        value += ",";
-                    }
-                    value += val;
-                }
-            }
-        }
-        // 0-> disabled
-        if ("0" == value) {
-            if ("max_gcode_per_second" == opt_key) {
-                value = "!0";
-            }
-            if ("gcode_min_length" == opt_key) {
-                value = "!0";
-            }
-            if ("print_temperature" == opt_key) {
-                value = "!0";
-            }
-            if ("print_first_layer_temperature" == opt_key) {
-                value = "!0";
-            }
-        }
-        //-1-> disabled
-        if (value == "-1") {
-            if (opt_key == "overhangs_bridge_threshold"s) {
-                value = "!0";
-            }
-            if (opt_key == "overhangs_bridge_upper_layers"s) {
-                value = "!2";
-            }
-            if (opt_key == "perimeters_hole"s) {
-                value = "!0";
-            }
-            if (opt_key == "support_material_bottom_interface_layers"s) {
-                value = "!0";
-            }
-            if (opt_key == "print_retract_length"s) {
-                value = "!200";
-            }
-            if (opt_key == "print_retract_lift"s) {
-                value = "!200";
-            }
-        }
-        // nil-> disabled
-        if (value.find("e+") != std::string::npos) {
-            const ConfigOptionDef *def = print_config_def.get(opt_key);
-            if (def && def->can_be_disabled) {
-                std::unique_ptr<ConfigOption> default_opt{def->default_value->clone()};
-                default_opt->deserialize(value);
-                switch (default_opt->type()) {
-                case coInt:
-                case coPercent:
-                case coFloat:
-                case coFloatOrPercent:
-                case coInts:
-                case coPercents:
-                case coFloats:
-                case coFloatsOrPercents: {
-                    for (size_t idx = 0; idx < default_opt->size(); idx++) {
-                        if (std::abs(default_opt->get_float(idx)) > DISABLED_VALUE_THRESHOLD) {
-                            default_opt->set(*def->default_value, idx);
-                            default_opt->set_enabled(false, idx);
-                        }
-                    }
-                } break;
-                default:;
-                }
-                value = default_opt->serialize();
-            }
-        }
-        // nil-> disabled
-        if (value.find("nil") != std::string::npos) {
-            const ConfigOptionDef *def = print_config_def.get(opt_key);
-            if (def) {
-                if (def->type != coString && def->type != coStrings) {
-                    assert(def && def->can_be_disabled);
-                    if (def && def->can_be_disabled) {
-                        std::unique_ptr<ConfigOption> default_opt{def->default_value->clone()};
-                        default_opt->set_enabled(false);
-                        value = default_opt->serialize();
-                    }
-                }
-            } else {
-                // unknown key
-                opt_key.clear();
-            }
-        }
+
+        std::string &value = entry.second.second;
+        normalize_legacy_max_layer_height(opt_key, value);
+        normalize_legacy_disabled_scalar(opt_key, value);
+        normalize_legacy_large_disabled_values(opt_key, value);
+        normalize_legacy_nil_value(opt_key, value);
     }
-    //phony
-    for (const auto &width_2_spacing : widths_2_spacings_for_phony_fix) {
-        if (has(dict, width_2_spacing.first)) {
-            const std::string &width_value = value();
-            if (!has(dict, width_2_spacing.second)) {
-                if (!width_value.empty()) {
-                    // we have a width => phony spacing
-                    dict[width_2_spacing.second] = {width_2_spacing.second, ""};
-                } else {
-                    // can't compute it... put 0
-                    dict[width_2_spacing.second] = {width_2_spacing.second, "0"};
-                }
-            } else {
-                const std::string &spacing_value = value();
-                if (width_value.empty() && spacing_value.empty()) {
-                    // all phony => set width to 0
-                    dict[width_2_spacing.first] = {width_2_spacing.first, "0"};
-                } else if (!width_value.empty() && !spacing_value.empty()) {
-                    // no phony => set width to phony
-                    dict[width_2_spacing.first] = {width_2_spacing.first, ""};
-                }
-            }
-        } else if (has(dict, width_2_spacing.second)) {
-            const std::string &spacing_value = value();
-            if (!spacing_value.empty()) {
-                // we have a spacing => phony width
-                dict[width_2_spacing.first] = {width_2_spacing.first, ""};
-            } else {
-                    // can't compute it... put 0
-                dict[width_2_spacing.first] = {width_2_spacing.first, "0"};
-            }
-        }
-    }
+    // Ensure each width/spacing pair has exactly one phony value.
+    for (const auto &width_and_spacing : widths_2_spacings_for_phony_fix)
+        ensure_legacy_phony_pair(dict, width_and_spacing);
 
 }
 } // namespace Handle_gacy_tools
@@ -10280,9 +10286,8 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
             // each slot inherits the previous slot's value when missing for this extruder
             for (size_t slot = 0; slot < OVERHANG_SPEED_SLOTS; ++slot) {
                 if (values[slot].size() <= extruder_id) {
-                    if (slot == 0) {
+                    if (slot == 0)
                         assert(!enable_dynamic_fan_speeds.get_at(extruder_id));
-                    }
                     assert(values[slot].size() == extruder_id);
                     values[slot].set_at(default_value, extruder_id);
                 } else {
@@ -10626,6 +10631,102 @@ void ModelConfig::convert_from_prusa(const DynamicPrintConfig& global_config, bo
 }
 
 
+static void add_default_substitution(
+    const ConfigDef *def,
+    const t_config_option_key &key,
+    const std::string &value,
+    ConfigSubstitutionContext &config_substitutions)
+{
+    const ConfigOptionDef *option_def = def == nullptr ? nullptr : def->get(key);
+    if (option_def != nullptr)
+        config_substitutions.emplace(
+            option_def, std::string(value), ConfigOptionUniquePtr(option_def->default_value->clone()));
+    else
+        config_substitutions.add(ConfigSubstitution(key, value));
+}
+
+template<typename CONFIG_CLASS>
+static void add_changed_value_substitution(
+    const std::map<t_config_option_key, std::string> &settings,
+    const t_config_option_key &original_key,
+    const t_config_option_key &migrated_key,
+    const std::string &migrated_value,
+    const ConfigDef &def,
+    CONFIG_CLASS &config,
+    ConfigSubstitutionContext &config_substitutions)
+{
+    if (config_substitutions.rule != ForwardCompatibilitySubstitutionRule::Enable)
+        return;
+
+    const auto original = settings.find(original_key);
+    if (original == settings.end() || original->second == migrated_value)
+        return;
+
+    const ConfigOptionDef *option_def = def.get(migrated_key);
+    if (option_def == nullptr) {
+        config_substitutions.add(ConfigSubstitution(original_key, migrated_value));
+        return;
+    }
+
+    ConfigSubstitution substitution(
+        option_def, original->second, ConfigOptionUniquePtr(config.option(migrated_key)->clone()));
+    substitution.old_name = original_key;
+    config_substitutions.add(std::move(substitution));
+}
+
+template<typename CONFIG_CLASS>
+static void deserialize_migrated_prusa_option(
+    const t_config_option_key &key,
+    const std::pair<t_config_option_key, std::string> &migrated,
+    const ConfigDef *def,
+    CONFIG_CLASS &config,
+    ConfigSubstitutionContext &config_substitutions)
+{
+    if (migrated.first.empty()) {
+        if (def != nullptr &&
+            config_substitutions.rule != ForwardCompatibilitySubstitutionRule::Disable)
+            add_default_substitution(def, key, migrated.second, config_substitutions);
+        return;
+    }
+    if (def == nullptr || !def->has(migrated.first)) {
+        if (config_substitutions.rule != ForwardCompatibilitySubstitutionRule::Disable)
+            config_substitutions.add(ConfigSubstitution(key, migrated.second));
+        return;
+    }
+
+    try {
+        config.set_deserialize(migrated.first, migrated.second, config_substitutions);
+    } catch (const BadOptionValueException &) {
+        if (config_substitutions.rule == ForwardCompatibilitySubstitutionRule::Disable)
+            throw;
+        add_default_substitution(def, key, migrated.second, config_substitutions);
+    }
+}
+
+template<typename CONFIG_CLASS>
+static void update_phony_pair(
+    const std::map<t_config_option_key, std::string> &settings,
+    const t_config_option_key &width_key,
+    const t_config_option_key &spacing_key,
+    CONFIG_CLASS &config)
+{
+    const ConfigOption *width = config.option(width_key);
+    const ConfigOption *spacing = config.option(spacing_key);
+    if (width == nullptr || spacing == nullptr || width->is_phony() != spacing->is_phony())
+        return;
+
+    if (settings.find(spacing_key) == settings.end()) {
+        ConfigOption *updated_spacing = spacing->clone();
+        updated_spacing->set_phony(!width->is_phony());
+        config.set_key_value(spacing_key, updated_spacing);
+    } else {
+        ConfigOption *updated_width = width->clone();
+        updated_width->set_phony(!spacing->is_phony());
+        config.set_key_value(width_key, updated_width);
+    }
+    assert(config.option(width_key)->is_phony() != config.option(spacing_key)->is_phony());
+}
+
 template<typename CONFIG_CLASS>
 void _deserialize_maybe_from_prusa(const std::map<t_config_option_key, std::string> settings,
                                            CONFIG_CLASS &                             config,
@@ -10652,16 +10753,8 @@ void _deserialize_maybe_from_prusa(const std::map<t_config_option_key, std::stri
                     unknown_keys[key] = {key, opt_value/*should be old value, before handle_legacy*/}; 
                 } else {
                     config.set_deserialize(pair.first, opt_value, config_substitutions);
-                    if (auto it = settings.find(key); config_substitutions.rule == ForwardCompatibilitySubstitutionRule::Enable && it != settings.end() && it->second != opt_value) {
-                        const ConfigOptionDef *optdef = def->get(pair.first);
-                        if (optdef != nullptr) {
-                            ConfigSubstitution substitution(optdef, settings.at(key), ConfigOptionUniquePtr(config.option(pair.first)->clone()));
-                            substitution.old_name = key;
-                            config_substitutions.add(std::move(substitution));
-                        } else {
-                            config_substitutions.add(ConfigSubstitution(key, opt_value));
-                        }
-                    }
+                    add_changed_value_substitution(
+                        settings, key, pair.first, opt_value, *def, config, config_substitutions);
                 }
             } else {
                 deleted_keys[key] = opt_value/*should be old value, before handle_legacy*/;
@@ -10703,39 +10796,8 @@ void _deserialize_maybe_from_prusa(const std::map<t_config_option_key, std::stri
             }
         }
         PrintConfigDef::handle_legacy_map(dict_opt);
-        for (auto &[key, pair] : dict_opt) {
-            bool substitution_handle = false;
-            if (!pair.first.empty()) {
-                if (!def->has(pair.first)) {
-                    if (config_substitutions.rule != ForwardCompatibilitySubstitutionRule::Disable) {
-                        config_substitutions.add(ConfigSubstitution(key, pair.second));
-                    }
-                } else {
-                    try {
-                        config.set_deserialize(pair.first, pair.second, config_substitutions);
-                    } catch (BadOptionValueException &e) {
-                        if (config_substitutions.rule == ForwardCompatibilitySubstitutionRule::Disable)
-                            throw e;
-                        // log the error
-                        if (def == nullptr)
-                            throw e;
-                        const ConfigOptionDef *optdef = def->get(key);
-                        if (optdef != nullptr) {
-                            config_substitutions.emplace(optdef, std::string(pair.second), ConfigOptionUniquePtr(optdef->default_value->clone()));
-                        } else {
-                            config_substitutions.add(ConfigSubstitution(key, pair.second));
-                        }
-                    }
-                }
-            } else if (def != nullptr && config_substitutions.rule != ForwardCompatibilitySubstitutionRule::Disable) {
-                const ConfigOptionDef *optdef = def->get(key);
-                if (optdef != nullptr) {
-                    config_substitutions.emplace(optdef, std::string(pair.second), ConfigOptionUniquePtr(optdef->default_value->clone()));
-                } else {
-                    config_substitutions.add(ConfigSubstitution(key, pair.second));
-                }
-            }
-        }
+        for (const auto &[key, pair] : dict_opt)
+            deserialize_migrated_prusa_option(key, pair, def, config, config_substitutions);
     } else {
         for (const auto& [key, pair] : unknown_keys) {
             if (config_substitutions.rule != ForwardCompatibilitySubstitutionRule::Disable) {
@@ -10744,44 +10806,10 @@ void _deserialize_maybe_from_prusa(const std::map<t_config_option_key, std::stri
         }
     }
 
-    // set phony entries
+    // Keep exactly one option in each width/spacing pair phony.
     if (with_phony) {
-        const ConfigDef *def = config.def();
-        for (auto & [opt_key_width, opt_key_spacing] : Handle_legacy_tools::widths_2_spacings_for_phony_fix) {
-            const ConfigOption *opt_width = config.option(opt_key_width);
-            const ConfigOption *opt_spacing = config.option(opt_key_spacing);
-            if (opt_width && opt_spacing) {
-                // if the config has a default spacing that need to be overwritten (if the width wasn't deserialized as phony)
-                if (settings.find(opt_key_spacing) == settings.end()) {
-                    if (opt_width->is_phony()) {
-                        if (opt_spacing->is_phony()) {
-                            ConfigOption *opt_new = opt_spacing->clone();
-                            opt_new->set_phony(false);
-                            config.set_key_value(opt_key_spacing, opt_new);
-                        }
-                    } else {
-                        if (!opt_spacing->is_phony()) {
-                            ConfigOption *opt_new = opt_spacing->clone();
-                            opt_new->set_phony(true);
-                            config.set_key_value(opt_key_spacing, opt_new);
-                        }
-                    }
-                } else {
-                    //spacing exist in the config, make sure one if phony
-                    if (opt_spacing->is_phony() && opt_width->is_phony()) {
-                        ConfigOption *opt_new = opt_width->clone();
-                        opt_new->set_phony(false);
-                        config.set_key_value(opt_key_width, opt_new);
-                    }
-                    if (!opt_spacing->is_phony() && !opt_width->is_phony()) {
-                        ConfigOption *opt_new = opt_width->clone();
-                        opt_new->set_phony(true);
-                        config.set_key_value(opt_key_width, opt_new);
-                    }
-                }
-                assert(config.option(opt_key_width)->is_phony() != config.option(opt_key_spacing)->is_phony());
-            }
-        }
+        for (const auto &[width_key, spacing_key] : Handle_legacy_tools::widths_2_spacings_for_phony_fix)
+            update_phony_pair(settings, width_key, spacing_key, config);
     }
 }
 void deserialize_maybe_from_prusa(std::map<t_config_option_key, std::string> settings,
@@ -11560,33 +11588,22 @@ double min_object_distance(const ConfigBase *config, double ref_height /* = 0*/)
                 float overlap_ratio = 1;
                 //can't know the extruder, so we settle on the worst: 100%
                 //if (config->option<ConfigOptionPercents>("filament_max_overlap")) overlap_ratio = config->get_computed_value("filament_max_overlap");
-                if (ref_height == 0) {
+                const double skirt_height =
+                    (static_cast<double>(config->option("skirt_height")->get_int()) - 1) *
+                        config->get_computed_value(KEY_LAYER_HEIGHT) +
+                    first_layer_height;
+                if (ref_height == 0 || ref_height <= skirt_height) {
                     skirt_dist = config->option("skirt_distance")->get_float();
-                    Flow skirt_flow = Flow::new_from_config_width(
+                    const Flow skirt_flow = Flow::new_from_config_width(
                         frPerimeter,
                         *Flow::extrusion_width_option("skirt", *config),
                         *Flow::extrusion_spacing_option("skirt", *config),
                         static_cast<float>(max_nozzle_diam),
                         static_cast<float>(first_layer_height),
                         overlap_ratio,
-                        0
-                    );
-                    skirt_dist += skirt_flow.width() + (skirt_flow.spacing() * (static_cast<double>(skirts) - 1));
-                } else {
-                    double skirt_height = (static_cast<double>(config->option("skirt_height")->get_int()) - 1) * config->get_computed_value(KEY_LAYER_HEIGHT) + first_layer_height;
-                    if (ref_height <= skirt_height) {
-                        skirt_dist = config->option("skirt_distance")->get_float();
-                        Flow skirt_flow = Flow::new_from_config_width(
-                            frPerimeter,
-                            *Flow::extrusion_width_option("skirt", *config),
-                            *Flow::extrusion_spacing_option("skirt", *config),
-                            static_cast<float>(max_nozzle_diam),
-                            static_cast<float>(first_layer_height),
-                            overlap_ratio,
-                            0
-                        );
-                        skirt_dist += skirt_flow.width() + (skirt_flow.spacing() * (static_cast<double>(skirts) - 1));
-                    }
+                        0);
+                    skirt_dist += skirt_flow.width() +
+                        skirt_flow.spacing() * (static_cast<double>(skirts) - 1);
                 }
                 // send a warning in print.validate if oneskirt, the skirt height is > 1mm and the skirt distance (from brim) is < extruder_clearance_radius
                 // send a warning in print.validate if not oneskirt and skirt height > 1mm (you might collide the skirt while printing another one)
@@ -11597,9 +11614,10 @@ double min_object_distance(const ConfigBase *config, double ref_height /* = 0*/)
             const ConfigOption *opt_skirt_distance_from_brim = config->option("skirt_distance_from_brim");
             const bool has_brim = (ref_height == 0 && opt_brim_per_object && opt_brim_per_object->get_bool());
             const bool skirt_is_pushed = skirt_dist > 0 && opt_skirt_distance_from_brim && opt_skirt_distance_from_brim->get_bool();
-            if ( has_brim || skirt_is_pushed) {
-                double max_brim = config->option(KEY_BRIM_WIDTH)->get_float();
-                max_brim = std::max(max_brim, config->option(KEY_BRIM_WIDTH_INTERIOR)->get_float());
+            if (has_brim || skirt_is_pushed) {
+                brim_dist = std::max(
+                    config->option(KEY_BRIM_WIDTH)->get_float(),
+                    config->option(KEY_BRIM_WIDTH_INTERIOR)->get_float());
             }
 
             // if skirt_distance_from_brim, then push it further back
@@ -11780,6 +11798,56 @@ const TYPE* find_option(const t_config_option_key &opt_key,const  DynamicPrintCo
     return nullptr;
 }
 
+static void update_spacing_from_width(
+    ConfigOptionFloatOrPercent &width_option,
+    const ConfigOptionFloatOrPercent &default_width_option,
+    ConfigOptionFloatOrPercent &spacing_option,
+    FlowRole role,
+    float max_nozzle_diameter,
+    float layer_height,
+    float overlap_ratio)
+{
+    width_option.set_phony(false);
+    spacing_option.set_phony(true);
+    if (width_option.value == 0) {
+        spacing_option.value = 0;
+    } else {
+        Flow flow = Flow::new_from_config_width(
+            role, width_option.value == 0 ? default_width_option : width_option, spacing_option,
+            max_nozzle_diameter, layer_height, overlap_ratio, 0);
+        if (flow.width() < flow.height())
+            flow = flow.with_height(flow.width());
+        spacing_option.value = width_option.percent ?
+            std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter) :
+            std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS;
+    }
+    spacing_option.percent = width_option.percent;
+}
+
+static void update_width_from_spacing(
+    ConfigOptionFloatOrPercent &width_option,
+    ConfigOptionFloatOrPercent &spacing_option,
+    Flow &flow,
+    double spacing_value,
+    float max_nozzle_diameter,
+    float layer_height,
+    float spacing_ratio)
+{
+    width_option.set_phony(true);
+    spacing_option.set_phony(false);
+    if (spacing_value == 0) {
+        width_option.value = 0;
+    } else {
+        flow = flow.with_width(
+            spacing_option.get_abs_value(max_nozzle_diameter) +
+            layer_height * FLOW_ROUNDING_FACTOR * spacing_ratio);
+        width_option.value = spacing_option.percent ?
+            std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) :
+            std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS;
+    }
+    width_option.percent = spacing_option.percent;
+}
+
 const DynamicPrintConfig* DynamicPrintConfig::update_phony(const std::vector<const DynamicPrintConfig*> config_collection, bool exclude_default_extrusion /*= false*/) {
     const DynamicPrintConfig* something_changed = nullptr;
     //update width/spacing links
@@ -11888,36 +11956,29 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                 }
             }
             if (opt_key == KEY_PERIMETER_EXTRUSION_SPACING) {
-                const ConfigOptionPercent* perimeter_overlap_option = find_option<ConfigOptionPercent>(KEY_PERIMETER_OVERLAP, this, config_collection);
-                ConfigOptionFloatOrPercent* width_option = this->option<ConfigOptionFloatOrPercent>(KEY_PERIMETER_EXTRUSION_WIDTH);
-                if (width_option && perimeter_overlap_option) {
-                    width_option->set_phony(true);
-                    spacing_option->set_phony(false);
-                    if(spacing_value == 0)
-                        width_option->value = 0;
-                    else {
-                        float spacing_ratio = (std::min(flow.spacing_ratio(), float(perimeter_overlap_option->get_abs_value(1))));
-                        flow = flow.with_width( spacing_option->get_abs_value(max_nozzle_diameter) + layer_height_option->value * FLOW_ROUNDING_FACTOR * spacing_ratio);
-                        width_option->value = (spacing_option->percent) ? std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
-                    }
-                    width_option->percent = spacing_option->percent;
+                const ConfigOptionPercent *overlap_option =
+                    find_option<ConfigOptionPercent>(KEY_PERIMETER_OVERLAP, this, config_collection);
+                ConfigOptionFloatOrPercent *width_option =
+                    this->option<ConfigOptionFloatOrPercent>(KEY_PERIMETER_EXTRUSION_WIDTH);
+                if (width_option != nullptr && overlap_option != nullptr) {
+                    const float spacing_ratio = std::min(
+                        flow.spacing_ratio(), static_cast<float>(overlap_option->get_abs_value(1)));
+                    update_width_from_spacing(*width_option, *spacing_option, flow, spacing_value,
+                        max_nozzle_diameter, layer_height_option->value, spacing_ratio);
                     something_changed = true;
                 }
             }
             if (opt_key == KEY_EXTERNAL_PERIMETER_EXTRUSION_SPACING) {
-                const ConfigOptionPercent* external_perimeter_overlap_option = find_option<ConfigOptionPercent>(KEY_EXTERNAL_PERIMETER_OVERLAP, this, config_collection);
-                ConfigOptionFloatOrPercent* width_option = this->option<ConfigOptionFloatOrPercent>(KEY_EXTERNAL_PERIMETER_EXTRUSION_WIDTH);
-                if (width_option && external_perimeter_overlap_option) {
-                    width_option->set_phony(true);
-                    spacing_option->set_phony(false);
-                    if (spacing_value == 0)
-                        width_option->value = 0;
-                    else {
-                        float spacing_ratio = (std::min(flow.spacing_ratio() / 2, float(external_perimeter_overlap_option->get_abs_value(HALF_RATIO))));
-                        flow = flow.with_width(spacing_option->get_abs_value(max_nozzle_diameter) + layer_height_option->value * FLOW_ROUNDING_FACTOR * spacing_ratio);
-                        width_option->value = (spacing_option->percent) ? std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
-                    }
-                    width_option->percent = spacing_option->percent;
+                const ConfigOptionPercent *overlap_option =
+                    find_option<ConfigOptionPercent>(KEY_EXTERNAL_PERIMETER_OVERLAP, this, config_collection);
+                ConfigOptionFloatOrPercent *width_option =
+                    this->option<ConfigOptionFloatOrPercent>(KEY_EXTERNAL_PERIMETER_EXTRUSION_WIDTH);
+                if (width_option != nullptr && overlap_option != nullptr) {
+                    const float spacing_ratio = std::min(
+                        flow.spacing_ratio() * static_cast<float>(HALF_RATIO),
+                        static_cast<float>(overlap_option->get_abs_value(HALF_RATIO)));
+                    update_width_from_spacing(*width_option, *spacing_option, flow, spacing_value,
+                        max_nozzle_diameter, layer_height_option->value, spacing_ratio);
                     something_changed = true;
                 }
             }
@@ -11935,36 +11996,28 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                 }
             }
             if (opt_key == KEY_SOLID_INFILL_EXTRUSION_SPACING) {
-                const ConfigOptionPercent* solid_infill_overlap_option = find_option<ConfigOptionPercent>(KEY_SOLID_INFILL_OVERLAP, this, config_collection);
-                ConfigOptionFloatOrPercent* width_option = this->option<ConfigOptionFloatOrPercent>(KEY_SOLID_INFILL_EXTRUSION_WIDTH);
-                if (width_option) {
-                    width_option->set_phony(true);
-                    spacing_option->set_phony(false);
-                    if (spacing_value == 0)
-                        width_option->value = 0;
-                    else {
-                        float spacing_ratio = (std::min(flow.spacing_ratio(), float(solid_infill_overlap_option->get_abs_value(1))));
-                        flow = flow.with_width(spacing_option->get_abs_value(max_nozzle_diameter) + layer_height_option->value * FLOW_ROUNDING_FACTOR * spacing_ratio);
-                        width_option->value = (spacing_option->percent) ? std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
-                    }
-                    width_option->percent = spacing_option->percent;
+                const ConfigOptionPercent *overlap_option =
+                    find_option<ConfigOptionPercent>(KEY_SOLID_INFILL_OVERLAP, this, config_collection);
+                ConfigOptionFloatOrPercent *width_option =
+                    this->option<ConfigOptionFloatOrPercent>(KEY_SOLID_INFILL_EXTRUSION_WIDTH);
+                if (width_option != nullptr && overlap_option != nullptr) {
+                    const float spacing_ratio = std::min(
+                        flow.spacing_ratio(), static_cast<float>(overlap_option->get_abs_value(1)));
+                    update_width_from_spacing(*width_option, *spacing_option, flow, spacing_value,
+                        max_nozzle_diameter, layer_height_option->value, spacing_ratio);
                     something_changed = true;
                 }
             }
             if (opt_key == KEY_TOP_INFILL_EXTRUSION_SPACING) {
-                const ConfigOptionPercent* top_solid_infill_overlap_option = find_option<ConfigOptionPercent>(KEY_TOP_SOLID_INFILL_OVERLAP, this, config_collection);
-                ConfigOptionFloatOrPercent* width_option = this->option<ConfigOptionFloatOrPercent>(KEY_TOP_IN_FILL_EXTRUSION_WIDTH);
-                if (width_option) {
-                    width_option->set_phony(true);
-                    spacing_option->set_phony(false);
-                    if (spacing_value == 0)
-                        width_option->value = 0;
-                    else {
-                        float spacing_ratio = (std::min(flow.spacing_ratio(), float(top_solid_infill_overlap_option->get_abs_value(1))));
-                        flow = flow.with_width(spacing_option->get_abs_value(max_nozzle_diameter) + layer_height_option->value * FLOW_ROUNDING_FACTOR * spacing_ratio);
-                        width_option->value = (spacing_option->percent) ? std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
-                    }
-                    width_option->percent = spacing_option->percent;
+                const ConfigOptionPercent *overlap_option =
+                    find_option<ConfigOptionPercent>(KEY_TOP_SOLID_INFILL_OVERLAP, this, config_collection);
+                ConfigOptionFloatOrPercent *width_option =
+                    this->option<ConfigOptionFloatOrPercent>(KEY_TOP_IN_FILL_EXTRUSION_WIDTH);
+                if (width_option != nullptr && overlap_option != nullptr) {
+                    const float spacing_ratio = std::min(
+                        flow.spacing_ratio(), static_cast<float>(overlap_option->get_abs_value(1)));
+                    update_width_from_spacing(*width_option, *spacing_option, flow, spacing_value,
+                        max_nozzle_diameter, layer_height_option->value, spacing_ratio);
                     something_changed = true;
                 }
             }
@@ -12001,151 +12054,69 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
             try {
                 if (opt_key == KEY_EXTRUSION_WIDTH) {
                     spacing_option = this->option<ConfigOptionFloatOrPercent>(KEY_EXTRUSION_SPACING);
-                    if (width_option) {
-                            width_option->set_phony(false);
-                            spacing_option->set_phony(true);
-                            if (width_option->value == 0)
-                                spacing_option->value = 0;
-                            else {
-                                Flow flow = Flow::new_from_config_width(FlowRole::frPerimeter, width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, max_nozzle_diameter, layer_height_option->value, overlap_ratio, 0);
-                                if (flow.width() < flow.height()) flow.with_height(flow.width());
-                                spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
-                            }
-                            spacing_option->percent = width_option->percent;
-                            something_changed = true;
-                    }
+                    update_spacing_from_width(*width_option, *default_width_option, *spacing_option,
+                        FlowRole::frPerimeter, max_nozzle_diameter, layer_height_option->value, overlap_ratio);
+                    something_changed = true;
                 }
                 if (opt_key == KEY_FIRST_LAYER_EXTRUSION_WIDTH) {
                     spacing_option = this->option<ConfigOptionFloatOrPercent>(KEY_FIRST_LAYER_EXTRUSION_SPACING);
-                    if (width_option) {
-                            width_option->set_phony(false);
-                            spacing_option->set_phony(true);
-                            if (width_option->value == 0)
-                                spacing_option->value = 0;
-                            else {
-                                Flow flow = Flow::new_from_config_width(FlowRole::frPerimeter, 
-                                    width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, 
-                                    max_nozzle_diameter, layer_height_option->value, overlap_ratio, 0);
-                                if (flow.width() < flow.height()) flow.with_height(flow.width());
-                                spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
-                            }
-                            spacing_option->percent = width_option->percent;
-                            something_changed = true;
-                    }
+                    update_spacing_from_width(*width_option, *default_width_option, *spacing_option,
+                        FlowRole::frPerimeter, max_nozzle_diameter, layer_height_option->value, overlap_ratio);
+                    something_changed = true;
                 }
                 if (opt_key == "first_layer_infill_extrusion_width") {
                     spacing_option = this->option<ConfigOptionFloatOrPercent>("first_layer_infill_extrusion_spacing");
-                    if (width_option) {
-                            width_option->set_phony(false);
-                            spacing_option->set_phony(true);
-                            if (width_option->value == 0)
-                                spacing_option->value = 0;
-                            else {
-                                Flow flow = Flow::new_from_config_width(FlowRole::frPerimeter, 
-                                    width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, 
-                                    max_nozzle_diameter, layer_height_option->value, overlap_ratio, 0);
-                                if (flow.width() < flow.height()) flow.with_height(flow.width());
-                                spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
-                            }
-                            spacing_option->percent = width_option->percent;
-                            something_changed = true;
-                    }
+                    update_spacing_from_width(*width_option, *default_width_option, *spacing_option,
+                        FlowRole::frPerimeter, max_nozzle_diameter, layer_height_option->value, overlap_ratio);
+                    something_changed = true;
                 }
                 if (opt_key == KEY_PERIMETER_EXTRUSION_WIDTH) {
-                    const ConfigOptionPercent* perimeter_overlap_option = find_option<ConfigOptionPercent>(KEY_PERIMETER_OVERLAP, this, config_collection);
+                    const ConfigOptionPercent *perimeter_overlap_option =
+                        find_option<ConfigOptionPercent>(KEY_PERIMETER_OVERLAP, this, config_collection);
                     spacing_option = this->option<ConfigOptionFloatOrPercent>(KEY_PERIMETER_EXTRUSION_SPACING);
-                    if (width_option && perimeter_overlap_option) {
-                        width_option->set_phony(false);
-                        spacing_option->set_phony(true);
-                        if (width_option->value == 0)
-                            spacing_option->value = 0;
-                        else {
-                            Flow flow = Flow::new_from_config_width(FlowRole::frExternalPerimeter, 
-                                width_option->value == 0 ? *default_width_option : *width_option,  *spacing_option, 
-                                max_nozzle_diameter, layer_height_option->value, 
-                                std::min(overlap_ratio, static_cast<float>(perimeter_overlap_option->get_abs_value(1))), 0);
-                            if (flow.width() < flow.height()) flow = flow.with_height(flow.width());
-                            spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
-                        }
-                        spacing_option->percent = width_option->percent;
-                        something_changed = true;
-                    }
+                    const float perimeter_overlap = perimeter_overlap_option == nullptr ? overlap_ratio :
+                        std::min(overlap_ratio, static_cast<float>(perimeter_overlap_option->get_abs_value(1)));
+                    update_spacing_from_width(*width_option, *default_width_option, *spacing_option,
+                        FlowRole::frExternalPerimeter, max_nozzle_diameter, layer_height_option->value, perimeter_overlap);
+                    something_changed = true;
                 }
                 if (opt_key == KEY_EXTERNAL_PERIMETER_EXTRUSION_WIDTH) {
-                    const ConfigOptionPercent* external_perimeter_overlap_option = find_option<ConfigOptionPercent>(KEY_EXTERNAL_PERIMETER_OVERLAP, this, config_collection);
+                    const ConfigOptionPercent *external_overlap_option =
+                        find_option<ConfigOptionPercent>(KEY_EXTERNAL_PERIMETER_OVERLAP, this, config_collection);
                     spacing_option = this->option<ConfigOptionFloatOrPercent>(KEY_EXTERNAL_PERIMETER_EXTRUSION_SPACING);
-                    if (width_option && external_perimeter_overlap_option) {
-                        width_option->set_phony(false);
-                        spacing_option->set_phony(true);
-                        if (width_option->value == 0)
-                            spacing_option->value = 0;
-                        else {
-                            Flow ext_perimeter_flow = Flow::new_from_config_width(FlowRole::frPerimeter, 
-                                width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, 
-                                max_nozzle_diameter, layer_height_option->value, 
-                                std::min(overlap_ratio * 0.5f, float(external_perimeter_overlap_option->get_abs_value(HALF_RATIO))), 0);
-                            if (ext_perimeter_flow.width() < ext_perimeter_flow.height()) ext_perimeter_flow = ext_perimeter_flow.with_height(ext_perimeter_flow.width());
-                            spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * ext_perimeter_flow.spacing() / max_nozzle_diameter) : (std::round(ext_perimeter_flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
-                        }
-                        spacing_option->percent = width_option->percent;
-                        something_changed = true;
-                    }
+                    const float default_external_overlap = overlap_ratio * static_cast<float>(HALF_RATIO);
+                    const float external_overlap = external_overlap_option == nullptr ? default_external_overlap :
+                        std::min(default_external_overlap,
+                            static_cast<float>(external_overlap_option->get_abs_value(HALF_RATIO)));
+                    update_spacing_from_width(*width_option, *default_width_option, *spacing_option,
+                        FlowRole::frPerimeter, max_nozzle_diameter, layer_height_option->value, external_overlap);
+                    something_changed = true;
                 }
                 if (opt_key == KEY_IN_FILL_EXTRUSION_WIDTH) {
                     spacing_option = this->option<ConfigOptionFloatOrPercent>(KEY_INFILL_EXTRUSION_SPACING);
-                    if (width_option) {
-                        width_option->set_phony(false);
-                        spacing_option->set_phony(true);
-                        if (width_option->value == 0)
-                            spacing_option->value = 0;
-                        else {
-                            Flow flow = Flow::new_from_config_width(FlowRole::frInfill, width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, max_nozzle_diameter, layer_height_option->value, overlap_ratio, 0);
-                            if (flow.width() < flow.height()) flow = flow.with_height(flow.width());
-                            spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
-                        }
-                        spacing_option->percent = width_option->percent;
-                        something_changed = true;
-                    }
+                    update_spacing_from_width(*width_option, *default_width_option, *spacing_option,
+                        FlowRole::frInfill, max_nozzle_diameter, layer_height_option->value, overlap_ratio);
+                    something_changed = true;
                 }
                 if (opt_key == KEY_SOLID_INFILL_EXTRUSION_WIDTH) {
-                    const ConfigOptionPercent* solid_infill_overlap_option = find_option<ConfigOptionPercent>(KEY_SOLID_INFILL_OVERLAP, this, config_collection);
+                    const ConfigOptionPercent *solid_overlap_option =
+                        find_option<ConfigOptionPercent>(KEY_SOLID_INFILL_OVERLAP, this, config_collection);
                     spacing_option = this->option<ConfigOptionFloatOrPercent>(KEY_SOLID_INFILL_EXTRUSION_SPACING);
-                    if (width_option) {
-                        width_option->set_phony(false);
-                        spacing_option->set_phony(true);
-                        if (width_option->value == 0)
-                            spacing_option->value = 0;
-                        else {
-                            Flow flow = Flow::new_from_config_width(FlowRole::frSolidInfill, 
-                                width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, 
-                                max_nozzle_diameter, layer_height_option->value, 
-                                std::min(overlap_ratio, float(solid_infill_overlap_option->get_abs_value(1.))), 0);
-                            if (flow.width() < flow.height()) flow = flow.with_height(flow.width());
-                            spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
-                        }
-                        spacing_option->percent = width_option->percent;
-                        something_changed = true;
-                    }
+                    const float solid_overlap = solid_overlap_option == nullptr ? overlap_ratio :
+                        std::min(overlap_ratio, static_cast<float>(solid_overlap_option->get_abs_value(1.)));
+                    update_spacing_from_width(*width_option, *default_width_option, *spacing_option,
+                        FlowRole::frSolidInfill, max_nozzle_diameter, layer_height_option->value, solid_overlap);
+                    something_changed = true;
                 }
                 if (opt_key == KEY_TOP_IN_FILL_EXTRUSION_WIDTH) {
-                    const ConfigOptionPercent* top_solid_infill_overlap_option = find_option<ConfigOptionPercent>(KEY_TOP_SOLID_INFILL_OVERLAP, this, config_collection);
+                    const ConfigOptionPercent *top_overlap_option =
+                        find_option<ConfigOptionPercent>(KEY_TOP_SOLID_INFILL_OVERLAP, this, config_collection);
                     spacing_option = this->option<ConfigOptionFloatOrPercent>(KEY_TOP_INFILL_EXTRUSION_SPACING);
-                    if (width_option) {
-                        width_option->set_phony(false);
-                        spacing_option->set_phony(true);
-                        if (width_option->value == 0)
-                            spacing_option->value = 0;
-                        else {
-                            Flow flow = Flow::new_from_config_width(FlowRole::frTopSolidInfill, 
-                                width_option->value == 0 ? *default_width_option : *width_option, *spacing_option, 
-                                max_nozzle_diameter, layer_height_option->value,
-                                std::min(overlap_ratio, float(top_solid_infill_overlap_option->get_abs_value(1.))), 0);
-                            if (flow.width() < flow.height()) flow = flow.with_height(flow.width());
-                            spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
-                        }
-                        spacing_option->percent = width_option->percent;
-                        something_changed = true;
-                    }
+                    const float top_overlap = top_overlap_option == nullptr ? overlap_ratio :
+                        std::min(overlap_ratio, static_cast<float>(top_overlap_option->get_abs_value(1.)));
+                    update_spacing_from_width(*width_option, *default_width_option, *spacing_option,
+                        FlowRole::frTopSolidInfill, max_nozzle_diameter, layer_height_option->value, top_overlap);
+                    something_changed = true;
                 }
                 //if (opt_key == "support_material_extrusion_width") {
                 //    Flow flow = Flow::new_from_config_width(FlowRole::frSupportMaterial, width_option->value == 0 ? *default_width_option : *width_option, max_nozzle_diameter, layer_height_option->value, 0);
@@ -12163,26 +12134,22 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
                 //        this->set_key_value("skirt_extrusion_spacing", new ConfigOptionFloatOrPercent(std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS, false));
                 //    something_changed = true;
                 //}
-            } catch (FlowErrorNegativeSpacing) {
-                if (spacing_option != nullptr) {
-                    width_option->set_phony(true);
-                    spacing_option->set_phony(false);
-                    spacing_option->value = FULL_PERCENT;
-                    spacing_option->percent = true;
-                    Flow flow = Flow::new_from_spacing(spacing_option->get_abs_value(max_nozzle_diameter), max_nozzle_diameter, layer_height_option->value, overlap_ratio, false);
-                    width_option->value = (spacing_option->percent) ? std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) : (std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
-                    width_option->percent = spacing_option->percent;
-                    something_changed = true;
-                } else {
-                    width_option->value = FULL_PERCENT;
-                    width_option->percent = true;
-                    width_option->set_phony(false);
-                    spacing_option->set_phony(true);
-                    Flow flow = Flow::new_from_config_width(FlowRole::frPerimeter, width_option->value == 0 ? *width_option : *default_width_option, *spacing_option, max_nozzle_diameter, layer_height_option->value, overlap_ratio, 0);
-                    spacing_option->value = (width_option->percent) ? std::round(PERCENT_SCALE * flow.spacing() / max_nozzle_diameter) : (std::round(flow.spacing() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS);
-                    spacing_option->percent = width_option->percent;
-                    something_changed = true;
-                }
+            } catch (const FlowErrorNegativeSpacing &) {
+                if (spacing_option == nullptr)
+                    return something_changed ? this : nullptr;
+
+                width_option->set_phony(true);
+                spacing_option->set_phony(false);
+                spacing_option->value = FULL_PERCENT;
+                spacing_option->percent = true;
+                Flow flow = Flow::new_from_spacing(
+                    spacing_option->get_abs_value(max_nozzle_diameter), max_nozzle_diameter,
+                    layer_height_option->value, overlap_ratio, false);
+                width_option->value = spacing_option->percent ?
+                    std::round(PERCENT_SCALE * flow.width() / max_nozzle_diameter) :
+                    std::round(flow.width() * ROUND_4_DECIMALS) / ROUND_4_DECIMALS;
+                width_option->percent = spacing_option->percent;
+                something_changed = true;
             }
         }
     }
@@ -12194,6 +12161,23 @@ const DynamicPrintConfig* DynamicPrintConfig::value_changed(const t_config_optio
 
 // Localization note: this path is mostly used for config export and command line validation.
 // Most GUI validation happens elsewhere, so this function may be a bit out of sync.
+template<typename T, typename ValueAccessor>
+static bool has_enabled_value_out_of_range(
+    const ConfigOptionVector<T> &values,
+    double minimum,
+    double maximum,
+    ValueAccessor get_value)
+{
+    for (size_t index = 0; index < values.size(); ++index) {
+        if (!values.is_enabled(index))
+            continue;
+        const double value = get_value(values.get_at(index));
+        if (value < minimum || value > maximum)
+            return true;
+    }
+    return false;
+}
+
 std::string validate(const FullPrintConfig& cfg)
 {
     // --layer-height
@@ -12361,30 +12345,17 @@ std::string validate(const FullPrintConfig& cfg)
         case coPercents:
         case coFloats:
         {
-            const auto* vec = static_cast<const ConfigOptionVector<double>*>(opt);
-            for (size_t i = 0; i < vec->size(); ++i) {
-                if (!vec->is_enabled(i))
-                    continue;
-                double v = vec->get_at(i);
-                if (v < optdef->min || v > optdef->max) {
-                    out_of_range = true;
-                    break;
-                }
-            }
+            const auto *values = static_cast<const ConfigOptionVector<double>*>(opt);
+            out_of_range = has_enabled_value_out_of_range(
+                *values, optdef->min, optdef->max, [](double value) { return value; });
             break;
         }
         case coFloatsOrPercents:
         {
-            const auto* vec = static_cast<const ConfigOptionVector<FloatOrPercent>*>(opt);
-            for (size_t i = 0; i < vec->size(); ++i) {
-                if (!vec->is_enabled(i))
-                    continue;
-                const FloatOrPercent &v = vec->get_at(i);
-                if (v.value < optdef->min || v.value > optdef->max) {
-                    out_of_range = true;
-                    break;
-                }
-            }
+            const auto *values = static_cast<const ConfigOptionVector<FloatOrPercent>*>(opt);
+            out_of_range = has_enabled_value_out_of_range(
+                *values, optdef->min, optdef->max,
+                [](const FloatOrPercent &value) { return value.value; });
             break;
         }
         case coInt:
@@ -12395,16 +12366,10 @@ std::string validate(const FullPrintConfig& cfg)
         }
         case coInts:
         {
-            const auto* vec = static_cast<const ConfigOptionVector<int32_t>*>(opt);
-            for (size_t i = 0; i < vec->size(); ++i) {
-                if (!vec->is_enabled(i))
-                    continue;
-                int v = vec->get_at(i);
-                if (v < optdef->min || v > optdef->max) {
-                    out_of_range = true;
-                    break;
-                }
-            }
+            const auto *values = static_cast<const ConfigOptionVector<int32_t>*>(opt);
+            out_of_range = has_enabled_value_out_of_range(
+                *values, optdef->min, optdef->max,
+                [](int32_t value) { return static_cast<double>(value); });
             break;
         }
         default:;
