@@ -62,7 +62,7 @@ static inline coordf_t segment_length(const Polygon &poly, size_t seg1, const Po
 #ifdef SLIC3R_DEBUG
     // Verify that p1 lies on seg1. This is difficult to verify precisely,
     // but at least verify, that p1 lies in the bounding box of seg1.
-    for (size_t i = 0; i < 2; ++ i) {
+    for (size_t i = 0; i < 2; ++ i) {  // check both endpoints (seg1, seg2)
         size_t seg = (i == 0) ? seg1 : seg2;
         Point  px  = (i == 0) ? p1   : p2;
         Point  pa  = poly.points[((seg == 0) ? poly.points.size() : seg) - 1];
@@ -320,12 +320,12 @@ struct SegmentIntersection
                 // Multiply low and high 32bit words of p1 by other_pos.q
                 // 32bit x 32bit => 64bit
                 // l_hi and l_lo overlap by 32 bits.
-                uint64_t l_hi = (p1 >> 32) * uint64_t(other.pos_q);
+                uint64_t l_hi = (p1 >> 32) * uint64_t(other.pos_q);  // 32-bit word split for 64-bit multiply
                 uint64_t l_lo = (p1 & 0xffffffffll) * uint64_t(other.pos_q);
-                l_hi += (l_lo >> 32);
-                uint64_t r_hi = (p2 >> 32) * uint64_t(pos_q);
+                l_hi += (l_lo >> 32);  // 32-bit word split for 64-bit multiply
+                uint64_t r_hi = (p2 >> 32) * uint64_t(pos_q);  // 32-bit word split for 64-bit multiply
                 uint64_t r_lo = (p2 & 0xffffffffll) * uint64_t(pos_q);
-                r_hi += (r_lo >> 32);
+                r_hi += (r_lo >> 32);  // 32-bit word split for 64-bit multiply
                 // Compare the high 64 bits.
                 if (l_hi == r_hi) {
                     // Compare the low 32 bits.
@@ -363,12 +363,12 @@ struct SegmentIntersection
         uint64_t r_lo = (p2 & 0xffffffffll) * uint64_t(pos_q);
         if (l_lo != r_lo)
             return false;
-        uint64_t l_hi = (p1 >> 32) * uint64_t(other.pos_q);
-        uint64_t r_hi = (p2 >> 32) * uint64_t(pos_q);
-        return l_hi + (l_lo >> 32) == r_hi + (r_lo >> 32);
+        uint64_t l_hi = (p1 >> 32) * uint64_t(other.pos_q);  // 32-bit word split for 64-bit multiply
+        uint64_t r_hi = (p2 >> 32) * uint64_t(pos_q);  // 32-bit word split for 64-bit multiply
+        return l_hi + (l_lo >> 32) == r_hi + (r_lo >> 32);  // 32-bit word split for 64-bit multiply
     }
 };
-static_assert(sizeof(SegmentIntersection::pos_q) == 4, "SegmentIntersection::pos_q has to be 32bit long!");
+static_assert(sizeof(SegmentIntersection::pos_q) == 4, "SegmentIntersection::pos_q has to be 32bit long!");  // pos_q is a 32-bit field (4 bytes)
 
 // A vertical line with intersection points with polygons.
 struct SegmentedIntersectionLine
@@ -712,13 +712,13 @@ FillRectilinear::init_spacing(coordf_t spacing, const FillParams& params)
 enum DirectionMask
 {
     DIR_FORWARD  = 1,
-    DIR_BACKWARD = 2
+    DIR_BACKWARD = 2  // second direction flag bit
 };
 
 size_t compute_n_vlines(const BoundingBox& bounding_box, coord_t line_spacing)
 {
     // n_vlines = ceil(bbox_width / line_spacing)
-    return  1 + (bounding_box.max.x() - bounding_box.min.x() - 10) / line_spacing;
+    return  1 + (bounding_box.max.x() - bounding_box.min.x() - 10) / line_spacing;  // safety margin against rounding at the box edge
 }
 coord_t compute_x0(const FillParams& params, const BoundingBox& bounding_box, coord_t line_spacing)
 {
@@ -726,7 +726,7 @@ coord_t compute_x0(const FillParams& params, const BoundingBox& bounding_box, co
     if (params.flow.bridge() && params.bridge_offset >= 0) {
         x0 += params.bridge_offset;
     } else if (params.full_infill())
-        x0 += (line_spacing + coord_t(SCALED_EPSILON)) / 2;
+        x0 += (line_spacing + coord_t(SCALED_EPSILON)) / 2;  // midpoint offset (half line spacing)
     return x0;
 }
 
@@ -756,7 +756,7 @@ std::vector<SegmentedIntersectionLine> vert_lines_for_polygon(const ExPolygonWit
     for (size_t iContour = 0; iContour < poly_with_offset.n_contours; ++ iContour) {
         const Points &contour = poly_with_offset.contour(iContour).points;
         bool is_hole = poly_with_offset.contour(iContour).is_clockwise();
-        if (contour.size() < 2)
+        if (contour.size() < 2)  // need at least 2 points to have an edge/segment
             continue;
         // For each segment
         for (size_t iSegment = 0; iSegment < contour.size(); ++ iSegment) {
@@ -918,7 +918,7 @@ static void slice_region_by_vertical_lines(const FillRectilinear* filler, std::v
         SegmentedIntersectionLine& sil = segs[i_seg];
         if ((sil.intersections.size() & 1) == 1 && sil.intersections.size() > 1) {
             BOOST_LOG_TRIVIAL(error) << "FillRectilinear::fill_surface() fail: impair number of intersections at layer " << (filler?filler->layer_id:-1) << " @z="<< (filler ? filler->z : -1);
-            if (sil.intersections.back().iContour == sil.intersections[sil.intersections.size() - 2].iContour)
+            if (sil.intersections.back().iContour == sil.intersections[sil.intersections.size() - 2].iContour)  // second-to-last intersection
                 sil.intersections.pop_back();
         }
         if (sil.intersections.size() == 1) {
@@ -960,7 +960,7 @@ static void slice_region_by_vertical_lines(const FillRectilinear* filler, std::v
         // Export the buggy result into an SVG file.
         static int iRun = 0;
         BoundingBox bbox = get_extents(poly_with_offset.polygons_src);
-        bbox.offset(scale_(3.));
+        bbox.offset(scale_(3.));  // debug SVG margin (mm)
         ::Slic3r::SVG svg(debug_out_path("slice_region_by_vertical_lines-failed-%d.svg", iRun ++), bbox);
         svg.draw(poly_with_offset.polygons_src);
         svg.draw_outline(poly_with_offset.polygons_src, "green");
@@ -1267,8 +1267,8 @@ static void pinch_contours_insert_phony_outer_intersections(std::vector<Segmente
 
     for (size_t i_vline = 1; i_vline < segs.size(); ++ i_vline) {
         SegmentedIntersectionLine &il = segs[i_vline];
-        assert(il.intersections.empty() || il.intersections.size() >= 2);
-        if (il.intersections.size() > 2) {
+        assert(il.intersections.empty() || il.intersections.size() >= 2);  // a matched outer-low/outer-high pair
+        if (il.intersections.size() > 2) {  // a matched outer-low/outer-high pair
             //these can trigger....(2 segments, high then low) but less if I check for il.intersections.size() > 2 instead of !empty()
             assert(il.intersections.front().type == SegmentIntersection::OUTER_LOW);
             assert(il.intersections.back().type == SegmentIntersection::OUTER_HIGH);
@@ -1280,7 +1280,7 @@ static void pinch_contours_insert_phony_outer_intersections(std::vector<Segmente
                     if (idx + 1 < il.intersections.size()) {
                         assert(il.intersections[idx + 1].type == SegmentIntersection::OUTER_LOW);
                     }
-                    idx += 2;
+                    idx += 2;  // advance past the OUTER_HIGH/OUTER_LOW pair
                 } else {
                     size_t loidx = idx;
                     const SegmentIntersection& lo = il.intersections[loidx];
@@ -1331,7 +1331,7 @@ static void pinch_contours_insert_phony_outer_intersections(std::vector<Segmente
                             map.emplace_back(mapped_intersection_index());
                             temp_intersections.emplace_back(il.intersections[i]);
                         }
-                        coord_t pos = (temp_intersections.back().pos() + il.intersections[i].pos()) / 2;
+                        coord_t pos = (temp_intersections.back().pos() + il.intersections[i].pos()) / 2;  // midpoint
                         temp_intersections.emplace_back(phony_outer_intersection(SegmentIntersection::OUTER_HIGH, pos));
                         temp_intersections.emplace_back(phony_outer_intersection(SegmentIntersection::OUTER_LOW, pos));
                     }
@@ -1699,7 +1699,7 @@ static void traverse_graph_generate_polylines(
         assert(!polyline_current->has_duplicate_points());
         // Handle nearly zero length edges.
         if (polyline_current->points.size() <= 1 ||
-            (polyline_current->points.size() == 2 &&
+            (polyline_current->points.size() == 2 &&  // degenerate 2-point segment check
                 std::abs(polyline_current->points.front()(0) - polyline_current->points.back()(0)) < SCALED_EPSILON &&
                 std::abs(polyline_current->points.front()(1) - polyline_current->points.back()(1)) < SCALED_EPSILON))
         {
@@ -1736,9 +1736,9 @@ struct MonotonicRegion
 
 #if NDEBUG
     // Left regions are used to track whether all regions left to this one have already been printed.
-    boost::container::small_vector<MonotonicRegion*, 4>	left_neighbors;
+    boost::container::small_vector<MonotonicRegion*, 4>	left_neighbors;  // typical neighbor count, small-vector inline capacity
     // Right regions are held to pick a next region to be extruded using the "Ant colony" heuristics.
-    boost::container::small_vector<MonotonicRegion*, 4>	right_neighbors;
+    boost::container::small_vector<MonotonicRegion*, 4>	right_neighbors;  // typical neighbor count, small-vector inline capacity
 #else
     // For debugging, use the normal vector as it is better supported by debug visualizers.
     std::vector<MonotonicRegion*> left_neighbors;
@@ -1779,7 +1779,7 @@ public:
         m_poly_with_offset(poly_with_offset),
         m_segs(segs),
         // From end of one region to the start of another region, both flipped or not flipped.
-        m_matrix(regions.size()* regions.size() * 4, AntPath{ -1., -1., initial_pheromone }) {}
+        m_matrix(regions.size()* regions.size() * 4, AntPath{ -1., -1., initial_pheromone }) {}  // 2 flip-states x 2 flip-states (from x to)
 
     void update_inital_pheromone(float initial_pheromone)
     {
@@ -1789,9 +1789,9 @@ public:
 
     AntPath& operator()(const MonotonicRegion& region_from, bool flipped_from, const MonotonicRegion& region_to, bool flipped_to)
     {
-        int row = 2 * int(&region_from - m_regions.data()) + flipped_from;
-        int col = 2 * int(&region_to - m_regions.data()) + flipped_to;
-        AntPath& path = m_matrix[row * m_regions.size() * 2 + col];
+        int row = 2 * int(&region_from - m_regions.data()) + flipped_from;  // 2 rows per region (flipped/not flipped)
+        int col = 2 * int(&region_to - m_regions.data()) + flipped_to;  // 2 rows per region (flipped/not flipped)
+        AntPath& path = m_matrix[row * m_regions.size() * 2 + col];  // 2 rows per region (flipped/not flipped)
         if (path.length == -1.) {
             // This path is accessed for the first time. Update the length and cost.
             int i_from = region_from.right_intersection_point(flipped_from);
@@ -2071,7 +2071,7 @@ static void export_monotonous_regions_to_svg(
     const std::string                               &path)
 {
     BoundingBox bbox = get_extents(poly_with_offset.polygons_src);
-    bbox.offset(scale_(3.));
+    bbox.offset(scale_(3.));  // debug SVG margin (mm)
 
     ::Slic3r::SVG svg(path, bbox);
     svg.draw(poly_with_offset.polygons_src);
@@ -2443,7 +2443,7 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
     // After how many rounds without an improvement to exit?
     constexpr int const   num_rounds_no_change_exit = 8;
     // With how many ants each of the run will be performed?
-    const int             num_ants = std::min(int(regions.size()), 10);
+    const int             num_ants = std::min(int(regions.size()), 10);  // cap the ant count (see comment above)
     // Base (initial) pheromone level. This value will be adjusted based on the length of the first greedy path found.
     float                 pheromone_initial_deposit = 0.5f;
     // Evaporation rate of pheromones.
@@ -2478,7 +2478,7 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
             next_candidate.probability = 0;
             for (MonotonicRegion *next : region.right_neighbors) {
                 assert(left_neighbors_unprocessed[next - regions.data()] > 1);
-                if (left_neighbors_unprocessed[next - regions.data()] == 2) {
+                if (left_neighbors_unprocessed[next - regions.data()] == 2) {  // both flip-states of the neighbor already processed (see comment above)
                     // Dependencies of the successive blocks are satisfied.
                     AntPath &path1 = path_matrix(region, dir, *next, false);
                     AntPath &path2 = path_matrix(region, dir, *next, true);
@@ -2556,7 +2556,7 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
             // Note: picking the 1st monotonic region should likely be done based on accumulated pheromone level as well,
             // but the inefficiency caused by the random pick of the 1st monotonic region is likely insignificant.
             int first_idx = std::uniform_int_distribution<>(0, int(queue.size()) - 1)(rng);
-            path.emplace_back(MonotonicRegionLink{ queue[first_idx], rng() > rng.max() / 2 });
+            path.emplace_back(MonotonicRegionLink{ queue[first_idx], rng() > rng.max() / 2 });  // coin-flip orientation
             *(queue.begin() + first_idx) = std::move(queue.back());
             queue.pop_back();
             --left_neighbors_unprocessed[path.back().region - regions.data()];
@@ -2576,7 +2576,7 @@ static std::vector<MonotonicRegionLink> chain_monotonic_regions(
                 bool 			  			 dir = path.back().flipped;
                 // Sort by distance to pt.
                 next_candidates.clear();
-                next_candidates.reserve(region.right_neighbors.size() * 2);
+                next_candidates.reserve(region.right_neighbors.size() * 2);  // reserve for both flip-states of each neighbor
                 for (MonotonicRegion* next : region.right_neighbors) {
                     int& unprocessed = left_neighbors_unprocessed[next - regions.data()];
                     assert(unprocessed > 1);
@@ -2723,18 +2723,18 @@ static void polylines_from_paths(const std::vector<MonotonicRegionLink>& path, c
         assert(!polyline->has_duplicate_points());
         // Handle nearly zero length edges.
         if (polyline->points.size() <= 1 ||
-            (polyline->points.size() == 2 &&
+            (polyline->points.size() == 2 &&  // need at least 2 points to have an edge/segment
                 std::abs(polyline->points.front().x() - polyline->points.back().x()) < SCALED_EPSILON &&
                 std::abs(polyline->points.front().y() - polyline->points.back().y()) < SCALED_EPSILON))
             polylines_out.pop_back();
-        else if (polylines_out.size() >= 2) {
-            assert(polyline->points.size() >= 2);
+        else if (polylines_out.size() >= 2) {  // need at least the previous polyline to merge into
+            assert(polyline->points.size() >= 2);  // need at least 2 points to have an edge/segment
             // Merge the two last polylines. An extrusion may have been split by an introduction of phony outer points on intersection lines
             // to cope with pinching of inner offset contours.
-            Polyline &pl_prev = polylines_out[polylines_out.size() - 2];
+            Polyline &pl_prev = polylines_out[polylines_out.size() - 2];  // the previous polyline (second-to-last)
             if (std::abs(polyline->points.front().x() - pl_prev.points.back().x()) < SCALED_EPSILON &&
                 std::abs(polyline->points.front().y() - pl_prev.points.back().y()) < SCALED_EPSILON) {
-                pl_prev.points.back() = (pl_prev.points.back() + polyline->points.front()) / 2;
+                pl_prev.points.back() = (pl_prev.points.back() + polyline->points.front()) / 2;  // midpoint
                 pl_prev.points.insert(pl_prev.points.end(), polyline->points.begin() + 1, polyline->points.end());
                 polylines_out.pop_back();
             }
@@ -2959,7 +2959,7 @@ bool FillRectilinear::fill_surface_by_lines(const Surface *surface, const FillPa
                 svg.draw(Line(Point(sil.pos, sil.intersections[i].pos()), Point(sil.pos, sil.intersections[j].pos())), "blue");
             } else {
                 svg.draw(Line(Point(sil.pos, sil.intersections[i].pos()), Point(sil.pos, sil.intersections[i+1].pos())), "green");
-                svg.draw(Line(Point(sil.pos, sil.intersections[i+1].pos()), Point(sil.pos, sil.intersections[j-1].pos())), (j - i + 1 > 4) ? "yellow" : "magenta");
+                svg.draw(Line(Point(sil.pos, sil.intersections[i+1].pos()), Point(sil.pos, sil.intersections[j-1].pos())), (j - i + 1 > 4) ? "yellow" : "magenta");  // debug-only color threshold (number of intersection points)
                 svg.draw(Line(Point(sil.pos, sil.intersections[j-1].pos()), Point(sil.pos, sil.intersections[j].pos())), "green");
             }
             i = j + 1;
@@ -3028,7 +3028,7 @@ bool FillRectilinear::fill_surface_by_lines(const Surface *surface, const FillPa
         it->remove_duplicate_points();
         it->rotate(rotate_vector.first);
         // simplify the paths to avoid very short edges
-        it->douglas_peucker(std::max(SCALED_EPSILON * 10, params.fill_resolution / 10));
+        it->douglas_peucker(std::max(SCALED_EPSILON * 10, params.fill_resolution / 10));  // 1/10th fill resolution smoothing tolerance
         if (it->length() <= params.fill_resolution) {
             it = polylines_out.erase(it);
         } else {
@@ -3058,7 +3058,7 @@ void FillRectilinear::make_fill_lines(const ExPolygonWithOffset &poly_with_offse
     // Don't produce infill lines, which fully overlap with the infill perimeter.
     coord_t     x_min = bounding_box.min.x() + x_margin;
     coord_t     x_max = bounding_box.max.x() - x_margin;
-    coord_t     min_dist = std::max(SCALED_EPSILON, x_margin / 2);
+    coord_t     min_dist = std::max(SCALED_EPSILON, x_margin / 2);  // half the x-margin
     // extend bounding box so that our pattern will be aligned with other layers
     // align_to_grid will not work correctly with positive pattern_shift.
     coord_t pattern_shift_scaled = pattern_shift % line_spacing;
@@ -3176,7 +3176,7 @@ Polylines FillGrid::fill_surface(const Surface *surface, const FillParams &param
     Polylines polylines_out;
     if (!this->fill_surface_by_multilines(
         surface, params,
-        { { 0.f, 0.f }, { float(M_PI / 2.), 0.f } },
+        { { 0.f, 0.f }, { float(M_PI / 2.), 0.f } },  // 90deg second direction (grid pattern)
         polylines_out))
         BOOST_LOG_TRIVIAL(error) << "FillGrid::fill_surface() failed to fill a region.";
     return polylines_out;
@@ -3187,7 +3187,7 @@ Polylines FillTriangles::fill_surface(const Surface *surface, const FillParams &
     Polylines polylines_out;
     if (!this->fill_surface_by_multilines(
         surface, params,
-        { { 0.f, 0.f }, { float(M_PI / 3.), 0.f }, { float(2. * M_PI / 3.), 0. } },
+        { { 0.f, 0.f }, { float(M_PI / 3.), 0.f }, { float(2. * M_PI / 3.), 0. } },  // 60deg spacing (3 directions for triangles)
         polylines_out))
         BOOST_LOG_TRIVIAL(error) << "FillTriangles::fill_surface() failed to fill a region.";
     return polylines_out;
@@ -3198,7 +3198,7 @@ Polylines FillStars::fill_surface(const Surface *surface, const FillParams &para
     Polylines polylines_out;
     if (!this->fill_surface_by_multilines(
         surface, params,
-        { { 0.f, 0.f }, { float(M_PI / 3.), 0.f }, { float(2. * M_PI / 3.), float((3. / 2.) * unscaled(_line_spacing_for_density(params))) } },
+        { { 0.f, 0.f }, { float(M_PI / 3.), 0.f }, { float(2. * M_PI / 3.), float((3. / 2.) * unscaled(_line_spacing_for_density(params))) } },  // 60deg spacing (3 directions), staggered by 1.5x line spacing per row (stars pattern)
         polylines_out))
         BOOST_LOG_TRIVIAL(error) << "FillStars::fill_surface() failed to fill a region.";
     return polylines_out;
@@ -3210,7 +3210,7 @@ Polylines FillCubic::fill_surface(const Surface *surface, const FillParams &para
     coordf_t dx = sqrt(0.5) * z;
     if (!this->fill_surface_by_multilines(
         surface, params,
-        { { 0.f, float(dx) }, { float(M_PI / 3.), -float(dx) }, { float(M_PI * 2. / 3.), float(dx) } },
+        { { 0.f, float(dx) }, { float(M_PI / 3.), -float(dx) }, { float(M_PI * 2. / 3.), float(dx) } },  // 60deg/120deg spacing (3 directions for cubic infill)
         polylines_out))
         BOOST_LOG_TRIVIAL(error) << "FillCubic::fill_surface() failed to fill a region.";
     return polylines_out; 
@@ -3313,7 +3313,7 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
     const coord_t scaled_nozzle_diam = scale_(params.flow.nozzle_diameter());
     const coord_t clearance = scaled_nozzle_diam * 2.5;
     const coord_t tooth_spacing_min = scaled_nozzle_diam;
-    const coord_t tooth_spacing_max = scaled_nozzle_diam * 3;
+    const coord_t tooth_spacing_max = scaled_nozzle_diam * 3;  // max tooth spacing = 3x nozzle diameter
     const coord_t tooth_zhop = scaled_nozzle_diam;
     Polylines polylines_out;
     if (!fill_surface_by_lines(surface, params, 0.f, 0.f, polylines_out)) {
@@ -3369,7 +3369,7 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
                 if (idx < poly.size() &&  maxLength > clearance /*&& line_length > scaled_nozzle_diam * 2.5*/) {
                     //do z-hop
                     //keep some room for the mouv
-                    if (next_zhop > line_length - scaled_nozzle_diam * 2) 
+                    if (next_zhop > line_length - scaled_nozzle_diam * 2)   // z-hop safety margin (2x nozzle diameter)
                         next_zhop = line_length - scaled_nozzle_diam * 2.5;
                     last = last.interpolate(next_zhop / static_cast<double>(line_length), pts[idx]);
                     //Create point at pos
@@ -3380,7 +3380,7 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
                     //add new extrusion that go up with nozzle_flow
                     extrusions->paths.push_back(
                         ExtrusionPath3D(ExtrusionAttributes{good_role,
-                                                            {params.flow.nozzle_diameter() * params.flow.nozzle_diameter() * PI / 4,
+                                                            {params.flow.nozzle_diameter() * params.flow.nozzle_diameter() * PI / 4,  // circular cross-section area = (d/2)^2*pi = d^2*pi/4
                                                              params.flow.nozzle_diameter(), params.flow.nozzle_diameter()}},
                                         false));
                     current_extrusion = &(extrusions->paths.back());
@@ -3390,7 +3390,7 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
                     //add new extrusion that move a bit to let the place for the nozzle tip
                     extrusions->paths.push_back(
                         ExtrusionPath3D(ExtrusionAttributes{good_role,
-                                                            {0, params.flow.nozzle_diameter() / 10, params.flow.nozzle_diameter() / 10}},
+                                                            {0, params.flow.nozzle_diameter() / 10, params.flow.nozzle_diameter() / 10}},  // small lateral nudge (1/10 nozzle diameter)
                                         false));
                     current_extrusion = &(extrusions->paths.back());
                     //add first point
@@ -3403,8 +3403,8 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
                     // add new extrusion that go down with no nozzle_flow / sqrt(2)
                     extrusions->paths.push_back(
                         ExtrusionPath3D(ExtrusionAttributes{good_role,
-                                                            {params.flow.mm3_per_mm() / std::sqrt(2),
-                                                             float(params.flow.width() / std::sqrt(2)), params.flow.height()}},
+                                                            {params.flow.mm3_per_mm() / std::sqrt(2),  // 45-degree down-ramp width correction (1/sqrt(2))
+                                                             float(params.flow.width() / std::sqrt(2)), params.flow.height()}},  // 45-degree down-ramp width correction (1/sqrt(2))
                                         false));
                     current_extrusion = &(extrusions->paths.back());
                     current_extrusion->push_back(last, tooth_zhop);
@@ -3432,7 +3432,7 @@ FillRectilinearSawtooth::fill_surface_extrusion(const Surface *surface, const Fi
                 current_extrusion->push_back(pts[idx], 0);
                 idx++;
             }
-            if (current_extrusion->size() < 2) extrusions->paths.pop_back();
+            if (current_extrusion->size() < 2) extrusions->paths.pop_back();  // need at least 2 points to have an edge/segment
 #ifdef _DEBUG
             for (ExtrusionPath3D &b : extrusions->paths) {
                 assert(b.polyline.is_3D);
@@ -3468,7 +3468,7 @@ Points sample_grid_pattern(const ExPolygon &expolygon, coord_t spacing, const Bo
 
     Points out;
     for (const SegmentedIntersectionLine &sil : segs) {
-        for (size_t i = 0; i < sil.intersections.size(); i += 2) {
+        for (size_t i = 0; i < sil.intersections.size(); i += 2) {  // advance by intersection pairs (enter/exit)
             coord_t a = sil.intersections[i].pos();
             coord_t b = sil.intersections[i + 1].pos();
             for (coord_t y = a - (a % spacing) - spacing; y < b; y += spacing)
