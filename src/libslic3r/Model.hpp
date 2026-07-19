@@ -1018,19 +1018,19 @@ private:
     }
 
     ModelVolume(ModelObject *object, const TriangleMesh &mesh, ModelVolumeType type = ModelVolumeType::MODEL_PART) :
-        m_mesh(new TriangleMesh(mesh)), m_type(type), object(object)
+        m_mesh(std::make_shared<TriangleMesh>(mesh)), m_type(type), object(object)
     {
         assert(check());
         if (m_mesh->facets_count() > 1) calculate_convex_hull();
     }
     ModelVolume(ModelObject *object, TriangleMesh &&mesh, ModelVolumeType type = ModelVolumeType::MODEL_PART)
-        : m_mesh(new TriangleMesh(std::move(mesh))), m_type(type), object(object)
+        : m_mesh(std::make_shared<TriangleMesh>(std::move(mesh))), m_type(type), object(object)
     {
         assert(check());
         if (m_mesh->facets_count() > 1) calculate_convex_hull();
     }
     ModelVolume(ModelObject *object, TriangleMesh &&mesh, TriangleMesh &&convex_hull, ModelVolumeType type = ModelVolumeType::MODEL_PART) :
-        m_mesh(new TriangleMesh(std::move(mesh))), m_convex_hull(new TriangleMesh(std::move(convex_hull))), m_type(type), object(object) {
+        m_mesh(std::make_shared<TriangleMesh>(std::move(mesh))), m_convex_hull(std::make_shared<TriangleMesh>(std::move(convex_hull))), m_type(type), object(object) {
         assert(check());
     }
 
@@ -1060,7 +1060,7 @@ private:
     }
     // Providing a new mesh, therefore this volume will get a new unique ID assigned.
     ModelVolume(ModelObject *object, const ModelVolume &other, TriangleMesh &&mesh) :
-        name(other.name), source(other.source), config(other.config), object(object), m_mesh(new TriangleMesh(std::move(mesh))), m_type(other.m_type), m_transformation(other.m_transformation),
+        name(other.name), source(other.source), config(other.config), object(object), m_mesh(std::make_shared<TriangleMesh>(std::move(mesh))), m_type(other.m_type), m_transformation(other.m_transformation),
         cut_info(other.cut_info), text_configuration(other.text_configuration), emboss_shape(other.emboss_shape)
     {
         assert(this->id().valid()); 
