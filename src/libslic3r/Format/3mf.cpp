@@ -240,7 +240,7 @@ public:
 };
 const char* get_attribute_value_charptr(const char** attributes, unsigned int attributes_size, const char* attribute_key)
 {
-    if ((attributes == nullptr) || (attributes_size == 0) || (attributes_size % 2 != 0) || (attribute_key == nullptr))
+    if ((attributes == nullptr) || (attributes_size == 0) || (attributes_size % 2 != 0) || (attribute_key == nullptr)) // attributes is a flat key,value list -> must have an even count
         return nullptr;
 
     for (unsigned int a = 0; a < attributes_size; a += 2) {
@@ -300,8 +300,8 @@ Slic3r::Transform3d get_transform_from_3mf_specs_string(const std::string& mat_s
     unsigned int i = 0;
     // matrices are stored into 3mf files as 4x3
     // we need to transpose them
-    for (unsigned int c = 0; c < 4; ++c) {
-        for (unsigned int r = 0; r < 3; ++r) {
+    for (unsigned int c = 0; c < 4; ++c) { // 4 columns of the stored 3mf 4x3 affine matrix
+        for (unsigned int r = 0; r < 3; ++r) { // 3 rows, before we transpose into a 4x4 homogeneous transform
             ret(r, c) = ::atof(mat_elements_str[i++].c_str());
         }
     }
@@ -315,7 +315,7 @@ float get_unit_factor(const std::string& unit)
     if (::strcmp(text, "micron") == 0)
         return 0.001f;
     else if (::strcmp(text, "centimeter") == 0)
-        return 10.0f;
+        return 10.0f; // 1 cm = 10 mm
     else if (::strcmp(text, "inch") == 0)
         return 25.4f;
     else if (::strcmp(text, "foot") == 0)
@@ -742,62 +742,63 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
         // we first loop the entries to read from the archive the .model file only, in order to extract the version from it
         bool found_model = false;
         for (mz_uint i = 0; i < num_entries; ++i) {
-            if (mz_zip_reader_file_stat(&archive, i, &stat)) {
-                std::string name(stat.m_filename);
-                std::replace(name.begin(), name.end(), '\\', '/');
+            if (!mz_zip_reader_file_stat(&archive, i, &stat))
+                continue;
+            std::string name(stat.m_filename);
+            std::replace(name.begin(), name.end(), '\\', '/');
 
-                if (boost::algorithm::iends_with(name, MODEL_EXTENSION)) {
-                    if(found_model){
-                        close_zip_reader(&archive);
-                        add_error("3mf contain multiple .model files and it is not supported yet.");
-                        return false;
-                    }
-                    found_model = true;
+            if (!boost::algorithm::iends_with(name, MODEL_EXTENSION))
+                continue;
 
-                    try
-                    {
-                        // valid model name -> extract model
-                        if (!_extract_model_from_archive(archive, stat)) {
-                            close_zip_reader(&archive);
-                            add_error("Archive does not contain a valid model");
-                            return false;
-                        }
-                    } catch (const bambu_version_error &e) {
-                        // ensure the zip archive is closed and rethrow the exception
-                        close_zip_reader(&archive);
-                        // First, Try to parse it with bambu parser
-                        PlateDataPtrs plates;
-                        std::vector<Preset *> project_presets;
-                        bool is_bbl_3mf = true;
-                        Semver file_version;
-                        std::function<void(int,int,int,bool&)> Import3mfProgressFn =
-                            [](int import_stage, int current, int total, bool &cancel) {
-                                BOOST_LOG_TRIVIAL(info) << "import BBS 3mf: stage " << import_stage
-                                                        << ", current: " << current << " / " << total;
-                            };
-                        bool result = load_bbs_3mf(filename.c_str(), 
-                                                  &config,
-                                                  &config_substitutions,
-                                                  &model,
-                                                  &plates,
-                                                  &project_presets,
-                                                  &is_bbl_3mf,
-                                                  &file_version,
-                                                   Import3mfProgressFn,
-                                                   LoadStrategy::Default | LoadStrategy::LoadModel | LoadStrategy::LoadConfig,
-                                                   /*BBLProject *project = nullptr,*/
-                                                   0);
-                        if(!result)
-                            throw Slic3r::FileIOError(e.what());
-                        return true;
-                    }
-                    catch (const std::exception& e)
-                    {
-                        // ensure the zip archive is closed and rethrow the exception
-                        close_zip_reader(&archive);
-                        throw Slic3r::FileIOError(e.what());
-                    }
+            if (found_model) {
+                close_zip_reader(&archive);
+                add_error("3mf contain multiple .model files and it is not supported yet.");
+                return false;
+            }
+            found_model = true;
+
+            try
+            {
+                // valid model name -> extract model
+                if (!_extract_model_from_archive(archive, stat)) {
+                    close_zip_reader(&archive);
+                    add_error("Archive does not contain a valid model");
+                    return false;
                 }
+            } catch (const bambu_version_error &e) {
+                // ensure the zip archive is closed and rethrow the exception
+                close_zip_reader(&archive);
+                // First, Try to parse it with bambu parser
+                PlateDataPtrs plates;
+                std::vector<Preset *> project_presets;
+                bool is_bbl_3mf = true;
+                Semver file_version;
+                std::function<void(int,int,int,bool&)> Import3mfProgressFn =
+                    [](int import_stage, int current, int total, bool &cancel) {
+                        BOOST_LOG_TRIVIAL(info) << "import BBS 3mf: stage " << import_stage
+                                                << ", current: " << current << " / " << total;
+                    };
+                bool result = load_bbs_3mf(filename.c_str(), 
+                                          &config,
+                                          &config_substitutions,
+                                          &model,
+                                          &plates,
+                                          &project_presets,
+                                          &is_bbl_3mf,
+                                          &file_version,
+                                           Import3mfProgressFn,
+                                           LoadStrategy::Default | LoadStrategy::LoadModel | LoadStrategy::LoadConfig,
+                                           /*BBLProject *project = nullptr,*/
+                                           0);
+                if(!result)
+                    throw Slic3r::FileIOError(e.what());
+                return true;
+            }
+            catch (const std::exception& e)
+            {
+                // ensure the zip archive is closed and rethrow the exception
+                close_zip_reader(&archive);
+                throw Slic3r::FileIOError(e.what());
             }
         }
         if (!found_model) {
@@ -807,21 +808,24 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
             bool has_superslicer_metadata = false;
             bool has_MODEL_in_rels = false;
             for (mz_uint i = 0; i < num_entries; ++i) {
-                if (mz_zip_reader_file_stat(&archive, i, &stat)) {
-                    std::string name(stat.m_filename);
-                    std::replace(name.begin(), name.end(), '\\', '/');
-                    if (name == "_rels/.rels") {
-                        // open
-                        std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
-                        mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index,
-                                                                   buffer.data(),
-                                                                   static_cast<size_t>(stat.m_uncomp_size), 0);
-                        if (res != 0) {
-                            has_MODEL_in_rels = buffer.find(MODEL_FILE) != std::string::npos;
-                        }
-                    } else if (name == "Metadata/SuperSlicer.config") {
-                        has_superslicer_metadata = true;
-                    }
+                if (!mz_zip_reader_file_stat(&archive, i, &stat))
+                    continue;
+                std::string name(stat.m_filename);
+                std::replace(name.begin(), name.end(), '\\', '/');
+                if (name == "Metadata/SuperSlicer.config") {
+                    has_superslicer_metadata = true;
+                    continue;
+                }
+                if (name != "_rels/.rels")
+                    continue;
+
+                // open
+                std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
+                mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index,
+                                                           buffer.data(),
+                                                           static_cast<size_t>(stat.m_uncomp_size), 0);
+                if (res != 0) {
+                    has_MODEL_in_rels = buffer.find(MODEL_FILE) != std::string::npos;
                 }
             }
             if (has_superslicer_metadata && has_MODEL_in_rels) {
@@ -838,68 +842,68 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
         bool print_config_parsed = false, model_config_parsed = false;
         bool read_SLIC3R_LAYER_CONFIG_RANGES_FILE = false;
         for (mz_uint i = 0; i < num_entries; ++i) {
-            if (mz_zip_reader_file_stat(&archive, i, &stat)) {
-                std::string name(stat.m_filename);
-                std::replace(name.begin(), name.end(), '\\', '/');
+            if (!mz_zip_reader_file_stat(&archive, i, &stat))
+                continue;
+            std::string name(stat.m_filename);
+            std::replace(name.begin(), name.end(), '\\', '/');
 
-                if (boost::algorithm::iequals(name, LAYER_HEIGHTS_PROFILE_FILE)) {
-                    // extract slic3r layer heights profile file
-                    _extract_layer_heights_profile_config_from_archive(archive, stat);
+            if (boost::algorithm::iequals(name, LAYER_HEIGHTS_PROFILE_FILE)) {
+                // extract slic3r layer heights profile file
+                _extract_layer_heights_profile_config_from_archive(archive, stat);
+            }
+            else if (boost::algorithm::iequals(name, CUT_INFORMATION_FILE)) {
+                // extract slic3r layer config ranges file
+                _extract_cut_information_from_archive(archive, stat, config_substitutions);
+            }
+            else if (boost::algorithm::iequals(name, SLIC3R_LAYER_CONFIG_RANGES_FILE)) {
+                // extract slic3r layer config ranges file
+                _extract_layer_config_ranges_from_archive(archive, stat, config_substitutions);
+                read_SLIC3R_LAYER_CONFIG_RANGES_FILE = true;
+            }
+            else if (boost::algorithm::iequals(name, SLA_SUPPORT_POINTS_FILE)) {
+                // extract sla support points file
+                _extract_sla_support_points_from_archive(archive, stat);
+            }
+            else if (boost::algorithm::iequals(name, SLA_DRAIN_HOLES_FILE)) {
+                // extract sla support points file
+                _extract_sla_drain_holes_from_archive(archive, stat);
+            }
+            else if (boost::algorithm::iequals(name, SLIC3R_PRINT_CONFIG_FILE)) {
+                // extract slic3r print config file
+                _extract_print_config_from_archive(archive, stat, config, config_substitutions, filename);
+                print_config_parsed = true;
+            }
+            else if (boost::algorithm::iequals(name, CUSTOM_GCODE_PER_PRINT_Z_FILE)) {
+                // extract slic3r layer config ranges file
+                _extract_custom_gcode_per_print_z_from_archive(archive, stat);
+            }
+            else if (boost::algorithm::iequals(name, SLIC3R_MODEL_CONFIG_FILE)) {
+                // extract slic3r model config file
+                if (!_extract_model_config_from_archive(archive, stat, model)) {
+                    close_zip_reader(&archive);
+                    add_error("Archive does not contain a valid model config");
+                    return false;
                 }
-                else if (boost::algorithm::iequals(name, CUT_INFORMATION_FILE)) {
-                    // extract slic3r layer config ranges file
-                    _extract_cut_information_from_archive(archive, stat, config_substitutions);
-                }
-                else if (boost::algorithm::iequals(name, SLIC3R_LAYER_CONFIG_RANGES_FILE)) {
-                    // extract slic3r layer config ranges file
-                    _extract_layer_config_ranges_from_archive(archive, stat, config_substitutions);
-                    read_SLIC3R_LAYER_CONFIG_RANGES_FILE = true;
-                }
-                else if (boost::algorithm::iequals(name, SLA_SUPPORT_POINTS_FILE)) {
-                    // extract sla support points file
-                    _extract_sla_support_points_from_archive(archive, stat);
-                }
-                else if (boost::algorithm::iequals(name, SLA_DRAIN_HOLES_FILE)) {
-                    // extract sla support points file
-                    _extract_sla_drain_holes_from_archive(archive, stat);
-                }
-                else if (boost::algorithm::iequals(name, SLIC3R_PRINT_CONFIG_FILE)) {
-                    // extract slic3r print config file
-                    _extract_print_config_from_archive(archive, stat, config, config_substitutions, filename);
-                    print_config_parsed = true;
-                }
-                else if (boost::algorithm::iequals(name, CUSTOM_GCODE_PER_PRINT_Z_FILE)) {
-                    // extract slic3r layer config ranges file
-                    _extract_custom_gcode_per_print_z_from_archive(archive, stat);
-                }
-                else if (boost::algorithm::iequals(name, SLIC3R_MODEL_CONFIG_FILE)) {
-                    // extract slic3r model config file
-                    if (!_extract_model_config_from_archive(archive, stat, model)) {
-                        close_zip_reader(&archive);
-                        add_error("Archive does not contain a valid model config");
-                        return false;
-                    }
-                    print_config_parsed = true;
-                } 
-                else if (_is_svg_shape_file(name)) {
-                    _extract_embossed_svg_shape_file(name, archive, stat);
-                }
+                print_config_parsed = true;
+            } 
+            else if (_is_svg_shape_file(name)) {
+                _extract_embossed_svg_shape_file(name, archive, stat);
             }
         }
         // as the file wasn't renamed properly, this is a stop-gap for some version until all projects are normalized.
         if (print_config_parsed && !read_SLIC3R_LAYER_CONFIG_RANGES_FILE) {
             for (mz_uint i = 0; i < num_entries; ++i) {
-                if (mz_zip_reader_file_stat(&archive, i, &stat)) {
-                    std::string name(stat.m_filename);
-                    std::replace(name.begin(), name.end(), '\\', '/');
+                if (!mz_zip_reader_file_stat(&archive, i, &stat))
+                    continue;
+                std::string name(stat.m_filename);
+                std::replace(name.begin(), name.end(), '\\', '/');
 
-                    if (boost::algorithm::iequals(name, PRUSA_LAYER_CONFIG_RANGES_FILE)) {
-                        // extract slic3r layer config ranges file from a bad named file
-                            m_trying_read_prusa = true;
-                            _extract_layer_config_ranges_from_archive(archive, stat, config_substitutions);
-                            m_trying_read_prusa = false;
-                        break;
-                    }
+                if (boost::algorithm::iequals(name, PRUSA_LAYER_CONFIG_RANGES_FILE)) {
+                    // extract slic3r layer config ranges file from a bad named file
+                    m_trying_read_prusa = true;
+                    _extract_layer_config_ranges_from_archive(archive, stat, config_substitutions);
+                    m_trying_read_prusa = false;
+                    break;
                 }
             }
         }
@@ -909,29 +913,34 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
         auto read_from_other_storage = [this, &print_config_parsed, num_entries, &archive, &stat, &config, &model, &filename, &config_substitutions]
                 (const std::string &print_config_name, const std::string& model_config_name, const std::string& layer_config_name) -> bool {
             for (mz_uint i = 0; i < num_entries; ++i) {
-                if (mz_zip_reader_file_stat(&archive, i, &stat)) {
-                    std::string name(stat.m_filename);
-                    std::replace(name.begin(), name.end(), '\\', '/');
+                if (!mz_zip_reader_file_stat(&archive, i, &stat))
+                    continue;
+                std::string name(stat.m_filename);
+                std::replace(name.begin(), name.end(), '\\', '/');
 
-                    // The format-specific extractors below own conversion for each legacy configuration entry.
+                // The format-specific extractors below own conversion for each legacy configuration entry.
 
-                    if (boost::algorithm::iequals(name, layer_config_name)) {
-                        // extract slic3r layer config ranges file
-                        _extract_layer_config_ranges_from_archive(archive, stat, config_substitutions);
-                    } else if (boost::algorithm::iequals(name, print_config_name)) {
-                        // extract slic3r print config file
-                        _extract_print_config_from_archive(archive, stat, config, config_substitutions, filename);
-                        print_config_parsed = true;
-                    } else if (boost::algorithm::iequals(name, model_config_name)) {
-                        // extract slic3r model config file
-                        if (!_extract_model_config_from_archive(archive, stat, model)) {
-                            close_zip_reader(&archive);
-                            add_error("Archive does not contain a valid model config");
-                            return false;
-                        }
-                        print_config_parsed = true;
-                    }
+                if (boost::algorithm::iequals(name, layer_config_name)) {
+                    // extract slic3r layer config ranges file
+                    _extract_layer_config_ranges_from_archive(archive, stat, config_substitutions);
+                    continue;
                 }
+                if (boost::algorithm::iequals(name, print_config_name)) {
+                    // extract slic3r print config file
+                    _extract_print_config_from_archive(archive, stat, config, config_substitutions, filename);
+                    print_config_parsed = true;
+                    continue;
+                }
+                if (!boost::algorithm::iequals(name, model_config_name))
+                    continue;
+
+                // extract slic3r model config file
+                if (!_extract_model_config_from_archive(archive, stat, model)) {
+                    close_zip_reader(&archive);
+                    add_error("Archive does not contain a valid model config");
+                    return false;
+                }
+                print_config_parsed = true;
             }
             return true;
         };
@@ -958,44 +967,43 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
             // if the 3mf was not produced by PrusaSlicer and there is more than one instance,
             // split the object in as many objects as instances
             size_t curr_models_count = m_model->objects.size();
-            size_t i = 0;
-            while (i < curr_models_count) {
+            for (size_t i = 0; i < curr_models_count; ++i) {
                 ModelObject* model_object = m_model->objects[i];
-                if (model_object->instances.size() > 1) {
-                    // select the geometry associated with the original model object
-                    const Geometry* geometry = nullptr;
-                    for (const IdToModelObjectMap::value_type& object : m_objects) {
-                        if (object.second == int(i)) {
-                            IdToGeometryMap::const_iterator obj_geometry = m_geometries.find(object.first);
-                            if (obj_geometry == m_geometries.end()) {
-                                add_error("Unable to find object geometry");
-                                return false;
-                            }
-                            geometry = &obj_geometry->second;
-                            break;
-                        }
-                    }
+                if (model_object->instances.size() <= 1)
+                    continue;
 
-                    if (geometry == nullptr) {
+                // select the geometry associated with the original model object
+                const Geometry* geometry = nullptr;
+                for (const IdToModelObjectMap::value_type& object : m_objects) {
+                    if (object.second != int(i))
+                        continue;
+                    IdToGeometryMap::const_iterator obj_geometry = m_geometries.find(object.first);
+                    if (obj_geometry == m_geometries.end()) {
                         add_error("Unable to find object geometry");
                         return false;
                     }
-
-                    // use the geometry to create the volumes in the new model objects
-                    ObjectMetadata::VolumeMetadataList volumes(1, { 0, static_cast<unsigned int>(geometry->triangles.size()) - 1 });
-
-                    // for each instance after the 1st, create a new model object containing only that instance
-                    // and copy into it the geometry
-                    while (model_object->instances.size() > 1) {
-                        ModelObject* new_model_object = m_model->add_object(*model_object);
-                        new_model_object->clear_instances();
-                        new_model_object->add_instance(*model_object->instances.back());
-                        model_object->delete_last_instance();
-                        if (!_generate_volumes(model, *new_model_object, *geometry, volumes, config_substitutions, config))
-                            return false;
-                    }
+                    geometry = &obj_geometry->second;
+                    break;
                 }
-                ++i;
+
+                if (geometry == nullptr) {
+                    add_error("Unable to find object geometry");
+                    return false;
+                }
+
+                // use the geometry to create the volumes in the new model objects
+                ObjectMetadata::VolumeMetadataList volumes(1, { 0, static_cast<unsigned int>(geometry->triangles.size()) - 1 });
+
+                // for each instance after the 1st, create a new model object containing only that instance
+                // and copy into it the geometry
+                while (model_object->instances.size() > 1) {
+                    ModelObject* new_model_object = m_model->add_object(*model_object);
+                    new_model_object->clear_instances();
+                    new_model_object->add_instance(*model_object->instances.back());
+                    model_object->delete_last_instance();
+                    if (!_generate_volumes(model, *new_model_object, *geometry, volumes, config_substitutions, config))
+                        return false;
+                }
             }
         }
 
@@ -1210,60 +1218,63 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
 
     void _3MF_Importer::_extract_cut_information_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat, ConfigSubstitutionContext& config_substitutions)
     {
-        if (stat.m_uncomp_size > 0) {
-            std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
-            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, static_cast<void*>(buffer.data()), static_cast<size_t>(stat.m_uncomp_size), 0);
-            if (res == 0) {
-                add_error("Error while reading cut information data to buffer");
-                return;
+        if (stat.m_uncomp_size <= 0)
+            return;
+
+        std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
+        mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, static_cast<void*>(buffer.data()), static_cast<size_t>(stat.m_uncomp_size), 0);
+        if (res == 0) {
+            add_error("Error while reading cut information data to buffer");
+            return;
+        }
+
+        std::istringstream iss(buffer); // wrap returned xml to istringstream
+        pt::ptree objects_tree;
+        pt::read_xml(iss, objects_tree);
+
+        for (const auto& object : objects_tree.get_child("objects")) {
+            pt::ptree object_tree = object.second;
+            int obj_idx = object_tree.get<int>(kXmlattrId, -1);
+            if (obj_idx <= 0) {
+                add_error(kFoundInvalidObjectId);
+                continue;
             }
 
-            std::istringstream iss(buffer); // wrap returned xml to istringstream
-            pt::ptree objects_tree;
-            pt::read_xml(iss, objects_tree);
-
-            for (const auto& object : objects_tree.get_child("objects")) {
-                pt::ptree object_tree = object.second;
-                int obj_idx = object_tree.get<int>(kXmlattrId, -1);
-                if (obj_idx <= 0) {
-                    add_error(kFoundInvalidObjectId);
-                    continue;
-                }
-
-                IdToCutObjectInfoMap::iterator object_item = m_cut_object_infos.find(obj_idx);
-                if (object_item != m_cut_object_infos.end()) {
-                    add_error("Found duplicated cut_object_id");
-                    continue;
-                }
-
-                CutObjectBase cut_id;
-                std::vector<CutObjectInfo::Connector>  connectors;
-
-                for (const auto& obj_cut_info : object_tree) {
-                    if (obj_cut_info.first == "cut_id") {
-                        pt::ptree cut_id_tree = obj_cut_info.second;
-                        cut_id = CutObjectBase(ObjectID( cut_id_tree.get<size_t>(kXmlattrId)),
-                                                         cut_id_tree.get<size_t>("<xmlattr>.check_sum"),
-                                                         cut_id_tree.get<size_t>("<xmlattr>.connectors_cnt"));
-                    }
-                    if (obj_cut_info.first == "connectors") {
-                        pt::ptree cut_connectors_tree = obj_cut_info.second;
-                        for (const auto& cut_connector : cut_connectors_tree) {
-                            if (cut_connector.first != "connector")
-                                continue;
-                            pt::ptree connector_tree = cut_connector.second;
-                            CutObjectInfo::Connector connector = {connector_tree.get<int>("<xmlattr>.volume_id"),
-                                                                  connector_tree.get<int>("<xmlattr>.type"),
-                                                                  connector_tree.get<float>("<xmlattr>.r_tolerance"),
-                                                                  connector_tree.get<float>("<xmlattr>.h_tolerance")};
-                            connectors.emplace_back(connector);
-                        }
-                    }
-                }
-
-                CutObjectInfo cut_info {cut_id, connectors};
-                m_cut_object_infos.insert({ obj_idx, cut_info });
+            IdToCutObjectInfoMap::iterator object_item = m_cut_object_infos.find(obj_idx);
+            if (object_item != m_cut_object_infos.end()) {
+                add_error("Found duplicated cut_object_id");
+                continue;
             }
+
+            CutObjectBase cut_id;
+            std::vector<CutObjectInfo::Connector>  connectors;
+
+            for (const auto& obj_cut_info : object_tree) {
+                if (obj_cut_info.first == "cut_id") {
+                    pt::ptree cut_id_tree = obj_cut_info.second;
+                    cut_id = CutObjectBase(ObjectID( cut_id_tree.get<size_t>(kXmlattrId)),
+                                                     cut_id_tree.get<size_t>("<xmlattr>.check_sum"),
+                                                     cut_id_tree.get<size_t>("<xmlattr>.connectors_cnt"));
+                    continue;
+                }
+                if (obj_cut_info.first != "connectors")
+                    continue;
+
+                pt::ptree cut_connectors_tree = obj_cut_info.second;
+                for (const auto& cut_connector : cut_connectors_tree) {
+                    if (cut_connector.first != "connector")
+                        continue;
+                    pt::ptree connector_tree = cut_connector.second;
+                    CutObjectInfo::Connector connector = {connector_tree.get<int>("<xmlattr>.volume_id"),
+                                                          connector_tree.get<int>("<xmlattr>.type"),
+                                                          connector_tree.get<float>("<xmlattr>.r_tolerance"),
+                                                          connector_tree.get<float>("<xmlattr>.h_tolerance")};
+                    connectors.emplace_back(connector);
+                }
+            }
+
+            CutObjectInfo cut_info {cut_id, connectors};
+            m_cut_object_infos.insert({ obj_idx, cut_info });
         }
     }
 
@@ -1357,70 +1368,71 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
 
     void _3MF_Importer::_extract_layer_config_ranges_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat, ConfigSubstitutionContext& config_substitutions)
     {
-        if (stat.m_uncomp_size > 0) {
-            std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
-            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, static_cast<void*>(buffer.data()), static_cast<size_t>(stat.m_uncomp_size), 0);
-            if (res == 0) {
-                add_error("Error while reading layer config ranges data to buffer");
-                return;
+        if (stat.m_uncomp_size <= 0)
+            return;
+
+        std::string buffer(static_cast<size_t>(stat.m_uncomp_size), 0);
+        mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, static_cast<void*>(buffer.data()), static_cast<size_t>(stat.m_uncomp_size), 0);
+        if (res == 0) {
+            add_error("Error while reading layer config ranges data to buffer");
+            return;
+        }
+
+        std::istringstream iss(buffer); // wrap returned xml to istringstream
+        pt::ptree objects_tree;
+        pt::read_xml(iss, objects_tree);
+
+        for (const auto& object : objects_tree.get_child("objects")) {
+            pt::ptree object_tree = object.second;
+            int obj_idx = object_tree.get<int>(kXmlattrId, -1);
+            if (obj_idx <= 0) {
+                add_error(kFoundInvalidObjectId);
+                continue;
             }
 
-            std::istringstream iss(buffer); // wrap returned xml to istringstream
-            pt::ptree objects_tree;
-            pt::read_xml(iss, objects_tree);
+            IdToLayerConfigRangesMap::iterator object_item = m_layer_config_ranges.find(obj_idx);
+            if (object_item != m_layer_config_ranges.end()) {
+                add_error("Found duplicated layer config range");
+                continue;
+            }
 
-            for (const auto& object : objects_tree.get_child("objects")) {
-                pt::ptree object_tree = object.second;
-                int obj_idx = object_tree.get<int>(kXmlattrId, -1);
-                if (obj_idx <= 0) {
-                    add_error(kFoundInvalidObjectId);
+            t_layer_config_ranges config_ranges;
+
+            for (const auto& range : object_tree) {
+                if (range.first != "range")
                     continue;
-                }
+                pt::ptree range_tree = range.second;
+                double min_z = range_tree.get<double>("<xmlattr>.min_z");
+                double max_z = range_tree.get<double>("<xmlattr>.max_z");
 
-                IdToLayerConfigRangesMap::iterator object_item = m_layer_config_ranges.find(obj_idx);
-                if (object_item != m_layer_config_ranges.end()) {
-                    add_error("Found duplicated layer config range");
-                    continue;
-                }
-
-                t_layer_config_ranges config_ranges;
-
-                for (const auto& range : object_tree) {
-                    if (range.first != "range")
+                // get Z range information
+                DynamicPrintConfig config;
+                std::map<t_config_option_key, std::string> opt_key_to_value;
+                for (const auto& option : range_tree) {
+                    if (option.first != "option")
                         continue;
-                    pt::ptree range_tree = range.second;
-                    double min_z = range_tree.get<double>("<xmlattr>.min_z");
-                    double max_z = range_tree.get<double>("<xmlattr>.max_z");
-
-                    // get Z range information
-                    DynamicPrintConfig config;
-                    std::map<t_config_option_key, std::string> opt_key_to_value;
-                    for (const auto& option : range_tree) {
-                        if (option.first != "option")
-                            continue;
-                        std::string opt_key = option.second.get<std::string>("<xmlattr>.opt_key");
-                        std::string value = option.second.data();
-                        if (value.empty() && opt_key.find("pattern") != std::string::npos) {
-                            add_error("Error while reading '"+ opt_key +
-                                "': no value. If you are the one who created this project file, please open an issue and put the ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt file created next to the executable for debugging.");
-                            std::string old_value = "Error while reading '" + opt_key +
-                                "': no value. If you are the one who created this project file, please open an issue and put the ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt file created next to the executable for debugging.";
-                            const ConfigOptionDef *opt_def = config.get_option_def(opt_key);
-                            config_substitutions.emplace(opt_def,
-                                std::move(old_value),
-                                ConfigOptionUniquePtr(opt_def->default_value->clone()));
-                        } else {
-                            opt_key_to_value.emplace(opt_key, value);
-                        }
+                    std::string opt_key = option.second.get<std::string>("<xmlattr>.opt_key");
+                    std::string value = option.second.data();
+                    if (value.empty() && opt_key.find("pattern") != std::string::npos) {
+                        add_error("Error while reading '"+ opt_key +
+                            "': no value. If you are the one who created this project file, please open an issue and put the ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt file created next to the executable for debugging.");
+                        std::string old_value = "Error while reading '" + opt_key +
+                            "': no value. If you are the one who created this project file, please open an issue and put the ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt file created next to the executable for debugging.";
+                        const ConfigOptionDef *opt_def = config.get_option_def(opt_key);
+                        config_substitutions.emplace(opt_def,
+                            std::move(old_value),
+                            ConfigOptionUniquePtr(opt_def->default_value->clone()));
+                    } else {
+                        opt_key_to_value.emplace(opt_key, value);
                     }
-                    deserialize_maybe_from_prusa(opt_key_to_value, config, config_substitutions, true, m_trying_read_prusa);
-
-                    config_ranges[{ min_z, max_z }].assign_config(std::move(config));
                 }
+                deserialize_maybe_from_prusa(opt_key_to_value, config, config_substitutions, true, m_trying_read_prusa);
 
-                if (!config_ranges.empty())
-                    m_layer_config_ranges.insert({ obj_idx, std::move(config_ranges) });
+                config_ranges[{ min_z, max_z }].assign_config(std::move(config));
             }
+
+            if (!config_ranges.empty())
+                m_layer_config_ranges.insert({ obj_idx, std::move(config_ranges) });
         }
     }
 
@@ -2488,26 +2500,24 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
                 return false;
             }
 
-            {
-                int min_id = its.indices.front()[0];
-                int max_id = min_id;
-                for (const Vec3i32& face : its.indices) {
-                    for (const int tri_id : face) {
-                        if (tri_id < 0 || tri_id >= int(geometry.vertices.size())) {
-                            add_error("Found invalid vertex id");
-                            return false;
-                        }
-                        min_id = std::min(min_id, tri_id);
-                        max_id = std::max(max_id, tri_id);
+            int min_id = its.indices.front()[0];
+            int max_id = min_id;
+            for (const Vec3i32& face : its.indices) {
+                for (const int tri_id : face) {
+                    if (tri_id < 0 || tri_id >= int(geometry.vertices.size())) {
+                        add_error("Found invalid vertex id");
+                        return false;
                     }
+                    min_id = std::min(min_id, tri_id);
+                    max_id = std::max(max_id, tri_id);
                 }
-                its.vertices.assign(geometry.vertices.begin() + min_id, geometry.vertices.begin() + max_id + 1);
-
-                // rebase indices to the current vertices list
-                for (Vec3i32& face : its.indices)
-                    for (int& tri_id : face)
-                        tri_id -= min_id;
             }
+            its.vertices.assign(geometry.vertices.begin() + min_id, geometry.vertices.begin() + max_id + 1);
+
+            // rebase indices to the current vertices list
+            for (Vec3i32& face : its.indices)
+                for (int& tri_id : face)
+                    tri_id -= min_id;
 
             if (m_prusaslicer_generator_version && 
                 *m_prusaslicer_generator_version >= *Semver::parse("2.4.0-alpha1") &&
@@ -3464,6 +3474,73 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
         return true;
     }
 
+    namespace {
+    // Rare-path diagnostic dump for a layer-config-range option that unexpectedly failed to serialize.
+    // Kept as a standalone helper so this cold error path doesn't compound the caller's loop nesting.
+    void log_layer_config_range_serialize_failure(const ModelConfig& config, const std::string& opt_key, const std::string& value, const DynamicPrintConfig& globalConfig)
+    {
+        std::ofstream log("ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt", std::ios_base::app);
+        const ConfigOption *option = config.option(opt_key);
+        log << "error in ranges, can't serialize " << opt_key << ": '" << value << "' " << (option != nullptr) << "\n";
+        if (option != nullptr) {
+            log << "type : " << option->type();
+            log << ", flags : " << option->flags;
+            log << ", phony : " << option->is_phony();
+            log << ", serialized : '" << option->serialize() << "'";
+            log << "\n";
+        }
+        log << "Keys in config:";
+        for (const std::string &k : config.keys()) log << " " << k;
+        log << "\n";
+        if (option != nullptr && option->type() == ConfigOptionType::coEnum) {
+            log << "enum : " << option->get_int();
+            log << "\n";
+            const ConfigOptionDef* def = nullptr;
+            try {
+                def = globalConfig.get_option_def(opt_key);
+            }
+            catch (Exception) {}
+            if (def != nullptr) {
+                log << "map : " << "\n";
+                for (int i = 0; i < def->enum_def->values().size(); ++i) {
+                    log << "\t" << i << " : " << def->enum_def->label(i) << "->" << def->enum_def->value(i) << "\n";
+                }
+            }
+        }
+        if (option != nullptr && option->type() == ConfigOptionType::coInt) {
+            log << "int : " << option->get_int();
+            log << "\n";
+        }
+        log.close();
+    }
+
+    // Serializes one layer-config-range option; returns an empty string on success or an error message to report.
+    std::string write_layer_config_range_option(pt::ptree& range_tree, const ModelConfig& config, const std::string& opt_key, bool to_prusa, const DynamicPrintConfig& globalConfig)
+    {
+        if (to_prusa) {
+            std::string value = config.opt_serialize(opt_key);
+            std::string key = opt_key;
+            PrintConfigDef::to_prusa(key, value, globalConfig);
+            if (!key.empty()) {
+                pt::ptree& opt_tree = range_tree.add("option", value);
+                opt_tree.put("<xmlattr>.opt_key", opt_key);
+            }
+            return {};
+        }
+
+        std::string value = config.opt_serialize(opt_key);
+        if (!value.empty() || opt_key.find("_pattern") == std::string::npos) {
+            pt::ptree& opt_tree = range_tree.add("option", value);
+            opt_tree.put("<xmlattr>.opt_key", opt_key);
+            return {};
+        }
+
+        log_layer_config_range_serialize_failure(config, opt_key, value, globalConfig);
+        assert(false);
+        return "Error while writing '" + opt_key + "': no value. Please open an issue and put the ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt file created next to the executable for debugging.";
+    }
+    } // namespace
+
     bool _3MF_Exporter::_add_layer_config_ranges_file_to_archive(mz_zip_archive& archive, Model& model, const DynamicPrintConfig &globalConfig)
     {
         std::string default_out = "";
@@ -3475,79 +3552,30 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
             for (const ModelObject* object : model.objects) {
                 object_cnt++;
                 const t_layer_config_ranges& ranges = object->layer_config_ranges;
-                if (!ranges.empty())
-                {
-                    pt::ptree& obj_tree = tree.add("objects.object", "");
+                if (ranges.empty())
+                    continue;
 
-                    obj_tree.put(kXmlattrId, object_cnt);
+                pt::ptree& obj_tree = tree.add("objects.object", "");
 
-                    // Store the layer config ranges.
-                    for (const auto& range : ranges) {
-                        pt::ptree& range_tree = obj_tree.add("range", "");
+                obj_tree.put(kXmlattrId, object_cnt);
 
-                        // store minX and maxZ
-                        range_tree.put("<xmlattr>.min_z", range.first.first);
-                        range_tree.put("<xmlattr>.max_z", range.first.second);
+                // Store the layer config ranges.
+                for (const auto& range : ranges) {
+                    pt::ptree& range_tree = obj_tree.add("range", "");
 
-                        // store range configuration
-                        const ModelConfig& config = range.second;
-                        for (const std::string& opt_key : config.keys()) {
-                            //check if we need to call 'to_prusa' to adapt config
-                            if (out == &prusa_out) {
-                                std::string value = config.opt_serialize(opt_key);
-                                std::string key = opt_key;
-                                PrintConfigDef::to_prusa(key, value, globalConfig);
-                                if (!key.empty()) {
-                                    pt::ptree& opt_tree = range_tree.add("option", value);
-                                    opt_tree.put("<xmlattr>.opt_key", opt_key);
-                                }
-                            } else {
-                                std::string value = config.opt_serialize(opt_key);
-                                if (!value.empty() || opt_key.find("_pattern") == std::string::npos) {
-                                    pt::ptree& opt_tree = range_tree.add("option", value);
-                                    opt_tree.put("<xmlattr>.opt_key", opt_key);
-                                } else {
-                                    std::ofstream log("ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt", std::ios_base::app);
-                                    const ConfigOption *option = config.option(opt_key);
-                                    log << "error in ranges, can't serialize " << opt_key << ": '" << value << "' " << (option != nullptr) << "\n";
-                                    if (option != nullptr) {
-                                        log << "type : " << option->type();
-                                        log << ", flags : " << option->flags;
-                                        log << ", phony : " << option->is_phony();
-                                        log << ", serialized : '" << option->serialize() << "'";
-                                        log << "\n";
-                                    }
-                                    log << "Keys in config:";
-                                    for(const std::string &k : config.keys()) log << " " << k;
-                                    log << "\n";
-                                    if (option != nullptr && option->type() == ConfigOptionType::coEnum) {
-                                        log << "enum : " << option->get_int();
-                                        log << "\n";
-                                        const ConfigOptionDef* def = nullptr;
-                                        try {
-                                            def = globalConfig.get_option_def(opt_key);
-                                        }
-                                        catch (Exception) {}
-                                        if (def != nullptr) {
-                                            log << "map : " << "\n";
-                                            for (int i=0;i<def->enum_def->values().size();++i) {
-                                                log << "\t" << i << " : " << def->enum_def->label(i) << "->" << def->enum_def->value(i) << "\n";
-                                            }
-                                        }
-                                    }
-                                    if (option != nullptr && option->type() == ConfigOptionType::coInt) {
-                                        log << "int : " << option->get_int();
-                                        log << "\n";
-                                    }
-                                    log.close();
-                                    assert(false);
-                                    add_error("Error while writing '" + opt_key + "': no value. Please open an issue and put the ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt file created next to the executable for debugging.");
-                                }
-                            }
-                        }
+                    // store minX and maxZ
+                    range_tree.put("<xmlattr>.min_z", range.first.first);
+                    range_tree.put("<xmlattr>.max_z", range.first.second);
+
+                    // store range configuration
+                    const ModelConfig& config = range.second;
+                    for (const std::string& opt_key : config.keys()) {
+                        //check if we need to call 'to_prusa' to adapt config
+                        const std::string error = write_layer_config_range_option(range_tree, config, opt_key, out == &prusa_out, globalConfig);
+                        if (!error.empty())
+                            add_error(error);
                     }
                 }
-
             }
             if (!tree.empty()) {
                 std::ostringstream oss;
@@ -3701,6 +3729,128 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
         return true;
     }
 
+    namespace {
+    // Rare-path diagnostic dump for a model-config option that unexpectedly failed to serialize.
+    // Kept as a standalone helper so this cold error path doesn't compound the caller's loop nesting.
+    void log_model_config_serialize_failure(const ModelConfig& config, const std::string& key, const std::string& value, const DynamicPrintConfig& print_config)
+    {
+        std::ofstream log("ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt", std::ios_base::app);
+        const ConfigOption *option = config.option(key);
+        log << "error in model, can't serialize " << key << ": '" << value << "' " << (option != nullptr) << "\n";
+        if (option != nullptr) {
+            log << "type : " << option->type();
+            log << ", flags : " << option->flags;
+            log << ", phony : " << option->is_phony();
+            log << ", serialized : '" << option->serialize() << "'";
+            log << "\n";
+        }
+        log << "Keys in obj:";
+        for (const std::string &k : config.keys()) log << " " << k;
+        log << "\n";
+        if (option != nullptr && option->type() == ConfigOptionType::coEnum) {
+            try {
+                log << "raw_int_value : " << option->get_int() << "\n";
+            } catch (std::exception ex) {}
+            log << "enum : " << option->get_int();
+            log << "\n";
+            const ConfigOptionDef* def = nullptr;
+            try {
+                def = print_config.get_option_def(key);
+            }
+            catch (Exception) {}
+            if (def != nullptr) {
+                log << "map : " << "\n";
+                for (int i = 0; i < def->enum_def->values().size(); ++i) {
+                    log << "\t" << i << " : " << def->enum_def->label(i) << "->" << def->enum_def->value(i) << "\n";
+                }
+            }
+        }
+        if (option != nullptr && option->type() == ConfigOptionType::coInt) {
+            log << "int : " << option->get_int();
+            log << "\n";
+        }
+        log.close();
+    }
+
+    // Rare-path diagnostic dump for a volume-config option that unexpectedly failed to serialize.
+    void log_volume_config_serialize_failure(const ModelConfig& config, const std::string& key, const std::string& value, const DynamicPrintConfig& print_config)
+    {
+        std::ofstream log("ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt", std::ios_base::app);
+        const ConfigOption *option = config.option(key);
+        log << "error in volume, can't serialize " << key << ": '" << value << "' "
+            << ((option != nullptr) ? "exist" : "doesn't exist") << "\n";
+        if (option != nullptr) {
+            log << "type : " << option->type();
+            log << ", flags : " << option->flags;
+            log << ", phony : " << option->is_phony();
+            log << ", serialized : '" << option->serialize() << "'";
+            log << "\n";
+        }
+        log << "Keys in volume:";
+        for (const std::string &k : config.keys())
+            log << " " << k;
+        log << "\n";
+        if (option != nullptr && option->type() == ConfigOptionType::coEnum) {
+            try {
+                log << "raw_int_value : " << option->get_int() << "\n";
+            } catch (std::exception ex) {}
+            log << "enum : " << option->get_int();
+            log << "\n";
+            const ConfigOptionDef *def = nullptr;
+            try {
+                def = print_config.get_option_def(key);
+            } catch (Exception) {}
+            if (def != nullptr) {
+                log << "map : "
+                    << "\n";
+                for (int i = 0; i < def->enum_def->values().size(); ++i) {
+                    log << "\t" << i << " : " << def->enum_def->label(i) << "->"
+                        << def->enum_def->value(i) << "\n";
+                }
+            }
+        }
+        if (option != nullptr && option->type() == ConfigOptionType::coInt) {
+            log << "int : " << option->get_int();
+            log << "\n";
+        }
+        log.close();
+    }
+
+    // Writes one volume-level 4x4 transform matrix metadata entry; shared by the bake/no-bake write paths.
+    void write_volume_matrix_metadata(std::stringstream& stream, const char* key, const Transform3d& matrix)
+    {
+        stream << "   <" << METADATA_TAG << " " << TYPE_ATTR << "=\"" << VOLUME_TYPE << "\" "
+               << KEY_ATTR << "=\"" << key << "\" " << VALUE_ATTR << "=\"";
+        for (int r = 0; r < 4; ++r) {
+            for (int c = 0; c < 4; ++c) {
+                stream << matrix(r, c);
+                if (r != 3 || c != 3)
+                    stream << " ";
+            }
+        }
+        stream << "\"/>\n";
+    }
+
+    // Serializes one volume-config option; returns an empty string on success or an error message to report.
+    std::string write_volume_config_option(std::stringstream& stream, const ModelConfig& config, const std::string& key, const DynamicPrintConfig& print_config)
+    {
+        std::string value = config.opt_serialize(key);
+        if (!value.empty() || key.find("_pattern") == std::string::npos) {
+            stream << "  <" << METADATA_TAG << " " << TYPE_ATTR << "=\"" << VOLUME_TYPE
+                   << "\" " << KEY_ATTR << "=\"" << key << "\" " << VALUE_ATTR << "=\""
+                   << value << "\"/>\n";
+            return {};
+        }
+
+        log_volume_config_serialize_failure(config, key, value, print_config);
+        assert(false);
+        return "Error while writing '" + key +
+               "': no value. Please open an issue and put the "
+               "ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt file created next to the "
+               "executable for debugging.";
+    }
+    } // namespace
+
     bool _3MF_Exporter::_add_model_config_file_to_archive(mz_zip_archive &archive,
                                                           const Model &model,
                                                           const DynamicPrintConfig &print_config,
@@ -3760,47 +3910,12 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
                         std::string value = obj->config.opt_serialize(key);
                         if (!value.empty() || key.find("_pattern") == std::string::npos) {
                             add_metadata(stream, 2, MetadataType::object, key, value);
-                            //stream << "  <" << METADATA_TAG << " " << TYPE_ATTR << "=\"" << OBJECT_TYPE << "\" " << KEY_ATTR << "=\"" << key << "\" " << VALUE_ATTR << "=\"" << value << "\"/>\n";
-                        } else {
-                            std::ofstream log("ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt", std::ios_base::app);
-                            const ConfigOption *option = obj->config.option(key);
-                            log << "error in model, can't serialize " << key << ": '" << value << "' " << (option != nullptr) << "\n";
-                            if (option != nullptr) {
-                                log << "type : " << option->type();
-                                log << ", flags : " << option->flags;
-                                log << ", phony : " << option->is_phony();
-                                log << ", serialized : '" << option->serialize() << "'";
-                                log << "\n";
-                            }
-                            log << "Keys in obj:";
-                            for(const std::string &k : obj->config.keys()) log << " " << k;
-                            log << "\n";
-                            if (option != nullptr && option->type() == ConfigOptionType::coEnum) {
-                                try{
-                                    log << "raw_int_value : " << option->get_int() << "\n";
-                                } catch (std::exception ex) {}
-                                log << "enum : " << option->get_int();
-                                log << "\n";
-                                const ConfigOptionDef* def = nullptr;
-                                try {
-                                    def = print_config.get_option_def(key);
-                                }
-                                catch (Exception) {}
-                                if (def != nullptr) {
-                                    log << "map : " << "\n";
-                                    for (int i=0;i<def->enum_def->values().size();++i) {
-                                        log << "\t" << i << " : " << def->enum_def->label(i) << "->" << def->enum_def->value(i) << "\n";
-                                    }
-                                }
-                            }
-                            if (option != nullptr && option->type() == ConfigOptionType::coInt) {
-                                log << "int : " << option->get_int();
-                                log << "\n";
-                            }
-                            log.close();
-                            assert(false);
-                            add_error("Error while writing '" + key + "': no value. Please open an issue and put the ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt file created next to the executable for debugging.");
+                            continue;
                         }
+
+                        log_model_config_serialize_failure(obj->config, key, value, print_config);
+                        assert(false);
+                        add_error("Error while writing '" + key + "': no value. Please open an issue and put the ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt file created next to the executable for debugging.");
                     }
                 }
 
@@ -3809,8 +3924,10 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
                         continue;
                     const VolumeToOffsetsMap &offsets = obj_metadata.second.volumes_offsets;
                     VolumeToOffsetsMap::const_iterator it = offsets.find(volume);
-                    if (it != offsets.end()) {
-                        // stores volume's offsets
+                    if (it == offsets.end())
+                        continue;
+
+                    // stores volume's offsets
                         stream << "  <" << VOLUME_TAG << " ";
                         stream << FIRST_TRIANGLE_ID_ATTR << "=\"" << it->second.first_triangle_id << "\" ";
                         stream << LAST_TRIANGLE_ID_ATTR << "=\"" << it->second.last_triangle_id << "\">\n";
@@ -3832,41 +3949,11 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
                         if (m_options.bake_transformation_in_mesh != 0) {
                             // old prusaslicer bake the transform in the mesh.
                             // stores volume's local matrix
-                            stream << "   <" << METADATA_TAG << " " << TYPE_ATTR << "=\"" << VOLUME_TYPE << "\" "
-                                   << KEY_ATTR << "=\"" << MATRIX_KEY << "\" " << VALUE_ATTR << "=\"";
-                            const Transform3d matrix = volume->get_matrix() * volume->source.transform.get_matrix();
-                            for (int r = 0; r < 4; ++r) {
-                                for (int c = 0; c < 4; ++c) {
-                                    stream << matrix(r, c);
-                                    if (r != 3 || c != 3)
-                                        stream << " ";
-                                }
-                            }
-                            stream << "\"/>\n";
+                            write_volume_matrix_metadata(stream, MATRIX_KEY, volume->get_matrix() * volume->source.transform.get_matrix());
                         } else {
-                            stream << "   <" << METADATA_TAG << " " << TYPE_ATTR << "=\"" << VOLUME_TYPE << "\" "
-                                   << KEY_ATTR << "=\"" << MATRIX_KEY << "\" " << VALUE_ATTR << "=\"";
-                            Transform3d matrix = volume->source.transform.get_matrix();
-                            for (int r = 0; r < 4; ++r) {
-                                for (int c = 0; c < 4; ++c) {
-                                    stream << matrix(r, c);
-                                    if (r != 3 || c != 3)
-                                        stream << " ";
-                                }
-                            }
-                            stream << "\"/>\n";
+                            write_volume_matrix_metadata(stream, MATRIX_KEY, volume->source.transform.get_matrix());
                             // stores volume's local matrix
-                            stream << "   <" << METADATA_TAG << " " << TYPE_ATTR << "=\"" << VOLUME_TYPE << "\" "
-                                   << KEY_ATTR << "=\"" << TRANSFORM_KEY << "\" " << VALUE_ATTR << "=\"";
-                            matrix = volume->get_matrix();
-                            for (int r = 0; r < 4; ++r) {
-                                for (int c = 0; c < 4; ++c) {
-                                    stream << matrix(r, c);
-                                    if (r != 3 || c != 3)
-                                        stream << " ";
-                                }
-                            }
-                            stream << "\"/>\n";
+                            write_volume_matrix_metadata(stream, TRANSFORM_KEY, volume->get_matrix());
                         }
 
                         // stores volume's source data
@@ -3918,60 +4005,9 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
                             }
                         } else {
                             for (const std::string &key : volume->config.keys()) {
-                                // stream << "   <" << METADATA_TAG << " " << TYPE_ATTR << "=\"" << VOLUME_TYPE << "\"
-                                // " << KEY_ATTR << "=\"" << key << "\" " << VALUE_ATTR << "=\"" <<
-                                // volume->config.opt_serialize(key) << "\"/>\n";
-                                std::string value = volume->config.opt_serialize(key);
-                                if (!value.empty() || key.find("_pattern") == std::string::npos) {
-                                    stream << "  <" << METADATA_TAG << " " << TYPE_ATTR << "=\"" << VOLUME_TYPE
-                                           << "\" " << KEY_ATTR << "=\"" << key << "\" " << VALUE_ATTR << "=\""
-                                           << value << "\"/>\n";
-                                } else {
-                                    std::ofstream log("ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt", std::ios_base::app);
-                                    const ConfigOption *option = volume->config.option(key);
-                                    log << "error in volume, can't serialize " << key << ": '" << value << "' "
-                                        << ((option != nullptr) ? "exist" : "doesn't exist") << "\n";
-                                    if (option != nullptr) {
-                                        log << "type : " << option->type();
-                                        log << ", flags : " << option->flags;
-                                        log << ", phony : " << option->is_phony();
-                                        log << ", serialized : '" << option->serialize() << "'";
-                                        log << "\n";
-                                    }
-                                    log << "Keys in volume:";
-                                    for (const std::string &k : volume->config.keys())
-                                        log << " " << k;
-                                    log << "\n";
-                                    if (option != nullptr && option->type() == ConfigOptionType::coEnum) {
-                                        try {
-                                            log << "raw_int_value : " << option->get_int() << "\n";
-                                        } catch (std::exception ex) {}
-                                        log << "enum : " << option->get_int();
-                                        log << "\n";
-                                        const ConfigOptionDef *def = nullptr;
-                                        try {
-                                            def = print_config.get_option_def(key);
-                                        } catch (Exception) {}
-                                        if (def != nullptr) {
-                                            log << "map : "
-                                                << "\n";
-                                            for (int i = 0; i < def->enum_def->values().size(); ++i) {
-                                                log << "\t" << i << " : " << def->enum_def->label(i) << "->"
-                                                    << def->enum_def->value(i) << "\n";
-                                            }
-                                        }
-                                    }
-                                    if (option != nullptr && option->type() == ConfigOptionType::coInt) {
-                                        log << "int : " << option->get_int();
-                                        log << "\n";
-                                    }
-                                    log.close();
-                                    assert(false);
-                                    add_error("Error while writing '" + key +
-                                              "': no value. Please open an issue and put the "
-                                              "ERROR_FILE_TO_SEND_TO_MERILL_PLZZZZ.txt file created next to the "
-                                              "executable for debugging.");
-                                }
+                                const std::string error = write_volume_config_option(stream, volume->config, key, print_config);
+                                if (!error.empty())
+                                    add_error(error);
                             }
                         }
 
@@ -3991,7 +4027,6 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
                         stream << MESH_STAT_BACKWARDS_EDGES << "=\"" << stats.backwards_edges << "\"/>\n";
 
                         stream << "  </" << VOLUME_TAG << ">\n";
-                    }
                 }
                 stream << " </" << OBJECT_TAG << ">\n";
             }
