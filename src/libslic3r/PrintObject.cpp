@@ -230,7 +230,7 @@ void PrintObject::make_perimeters()
     for (size_t region_id = 0; region_id < this->num_printing_regions(); ++ region_id) {
         const PrintRegion &region = this->printing_region(region_id);
         if (!region.config().extra_perimeters || region.config().perimeters == 0 ||
-            region.config().fill_density == 0 || this->layer_count() < 2) {
+            region.config().fill_density == 0 || this->layer_count() < 2) {  // need at least 2 layers for extra-perimeter logic to apply
             continue;
         }
         // use an antomic idx instead of the range, to avoid a thread being very late because it's on the difficult layers.
@@ -255,7 +255,7 @@ void PrintObject::make_perimeters()
                         const Surface &slice = slice_mutable;
                         for (;;) {
                             // compute the total thickness of perimeters
-                            const coord_t perimeters_thickness = ext_perimeter_width/2 + ext_perimeter_spacing/2
+                            const coord_t perimeters_thickness = ext_perimeter_width/2 + ext_perimeter_spacing/2  // half-width offset to the perimeter centerline
                                 + (region.config().perimeters-1 + slice.extra_perimeters) * perimeter_spacing;
                             // define a critical area where we don't want the upper slice to fall into
                             // (it should either lay over our perimeters or outside this area)
@@ -413,7 +413,7 @@ void PrintObject::prepare_infill()
     // Also tiny stInternal surfaces are turned to stInternalSolid.
     BOOST_LOG_TRIVIAL(info) << "Preparing fill surfaces..." << log_memory_info();
     if (m_print->objects().size() > 1) {
-        int32_t advancement_count = m_print->secondary_status_counter_increment(5);
+        int32_t advancement_count = m_print->secondary_status_counter_increment(5);  // progress-counter step size
         m_print->set_status(advancement_count * PROGRESS_PERCENT_SCALE / m_print->secondary_status_counter_get_max(), L(kProcessObjectsFmt),
                             {std::to_string(advancement_count),
                              std::to_string(m_print->secondary_status_counter_get_max())},
@@ -422,7 +422,7 @@ void PrintObject::prepare_infill()
     for (size_t layer_idx = 0; layer_idx < m_layers.size(); ++layer_idx) {
         Layer *layer = m_layers[layer_idx];
         if (m_print->objects().size() == 1) {
-            m_print->set_status(int(25 + (5 * layer_idx / m_layers.size())),
+            m_print->set_status(int(25 + (5 * layer_idx / m_layers.size())),  // status percent range 25-30% for this phase
                                 L("Prepare fill surfaces: layer %s / %s"),
                                 {std::to_string(layer_idx), std::to_string(m_layers.size())},
                                 PrintBase::SlicingStatus::SECONDARY_STATE);
@@ -627,7 +627,7 @@ void PrintObject::prepare_infill()
     if (m_print->objects().size() == 1) {
         m_print->set_status( 75, L("Clean surfaces"), {}, PrintBase::SlicingStatus::SECONDARY_STATE);
     } else {
-        int32_t advancement_count = m_print->secondary_status_counter_increment(5);
+        int32_t advancement_count = m_print->secondary_status_counter_increment(5);  // progress-counter step size
         m_print->set_status(advancement_count * PROGRESS_PERCENT_SCALE / m_print->secondary_status_counter_get_max(), L(kProcessObjectsFmt),
                             {std::to_string(advancement_count),
                              std::to_string(m_print->secondary_status_counter_get_max())},
@@ -643,7 +643,7 @@ void PrintObject::prepare_infill()
                 for (auto &srf2 : layer->m_regions[region_id]->fill_surfaces().surfaces) {
                     if (&srf != &srf2) {
                         ExPolygons intersect = intersection_ex(srf.expolygon, srf2.expolygon);
-                        intersect = offset2_ex(intersect, -SCALED_EPSILON * 2, SCALED_EPSILON);
+                        intersect = offset2_ex(intersect, -SCALED_EPSILON * 2, SCALED_EPSILON);  // shrink-then-grow tolerance (debug self-check only)
                         double area = 0;
                         for (auto &expoly : intersect) {
                             area += expoly.area();
@@ -702,7 +702,7 @@ void PrintObject::prepare_infill()
                 for (auto &srf2 : layer->m_regions[region_id]->fill_surfaces().surfaces) {
                     if (&srf != &srf2) {
                         ExPolygons intersect = intersection_ex(srf.expolygon, srf2.expolygon);
-                        ExPolygons small_intersect = offset2_ex(intersect, -SCALED_EPSILON * 2, SCALED_EPSILON);
+                        ExPolygons small_intersect = offset2_ex(intersect, -SCALED_EPSILON * 2, SCALED_EPSILON);  // shrink-then-grow tolerance (debug self-check only)
                         double area = 0;
                         for (auto &expoly : small_intersect) {
                             area += expoly.area();
@@ -788,7 +788,7 @@ void PrintObject::prepare_infill()
     if (m_print->objects().size() == 1) {
         m_print->set_status( 95, L("Combine infill"), {}, PrintBase::SlicingStatus::SECONDARY_STATE);
     } else {
-        int32_t advancement_count = m_print->secondary_status_counter_increment(5);
+        int32_t advancement_count = m_print->secondary_status_counter_increment(5);  // progress-counter step size
         m_print->set_status(advancement_count * PROGRESS_PERCENT_SCALE / m_print->secondary_status_counter_get_max(), L(kProcessObjectsFmt),
                             {std::to_string(advancement_count),
                              std::to_string(m_print->secondary_status_counter_get_max())},
@@ -1029,7 +1029,7 @@ void PrintObject::simplify_extrusion_path()
         //also simplify object skirt & brim
         if (enable_arc_fitting) {
             coordf_t scaled_resolution = scale_d(print_config.arc_fitting_resolution.get_abs_value(print_config.resolution.value));
-            if (scaled_resolution == 0) scaled_resolution = enable_arc_fitting ? SCALED_EPSILON * 2 : SCALED_EPSILON;
+            if (scaled_resolution == 0) scaled_resolution = enable_arc_fitting ? SCALED_EPSILON * 2 : SCALED_EPSILON;  // doubled tolerance when arc fitting is active
             const ConfigOptionFloatOrPercent& arc_fitting_tolerance = print_config.arc_fitting_tolerance;
 
             GetPathsVisitor visitor;
@@ -1316,7 +1316,7 @@ Polygons PrintObject::get_brim_patch(ModelVolumeType brim_type, const PrintInsta
             }
         }
     }
-    coord_t scaled_brim_resolution = std::max(SCALED_EPSILON * 10, scale_t(this->print()->config().resolution.value));
+    coord_t scaled_brim_resolution = std::max(SCALED_EPSILON * 10, scale_t(this->print()->config().resolution.value));  // 10x epsilon floor for brim resolution
     return ensure_valid(union_(polys), scaled_brim_resolution);
 }
 
@@ -1901,7 +1901,7 @@ ExPolygons dense_fill_fit_to_size(const ExPolygon& bad_polygon_to_cover,
     coord_t current_offset = offset;
     ExPolygon polygon_reduced = try_fit_to_size2(polygon_to_cover, growing_area);
     while (polygon_reduced.empty()) {
-        current_offset *= 2;
+        current_offset *= 2;  // double the search offset each iteration
         ExPolygons bigger_polygon = offset_ex(polygon_to_cover, double(current_offset));
         if (bigger_polygon.size() != 1) break;
         bigger_polygon = intersection_ex(bigger_polygon[0], growing_area);
@@ -1913,10 +1913,10 @@ ExPolygons dense_fill_fit_to_size(const ExPolygon& bad_polygon_to_cover,
     while (!not_covered.empty()) {
         //not enough, use a bigger offset
         float percent_coverage = static_cast<float>(polygon_reduced.area() / growing_area.area());
-        float next_coverage = percent_coverage + (percent_coverage - current_coverage) * 4;
+        float next_coverage = percent_coverage + (percent_coverage - current_coverage) * 4;  // extrapolation factor for the next coverage estimate
         previous_offset = current_offset;
-        current_offset *= 2;
-        if (next_coverage < TEN_PERCENT) current_offset *= 2;
+        current_offset *= 2;  // double the search offset each iteration
+        if (next_coverage < TEN_PERCENT) current_offset *= 2;  // double again if still far from the target percentage
         //create the bigger polygon and test it
         ExPolygons bigger_polygon = offset_ex(polygon_to_cover, double(current_offset));
         if (bigger_polygon.size() != 1) {
@@ -1945,11 +1945,11 @@ ExPolygons dense_fill_fit_to_size(const ExPolygon& bad_polygon_to_cover,
         not_covered = diff_ex(polygon_to_cover, polygon_reduced, ApplySafetyOffset::Yes);
     }
     //ok, we have a good one, now try to optimise (unless there are almost no growth)
-    if (current_offset > offset * 3) {
+    if (current_offset > offset * 3) {  // only worth shrink-optimizing if we grew past 3x the original offset
         //try to shrink
         uint32_t nb_opti_max = 6;
         for (uint32_t i = 0; i < nb_opti_max; ++i) {
-            coord_t new_offset = (previous_offset + current_offset) / 2;
+            coord_t new_offset = (previous_offset + current_offset) / 2;  // binary-search midpoint
             ExPolygons bigger_polygon = offset_ex(polygon_to_cover, double(new_offset));
             if (bigger_polygon.size() != 1) {
                 //Warn, growing a single polygon result in many/no other, use previous good result
@@ -2030,7 +2030,7 @@ void PrintObject::tag_under_bridge() {
                             const ExPolygons surfs_with_overlap = { surface.expolygon };
                             // create a surface with overlap to allow the dense thing to bond to the infill
                             coord_t scaled_width = layerm->flow(frInfill).scaled_width();
-                            coord_t overlap = scaled_width / 4;
+                            coord_t overlap = scaled_width / 4;  // quarter-width bonding overlap
                             for (const ExPolygon& surf_with_overlap : surfs_with_overlap) {
                                 ExPolygons sparse_polys = { surf_with_overlap };
                                 //find the surface which intersect with the smallest maxNb possible
@@ -2102,7 +2102,7 @@ void PrintObject::tag_under_bridge() {
                                                     ExPolygons temp = dense_fill_fit_to_size(
                                                         expoly_tocover,
                                                         surf_with_overlap,
-                                                        4 * layerm->flow(frInfill).scaled_width(),
+                                                        4 * layerm->flow(frInfill).scaled_width(),  // 4x infill width tolerance for the fit-to-size search
                                                         0.01f);
                                                     cover_intersect.insert(cover_intersect.end(), temp.begin(), temp.end());
                                                 }
@@ -2218,7 +2218,7 @@ void PrintObject::tag_under_bridge() {
                 if(lr != nullptr && layeridx2lregion[idx_layer +  1] != nullptr) {
                     for(size_t i = 0; i < new_surfaces[idx_layer].size(); ++i) {
                         new_surfaces[idx_layer][i].expolygon.assert_valid();
-                        if(new_surfaces[idx_layer][i].expolygon.contour.size() < 3){
+                        if(new_surfaces[idx_layer][i].expolygon.contour.size() < 3){  // need at least 3 points for a valid polygon
                             new_surfaces[idx_layer].erase(new_surfaces[idx_layer].begin() + i);
                             --i;
                         }
@@ -2295,7 +2295,7 @@ void PrintObject::detect_surfaces_type()
                     Layer       *upper_layer = (idx_layer + 1 < this->layer_count()) ? m_layers[idx_layer + 1] : nullptr;
                     Layer       *lower_layer = (idx_layer > 0) ? m_layers[idx_layer - 1] : nullptr;
                     // collapse very narrow parts (using the safety offset in the diff is not enough)
-                    float        offset = layerm->flow(frExternalPerimeter).scaled_width() / 10.f;
+                    float        offset = layerm->flow(frExternalPerimeter).scaled_width() / 10.f;  // 1/10th width narrow-part collapse tolerance
 
                     ExPolygons     layerm_slices_surfaces = to_expolygons(layerm->slices().surfaces);
                     // no_perimeter_full_bridge allow to put bridges where there are nothing, hence adding area to slice, that's why we need to start from the result of PerimeterGenerator.
@@ -2456,8 +2456,8 @@ void PrintObject::detect_surfaces_type()
                 m_print->throw_if_canceled();
                 LayerRegion* layerm = m_layers[idx_layer]->get_region(region_id);
                 layerm->slices_to_fill_surfaces_clipped(
-                    std::max(SCALED_EPSILON * 2,
-                    std::max(scale_t(m_print->config().resolution) / 4,
+                    std::max(SCALED_EPSILON * 2,  // doubled epsilon tolerance floor
+                    std::max(scale_t(m_print->config().resolution) / 4,  // quarter-resolution clipping tolerance
                         scale_t(m_print->config().resolution_internal) / 8)));
 #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
                 layerm->export_region_fill_surfaces_to_svg_debug("1_detect_surfaces_type-final");
@@ -2704,7 +2704,7 @@ void PrintObject::discover_vertical_shells()
                     if (perimeters > 0) {
                         Flow extflow = layerm.flow(frExternalPerimeter);
                         Flow flow = layerm.flow(frPerimeter);
-                        coord_t current_shell_width = (extflow.scaled_width() + extflow.scaled_spacing()) / 2 + (perimeters - 1) * flow.scaled_spacing();
+                        coord_t current_shell_width = (extflow.scaled_width() + extflow.scaled_spacing()) / 2 + (perimeters - 1) * flow.scaled_spacing();  // half-width offset to the perimeter centerline
                         perimeter_offset_for_holes = std::max(perimeter_offset_for_holes, current_shell_width);
                         perimeter_min_spacing = std::min(perimeter_min_spacing, std::min(extflow.scaled_spacing(), flow.scaled_spacing()));
                         const bool has_infill = layerm.region().config().fill_density.value > 0.;
@@ -3087,7 +3087,7 @@ void PrintObject::discover_vertical_shells()
                         if (nb_perimeter_layers_for_solid_fill != 0 && (idx_layer > min_layer_no_solid || layer->print_z < min_z_no_solid)) {
                             ExPolygons toadd;
                             for (int i = 0; i < shell.size(); i++) {
-                                if (nb_perimeter_layers_for_solid_fill < 2 || intersection_ex(ExPolygons{ shell[i] }, max_perimeter_shell, ApplySafetyOffset::No).empty()) {
+                                if (nb_perimeter_layers_for_solid_fill < 2 || intersection_ex(ExPolygons{ shell[i] }, max_perimeter_shell, ApplySafetyOffset::No).empty()) {  // need at least 2 solid-fill perimeter layers
                                     ExPolygons expoly = intersection_ex(ExPolygons{ shell[i] }, fill_shell);
                                     toadd.insert(toadd.end(), expoly.begin(), expoly.end());
                                     shell.erase(shell.begin() + i);
@@ -3226,8 +3226,8 @@ template<typename T> void debug_draw(const std::string &name, const T& a, const 
     ::Slic3r::SVG svg(debug_out_path(name.c_str()).c_str(), bbox);   
     svg.draw(a, colors[0], scale_(0.3));
     svg.draw(b, colors[1], scale_(0.23));
-    svg.draw(c, colors[2], scale_(0.16));
-    svg.draw(d, colors[3], scale_(0.10));
+    svg.draw(c, colors[2], scale_(0.16));  // array index into the debug color palette
+    svg.draw(d, colors[3], scale_(0.10));  // array index into the debug color palette
     svg.Close();
 }
 #endif
@@ -3421,7 +3421,7 @@ void PrintObject::bridge_over_infill()
                         // The following flag marks those surfaces, which overlap with unuspported area, but at least part of them is supported. 
                         // These regions can be filtered by area, because they for sure are touching solids on lower layers, and it does not make sense to bridge their tiny overhangs 
                         bool     partially_supported = area(unsupported) < area(to_polygons(srf->expolygon)) - EPSILON;
-                        if (!unsupported.empty() && (!partially_supported || area(unsupported) > 3 * 3 * spacing * spacing)) {
+                        if (!unsupported.empty() && (!partially_supported || area(unsupported) > 3 * 3 * spacing * spacing)) {  // 3x3 spacing-units area threshold
                             Polygons worth_bridging = intersection(to_polygons(srf->expolygon), expand(unsupported, region_internal_bridge_min_width + spacing));
                             // after we extracted the part worth briding, we go over the leftovers and merge the tiny ones back, to not brake the surface too much
                             for (const Polygon& p : diff(to_polygons(srf->expolygon), expand(worth_bridging, spacing))) {
@@ -3440,7 +3440,7 @@ void PrintObject::bridge_over_infill()
 #endif
 #ifdef DEBUG_BRIDGE_OVER_INFILL
                             debug_draw(std::to_string(lidx) + "_candidate_processing_" + std::to_string(area(unsupported)),
-                                       to_polylines(unsupported), to_polylines(intersection(to_polygons(srf->expolygon), expand(unsupported, 5 * spacing))), 
+                                       to_polylines(unsupported), to_polylines(intersection(to_polygons(srf->expolygon), expand(unsupported, 5 * spacing))),   // 5x spacing debug-only expansion
                                        to_polylines(diff(to_polygons(srf->expolygon), expand(worth_bridging, spacing))),
                                        to_polylines(unsupported_area));
 #endif
@@ -3799,7 +3799,7 @@ void PrintObject::bridge_over_infill()
                 auto area_intersections = bridged_area_tree.intersections_with_line<true>(vertical_lines[i]);
                 for (int intersection_idx = 0; intersection_idx < int(area_intersections.size()) - 1; intersection_idx++) {
                     if (bridged_area_tree.outside(
-                            (area_intersections[intersection_idx].first + area_intersections[intersection_idx + 1].first) / 2) < 0) {
+                            (area_intersections[intersection_idx].first + area_intersections[intersection_idx + 1].first) / 2) < 0) {  // midpoint
                         polygon_sections[i].emplace_back(area_intersections[intersection_idx].first,
                                                          area_intersections[intersection_idx + 1].first);
                     }
@@ -3869,8 +3869,8 @@ void PrintObject::bridge_over_infill()
                             36.0 * double(bridging_flow.scaled_spacing()) * bridging_flow.scaled_spacing()) {
                             traced_poly.lows.push_back(candidate->a);
                         } else {
-                            traced_poly.lows.push_back(traced_poly.lows.back() + Point{bridging_flow.scaled_spacing() / 2, 0});
-                            traced_poly.lows.push_back(candidate->a - Point{bridging_flow.scaled_spacing() / 2, 0});
+                            traced_poly.lows.push_back(traced_poly.lows.back() + Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
+                            traced_poly.lows.push_back(candidate->a - Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
                             traced_poly.lows.push_back(candidate->a);
                         }
 
@@ -3878,8 +3878,8 @@ void PrintObject::bridge_over_infill()
                             36.0 * double(bridging_flow.scaled_spacing()) * bridging_flow.scaled_spacing()) {
                             traced_poly.highs.push_back(candidate->b);
                         } else {
-                            traced_poly.highs.push_back(traced_poly.highs.back() + Point{bridging_flow.scaled_spacing() / 2, 0});
-                            traced_poly.highs.push_back(candidate->b - Point{bridging_flow.scaled_spacing() / 2, 0});
+                            traced_poly.highs.push_back(traced_poly.highs.back() + Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
+                            traced_poly.highs.push_back(candidate->b - Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
                             traced_poly.highs.push_back(candidate->b);
                         }
                         segment_added = true;
@@ -3888,8 +3888,8 @@ void PrintObject::bridge_over_infill()
 
                     if (!segment_added) {
                         // Zero overlapping segments, we just close this polygon
-                        traced_poly.lows.push_back(traced_poly.lows.back() + Point{bridging_flow.scaled_spacing() / 2, 0});
-                        traced_poly.highs.push_back(traced_poly.highs.back() + Point{bridging_flow.scaled_spacing() / 2, 0});
+                        traced_poly.lows.push_back(traced_poly.lows.back() + Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
+                        traced_poly.highs.push_back(traced_poly.highs.back() + Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
                         Polygon &new_poly = expanded_bridged_area.emplace_back(std::move(traced_poly.lows));
                         new_poly.points.insert(new_poly.points.end(), traced_poly.highs.rbegin(), traced_poly.highs.rend());
                         traced_poly.lows.clear();
@@ -3904,9 +3904,9 @@ void PrintObject::bridge_over_infill()
                 for (const auto &segment : polygon_slice) {
                     if (used_segments.find(&segment) == used_segments.end()) {
                         TracedPoly &new_tp = current_traced_polys.emplace_back();
-                        new_tp.lows.push_back(segment.a - Point{bridging_flow.scaled_spacing() / 2, 0});
+                        new_tp.lows.push_back(segment.a - Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
                         new_tp.lows.push_back(segment.a);
-                        new_tp.highs.push_back(segment.b - Point{bridging_flow.scaled_spacing() / 2, 0});
+                        new_tp.highs.push_back(segment.b - Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
                         new_tp.highs.push_back(segment.b);
                     }
                 }
@@ -3947,7 +3947,7 @@ void PrintObject::bridge_over_infill()
                               };
                               return a.min.x() < b.min.x();
                           });
-                if (surfaces_by_layer[lidx].size() > 2) {
+                if (surfaces_by_layer[lidx].size() > 2) {  // more than the first + one neighbor to stable-sort
                     Vec2d origin = get_extents(surfaces_by_layer[lidx].front().new_polys).max.cast<double>();
                     std::stable_sort(surfaces_by_layer[lidx].begin() + 1, surfaces_by_layer[lidx].end(),
                                      [origin](const CandidateSurface &left, const CandidateSurface &right) {
@@ -4105,7 +4105,7 @@ void PrintObject::bridge_over_infill()
 
                         boundary_plines.insert(boundary_plines.end(), anchors.begin(), anchors.end());
                         if (!lightning_area.empty() && !intersection(area_to_be_bridge, lightning_area).empty()) {
-                            boundary_plines = intersection_pl(boundary_plines, expand(area_to_be_bridge, scale_(10)));
+                            boundary_plines = intersection_pl(boundary_plines, expand(area_to_be_bridge, scale_(10)));  // 10mm expansion margin
                         }
                         bridging_area = construct_anchored_polygon(area_to_be_bridge,
                                                                             to_lines(boundary_plines), flow,
@@ -4424,12 +4424,12 @@ bool PrintObject::update_layer_height_profile(const ModelObject& model_object, c
         // Must not be of even length.
         ((layer_height_profile.size() & 1) != 0 ||
             // Last entry must be at the top of the object.
-            std::abs(layer_height_profile[layer_height_profile.size() - 2] - slicing_parameters.object_print_z_max + slicing_parameters.object_print_z_min) > 10 * EPSILON)) {
+            std::abs(layer_height_profile[layer_height_profile.size() - 2] - slicing_parameters.object_print_z_max + slicing_parameters.object_print_z_min) > 10 * EPSILON)) {  // second-to-last entry (last z value, before the trailing height)
         if ((layer_height_profile.size() & 1) != 0) {
             BOOST_LOG_TRIVIAL(error) << "Error: can't apply the layer hight profile: layer_height_profile array is odd, not even.";
         } else {
             BOOST_LOG_TRIVIAL(error) << "Error: can't apply the layer hight profile: layer_height_profile last layer is at "
-                << layer_height_profile[layer_height_profile.size() - 2]
+                << layer_height_profile[layer_height_profile.size() - 2]  // second-to-last entry (last z value, before the trailing height)
                 <<", and it's too far away from object_print_z_max = "<<(slicing_parameters.object_print_z_max + slicing_parameters.object_print_z_min);
         }
         layer_height_profile.clear();
@@ -4477,7 +4477,7 @@ void PrintObject::discover_horizontal_shells()
             coordf_t print_z = layer->print_z;
             coordf_t bottom_z = layer->bottom_z();
             // 0: topSolid, 1: botSolid, 2: boSolidBridged
-            for (size_t idx_surface_type = 0; idx_surface_type < 3; ++idx_surface_type) {
+            for (size_t idx_surface_type = 0; idx_surface_type < 3; ++idx_surface_type) {  // 3 surface-type variants (see comment above)
                 m_print->throw_if_canceled();
                 SurfaceType type = (idx_surface_type == 0) ? (stPosTop | stDensSolid) :
                     ((idx_surface_type == 1) ? (stPosBottom | stDensSolid) : 
@@ -4547,7 +4547,7 @@ void PrintObject::discover_horizontal_shells()
                         new_internal_solid = intersection_ex(solid, internal_no_voids, ApplySafetyOffset::Yes);
                         // remove thin area from diff(new_internal_solid, internal_no_voids); and put them into new_internal_solid
                         ExPolygons not_merged_internal = diff_ex(internal_no_voids, new_internal_solid);
-                        not_merged_internal = offset2_ex(not_merged_internal, -extperi_width / 2, extperi_width / 2);
+                        not_merged_internal = offset2_ex(not_merged_internal, -extperi_width / 2, extperi_width / 2);  // half external-perimeter-width shrink/grow round-trip
                         new_internal_solid = diff_ex(internal_no_voids, not_merged_internal);
                     }
                     if (new_internal_solid.empty()) {
@@ -4603,7 +4603,7 @@ void PrintObject::discover_horizontal_shells()
                                 // diff if it has been intersected with
                                 for (ExPolygon &expoly :
                                      ensure_valid(offset2_ex(diff_ex(ExPolygons{surface.expolygon}, new_internal_solid),
-                                                             -extperi_width / 4, extperi_width / 4, jtMiter, 5),
+                                                             -extperi_width / 4, extperi_width / 4, jtMiter, 5),  // quarter external-perimeter-width tolerance, miter join limit 5
                                                   scaled_resolution)) {
                                     neighbor_layerm->set_fill_surfaces().surfaces.emplace_back(surface, std::move(expoly));
                                 }
@@ -4647,7 +4647,7 @@ void merge_surfaces(LayerRegion* lregion) {
     bool changed = false;
     std::map<SurfaceType, ExPolygons> type2newpolys;
     for (auto& entry : type2srfs) {
-        if (entry.second.size() > 2) {
+        if (entry.second.size() > 2) {  // only worth merging if more than 2 surfaces of this type
             ExPolygons merged = ensure_valid(union_safety_offset_ex(to_expolygons(entry.second)), scaled_resolution);
             if (merged.size() < entry.second.size()) {
                 changed = true;
@@ -4687,7 +4687,7 @@ void PrintObject::clean_surfaces() {
                 bool changed_type = false;
                 for (Surface& surface : lregion->set_fill_surfaces().surfaces) {
                     if (surface.has_fill_solid() && surface.has_pos_internal()) {
-                        if (offset2_ex(ExPolygons{ surface.expolygon }, -extrusion_width / 2, extrusion_width / 2).empty()) {
+                        if (offset2_ex(ExPolygons{ surface.expolygon }, -extrusion_width / 2, extrusion_width / 2).empty()) {  // half extrusion-width shrink/grow round-trip
                             //convert to sparse
                             surface.surface_type = (surface.surface_type ^ SurfaceType::stDensSolid) | SurfaceType::stDensSparse;
                             changed_type = true;
@@ -4712,7 +4712,7 @@ void PrintObject::combine_infill()
         const PrintRegion &region = this->printing_region(region_id);
         // can't have void if using infill_dense
         const size_t every = region.config().infill_dense.value ? 1 : region.config().infill_every_layers.value;
-        if (every < 2 || region.config().fill_density == 0.)
+        if (every < 2 || region.config().fill_density == 0.)  // combining fewer than 2 layers is a no-op
             continue;
         // Limit the number of combined layers to the maximum height allowed by this regions' nozzle
         // and by the maximum layer height of the extruders used by this object.
@@ -4850,9 +4850,9 @@ static void project_triangles_to_slabs(SpanOfConstPtrs<Layer> layers, const inde
     // Points are used so that scaling can be done in parallel
     // and they can be moved from to create an ExPolygon later.
     struct LightPolygon {
-        LightPolygon() { pts.reserve(5); }
-        LightPolygon(const std::array<Vec2f, 3>& tri) {
-            pts.reserve(3);
+        LightPolygon() { pts.reserve(5); }  // projection can be at most a pentagon (see comment above)
+        LightPolygon(const std::array<Vec2f, 3>& tri) {  // 3 triangle vertices
+            pts.reserve(3);  // 3 triangle vertices
             pts.emplace_back(scaled<coord_t>(tri.front()));
             pts.emplace_back(scaled<coord_t>(tri[1]));
             pts.emplace_back(scaled<coord_t>(tri.back()));
@@ -4862,7 +4862,7 @@ static void project_triangles_to_slabs(SpanOfConstPtrs<Layer> layers, const inde
 
         void add(const Vec2f& pt) {
             pts.emplace_back(scaled<coord_t>(pt));
-            assert(pts.size() <= 5);
+            assert(pts.size() <= 5);  // projection can be at most a pentagon (see comment above)
         }
     };
 
@@ -4882,14 +4882,14 @@ static void project_triangles_to_slabs(SpanOfConstPtrs<Layer> layers, const inde
         (const size_t idx) {
 
         PRINT_OBJECT_TIME_LIMIT_MILLIS(PRINT_OBJECT_TIME_LIMIT_DEFAULT);
-        std::array<Vec3f, 3> facet;
+        std::array<Vec3f, 3> facet;  // 3 triangle vertices
 
         // Transform the triangle into worlds coords.
-        for (int i=0; i<3; ++i)
+        for (int i=0; i<3; ++i)  // 3 triangle vertices
             facet[i] = tr * custom_facets.vertices[custom_facets.indices[idx](i)];
 
         // Ignore triangles with upward-pointing normal. Don't forget about mirroring.
-        float z_comp = (facet[1]-facet[0]).cross(facet[2]-facet[0]).z();
+        float z_comp = (facet[1]-facet[0]).cross(facet[2]-facet[0]).z();  // triangle vertex indices (0/1/2)
         if (! seam && tr_det_sign * z_comp > 0.)
             return; //continue (next facet idx)
 
@@ -4904,8 +4904,8 @@ static void project_triangles_to_slabs(SpanOfConstPtrs<Layer> layers, const inde
                       return pt1.z() < pt2.z();
                   });
 
-        std::array<Vec2f, 3> trianglef;
-        for (int i=0; i<3; ++i)
+        std::array<Vec2f, 3> trianglef;  // 3 triangle vertices
+        for (int i=0; i<3; ++i)  // 3 triangle vertices
             trianglef[i] = to_2d(facet[i]);
 
         // Find lowest slice not below the triangle.
@@ -4922,17 +4922,17 @@ static void project_triangles_to_slabs(SpanOfConstPtrs<Layer> layers, const inde
         // be an exact opposite of the one lower in the code where
         // the polygons are appended. And that one is on floats.
         while (last_layer_id + 1 < layers.size()
-            && float(layers[last_layer_id]->slice_z) <= facet[2].z())
+            && float(layers[last_layer_id]->slice_z) <= facet[2].z())  // top (z-sorted) triangle vertex
             ++last_layer_id;
 
         if (first_layer_id == last_layer_id) {
             // The triangle fits just a single slab, just project it. This also avoids division by zero for horizontal triangles.
-            float dz = facet[2].z() - facet[0].z();
+            float dz = facet[2].z() - facet[0].z();  // top and bottom triangle vertices (z-sorted)
             assert(dz >= 0);
             // The face is nearly horizontal and it crosses the slicing plane at first_layer_id - 1.
             // Rather add this face to both the planes.
-            bool add_below = dz < float(2. * EPSILON) && first_layer_id > 0 && layers[first_layer_id - 1]->slice_z > facet[0].z() - EPSILON;
-            projections_of_triangles[idx].polygons.reserve(add_below ? 2 : 1);
+            bool add_below = dz < float(2. * EPSILON) && first_layer_id > 0 && layers[first_layer_id - 1]->slice_z > facet[0].z() - EPSILON;  // double-epsilon tolerance for a near-horizontal triangle
+            projections_of_triangles[idx].polygons.reserve(add_below ? 2 : 1);  // 1 or 2 slab projections depending on add_below
             projections_of_triangles[idx].polygons.emplace_back(trianglef);
             if (add_below) {
                 -- projections_of_triangles[idx].first_layer_id;
@@ -4945,9 +4945,9 @@ static void project_triangles_to_slabs(SpanOfConstPtrs<Layer> layers, const inde
 
         // Calculate how to move points on triangle sides per unit z increment.
         Vec2f ta(trianglef[1] - trianglef[0]);
-        Vec2f tb(trianglef[2] - trianglef[0]);
+        Vec2f tb(trianglef[2] - trianglef[0]);  // top (z-sorted) triangle vertex
         ta *= 1.f/(facet[1].z() - facet[0].z());
-        tb *= 1.f/(facet[2].z() - facet[0].z());
+        tb *= 1.f/(facet[2].z() - facet[0].z());  // top (z-sorted) triangle vertex
 
         // Projection on current slice will be built directly in place.
         LightPolygon* proj = &projections_of_triangles[idx].polygons[0];
@@ -4969,14 +4969,14 @@ static void project_triangles_to_slabs(SpanOfConstPtrs<Layer> layers, const inde
             // and use ta for tracking the remaining side.
             if (z > facet[1].z() && ! passed_first) {
                 proj->add(trianglef[1]);
-                ta = trianglef[2]-trianglef[1];
-                ta *= 1.f/(facet[2].z() - facet[1].z());
+                ta = trianglef[2]-trianglef[1];  // top minus middle triangle vertex
+                ta *= 1.f/(facet[2].z() - facet[1].z());  // top (z-sorted) triangle vertex
                 passed_first = true;
             }
 
             // This slice is above the triangle already.
-            if (z > facet[2].z() || it+1 == layers.end()) {
-                proj->add(trianglef[2]);
+            if (z > facet[2].z() || it+1 == layers.end()) {  // top (z-sorted) triangle vertex
+                proj->add(trianglef[2]);  // top (z-sorted) triangle vertex
                 stop = true;
             }
             else {
