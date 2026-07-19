@@ -26,8 +26,8 @@ std::vector<std::pair<size_t, bool>> chain_segments_closest_point(std::vector<En
 {
     //check pair
     assert((end_points.size() & 1) == 0);
-    size_t num_segments = end_points.size() / 2;
-    assert(num_segments >= 2);
+    size_t num_segments = end_points.size() / 2;  // endpoint array packs 2 entries per segment (start, end)
+    assert(num_segments >= 2);  // need at least 2 segments to chain
     //set all points to "ungrabbed"
     for (EndPointType &ep : end_points)
         ep.chain_id = 0;
@@ -36,13 +36,13 @@ std::vector<std::pair<size_t, bool>> chain_segments_closest_point(std::vector<En
     out.reserve(num_segments);
     //put first point (idx/2 = segment_id ; first_point_idx & 1 => 0 if seg_start, !0 if seg_end)
     size_t first_point_idx = &first_point - end_points.data();
-    out.emplace_back(first_point_idx / 2, (first_point_idx & 1) != 0);
+    out.emplace_back(first_point_idx / 2, (first_point_idx & 1) != 0);  // segment_id = idx/2, end-flag = idx&1 (2 endpoints per segment)
     //set the fisrt point as taken
     first_point.chain_id = 1;
     //now switch to the other end of the segment
     size_t this_idx = first_point_idx ^ 1;
     //add all other segments
-    for (int iter = static_cast<int>(num_segments) - 2; iter >= 0; -- iter) {
+    for (int iter = static_cast<int>(num_segments) - 2; iter >= 0; -- iter) {  // first segment already placed above; num_segments-1 links remain
         EndPointType &this_point = end_points[this_idx];
         //set the current point as taken
         this_point.chain_id = 1;
@@ -63,7 +63,7 @@ std::vector<std::pair<size_t, bool>> chain_segments_closest_point(std::vector<En
         //set the new entry point as taken
         end_point.chain_id = 1;
         assert((next_idx & 1) == 0 || could_reverse_func(next_idx >> 1));
-        out.emplace_back(next_idx / 2, (next_idx & 1) != 0);
+        out.emplace_back(next_idx / 2, (next_idx & 1) != 0);  // same segment_id*2+end-flag packing as above
         //now switch to the other end of the segment
         this_idx = next_idx ^ 1;
     }
@@ -115,7 +115,7 @@ std::vector<std::pair<size_t, bool>> chain_segments_greedy_constrained_reversals
             size_t    heap_idx = std::numeric_limits<size_t>::max();
         };
         std::vector<EndPoint> end_points;
-        end_points.reserve(num_segments * 2);
+        end_points.reserve(num_segments * 2);  // 2 endpoints per segment
         for (size_t i = 0; i < num_segments; ++ i) {
             end_points.emplace_back(end_point_func(i, true ).template cast<double>());
             end_points.emplace_back(end_point_func(i, false).template cast<double>());
@@ -123,7 +123,7 @@ std::vector<std::pair<size_t, bool>> chain_segments_greedy_constrained_reversals
 
         // Construct the closest point KD tree over end points of segments.
         auto coordinate_fn = [&end_points](size_t idx, size_t dimension) -> double { return end_points[idx].pos[dimension]; };
-        KDTreeIndirect<2, double, decltype(coordinate_fn)> kdtree(coordinate_fn, end_points.size());
+        KDTreeIndirect<2, double, decltype(coordinate_fn)> kdtree(coordinate_fn, end_points.size());  // 2D coordinates
 
         // Helper to detect loops in already connected paths.
         // Unique chain IDs are assigned to paths. If paths are connected, end points will not have their chain IDs updated, but the chain IDs
@@ -228,7 +228,7 @@ std::vector<std::pair<size_t, bool>> chain_segments_greedy_constrained_reversals
             >(
             [](EndPoint *ep, size_t idx){ ep->heap_idx = idx; }, 
             [](EndPoint *l, EndPoint *r){ return l->distance_out < r->distance_out; });
-        queue.reserve(end_points.size() * 2 - 1);
+        queue.reserve(end_points.size() * 2 - 1);  // headroom: an entry can be re-inserted once by the deferred-update scheme below
         for (EndPoint &ep : end_points)
             if (first_point != &ep)
                 queue.push(&ep);
@@ -270,11 +270,11 @@ std::vector<std::pair<size_t, bool>> chain_segments_greedy_constrained_reversals
 #endif /* NDEBUG */
 
         // Chain the end points: find (num_segments - 1) shortest links not forming bifurcations or loops.
-        assert(num_segments >= 2);
+        assert(num_segments >= 2);  // need at least 2 segments to chain
 #ifndef NDEBUG
         double distance_taken_last = 0.;
 #endif /* NDEBUG */
-        for (int iter = int(num_segments) - 2;; -- iter) {
+        for (int iter = int(num_segments) - 2;; -- iter) {  // first segment already placed above; num_segments-1 links remain
             assert(validate_graph_and_queue());
             // Take the first end point, for which the link points to the currently closest valid neighbor.
             EndPoint &end_point1 = *queue.top();
@@ -322,7 +322,7 @@ std::vector<std::pair<size_t, bool>> chain_segments_greedy_constrained_reversals
                 assert(validate_graph_and_queue());
                 if (iter == 0) {
                     // Last iteration. There shall be exactly one or two end points waiting to be connected.
-                    assert(queue.size() == ((first_point == nullptr) ? 2 : 1));
+                    assert(queue.size() == ((first_point == nullptr) ? 2 : 1));  // 2 loose ends remain if the start was not fixed yet, else 1
                     if (first_point == nullptr) {
                         first_point = queue.top();
                         queue.pop();
@@ -537,7 +537,7 @@ std::vector<std::pair<size_t, bool>> chain_segments_greedy_constrained_reversals
         };
 
         std::vector<EndPoint> end_points;
-        end_points.reserve(num_segments * 2);
+        end_points.reserve(num_segments * 2);  // 2 endpoints per segment
         for (size_t i = 0; i < num_segments; ++ i) {
             end_points.emplace_back(end_point_func(i, true ).template cast<double>());
             end_points.emplace_back(end_point_func(i, false).template cast<double>());
@@ -545,7 +545,7 @@ std::vector<std::pair<size_t, bool>> chain_segments_greedy_constrained_reversals
 
         // Construct the closest point KD tree over end points of segments.
         auto coordinate_fn = [&end_points](size_t idx, size_t dimension) -> double { return end_points[idx].pos[dimension]; };
-        KDTreeIndirect<2, double, decltype(coordinate_fn)> kdtree(coordinate_fn, end_points.size());
+        KDTreeIndirect<2, double, decltype(coordinate_fn)> kdtree(coordinate_fn, end_points.size());  // 2D coordinates
 
         // Chained segments with their sum of connection lengths.
         // The chain supports flipping all the segments, connecting the segments at the opposite ends.
@@ -611,7 +611,7 @@ std::vector<std::pair<size_t, bool>> chain_segments_greedy_constrained_reversals
         public:
             // Zero'th chain ID is invalid.
             Chains(size_t reserve) { 
-                m_chains.reserve(reserve / 2);
+                m_chains.reserve(reserve / 2);  // at most one chain per 2 endpoints
                 // Indexing starts with 1.
                 m_chains.emplace_back();
             }
@@ -727,7 +727,7 @@ std::vector<std::pair<size_t, bool>> chain_segments_greedy_constrained_reversals
         auto queue = make_mutable_priority_queue<EndPoint*, true>(
             [](EndPoint *ep, size_t idx){ ep->heap_idx = idx; }, 
             [](EndPoint *l, EndPoint *r){ return l->distance_out < r->distance_out; });
-        queue.reserve(end_points.size() * 2);
+        queue.reserve(end_points.size() * 2);  // headroom: an entry can be re-inserted once by the deferred-update scheme below
         for (EndPoint &ep : end_points)
             if (first_point != &ep)
                 queue.push(&ep);
@@ -771,7 +771,7 @@ std::vector<std::pair<size_t, bool>> chain_segments_greedy_constrained_reversals
 #endif /* NDEBUG */
 
         // Chain the end points: find (num_segments - 1) shortest links not forming bifurcations or loops.
-        assert(num_segments >= 2);
+        assert(num_segments >= 2);  // need at least 2 segments to chain
 #ifndef NDEBUG
         double distance_taken_last = 0.;
 #endif /* NDEBUG */
@@ -893,7 +893,7 @@ std::vector<std::pair<size_t, bool>> chain_segments_greedy_constrained_reversals
                 if (-- num_connections_to_end == 0) {
                     assert(validate_graph_and_queue());
                     // Last iteration. There shall be exactly one or two end points waiting to be connected.
-                    assert(queue.size() <= ((first_point == nullptr) ? 4 : 2));
+                    assert(queue.size() <= ((first_point == nullptr) ? 4 : 2));  // up to 2 loose chain ends each, doubled if the start was not fixed yet
                     if (first_point == nullptr) {
                         // Find the first remaining end point.
                         do {
@@ -1468,105 +1468,27 @@ static inline std::pair<double, size_t> minimum_crossover_cost(
 
     double cost_min = cost_current;
     size_t flip_min = 0; // no flip, no improvement
-    for (size_t i = 0; i < (1 << 6); ++ i) {
+    for (size_t i = 0; i < (1 << 6); ++ i) {  // 6 bits = reversed/flipped flags for the 3 segments
         // From the three combinations of 1,2,3 ordering, the other three are reversals of the first three.
         double c1 = (i == 0) ? cost_current : 
-                    connection_cost(span1, cost1, (i & 1) != 0, (i & (1 << 1)) != 0, span2, cost2, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span3, cost3, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0);
-        double c2 = connection_cost(span1, cost1, (i & 1) != 0, (i & (1 << 1)) != 0, span3, cost3, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span2, cost2, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0);
-        double c3 = connection_cost(span2, cost2, (i & 1) != 0, (i & (1 << 1)) != 0, span1, cost1, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span3, cost3, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0);
+                    connection_cost(span1, cost1, (i & 1) != 0, (i & (1 << 1)) != 0, span2, cost2, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span3, cost3, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0);  // ordering #1: span1, span2, span3
+        double c2 = connection_cost(span1, cost1, (i & 1) != 0, (i & (1 << 1)) != 0, span3, cost3, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span2, cost2, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0);  // ordering #2: span1, span3, span2
+        double c3 = connection_cost(span2, cost2, (i & 1) != 0, (i & (1 << 1)) != 0, span1, cost1, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span3, cost3, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0);  // ordering #3: span2, span1, span3
         if (c1 < cost_min) {
             cost_min = c1;
             flip_min = i;
         }
         if (c2 < cost_min) {
             cost_min = c2;
-            flip_min = i + (1 << 6);
+            flip_min = i + (1 << 6);  // bit 6 selects ordering #2
         }
         if (c3 < cost_min) {
             cost_min = c3;
-            flip_min = i + (2 << 6);
+            flip_min = i + (2 << 6);  // bits 6-7 = 2 selects ordering #3
         }
     }
     return std::make_pair(cost_min, flip_min);
 }
-
-#if 0
-static inline std::pair<double, size_t> minimum_crossover_cost(
-    const std::vector<FlipEdge>		  &edges,
-    const std::pair<size_t, size_t>   &span1, const ConnectionCost &cost1,
-    const std::pair<size_t, size_t>   &span2, const ConnectionCost &cost2,
-    const std::pair<size_t, size_t>   &span3, const ConnectionCost &cost3,
-    const std::pair<size_t, size_t>   &span4, const ConnectionCost &cost4,
-    const double					   cost_current)
-{
-    auto connection_cost = [&edges](
-        const std::pair<size_t, size_t> &span1, const ConnectionCost &cost1, bool reversed1, bool flipped1,
-        const std::pair<size_t, size_t> &span2, const ConnectionCost &cost2, bool reversed2, bool flipped2,
-        const std::pair<size_t, size_t> &span3, const ConnectionCost &cost3, bool reversed3, bool flipped3,
-        const std::pair<size_t, size_t> &span4, const ConnectionCost &cost4, bool reversed4, bool flipped4) {
-        auto first_point = [&edges](const std::pair<size_t, size_t> &span, bool flipped) { return flipped ? edges[span.first].p2 : edges[span.first].p1; };
-        auto last_point  = [&edges](const std::pair<size_t, size_t> &span, bool flipped) { return flipped ? edges[span.second - 1].p1 : edges[span.second - 1].p2; };
-        auto point       = [first_point, last_point](const std::pair<size_t, size_t> &span, bool start, bool flipped) { return start ? first_point(span, flipped) : last_point(span, flipped); };
-        auto cost        = [](const ConnectionCost &acost, bool flipped) { 
-            assert(acost.cost >= 0. && acost.cost_flipped >= 0.);
-            return flipped ? acost.cost_flipped : acost.cost;
-        };
-        // Ignore reversed single segment spans.
-        auto simple_span_ignore = [](const std::pair<size_t, size_t>& span, bool reversed) {
-            return span.first + 1 == span.second && reversed;
-        };
-        assert(span1.first < span1.second);
-        assert(span2.first < span2.second);
-        assert(span3.first < span3.second);
-        assert(span4.first < span4.second);
-        return 
-            simple_span_ignore(span1, reversed1) || simple_span_ignore(span2, reversed2) || simple_span_ignore(span3, reversed3) || simple_span_ignore(span4, reversed4) ?
-                // Don't perform unnecessary calculations simulating reversion of single segment spans.
-                std::numeric_limits<double>::max() :
-                // Calculate the cost of reverting chains and / or flipping segment orientations.
-                cost(cost1, flipped1) + cost(cost2, flipped2) + cost(cost3, flipped3) + cost(cost4, flipped4) +
-                    (point(span2, ! reversed2, flipped2) - point(span1, reversed1, flipped1)).norm() + 
-                    (point(span3, ! reversed3, flipped3) - point(span2, reversed2, flipped2)).norm() +
-                    (point(span4, ! reversed4, flipped4) - point(span3, reversed3, flipped3)).norm();
-    };
-
-#ifndef NDEBUG
-    {
-        double c = connection_cost(span1, cost1, false, false, span2, cost2, false, false, span3, cost3, false, false, span4, cost4, false, false);
-        assert(std::abs(c - cost_current) < SCALED_EPSILON);
-    }
-#endif /* NDEBUG */
-
-    double cost_min = cost_current;
-    size_t flip_min = 0; // no flip, no improvement
-    for (size_t i = 0; i < (1 << 8); ++ i) {
-        // From the three combinations of 1,2,3 ordering, the other three are reversals of the first three.
-        size_t permutation = 0;
-        for (double c : {
-                (i == 0) ? cost_current : 
-                connection_cost(span1, cost1, (i & 1) != 0, (i & (1 << 1)) != 0, span2, cost2, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span3, cost3, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span4, cost4, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(span1, cost1, (i & 1) != 0, (i & (1 << 1)) != 0, span2, cost2, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span4, cost4, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span3, cost3, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(span1, cost1, (i & 1) != 0, (i & (1 << 1)) != 0, span3, cost3, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span2, cost2, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span4, cost4, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(span1, cost1, (i & 1) != 0, (i & (1 << 1)) != 0, span3, cost3, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span4, cost4, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span2, cost2, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(span1, cost1, (i & 1) != 0, (i & (1 << 1)) != 0, span4, cost4, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span2, cost2, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span3, cost3, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(span1, cost1, (i & 1) != 0, (i & (1 << 1)) != 0, span4, cost4, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span3, cost3, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span2, cost2, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(span2, cost2, (i & 1) != 0, (i & (1 << 1)) != 0, span1, cost1, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span3, cost3, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span4, cost4, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(span2, cost2, (i & 1) != 0, (i & (1 << 1)) != 0, span1, cost1, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span4, cost4, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span3, cost3, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(span2, cost2, (i & 1) != 0, (i & (1 << 1)) != 0, span3, cost3, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span1, cost1, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span4, cost4, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(span2, cost2, (i & 1) != 0, (i & (1 << 1)) != 0, span4, cost4, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span1, cost1, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span3, cost3, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(span3, cost3, (i & 1) != 0, (i & (1 << 1)) != 0, span1, cost1, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span2, cost2, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span4, cost4, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(span3, cost3, (i & 1) != 0, (i & (1 << 1)) != 0, span2, cost2, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span1, cost1, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span4, cost4, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0)
-            }) {
-            if (c < cost_min) {
-                cost_min = c;
-                flip_min = i + (permutation << 8);
-            }
-            ++ permutation;
-        }
-    }
-    return std::make_pair(cost_min, flip_min);
-}
-#endif
 
 static inline void do_crossover(const std::vector<FlipEdge> &edges_in, std::vector<FlipEdge> &edges_out,
     const std::pair<size_t, size_t> &span1, const std::pair<size_t, size_t> &span2, const std::pair<size_t, size_t> &span3,
@@ -1595,93 +1517,19 @@ static inline void do_crossover(const std::vector<FlipEdge> &edges_in, std::vect
         copy_span(span2, reversed2, flipped2);
         copy_span(span3, reversed3, flipped3);
     };
-    switch (i >> 6) {
+    switch (i >> 6) {  // top bits select which of the 3 orderings minimum_crossover_cost found
     case 0:
-        do_it(span1, (i & 1) != 0, (i & (1 << 1)) != 0, span2, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span3, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0);
+        do_it(span1, (i & 1) != 0, (i & (1 << 1)) != 0, span2, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span3, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0);  // ordering #1: span1, span2, span3
         break;
     case 1:
-        do_it(span1, (i & 1) != 0, (i & (1 << 1)) != 0, span3, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span2, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0);
+        do_it(span1, (i & 1) != 0, (i & (1 << 1)) != 0, span3, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span2, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0);  // ordering #2: span1, span3, span2
         break;
     default:
-        assert((i >> 6) == 2);
-        do_it(span2, (i & 1) != 0, (i & (1 << 1)) != 0, span1, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span3, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0);
+        assert((i >> 6) == 2);  // only remaining case is ordering #3
+        do_it(span2, (i & 1) != 0, (i & (1 << 1)) != 0, span1, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span3, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0);  // ordering #3: span2, span1, span3
     }
     assert(edges_in.size() == edges_out.size());
 }
-
-#if 0
-static inline void do_crossover(const std::vector<FlipEdge> &edges_in, std::vector<FlipEdge> &edges_out,
-    const std::pair<size_t, size_t> &span1, const std::pair<size_t, size_t> &span2, const std::pair<size_t, size_t> &span3, const std::pair<size_t, size_t> &span4,
-    size_t i)
-{
-    assert(edges_in.size() == edges_out.size());
-    auto do_it = [&edges_in, &edges_out](
-        const std::pair<size_t, size_t> &span1, bool reversed1, bool flipped1,
-        const std::pair<size_t, size_t> &span2, bool reversed2, bool flipped2,
-        const std::pair<size_t, size_t> &span3, bool reversed3, bool flipped3,
-        const std::pair<size_t, size_t> &span4, bool reversed4, bool flipped4) {
-        auto it_edges_out = edges_out.begin();
-        auto copy_span = [&edges_in, &it_edges_out](std::pair<size_t, size_t> span, bool reversed, bool flipped) {
-            assert(span.first < span.second);
-            auto it = it_edges_out;
-            if (reversed)
-                std::reverse_copy(edges_in.begin() + span.first, edges_in.begin() + span.second, it_edges_out);
-            else
-                std::copy        (edges_in.begin() + span.first, edges_in.begin() + span.second, it_edges_out);
-            it_edges_out += span.second - span.first;
-            if (reversed != flipped) {
-                for (; it != it_edges_out; ++ it)
-                    it->flip();
-            }
-        };
-        copy_span(span1, reversed1, flipped1);
-        copy_span(span2, reversed2, flipped2);
-        copy_span(span3, reversed3, flipped3);
-        copy_span(span4, reversed4, flipped4);
-    };
-    switch (i >> 8) {
-    case 0:
-        assert(i != 0); // otherwise it would be a no-op
-        do_it(span1, (i & 1) != 0, (i & (1 << 1)) != 0, span2, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span3, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span4, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0);
-        break;
-    case 1:
-        do_it(span1, (i & 1) != 0, (i & (1 << 1)) != 0, span2, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span4, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span3, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0);
-        break;
-    case 2:
-        do_it(span1, (i & 1) != 0, (i & (1 << 1)) != 0, span3, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span2, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span4, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0);
-        break;
-    case 3:
-        do_it(span1, (i & 1) != 0, (i & (1 << 1)) != 0, span3, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span4, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span2, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0);
-        break;
-    case 4:
-        do_it(span1, (i & 1) != 0, (i & (1 << 1)) != 0, span4, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span2, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span3, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0);
-        break;
-    case 5:
-        do_it(span1, (i & 1) != 0, (i & (1 << 1)) != 0, span4, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span3, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span2, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0);
-        break;
-    case 6:
-        do_it(span2, (i & 1) != 0, (i & (1 << 1)) != 0, span1, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span3, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span4, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0);
-        break;
-    case 7:
-        do_it(span2, (i & 1) != 0, (i & (1 << 1)) != 0, span1, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span4, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span3, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0);
-        break;
-    case 8:
-        do_it(span2, (i & 1) != 0, (i & (1 << 1)) != 0, span3, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span1, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span4, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0);
-        break;
-    case 9:
-        do_it(span2, (i & 1) != 0, (i & (1 << 1)) != 0, span4, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span1, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span3, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0);
-        break;
-    case 10:
-        do_it(span3, (i & 1) != 0, (i & (1 << 1)) != 0, span1, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span2, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span4, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0);
-        break;
-    default:
-        assert((i >> 8) == 11);
-        do_it(span3, (i & 1) != 0, (i & (1 << 1)) != 0, span2, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, span1, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, span4, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0);
-        break;
-    }
-    assert(edges_in.size() == edges_out.size());
-}
-#endif
 
 // Worst time complexity:    O(min(n, 100) * (n * log n + n^2)
 // Expected time complexity: O(min(n, 100) * (n * log n + k * n)
@@ -1690,7 +1538,7 @@ static inline void do_crossover(const std::vector<FlipEdge> &edges_in, std::vect
 // Performance note: there are likely better heuristics to lower the time complexity.
 static inline void reorder_by_two_exchanges_with_segment_flipping(std::vector<FlipEdge> &edges)
 {
-    if (edges.size() < 2)
+    if (edges.size() < 2)  // need at least 2 edges to reorder
         return;
 
     std::vector<ConnectionCost> 			connections(edges.size());
@@ -1761,258 +1609,6 @@ static inline void reorder_by_two_exchanges_with_segment_flipping(std::vector<Fl
         }
     }
 }
-
-#if 0
-// Currently not used, too slow.
-static inline void reorder_by_three_exchanges_with_segment_flipping(std::vector<FlipEdge> &edges)
-{
-    if (edges.size() < 3) {
-        reorder_by_two_exchanges_with_segment_flipping(edges);
-        return;
-    }
-
-    std::vector<ConnectionCost> 			connections(edges.size());
-    std::vector<FlipEdge> 					edges_tmp(edges);
-    std::vector<std::pair<double, size_t>>	connection_lengths(edges.size() - 1, std::pair<double, size_t>(0., 0));
-    std::vector<char>						connection_tried(edges.size(), false);
-    for (size_t iter = 0; iter < edges.size(); ++ iter) {
-        // Initialize connection costs and connection lengths.
-        for (size_t i = 1; i < edges.size(); ++ i) {
-            const FlipEdge   	 &e1 = edges[i - 1];
-            const FlipEdge   	 &e2 = edges[i];
-            ConnectionCost	     &c  = connections[i];
-            c = connections[i - 1];
-            double l = (e2.p1 - e1.p2).norm();
-            c.cost += l;
-            c.cost_flipped += (e2.p2 - e1.p1).norm();
-            connection_lengths[i - 1] = std::make_pair(l, i);
-        }
-        std::sort(connection_lengths.begin(), connection_lengths.end(), [](const std::pair<double, size_t> &l, const std::pair<double, size_t> &r) { return l.first > r.first; });
-        std::fill(connection_tried.begin(), connection_tried.end(), false);
-        size_t crossover1_pos_final = std::numeric_limits<size_t>::max();
-        size_t crossover2_pos_final = std::numeric_limits<size_t>::max();
-        size_t crossover3_pos_final = std::numeric_limits<size_t>::max();
-        size_t crossover_flip_final = 0;
-        for (const std::pair<double, size_t> &first_crossover_candidate : connection_lengths) {
-            size_t longest_connection_idx = first_crossover_candidate.second;
-            connection_tried[longest_connection_idx] = true;
-            // Find the second crossover connection with the lowest total chain cost.
-            double crossover_cost_min = connections.back().cost;
-            for (size_t j = 1; j < connections.size(); ++ j)
-                if (! connection_tried[j]) {
-                    for (size_t k = j + 1; k < connections.size(); ++ k)
-                        if (! connection_tried[k]) {
-                            size_t a = longest_connection_idx;
-                            size_t b = j;
-                            size_t c = k;
-                            if (a > c)
-                                std::swap(a, c);
-                            if (a > b)
-                                std::swap(a, b);
-                            if (b > c)
-                                std::swap(b, c);
-                            std::pair<double, size_t> cost_and_flip = minimum_crossover_cost(edges, 
-                                std::make_pair(size_t(0), a), connections[a - 1], std::make_pair(a, b), connections[b - 1] - connections[a], 
-                                std::make_pair(b, c), connections[c - 1] - connections[b], std::make_pair(c, edges.size()), connections.back() - connections[c],
-                                connections.back().cost);
-                            if (cost_and_flip.second > 0 && cost_and_flip.first < crossover_cost_min) {
-                                crossover_cost_min   = cost_and_flip.first;
-                                crossover1_pos_final = a;
-                                crossover2_pos_final = b;
-                                crossover3_pos_final = c;
-                                crossover_flip_final = cost_and_flip.second;
-                                assert(crossover_cost_min < connections.back().cost + EPSILON);
-                            }
-                        }
-                }
-            if (crossover_flip_final > 0) {
-                // The cost of the chain with the proposed two crossovers has a lower total cost than the current chain. Apply the crossover.
-                break;
-            } else {
-                // Continue with another long candidate edge.
-            }
-        }
-        if (crossover_flip_final > 0) {
-            // Pair of cross over positions and flip / reverse constellation has been found, which improves the total cost of the connection.
-            // Perform a crossover.
-            do_crossover(edges, edges_tmp, std::make_pair(size_t(0), crossover1_pos_final), std::make_pair(crossover1_pos_final, crossover2_pos_final), 
-                std::make_pair(crossover2_pos_final, crossover3_pos_final), std::make_pair(crossover3_pos_final, edges.size()), crossover_flip_final);
-            edges.swap(edges_tmp);
-        } else {
-            // No valid pair of cross over positions was found improving the total cost. Giving up.
-            break;
-        }
-    }
-}
-#endif
-
-typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::DontAlign> Matrixd;
-
-class FourOptCosts {
-public:
-    FourOptCosts(const ConnectionCost &c1, const ConnectionCost &c2, const ConnectionCost &c3, const ConnectionCost &c4) : costs { &c1, &c2, &c3, &c4 } {}
-
-    double operator()(size_t piece_idx, bool flipped) const { return flipped ? costs[piece_idx]->cost_flipped : costs[piece_idx]->cost; }
-
-private:
-    const ConnectionCost* costs[4];
-};
-
-#if 0
-static inline std::pair<double, size_t> minimum_crossover_cost(
-    const FourOptCosts				  &segment_costs,
-    const Matrixd 					  &segment_end_point_distance_matrix,
-    const double					   cost_current)
-{
-    // Distance from the end of span1 to the start of span2.
-    auto end_point_distance = [&segment_end_point_distance_matrix](size_t span1, bool reversed1, bool flipped1, size_t span2, bool reversed2, bool flipped2) {
-        return segment_end_point_distance_matrix(span1 * 4 + (! reversed1) * 2 + flipped1, span2 * 4 + reversed2 * 2 + flipped2);
-    };
-    auto connection_cost = [&segment_costs, end_point_distance](
-        const size_t span1, bool reversed1, bool flipped1,
-        const size_t span2, bool reversed2, bool flipped2,
-        const size_t span3, bool reversed3, bool flipped3,
-        const size_t span4, bool reversed4, bool flipped4) {
-        // Calculate the cost of reverting chains and / or flipping segment orientations.
-        return segment_costs(span1, flipped1) + segment_costs(span2, flipped2) + segment_costs(span3, flipped3) + segment_costs(span4, flipped4) +
-               end_point_distance(span1, reversed1, flipped1, span2, reversed2, flipped2) +
-               end_point_distance(span2, reversed2, flipped2, span3, reversed3, flipped3) +
-               end_point_distance(span3, reversed3, flipped3, span4, reversed4, flipped4);
-    };
-
-#ifndef NDEBUG
-    {
-        double c = connection_cost(0, false, false, 1, false, false, 2, false, false, 3, false, false);
-        assert(std::abs(c - cost_current) < SCALED_EPSILON);
-    }
-#endif /* NDEBUG */
-
-    double cost_min = cost_current;
-    size_t flip_min = 0; // no flip, no improvement
-    for (size_t i = 0; i < (1 << 8); ++ i) {
-        // From the three combinations of 1,2,3 ordering, the other three are reversals of the first three.
-        size_t permutation = 0;
-        for (double c : {
-                (i == 0) ? cost_current : 
-                connection_cost(0, (i & 1) != 0, (i & (1 << 1)) != 0, 1, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, 2, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, 3, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(0, (i & 1) != 0, (i & (1 << 1)) != 0, 1, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, 3, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, 2, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(0, (i & 1) != 0, (i & (1 << 1)) != 0, 2, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, 1, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, 3, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(0, (i & 1) != 0, (i & (1 << 1)) != 0, 2, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, 3, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, 1, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(0, (i & 1) != 0, (i & (1 << 1)) != 0, 3, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, 1, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, 2, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(0, (i & 1) != 0, (i & (1 << 1)) != 0, 3, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, 2, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, 1, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(1, (i & 1) != 0, (i & (1 << 1)) != 0, 0, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, 2, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, 3, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(1, (i & 1) != 0, (i & (1 << 1)) != 0, 0, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, 3, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, 2, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(1, (i & 1) != 0, (i & (1 << 1)) != 0, 2, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, 0, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, 3, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(1, (i & 1) != 0, (i & (1 << 1)) != 0, 3, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, 0, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, 2, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(2, (i & 1) != 0, (i & (1 << 1)) != 0, 0, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, 1, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, 3, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0),
-                connection_cost(2, (i & 1) != 0, (i & (1 << 1)) != 0, 1, (i & (1 << 2)) != 0, (i & (1 << 3)) != 0, 0, (i & (1 << 4)) != 0, (i & (1 << 5)) != 0, 3, (i & (1 << 6)) != 0, (i & (1 << 7)) != 0)
-            }) {
-            if (c < cost_min) {
-                cost_min = c;
-                flip_min = i + (permutation << 8);
-            }
-            ++ permutation;
-        }
-    }
-    return std::make_pair(cost_min, flip_min);
-}
-
-// Currently not used, too slow.
-static inline void reorder_by_three_exchanges_with_segment_flipping2(std::vector<FlipEdge> &edges)
-{
-    if (edges.size() < 3) {
-        reorder_by_two_exchanges_with_segment_flipping(edges);
-        return;
-    }
-
-    std::vector<ConnectionCost> 			connections(edges.size());
-    std::vector<FlipEdge> 					edges_tmp(edges);
-    std::vector<std::pair<double, size_t>>	connection_lengths(edges.size() - 1, std::pair<double, size_t>(0., 0));
-    std::vector<char>						connection_tried(edges.size(), false);
-    for (size_t iter = 0; iter < edges.size(); ++ iter) {
-        // Initialize connection costs and connection lengths.
-        for (size_t i = 1; i < edges.size(); ++ i) {
-            const FlipEdge   	 &e1 = edges[i - 1];
-            const FlipEdge   	 &e2 = edges[i];
-            ConnectionCost	     &c  = connections[i];
-            c = connections[i - 1];
-            double l = (e2.p1 - e1.p2).norm();
-            c.cost += l;
-            c.cost_flipped += (e2.p2 - e1.p1).norm();
-            connection_lengths[i - 1] = std::make_pair(l, i);
-        }
-        std::sort(connection_lengths.begin(), connection_lengths.end(), [](const std::pair<double, size_t> &l, const std::pair<double, size_t> &r) { return l.first > r.first; });
-        std::fill(connection_tried.begin(), connection_tried.end(), false);
-        size_t crossover1_pos_final = std::numeric_limits<size_t>::max();
-        size_t crossover2_pos_final = std::numeric_limits<size_t>::max();
-        size_t crossover3_pos_final = std::numeric_limits<size_t>::max();
-        size_t crossover_flip_final = 0;
-        // Distances between the end points of the four pieces of the current segment sequence.
-#ifdef NDEBUG
-        Matrixd segment_end_point_distance_matrix(4 * 4, 4 * 4);
-#else /* NDEBUG */
-        Matrixd segment_end_point_distance_matrix = Matrixd::Constant(4 * 4, 4 * 4, std::numeric_limits<double>::max());
-#endif /* NDEBUG */
-        for (const std::pair<double, size_t> &first_crossover_candidate : connection_lengths) {
-            size_t longest_connection_idx = first_crossover_candidate.second;
-            connection_tried[longest_connection_idx] = true;
-            // Find the second crossover connection with the lowest total chain cost.
-            double crossover_cost_min = connections.back().cost;
-            for (size_t j = 1; j < connections.size(); ++ j)
-                if (! connection_tried[j]) {
-                    for (size_t k = j + 1; k < connections.size(); ++ k)
-                        if (! connection_tried[k]) {
-                            size_t a = longest_connection_idx;
-                            size_t b = j;
-                            size_t c = k;
-                            if (a > c)
-                                std::swap(a, c);
-                            if (a > b)
-                                std::swap(a, b);
-                            if (b > c)
-                                std::swap(b, c);
-                            const Vec2d* endpts[16] = {
-                                &edges[0].p1, &edges[0].p2, &edges[a - 1].p2, &edges[a - 1].p1,
-                                &edges[a].p1, &edges[a].p2, &edges[b - 1].p2, &edges[b - 1].p1,
-                                &edges[b].p1, &edges[b].p2, &edges[c - 1].p2, &edges[c - 1].p1,
-                                &edges[c].p1, &edges[c].p2, &edges.back().p2, &edges.back().p1 };
-                            for (size_t v = 0; v < 16; ++ v) {
-                                const Vec2d &p1 = *endpts[v];
-                                for (size_t u = (v & (~3)) + 4; u < 16; ++ u)
-                                    segment_end_point_distance_matrix(u, v) = segment_end_point_distance_matrix(v, u) = (*endpts[u] - p1).norm();
-                            }
-                            FourOptCosts segment_costs(connections[a - 1], connections[b - 1] - connections[a], connections[c - 1] - connections[b],  connections.back() - connections[c]);
-                            std::pair<double, size_t> cost_and_flip = minimum_crossover_cost(segment_costs, segment_end_point_distance_matrix, connections.back().cost);
-                            if (cost_and_flip.second > 0 && cost_and_flip.first < crossover_cost_min) {
-                                crossover_cost_min   = cost_and_flip.first;
-                                crossover1_pos_final = a;
-                                crossover2_pos_final = b;
-                                crossover3_pos_final = c;
-                                crossover_flip_final = cost_and_flip.second;
-                                assert(crossover_cost_min < connections.back().cost + EPSILON);
-                            }
-                        }
-                }
-            if (crossover_flip_final > 0) {
-                // The cost of the chain with the proposed two crossovers has a lower total cost than the current chain. Apply the crossover.
-                break;
-            } else {
-                // Continue with another long candidate edge.
-            }
-        }
-        if (crossover_flip_final > 0) {
-            // Pair of cross over positions and flip / reverse constellation has been found, which improves the total cost of the connection.
-            // Perform a crossover.
-            do_crossover(edges, edges_tmp, std::make_pair(size_t(0), crossover1_pos_final), std::make_pair(crossover1_pos_final, crossover2_pos_final), 
-                std::make_pair(crossover2_pos_final, crossover3_pos_final), std::make_pair(crossover3_pos_final, edges.size()), crossover_flip_final);
-            edges.swap(edges_tmp);
-        } else {
-            // No valid pair of cross over positions was found improving the total cost. Giving up.
-            break;
-        }
-    }
-}
-#endif
 
 // Flip the sequences of polylines to lower the total length of connecting lines.
 // Used by the infill generator if the infill is not connected with perimeter lines
@@ -2180,7 +1776,7 @@ Polylines chain_lines(const std::vector<Line> &lines, const double point_distanc
             closest_end_point_lookup.erase(LineEnd(&seed, false));
             closest_end_point_lookup.erase(LineEnd(&seed, true));
             Polyline pl { seed.a, seed.b };
-            for (size_t round = 0; round < 2; ++ round) {
+            for (size_t round = 0; round < 2; ++ round) {  // 2 rounds: extend forward then backward
                 for (;;) {
                     auto [line_end, dist2] = closest_end_point_lookup.find(pl.last_point());
                     if (line_end == nullptr || dist2 >= point_distance_epsilon2)
