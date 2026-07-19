@@ -354,218 +354,17 @@ void EdgeGrid::Grid::create_from_m_contours(coord_t resolution)
                         }
                         }
 
-#if 0
-// Divide, round to a grid coordinate.
-// Divide x/y, round down. y is expected to be positive.
-static inline coord_t div_floor(coord_t x, coord_t y)
-{
-    assert(y > 0);
-    return ((x < 0) ? (x - y + 1) : x) / y;
-}
-
-// Walk the polyline, test whether any lines of this polyline does not intersect
-// any line stored into the grid.
-bool EdgeGrid::Grid::intersect(const MultiPoint &polyline, bool closed)
-{
-    size_t n = polyline.points.size();
-    if (closed)
-        ++ n;
-    for (size_t i = 0; i < n; ++ i) {
-        size_t j = i + 1;
-        if (j == polyline.points.size())
-            j = 0;
-        Point p1src = polyline.points[i];
-        Point p2src = polyline.points[j];
-        Point p1 = p1src;
-        Point p2 = p2src;
-        // Discretize the line segment p1, p2.
-        p1(0) -= m_bbox.min(0);
-        p1(1) -= m_bbox.min(1);
-        p2(0) -= m_bbox.min(0);
-        p2(1) -= m_bbox.min(1);
-        // Get the cells of the end points.
-        coord_t ix = div_floor(p1(0), m_resolution);
-        coord_t iy = div_floor(p1(1), m_resolution);
-        coord_t ixb = div_floor(p2(0), m_resolution);
-        coord_t iyb = div_floor(p2(1), m_resolution);
-//		assert(ix >= 0 && ix < m_cols);
-//		assert(iy >= 0 && iy < m_rows);
-//		assert(ixb >= 0 && ixb < m_cols);
-//		assert(iyb >= 0 && iyb < m_rows);
-        // Account for the end points.
-        if (line_cell_intersect(p1src, p2src, m_cells[iy*m_cols + ix]))
-            return true;
-        if (ix == ixb && iy == iyb)
-            // Both ends fall into the same cell.
-            continue;
-        // Raster the centeral part of the line.
-        coord_t dx = std::abs(p2(0) - p1(0));
-        coord_t dy = std::abs(p2(1) - p1(1));
-        if (p1(0) < p2(0)) {
-            int64_t ex = int64_t((ix + 1)*m_resolution - p1(0)) * int64_t(dy);
-            if (p1(1) < p2(1)) {
-                int64_t ey = int64_t((iy + 1)*m_resolution - p1(1)) * int64_t(dx);
-                do {
-                    assert(ix <= ixb && iy <= iyb);
-                    if (ex < ey) {
-                        ey -= ex;
-                        ex = int64_t(dy) * m_resolution;
-                        ix += 1;
-                    }
-                    else if (ex == ey) {
-                        ex = int64_t(dy) * m_resolution;
-                        ey = int64_t(dx) * m_resolution;
-                        ix += 1;
-                        iy += 1;
-                    }
-                    else {
-                        assert(ex > ey);
-                        ex -= ey;
-                        ey = int64_t(dx) * m_resolution;
-                        iy += 1;
-                    }
-                    if (line_cell_intersect(p1src, p2src, m_cells[iy*m_cols + ix]))
-                        return true;
-                } while (ix != ixb || iy != iyb);
-            }
-            else {
-                int64_t ey = int64_t(p1(1) - iy*m_resolution) * int64_t(dx);
-                do {
-                    assert(ix <= ixb && iy >= iyb);
-                    if (ex <= ey) {
-                        ey -= ex;
-                        ex = int64_t(dy) * m_resolution;
-                        ix += 1;
-                    }
-                    else {
-                        ex -= ey;
-                        ey = int64_t(dx) * m_resolution;
-                        iy -= 1;
-                    }
-                    if (line_cell_intersect(p1src, p2src, m_cells[iy*m_cols + ix]))
-                        return true;
-                } while (ix != ixb || iy != iyb);
-            }
-        }
-        else {
-            int64_t ex = int64_t(p1(0) - ix*m_resolution) * int64_t(dy);
-            if (p1(1) < p2(1)) {
-                int64_t ey = int64_t((iy + 1)*m_resolution - p1(1)) * int64_t(dx);
-                do {
-                    assert(ix >= ixb && iy <= iyb);
-                    if (ex < ey) {
-                        ey -= ex;
-                        ex = int64_t(dy) * m_resolution;
-                        ix -= 1;
-                    }
-                    else {
-                        assert(ex >= ey);
-                        ex -= ey;
-                        ey = int64_t(dx) * m_resolution;
-                        iy += 1;
-                    }
-                    if (line_cell_intersect(p1src, p2src, m_cells[iy*m_cols + ix]))
-                        return true;
-                } while (ix != ixb || iy != iyb);
-            }
-            else {
-                int64_t ey = int64_t(p1(1) - iy*m_resolution) * int64_t(dx);
-                do {
-                    assert(ix >= ixb && iy >= iyb);
-                    if (ex < ey) {
-                        ey -= ex;
-                        ex = int64_t(dy) * m_resolution;
-                        ix -= 1;
-                    }
-                    else if (ex == ey) {
-                        if (dx > 0) {
-                            ex = int64_t(dy) * m_resolution;
-                            ix -= 1;
-                        }
-                        if (dy > 0) {
-                            ey = int64_t(dx) * m_resolution;
-                            iy -= 1;
-                        }
-                    }
-                    else {
-                        assert(ex > ey);
-                        ex -= ey;
-                        ey = int64_t(dx) * m_resolution;
-                        iy -= 1;
-                    }
-                    if (line_cell_intersect(p1src, p2src, m_cells[iy*m_cols + ix]))
-                        return true;
-                } while (ix != ixb || iy != iyb);
-            }
-        }
-    }
-    return false;
-}
-
-bool EdgeGrid::Grid::line_cell_intersect(const Point &p1a, const Point &p2a, const Cell &cell)
-{
-    BoundingBox bbox(p1a, p1a);
-    bbox.merge(p2a);
-    int64_t va_x = p2a(0) - p1a(0);
-    int64_t va_y = p2a(1) - p1a(1);
-    for (size_t i = cell.begin; i != cell.end; ++ i) {
-        const std::pair<size_t, size_t> &cell_data = m_cell_data[i];
-        // Contour indexed by the ith line of this cell.
-        const Slic3r::Points &contour = *m_contours[cell_data.first];
-        // Point indices in contour indexed by the ith line of this cell.
-        size_t idx1 = cell_data.second;
-        size_t idx2 = idx1 + 1;
-        if (idx2 == contour.size())
-            idx2 = 0;
-        // The points of the ith line of this cell and its bounding box.
-        const Point &p1b = contour[idx1];
-        const Point &p2b = contour[idx2];
-        BoundingBox bbox2(p1b, p1b);
-        bbox2.merge(p2b);
-        // Do the bounding boxes intersect?
-        if (! bbox.overlap(bbox2))
-            continue;
-        // Now intersect the two line segments using exact arithmetics.
-        int64_t w1_x = p1b(0) - p1a(0);
-        int64_t w1_y = p1b(1) - p1a(1);
-        int64_t w2_x = p2b(0) - p1a(0);
-        int64_t w2_y = p2b(1) - p1a(1);
-        int64_t side1 = va_x * w1_y - va_y * w1_x;
-        int64_t side2 = va_x * w2_y - va_y * w2_x;
-        if (side1 == side2 && side1 != 0)
-            // The line segments don't intersect.
-            continue;
-        w1_x = p1a(0) - p1b(0);
-        w1_y = p1a(1) - p1b(1);
-        w2_x = p2a(0) - p1b(0);
-        w2_y = p2a(1) - p1b(1);
-        int64_t vb_x = p2b(0) - p1b(0);
-        int64_t vb_y = p2b(1) - p1b(1);
-        side1 = vb_x * w1_y - vb_y * w1_x;
-        side2 = vb_x * w2_y - vb_y * w2_x;
-        if (side1 == side2 && side1 != 0)
-            // The line segments don't intersect.
-            continue;
-        // The line segments intersect.
-        return true;
-    }
-    // The line segment (p1a, p2a) does not intersect any of the line segments inside this cell.
-    return false;
-}
-
-#endif
-
 template<const int INCX, const int INCY>
 struct PropagateDanielssonSingleStep {
     PropagateDanielssonSingleStep(float *aL, unsigned char *asigns, size_t astride, coord_t aresolution) :
         L(aL), signs(asigns), stride(astride), resolution(aresolution) {}
     inline void operator()(int r, int c, int addr_delta) {
         size_t  addr = r * stride + c;
-        if ((signs[addr] & 2) == 0) {
+        if ((signs[addr] & 2) == 0) {  // bit 1 (original-value flag, see bit comments above)
             float  *v = &L[addr << 1];
             float   l = v[0] * v[0] + v[1] * v[1];
             float  *v2s = v + (addr_delta << 1);
-            float	v2[2] = {
+            float	v2[2] = {  // 2D vector (x,y)
                 v2s[0] + INCX * resolution,
                 v2s[1] + INCY * resolution
             };
@@ -587,11 +386,11 @@ struct PropagateDanielssonSingleVStep3 {
         L(aL), signs(asigns), stride(astride), resolution(aresolution) {}
     inline void operator()(int r, int c, int addr_delta, bool has_l, bool has_r) {
         size_t  addr = r * stride + c;
-        if ((signs[addr] & 2) == 0) {
+        if ((signs[addr] & 2) == 0) {  // bit 1 (original-value flag, see bit comments above)
             float  *v    = &L[addr<<1];
             float   l    = v[0]*v[0]+v[1]*v[1];
             float  *v2s   = v+(addr_delta<<1);
-            float	v2[2] = {
+            float	v2[2] = {  // 2D vector (x,y)
                 v2s[0],
                 v2s[1] + resolution
             };
@@ -642,11 +441,11 @@ void EdgeGrid::Grid::calculate_sdf()
     size_t nrows = m_rows + 1;
     size_t ncols = m_cols + 1;
     // Unsigned vectors towards the closest point on the surface.
-    std::vector<float> L(nrows * ncols * 2, FLT_MAX);
+    std::vector<float> L(nrows * ncols * 2, FLT_MAX);  // 2 floats (x,y) per cell
     // Bit 0 set - negative.
     // Bit 1 set - original value, the distance value shall not be changed by the Danielsson propagation.
     // Bit 2 set - signum not propagated yet.
-    std::vector<unsigned char> signs(nrows * ncols, 4);
+    std::vector<unsigned char> signs(nrows * ncols, 4);  // bit 2 set: signum not propagated yet (see bit comments above)
     // SDF will be initially filled with unsigned DF.
 //	m_signed_distance_field.assign(nrows * ncols, FLT_MAX);
     float search_radius = float(m_resolution<<1);
@@ -668,11 +467,11 @@ void EdgeGrid::Grid::calculate_sdf()
                 // l2 of v_seg
                 const int64_t l2_seg = int64_t(v_seg(0)) * int64_t(v_seg(0)) + int64_t(v_seg(1)) * int64_t(v_seg(1));
                 // For each corner of this cell and its 1 ring neighbours:
-                for (int corner_y = -1; corner_y < 3; ++ corner_y) {
+                for (int corner_y = -1; corner_y < 3; ++ corner_y) {  // scan the local corner neighbourhood
                     coord_t corner_r = r + corner_y;
                     if (corner_r < 0 || static_cast<size_t>(corner_r) >= nrows)
                         continue;
-                    for (int corner_x = -1; corner_x < 3; ++ corner_x) {
+                    for (int corner_x = -1; corner_x < 3; ++ corner_x) {  // scan the local corner neighbourhood
                         coord_t corner_c = c + corner_x;
                         if (corner_c < 0 || static_cast<size_t>(corner_c) >= ncols)
                             continue;
@@ -701,9 +500,9 @@ void EdgeGrid::Grid::calculate_sdf()
                                     l[1] = float(std::abs(v_pt(1)));
                                 #ifdef _DEBUG
                                     double dabs2 = sqrt(l[0]*l[0]+l[1]*l[1]);
-                                    assert(std::abs(dabs-dabs2) < 1e-4 * std::max(dabs, dabs2));
+                                    assert(std::abs(dabs-dabs2) < 1e-4 * std::max(dabs, dabs2));  // 1e-4 relative tolerance (debug cross-check only)
                                 #endif /* _DEBUG */
-                                    signs[corner_r * ncols + corner_c] = ((det < 0) ? 1 : 0) | 2;
+                                    signs[corner_r * ncols + corner_c] = ((det < 0) ? 1 : 0) | 2;  // bit 1: original-value flag
                                 }
                             }
                         }
@@ -725,9 +524,9 @@ void EdgeGrid::Grid::calculate_sdf()
                                 l[1] = std::abs(float(v_seg(0)) * linv);
                             #ifdef _DEBUG
                                 double dabs2 = sqrt(l[0]*l[0]+l[1]*l[1]);
-                                assert(std::abs(dabs-dabs2) <= 1e-4 * std::max(dabs, dabs2));
+                                assert(std::abs(dabs-dabs2) <= 1e-4 * std::max(dabs, dabs2));  // 1e-4 relative tolerance (debug cross-check only)
                             #endif /* _DEBUG */
-                                signs[corner_r * ncols + corner_c] = ((d_seg < 0) ? 1 : 0) | 2;
+                                signs[corner_r * ncols + corner_c] = ((d_seg < 0) ? 1 : 0) | 2;  // bit 1: original-value flag
                             }
                         }
                     }
@@ -738,32 +537,32 @@ void EdgeGrid::Grid::calculate_sdf()
 
 #ifdef EDGE_GRID_DEBUG_OUTPUT
     { 
-        std::vector<uint8_t> pixels(ncols * nrows * 3, 0);
+        std::vector<uint8_t> pixels(ncols * nrows * 3, 0);  // 3 bytes per pixel (RGB)
         for (coord_t r = 0; r < nrows; ++ r) {
             for (coord_t c = 0; c < ncols; ++ c) {
-                uint8_t *pxl = pixels.data() + (((nrows - r - 1) * ncols) + c) * 3;
+                uint8_t *pxl = pixels.data() + (((nrows - r - 1) * ncols) + c) * 3;  // 3 bytes per pixel (RGB)
                 float d = m_signed_distance_field[r * ncols + c];
                 if (d != search_radius) {
                     float s = PIXEL_CHANNEL_MAX * d / search_radius;
                     int is = std::max(0, std::min(PIXEL_CHANNEL_MAX, int(floor(s + 0.5f))));
                     pxl[0] = PIXEL_CHANNEL_MAX;
                     pxl[1] = PIXEL_CHANNEL_MAX - is;
-                    pxl[2] = PIXEL_CHANNEL_MAX - is;
+                    pxl[2] = PIXEL_CHANNEL_MAX - is;  // blue channel
                 }
                 else {
                     pxl[0] = 0;
                     pxl[1] = PIXEL_CHANNEL_MAX;
-                    pxl[2] = 0;
+                    pxl[2] = 0;  // blue channel
                 }
             }
         }
         png::write_rgb_to_file_scaled(debug_out_path("unsigned_df-%d.png", iRun), ncols, nrows, pixels, DBG_PNG_UPSCALE);
     }
     {
-        std::vector<uint8_t> pixels(ncols * nrows * 3, 0);
+        std::vector<uint8_t> pixels(ncols * nrows * 3, 0);  // 3 bytes per pixel (RGB)
         for (coord_t r = 0; r < nrows; ++ r) {
             for (coord_t c = 0; c < ncols; ++ c) {
-                unsigned char *pxl = pixels.data() + (((nrows - r - 1) * ncols) + c) * 3;
+                unsigned char *pxl = pixels.data() + (((nrows - r - 1) * ncols) + c) * 3;  // 3 bytes per pixel (RGB)
                 float d = m_signed_distance_field[r * ncols + c];
                 if (d != search_radius) {
                     float s = PIXEL_CHANNEL_MAX * d / search_radius;
@@ -772,19 +571,19 @@ void EdgeGrid::Grid::calculate_sdf()
                         // Positive
                         pxl[0] = PIXEL_CHANNEL_MAX;
                         pxl[1] = PIXEL_CHANNEL_MAX - is;
-                        pxl[2] = PIXEL_CHANNEL_MAX - is;
+                        pxl[2] = PIXEL_CHANNEL_MAX - is;  // blue channel
                     }
                     else {
                         // Negative
                         pxl[0] = PIXEL_CHANNEL_MAX - is;
                         pxl[1] = PIXEL_CHANNEL_MAX - is;
-                        pxl[2] = PIXEL_CHANNEL_MAX;
+                        pxl[2] = PIXEL_CHANNEL_MAX;  // blue channel
                     }
                 }
                 else {
                     pxl[0] = 0;
                     pxl[1] = PIXEL_CHANNEL_MAX;
-                    pxl[2] = 0;
+                    pxl[2] = 0;  // blue channel
                 }
             }
         }
@@ -796,9 +595,9 @@ void EdgeGrid::Grid::calculate_sdf()
     #define PROPAGATE_SIGNUM_SINGLE_STEP(DELTA) do { \
         size_t 		   addr    = r * ncols + c;				\
         unsigned char &cur_val = signs[addr]; 				\
-        if (cur_val & 4) {	 								\
+        if (cur_val & 4) {  /* bit 2: signum not propagated yet */ \
             unsigned char old_val = signs[addr + (DELTA)];  \
-            if ((old_val & 4) == 0)							\
+            if ((old_val & 4) == 0)  /* bit 2: signum not propagated yet */ \
                 cur_val = old_val & 1; 						\
         } 													\
     } while (0);
@@ -809,16 +608,16 @@ void EdgeGrid::Grid::calculate_sdf()
                 PROPAGATE_SIGNUM_SINGLE_STEP(- int(ncols));
         for (size_t c = 1; c < ncols; ++ c)
             PROPAGATE_SIGNUM_SINGLE_STEP(- 1);
-        for (int c = int(ncols) - 2; c >= 0; -- c)
+        for (int c = int(ncols) - 2; c >= 0; -- c)  // last two columns handled separately above
             PROPAGATE_SIGNUM_SINGLE_STEP(+ 1);
     }
     // Bottom to top propagation.
-    for (int r = int(nrows) - 2; r >= 0; -- r) {
+    for (int r = int(nrows) - 2; r >= 0; -- r) {  // last two rows handled separately above
         for (size_t c = 0; c < ncols; ++ c)
             PROPAGATE_SIGNUM_SINGLE_STEP(+ ncols);
         for (size_t c = 1; c < ncols; ++ c)
             PROPAGATE_SIGNUM_SINGLE_STEP(- 1);
-        for (int c = int(ncols) - 2; c >= 0; -- c)
+        for (int c = int(ncols) - 2; c >= 0; -- c)  // last two columns handled separately above
             PROPAGATE_SIGNUM_SINGLE_STEP(+ 1);
     }
     #undef PROPAGATE_SIGNUM_SINGLE_STEP
@@ -836,17 +635,17 @@ void EdgeGrid::Grid::calculate_sdf()
 //				PROPAGATE_DANIELSSON_SINGLE_VSTEP3(-int(ncols), c != 0, c + 1 != ncols);
         for (size_t c = 1; c < ncols; ++ c)
             danielsson_hstep(int(r), int(c), -1);
-        for (int c = int(ncols) - 2; c >= 0; -- c)
+        for (int c = int(ncols) - 2; c >= 0; -- c)  // last two columns handled separately above
             danielsson_hstep(int(r), int(c), +1);
     }
     // Bottom to top propagation.
-    for (int r = int(nrows) - 2; r >= 0; -- r) {
+    for (int r = int(nrows) - 2; r >= 0; -- r) {  // last two rows handled separately above
         for (size_t c = 0; c < ncols; ++ c)
             danielsson_vstep(int(r), int(c), +int(ncols));
 //			PROPAGATE_DANIELSSON_SINGLE_VSTEP3(+int(ncols), c != 0, c + 1 != ncols);
         for (size_t c = 1; c < ncols; ++ c)
             danielsson_hstep(int(r), int(c), -1);
-        for (int c = int(ncols) - 2; c >= 0; -- c)
+        for (int c = int(ncols) - 2; c >= 0; -- c)  // last two columns handled separately above
             danielsson_hstep(int(r), int(c), +1);
     }
 
@@ -864,48 +663,48 @@ void EdgeGrid::Grid::calculate_sdf()
 
 #ifdef EDGE_GRID_DEBUG_OUTPUT
     {
-        std::vector<uint8_t> pixels(ncols * nrows * 3, 0);
-        float search_radius = float(m_resolution * 5);
+        std::vector<uint8_t> pixels(ncols * nrows * 3, 0);  // 3 bytes per pixel (RGB)
+        float search_radius = float(m_resolution * 5);  // narrow-band radius = 5 grid cells (debug visualization only)
         for (coord_t r = 0; r < nrows; ++r) {
             for (coord_t c = 0; c < ncols; ++c) {
-                uint8_t *pxl = pixels.data() + (((nrows - r - 1) * ncols) + c) * 3;
+                uint8_t *pxl = pixels.data() + (((nrows - r - 1) * ncols) + c) * 3;  // 3 bytes per pixel (RGB)
                 uint8_t sign = signs[r * ncols + c];
                 switch (sign) {
                 case 0:
                     // Positive, outside of a narrow band.
                     pxl[0] = 0;
                     pxl[1] = 0;
-                    pxl[2] = PIXEL_CHANNEL_MAX;
+                    pxl[2] = PIXEL_CHANNEL_MAX;  // blue channel
                     break;
                 case 1:
                     // Negative, outside of a narrow band.
                     pxl[0] = PIXEL_CHANNEL_MAX;
                     pxl[1] = 0;
-                    pxl[2] = 0;
+                    pxl[2] = 0;  // blue channel
                     break;
-                case 2:
+                case 2:  // positive, original-value corner (bit 1 set)
                     // Positive, outside of a narrow band.
                     pxl[0] = PIXEL_CHANNEL_DIM;
                     pxl[1] = PIXEL_CHANNEL_DIM;
-                    pxl[2] = PIXEL_CHANNEL_MAX;
+                    pxl[2] = PIXEL_CHANNEL_MAX;  // blue channel
                     break;
-                case 3:
+                case 3:  // negative, original-value corner (bits 0+1 set)
                     // Negative, outside of a narrow band.
                     pxl[0] = PIXEL_CHANNEL_MAX;
                     pxl[1] = PIXEL_CHANNEL_DIM; 
-                    pxl[2] = PIXEL_CHANNEL_DIM;
+                    pxl[2] = PIXEL_CHANNEL_DIM;  // blue channel
                     break;
-                case 4:
+                case 4:  // bit 2 still set: signum never propagated (see comment below)
                     // This shall not happen. Undefined signum.
                     pxl[0] = 0;
                     pxl[1] = PIXEL_CHANNEL_MAX;
-                    pxl[2] = 0;
+                    pxl[2] = 0;  // blue channel
                     break;
                 default:
                     // This shall not happen. Invalid signum value.
                     pxl[0] = PIXEL_CHANNEL_MAX;
                     pxl[1] = PIXEL_CHANNEL_MAX;
-                    pxl[2] = PIXEL_CHANNEL_MAX;
+                    pxl[2] = PIXEL_CHANNEL_MAX;  // blue channel
                     break;
                 }
             }
@@ -916,23 +715,23 @@ void EdgeGrid::Grid::calculate_sdf()
 
 #ifdef EDGE_GRID_DEBUG_OUTPUT
     {
-        std::vector<uint8_t> pixels(ncols * nrows * 3, 0);
-        float search_radius = float(m_resolution * 5);
+        std::vector<uint8_t> pixels(ncols * nrows * 3, 0);  // 3 bytes per pixel (RGB)
+        float search_radius = float(m_resolution * 5);  // narrow-band radius = 5 grid cells (debug visualization only)
         for (coord_t r = 0; r < nrows; ++r) {
             for (coord_t c = 0; c < ncols; ++c) {
-                uint8_t *pxl = pixels.data() + (((nrows - r - 1) * ncols) + c) * 3;
+                uint8_t *pxl = pixels.data() + (((nrows - r - 1) * ncols) + c) * 3;  // 3 bytes per pixel (RGB)
                 float d = m_signed_distance_field[r * ncols + c];
                 float s = PIXEL_CHANNEL_MAX * fabs(d) / search_radius;
                 int is = std::max(0, std::min(PIXEL_CHANNEL_MAX, int(floor(s + 0.5f))));
                 if (d < 0.f) {
                     pxl[0] = PIXEL_CHANNEL_MAX;
                     pxl[1] = PIXEL_CHANNEL_MAX - is;
-                    pxl[2] = PIXEL_CHANNEL_MAX - is;
+                    pxl[2] = PIXEL_CHANNEL_MAX - is;  // blue channel
                 }
                 else {
                     pxl[0] = PIXEL_CHANNEL_MAX - is;
                     pxl[1] = PIXEL_CHANNEL_MAX - is;
-                    pxl[2] = PIXEL_CHANNEL_MAX;
+                    pxl[2] = PIXEL_CHANNEL_MAX;  // blue channel
                 }
             }
         }
@@ -971,9 +770,9 @@ float EdgeGrid::Grid::signed_distance_bilinear(const Point &pt) const
     coord_t cell_c = coord_t(floor(xcl / m_resolution));
     coord_t cell_r = coord_t(floor(ycl / m_resolution));
     float   tx = float(xcl - cell_c * m_resolution) / float(m_resolution);
-    assert(tx >= -1e-5 && tx < 1.f + 1e-5);
+    assert(tx >= -1e-5 && tx < 1.f + 1e-5);  // 1e-5 tolerance (debug bounds check)
     float   ty = float(ycl - cell_r * m_resolution) / float(m_resolution);
-    assert(ty >= -1e-5 && ty < 1.f + 1e-5);
+    assert(ty >= -1e-5 && ty < 1.f + 1e-5);  // 1e-5 tolerance (debug bounds check)
     size_t  addr = cell_r * (m_cols + 1) + cell_c;
     float   f00 = m_signed_distance_field[addr];
     float   f01 = m_signed_distance_field[addr+1];
@@ -1085,7 +884,7 @@ EdgeGrid::Grid::ClosestPointResult EdgeGrid::Grid::closest_point_signed_distance
                             Vec2d vfoot = (p1 - pt).cast<double>();
                             double dist_foot = vfoot.norm();
                             double dist_foot_err = dist_foot - d_min;
-                            assert(std::abs(dist_foot_err) < 1e-7 * d_min);
+                            assert(std::abs(dist_foot_err) < 1e-7 * d_min);  // 1e-7 relative tolerance (debug cross-check only)
 #endif /* NDEBUG */
                         }
                     }
@@ -1111,7 +910,7 @@ EdgeGrid::Grid::ClosestPointResult EdgeGrid::Grid::closest_point_signed_distance
                         Vec2d vfoot = foot - pt.cast<double>();
                         double dist_foot = vfoot.norm();
                         double dist_foot_err = dist_foot - d_min;
-                        assert(std::abs(dist_foot_err) < 1e-7 || std::abs(dist_foot_err) < 1e-7 * d_min);
+                        assert(std::abs(dist_foot_err) < 1e-7 || std::abs(dist_foot_err) < 1e-7 * d_min);  // 1e-7 relative tolerance (debug cross-check only)
 #endif /* NDEBUG */
                     }
                 }
@@ -1134,7 +933,7 @@ EdgeGrid::Grid::ClosestPointResult EdgeGrid::Grid::closest_point_signed_distance
                 vfoot = p1.cast<double>() * (1. - result.t) + p2.cast<double>() * result.t - pt.cast<double>();
             double dist_foot = vfoot.norm();
             double dist_foot_err = dist_foot - std::abs(result.distance);
-            assert(std::abs(dist_foot_err) < 1e-7 || std::abs(dist_foot_err) < 1e-7 * std::abs(result.distance));
+            assert(std::abs(dist_foot_err) < 1e-7 || std::abs(dist_foot_err) < 1e-7 * std::abs(result.distance));  // 1e-7 relative tolerance (debug cross-check only)
         }
 #endif /* NDEBUG */
     } else
@@ -1252,12 +1051,12 @@ bool EdgeGrid::Grid::signed_distance(const Point &pt, coord_t search_radius, coo
 
 Polygons EdgeGrid::Grid::contours_simplified(coord_t offset, bool fill_holes) const
 {
-    assert(std::abs(2 * offset) < m_resolution);
+    assert(std::abs(2 * offset) < m_resolution);  // offset applied symmetrically on both sides
 
     typedef std::unordered_multimap<Point, int, PointHash> EndPointMapType;
     // 0) Prepare a binary grid.
-    size_t cell_rows = m_rows + 2;
-    size_t cell_cols = m_cols + 2;
+    size_t cell_rows = m_rows + 2;  // 1-cell padding on each side
+    size_t cell_cols = m_cols + 2;  // 1-cell padding on each side
     std::vector<char> cell_inside(cell_rows * cell_cols, false);
     for (int r = 0; r < int(cell_rows); ++ r)
         for (int c = 0; c < int(cell_cols); ++ c)
@@ -1453,13 +1252,13 @@ void EdgeGrid::save_png(const EdgeGrid::Grid &grid, const BoundingBox &bbox, coo
     coord_t w = (bbox.max(0) - bbox.min(0) + resolution - 1) / resolution;
     coord_t h = (bbox.max(1) - bbox.min(1) + resolution - 1) / resolution;
 
-    std::vector<uint8_t> pixels(w * h * 3, 0);
+    std::vector<uint8_t> pixels(w * h * 3, 0);  // 3 bytes per pixel (RGB)
 
-    const coord_t search_radius = grid.resolution() * 2;
-    const coord_t display_blend_radius = grid.resolution() * 2;
+    const coord_t search_radius = grid.resolution() * 2;  // search out to 2 grid cells
+    const coord_t display_blend_radius = grid.resolution() * 2;  // search out to 2 grid cells
     for (coord_t r = 0; r < h; ++r) {
         for (coord_t c = 0; c < w; ++ c) {
-            unsigned char *pxl = pixels.data() + (((h - r - 1) * w) + c) * 3;
+            unsigned char *pxl = pixels.data() + (((h - r - 1) * w) + c) * 3;  // 3 bytes per pixel (RGB)
             Point pt(c * resolution + bbox.min(0), r * resolution + bbox.min(1));
             coordf_t min_dist;
             bool on_segment = true;
@@ -1474,28 +1273,28 @@ void EdgeGrid::save_png(const EdgeGrid::Grid &grid, const BoundingBox &bbox, coo
                     if (on_segment) {
                         pxl[0] = PIXEL_CHANNEL_MAX;
                         pxl[1] = PIXEL_CHANNEL_MAX - is;
-                        pxl[2] = PIXEL_CHANNEL_MAX - is;
+                        pxl[2] = PIXEL_CHANNEL_MAX - is;  // blue channel
                     } else {
                         pxl[0] = PIXEL_CHANNEL_MAX;
                         pxl[1] = 0;
-                        pxl[2] = PIXEL_CHANNEL_MAX - is;
+                        pxl[2] = PIXEL_CHANNEL_MAX - is;  // blue channel
                     }
                 }
                 else {
                     if (on_segment) {
                         pxl[0] = PIXEL_CHANNEL_MAX - is;
                         pxl[1] = PIXEL_CHANNEL_MAX - is;
-                        pxl[2] = PIXEL_CHANNEL_MAX;
+                        pxl[2] = PIXEL_CHANNEL_MAX;  // blue channel
                     } else {
                         pxl[0] = PIXEL_CHANNEL_MAX - is;
                         pxl[1] = 0;
-                        pxl[2] = PIXEL_CHANNEL_MAX;
+                        pxl[2] = PIXEL_CHANNEL_MAX;  // blue channel
                     }
                 }
             } else {
                 pxl[0] = 0;
                 pxl[1] = PIXEL_CHANNEL_MAX;
-                pxl[2] = 0;
+                pxl[2] = 0;  // blue channel
             }
 
             float gridx = float(pt(0) - grid.bbox().min(0)) / float(grid.resolution());
@@ -1511,7 +1310,7 @@ void EdgeGrid::save_png(const EdgeGrid::Grid &grid, const BoundingBox &bbox, coo
                     float t = 0.5f + 0.5f * d;
                     pxl[0] = static_cast<unsigned char>(t * pxl[0]);
                     pxl[1] = static_cast<unsigned char>(t * pxl[1]);
-                    pxl[2] = static_cast<unsigned char>(t * pxl[2]);
+                    pxl[2] = static_cast<unsigned char>(t * pxl[2]);  // blue channel
                 }
             }
 
@@ -1523,7 +1322,7 @@ void EdgeGrid::save_png(const EdgeGrid::Grid &grid, const BoundingBox &bbox, coo
                 float t = 0.5f + 0.5f * dgrid;
                 pxl[0] = static_cast<unsigned char>(t * pxl[0]);
                 pxl[1] = static_cast<unsigned char>(t * pxl[1]);
-                pxl[2] = static_cast<unsigned char>(t * pxl[2]);
+                pxl[2] = static_cast<unsigned char>(t * pxl[2]);  // blue channel
                 if (igrid > 0.f) {
                     // Other than zero iso contour.
                     int g = int(pxl[1] + PIXEL_CHANNEL_MAX * (1.f - t));
@@ -1554,7 +1353,7 @@ std::vector<std::pair<EdgeGrid::Grid::ContourEdge, EdgeGrid::Grid::ContourEdge>>
     size_t cnt = 0;
     BoundingBox bbox;
     for (const Polygon &poly : polygons) {
-        if (poly.points.size() < 2)
+        if (poly.points.size() < 2)  // need at least 2 points to have an edge
             continue;
         for (size_t i = 0; i < poly.points.size(); ++ i) {
             bbox.merge(poly.points[i]);
