@@ -20,7 +20,7 @@ public:
     ~FillEnsuring() override = default;
     Polylines fill_surface(const Surface *surface, const FillParams &params) const override
     {
-        throw new Slic3r::RuntimeError("error, trying to fillsurface a FillEnsuring");
+        throw Slic3r::RuntimeError("error, trying to fillsurface a FillEnsuring");
         return {};
     };
     ThickPolylines fill_surface_arachne(const Surface *surface, const FillParams &params) const override
