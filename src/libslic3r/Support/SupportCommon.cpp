@@ -1879,9 +1879,9 @@ void generate_support_toolpaths(
                                                                   ipSupportBase)};
         std::unique_ptr<Fill> filler_support;
         if (support_params.with_sheath) {
-            FillWithPerimeter *ptr = new FillWithPerimeter(Fill::new_from_type(support_params.base_fill_pattern));
+            auto ptr = std::make_unique<FillWithPerimeter>(Fill::new_from_type(support_params.base_fill_pattern));
             ptr->ratio_fill_inside = 0.2f;
-            filler_support.reset(ptr);
+            filler_support = std::move(ptr);
         } else {
             filler_support.reset(Fill::new_from_type(support_params.base_fill_pattern));
         }
