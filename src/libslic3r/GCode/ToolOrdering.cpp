@@ -18,6 +18,7 @@
 #endif
 
 #include <cassert>
+#include <iterator>
 #include <limits>
 
 #include <boost/log/trivial.hpp>
@@ -26,6 +27,7 @@
 
 namespace Slic3r {
 
+constexpr double HALF_SCALING_FACTOR = SCALING_FACTOR * 0.5; // half a scaled unit, a rounding nudge before scale_t
 
 // Returns true in case that extruder a comes before b (b does not have to be present). False otherwise.
 bool LayerTools::is_extruder_order(uint16_t a, uint16_t b) const
@@ -199,28 +201,28 @@ ToolOrdering::ToolOrdering(const Print &print, uint16_t first_extruder, bool pri
             zs.reserve(zs.size() + object->layers().size() + object->support_layers().size());
             for (auto layer : object->layers()) {
                 if (layer->has_extrusions()) {
-                    zs.emplace_back(unscaled(scale_t(layer->print_z + SCALING_FACTOR * 0.5)));
+                    zs.emplace_back(unscaled(scale_t(layer->print_z + HALF_SCALING_FACTOR)));
                 }
             }
             for (auto layer : object->support_layers()) {
                 if (layer->has_extrusions()) {
-                    zs.emplace_back(unscaled(scale_t(layer->print_z + SCALING_FACTOR * 0.5)));
+                    zs.emplace_back(unscaled(scale_t(layer->print_z + HALF_SCALING_FACTOR)));
                 }
             }
 
             // Find first object layer that is not empty and save its print_z
             for (const Layer *layer : object->layers()) {
                 if (layer->has_extrusions()) {
-                    object_bottom_z = scale_t(layer->print_z - layer->height + SCALING_FACTOR * 0.5);
+                    object_bottom_z = scale_t(layer->print_z - layer->height + HALF_SCALING_FACTOR);
                     break;
                 }
             }
 
-            max_layer_height = std::max(max_layer_height, scale_t(object->config().layer_height.value + SCALING_FACTOR * 0.5));
+            max_layer_height = std::max(max_layer_height, scale_t(object->config().layer_height.value + HALF_SCALING_FACTOR));
         }
         this->initialize_layers(zs);
     }
-    max_layer_height = scale_t(calc_max_layer_height(print.config(), unscaled(max_layer_height)) + SCALING_FACTOR * 0.5);
+    max_layer_height = scale_t(calc_max_layer_height(print.config(), unscaled(max_layer_height)) + HALF_SCALING_FACTOR);
 
     // Use the extruder switches from Model::custom_gcode_per_print_z to override the extruder to print the object.
     // Do it only if all the objects were configured to be printed with a single extruder.
@@ -482,11 +484,12 @@ void ToolOrdering::reorder_extruders(uint16_t last_extruder_id)
             // On first layer with wipe tower, prefer a soluble extruder
             // at the beginning, so it is not wiped on the first layer.
             if (lt == m_layer_tools[0] && m_print_config_ptr && m_print_config_ptr->wipe_tower) {
-                for (size_t i = 0; i<lt.extruders.size(); ++i)
-                    if (m_print_config_ptr->filament_soluble.get_at(lt.extruders[i]-1)) { // 1-based...
-                        std::swap(lt.extruders[i], lt.extruders.front());
-                        break;
-                    }
+                auto soluble_extruder = std::find_if(lt.extruders.begin(), lt.extruders.end(), [this](uint16_t extruder) {
+                    size_t filament_idx = extruder; // convert the 1-based extruder ID to a checked zero-based index
+                    return filament_idx > 0 && m_print_config_ptr->filament_soluble.get_at(-- filament_idx);
+                });
+                if (soluble_extruder != lt.extruders.end())
+                    std::iter_swap(soluble_extruder, lt.extruders.begin());
             } else if (lt.extruder_needed_for_color_changer != 0) {
                 // Put the extruder needed for performing the color change at the beginning.
                 auto it = std::find(lt.extruders.begin(), lt.extruders.end(), lt.extruder_needed_for_color_changer);
@@ -523,73 +526,75 @@ void ToolOrdering::fill_wipe_tower_partitions(const PrintConfig &config, coordf_
     }
 
     // Propagate the wipe tower partitions down to support the upper partitions by the lower partitions.
-    for (int i = int(m_layer_tools.size()) - 2; i >= 0; -- i)
-        m_layer_tools[i].wipe_tower_partitions = std::max(m_layer_tools[i + 1].wipe_tower_partitions, m_layer_tools[i].wipe_tower_partitions);
+    if (! m_layer_tools.empty())
+        for (auto upper = m_layer_tools.rbegin(), lower = std::next(upper); lower != m_layer_tools.rend(); ++ upper, ++ lower)
+            lower->wipe_tower_partitions = std::max(upper->wipe_tower_partitions, lower->wipe_tower_partitions);
 
-    //FIXME this is a hack to get the ball rolling.
+    // Seed wipe-tower participation from object tool changes and raft layers; the passes below add gap layers and repair empty-layer transitions.
     for (LayerTools &lt : m_layer_tools)
         lt.has_wipe_tower = (lt.has_object && lt.wipe_tower_partitions > 0) || lt.print_z < object_bottom_z + EPSILON;
 
-    // Test for a raft, insert additional wipe tower layer to fill in the raft separation gap.
-    for (size_t i = 0; i + 1 < m_layer_tools.size(); ++ i) {
-        const LayerTools &lt      = m_layer_tools[i];
-        const LayerTools &lt_next = m_layer_tools[i + 1];
-        if (lt.print_z < object_bottom_z + EPSILON && lt_next.print_z >= object_bottom_z + EPSILON) {
-            // lt is the last raft layer. Find the 1st object layer.
-            size_t j = i + 1;
-            for (; j < m_layer_tools.size() && ! m_layer_tools[j].has_wipe_tower; ++ j);
-            if (j < m_layer_tools.size()) {
-                const LayerTools &lt_object = m_layer_tools[j];
-                coordf_t gap = lt_object.print_z - lt.print_z;
-                assert(gap > 0.f);
-                if (gap > max_layer_height + EPSILON) {
-                    // Insert one additional wipe tower layer between lh.print_z and lt_object.print_z.
-                    LayerTools lt_new(0.5f * (lt.print_z + lt_object.print_z));
-                    // Find the 1st layer above lt_new.
-                    for (j = i + 1; j < m_layer_tools.size() && m_layer_tools[j].print_z < lt_new.print_z - EPSILON; ++ j);
-                    if (std::abs(m_layer_tools[j].print_z - lt_new.print_z) < EPSILON) {
-                        m_layer_tools[j].has_wipe_tower = true;
-                    } else {
-                        LayerTools &lt_extra = *m_layer_tools.insert(m_layer_tools.begin() + j, lt_new);
-                        //LayerTools &lt_prev  = m_layer_tools[j];
-                        LayerTools &lt_next  = m_layer_tools[j + 1];
-                        assert(! m_layer_tools[j - 1].extruders.empty() && ! lt_next.extruders.empty());
-                        // FIXME: Following assert tripped when running combine_infill.t. I decided to comment it out for now.
-                        // If it is a bug, it's likely not critical, because this code is unchanged for a long time. It might
-                        // still be worth looking into it more and decide if it is a bug or an obsolete assert.
-                        //assert(lt_prev.extruders.back() == lt_next.extruders.front());
-                        lt_extra.has_wipe_tower = true;
-                        lt_extra.extruders.push_back(lt_next.extruders.front());
-                        lt_extra.wipe_tower_partitions = lt_next.wipe_tower_partitions;
-                    }
-                }
-            }
-            break;
+    const auto insert_raft_gap_layer = [this, max_layer_height](size_t raft_layer_idx, size_t object_layer_idx) {
+        const LayerTools &raft_layer   = m_layer_tools[raft_layer_idx];
+        const LayerTools &object_layer = m_layer_tools[object_layer_idx];
+        const coordf_t gap = object_layer.print_z - raft_layer.print_z;
+        assert(gap > 0.f);
+        if (gap <= max_layer_height + EPSILON)
+            return;
+        // Insert one additional wipe tower layer between the raft and the first object layer.
+        LayerTools new_layer(0.5f * (raft_layer.print_z + object_layer.print_z));
+        size_t insert_idx = raft_layer_idx + 1;
+        for (; insert_idx < m_layer_tools.size() && m_layer_tools[insert_idx].print_z < new_layer.print_z - EPSILON; ++ insert_idx);
+        if (std::abs(m_layer_tools[insert_idx].print_z - new_layer.print_z) < EPSILON) {
+            m_layer_tools[insert_idx].has_wipe_tower = true;
+            return;
         }
+        LayerTools &extra_layer = *m_layer_tools.insert(m_layer_tools.begin() + insert_idx, new_layer);
+        LayerTools &next_layer  = m_layer_tools[insert_idx + 1];
+        assert(! m_layer_tools[insert_idx - 1].extruders.empty() && ! next_layer.extruders.empty());
+        // Tool discontinuities are valid across the inserted raft-gap layer; continue with the next layer's first extruder.
+        extra_layer.has_wipe_tower = true;
+        extra_layer.extruders.push_back(next_layer.extruders.front());
+        extra_layer.wipe_tower_partitions = next_layer.wipe_tower_partitions;
+    };
+    // Test for a raft, inserting a wipe-tower layer when the separation gap is too large.
+    for (size_t raft_layer_idx = 0; raft_layer_idx + 1 < m_layer_tools.size(); ++ raft_layer_idx) {
+        const LayerTools &raft_layer = m_layer_tools[raft_layer_idx];
+        const LayerTools &next_layer = m_layer_tools[raft_layer_idx + 1];
+        if (raft_layer.print_z >= object_bottom_z + EPSILON || next_layer.print_z < object_bottom_z + EPSILON)
+            continue;
+        size_t object_layer_idx = raft_layer_idx + 1;
+        for (; object_layer_idx < m_layer_tools.size() && ! m_layer_tools[object_layer_idx].has_wipe_tower; ++ object_layer_idx);
+        if (object_layer_idx < m_layer_tools.size())
+            insert_raft_gap_layer(raft_layer_idx, object_layer_idx);
+        break;
     }
-
     // If the model contains empty layers (such as https://github.com/prusa3d/Slic3r/issues/1266), there might be layers
     // that were not marked as has_wipe_tower, even when they should have been. This produces a crash with soluble supports
     // and maybe other problems. We will therefore go through layer_tools and detect and fix this.
     // So, if there is a non-object layer starting with different extruder than the last one ended with (or containing more than one extruder),
     // we'll mark it with has_wipe tower.
-    for (uint16_t i=0; i+1<m_layer_tools.size(); ++i) {
-        LayerTools& lt = m_layer_tools[i];
-        LayerTools& lt_next = m_layer_tools[i+1];
-        if (lt.extruders.empty() || lt_next.extruders.empty())
-            break;
-        if (!lt_next.has_wipe_tower && (lt_next.extruders.front() != lt.extruders.back() || lt_next.extruders.size() > 1))
-            lt_next.has_wipe_tower = true;
-        // We should also check that the next wipe tower layer is no further than max_layer_height:
-        uint16_t j = i+1;
-        double last_wipe_tower_print_z = lt_next.print_z;
-        while (++j < m_layer_tools.size()-1 && !m_layer_tools[j].has_wipe_tower)
-            if (m_layer_tools[j+1].print_z - last_wipe_tower_print_z > max_layer_height + EPSILON) {
-                m_layer_tools[j].has_wipe_tower = true;
-                last_wipe_tower_print_z = m_layer_tools[j].print_z;
+    if (! m_layer_tools.empty()) {
+        for (auto current = m_layer_tools.begin(), next = std::next(current); next != m_layer_tools.end(); ++ current, ++ next) {
+            LayerTools& lt = *current;
+            LayerTools& lt_next = *next;
+            if (lt.extruders.empty() || lt_next.extruders.empty())
+                break;
+            if (!lt_next.has_wipe_tower && (lt_next.extruders.front() != lt.extruders.back() || lt_next.extruders.size() > 1))
+                lt_next.has_wipe_tower = true;
+            // We should also check that the next wipe tower layer is no further than max_layer_height:
+            double last_wipe_tower_print_z = lt_next.print_z;
+            auto candidate = std::next(next);
+            const auto last_candidate = std::prev(m_layer_tools.end());
+            while (candidate != m_layer_tools.end() && candidate != last_candidate && ! candidate->has_wipe_tower) {
+                if (std::next(candidate)->print_z - last_wipe_tower_print_z > max_layer_height + EPSILON) {
+                    candidate->has_wipe_tower = true;
+                    last_wipe_tower_print_z = candidate->print_z;
+                }
+                ++ candidate;
             }
+        }
     }
-
     // Calculate the wipe_tower_layer_height values.
     coordf_t wipe_tower_print_z_last = 0.;
     for (LayerTools &lt : m_layer_tools)
@@ -659,8 +664,7 @@ void ToolOrdering::mark_skirt_layers(const PrintConfig &config, coordf_t max_lay
         return;
 
     if (m_layer_tools.front().extruders.empty()) {
-        // Empty first layer, no skirt will be printed.
-        //FIXME throw an exception?
+        // An empty first layer cannot anchor continuous skirt extrusion, so leave all skirt flags clear.
         return;
     }
 
@@ -682,8 +686,7 @@ void ToolOrdering::mark_skirt_layers(const PrintConfig &config, coordf_t max_lay
                 while (m_layer_tools[k].extruders.empty())
                     -- k;
                 if (m_layer_tools[k].has_skirt) {
-                    // Skirt cannot be generated due to empty layers, there would be a missing layer in the skirt.
-                    //FIXME throw an exception?
+                    // A continuous skirt cannot bridge this empty-layer gap; keep the valid skirt layers already marked and stop extending it.
                     break;
                 }
                 m_layer_tools[k].has_skirt = true;
@@ -741,12 +744,15 @@ void ToolOrdering::assign_custom_gcodes(const Print &print)
             bool color_change = custom_gcode.type == CustomGCode::ColorChange;
             bool tool_change  = custom_gcode.type == CustomGCode::ToolChange;
             bool pause_or_custom_gcode = ! color_change && ! tool_change;
-            bool apply_color_change = ! ignore_tool_and_color_changes &&
-                // If it is color change, it will actually be useful as the exturder above will print.
-                (color_change ? 
-                    mode == CustomGCode::SingleExtruder || 
-                        (custom_gcode.extruder <= int(num_extruders) && extruder_printing_above[unsigned(custom_gcode.extruder - 1)]) :
-                    tool_change && tool_changes_as_color_changes);
+            size_t custom_extruder_idx = custom_gcode.extruder > 0 ? static_cast<size_t>(custom_gcode.extruder) : 0;
+            if (custom_extruder_idx > 0)
+                -- custom_extruder_idx;
+            const bool selected_extruder_prints_above = custom_gcode.extruder > 0 &&
+                custom_extruder_idx < extruder_printing_above.size() && extruder_printing_above[custom_extruder_idx];
+            // A color change is useful only when the selected extruder prints above this layer.
+            bool apply_color_change = ! ignore_tool_and_color_changes && (color_change ?
+                mode == CustomGCode::SingleExtruder || selected_extruder_prints_above :
+                tool_change && tool_changes_as_color_changes);
             if (pause_or_custom_gcode || apply_color_change)
                 lt.custom_gcode = &custom_gcode;
             // Consume that custom G-code event.
@@ -869,42 +875,38 @@ float WipingExtrusions::mark_wiping_extrusions(const Print& print, const LayerTo
                 if (!region.config().wipe_into_infill && !object->config().wipe_into_objects)
                     continue;
 
-                bool wipe_into_infill_only = ! object->config().wipe_into_objects && region.config().wipe_into_infill;
-                if (region.config().infill_first != perimeters_done || wipe_into_infill_only) {
-                    for (const ExtrusionEntity* ee : layerm->fills()) {
-                        // iterate through all infill Collections
-                        auto* fill = dynamic_cast<const ExtrusionEntityCollection*>(ee);
-
-                        if (!is_overriddable(*fill, lt, print.config(), *object, region))
-                            continue;
-
-                        if (wipe_into_infill_only && ! region.config().infill_first)
-                            // In this case we must check that the original extruder is used on this layer before the one we are overridding
-                            // (and the perimeters will be finished before the infill is printed):
-                            if (!lt.is_extruder_order(lt.perimeter_extruder(region), new_extruder))
-                                continue;
-
-                        if ((!is_entity_overridden(fill, copy) && fill->total_volume() > min_infill_volume)) {     // this infill will be used to wipe this extruder
-                            set_extruder_override(fill, copy, new_extruder, num_of_copies);
-                            if ((volume_to_wipe -= float(fill->total_volume())) <= 0.f)
-                                // More material was purged already than asked for.
-                                return 0.f;
-                        }
-                    }
+                const bool wipe_into_infill_only = ! object->config().wipe_into_objects && region.config().wipe_into_infill;
+                const bool process_infill = region.config().infill_first != perimeters_done || wipe_into_infill_only;
+                for (const ExtrusionEntity* ee : layerm->fills()) {
+                    if (! process_infill)
+                        break;
+                    auto* fill = dynamic_cast<const ExtrusionEntityCollection*>(ee);
+                    if (! is_overriddable(*fill, lt, print.config(), *object, region))
+                        continue;
+                    // Infill-only wiping is valid only after the source extruder's perimeter.
+                    if (wipe_into_infill_only && ! region.config().infill_first &&
+                        ! lt.is_extruder_order(lt.perimeter_extruder(region), new_extruder))
+                        continue;
+                    if (is_entity_overridden(fill, copy) || fill->total_volume() <= min_infill_volume)
+                        continue;
+                    set_extruder_override(fill, copy, new_extruder, num_of_copies);
+                    if ((volume_to_wipe -= float(fill->total_volume())) <= 0.f)
+                        return 0.f; // More material was purged already than requested.
                 }
 
                 // Now the same for perimeters - see comments above for explanation:
-                if (object->config().wipe_into_objects && region.config().infill_first == perimeters_done)
-                {
-                    for (const ExtrusionEntity* ee : layerm->perimeters()) {
-                        auto* fill = dynamic_cast<const ExtrusionEntityCollection*>(ee);
-                        if (is_overriddable(*fill, lt, print.config(), *object, region) && !is_entity_overridden(fill, copy) && fill->total_volume() > min_infill_volume) {
-                            set_extruder_override(fill, copy, new_extruder, num_of_copies);
-                            if ((volume_to_wipe -= float(fill->total_volume())) <= 0.f)
-                                // More material was purged already than asked for.
-                                return 0.f;
-                        }
-                    }
+                const bool process_perimeters = object->config().wipe_into_objects &&
+                    region.config().infill_first == perimeters_done;
+                for (const ExtrusionEntity* ee : layerm->perimeters()) {
+                    if (! process_perimeters)
+                        break;
+                    auto* fill = dynamic_cast<const ExtrusionEntityCollection*>(ee);
+                    if (! is_overriddable(*fill, lt, print.config(), *object, region) ||
+                        is_entity_overridden(fill, copy) || fill->total_volume() <= min_infill_volume)
+                        continue;
+                    set_extruder_override(fill, copy, new_extruder, num_of_copies);
+                    if ((volume_to_wipe -= float(fill->total_volume())) <= 0.f)
+                        return 0.f; // More material was purged already than requested.
                 }
             }
         }
@@ -952,16 +954,13 @@ void WipingExtrusions::ensure_perimeters_infills_order(const Print& print, const
                     // This infill could have been overridden but was not - unless we do something, it could be
                     // printed before its perimeter, or not be printed at all (in case its original extruder has
                     // not been added to LayerTools
-                    // Either way, we will now force-override it with something suitable:
+                    // Force an override when ordering permits it or the original infill extruder is unavailable.
+                    // Otherwise leave the infill unchanged so it remains after its perimeter.
                     if (region.config().infill_first
-                    || object->config().wipe_into_objects  // in this case the perimeter is overridden, so we can override by the last one safely
-                    || lt.is_extruder_order(lt.perimeter_extruder(region), last_nonsoluble_extruder)    // !infill_first, but perimeter is already printed when last extruder prints
-                    || ! lt.has_extruder(lt.infill_extruder(region))) // we have to force override - this could violate infill_first (FIXME)
-                      set_extruder_override(fill, copy, (region.config().infill_first ? first_nonsoluble_extruder : last_nonsoluble_extruder), num_of_copies);
-                    else {
-                        // In this case we can (and should) leave it to be printed normally.
-                        // Force overriding would mean it gets printed before its perimeter.
-                    }
+                    || object->config().wipe_into_objects
+                    || lt.is_extruder_order(lt.perimeter_extruder(region), last_nonsoluble_extruder)
+                    || ! lt.has_extruder(lt.infill_extruder(region)))
+                        set_extruder_override(fill, copy, (region.config().infill_first ? first_nonsoluble_extruder : last_nonsoluble_extruder), num_of_copies);
                 }
 
                 // Now the same for perimeters - see comments above for explanation:
