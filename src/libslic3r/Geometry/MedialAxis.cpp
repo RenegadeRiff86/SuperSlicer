@@ -814,6 +814,23 @@ bool MedialAxis::find_best_expolygon_intersection(const Line& line, Point& out_p
     return has;
 }
 
+// Nearest intersection of `line` with an expolygon's outline - its contour or any of its holes -
+// measured from line.a. Returns false when the line misses all of them, leaving *out untouched.
+static bool first_intersection_nearest(const ExPolygon& expolygon, const Line& line, Point* out)
+{
+    bool found = expolygon.contour.first_intersection(line, out);
+    Point candidate;
+    for (const Polygon& hole : expolygon.holes) {
+        if (!hole.first_intersection(line, &candidate))
+            continue;
+        if (found && line.a.distance_to(candidate) >= line.a.distance_to(*out))
+            continue;
+        found = true;
+        *out = candidate;
+    }
+    return found;
+}
+
 void
 MedialAxis::extends_line(ThickPolyline& polyline, const ExPolygons& anchors, const coord_t join_width)
 {
@@ -836,71 +853,47 @@ MedialAxis::extends_line(ThickPolyline& polyline, const ExPolygons& anchors, con
         if (has_boundary_point(this->m_expolygon.contour, polyline.points.back())) {
             new_back = polyline.points.back();
         } else {
-            // Find best intersection on contour or holes (flattened logic to reduce BP1015 nesting depth).
-            bool has = this->m_expolygon.contour.first_intersection(line, &new_back);
-            for (const Polygon& hole : this->m_expolygon.holes) {
-                Point cand;
-                if (hole.first_intersection(line, &cand)) {
-                    if (!has || line.a.distance_to(cand) < line.a.distance_to(new_back)) {
-                        has = true;
-                        new_back = cand;
-                    }
-                }
-            }
+            // Nearest intersection with the expolygon's own outline.
+            bool has = first_intersection_nearest(this->m_expolygon, line, &new_back);
             // safety check if no intersection
-            if (!has) {
-                if (!this->m_expolygon.contains(line.b)) {
-                    //it's outside!!!
-                    //if (!this->m_expolygon.contains(line.a)) {
-                    //    std::cout << "Error, a line is formed that start outside a polygon, end outside of it and don't cross it!\n";
-                    //} else {
-                    //    std::cout << "Error, a line is formed that start in a polygon, end outside of it and don't cross it!\n";
-                    //}
+            if (!has && !this->m_expolygon.contains(line.b)) {
+                //it's outside!!!
+                //if (!this->m_expolygon.contains(line.a)) {
+                //    std::cout << "Error, a line is formed that start outside a polygon, end outside of it and don't cross it!\n";
+                //} else {
+                //    std::cout << "Error, a line is formed that start in a polygon, end outside of it and don't cross it!\n";
+                //}
 
-                    //{
-                    //    std::stringstream stri;
-                    //    stri << "Error_" << (count_error++) << ".svg";
-                    //    SVG svg(stri.str());
-                    //    svg.draw(anchors);
-                    //    svg.draw(this->m_expolygon);
-                    //    svg.draw(line);
-                    //    svg.draw(polyline);
-                    //    svg.Close();
-                    //}
-                    //it's not possible to print that
-                    polyline.points.clear();
-                    polyline.points_width.clear();
-                    return;
-                }
-                new_back = line.b;
+                //{
+                //    std::stringstream stri;
+                //    stri << "Error_" << (count_error++) << ".svg";
+                //    SVG svg(stri.str());
+                //    svg.draw(anchors);
+                //    svg.draw(this->m_expolygon);
+                //    svg.draw(line);
+                //    svg.draw(polyline);
+                //    svg.Close();
+                //}
+                //it's not possible to print that
+                polyline.points.clear();
+                polyline.points_width.clear();
+                return;
             }
+            if (!has)
+                new_back = line.b;
             polyline.points.push_back(new_back);
             polyline.points_width.push_back(polyline.points_width.back());
         }
         Point new_bound;
-        bool finded = this->m_bounds->contour.first_intersection(line, &new_bound);
         //verify also for holes.
-        Point new_bound_temp;
-        for (Polygon hole : this->m_bounds->holes) {
-            if (hole.first_intersection(line, &new_bound_temp)) {
-                if (!finded || line.a.distance_to(new_bound_temp) < line.a.distance_to(new_bound)) {
-                    finded = true;
-                    new_bound = new_bound_temp;
-                }
-            }
-        }
+        bool finded = first_intersection_nearest(*this->m_bounds, line, &new_bound);
         // safety check if no intersection
         if (!finded) {
             if (line.b.coincides_with_epsilon(polyline.points.back()))
                 return;
             //check if we don't over-shoot inside us
-            bool is_in_anchor = false;
-            for (const ExPolygon& a : anchors) {
-                if (a.contains(line.b)) {
-                    is_in_anchor = true;
-                    break;
-                }
-            }
+            const bool is_in_anchor = std::any_of(anchors.begin(), anchors.end(),
+                                                  [&line](const ExPolygon& a) { return a.contains(line.b); });
             if (!is_in_anchor) return;
             new_bound = line.b;
         }
