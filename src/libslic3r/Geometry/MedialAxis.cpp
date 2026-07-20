@@ -2419,6 +2419,28 @@ static uint16_t split_thick_line_by_width(ThickLines& lines, int i, coord_t tole
     return segments;
 }
 
+// Retune `current_flow` to `wanted_width` and start a fresh path running over `line`.
+// Shared by the two callers that need a new path: the very first line of the polyline,
+// and every later line whose width has drifted past the tolerance.
+static void start_path_at_line(ExtrusionPath& path, Flow& current_flow, const double wanted_width,
+                               const ExtrusionRole role, const ThickLine& line)
+{
+    if (wanted_width != current_flow.width()) {
+        if (current_flow.bridge()) {
+            current_flow = Flow::bridging_flow(current_flow.height(), static_cast<float>(wanted_width));
+        } else {
+            current_flow = current_flow.with_width(static_cast<float>(wanted_width));
+        }
+    }
+    assert(!std::isnan(current_flow.mm3_per_mm()));
+    assert(!std::isnan(current_flow.width()));
+    assert(!std::isnan(current_flow.height()));
+    path = { ExtrusionAttributes{ role, current_flow }, false };
+    path.polyline.append(line.a);
+    path.polyline.append(line.b);
+    assert(path.polyline.is_valid());
+}
+
 ExtrusionMultiPath variable_width(const ThickPolyline& polyline, const ExtrusionRole role, const Flow& flow, const coord_t resolution_internal, const coord_t tolerance, bool can_reverse) {
     ExtrusionMultiPath temp(unsafe_variable_width(polyline, role, flow, resolution_internal, tolerance));
     //can reverse the whole multipath, but not each individual path inside.
@@ -2620,20 +2642,7 @@ unsafe_variable_width(const ThickPolyline& polyline, const ExtrusionRole role, c
         }
 
         if (path.polyline.empty()) {
-            if (wanted_width != current_flow.width()) {
-                if (current_flow.bridge()) {
-                    current_flow = Flow::bridging_flow(current_flow.height(), static_cast<float>(wanted_width));
-                } else {
-                    current_flow = current_flow.with_width(static_cast<float>(wanted_width));
-                }
-            }
-            assert(!std::isnan(current_flow.mm3_per_mm()));
-            assert(!std::isnan(current_flow.width()));
-            assert(!std::isnan(current_flow.height()));
-            path = { ExtrusionAttributes{ role, current_flow }, false };
-            path.polyline.append(line.a);
-            path.polyline.append(line.b);
-            assert(path.polyline.is_valid());
+            start_path_at_line(path, current_flow, wanted_width, role, line);
         } else {
             assert(path.polyline.is_valid());
             coord_t thickness_delta = scale_t(fabs(current_flow.width() - wanted_width));
@@ -2645,20 +2654,7 @@ unsafe_variable_width(const ThickPolyline& polyline, const ExtrusionRole role, c
             } else {
                 // we need to initialize a new line
                 paths.push_back(path);
-                if (wanted_width != current_flow.width()) {
-                    if (current_flow.bridge()) {
-                        current_flow = Flow::bridging_flow(current_flow.height(), static_cast<float>(wanted_width));
-                    } else {
-                        current_flow = current_flow.with_width(static_cast<float>(wanted_width));
-                    }
-                }
-                assert(!std::isnan(current_flow.mm3_per_mm()));
-                assert(!std::isnan(current_flow.width()));
-                assert(!std::isnan(current_flow.height()));
-                path = { ExtrusionAttributes{ role, current_flow }, false };
-                path.polyline.append(line.a);
-                path.polyline.append(line.b);
-                assert(path.polyline.is_valid());
+                start_path_at_line(path, current_flow, wanted_width, role, line);
             }
         }
         assert(path.polyline.size() > 2 || path.first_point() != path.last_point());  // more than 2 points, or a genuinely closed loop
@@ -2672,6 +2668,23 @@ unsafe_variable_width(const ThickPolyline& polyline, const ExtrusionRole role, c
     return paths;
 }
 
+// Wrap a multipath whose two ends do not meet into the entity kind its role requires.
+static ExtrusionEntity* make_open_multipath_entity(ExtrusionMultiPath& multi_paths, const ExtrusionRole role)
+{
+    if (role == ExtrusionRole::ThinWall) {
+        //thin walls : avoid to cut them, please.
+        //also, keep the start, as the start should be already in a frontier where possible.
+        ExtrusionEntityCollection* unsortable_coll = new ExtrusionEntityCollection(std::move(multi_paths.paths));
+        unsortable_coll->set_can_sort_reverse(false, false);
+        // Note: a collection is used because there is no un-reversable multipath type.
+        return unsortable_coll;
+    }
+    if (role == ExtrusionRole::GapFill && multi_paths.size() == 1) {
+        return multi_paths.paths.front().clone_move();
+    }
+    //can reverse but not sort/cut: it's a multipath!
+    return multi_paths.clone_move();
+}
 ExtrusionEntitiesPtr
     thin_variable_width(const ThickPolylines& polylines, const ExtrusionRole role, const Flow& flow, 
     const coord_t resolution_internal, bool can_reverse)
@@ -2703,23 +2716,7 @@ ExtrusionEntitiesPtr
             if (multi_paths.paths.front().first_point().coincides_with_epsilon(multi_paths.paths.back().last_point())) {
                 coll.push_back(new ExtrusionLoop(std::move(multi_paths.paths)));
             } else {
-                if (role == ExtrusionRole::ThinWall) {
-                    //thin walls : avoid to cut them, please.
-                    //also, keep the start, as the start should be already in a frontier where possible.
-                    ExtrusionEntityCollection* unsortable_coll = new ExtrusionEntityCollection(std::move(multi_paths.paths));
-                    unsortable_coll->set_can_sort_reverse(false, false);
-                    // Note: a collection is used because there is no un-reversable multipath type.
-                    coll.push_back(unsortable_coll);
-                } else if (role == ExtrusionRole::GapFill) {
-                    if (multi_paths.size() == 1) {
-                        coll.push_back(multi_paths.paths.front().clone_move());
-                    } else {
-                        //can reverse but not sort/cut: it's a multipath!
-                        coll.push_back(multi_paths.clone_move());
-                    }
-                } else {
-                    coll.push_back(multi_paths.clone_move());
-                }
+                coll.push_back(make_open_multipath_entity(multi_paths, role));
             }
         }
     }
