@@ -1259,20 +1259,21 @@ MedialAxis::main_fusion(ThickPolylines& pp)
                                                      dot_poly_branch_test, dot_candidate_branch_test,
                                                      find_main_branch, biggest_main_branch_id))
                     continue;
-                if (test_dot > best_dot) {
-                    has_candidate = true;
-                    best_idx = j;
-                    best_dot = test_dot;
-                    dot_poly_branch = dot_poly_branch_test;
-                    dot_candidate_branch = dot_candidate_branch_test;
-                    //{
-                    //    std::cout << "going to merge: b1=" << i << ", b2=" << best_idx << ", main=" << biggest_main_branch_id << "\n";
-                    //    std::cout << "b1=" << polyline.points.front().x() << " : " << polyline.points.front().y() << " => " << polyline.points.back().x() << " : " << polyline.points.back().y() << "\n";
-                    //    std::cout << "b2=" << other.points.front().x() << " : " << other.points.front().y() << " => " << other.points.back().x() << " : " << other.points.back().y() << "\n";
-                    // std::cout << "main=" << pp[biggest_main_branch_id].points.front().x() << " : " << pp[biggest_main_branch_id].points.front().y() << " => " <<
-                    // pp[biggest_main_branch_id].points.back().x() << " : " << pp[biggest_main_branch_id].points.back().y() << "\n";
-                    //}
-                }
+                // negated rather than `<=` so that a NaN dot still skips, exactly as the original `>` did
+                if (!(test_dot > best_dot))
+                    continue;
+                has_candidate = true;
+                best_idx = j;
+                best_dot = test_dot;
+                dot_poly_branch = dot_poly_branch_test;
+                dot_candidate_branch = dot_candidate_branch_test;
+                //{
+                //    std::cout << "going to merge: b1=" << i << ", b2=" << best_idx << ", main=" << biggest_main_branch_id << "\n";
+                //    std::cout << "b1=" << polyline.points.front().x() << " : " << polyline.points.front().y() << " => " << polyline.points.back().x() << " : " << polyline.points.back().y() << "\n";
+                //    std::cout << "b2=" << other.points.front().x() << " : " << other.points.front().y() << " => " << other.points.back().x() << " : " << other.points.back().y() << "\n";
+                // std::cout << "main=" << pp[biggest_main_branch_id].points.front().x() << " : " << pp[biggest_main_branch_id].points.front().y() << " => " <<
+                // pp[biggest_main_branch_id].points.back().x() << " : " << pp[biggest_main_branch_id].points.back().y() << "\n";
+                //}
             }
             if (has_candidate) {
                 //idf++;
@@ -1458,14 +1459,11 @@ MedialAxis::concatenate_small_polylines(ThickPolylines& pp) const
             float other_dot = std::abs(float(v_poly.x() * v_other.x() + v_poly.y() * v_other.y()));
             // use the straitest one
             // but if almost equal, use the shortest one
-            if (std::abs(other_dot - best_dot) < 0.01) {
-                if (best_length < 0 || best_length > other_length) {
-                    best_candidate = &other;
-                    best_idx = j;
-                    best_dot = other_dot;
-                    best_length = other_length;
-                }
-            }else if (other_dot > best_dot) {
+            // among near-equal dots prefer the shortest, otherwise prefer the straightest
+            const bool dots_nearly_equal = std::abs(other_dot - best_dot) < 0.01;
+            const bool take_other = dots_nearly_equal ? (best_length < 0 || best_length > other_length)
+                                                      : (other_dot > best_dot);
+            if (take_other) {
                 best_candidate = &other;
                 best_idx = j;
                 best_dot = other_dot;
@@ -1683,17 +1681,15 @@ MedialAxis::remove_too_short_polylines(ThickPolylines& pp) const
             // (we can't do this check before endpoints extension and clipping because we don't
             // know how long will the endpoints be extended since it depends on polygon thickness
             // which is variable - extension will be <= m_max_width/2 on each side) 
-            if ((polyline.endpoints.first || polyline.endpoints.second)) {
-                coordf_t local_min_length = coordf_t(this->m_max_width) / 2.;  // half max-width endpoint-extension budget (see comment above)
-                for (coordf_t w : polyline.points_width)
-                    local_min_length = std::max(local_min_length, w - SCALED_EPSILON);
-                local_min_length = std::max(local_min_length, shortest_size);
-                if (polyline.length() < local_min_length) {
-                    if (shortest_size > polyline.length()) {
-                        shortest_size = polyline.length();
-                        shortest_idx = i;
-                    }
-                }
+            if (!polyline.endpoints.first && !polyline.endpoints.second)
+                continue;
+            coordf_t local_min_length = coordf_t(this->m_max_width) / 2.;  // half max-width endpoint-extension budget (see comment above)
+            for (coordf_t w : polyline.points_width)
+                local_min_length = std::max(local_min_length, w - SCALED_EPSILON);
+            local_min_length = std::max(local_min_length, shortest_size);
+            if (polyline.length() < local_min_length && shortest_size > polyline.length()) {
+                shortest_size = polyline.length();
+                shortest_idx = i;
             }
         }
         if (shortest_idx < pp.size()) {
@@ -1711,12 +1707,12 @@ MedialAxis::remove_too_short_polylines(ThickPolylines& pp) const
         for (size_t polyidx = 0; polyidx < pp.size(); ++polyidx) {
             ThickPolyline& tp = pp[polyidx];
             for (size_t pt_idx = 1; pt_idx < tp.points.size() - 1; pt_idx++) {
-                if (tp.points[pt_idx - 1].coincides_with_epsilon(tp.points[pt_idx])) {
-                    tp.points.erase(tp.points.begin() + pt_idx);
-                    tp.points_width.erase(tp.points_width.begin() + pt_idx);
-                    pt_idx--;
-                    changes = true;
-                }
+                if (!tp.points[pt_idx - 1].coincides_with_epsilon(tp.points[pt_idx]))
+                    continue;
+                tp.points.erase(tp.points.begin() + pt_idx);
+                tp.points_width.erase(tp.points_width.begin() + pt_idx);
+                pt_idx--;
+                changes = true;
             }
             //check last segment
             if (tp.points.size() > 2 && tp.points[tp.points.size() - 2].coincides_with_epsilon(tp.points.back())) {  // second-to-last point
@@ -2008,9 +2004,8 @@ MedialAxis::build(ThickPolylines& polylines_out)
                 thickPoly.points.push_back(thickPoly.points.front());
                 thickPoly.endpoints.first = false;
                 thickPoly.endpoints.second = false;
-                for (int i = 0; i < thickPoly.points.size(); i++) {
-                    thickPoly.points_width.push_back(radius);
-                }
+                // points_width is empty on a freshly built ThickPolyline, so this is the push_back loop
+                thickPoly.points_width.assign(thickPoly.points.size(), radius);
                 polylines_out.insert(polylines_out.end(), thickPoly);
                 return;
             }
