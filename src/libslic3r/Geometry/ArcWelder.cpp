@@ -1204,6 +1204,43 @@ PathSegmentProjection point_to_path_projection(const Path &path, const Point &po
     return out;
 }
 
+// A large arc (> PI) was split. At least one of the two arches that were created by splitting the
+// original arch will become smaller. Make the radii of those arches that became < PI positive.
+static void fix_split_arc_radii(const Segment &start, const Segment &end,
+                                const PathSegmentProjection &proj, std::pair<Path, Path> &out)
+{
+    // In case of a projection onto an arc, proj.center should be filled in and valid.
+    auto vstart = (start.point - proj.center).cast<int64_t>();
+    auto vend   = (end.point - proj.center).cast<int64_t>();
+    auto vproj  = (proj.point - proj.center).cast<int64_t>();
+    if ((cross2(vstart, vproj) > 0) == end.ccw())
+        // Make the radius of a minor arc positive.
+        out.first.back().radius *= -1.f;
+    if ((cross2(vproj, vend) > 0) == end.ccw())
+        // Make the radius of a minor arc positive.
+        out.second[1].radius *= -1.f;
+    assert(out.first.size() > 1);
+    assert(out.second.size() > 1);
+    out.second.front().radius = 0;
+}
+
+// Split at the start of proj.segment_id: the two halves share that point, so no new point is
+// introduced and only the seam radius needs clearing.
+static void split_at_segment_start(const Path &path, [[maybe_unused]] const PathSegmentProjection &proj,
+                                   const int split_segment_id,
+                                   [[maybe_unused]] const Segment &start, [[maybe_unused]] const Segment &end,
+                                   std::pair<Path, Path> &out)
+{
+    out.first.assign(path.begin(), path.begin() + split_segment_id + 1);
+    out.second.assign(path.begin() + split_segment_id, path.end());
+    assert(out.first.size() + out.second.size() == path.size() + 1);
+    assert(out.first.back() == (split_segment_id == proj.segment_id ? start : end));
+    assert(out.second.front() == (split_segment_id == proj.segment_id ? start : end));
+    assert(out.first.size() > 1);
+    assert(out.second.size() > 1);
+    out.second.front().radius = 0;
+}
+
 std::pair<Path, Path> split_at(const Path &path, const PathSegmentProjection &proj, const double min_segment_length)
 {
     assert(proj.valid());
@@ -1242,41 +1279,16 @@ std::pair<Path, Path> split_at(const Path &path, const PathSegmentProjection &pr
             assert(out.first.back().radius == out.second[1].radius);
             out.first.back().point = proj.point;
             out.second.front().point = proj.point;
-            if (end.radius < 0) {
-                // A large arc (> PI) was split.
-                // At least one of the two arches that were created by splitting the original arch will become smaller.
-                // Make the radii of those arches that became < PI positive.
-                // In case of a projection onto an arc, proj.center should be filled in and valid.
-                auto vstart = (start.point - proj.center).cast<int64_t>();
-                auto vend   = (end.point - proj.center).cast<int64_t>();
-                auto vproj  = (proj.point - proj.center).cast<int64_t>();
-                if ((cross2(vstart, vproj) > 0) == end.ccw())
-                    // Make the radius of a minor arc positive.
-                    out.first.back().radius *= -1.f;
-                if ((cross2(vproj, vend) > 0) == end.ccw())
-                    // Make the radius of a minor arc positive.
-                    out.second[1].radius *= -1.f;
-                assert(out.first.size() > 1);
-                assert(out.second.size() > 1);
-                out.second.front().radius = 0;
-            }
+            if (end.radius < 0)
+                fix_split_arc_radii(start, end, proj, out);
         } else {
             assert(split_segment_id >= 0 && split_segment_id < path.size());
             if (split_segment_id + 1 == int(path.size()))
                 out.first = path;
             else if (split_segment_id == 0)
                 out.second = path;
-            else {
-                // Split at the start of proj.segment_id.
-                out.first.assign(path.begin(), path.begin() + split_segment_id + 1);
-                out.second.assign(path.begin() + split_segment_id, path.end());
-                assert(out.first.size() + out.second.size() == path.size() + 1);
-                assert(out.first.back() == (split_segment_id == proj.segment_id ? start : end));
-                assert(out.second.front() == (split_segment_id == proj.segment_id ? start : end));
-                assert(out.first.size() > 1);
-                assert(out.second.size() > 1);
-                out.second.front().radius = 0;
-            }
+            else
+                split_at_segment_start(path, proj, split_segment_id, start, end, out);
         }
     }
 
