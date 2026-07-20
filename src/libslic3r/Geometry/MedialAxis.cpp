@@ -1302,65 +1302,76 @@ MedialAxis::main_fusion(ThickPolylines& pp)
     }
 }
 
-void
-MedialAxis::remove_too_thin_extrusion(ThickPolylines& pp) const
+// Trim points off both ends of a polyline while their extrusion width is on the wrong side of
+// `limit`. out_of_range(width, limit) says the end point has to go; the same comparator with its
+// arguments swapped - out_of_range(limit, neighbour_width) - says the neighbour is on the good side,
+// so the segment can be split at the crossing point instead of dropping the point outright.
+// Returns whether anything changed.
+template<typename OutOfRange>
+static bool trim_polyline_ends_by_width(ThickPolyline& polyline, coord_t limit, coord_t resolution, OutOfRange out_of_range)
 {
-    // remove too thin extrusion at start & end of polylines
+    bool polyline_changes = false;
+    // remove bits with too small extrusion
+    while (polyline.points.size() > 1 && out_of_range(polyline.points_width.front(), limit) && polyline.endpoints.first) {
+        //try to split if possible
+        if (out_of_range(limit, polyline.points_width[1])) {
+            double percent_can_keep = double(limit - polyline.points_width[0]) /
+                                      double(polyline.points_width[1] - polyline.points_width[0]);
+            if (polyline.points.front().distance_to(polyline.points[1]) * (1 - percent_can_keep) > coordf_t(resolution)) {
+                //Can split => move the first point and assign a new weight.
+                //the update of endpoints wil be performed in concatThickPolylines
+                polyline.points.front() = polyline.points.front().interpolate(percent_can_keep, polyline.points[1]);
+                polyline.points_width.front() = limit;
+            } else {
+                /// almost 0-length, Remove
+                polyline.points.erase(polyline.points.begin());
+                polyline.points_width.erase(polyline.points_width.begin());
+            }
+            polyline_changes = true;
+            break;
+        }
+        polyline.points.erase(polyline.points.begin());
+        polyline.points_width.erase(polyline.points_width.begin());
+        polyline_changes = true;
+    }
+    while (polyline.points.size() > 1 && out_of_range(polyline.points_width.back(), limit) && polyline.endpoints.second) {
+        //try to split if possible
+        if (out_of_range(limit, polyline.points_width[polyline.points.size() - 2])) {  // second-to-last point (for interpolating the split)
+            double percent_can_keep = double(limit - polyline.points_width.back()) /
+                                      double(polyline.points_width[polyline.points.size() - 2] - polyline.points_width.back());  // second-to-last point (for interpolating the split)
+            if (polyline.points.back().distance_to(polyline.points[polyline.points.size() - 2]) * (1 - percent_can_keep) > coordf_t(resolution)) {  // second-to-last point (for interpolating the split)
+                //Can split => move the first point and assign a new weight.
+                //the update of endpoints wil be performed in concatThickPolylines
+                polyline.points.back() = polyline.points.back().interpolate(percent_can_keep, polyline.points[polyline.points.size() - 2]);  // second-to-last point (for interpolating the split)
+                polyline.points_width.back() = limit;
+            } else {
+                /// almost 0-length, Remove
+                polyline.points.erase(polyline.points.end() - 1);
+                polyline.points_width.erase(polyline.points_width.end() - 1);
+            }
+            polyline_changes = true;
+            break;
+        }
+        polyline.points.erase(polyline.points.end() - 1);
+        polyline.points_width.erase(polyline.points_width.end() - 1);
+        polyline_changes = true;
+    }
+    return polyline_changes;
+}
+
+// Shared body of remove_too_thin_extrusion / remove_too_thick_extrusion, which were identical apart
+// from the width limit and the direction of every comparison against it.
+template<typename OutOfRange>
+static void remove_extrusion_with_bad_width(ThickPolylines& pp, coord_t limit, coord_t resolution, coord_t min_length,
+                                            OutOfRange out_of_range)
+{
     bool changes = false;
     for (size_t i = 0; i < pp.size(); ++i) {
         ThickPolyline& polyline = pp[i];
-        bool polyline_changes = false;
-        // remove bits with too small extrusion
-        while (polyline.points.size() > 1 && polyline.points_width.front() < this->m_min_width && polyline.endpoints.first) {
-            //try to split if possible
-            if (polyline.points_width[1] > this->m_min_width) {
-                double percent_can_keep = double(this->m_min_width - polyline.points_width[0]) /
-                                          double(polyline.points_width[1] - polyline.points_width[0]);
-                if (polyline.points.front().distance_to(polyline.points[1]) * (1 - percent_can_keep) > coordf_t(this->m_resolution)) {
-                    //Can split => move the first point and assign a new weight.
-                    //the update of endpoints wil be performed in concatThickPolylines
-                    polyline.points.front() = polyline.points.front().interpolate(percent_can_keep, polyline.points[1]);
-                    polyline.points_width.front() = this->m_min_width;
-                } else {
-                    /// almost 0-length, Remove
-                    polyline.points.erase(polyline.points.begin());
-                    polyline.points_width.erase(polyline.points_width.begin());
-                }
-                changes = true;
-                polyline_changes = true;
-                break;
-            }
-            polyline.points.erase(polyline.points.begin());
-            polyline.points_width.erase(polyline.points_width.begin());
-            changes = true;
-            polyline_changes = true;
-        }
-        while (polyline.points.size() > 1 && polyline.points_width.back() < this->m_min_width && polyline.endpoints.second) {
-            //try to split if possible
-            if (polyline.points_width[polyline.points.size() - 2] > this->m_min_width) {  // second-to-last point (for interpolating the split)
-                double percent_can_keep = double(this->m_min_width - polyline.points_width.back()) /
-                                          double(polyline.points_width[polyline.points.size() - 2] - polyline.points_width.back());  // second-to-last point (for interpolating the split)
-                if (polyline.points.back().distance_to(polyline.points[polyline.points.size() - 2]) * (1 - percent_can_keep) > coordf_t(this->m_resolution)) {  // second-to-last point (for interpolating the split)
-                    //Can split => move the first point and assign a new weight.
-                    //the update of endpoints wil be performed in concatThickPolylines
-                    polyline.points.back() = polyline.points.back().interpolate(percent_can_keep, polyline.points[polyline.points.size() - 2]);  // second-to-last point (for interpolating the split)
-                    polyline.points_width.back() = this->m_min_width;
-                } else {
-                    /// almost 0-length, Remove
-                    polyline.points.erase(polyline.points.end() - 1);
-                    polyline.points_width.erase(polyline.points_width.end() - 1);
-                }
-                polyline_changes = true;
-                changes = true;
-                break;
-            }
-            polyline.points.erase(polyline.points.end() - 1);
-            polyline.points_width.erase(polyline.points_width.end() - 1);
-            polyline_changes = true;
-            changes = true;
-        }
+        const bool polyline_changes = trim_polyline_ends_by_width(polyline, limit, resolution, out_of_range);
+        changes |= polyline_changes;
         //remove points and bits that comes from a "main line"
-        if (polyline.points.size() < 2 || (polyline_changes && polyline.points.size() == 2 && polyline.length() < std::max(this->m_min_length, std::max(polyline.points_width.front(), polyline.points_width.back()))) ) {  // 2-point segment
+        if (polyline.points.size() < 2 || (polyline_changes && polyline.points.size() == 2 && polyline.length() < std::max(min_length, std::max(polyline.points_width.front(), polyline.points_width.back()))) ) {  // 2-point segment
             //remove self if too small
             pp.erase(pp.begin() + i);
             --i;
@@ -1370,71 +1381,20 @@ MedialAxis::remove_too_thin_extrusion(ThickPolylines& pp) const
 }
 
 void
+MedialAxis::remove_too_thin_extrusion(ThickPolylines& pp) const
+{
+    // remove too thin extrusion at start & end of polylines
+    remove_extrusion_with_bad_width(pp, this->m_min_width, this->m_resolution, this->m_min_length,
+                                    [](coord_t width, coord_t limit) { return width < limit; });
+}
+
+void
 MedialAxis::remove_too_thick_extrusion(ThickPolylines& pp) const
 {
     if (this->m_biggest_width <= 0) return;
-    // remove too thin extrusion at start & end of polylines
-    bool changes = false;
-    for (size_t i = 0; i < pp.size(); ++i) {
-        ThickPolyline& polyline = pp[i];
-        bool polyline_changes = false;
-        // remove bits with too small extrusion
-        while (polyline.points.size() > 1 && polyline.points_width.front() > this->m_biggest_width && polyline.endpoints.first) {
-            //try to split if possible
-            if (polyline.points_width[1] < this->m_biggest_width) {
-                double percent_can_keep = double(this->m_biggest_width - polyline.points_width[0]) /
-                                          double(polyline.points_width[1] - polyline.points_width[0]);
-                if (polyline.points.front().distance_to(polyline.points[1]) * (1 - percent_can_keep) > coordf_t(this->m_resolution)) {
-                    //Can split => move the first point and assign a new weight.
-                    //the update of endpoints wil be performed in concatThickPolylines
-                    polyline.points.front() = polyline.points.front().interpolate(percent_can_keep, polyline.points[1]);
-                    polyline.points_width.front() = this->m_biggest_width;
-                } else {
-                    /// almost 0-length, Remove
-                    polyline.points.erase(polyline.points.begin());
-                    polyline.points_width.erase(polyline.points_width.begin());
-                }
-                changes = true;
-                polyline_changes = true;
-                break;
-            }
-            polyline.points.erase(polyline.points.begin());
-            polyline.points_width.erase(polyline.points_width.begin());
-            changes = true;
-            polyline_changes = true;
-        }
-        while (polyline.points.size() > 1 && polyline.points_width.back() > this->m_biggest_width && polyline.endpoints.second) {
-            //try to split if possible
-            if (polyline.points_width[polyline.points.size() - 2] < this->m_biggest_width) {  // second-to-last point (for interpolating the split)
-                double percent_can_keep = double(this->m_biggest_width - polyline.points_width.back()) /
-                                          double(polyline.points_width[polyline.points.size() - 2] - polyline.points_width.back());  // second-to-last point (for interpolating the split)
-                if (polyline.points.back().distance_to(polyline.points[polyline.points.size() - 2]) * (1 - percent_can_keep) > coordf_t(this->m_resolution)) {  // second-to-last point (for interpolating the split)
-                    //Can split => move the first point and assign a new weight.
-                    //the update of endpoints wil be performed in concatThickPolylines
-                    polyline.points.back() = polyline.points.back().interpolate(percent_can_keep, polyline.points[polyline.points.size() - 2]);  // second-to-last point (for interpolating the split)
-                    polyline.points_width.back() = this->m_biggest_width;
-                } else {
-                    /// almost 0-length, Remove
-                    polyline.points.erase(polyline.points.end() - 1);
-                    polyline.points_width.erase(polyline.points_width.end() - 1);
-                }
-                polyline_changes = true;
-                changes = true;
-                break;
-            }
-            polyline.points.erase(polyline.points.end() - 1);
-            polyline.points_width.erase(polyline.points_width.end() - 1);
-            polyline_changes = true;
-            changes = true;
-        }
-        //remove points and bits that comes from a "main line"
-        if (polyline.points.size() < 2 || (polyline_changes && polyline.points.size() == 2 && polyline.length() < std::max(this->m_min_length, std::max(polyline.points_width.front(), polyline.points_width.back())))) {  // 2-point segment
-            //remove self if too small
-            pp.erase(pp.begin() + i);
-            --i;
-        }
-    }
-    if (changes) concatThickPolylines(pp);
+    // remove too thick extrusion at start & end of polylines
+    remove_extrusion_with_bad_width(pp, this->m_biggest_width, this->m_resolution, this->m_min_length,
+                                    [](coord_t width, coord_t limit) { return width > limit; });
 }
 
 static Vector get_front_vector(const ThickPolyline &poly) {
