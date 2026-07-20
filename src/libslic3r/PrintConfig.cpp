@@ -714,20 +714,23 @@ namespace {
     const int max_temp = 1500;
 };
 
-static ConfigOption *disable_default_option(ConfigOption *option) {
-    return option->set_can_be_disabled(true);
+// Pass-through decorators for a freshly built default value: mark the option as one the user can
+// disable, then hand ownership straight back to set_default_value.
+// One template instead of the previous scalar/vector overload pairs: the caller's exact option type
+// survives the round trip, so set_default_value still picks its vector overload (and with it the
+// set_is_extruder_size handling) for vector options, without the downcast the old pair needed.
+// default_is_disabled was already ignored by the vector overloads; it stays accepted so the
+// existing call sites that pass it keep compiling.
+template<typename T>
+static std::unique_ptr<T> disable_default_option(std::unique_ptr<T> option, bool /*default_is_disabled*/ = true) {
+    option->set_can_be_disabled(true);   // true also force-disables the default
+    return option;
 }
 
-static ConfigOption *enable_default_option(ConfigOption *option) {
-    return option->set_can_be_disabled(false);
-}
-
-static ConfigOptionVectorBase *disable_default_option(ConfigOptionVectorBase *option, bool default_is_disabled = true) {
-    return (ConfigOptionVectorBase *)option->set_can_be_disabled(true);
-}
-
-static ConfigOptionVectorBase *enable_default_option(ConfigOptionVectorBase *option, bool default_is_disabled = true) {
-    return (ConfigOptionVectorBase *)option->set_can_be_disabled(false);
+template<typename T>
+static std::unique_ptr<T> enable_default_option(std::unique_ptr<T> option, bool /*default_is_disabled*/ = true) {
+    option->set_can_be_disabled(false);  // can be disabled by the user, but enabled by default
+    return option;
 }
 
 PrintConfigDef::PrintConfigDef()
@@ -1036,7 +1039,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->min = 0;
     def->can_be_disabled = true;
-    def->set_default_value(enable_default_option(new ConfigOptionFloatOrPercent(0, false)));
+    def->set_default_value(enable_default_option(std::make_unique<ConfigOptionFloatOrPercent>(0, false)));
 
     def = this->add("avoid_crossing_curled_overhangs", coBool);
     def->label = L("Avoid crossing curled overhangs (Experimental)");
@@ -1196,7 +1199,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->can_be_disabled = true;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(disable_default_option(new ConfigOptionFloat(0.)));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloat>(0.)));
 
     def = this->add("bridged_infill_margin", coFloatOrPercent);
     def->label = L("Bridged");
@@ -1224,7 +1227,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comPrusa;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(enable_default_option(new ConfigOptionInts{ FULL_PERCENT }));
+    def->set_default_value(enable_default_option(std::make_unique<ConfigOptionInts>(std::initializer_list<int>{ FULL_PERCENT })));
 
     def = this->add("bridge_fill_pattern", coEnum);
     def->label = L("Bridging fill pattern");
@@ -1702,7 +1705,7 @@ void PrintConfigDef::init_fff_params()
     def->max                = MAX_PERCENT;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionInts>(std::initializer_list<int>{ FULL_PERCENT })));
     def->aliases = { "min_fan_speed" }; // only if "fan_always_on"
 
     def = this->add("default_print_profile", coString);
@@ -1991,7 +1994,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionInts>(std::initializer_list<int>{ FULL_PERCENT })));
 
     def = this->add(KEY_EXTERNAL_PERIMETER_OVERLAP, coPercent);
     def->label = L("external perimeter overlap");
@@ -2085,7 +2088,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->can_be_disabled = true;
     def->mode = comAdvancedE;
-    def->set_default_value(enable_default_option(new ConfigOptionFloatOrPercent(DEFAULT_SEAM_SLOPE_MAX_LENGTH_MM, false)));
+    def->set_default_value(enable_default_option(std::make_unique<ConfigOptionFloatOrPercent>(DEFAULT_SEAM_SLOPE_MAX_LENGTH_MM, false)));
 
     def = this->add("external_perimeters_nothole", coBool);
     def->label = L("Only for contours");
@@ -2674,7 +2677,7 @@ void PrintConfigDef::init_fff_params()
     def->can_be_disabled = true;
     def->mode = comAdvancedE | comSuSi;
     def->is_vector_extruder = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({0.02})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{0.02})));
     def->aliases = {"filament_default_pa"};
 
     def = this->add("filament_pressure_advance_smooth_time", coFloats);
@@ -2689,7 +2692,7 @@ void PrintConfigDef::init_fff_params()
     def->can_be_disabled = true;
     def->mode = comExpert | comSuSi;
     def->is_vector_extruder = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({0.04})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{0.04})));
 
     def = this->add("filament_adaptive_pressure_advance", coBools);
     def->label = L("Adaptive pressure advance");
@@ -2736,7 +2739,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->min = 0;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({DISABLED_PRESSURE_ADVANCE})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{DISABLED_PRESSURE_ADVANCE})));
 
     def = this->add("filament_bridge_internal_pa", coFloats);
     def->label = L("Internal bridge");
@@ -2746,7 +2749,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->min = 0;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({DISABLED_PRESSURE_ADVANCE})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{DISABLED_PRESSURE_ADVANCE})));
 
     def = this->add("filament_brim_pa", coFloats);
     def->label = L("Brim");
@@ -2756,7 +2759,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->min = 0;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({DISABLED_PRESSURE_ADVANCE})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{DISABLED_PRESSURE_ADVANCE})));
 
     def = this->add("filament_external_perimeter_pa", coFloats);
     def->label = L("External perimeter");
@@ -2766,7 +2769,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->min = 0;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({DISABLED_PRESSURE_ADVANCE})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{DISABLED_PRESSURE_ADVANCE})));
 
     def = this->add("filament_first_layer_pa", coFloats);
     def->label = L(STR_FIRST_LAYER);
@@ -2776,7 +2779,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->min = 0;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({DISABLED_PRESSURE_ADVANCE})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{DISABLED_PRESSURE_ADVANCE})));
 
     def = this->add("filament_first_layer_pa_over_raft", coFloats);
     def->label = L("Over raft");
@@ -2786,7 +2789,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->min = 0;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({DISABLED_PRESSURE_ADVANCE})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{DISABLED_PRESSURE_ADVANCE})));
 
     def = this->add("filament_gap_fill_pa", coFloats);
     def->label = L("Gap fill");
@@ -2796,7 +2799,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->min = 0;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({DISABLED_PRESSURE_ADVANCE})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{DISABLED_PRESSURE_ADVANCE})));
 
     def = this->add("filament_infill_pa", coFloats);
     def->label = L("Infill");
@@ -2806,7 +2809,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->min = 0;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({DISABLED_PRESSURE_ADVANCE})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{DISABLED_PRESSURE_ADVANCE})));
 
     def = this->add("filament_ironing_pa", coFloats);
     def->label = L("Ironing");
@@ -2816,7 +2819,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->min = 0;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({DISABLED_PRESSURE_ADVANCE})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{DISABLED_PRESSURE_ADVANCE})));
 
     def = this->add("filament_overhangs_pa", coFloats);
     def->label = L("Overhangs");
@@ -2826,7 +2829,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->min = 0;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({DISABLED_PRESSURE_ADVANCE})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{DISABLED_PRESSURE_ADVANCE})));
 
     def = this->add("filament_perimeter_pa", coFloats);
     def->label = L(STR_PERIMETERS_CAP);
@@ -2836,7 +2839,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->min = 0;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({DISABLED_PRESSURE_ADVANCE})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{DISABLED_PRESSURE_ADVANCE})));
 
     def = this->add("filament_solid_infill_pa", coFloats);
     def->label = L("Solid infill");
@@ -2846,7 +2849,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->min = 0;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({DISABLED_PRESSURE_ADVANCE})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{DISABLED_PRESSURE_ADVANCE})));
 
     def = this->add("filament_support_material_pa", coFloats);
     def->label = L("Support");
@@ -2856,7 +2859,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->min = 0;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({DISABLED_PRESSURE_ADVANCE})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{DISABLED_PRESSURE_ADVANCE})));
 
     def = this->add("filament_support_material_interface_pa", coFloats);
     def->label = L("Support interface");
@@ -2866,7 +2869,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->min = 0;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({DISABLED_PRESSURE_ADVANCE})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{DISABLED_PRESSURE_ADVANCE})));
 
     def = this->add("filament_thin_walls_pa", coFloats);
     def->label = L("Thin walls");
@@ -2876,7 +2879,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->min = 0;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({DISABLED_PRESSURE_ADVANCE})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{DISABLED_PRESSURE_ADVANCE})));
 
     def = this->add("filament_top_solid_infill_pa", coFloats);
     def->label = L("Top solid infill");
@@ -2886,7 +2889,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->min = 0;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({DISABLED_PRESSURE_ADVANCE})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{DISABLED_PRESSURE_ADVANCE})));
 
     def = this->add("filament_travel_pa", coFloats);
     def->label = L("Travel");
@@ -2897,7 +2900,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->min = 0;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloats({DISABLED_PRESSURE_ADVANCE})));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{DISABLED_PRESSURE_ADVANCE})));
 
     def = this->add("filament_ramming_parameters", coStrings);
     def->label = L("Ramming parameters");
@@ -3295,7 +3298,7 @@ void PrintConfigDef::init_fff_params()
                     "\nIt's always disabled on the first layer, to not compromise adhesion.");
     def->mode = comExpert | comSuSi;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionGraph(GraphData(0, FLOW_COMPENSATION_GRAPH_POINTS, GraphData::GraphType::SPLINE,
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionGraph>(GraphData(0, FLOW_COMPENSATION_GRAPH_POINTS, GraphData::GraphType::SPLINE,
         {{0,0},{0.2,0.44},{0.4,0.61},{0.6,0.7},{0.8,0.76},{1.5,0.86},{2,0.89},{3,0.92},{5,0.95},{10,1}}
     ))));
     def->graph_settings = std::make_shared<GraphSettings>();
@@ -3374,7 +3377,7 @@ void PrintConfigDef::init_fff_params()
     def->can_phony = true;
     def->can_be_disabled = true;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(enable_default_option(new ConfigOptionFloatOrPercent(DEFAULT_FIRST_LAYER_WIDTH_PCT, true)));
+    def->set_default_value(enable_default_option(std::make_unique<ConfigOptionFloatOrPercent>(DEFAULT_FIRST_LAYER_WIDTH_PCT, true)));
 
     def = this->add(KEY_FIRST_LAYER_EXTRUSION_SPACING, coFloatOrPercent);
     def->label = L(STR_FIRST_LAYER);
@@ -3411,7 +3414,7 @@ void PrintConfigDef::init_fff_params()
     def->can_phony = true;
     def->can_be_disabled = true;
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value(disable_default_option(new ConfigOptionFloatOrPercent(DEFAULT_FIRST_LAYER_WIDTH_PCT, true)));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloatOrPercent>(DEFAULT_FIRST_LAYER_WIDTH_PCT, true)));
 
     def = this->add("first_layer_infill_extrusion_spacing", coFloatOrPercent);
     def->label = L(STR_FIRST_LAYER);
@@ -3607,7 +3610,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionInts>(std::initializer_list<int>{ FULL_PERCENT })));
 
     def = this->add("gap_fill_flow_match_perimeter", coPercent);
     def->label = L("Cap with perimeter flow");
@@ -3861,7 +3864,7 @@ void PrintConfigDef::init_fff_params()
     def->can_be_disabled = true;
     def->mode = comSimpleAE | comPrusa;
     def->is_vector_extruder = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts{DEFAULT_IDLE_TEMP_C}));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionInts>(std::initializer_list<int>{DEFAULT_IDLE_TEMP_C})));
 
     auto def_infill_anchor_min = def = this->add("infill_anchor", coFloatOrPercent);
     def->label = L("Length of the infill anchor");
@@ -4074,7 +4077,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionInts>(std::initializer_list<int>{ FULL_PERCENT })));
 
     def = this->add("infill_filled_bottom", coBool);
     def->label = L("GapFill for bottom infill areas");
@@ -4202,7 +4205,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionInts>(std::initializer_list<int>{ FULL_PERCENT })));
     def->aliases = { "bridge_internal_fan_speed" };
 
     def = this->add("internal_bridge_min_width", coFloatOrPercent);
@@ -4743,7 +4746,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->mode = comExpert | comSuSi;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloat(DEFAULT_MAX_GCODE_PER_SECOND)));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloat>(DEFAULT_MAX_GCODE_PER_SECOND)));
 
     def = this->add("pressure_advance_min_delta", coFloat);
     def->label = L("Pressure advance minimum change");
@@ -4786,7 +4789,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comSimpleAE | comPrusa;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(enable_default_option(new ConfigOptionFloatsOrPercents{ FloatOrPercent{ SEVENTY_FIVE_PERCENT, true} }));
+    def->set_default_value(enable_default_option(std::make_unique<ConfigOptionFloatsOrPercents>(std::initializer_list<FloatOrPercent>{ FloatOrPercent{ SEVENTY_FIVE_PERCENT, true} })));
 
     def = this->add("max_print_speed", coFloatOrPercent);
     def->label = L("Max Autospeed");
@@ -5092,7 +5095,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->can_be_disabled = true;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(disable_default_option(new ConfigOptionFloat(0)));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloat>(0)));
 
     def = this->add("overhangs_bridge_upper_layers", coInt);
     def->label = L("Consider upper bridges");
@@ -5104,7 +5107,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->can_be_disabled = true;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(enable_default_option(new ConfigOptionInt(DEFAULT_BRIDGE_UPPER_LAYERS)));
+    def->set_default_value(enable_default_option(std::make_unique<ConfigOptionInt>(DEFAULT_BRIDGE_UPPER_LAYERS)));
 
     def             = this->add("overhangs_dynamic_fan_speed", coGraphs);
     def->label      = L("Dynamic overhang speeds");
@@ -5119,7 +5122,7 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
     def->mode       = comExpert | comPrusa;
-    def->set_default_value(disable_default_option(new ConfigOptionGraphs({GraphData(0, OVERHANG_GRAPH_POINT_COUNT, GraphData::GraphType::LINEAR,
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionGraphs>(std::initializer_list<GraphData>{GraphData(0, OVERHANG_GRAPH_POINT_COUNT, GraphData::GraphType::LINEAR,
         {{0,FULL_PERCENT},{QUARTER_PERCENT,EIGHTY_PERCENT},{HALF_PERCENT,SIXTY_PERCENT},{SEVENTY_FIVE_PERCENT,40},{FULL_PERCENT,20}}
     )})));
     def->graph_settings = std::make_shared<GraphSettings>();
@@ -5153,7 +5156,7 @@ void PrintConfigDef::init_fff_params()
                         " The flow can vary between the (external) perimeter flow and the overhang flow.");
     def->can_be_disabled = true;
     def->mode       = comExpert | comSuSi;
-    def->set_default_value(enable_default_option(new ConfigOptionGraph(GraphData(0, OVERHANG_GRAPH_POINT_COUNT, GraphData::GraphType::LINEAR,
+    def->set_default_value(enable_default_option(std::make_unique<ConfigOptionGraph>(GraphData(0, OVERHANG_GRAPH_POINT_COUNT, GraphData::GraphType::LINEAR,
         {{0,0},{QUARTER_PERCENT,0},{HALF_PERCENT,15},{SEVENTY_FIVE_PERCENT,HALF_PERCENT},{FULL_PERCENT,FULL_PERCENT}}
     ))));
     def->graph_settings = std::make_shared<GraphSettings>();
@@ -5191,7 +5194,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext   = L("mm/s");
     def->can_be_disabled = true;
     def->mode       = comExpert | comPrusa;
-    def->set_default_value(enable_default_option(new ConfigOptionGraph(GraphData(0, OVERHANG_GRAPH_POINT_COUNT, GraphData::GraphType::LINEAR,
+    def->set_default_value(enable_default_option(std::make_unique<ConfigOptionGraph>(GraphData(0, OVERHANG_GRAPH_POINT_COUNT, GraphData::GraphType::LINEAR,
         {{0,0},{QUARTER_PERCENT,10},{HALF_PERCENT,40},{SEVENTY_FIVE_PERCENT,70},{FULL_PERCENT,FULL_PERCENT}}
     ))));
     def->graph_settings = std::make_shared<GraphSettings>();
@@ -5248,7 +5251,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionInts>(std::initializer_list<int>{ FULL_PERCENT })));
 
     def = this->add(KEY_OVERHANGS_FLOW_RATIO, coPercent);
     def->label = L("Overhangs flow ratio");
@@ -5266,7 +5269,7 @@ void PrintConfigDef::init_fff_params()
     def->max = LARGE_MAX_LIMIT;
     def->can_be_disabled = true;
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value(enable_default_option(new ConfigOptionPercent(FULL_PERCENT)));
+    def->set_default_value(enable_default_option(std::make_unique<ConfigOptionPercent>(FULL_PERCENT)));
 
     def = this->add("overhangs_max_slope", coFloatOrPercent);
     def->label = L("Overhangs max slope");
@@ -5360,7 +5363,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->can_be_disabled = true;
     def->mode = comExpert | comSuSi;
-    def->set_default_value(disable_default_option(new ConfigOptionFloatOrPercent(FULL_PERCENT, true)));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloatOrPercent>(FULL_PERCENT, true)));
 
     def = this->add("overhangs_reverse", coBool);
     def->label = L("Reverse on even");
@@ -5535,7 +5538,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionInts>(std::initializer_list<int>{ FULL_PERCENT })));
 
     def = this->add("perimeter_loop", coBool);
     def->label = L("Perimeters loop");
@@ -5634,7 +5637,7 @@ void PrintConfigDef::init_fff_params()
     def->max = HUGE_MAX_LIMIT;
     def->can_be_disabled = true;
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value(disable_default_option(new ConfigOptionInt(0)));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionInt>(0)));
 
     def = this->add("post_process", coStrings);
     def->label = L("Post-processing scripts");
@@ -5702,7 +5705,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->mode = comExpert | comSuSi;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInt(DEFAULT_BED_TEMP_C)));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionInt>(DEFAULT_BED_TEMP_C)));
 
     def = this->add("print_first_layer_bed_temperature", coInt);
     def->label = L("First Layer Bed Temperature");
@@ -5714,7 +5717,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->mode = comExpert | comSuSi;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInt(DEFAULT_BED_TEMP_C)));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionInt>(DEFAULT_BED_TEMP_C)));
 
     def = this->add("print_first_layer_temperature", coInt);
     def->label = L("First Layer Temperature");
@@ -5725,7 +5728,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->mode = comExpert | comSuSi;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInt(DEFAULT_NOZZLE_TEMP_C)));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionInt>(DEFAULT_NOZZLE_TEMP_C)));
 
     def = this->add("print_retract_length", coFloat);
     def->label = L("Retraction length");
@@ -5734,7 +5737,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->mode = comExpert | comSuSi;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloat(0)));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloat>(0)));
 
     def = this->add("print_retract_lift", coFloat);
     def->label = L("Z-lift override");
@@ -5744,7 +5747,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->mode = comExpert | comSuSi;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionFloat(0)));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloat>(0)));
 
     def = this->add("print_temperature", coInt);
     def->label = L("Temperature");
@@ -5755,7 +5758,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->mode = comExpert | comSuSi;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInt(DEFAULT_NOZZLE_TEMP_C)));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionInt>(DEFAULT_NOZZLE_TEMP_C)));
 
     def = this->add("printer_model", coString);
     def->label = L("Printer type");
@@ -5961,7 +5964,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->mode = comExpert | comSuSi;
     def->can_be_disabled = true;
-    def->set_default_value(enable_default_option(new ConfigOptionFloatOrPercent(0.02, false)));
+    def->set_default_value(enable_default_option(std::make_unique<ConfigOptionFloatOrPercent>(0.02, false)));
     def->aliases = {"min_length"};
 
     def = this->add("gcode_min_resolution", coFloatOrPercent);
@@ -6651,7 +6654,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionInts>(std::initializer_list<int>{ FULL_PERCENT })));
 
     def = this->add("solid_infill_speed", coFloatOrPercent);
     def->label = L("Solid");
@@ -7029,7 +7032,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionInts>(std::initializer_list<int>{ FULL_PERCENT })));
 
     def = this->add("support_material_interface_angle", coFloat);
     def->label = L("Pattern angle");
@@ -7065,7 +7068,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionInts>(std::initializer_list<int>{ FULL_PERCENT })));
 
 
     def = this->add("support_material_interface_contact_loops", coBool);
@@ -7115,7 +7118,7 @@ void PrintConfigDef::init_fff_params()
         { "3", L("3 (heavy)") }
     });
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(disable_default_option(new ConfigOptionInt(0)));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionInt>(0)));
 
     def = this->add("support_material_closing_radius", coFloat);
     def->label = L("Closing radius");
@@ -7591,7 +7594,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->is_vector_extruder = true;
     def->can_be_disabled = true;
-    def->set_default_value(disable_default_option(new ConfigOptionInts({ FULL_PERCENT })));
+    def->set_default_value(disable_default_option(std::make_unique<ConfigOptionInts>(std::initializer_list<int>{ FULL_PERCENT })));
 
     def = this->add(KEY_TOP_IN_FILL_EXTRUSION_WIDTH, coFloatOrPercent);
     def->label = L("Top solid infill");
