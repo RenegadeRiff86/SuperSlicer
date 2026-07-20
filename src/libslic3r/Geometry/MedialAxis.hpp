@@ -145,6 +145,15 @@ private:
     void fusion_curve(ThickPolylines& pp);
     /// fusion polylines created by voronoi, where needed.
     void main_fusion(ThickPolylines& pp);
+    /// evaluate pp[j] as a merge candidate for pp[i]; false when it has to be skipped. Used by main_fusion.
+    bool evaluate_fusion_candidate(ThickPolylines& pp, size_t i, size_t j, double dot_poly_branch,
+                                   float& test_dot, double& dot_poly_branch_test, double& dot_candidate_branch_test,
+                                   bool& find_main_branch, size_t& biggest_main_branch_id) const;
+    /// merge the candidate main_fusion settled on (pp[best_idx]) into pp[i]; i is decremented if pp[i] is removed.
+    void fuse_with_candidate(ThickPolylines& pp, size_t& i, size_t best_idx,
+                             bool find_main_branch, size_t biggest_main_branch_id,
+                             double dot_poly_branch, double dot_candidate_branch,
+                             std::map<Point, double>& coeff_angle_cache) const;
     /// like fusion_curve but for sharp angles like a square corner.
     void fusion_corners(ThickPolylines& pp);
     /// extends the polylines inside bounds, use extends_line on both end

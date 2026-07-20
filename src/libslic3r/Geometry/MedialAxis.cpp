@@ -955,6 +955,272 @@ MedialAxis::extends_line_extra(ThickPolylines& pp) const {
 
 
 
+// Find the branch pp[i] and pp[j] would be merging into: a branch with no free end wins outright,
+// otherwise the longest one. Branches are reversed so they start at the shared junction, as the
+// caller's dot products expect.
+static bool find_main_merge_branch(ThickPolylines& pp, size_t i, size_t j, const ThickPolyline& polyline,
+                                   size_t& biggest_main_branch_id, coord_t& biggest_main_branch_length)
+{
+    bool find_main_branch = false;
+    biggest_main_branch_id = 0;
+    biggest_main_branch_length = 0;
+    for (size_t k = 0; k < pp.size(); ++k) {
+        //std::cout << "try to find main : " << k << " ? " << i << " " << j << " ";
+        if (k == i || k == j) continue;
+        ThickPolyline& main = pp[k];
+        if (polyline.front().coincides_with_epsilon(main.back())) {
+            main.reverse();
+            if (!main.endpoints.second)
+                find_main_branch = true;
+            else if (biggest_main_branch_length < main.length()) {
+                biggest_main_branch_id = k;
+                biggest_main_branch_length = (coord_t)main.length();
+            }
+        } else if (polyline.front().coincides_with_epsilon(main.front())) {
+            if (!main.endpoints.second)
+                find_main_branch = true;
+            else if (biggest_main_branch_length < main.length()) {
+                biggest_main_branch_id = k;
+                biggest_main_branch_length = (coord_t)main.length();
+            }
+        }
+        if (find_main_branch) {
+            //use this variable to store the good index and break to compute it
+            biggest_main_branch_id = k;
+            break;
+        }
+    }
+    return find_main_branch;
+}
+
+// Evaluate pp[j] as a merge candidate for pp[i]; both are reversed as needed so they start at the
+// shared junction. Returns false when the candidate has to be skipped.
+// find_main_branch / biggest_main_branch_id are written only once the candidate has passed the
+// cheap mergeability tests, exactly as the inline code did: the fusion step reads whatever the
+// last evaluated candidate left in them, not the values of the candidate finally chosen.
+bool
+MedialAxis::evaluate_fusion_candidate(ThickPolylines& pp, size_t i, size_t j, double dot_poly_branch,
+                                      float& test_dot, double& dot_poly_branch_test, double& dot_candidate_branch_test,
+                                      bool& find_main_branch, size_t& biggest_main_branch_id) const
+{
+    ThickPolyline& polyline = pp[i];
+    ThickPolyline& other = pp[j];
+    if (polyline.back().coincides_with_epsilon(other.back())) {
+        polyline.reverse();
+        other.reverse();
+    } else if (polyline.front().coincides_with_epsilon(other.back())) {
+        other.reverse();
+    } else if (polyline.front().coincides_with_epsilon(other.front())) {
+    } else if (polyline.back().coincides_with_epsilon(other.front())) {
+        polyline.reverse();
+    } else {
+        return false;
+    }
+
+    //// mergeable tests
+    if (polyline.points.size() < 2 && other.points.size() < 2) return false;  // need at least 2 points
+    if (!polyline.endpoints.second || !other.endpoints.second) return false;
+    // test if the new width will not be too big if a fusion occur
+    //note that this isn't the real calcul. It's just to avoid merging lines too far apart.
+    if (
+        ((polyline.points.back().distance_to(other.points.back())
+            + (polyline.points_width.back() + other.points_width.back()) / 4)  // average width contribution, halved twice (approx quarter)
+    > this->m_max_width * 1.05))
+        return false;
+    // test if the lines are not too different in length.
+    if (abs(polyline.length() - other.length()) > (coordf_t)this->m_max_width) return false;
+
+    //test if we don't merge with something too different and without any relevance.
+    double coeffSizePolyI = 1;
+    if (polyline.points_width.back() == 0) {
+        coeffSizePolyI = 0.1 + 0.9 * get_coeff_from_angle_countour(polyline.points.back(), this->m_expolygon, std::min(this->m_min_width, (coord_t)(polyline.length() / 2)));  // 10% floor + 90% angle-based weight
+    }
+    double coeffSizeOtherJ = 1;
+    if (other.points_width.back() == 0) {
+        coeffSizeOtherJ = 0.1 + 0.9 * get_coeff_from_angle_countour(other.points.back(), this->m_expolygon, std::min(this->m_min_width, (coord_t)(polyline.length() / 2)));  // 10% floor + 90% angle-based weight
+    }
+    if (abs(polyline.length() * coeffSizePolyI - other.length() * coeffSizeOtherJ) > (coordf_t)(this->m_max_width / 2)) return false;  // half max-width tolerance
+
+    //compute angle to see if it's better than previous ones (straighter = better).
+    //we need to add how strait we are from our main.
+    assert(polyline.size() > 1 && other.size() > 1);
+    test_dot = static_cast<float>(dot(Line(polyline.front(),polyline.points[1]), Line(other.front(), other.points[1])));
+
+    // Get the branch/line in wich we may merge, if possible
+    // with that, we can decide what is important, and how we can merge that.
+    // angle_poly - angle_candi =90° => one is useless
+    // both angle are equal => both are useful with same strength
+    // ex: Y => | both are useful to crete a nice line
+    // ex2: TTTTT => -----  these 90° useless lines should be discarded
+    coord_t biggest_main_branch_length = 0;
+    find_main_branch = find_main_merge_branch(pp, i, j, polyline, biggest_main_branch_id, biggest_main_branch_length);
+
+    dot_poly_branch_test = 0.707;  // cos(45deg) ~ neutral dot-product fallback
+    dot_candidate_branch_test = 0.707;  // cos(45deg) ~ neutral dot-product fallback
+    if (!find_main_branch && biggest_main_branch_length == 0) {
+        // nothing -> it's impossible!
+        dot_poly_branch_test = 0.707;  // cos(45deg) ~ neutral dot-product fallback
+        dot_candidate_branch_test = 0.707;  // cos(45deg) ~ neutral dot-product fallback
+        //std::cout << "no main branch... impossible!!\n";
+    } else if (!find_main_branch && (
+        (pp[biggest_main_branch_id].length() < polyline.length() && (polyline.points_width.back() != 0 || pp[biggest_main_branch_id].points_width.back() == 0))
+        || (pp[biggest_main_branch_id].length() < other.length() && (other.points_width.back() != 0 || pp[biggest_main_branch_id].points_width.back() == 0)))) {
+        //the main branch should have no endpoint or be bigger!
+        //here, it have an endpoint, and is not the biggest -> bad!
+        return false;
+    } else {
+        //compute the dot (biggest_main_branch_id)
+        dot_poly_branch_test = -dot(Line(polyline.points[0], polyline.points[1]), Line(pp[biggest_main_branch_id].points[0], pp[biggest_main_branch_id].points[1]));
+        dot_candidate_branch_test = -dot(Line(other.points[0], other.points[1]), Line(pp[biggest_main_branch_id].points[0], pp[biggest_main_branch_id].points[1]));
+        if (dot_poly_branch_test < 0) dot_poly_branch_test = 0;
+        if (dot_candidate_branch_test < 0) dot_candidate_branch_test = 0;
+        if (pp[biggest_main_branch_id].points_width.back() > 0)
+            test_dot += 2 * static_cast<float>(dot_poly_branch);  // double weight when the main branch has width
+    }
+    //test if it's useful to merge or not
+    //ie, don't merge  'T' but ok for 'Y', merge only lines of not disproportionate different length (ratio max: 4) (or they are both with 0-width end)
+    if (dot_poly_branch_test < 0.1 || dot_candidate_branch_test < 0.1 ||  // minimum useful dot-product threshold (near-perpendicular cutoff)
+        (
+            ((polyline.length() > other.length() ? polyline.length() / other.length() : other.length() / polyline.length()) > 4)  // max 4x length-ratio disparity allowed
+            && !(polyline.points_width.back() == 0 && other.points_width.back() == 0)
+            )) {
+        //std::cout << "not useful to merge\n";
+        return false;
+    }
+    return true;
+}
+
+// Merge the candidate main_fusion settled on (pp[best_idx]) into pp[i]: blend both branches' points
+// and widths, spawn a new polyline for any leftover tail of the candidate, drop points that ended up
+// coincident or outside the geometry, then erase the merged-away candidate.
+void
+MedialAxis::fuse_with_candidate(ThickPolylines& pp, size_t& i, size_t best_idx,
+                                bool find_main_branch, size_t biggest_main_branch_id,
+                                double dot_poly_branch, double dot_candidate_branch,
+                                std::map<Point, double>& coeff_angle_cache) const
+{
+    // Pointers rather than references: emplace_back below can move the array out from under both.
+    ThickPolyline* polyline = &pp[i];
+    ThickPolyline* best_candidate = &pp[best_idx];
+
+    // delete very near points
+    remove_point_too_near(polyline);
+    remove_point_too_near(best_candidate);
+
+    // add point at the same pos than the other line to have a nicer fusion
+    add_point_same_percent(polyline, best_candidate);
+    add_point_same_percent(best_candidate, polyline);
+
+    //get the angle of the nearest points of the contour to see : _| (good) \_ (average) __(bad)
+    //sqrt because the result are nicer this way: don't over-penalize /_ angles
+    // Possible improvement: try if we can achieve a better result if we use a different algo if the angle is <90°
+    const double coeff_angle_poly = (coeff_angle_cache.find(polyline->points.back()) != coeff_angle_cache.end())
+        ? coeff_angle_cache[polyline->points.back()]
+        : (get_coeff_from_angle_countour(polyline->points.back(), this->m_expolygon, std::min(this->m_min_width, (coord_t)(polyline->length() / 2))));  // half the branch length
+    const double coeff_angle_candi = (coeff_angle_cache.find(best_candidate->points.back()) != coeff_angle_cache.end())
+        ? coeff_angle_cache[best_candidate->points.back()]
+        : (get_coeff_from_angle_countour(best_candidate->points.back(), this->m_expolygon, std::min(this->m_min_width, (coord_t)(best_candidate->length() / 2))));  // half the branch length
+
+    //this will encourage to follow the curve, a little, because it's shorter near the center
+    //without that, it tends to go to the outter rim.
+    double weight_poly = 2 - (polyline->length() / std::max(polyline->length(), best_candidate->length()));  // weight ranges 1..2, favoring the shorter branch
+    double weight_candi = 2 - (best_candidate->length() / std::max(polyline->length(), best_candidate->length()));  // weight ranges 1..2, favoring the shorter branch
+    weight_poly *= coeff_angle_poly;
+    weight_candi *= coeff_angle_candi;
+    const double coeff_poly = (dot_poly_branch * weight_poly) / (dot_poly_branch * weight_poly + dot_candidate_branch * weight_candi);
+    const double coeff_candi = 1.0 - coeff_poly;
+    //iterate the points
+    // as voronoi should create symetric thing, we can iterate synchonously
+    size_t idx_point = 1;
+    while (idx_point < std::min(polyline->points.size(), best_candidate->points.size())) {
+        //fusion
+        polyline->points[idx_point].x() = (coord_t)(polyline->points[idx_point].x() * coeff_poly + best_candidate->points[idx_point].x() * coeff_candi);
+        polyline->points[idx_point].y() = (coord_t)(polyline->points[idx_point].y() * coeff_poly + best_candidate->points[idx_point].y() * coeff_candi);
+
+        // The width decrease with distance from the centerline.
+        // This formula is what works the best, even if it's not perfect (created empirically).  0->3% error on a gap fill on some tests.
+        //If someone find  an other formula based on the properties of the voronoi algorithm used here, and it works better, please use it.
+        //or maybe just use the distance to nearest edge in bounds...
+        double value_from_current_width = 0.5 * polyline->points_width[idx_point] * dot_poly_branch / std::max(dot_poly_branch, dot_candidate_branch);  // half-weight blend between the two branches' widths
+        value_from_current_width += 0.5 * best_candidate->points_width[idx_point] * dot_candidate_branch / std::max(dot_poly_branch, dot_candidate_branch);  // half-weight blend between the two branches' widths
+        double value_from_dist = 2 * polyline->points[idx_point].distance_to(best_candidate->points[idx_point]);  // doubled distance contributes to width spread
+        value_from_dist *= sqrt(std::min(dot_poly_branch, dot_candidate_branch) / std::max(dot_poly_branch, dot_candidate_branch));
+        polyline->points_width[idx_point] = value_from_current_width + value_from_dist;
+        //failsafes
+        if (polyline->points_width[idx_point] > this->m_max_width)
+            polyline->points_width[idx_point] = this->m_max_width;
+        //failsafe: try to not go out of the radius of the section, take the width of the merging point for that. (and with some offset)
+        coord_t main_branch_width = pp[biggest_main_branch_id].points_width.front();
+        coordf_t main_branch_dist = pp[biggest_main_branch_id].points.front().distance_to(polyline->points[idx_point]);
+        coord_t max_width_from_main = (coord_t)std::sqrt(main_branch_width * main_branch_width + main_branch_dist * main_branch_dist);
+        if (find_main_branch && polyline->points_width[idx_point] > max_width_from_main)
+            polyline->points_width[idx_point] = max_width_from_main;
+        if (find_main_branch && polyline->points_width[idx_point] > pp[biggest_main_branch_id].points_width.front() * 1.1)
+            polyline->points_width[idx_point] = coord_t(pp[biggest_main_branch_id].points_width.front() * 1.1);
+
+        ++idx_point;
+    }
+    if (idx_point < best_candidate->points.size()) {
+        if (idx_point + 1 < best_candidate->points.size()) {
+            //create a new polyline
+            pp.emplace_back();
+            // have to refresh the pointers, as the emplace_back() may have moved the array
+            polyline = &pp[i];
+            best_candidate = &pp[best_idx];
+            pp.back().endpoints.first = true;
+            pp.back().endpoints.second = best_candidate->endpoints.second;
+            for (size_t idx_point_new_line = idx_point; idx_point_new_line < best_candidate->points.size(); ++idx_point_new_line) {
+                pp.back().points.push_back(best_candidate->points[idx_point_new_line]);
+                pp.back().points_width.push_back(best_candidate->points_width[idx_point_new_line]);
+            }
+        } else {
+            //Add last point
+            polyline->points.push_back(best_candidate->points[idx_point]);
+            polyline->points_width.push_back(best_candidate->points_width[idx_point]);
+            //select if an end occur
+            polyline->endpoints.second &= best_candidate->endpoints.second;
+        }
+
+    } else {
+        //select if an end occur
+        polyline->endpoints.second &= best_candidate->endpoints.second;
+    }
+
+    //remove points that are the same or too close each other, ie simplify
+    for (size_t idx_pt = 1; idx_pt < polyline->points.size(); ++idx_pt) {
+        if (polyline->points[idx_pt - 1].distance_to(polyline->points[idx_pt]) < SCALED_EPSILON) {
+            if (idx_pt < polyline->points.size() - 1) {
+                polyline->points.erase(polyline->points.begin() + idx_pt);
+                polyline->points_width.erase(polyline->points_width.begin() + idx_pt);
+            } else {
+                polyline->points.erase(polyline->points.begin() + idx_pt - 1);
+                polyline->points_width.erase(polyline->points_width.begin() + idx_pt - 1);
+            }
+            --idx_pt;
+        }
+    }
+    //remove points that are outside of the geometry
+    for (size_t idx_pt = 0; idx_pt < polyline->points.size(); ++idx_pt) {
+        if (!this->m_bounds->contains(polyline->points[idx_pt])) {
+            polyline->points.erase(polyline->points.begin() + idx_pt);
+            polyline->points_width.erase(polyline->points_width.begin() + idx_pt);
+            --idx_pt;
+        }
+    }
+
+    if (polyline->points.size() < 2) {  // need at least 2 points
+        //remove self
+        pp.erase(pp.begin() + i);
+        --i;
+        --best_idx;
+    } else {
+        //update cache
+        coeff_angle_cache[polyline->points.back()] = coeff_angle_poly * coeff_poly + coeff_angle_candi * coeff_candi;
+    }
+
+    pp.erase(pp.begin() + best_idx);
+}
+
 void
 MedialAxis::main_fusion(ThickPolylines& pp)
 {
@@ -980,144 +1246,28 @@ MedialAxis::main_fusion(ThickPolylines& pp)
             if (!polyline.endpoints.first && !polyline.endpoints.second) continue;
 
 
-            ThickPolyline* best_candidate = nullptr;
+            bool has_candidate = false;
             float best_dot = -1;
             size_t best_idx = 0;
             double dot_poly_branch = 0;
             double dot_candidate_branch = 0;
 
+            // Set by the last candidate that got as far as the main-branch search, and read by the
+            // fusion below - not necessarily the values of the candidate finally chosen.
             bool find_main_branch = false;
             size_t biggest_main_branch_id = 0;
-            coord_t biggest_main_branch_length = 0;
 
             // find another polyline starting here
             for (size_t j = i + 1; j < pp.size(); ++j) {
-                ThickPolyline& other = pp[j];
-                if (polyline.back().coincides_with_epsilon(other.back())) {
-                    polyline.reverse();
-                    other.reverse();
-                } else if (polyline.front().coincides_with_epsilon(other.back())) {
-                    other.reverse();
-                } else if (polyline.front().coincides_with_epsilon(other.front())) {
-                } else if (polyline.back().coincides_with_epsilon(other.front())) {
-                    polyline.reverse();
-                } else {
+                float test_dot = 0;
+                double dot_poly_branch_test = 0;
+                double dot_candidate_branch_test = 0;
+                if (!this->evaluate_fusion_candidate(pp, i, j, dot_poly_branch, test_dot,
+                                                     dot_poly_branch_test, dot_candidate_branch_test,
+                                                     find_main_branch, biggest_main_branch_id))
                     continue;
-                }
-                //std::cout << " try : " << i << ":" << j << " : " << 
-                //    (polyline.points.size() < 2 && other.points.size() < 2) <<
-                //    (!polyline.endpoints.second || !other.endpoints.second) <<
-                //    ((polyline.points.back().distance_to(other.points.back())
-                //    + (polyline.width.back() + other.width.back()) / 4)
-                //    > m_max_width*1.05) <<
-                //    (abs(polyline.length() - other.length()) > m_max_width) << "\n";
-
-                //// mergeable tests
-                if (polyline.points.size() < 2 && other.points.size() < 2) continue;  // need at least 2 points
-                if (!polyline.endpoints.second || !other.endpoints.second) continue;
-                // test if the new width will not be too big if a fusion occur
-                //note that this isn't the real calcul. It's just to avoid merging lines too far apart.
-                if (
-                    ((polyline.points.back().distance_to(other.points.back())
-                        + (polyline.points_width.back() + other.points_width.back()) / 4)  // average width contribution, halved twice (approx quarter)
-                > this->m_max_width * 1.05))
-                    continue;
-                // test if the lines are not too different in length.
-                if (abs(polyline.length() - other.length()) > (coordf_t)this->m_max_width) continue;
-
-
-                //test if we don't merge with something too different and without any relevance.
-                double coeffSizePolyI = 1;
-                if (polyline.points_width.back() == 0) {
-                    coeffSizePolyI = 0.1 + 0.9 * get_coeff_from_angle_countour(polyline.points.back(), this->m_expolygon, std::min(this->m_min_width, (coord_t)(polyline.length() / 2)));  // 10% floor + 90% angle-based weight
-                }
-                double coeffSizeOtherJ = 1;
-                if (other.points_width.back() == 0) {
-                    coeffSizeOtherJ = 0.1 + 0.9 * get_coeff_from_angle_countour(other.points.back(), this->m_expolygon, std::min(this->m_min_width, (coord_t)(polyline.length() / 2)));  // 10% floor + 90% angle-based weight
-                }
-                //std::cout << " try2 : " << i << ":" << j << " : "
-                //    << (abs(polyline.length()*coeffSizePolyI - other.length()*coeffSizeOtherJ) > m_max_width / 2)
-                //    << (abs(polyline.length()*coeffSizePolyI - other.length()*coeffSizeOtherJ) > m_max_width)
-                //    << "\n";
-                if (abs(polyline.length() * coeffSizePolyI - other.length() * coeffSizeOtherJ) > (coordf_t)(this->m_max_width / 2)) continue;  // half max-width tolerance
-
-
-                //compute angle to see if it's better than previous ones (straighter = better).
-                //we need to add how strait we are from our main.
-                assert(polyline.size() > 1 && other.size() > 1);
-                float test_dot = static_cast<float>(dot(Line(polyline.front(),polyline.points[1]), Line(other.front(), other.points[1])));
-
-                // Get the branch/line in wich we may merge, if possible
-                // with that, we can decide what is important, and how we can merge that.
-                // angle_poly - angle_candi =90° => one is useless
-                // both angle are equal => both are useful with same strength
-                // ex: Y => | both are useful to crete a nice line
-                // ex2: TTTTT => -----  these 90° useless lines should be discarded
-                find_main_branch = false;
-                biggest_main_branch_id = 0;
-                biggest_main_branch_length = 0;
-                for (size_t k = 0; k < pp.size(); ++k) {
-                    //std::cout << "try to find main : " << k << " ? " << i << " " << j << " ";
-                    if (k == i || k == j) continue;
-                    ThickPolyline& main = pp[k];
-                    if (polyline.front().coincides_with_epsilon(main.back())) {
-                        main.reverse();
-                        if (!main.endpoints.second)
-                            find_main_branch = true;
-                        else if (biggest_main_branch_length < main.length()) {
-                            biggest_main_branch_id = k;
-                            biggest_main_branch_length = (coord_t)main.length();
-                        }
-                    } else if (polyline.front().coincides_with_epsilon(main.front())) {
-                        if (!main.endpoints.second)
-                            find_main_branch = true;
-                        else if (biggest_main_branch_length < main.length()) {
-                            biggest_main_branch_id = k;
-                            biggest_main_branch_length = (coord_t)main.length();
-                        }
-                    }
-                    if (find_main_branch) {
-                        //use this variable to store the good index and break to compute it
-                        biggest_main_branch_id = k;
-                        break;
-                    }
-                }
-                double dot_poly_branch_test = 0.707;  // cos(45deg) ~ neutral dot-product fallback
-                double dot_candidate_branch_test = 0.707;  // cos(45deg) ~ neutral dot-product fallback
-                if (!find_main_branch && biggest_main_branch_length == 0) {
-                    // nothing -> it's impossible!
-                    dot_poly_branch_test = 0.707;  // cos(45deg) ~ neutral dot-product fallback
-                    dot_candidate_branch_test = 0.707;  // cos(45deg) ~ neutral dot-product fallback
-                    //std::cout << "no main branch... impossible!!\n";
-                } else if (!find_main_branch && (
-                    (pp[biggest_main_branch_id].length() < polyline.length() && (polyline.points_width.back() != 0 || pp[biggest_main_branch_id].points_width.back() == 0))
-                    || (pp[biggest_main_branch_id].length() < other.length() && (other.points_width.back() != 0 || pp[biggest_main_branch_id].points_width.back() == 0)))) {
-                    //the main branch should have no endpoint or be bigger!
-                    //here, it have an endpoint, and is not the biggest -> bad!
-                    //std::cout << "he main branch should have no endpoint or be bigger! here, it have an endpoint, and is not the biggest -> bad!\n";
-                    continue;
-                } else {
-                    //compute the dot (biggest_main_branch_id)
-                    dot_poly_branch_test = -dot(Line(polyline.points[0], polyline.points[1]), Line(pp[biggest_main_branch_id].points[0], pp[biggest_main_branch_id].points[1]));
-                    dot_candidate_branch_test = -dot(Line(other.points[0], other.points[1]), Line(pp[biggest_main_branch_id].points[0], pp[biggest_main_branch_id].points[1]));
-                    if (dot_poly_branch_test < 0) dot_poly_branch_test = 0;
-                    if (dot_candidate_branch_test < 0) dot_candidate_branch_test = 0;
-                    if (pp[biggest_main_branch_id].points_width.back() > 0)
-                        test_dot += 2 * static_cast<float>(dot_poly_branch);  // double weight when the main branch has width
-                    //std::cout << "compute dot "<< dot_poly_branch_test<<" & "<< dot_candidate_branch_test <<"\n";
-                }
-                //test if it's useful to merge or not
-                //ie, don't merge  'T' but ok for 'Y', merge only lines of not disproportionate different length (ratio max: 4) (or they are both with 0-width end)
-                if (dot_poly_branch_test < 0.1 || dot_candidate_branch_test < 0.1 ||  // minimum useful dot-product threshold (near-perpendicular cutoff)
-                    (
-                        ((polyline.length() > other.length() ? polyline.length() / other.length() : other.length() / polyline.length()) > 4)  // max 4x length-ratio disparity allowed
-                        && !(polyline.points_width.back() == 0 && other.points_width.back() == 0)
-                        )) {
-                    //std::cout << "not useful to merge\n";
-                    continue;
-                }
                 if (test_dot > best_dot) {
-                    best_candidate = &other;
+                    has_candidate = true;
                     best_idx = j;
                     best_dot = test_dot;
                     dot_poly_branch = dot_poly_branch_test;
@@ -1131,143 +1281,11 @@ MedialAxis::main_fusion(ThickPolylines& pp)
                     //}
                 }
             }
-            if (best_candidate != nullptr) {
+            if (has_candidate) {
                 //idf++;
                 //std::cout << " == fusion " << id <<" : "<< idf << " == with "<< i <<" & "<<best_idx<<"\n";
-                // delete very near points
-                remove_point_too_near(&polyline);
-                remove_point_too_near(best_candidate);
-
-                // add point at the same pos than the other line to have a nicer fusion
-                add_point_same_percent(&polyline, best_candidate);
-                add_point_same_percent(best_candidate, &polyline);
-
-                //get the angle of the nearest points of the contour to see : _| (good) \_ (average) __(bad)
-                //sqrt because the result are nicer this way: don't over-penalize /_ angles
-                // Possible improvement: try if we can achieve a better result if we use a different algo if the angle is <90°
-                const double coeff_angle_poly = (coeff_angle_cache.find(polyline.points.back()) != coeff_angle_cache.end())
-                    ? coeff_angle_cache[polyline.points.back()]
-                    : (get_coeff_from_angle_countour(polyline.points.back(), this->m_expolygon, std::min(this->m_min_width, (coord_t)(polyline.length() / 2))));  // half the branch length
-                const double coeff_angle_candi = (coeff_angle_cache.find(best_candidate->points.back()) != coeff_angle_cache.end())
-                    ? coeff_angle_cache[best_candidate->points.back()]
-                    : (get_coeff_from_angle_countour(best_candidate->points.back(), this->m_expolygon, std::min(this->m_min_width, (coord_t)(best_candidate->length() / 2))));  // half the branch length
-
-                //this will encourage to follow the curve, a little, because it's shorter near the center
-                //without that, it tends to go to the outter rim.
-                //std::cout << " std::max(polyline.length(), best_candidate->length())=" << std::max(polyline.length(), best_candidate->length())
-                //    << ", polyline.length()=" << polyline.length()
-                //    << ", best_candidate->length()=" << best_candidate->length()
-                //    << ", polyline.length() / max=" << (polyline.length() / std::max(polyline.length(), best_candidate->length()))
-                //    << ", best_candidate->length() / max=" << (best_candidate->length() / std::max(polyline.length(), best_candidate->length()))
-                //    << "\n";
-                double weight_poly = 2 - (polyline.length() / std::max(polyline.length(), best_candidate->length()));  // weight ranges 1..2, favoring the shorter branch
-                double weight_candi = 2 - (best_candidate->length() / std::max(polyline.length(), best_candidate->length()));  // weight ranges 1..2, favoring the shorter branch
-                weight_poly *= coeff_angle_poly;
-                weight_candi *= coeff_angle_candi;
-                const double coeff_poly = (dot_poly_branch * weight_poly) / (dot_poly_branch * weight_poly + dot_candidate_branch * weight_candi);
-                const double coeff_candi = 1.0 - coeff_poly;
-                //std::cout << "coeff_angle_poly=" << coeff_angle_poly
-                //    << ", coeff_angle_candi=" << coeff_angle_candi
-                //    << ", weight_poly=" << (2 - (polyline.length() / std::max(polyline.length(), best_candidate->length())))
-                //    << ", weight_candi=" << (2 - (best_candidate->length() / std::max(polyline.length(), best_candidate->length())))
-                //    << ", sumpoly=" << weight_poly
-                //    << ", sumcandi=" << weight_candi
-                //    << ", dot_poly_branch=" << dot_poly_branch
-                //    << ", dot_candidate_branch=" << dot_candidate_branch
-                //    << ", coeff_poly=" << coeff_poly
-                //    << ", coeff_candi=" << coeff_candi
-                //    << "\n";
-                //iterate the points
-                // as voronoi should create symetric thing, we can iterate synchonously
-                size_t idx_point = 1;
-                while (idx_point < std::min(polyline.points.size(), best_candidate->points.size())) {
-                    //fusion
-                    polyline.points[idx_point].x() = (coord_t)(polyline.points[idx_point].x() * coeff_poly + best_candidate->points[idx_point].x() * coeff_candi);
-                    polyline.points[idx_point].y() = (coord_t)(polyline.points[idx_point].y() * coeff_poly + best_candidate->points[idx_point].y() * coeff_candi);
-
-                    // The width decrease with distance from the centerline.
-                    // This formula is what works the best, even if it's not perfect (created empirically).  0->3% error on a gap fill on some tests.
-                    //If someone find  an other formula based on the properties of the voronoi algorithm used here, and it works better, please use it.
-                    //or maybe just use the distance to nearest edge in bounds...
-                    double value_from_current_width = 0.5 * polyline.points_width[idx_point] * dot_poly_branch / std::max(dot_poly_branch, dot_candidate_branch);  // half-weight blend between the two branches' widths
-                    value_from_current_width += 0.5 * best_candidate->points_width[idx_point] * dot_candidate_branch / std::max(dot_poly_branch, dot_candidate_branch);  // half-weight blend between the two branches' widths
-                    double value_from_dist = 2 * polyline.points[idx_point].distance_to(best_candidate->points[idx_point]);  // doubled distance contributes to width spread
-                    value_from_dist *= sqrt(std::min(dot_poly_branch, dot_candidate_branch) / std::max(dot_poly_branch, dot_candidate_branch));
-                    polyline.points_width[idx_point] = value_from_current_width + value_from_dist;
-                    //std::cout << "width:" << polyline.width[idx_point] << " = " << value_from_current_width << " + " << value_from_dist 
-                    //    << " (<" << m_max_width << " && " << (this->m_bounds.contour.closest_point(polyline.points[idx_point])->distance_to(polyline.points[idx_point]) * 2.1)<<")\n";
-                    //failsafes
-                    if (polyline.points_width[idx_point] > this->m_max_width)
-                        polyline.points_width[idx_point] = this->m_max_width;
-                    //failsafe: try to not go out of the radius of the section, take the width of the merging point for that. (and with some offset)
-                    coord_t main_branch_width = pp[biggest_main_branch_id].points_width.front();
-                    coordf_t main_branch_dist = pp[biggest_main_branch_id].points.front().distance_to(polyline.points[idx_point]);
-                    coord_t max_width_from_main = (coord_t)std::sqrt(main_branch_width * main_branch_width + main_branch_dist * main_branch_dist);
-                    if (find_main_branch && polyline.points_width[idx_point] > max_width_from_main)
-                        polyline.points_width[idx_point] = max_width_from_main;
-                    if (find_main_branch && polyline.points_width[idx_point] > pp[biggest_main_branch_id].points_width.front() * 1.1)
-                        polyline.points_width[idx_point] = coord_t(pp[biggest_main_branch_id].points_width.front() * 1.1);
-                    //std::cout << "main fusion, max dist : " << max_width_from_main << "\n";
-
-                    ++idx_point;
-                }
-                if (idx_point < best_candidate->points.size()) {
-                    if (idx_point + 1 < best_candidate->points.size()) {
-                        //create a new polyline
-                        pp.emplace_back();
-                        best_candidate = &pp[best_idx]; // have to refresh the pointer, as the emplace_back() may have moved the array
-                        pp.back().endpoints.first = true;
-                        pp.back().endpoints.second = best_candidate->endpoints.second;
-                        for (size_t idx_point_new_line = idx_point; idx_point_new_line < best_candidate->points.size(); ++idx_point_new_line) {
-                            pp.back().points.push_back(best_candidate->points[idx_point_new_line]);
-                            pp.back().points_width.push_back(best_candidate->points_width[idx_point_new_line]);
-                        }
-                    } else {
-                        //Add last point
-                        polyline.points.push_back(best_candidate->points[idx_point]);
-                        polyline.points_width.push_back(best_candidate->points_width[idx_point]);
-                        //select if an end occur
-                        polyline.endpoints.second &= best_candidate->endpoints.second;
-                    }
-
-                } else {
-                    //select if an end occur
-                    polyline.endpoints.second &= best_candidate->endpoints.second;
-                }
-
-                //remove points that are the same or too close each other, ie simplify
-                for (size_t idx_point = 1; idx_point < polyline.points.size(); ++idx_point) {
-                    if (polyline.points[idx_point - 1].distance_to(polyline.points[idx_point]) < SCALED_EPSILON) {
-                        if (idx_point < polyline.points.size() - 1) {
-                            polyline.points.erase(polyline.points.begin() + idx_point);
-                            polyline.points_width.erase(polyline.points_width.begin() + idx_point);
-                        } else {
-                            polyline.points.erase(polyline.points.begin() + idx_point - 1);
-                            polyline.points_width.erase(polyline.points_width.begin() + idx_point - 1);
-                        }
-                        --idx_point;
-                    }
-                }
-                //remove points that are outside of the geometry
-                for (size_t idx_point = 0; idx_point < polyline.points.size(); ++idx_point) {
-                    if (!this->m_bounds->contains(polyline.points[idx_point])) {
-                        polyline.points.erase(polyline.points.begin() + idx_point);
-                        polyline.points_width.erase(polyline.points_width.begin() + idx_point);
-                        --idx_point;
-                    }
-                }
-
-                if (polyline.points.size() < 2) {  // need at least 2 points
-                    //remove self
-                    pp.erase(pp.begin() + i);
-                    --i;
-                    --best_idx;
-                } else {
-                    //update cache
-                    coeff_angle_cache[polyline.points.back()] = coeff_angle_poly * coeff_poly + coeff_angle_candi * coeff_candi;
-                }
-
-                pp.erase(pp.begin() + best_idx);
+                this->fuse_with_candidate(pp, i, best_idx, find_main_branch, biggest_main_branch_id,
+                                          dot_poly_branch, dot_candidate_branch, coeff_angle_cache);
                 //{
                 //    std::stringstream stri;
                 //    stri << "medial_axis_2.0_aft_fus_" << id << "_" << idf << ".svg";
