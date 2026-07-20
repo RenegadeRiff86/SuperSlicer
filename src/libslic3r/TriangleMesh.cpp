@@ -685,8 +685,14 @@ std::vector<Vec3i32> its_face_edge_ids(const indexed_triangle_set &its, std::vec
                 // First find an edge with opposite orientation.
                 std::swap(edge(0), edge(1));
                 int   k       = its_triangle_edge_index(triangle2, edge);
-                //FIXME is the following realistic? Could face_neighbors contain such faces?
-                // And if it does, do we want to produce the same edge ID for those mutually incorrectly oriented edges?
+                // The lookup above always succeeds for a neighbor table produced by
+                // its_face_neighbors()/its_face_neighbors_par(): create_face_neighbors_index()
+                // links two faces only when they traverse the shared edge in opposite directions
+                // (the "Has NOT oposite direction?" guard in MeshSplitImpl.hpp). Two mutually
+                // flipped faces are therefore never recorded as neighbors at all - the edge stays
+                // unbound (-1) and is handled by the assign_unbound_edges branch below. The
+                // same-orientation retry is kept so this function stays correct for a caller that
+                // builds its neighbor table some other way.
                 if (k == -1) {
                     // Second find an edge with the same orientation (the neighbor triangle may be flipped).
                     std::swap(edge(0), edge(1));
