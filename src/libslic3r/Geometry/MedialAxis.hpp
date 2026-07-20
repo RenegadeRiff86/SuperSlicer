@@ -136,6 +136,8 @@ private:
     const Line& retrieve_segment(const VD::cell_type* cell, Lines& lines) const;
     const Point& retrieve_endpoint(const VD::cell_type* cell, Lines& lines) const;
     void polyline_from_voronoi(const ExPolygon& voronoi_polygon, ThickPolylines* polylines_out);
+    /// the voronoi diagram can come back badly off; retry on a slightly offset surface and keep the closer result.
+    void retry_voronoi_if_area_is_off(ThickPolylines& pp);
 
     // functions called by build:
 

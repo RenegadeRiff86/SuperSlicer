@@ -1934,6 +1934,53 @@ check_circular(ExPolygon& expolygon, coord_t max_variation) {
     return 0;
 }
 
+// Area covered by a set of thick polylines: every segment contributes its length times the mean of
+// its two endpoint widths.
+static double thick_polylines_area(const ThickPolylines& tps)
+{
+    double area = 0;
+    for (const ThickPolyline& tp : tps) {
+        for (size_t i = 1; i < tp.points.size(); ++i) {
+            const double width_sum = double(tp.points_width[i - 1]) + double(tp.points_width[i]);
+            const double segment_length = double(tp.points[i - 1].distance_to(tp.points[i]));
+            area += width_sum * segment_length * 0.5;  // half-width times length area contribution
+        }
+    }
+    return area;
+}
+
+// The voronoi diagram sometimes comes back badly off. When the area the polylines cover is more than
+// 10% away from the surface's own area, run it again on a slightly offset copy of the surface and
+// keep whichever result is closer.
+void
+MedialAxis::retry_voronoi_if_area_is_off(ThickPolylines& pp)
+{
+    const double area = this->m_expolygon.area();
+    double ratio_area = thick_polylines_area(pp) / area;
+    if (ratio_area < 1) ratio_area = 1 / ratio_area;
+    //check if the returned voronoi is really off
+    if (ratio_area <= 1.1) return;  // within 10% of the real area
+
+    //add a little offset and retry
+    ExPolygons fixer = offset_ex(this->m_expolygon, SCALED_EPSILON);
+    if (fixer.size() != 1) return;
+
+    ExPolygon fixPoly = fixer[0];
+    ThickPolylines pp_stopgap;
+    try {
+        this->polyline_from_voronoi(fixPoly, &pp_stopgap);
+        double fix_ratio_area = thick_polylines_area(pp_stopgap) / area;
+        if (fix_ratio_area < 1)
+            fix_ratio_area = 1 / fix_ratio_area;
+        // if it's less off, then use it.
+        if (fix_ratio_area < ratio_area) {
+            pp = pp_stopgap;
+        }
+    } catch (std::exception) {
+        //if error (like Slic3r::InvalidArgument("Voronoi cell doesn't contain a source point!")), then don't consider it.
+    }
+}
+
 void
 MedialAxis::build(ThickPolylines& polylines_out)
 {
@@ -1985,48 +2032,7 @@ MedialAxis::build(ThickPolylines& polylines_out)
     ThickPolylines pp;
     this->polyline_from_voronoi(this->m_expolygon, &pp);
     // Note: stop-gap for a voronoi robustness bug (see superslicer/issues/995): if the medial-axis area is way off the polygon area, retry on a slightly offset polygon.
-    {
-        double ori_area = 0;
-        for (ThickPolyline& tp : pp) {
-            for (size_t i = 1; i < tp.points.size(); ++i) {
-                const double width_sum = double(tp.points_width[i - 1]) + double(tp.points_width[i]);
-                const double segment_length = double(tp.points[i - 1].distance_to(tp.points[i]));
-                ori_area += width_sum * segment_length * 0.5;  // half-width times length area contribution
-            }
-        }
-        double area = this->m_expolygon.area();
-        double ratio_area = ori_area / area;
-        if (ratio_area < 1) ratio_area = 1 / ratio_area;
-        //check if the returned voronoi is really off
-        if (ratio_area > 1.1) {
-            //add a little offset and retry
-            ExPolygons fixer = offset_ex(this->m_expolygon, SCALED_EPSILON);
-            if (fixer.size() == 1) {
-                ExPolygon fixPoly = fixer[0];
-                ThickPolylines pp_stopgap;
-                try {
-                    this->polyline_from_voronoi(fixPoly, &pp_stopgap);
-                    double fix_area = 0;
-                    for (ThickPolyline &tp : pp_stopgap) {
-                        for (size_t i = 1; i < tp.points.size(); ++i) {
-                            const double width_sum = double(tp.points_width[i - 1]) + double(tp.points_width[i]);
-                            const double segment_length = double(tp.points[i - 1].distance_to(tp.points[i]));
-                            fix_area += width_sum * segment_length * 0.5;  // half-width times length area contribution
-                        }
-                    }
-                    double fix_ratio_area = fix_area / area;
-                    if (fix_ratio_area < 1)
-                        fix_ratio_area = 1 / fix_ratio_area;
-                    // if it's less off, then use it.
-                    if (fix_ratio_area < ratio_area) {
-                        pp = pp_stopgap;
-                    }
-                } catch (std::exception) {
-                    //if error (like Slic3r::InvalidArgument("Voronoi cell doesn't contain a source point!")), then don't consider it.
-                }
-            }
-        }
-    }
+    this->retry_voronoi_if_area_is_off(pp);
     //{
     //    std::stringstream stri;
     //    stri << "medial_axis_0.9_voronoi_" << id << ".svg";
