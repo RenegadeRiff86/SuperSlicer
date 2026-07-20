@@ -2432,6 +2432,22 @@ ExtrusionMultiPath variable_width(const ThickPolyline& polyline, const Extrusion
     temp.set_can_reverse(can_reverse);
     return temp;
 }
+// How well `neighbour` continues `line`: the cosine of the angle between them, so 1 means
+// perfectly aligned and 0 means perpendicular, plus a small preference for a shorter neighbour
+// to break near-equal angles. A degenerate pair (either line has no length) has no meaningful
+// angle, so it scores 0 rather than dividing by zero.
+static double straightness_score(const ThickLine& line, const ThickLine& neighbour)
+{
+    const coordf_t length_tot = line.length() * neighbour.length();
+    if (length_tot <= 0)
+        return 0.;
+    const coordf_t dot = std::abs(coordf_t(neighbour.dot(line)));
+    assert(length_tot >= dot);
+    // dot -> 1 means aligned, 0 means perp
+    // length -> 1 means same length as the too small one, 0 means a very long one.
+    return dot / length_tot + line.length() / length_tot;
+}
+
 ExtrusionPaths
 unsafe_variable_width(const ThickPolyline& polyline, const ExtrusionRole role, const Flow& flow, const coord_t resolution_internal, const coord_t tolerance)
 {
@@ -2553,31 +2569,17 @@ unsafe_variable_width(const ThickPolyline& polyline, const ExtrusionRole role, c
     for (size_t i = 0; i < lines.size(); ++i) {
         ThickLine &line = lines[i];
         if (line.length() <= SCALED_EPSILON) {
-            // merge with prev or next?
-            double score_prev = 0;
-            double score_next = 0;
-            // choose one with lowest angle.
-            // also the one that is a bit shorter, if the angle is too similar.
-            if (i > 0) {
-                coordf_t length_tot = line.length() * lines[i - 1].length();
-                coordf_t dot = std::abs(coordf_t(lines[i - 1].dot(line)));
-                assert(length_tot >= dot);
-                // dot -> 1 means aligned, 0 means perp
-                score_prev = 1 - (dot / length_tot);
-                // length -> 1 means same length as the too small one, 0 means a very long one.
-                score_prev += line.length() / length_tot;
-            }
-            if (i + 1 < lines.size()) {
-                coordf_t length_tot = line.length() * lines[i + 1].length();
-                coordf_t dot = std::abs(coordf_t(lines[i + 1].dot(line)));
-                assert(length_tot >= dot);
-                score_prev = (dot / length_tot);
-                score_prev += line.length() / length_tot;
-            }
+            // merge with prev or next? choose one with lowest angle, and if the angle is too
+            // similar, the one that is a bit shorter. A missing neighbour scores below any real
+            // one, so an end line always merges towards the inside instead of running off the end.
+            const bool has_prev = i > 0;
+            const bool has_next = i + 1 < lines.size();
+            const double score_prev = has_prev ? straightness_score(line, lines[i - 1]) : -1.;
+            const double score_next = has_next ? straightness_score(line, lines[i + 1]) : -1.;
             // merge
-            if (score_prev >= score_next) {
+            if (has_prev && score_prev >= score_next) {
                 lines[i - 1].b = line.b;
-            } else {
+            } else if (has_next) {
                 lines[i + 1].a = line.a;
             }
             // erase
