@@ -612,6 +612,169 @@ void FanMover::_process_ACTIVATE_EXTRUDER(const std::string_view cmd)
     }
 }
 
+int16_t FanMover::_find_last_emitted_fan_speed() const
+{
+    int16_t last_emitted_fan_speed = -1;
+    for (size_t end = m_process_output.size(); end > 0; ) {
+        while (end > 0 && (m_process_output[end - 1] == '\n' || m_process_output[end - 1] == '\r'))
+            --end;
+        if (end == 0)
+            break;
+        const size_t line_break = m_process_output.rfind('\n', end - 1);
+        const size_t begin = line_break == std::string::npos ? 0 : line_break + 1;
+        const std::string emitted_line(m_process_output.data() + begin, end - begin);
+        last_emitted_fan_speed = _fan_speed_percent(emitted_line);
+        if (last_emitted_fan_speed >= 0)
+            break;
+        if (begin == 0)
+            break;
+        end = begin - 1;
+    }
+    return last_emitted_fan_speed;
+}
+
+float FanMover::_slow_buffer_approach_moves(float t_req, float v_floor, float approach_speed)
+{
+    float window_time = 0.f;
+    if (! (v_floor > 0.f && approach_speed > 0.f && v_floor < approach_speed && t_req > 0.f))
+        return window_time;
+
+    auto it = m_buffer.end();
+    while (it != m_buffer.begin() && window_time < t_req) {
+        --it;
+        const std::string &r = it->raw;
+        const bool is_move = r.size() > 2 && r[0] == 'G'
+            && (r[1] == '1' || r[1] == '0') && r[2] == ' ';
+        if (is_move && it->de > 0 && it->time > 0) {
+            const float dist = std::sqrt(it->dx*it->dx + it->dy*it->dy + it->dz*it->dz);
+            if (dist > 0) {
+                const float fan_progress = std::clamp(1.f - window_time / t_req, 0.f, 1.f);
+                const float target_speed = v_floor + (approach_speed - v_floor) * fan_progress;
+                const float cur_speed = dist / it->time;
+                const float new_speed = std::min(cur_speed, target_speed);
+                const float new_time = dist / new_speed;
+                m_buffer_time_size += (new_time - it->time);
+                it->time = new_time;
+                if (r.find(" F") != std::string::npos)
+                    change_axis_value(it->raw, 'F', new_speed * 60.f, 1);
+                else
+                    it->raw += " F" + to_string_nozero(new_speed * 60.f, 1);
+                window_time += it->time;
+            }
+        } else if (is_move) {
+            break;
+        } else if (it->fan_speed >= 0) {
+            break;
+        }
+    }
+    return window_time;
+}
+
+void FanMover::_apply_overhang_approach_slowdown(int overhang_fan_speed)
+{
+    // Fan-readiness slowdown: once per Overhang perimeter block, slow only the
+    // contiguous non-overhang approach moves already in the delay buffer. The fan
+    // command itself is always emitted at this marker so the adaptive graph tracks.
+    const float approach_speed = static_cast<float>(m_current_speed);
+    const float v_floor = overhang_speed_percent
+        ? approach_speed * overhang_speed_value / FAN_PERCENT_MAX
+        : overhang_speed_value;
+    const float t_req = _fan_spinup_time_seconds(m_output_fan_speed, overhang_fan_speed);
+    const float window_time = _slow_buffer_approach_moves(t_req, v_floor, approach_speed);
+    m_fan_slowdown_total = t_req;
+    m_fan_slowdown_approach_speed = approach_speed;
+    m_fan_slowdown_v_floor = v_floor;
+    m_fan_slowdown_remaining = std::max(0.f, t_req - window_time);
+    m_overhang_block_approach_slowdown_done = true;
+}
+
+void FanMover::_process_overhang_fan_marker(GCodeReader& reader, const GCodeReader::GCodeLine& line)
+{
+    const std::string_view overhang_fan_prefix = "; overhang fan : SET_FAN_SPEED";
+    if (line.raw().rfind(overhang_fan_prefix, 0) != 0)
+        return;
+
+    int overhang_fan_speed = 0;
+    if (! parse_number(std::string_view(line.raw()).substr(overhang_fan_prefix.size()), overhang_fan_speed))
+        return;
+
+    m_last_overhang_min_fan_speed = overhang_fan_speed;
+    if (overhang_fan_speed <= 0)
+        return;
+
+    int lower_buffer_fan_count = 0;
+    for (const BufferData &data : m_buffer) {
+        if (data.fan_speed >= 0 && data.fan_speed < overhang_fan_speed)
+            ++lower_buffer_fan_count;
+    }
+
+    const int16_t last_emitted_fan_speed = _find_last_emitted_fan_speed();
+    const bool lower_output_fan = last_emitted_fan_speed >= 0 && last_emitted_fan_speed < overhang_fan_speed;
+
+    if (const char *trace_path = std::getenv("SUPERSLICER_FANMOVER_TRACE")) {
+        std::ofstream trace(trace_path, std::ios::app);
+        trace << "z=" << reader.z()
+              << " marker=" << line.raw()
+              << " want=" << overhang_fan_speed
+              << " output=" << m_output_fan_speed
+              << " front=" << m_front_buffer_fan_speed
+              << " back=" << m_back_buffer_fan_speed
+              << " buffer_time=" << m_buffer_time_size
+              << " lower_buffer_fans=" << lower_buffer_fan_count
+              << " emitted=" << last_emitted_fan_speed
+              << " lower_output=" << lower_output_fan
+              << '\n';
+    }
+    const bool step_up = overhang_fan_speed > m_output_fan_speed;
+    const bool first_in_block = !m_overhang_block_approach_slowdown_done;
+    const bool force_marker_fan = first_in_block;
+    const bool speed_change = overhang_fan_speed != m_output_fan_speed || lower_buffer_fan_count > 0 || lower_output_fan || force_marker_fan;
+    const int16_t target_fan_speed = int16_t(overhang_fan_speed);
+
+    if (slowdown_for_fan && step_up && first_in_block)
+        _apply_overhang_approach_slowdown(overhang_fan_speed);
+
+    if (slowdown_for_fan && speed_change) {
+        // Emit the overhang's own curve value directly so each overhang
+        // section holds one consistent fan speed. The old path kicked the
+        // fan to 100% here and relied on a deferred "end fan kickstart" to
+        // settle back to the target -- but that settle is suppressed while the
+        // 100% blast is the current output (see write_buffer_data), so the fan
+        // stayed pinned at 100% through the whole overhang AND bled into the
+        // following perimeter/external (and sometimes the next layer). Setting
+        // the target directly removes both the 100% jump and the bleed. Fan
+        // spin-up is meant to be covered by the approach slowdown
+        // (overhangs_speed < 100%); the firmware fan_kickstart still applies
+        // at the emitted M106 itself.
+        const char *comment = (step_up && first_in_block)
+            ? "set override fan (slowdown)"
+            : "set override fan (overhang)";
+        const std::string fan_gcode = _set_fan(target_fan_speed, comment);
+        _queue_fan_at_marker(fan_gcode, target_fan_speed, force_marker_fan);
+        m_back_buffer_fan_speed = target_fan_speed;
+        if (first_in_block)
+            m_overhang_block_approach_slowdown_done = true;
+    } else if (!slowdown_for_fan && (step_up || force_marker_fan)) {
+        const std::string fan_gcode = _set_fan(overhang_fan_speed, "set override fan");
+        if (force_marker_fan && !step_up) {
+            _queue_fan_at_marker(fan_gcode, overhang_fan_speed, true);
+            m_back_buffer_fan_speed = overhang_fan_speed;
+        } else {
+            // Original pre-start behaviour (slowdown feature off).
+            _remove_slow_fan(overhang_fan_speed, m_buffer_time_size + 1, true);
+            if (!m_buffer.empty() && (m_buffer_time_size - m_buffer.front().time * 0.1) > nb_seconds_delay) {
+                _print_in_middle_G1(m_buffer.front(), m_buffer_time_size - nb_seconds_delay, fan_gcode);
+                remove_from_buffer(m_buffer.begin());
+            } else {
+                _append_fan_command(fan_gcode, overhang_fan_speed);
+            }
+            m_front_buffer_fan_speed = overhang_fan_speed;
+        }
+        if (first_in_block)
+            m_overhang_block_approach_slowdown_done = true;
+    }
+}
+
 void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCodeLine& line)
 {
     // processes 'normal' gcode lines
@@ -656,154 +819,9 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                 if (current_role == GCodeExtrusionRole::OverhangPerimeter)
                     m_overhang_block_approach_slowdown_done = false;
             }
-            if (line.raw().size() > 16) {
-                if (line.raw().rfind("; custom gcode", 0) != std::string::npos) {
-                    if (line.raw().rfind("; custom gcode end", 0) != std::string::npos) {
-                        m_is_custom_gcode = false;
-                    } else {
-                        m_is_custom_gcode = true;
-                    }
-                }
-            }
-            const std::string_view overhang_fan_prefix = "; overhang fan : SET_FAN_SPEED";
-            if (line.raw().rfind(overhang_fan_prefix, 0) == 0) {
-                int overhang_fan_speed = 0;
-                if (parse_number(std::string_view(line.raw()).substr(overhang_fan_prefix.size()), overhang_fan_speed)) {
-                    m_last_overhang_min_fan_speed = overhang_fan_speed;
-                    if (overhang_fan_speed > 0) {
-                        int lower_buffer_fan_count = 0;
-                        for (const BufferData &data : m_buffer) {
-                            if (data.fan_speed >= 0 && data.fan_speed < overhang_fan_speed)
-                                ++lower_buffer_fan_count;
-                        }
-
-                        int16_t last_emitted_fan_speed = -1;
-                        for (size_t end = m_process_output.size(); end > 0; ) {
-                            while (end > 0 && (m_process_output[end - 1] == '\n' || m_process_output[end - 1] == '\r'))
-                                --end;
-                            if (end == 0)
-                                break;
-                            const size_t line_break = m_process_output.rfind('\n', end - 1);
-                            const size_t begin = line_break == std::string::npos ? 0 : line_break + 1;
-                            const std::string emitted_line(m_process_output.data() + begin, end - begin);
-                            last_emitted_fan_speed = _fan_speed_percent(emitted_line);
-                            if (last_emitted_fan_speed >= 0)
-                                break;
-                            if (begin == 0)
-                                break;
-                            end = begin - 1;
-                        }
-                        const bool lower_output_fan = last_emitted_fan_speed >= 0 && last_emitted_fan_speed < overhang_fan_speed;
-
-                        if (const char *trace_path = std::getenv("SUPERSLICER_FANMOVER_TRACE")) {
-                            std::ofstream trace(trace_path, std::ios::app);
-                            trace << "z=" << reader.z()
-                                  << " marker=" << line.raw()
-                                  << " want=" << overhang_fan_speed
-                                  << " output=" << m_output_fan_speed
-                                  << " front=" << m_front_buffer_fan_speed
-                                  << " back=" << m_back_buffer_fan_speed
-                                  << " buffer_time=" << m_buffer_time_size
-                                  << " lower_buffer_fans=" << lower_buffer_fan_count
-                                  << " emitted=" << last_emitted_fan_speed
-                                  << " lower_output=" << lower_output_fan
-                                  << '\n';
-                        }
-                        const bool step_up = overhang_fan_speed > m_output_fan_speed;
-                        const bool first_in_block = !m_overhang_block_approach_slowdown_done;
-                        const bool force_marker_fan = first_in_block;
-                        const bool speed_change = overhang_fan_speed != m_output_fan_speed || lower_buffer_fan_count > 0 || lower_output_fan || force_marker_fan;
-                        const int16_t target_fan_speed = int16_t(overhang_fan_speed);
-
-                        // Fan-readiness slowdown: once per Overhang perimeter block, slow only the
-                        // contiguous non-overhang approach moves already in the delay buffer. The fan
-                        // command itself is always emitted at this marker so the adaptive graph tracks.
-                        if (slowdown_for_fan && step_up && first_in_block) {
-                             const float approach_speed = static_cast<float>(m_current_speed);  // BP1008: C-style cast -> named cast (no behavior change)
-                            const float v_floor = overhang_speed_percent
-                                ? approach_speed * overhang_speed_value / FAN_PERCENT_MAX
-                                : overhang_speed_value;
-                            const float t_req = _fan_spinup_time_seconds(m_output_fan_speed, overhang_fan_speed);
-                            float window_time = 0.f;
-                            if (v_floor > 0.f && approach_speed > 0.f && v_floor < approach_speed && t_req > 0.f) {
-                                auto it = m_buffer.end();
-                                while (it != m_buffer.begin() && window_time < t_req) {
-                                    --it;
-                                    const std::string &r = it->raw;
-                                    const bool is_move = r.size() > 2 && r[0] == 'G'
-                                        && (r[1] == '1' || r[1] == '0') && r[2] == ' ';
-                                    if (is_move && it->de > 0 && it->time > 0) {
-                                        const float dist = std::sqrt(it->dx*it->dx + it->dy*it->dy + it->dz*it->dz);
-                                        if (dist > 0) {
-                                            const float fan_progress = std::clamp(1.f - window_time / t_req, 0.f, 1.f);
-                                            const float target_speed = v_floor + (approach_speed - v_floor) * fan_progress;
-                                            const float cur_speed = dist / it->time;
-                                            const float new_speed = std::min(cur_speed, target_speed);
-                                            const float new_time = dist / new_speed;
-                                            m_buffer_time_size += (new_time - it->time);
-                                            it->time = new_time;
-                                            if (r.find(" F") != std::string::npos)
-                                                change_axis_value(it->raw, 'F', new_speed * 60.f, 1);
-                                            else
-                                                it->raw += " F" + to_string_nozero(new_speed * 60.f, 1);
-                                            window_time += it->time;
-                                        }
-                                    } else if (is_move) {
-                                        break;
-                                    } else if (it->fan_speed >= 0) {
-                                        break;
-                                    }
-                                }
-                            }
-                            m_fan_slowdown_total = t_req;
-                            m_fan_slowdown_approach_speed = approach_speed;
-                            m_fan_slowdown_v_floor = v_floor;
-                            m_fan_slowdown_remaining = std::max(0.f, t_req - window_time);
-                            m_overhang_block_approach_slowdown_done = true;
-                        }
-
-                        if (slowdown_for_fan && speed_change) {
-                            // Emit the overhang's own curve value directly so each overhang
-                            // section holds one consistent fan speed. The old path kicked the
-                            // fan to 100% here and relied on a deferred "end fan kickstart" to
-                            // settle back to the target -- but that settle is suppressed while the
-                            // 100% blast is the current output (see write_buffer_data), so the fan
-                            // stayed pinned at 100% through the whole overhang AND bled into the
-                            // following perimeter/external (and sometimes the next layer). Setting
-                            // the target directly removes both the 100% jump and the bleed. Fan
-                            // spin-up is meant to be covered by the approach slowdown
-                            // (overhangs_speed < 100%); the firmware fan_kickstart still applies
-                            // at the emitted M106 itself.
-                            const char *comment = (step_up && first_in_block)
-                                ? "set override fan (slowdown)"
-                                : "set override fan (overhang)";
-                            const std::string fan_gcode = _set_fan(target_fan_speed, comment);
-                            _queue_fan_at_marker(fan_gcode, target_fan_speed, force_marker_fan);
-                            m_back_buffer_fan_speed = target_fan_speed;
-                            if (first_in_block)
-                                m_overhang_block_approach_slowdown_done = true;
-                        } else if (!slowdown_for_fan && (step_up || force_marker_fan)) {
-                            const std::string fan_gcode = _set_fan(overhang_fan_speed, "set override fan");
-                            if (force_marker_fan && !step_up) {
-                                _queue_fan_at_marker(fan_gcode, overhang_fan_speed, true);
-                                m_back_buffer_fan_speed = overhang_fan_speed;
-                            } else {
-                                // Original pre-start behaviour (slowdown feature off).
-                                _remove_slow_fan(overhang_fan_speed, m_buffer_time_size + 1, true);
-                                if (!m_buffer.empty() && (m_buffer_time_size - m_buffer.front().time * 0.1) > nb_seconds_delay) {
-                                    _print_in_middle_G1(m_buffer.front(), m_buffer_time_size - nb_seconds_delay, fan_gcode);
-                                    remove_from_buffer(m_buffer.begin());
-                                } else {
-                                    _append_fan_command(fan_gcode, overhang_fan_speed);
-                                }
-                                m_front_buffer_fan_speed = overhang_fan_speed;
-                            }
-                            if (first_in_block)
-                                m_overhang_block_approach_slowdown_done = true;
-                        }
-                    }
-                }
-            }
+            if (line.raw().size() > 16 && line.raw().rfind("; custom gcode", 0) != std::string::npos)
+                m_is_custom_gcode = line.raw().rfind("; custom gcode end", 0) == std::string::npos;
+            _process_overhang_fan_marker(reader, line);
             if ((line.raw().rfind("; end of overhang fan", 0) == 0 || line.raw().rfind("; end of overhang speed", 0) == 0)
                 && m_last_overhang_min_fan_speed > 0) {
                 m_overhang_fan_hold_speed = std::max(m_overhang_fan_hold_speed, m_last_overhang_min_fan_speed);
@@ -970,6 +988,129 @@ void FanMover::_handle_g_command(const std::string& cmd, GCodeReader& reader, co
     }
 }
 
+// Delays this M106 by kickstarting the fan target from the fan speed already in the delay
+// buffer (or from any kickstart already running), so a big fan increase reaches speed by
+// the time this line reaches the front.
+void FanMover::_handle_delayed_kickstart(const GCodeReader::GCodeLine& line, int16_t fan_speed, int fan_baseline, double& time)
+{
+    //don't put this command in the queue
+    time = -1;
+    // this M106 need to go in the past
+    //check if we have ( kickstart and not in slowdown )
+    int current_front_buffer_fan_speed = m_front_buffer_fan_speed;
+    if (m_current_kickstart.time > 0) {
+        current_front_buffer_fan_speed = m_current_kickstart.fan_speed;
+    }
+    // Only kickstart when the speed increase is large enough to matter.
+    // Small bumps (e.g. 40%?45%) don't need a max burst and would
+    // just create unnecessary noise in the G-code.
+    const int16_t kickstart_min_delta = _kickstart_min_delta();
+    // Kickstart has no effect at max target and only creates duplicated M106 S255 lines.
+    if (! (kickstart > 0 && fan_speed < FAN_PERCENT_MAX && fan_speed > current_front_buffer_fan_speed + kickstart_min_delta)) {
+        // first erase everything lower than that value
+        _remove_slow_fan(fan_speed, m_buffer_time_size + 1, true);
+        // then write the fan command
+        if (!m_buffer.empty() && (m_buffer_time_size - m_buffer.front().time * 0.1) > nb_seconds_delay) {
+            _print_in_middle_G1(m_buffer.front(), m_buffer_time_size - nb_seconds_delay, line.raw());
+            remove_from_buffer(m_buffer.begin());
+        } else {
+            _append_fan_command(std::string(line.raw()), fan_speed);
+        }
+        m_front_buffer_fan_speed = fan_speed;
+        return;
+    }
+
+    // update current kickstart?
+    if (m_current_kickstart.time > 0) {
+        const float kickstart_duration = kickstart * float(fan_speed - current_front_buffer_fan_speed) / FAN_PERCENT_MAX;
+        m_current_kickstart.time += kickstart_duration - m_current_kickstart_duration;
+        m_current_kickstart.fan_speed = fan_speed;
+        m_current_kickstart.raw = line.raw();
+        return;
+    }
+
+    //if kickstart
+    // first erase everything lower than that value
+    _remove_slow_fan(fan_speed, m_buffer_time_size + 1, true);
+    // then erase everything lower that kickstart
+    _remove_slow_fan(fan_baseline, kickstart);
+    // print me
+    if (!m_buffer.empty() && (m_buffer_time_size - m_buffer.front().time * 0.1) > nb_seconds_delay) {
+        _print_in_middle_G1(m_buffer.front(), m_buffer_time_size - nb_seconds_delay, _set_fan(fan_speed, "kickstart fan"));
+        //m_writer.set_fan(FAN_PERCENT_MAX, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
+        remove_from_buffer(m_buffer.begin());
+    } else {
+        _append_fan_command(_set_fan(fan_speed, "kickstart fan"), fan_speed);//m_writer.set_fan(FAN_PERCENT_MAX, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
+    }
+    m_front_buffer_fan_speed = fan_speed;
+    //write it in the queue if possible
+    const float kickstart_duration = kickstart * float(fan_speed - current_front_buffer_fan_speed) / FAN_PERCENT_MAX;
+    float time_count = kickstart_duration;
+    auto it = m_buffer.begin();
+    while (it != m_buffer.end() && time_count > 0) {
+        time_count -= it->time;
+        if (time_count< 0) {
+            //found something that is lower than us
+            _put_in_middle_G1(it, it->time + time_count, BufferData(std::string(line.raw()), 0, fan_speed, true), nb_seconds_delay);
+            //found, stop
+            break;
+        }
+        ++it;
+    }
+    if (time_count > 0) {
+        //can't place it in the buffer, use m_current_kickstart
+        m_current_kickstart.fan_speed = fan_speed;
+        m_current_kickstart.time = time_count;
+        m_current_kickstart_duration = time_count;
+        m_current_kickstart.raw = line.raw();
+    }
+}
+
+// The non-delayed-buffer fan-increase path: stop or extend an in-flight kickstart, or
+// start a new deferred kickstart for this M106, depending on kickstart_min_delta.
+void FanMover::_cherry_pick_kickstart(const GCodeReader::GCodeLine& line, int16_t fan_speed, double& time)
+{
+    if (kickstart <= 0) {
+        //nothing to do
+        //we don't put time = -1; so it will printed in the buffer as other line are done
+        return;
+    }
+    if (m_current_kickstart.time > 0) {
+        //cherry-pick this one
+        if (m_back_buffer_fan_speed >= fan_speed) {
+            //stop kickstart
+            m_current_kickstart.time = -1;
+            //this will print me just after as time >=0
+            return;
+        }
+        // add some duration to the kickstart and use it for me.
+        float kickstart_duration = kickstart * float(fan_speed - m_back_buffer_fan_speed) / FAN_PERCENT_MAX;
+        m_current_kickstart.fan_speed = fan_speed;
+        m_current_kickstart.time += kickstart_duration;
+        m_current_kickstart_duration = kickstart_duration;
+        m_current_kickstart.raw = line.raw();
+        //i'm printed by the m_current_kickstart
+        time = -1;
+        return;
+    }
+    if (fan_speed < FAN_PERCENT_MAX && m_back_buffer_fan_speed < fan_speed - _kickstart_min_delta()) {
+        //don't write this line, as it will need to be delayed
+        time = -1;
+        //get the duration of kickstart
+        float kickstart_duration = kickstart * float(fan_speed - m_back_buffer_fan_speed) / FAN_PERCENT_MAX;
+        //if kickstart, write the M106 S[fan_baseline] first
+        //set the target speed and set the kickstart flag
+        put_in_buffer(BufferData(_set_fan(fan_speed, "kickstart fan")
+            , 0, fan_speed, true));
+        //kickstart!
+        //add the normal speed line for the future
+        m_current_kickstart.fan_speed = fan_speed;
+        m_current_kickstart.time = kickstart_duration;
+        m_current_kickstart_duration = kickstart_duration;
+        m_current_kickstart.raw = line.raw();
+    }
+}
+
 // Extracted M fan command handler (full kickstart/slowdown/hold/cherry-pick/buffer logic).
 // Moved out of the long 'if' (BP1013) and 'switch' (BP1013) in _process_gcode_line and
 // associated deep nesting (BP1015). Every owner comment describing thresholds, erase-lower,
@@ -1009,117 +1150,10 @@ void FanMover::_handle_m_command(const std::string& cmd, const GCodeReader::GCod
                     //this fan speed will be printed, to make and end to the kickstart
                 }
              } else {
-                 if (nb_seconds_delay > 0 && (!only_overhangs || current_role == GCodeExtrusionRole::OverhangPerimeter)) {
-                     auto handle_delayed_kickstart = [&] {
-                         //don't put this command in the queue
-                         time = -1;
-                         // this M106 need to go in the past
-                         //check if we have ( kickstart and not in slowdown )
-                         int current_front_buffer_fan_speed = m_front_buffer_fan_speed;
-                         if (m_current_kickstart.time > 0) {
-                             current_front_buffer_fan_speed = m_current_kickstart.fan_speed;
-                         }
-                         // Only kickstart when the speed increase is large enough to matter.
-                         // Small bumps (e.g. 40%?45%) don't need a max burst and would
-                         // just create unnecessary noise in the G-code.
-                         const int16_t kickstart_min_delta = _kickstart_min_delta();
-                         // Kickstart has no effect at max target and only creates duplicated M106 S255 lines.
-                         if (kickstart > 0 && fan_speed < FAN_PERCENT_MAX && fan_speed > current_front_buffer_fan_speed + kickstart_min_delta) {
-                             // update current kickstart?
-                             if (m_current_kickstart.time > 0) {
-                                 const float kickstart_duration = kickstart * float(fan_speed - current_front_buffer_fan_speed) / FAN_PERCENT_MAX;
-                                 m_current_kickstart.time += kickstart_duration - m_current_kickstart_duration;
-                                 m_current_kickstart.fan_speed = fan_speed;
-                                 m_current_kickstart.raw = line.raw();
-                             } else {
-                                 //if kickstart
-                                 // first erase everything lower than that value
-                                 _remove_slow_fan(fan_speed, m_buffer_time_size + 1, true);
-                                 // then erase everything lower that kickstart
-                                 _remove_slow_fan(fan_baseline, kickstart);
-                                 // print me
-                                 if (!m_buffer.empty() && (m_buffer_time_size - m_buffer.front().time * 0.1) > nb_seconds_delay) {
-                                     _print_in_middle_G1(m_buffer.front(), m_buffer_time_size - nb_seconds_delay, _set_fan(fan_speed, "kickstart fan"));
-                                     //m_writer.set_fan(FAN_PERCENT_MAX, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
-                                     remove_from_buffer(m_buffer.begin());
-                                 } else {
-                                     _append_fan_command(_set_fan(fan_speed, "kickstart fan"), fan_speed);//m_writer.set_fan(FAN_PERCENT_MAX, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
-                                 }
-                                 m_front_buffer_fan_speed = fan_speed;
-                                 //write it in the queue if possible
-                                 const float kickstart_duration = kickstart * float(fan_speed - current_front_buffer_fan_speed) / FAN_PERCENT_MAX;
-                                 float time_count = kickstart_duration;
-                                 auto it = m_buffer.begin();
-                                 while (it != m_buffer.end() && time_count > 0) {
-                                     time_count -= it->time;
-                                     if (time_count< 0) {
-                                         //found something that is lower than us
-                                         _put_in_middle_G1(it, it->time + time_count, BufferData(std::string(line.raw()), 0, fan_speed, true), nb_seconds_delay);
-                                         //found, stop
-                                         break;
-                                     }
-                                     ++it;
-                                 }
-                                 if (time_count > 0) {
-                                     //can't place it in the buffer, use m_current_kickstart
-                                     m_current_kickstart.fan_speed = fan_speed;
-                                     m_current_kickstart.time = time_count;
-                                     m_current_kickstart_duration = time_count;
-                                     m_current_kickstart.raw = line.raw();
-                                 }
-                             }
-                         } else {
-                             // first erase everything lower than that value
-                             _remove_slow_fan(fan_speed, m_buffer_time_size + 1, true);
-                             // then write the fan command
-                             if (!m_buffer.empty() && (m_buffer_time_size - m_buffer.front().time * 0.1) > nb_seconds_delay) {
-                                 _print_in_middle_G1(m_buffer.front(), m_buffer_time_size - nb_seconds_delay, line.raw());
-                                 remove_from_buffer(m_buffer.begin());
-                             } else {
-                                 _append_fan_command(std::string(line.raw()), fan_speed);
-                             }
-                             m_front_buffer_fan_speed = fan_speed;
-                         }
-                     };
-                     handle_delayed_kickstart();
-                 } else {
-                     if (kickstart <= 0) {
-                         //nothing to do
-                         //we don't put time = -1; so it will printed in the buffer as other line are done
-                     } else if (m_current_kickstart.time > 0) {
-                         //cherry-pick this one
-                         if (m_back_buffer_fan_speed >= fan_speed) {
-                             //stop kickstart
-                             m_current_kickstart.time = -1;
-                             //this will print me just after as time >=0
-                          } else {
-                              // add some duration to the kickstart and use it for me.
-                              float kickstart_duration = kickstart * float(fan_speed - m_back_buffer_fan_speed) / FAN_PERCENT_MAX;
-                              m_current_kickstart.fan_speed = fan_speed;
-                              m_current_kickstart.time += kickstart_duration;
-                              m_current_kickstart_duration = kickstart_duration;
-                              m_current_kickstart.raw = line.raw();
-                              //i'm printed by the m_current_kickstart
-                              time = -1;
-                          }
-                       } else if(fan_speed < FAN_PERCENT_MAX && m_back_buffer_fan_speed < fan_speed - _kickstart_min_delta()) {
-                          //don't write this line, as it will need to be delayed
-                          time = -1;
-                          //get the duration of kickstart
-                          float kickstart_duration = kickstart * float(fan_speed - m_back_buffer_fan_speed) / FAN_PERCENT_MAX;
-                          //if kickstart, write the M106 S[fan_baseline] first
-                          //set the target speed and set the kickstart flag
-                          put_in_buffer(BufferData(_set_fan(fan_speed, "kickstart fan")//m_writer.set_fan(FAN_PERCENT_MAX, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
-                              , 0, fan_speed, true));
-                          //kickstart!
-                          //m_process_output += m_writer.set_fan(FAN_PERCENT_MAX, true) + "\n";
-                          //add the normal speed line for the future
-                          m_current_kickstart.fan_speed = fan_speed;
-                          m_current_kickstart.time = kickstart_duration;
-                          m_current_kickstart_duration = kickstart_duration;
-                          m_current_kickstart.raw = line.raw();
-                      }
-                  }
+                 if (nb_seconds_delay > 0 && (!only_overhangs || current_role == GCodeExtrusionRole::OverhangPerimeter))
+                     _handle_delayed_kickstart(line, fan_speed, fan_baseline, time);
+                 else
+                     _cherry_pick_kickstart(line, fan_speed, time);
               }
           }
          //update back buffer fan speed
