@@ -270,6 +270,60 @@ static inline int sign(const int64_t i)
     return i > 0 ? 1 : i < 0 ? -1 : 0;
 }
 
+// Fit a circle through the first point, the last point, and the point where the polyline crosses
+// the bisector of the arc chord. At such a point the distance of a polyline to an arc wrt. the
+// circle center (or circle radius) will have a largest gradient of all points to be fitted.
+static std::optional<Circle> try_create_circle_through_bisector(
+    const Points::const_iterator begin, const Points::const_iterator end,
+    const double tolerance, const double max_radius)
+{
+    Vec2i64 first_point = begin->cast<int64_t>();
+    Vec2i64 last_point  = std::prev(end)->cast<int64_t>();
+    Vec2i64 v = last_point - first_point;
+    Vec2d   vd = v.cast<double>();
+    double  ld = v.squaredNorm();
+    // Too short a chord to find a meaningful bisector crossing.
+    if (! (ld > sqr(scaled<double>(0.0015))))
+        return {};
+    Vec2i64 c = (first_point.cast<int64_t>() + last_point.cast<int64_t>()) / 2;
+    Vec2i64 prev_point = first_point;
+    int     prev_side = sign(v.dot(prev_point - c));
+    assert(prev_side != 0);
+    Point   point_on_bisector;
+#ifndef NDEBUG
+    point_on_bisector = { std::numeric_limits<coord_t>::max(), std::numeric_limits<coord_t>::max() };
+#endif // NDEBUG
+    for (auto it = std::next(begin); it != end; ++ it) {
+        Vec2i64 this_point = it->cast<int64_t>();
+        int64_t d         = v.dot(this_point - c);
+        int     this_side = sign(d);
+        int     sideness  = this_side * prev_side;
+        if (sideness < 0) {
+            // Calculate the intersection point.
+            Vec2d p = c.cast<double>() + vd * double(d) / ld;
+            point_on_bisector = Point::round(p);
+            break;
+        } 
+        if (sideness == 0) {
+            // this_point is on the bisector.
+            assert(prev_side != 0);
+            assert(this_side == 0);
+            point_on_bisector = this_point.cast<coord_t>();
+            break;
+        }
+        prev_point = this_point;
+        prev_side  = this_side;
+    }
+    // point_on_bisector must be set
+    assert(point_on_bisector.x() != std::numeric_limits<coord_t>::max() && point_on_bisector.y() != std::numeric_limits<coord_t>::max());
+    std::optional<Circle> circle = try_create_circle(*begin, point_on_bisector, *std::prev(end), max_radius);
+    if (// Use twice the tolerance for fitting the initial circle.
+        // Early exit if such approximation is grossly inaccurate, thus the tolerance could not be achieved.
+        circle && ! circle_approximation_sufficient_from_first_last(*circle, begin, end, tolerance * 2))
+        circle.reset();
+    return circle;
+}
+
 static std::optional<Circle> try_create_circle(const Points::const_iterator begin, const Points::const_iterator end, const double max_radius, const double tolerance)
 {
     std::optional<Circle> out;
@@ -312,54 +366,8 @@ static std::optional<Circle> try_create_circle(const Points::const_iterator begi
                 circle && ! circle_approximation_sufficient_from_first_last(*circle, begin, end, tolerance * 2))
                 circle.reset();
         } 
-        if (! circle) {
-            // Find an intersection point of the polyline to be fitted with the bisector of the arc chord.
-            // At such a point the distance of a polyline to an arc wrt. the circle center (or circle radius) will have a largest gradient
-            // of all points on the polyline to be fitted.
-            Vec2i64 first_point = begin->cast<int64_t>();
-            Vec2i64 last_point  = std::prev(end)->cast<int64_t>();
-            Vec2i64 v = last_point - first_point;
-            Vec2d   vd = v.cast<double>();
-            double  ld = v.squaredNorm();
-            if (ld > sqr(scaled<double>(0.0015))) {
-                Vec2i64 c = (first_point.cast<int64_t>() + last_point.cast<int64_t>()) / 2;
-                Vec2i64 prev_point = first_point;
-                int     prev_side = sign(v.dot(prev_point - c));
-                assert(prev_side != 0);
-                Point   point_on_bisector;
-    #ifndef NDEBUG
-                point_on_bisector = { std::numeric_limits<coord_t>::max(), std::numeric_limits<coord_t>::max() };
-    #endif // NDEBUG
-                for (auto it = std::next(begin); it != end; ++ it) {
-                    Vec2i64 this_point = it->cast<int64_t>();
-                    int64_t d         = v.dot(this_point - c);
-                    int     this_side = sign(d);
-                    int     sideness  = this_side * prev_side;
-                    if (sideness < 0) {
-                        // Calculate the intersection point.
-                        Vec2d p = c.cast<double>() + vd * double(d) / ld;
-                        point_on_bisector = Point::round(p);
-                        break;
-                    } 
-                    if (sideness == 0) {
-                        // this_point is on the bisector.
-                        assert(prev_side != 0);
-                        assert(this_side == 0);
-                        point_on_bisector = this_point.cast<coord_t>();
-                        break;
-                    }
-                    prev_point = this_point;
-                    prev_side  = this_side;
-                }
-                // point_on_bisector must be set
-                assert(point_on_bisector.x() != std::numeric_limits<coord_t>::max() && point_on_bisector.y() != std::numeric_limits<coord_t>::max());
-                circle = try_create_circle(*begin, point_on_bisector, *std::prev(end), max_radius);
-                if (// Use twice the tolerance for fitting the initial circle.
-                    // Early exit if such approximation is grossly inaccurate, thus the tolerance could not be achieved.
-                    circle && ! circle_approximation_sufficient_from_first_last(*circle, begin, end, tolerance * 2))
-                    circle.reset();
-            }
-        }
+        if (! circle)
+            circle = try_create_circle_through_bisector(begin, end, tolerance, max_radius);
         if (circle) {
             // Fit the arc between the end points by least squares.
             // Optimize over all points along the path and the centers of the segments.
