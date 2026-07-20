@@ -1417,7 +1417,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             file_version = *m_bambuslicer_generator_version;
         if (result && plate_data_list.size() > 0) {
             if(config.opt<ConfigOptionEnum<LabelObjectsStyle>>(kGcodeLabelObjects) == nullptr)
-                config.set_key_value(kGcodeLabelObjects, new ConfigOptionEnum<LabelObjectsStyle>(LabelObjectsStyle::Disabled));
+                config.set_key_value(kGcodeLabelObjects, std::make_unique<ConfigOptionEnum<LabelObjectsStyle>>(LabelObjectsStyle::Disabled));
             LabelObjectsStyle has_label_objests = config.opt<ConfigOptionEnum<LabelObjectsStyle>>(kGcodeLabelObjects)->value;
                 config.opt<ConfigOptionEnum<LabelObjectsStyle>>(kGcodeLabelObjects)->value;
             if (has_label_objests == LabelObjectsStyle::Disabled) {
@@ -1436,7 +1436,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 if (!print_vars.empty() && print_vars.back() != '\n')
                     print_vars += std::string("\n");
                 print_vars += std::string("plate_name=\"") + plate_name + std::string("\"\n");
-                config.set_key_value("print_custom_variables", new ConfigOptionString(print_vars));
+                config.set_key_value("print_custom_variables", std::make_unique<ConfigOptionString>(print_vars));
             }
         }
         // save for restore
@@ -2136,7 +2136,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                     // get color
                     auto extruder_itor = color_group_id_to_extruder_id_map.find(current_object->second.pid);
                     if (extruder_itor != color_group_id_to_extruder_id_map.end()) {
-                        model_object->config.set_key_value(kExtruder, new ConfigOptionInt(extruder_itor->second));
+                        model_object->config.set_key_value(kExtruder, std::make_unique<ConfigOptionInt>(extruder_itor->second));
                     }
                 }
 
@@ -2212,7 +2212,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 extruder_id = extruder_opt->get_int();
 
             if (extruder_id == 0 || extruder_id > max_filament_id)
-                mo->config.set_key_value(kExtruder, new ConfigOptionInt(1));
+                mo->config.set_key_value(kExtruder, std::make_unique<ConfigOptionInt>(1));
 
             if (mo->volumes.size() == 1) {
                 mo->volumes[0]->config.erase(kExtruder);
@@ -2226,7 +2226,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                     if (vol_extruder_opt->get_int() == 0)
                         mv->config.erase(kExtruder);
                     else if (vol_extruder_opt->get_int() > max_filament_id)
-                        mv->config.set_key_value(kExtruder, new ConfigOptionInt(1));
+                        mv->config.set_key_value(kExtruder, std::make_unique<ConfigOptionInt>(1));
                 }
             }
         }
@@ -4191,17 +4191,17 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             {
                 //BedType bed_type = BedType::btPC;
                 //ConfigOptionEnum<BedType>::from_string(value, bed_type);
-                //m_curr_plater->config.set_key_value("curr_bed_type", new ConfigOptionEnum<BedType>(bed_type)); //Susi_not_impl
+                //m_curr_plater->config.set_key_value("curr_bed_type", std::make_unique<ConfigOptionEnum<BedType>>(bed_type)); //Susi_not_impl
             }
             else if (key == PRINT_SEQUENCE_ATTR)
             {
                 //PrintSequence print_sequence = PrintSequence::ByLayer;
                 //ConfigOptionEnum<PrintSequence>::from_string(value, print_sequence);
-                //m_curr_plater->config.set_key_value("print_sequence", new ConfigOptionEnum<PrintSequence>(print_sequence));
+                //m_curr_plater->config.set_key_value("print_sequence", std::make_unique<ConfigOptionEnum<PrintSequence>>(print_sequence));
                 if (value == "by layer")
-                    m_curr_plater->config.set_key_value("complete_objects", new ConfigOptionBool(false));
+                    m_curr_plater->config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(false));
                 else if (value == "by object")
-                    m_curr_plater->config.set_key_value("complete_objects", new ConfigOptionBool(true));
+                    m_curr_plater->config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(true));
                 else
                     assert(false);
             }
@@ -4215,12 +4215,12 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                     }
                     return results;
                 };
-                //m_curr_plater->config.set_key_value("first_layer_print_sequence", new ConfigOptionInts(get_vector_from_string(value))); //Susi_not_impl
+                //m_curr_plater->config.set_key_value("first_layer_print_sequence", std::make_unique<ConfigOptionInts>(get_vector_from_string(value))); //Susi_not_impl
             }
             else if (key == SPIRAL_VASE_MODE) {
                 bool spiral_mode = false;
                 std::istringstream(value) >> std::boolalpha >> spiral_mode;
-                m_curr_plater->config.set_key_value("spiral_vase"/*"spiral_mode"*/, new ConfigOptionBool(spiral_mode));
+                m_curr_plater->config.set_key_value("spiral_vase"/*"spiral_mode"*/, std::make_unique<ConfigOptionBool>(spiral_mode));
             }
             else if (key == GCODE_FILE_ATTR)
             {

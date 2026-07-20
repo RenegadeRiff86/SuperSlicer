@@ -850,7 +850,7 @@ DynamicPrintConfig PresetBundle::full_fff_config() const
                 break;
             }
         if (nonempty)
-            out.set_key_value(key, new ConfigOptionStrings(std::move(values)));
+            out.set_key_value(key, std::make_unique<ConfigOptionStrings>(std::move(values)));
     };
     add_if_some_non_empty(std::move(compatible_printers_condition), "compatible_printers_condition_cummulative");
     add_if_some_non_empty(std::move(compatible_prints_condition),   "compatible_prints_condition_cummulative");
@@ -906,7 +906,7 @@ DynamicPrintConfig PresetBundle::full_sla_config() const
                 break;
             }
         if (nonempty)
-            out.set_key_value(key, new ConfigOptionStrings(std::move(values)));
+            out.set_key_value(key, std::make_unique<ConfigOptionStrings>(std::move(values)));
     };
     add_if_some_non_empty(std::move(compatible_printers_condition), "compatible_printers_condition_cummulative");
     add_if_some_non_empty(std::move(compatible_prints_condition),   "compatible_prints_condition_cummulative");

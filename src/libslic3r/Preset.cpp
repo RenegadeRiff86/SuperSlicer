@@ -584,18 +584,18 @@ bool is_compatible_with_printer(const PresetWithVendorProfile &preset, const Pre
 bool is_compatible_with_printer(const PresetWithVendorProfile &preset, const PresetWithVendorProfile &active_printer)
 {
     DynamicPrintConfig config;
-    config.set_key_value("printer_preset", new ConfigOptionString(active_printer.preset.name));
+    config.set_key_value("printer_preset", std::make_unique<ConfigOptionString>(active_printer.preset.name));
     const ConfigOption *opt = active_printer.preset.config.option(opt_key_nozzle_diameter);
     if (opt) {
         const int num_extruders = config_option_floats_size_to_int(opt, opt_key_num_extruders);
-        config.set_key_value(opt_key_num_extruders, new ConfigOptionInt(num_extruders));
-        config.set_key_value("extruders_count", new ConfigOptionInt(num_extruders));
+        config.set_key_value(opt_key_num_extruders, std::make_unique<ConfigOptionInt>(num_extruders));
+        config.set_key_value("extruders_count", std::make_unique<ConfigOptionInt>(num_extruders));
     }
     opt = active_printer.preset.config.option("milling_diameter");
     if (opt) {
         const int num_milling = config_option_floats_size_to_int(opt, opt_key_num_milling);
-        config.set_key_value(opt_key_num_milling, new ConfigOptionInt(num_milling));
-        config.set_key_value("milling_count", new ConfigOptionInt(num_milling));
+        config.set_key_value(opt_key_num_milling, std::make_unique<ConfigOptionInt>(num_milling));
+        config.set_key_value("milling_count", std::make_unique<ConfigOptionInt>(num_milling));
     }
     return is_compatible_with_printer(preset, active_printer, &config);
 }
@@ -1921,18 +1921,18 @@ void PresetCollection::set_default_suppressed(bool default_suppressed)
 size_t PresetCollection::update_compatible_internal(const PresetWithVendorProfile &active_printer, const PresetWithVendorProfile *active_print, PresetSelectCompatibleType unselect_if_incompatible)
 {
     DynamicPrintConfig config;
-    config.set_key_value("printer_preset", new ConfigOptionString(active_printer.preset.name));
+    config.set_key_value("printer_preset", std::make_unique<ConfigOptionString>(active_printer.preset.name));
     const ConfigOption *opt = active_printer.preset.config.option(opt_key_nozzle_diameter);
     if (opt) {
         const int num_extruders = config_option_floats_size_to_int(opt, opt_key_num_extruders);
-        config.set_key_value(opt_key_num_extruders, new ConfigOptionInt(num_extruders));
-        config.set_key_value("extruders_count", new ConfigOptionInt(num_extruders));
+        config.set_key_value(opt_key_num_extruders, std::make_unique<ConfigOptionInt>(num_extruders));
+        config.set_key_value("extruders_count", std::make_unique<ConfigOptionInt>(num_extruders));
     }
     opt = active_printer.preset.config.option("milling_diameter");
     if (opt) {
         const int num_milling = config_option_floats_size_to_int(opt, opt_key_num_milling);
-        config.set_key_value(opt_key_num_milling, new ConfigOptionInt(num_milling));
-        config.set_key_value("milling_count", new ConfigOptionInt(num_milling));
+        config.set_key_value(opt_key_num_milling, std::make_unique<ConfigOptionInt>(num_milling));
+        config.set_key_value("milling_count", std::make_unique<ConfigOptionInt>(num_milling));
     }
     bool some_compatible = false;
     std::vector<size_t> indices_of_template_presets;
@@ -2415,7 +2415,7 @@ static void update_preset_name_option(const std::set<std::string>& preset_names,
     for (const auto &el : preset_names)
         name += el + ";";
     name.pop_back();
-    config.set_key_value("preset_name", new ConfigOptionString(name));
+    config.set_key_value("preset_name", std::make_unique<ConfigOptionString>(name));
 }
 
 void PhysicalPrinter::update_preset_names_in_config()
@@ -2977,18 +2977,18 @@ size_t ExtruderFilaments::update_compatible_internal(const PresetWithVendorProfi
                                                      PresetSelectCompatibleType      unselect_if_incompatible)
 {
     DynamicPrintConfig config;
-    config.set_key_value("printer_preset", new ConfigOptionString(active_printer.preset.name));
+    config.set_key_value("printer_preset", std::make_unique<ConfigOptionString>(active_printer.preset.name));
     const ConfigOption* opt = active_printer.preset.config.option(opt_key_nozzle_diameter);
     if (opt) {
         const int num_extruders = config_option_floats_size_to_int(opt, opt_key_num_extruders);
-        config.set_key_value(opt_key_num_extruders, new ConfigOptionInt(num_extruders));
-        config.set_key_value("extruders_count", new ConfigOptionInt(num_extruders));
+        config.set_key_value(opt_key_num_extruders, std::make_unique<ConfigOptionInt>(num_extruders));
+        config.set_key_value("extruders_count", std::make_unique<ConfigOptionInt>(num_extruders));
     }
     opt = active_printer.preset.config.option("milling_diameter");
     if (opt) {
         const int num_milling = config_option_floats_size_to_int(opt, opt_key_num_milling);
-        config.set_key_value(opt_key_num_milling, new ConfigOptionInt(num_milling));
-        config.set_key_value("milling_count", new ConfigOptionInt(num_milling));
+        config.set_key_value(opt_key_num_milling, std::make_unique<ConfigOptionInt>(num_milling));
+        config.set_key_value("milling_count", std::make_unique<ConfigOptionInt>(num_milling));
     }
 
     // Adjust printer preset config to the first extruder from m_extruder_id 

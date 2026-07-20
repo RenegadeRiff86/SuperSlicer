@@ -2628,6 +2628,23 @@ public:
     Slic3r::clonable_ptr<const ConfigOption> default_value;
     void 								set_default_value(ConfigOption* ptr);
     void 								set_default_value(ConfigOptionVectorBase* ptr);
+    // Ownership-transferring overload, same semantics as the two above.
+    // Deliberately one template rather than a unique_ptr overload per base type:
+    // unique_ptr<Derived> converts to unique_ptr<ConfigOption> and to
+    // unique_ptr<ConfigOptionVectorBase> by equally-ranked user-defined conversions, so an
+    // overload pair would be ambiguous for every vector option. Dispatching here instead keeps
+    // the vector-specific handling (set_is_extruder_size) that the raw overloads apply.
+    template<typename T>
+    void set_default_value(std::unique_ptr<T> ptr)
+    {
+        static_assert(std::is_base_of<ConfigOption, T>::value,
+            "set_default_value requires a ConfigOption-derived type.");
+        if constexpr (std::is_base_of<ConfigOptionVectorBase, T>::value) {
+            this->set_default_value(static_cast<ConfigOptionVectorBase*>(ptr.release()));
+        } else {
+            this->set_default_value(static_cast<ConfigOption*>(ptr.release()));
+        }
+    }
     template<typename T> const T* 		get_default_value() const { return static_cast<const T*>(this->default_value.get()); }
 
     // Create an empty option to be used as a base for deserialization of DynamicConfig.

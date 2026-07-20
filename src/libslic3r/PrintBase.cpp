@@ -48,16 +48,16 @@ void PrintBase::update_object_placeholders(DynamicConfig &config, const std::str
         }
     }
     
-    config.set_key_value("num_objects", new ConfigOptionInt(num_objects));
-    config.set_key_value("num_instances", new ConfigOptionInt(num_instances));
+    config.set_key_value("num_objects", std::make_unique<ConfigOptionInt>(num_objects));
+    config.set_key_value("num_instances", std::make_unique<ConfigOptionInt>(num_instances));
 
-    config.set_key_value("scale", new ConfigOptionStrings(v_scale));
+    config.set_key_value("scale", std::make_unique<ConfigOptionStrings>(v_scale));
     if (! input_file.empty()) {
         // get basename with and without suffix
         const std::string input_filename = boost::filesystem::path(input_file).filename().string();
         const std::string input_filename_base = input_filename.substr(0, input_filename.find_last_of("."));
-//        config.set_key_value("input_filename", new ConfigOptionString(input_filename_base + default_output_ext));
-        config.set_key_value("input_filename_base", new ConfigOptionString(input_filename_base));
+//        config.set_key_value("input_filename", std::make_unique<ConfigOptionString>(input_filename_base + default_output_ext));
+        config.set_key_value("input_filename_base", std::make_unique<ConfigOptionString>(input_filename_base));
     }
 }
 
@@ -68,12 +68,12 @@ std::string PrintBase::output_filename(const std::string &format, const std::str
     DynamicConfig cfg;
     if (config_override != nullptr)
         cfg = *config_override;
-    cfg.set_key_value("version", new ConfigOptionString(std::string(SLIC3R_VERSION)));
+    cfg.set_key_value("version", std::make_unique<ConfigOptionString>(std::string(SLIC3R_VERSION)));
     PlaceholderParser::update_timestamp(cfg);
     this->update_object_placeholders(cfg, default_ext);
     if (! filename_base.empty()) {
-//		cfg.set_key_value("input_filename", new ConfigOptionString(filename_base + default_ext));
-        cfg.set_key_value("input_filename_base", new ConfigOptionString(filename_base));
+//		cfg.set_key_value("input_filename", std::make_unique<ConfigOptionString>(filename_base + default_ext));
+        cfg.set_key_value("input_filename_base", std::make_unique<ConfigOptionString>(filename_base));
     }
     try {
         uint16_t extruder_initial = config_override->option("initial_extruder") != nullptr && config_override->option("initial_extruder")->type() == coInt ? config_override->option("initial_extruder")->get_int() : 0;

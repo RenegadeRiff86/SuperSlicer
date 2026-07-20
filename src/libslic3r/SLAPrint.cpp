@@ -1237,11 +1237,11 @@ DynamicConfig SLAPrintStatistics::config() const
 {
     DynamicConfig config;
     const std::string print_time = Slic3r::short_time(get_time_dhms(float(this->estimated_print_time)));
-    config.set_key_value("print_time", new ConfigOptionString(print_time));
-    config.set_key_value("objects_used_material", new ConfigOptionFloat(this->objects_used_material));
-    config.set_key_value("support_used_material", new ConfigOptionFloat(this->support_used_material));
-    config.set_key_value("total_cost", new ConfigOptionFloat(this->total_cost));
-    config.set_key_value("total_weight", new ConfigOptionFloat(this->total_weight));
+    config.set_key_value("print_time", std::make_unique<ConfigOptionString>(print_time));
+    config.set_key_value("objects_used_material", std::make_unique<ConfigOptionFloat>(this->objects_used_material));
+    config.set_key_value("support_used_material", std::make_unique<ConfigOptionFloat>(this->support_used_material));
+    config.set_key_value("total_cost", std::make_unique<ConfigOptionFloat>(this->total_cost));
+    config.set_key_value("total_weight", std::make_unique<ConfigOptionFloat>(this->total_weight));
     return config;
 }
 
@@ -1251,7 +1251,7 @@ DynamicConfig SLAPrintStatistics::placeholders()
     for (const char *key : {
         "print_time", "total_cost", "total_weight",
         "objects_used_material", "support_used_material" })
-        config.set_key_value(key, new ConfigOptionString(std::string("{") + key + "}"));
+        config.set_key_value(key, std::make_unique<ConfigOptionString>(std::string("{") + key + "}"));
 
     return config;
 }

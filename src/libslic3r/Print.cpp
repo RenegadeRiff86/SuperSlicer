@@ -2409,11 +2409,11 @@ std::string Print::output_filename(const std::string &filename_base) const
     DynamicConfig config = this->finished() ? this->print_statistics().config() : this->print_statistics().placeholders();
     const int num_extruders = checked_size_to_config_int(m_config.nozzle_diameter.size(), "num_extruders");
     const int num_milling   = checked_size_to_config_int(m_config.milling_diameter.size(), "num_milling");
-    config.set_key_value("num_extruders", new ConfigOptionInt(num_extruders));
-    config.set_key_value("extruders_count", new ConfigOptionInt(num_extruders));
-    config.set_key_value("num_milling", new ConfigOptionInt(num_milling));
-    config.set_key_value("milling_count", new ConfigOptionInt(num_milling));
-    config.set_key_value("default_output_extension", new ConfigOptionString(".gcode"));
+    config.set_key_value("num_extruders", std::make_unique<ConfigOptionInt>(num_extruders));
+    config.set_key_value("extruders_count", std::make_unique<ConfigOptionInt>(num_extruders));
+    config.set_key_value("num_milling", std::make_unique<ConfigOptionInt>(num_milling));
+    config.set_key_value("milling_count", std::make_unique<ConfigOptionInt>(num_milling));
+    config.set_key_value("default_output_extension", std::make_unique<ConfigOptionString>(".gcode"));
 
     // Handle output_filename_format, including the gcode / bgcode extension substitution for binary G-codes.
     std::string output_filename_format = m_config.output_filename_format.value;
@@ -2457,33 +2457,33 @@ DynamicConfig PrintStatistics::config() const
         this->estimated_print_time_str.end()) {
         std::string normal_print_time = short_time(
             this->estimated_print_time_str.at(static_cast<uint8_t>(PrintEstimatedStatistics::ETimeMode::Normal)));
-        config.set_key_value("print_time", new ConfigOptionString(normal_print_time));
-        config.set_key_value("normal_print_time", new ConfigOptionString(normal_print_time));
+        config.set_key_value("print_time", std::make_unique<ConfigOptionString>(normal_print_time));
+        config.set_key_value("normal_print_time", std::make_unique<ConfigOptionString>(normal_print_time));
     } else if (this->estimated_print_time_str.find(static_cast<uint8_t>(
                    PrintEstimatedStatistics::ETimeMode::Stealth)) != this->estimated_print_time_str.end()) {
         std::string silent_print_time = short_time(
             this->estimated_print_time_str.at(static_cast<uint8_t>(PrintEstimatedStatistics::ETimeMode::Stealth)));
-        config.set_key_value("print_time", new ConfigOptionString(silent_print_time));
+        config.set_key_value("print_time", std::make_unique<ConfigOptionString>(silent_print_time));
     }
     if (this->estimated_print_time_str.find(static_cast<uint8_t>(PrintEstimatedStatistics::ETimeMode::Stealth)) !=
         this->estimated_print_time_str.end()) {
         std::string silent_print_time = short_time(
             this->estimated_print_time_str.at(static_cast<uint8_t>(PrintEstimatedStatistics::ETimeMode::Stealth)));
-        config.set_key_value("silent_print_time", new ConfigOptionString(silent_print_time));
+        config.set_key_value("silent_print_time", std::make_unique<ConfigOptionString>(silent_print_time));
     }
-    config.set_key_value("used_filament",             new ConfigOptionFloat(this->total_used_filament / 1000.));
-    config.set_key_value("extruded_volume",           new ConfigOptionFloat(this->total_extruded_volume));
-    config.set_key_value("total_cost",                new ConfigOptionFloat(this->total_cost));
-    config.set_key_value("total_toolchanges",         new ConfigOptionInt(this->total_toolchanges));
-    config.set_key_value("total_weight",              new ConfigOptionFloat(this->total_weight));
-    config.set_key_value("total_wipe_tower_cost",     new ConfigOptionFloat(this->total_wipe_tower_cost));
-    config.set_key_value("total_wipe_tower_filament", new ConfigOptionFloat(this->total_wipe_tower_filament));
-    config.set_key_value("initial_tool",              new ConfigOptionInt(int(this->initial_extruder_id)));
-    config.set_key_value("initial_extruder",          new ConfigOptionInt(int(this->initial_extruder_id)));
-    config.set_key_value("initial_filament_type",     new ConfigOptionString(this->initial_filament_type));
-    config.set_key_value("printing_filament_types",   new ConfigOptionString(this->printing_filament_types));
-    config.set_key_value("num_printing_extruders",    new ConfigOptionInt(int(this->printing_extruders.size())));
-//    config.set_key_value("printing_extruders",        new ConfigOptionInts(std::vector<int>(this->printing_extruders.begin(), this->printing_extruders.end())));
+    config.set_key_value("used_filament",             std::make_unique<ConfigOptionFloat>(this->total_used_filament / 1000.));
+    config.set_key_value("extruded_volume",           std::make_unique<ConfigOptionFloat>(this->total_extruded_volume));
+    config.set_key_value("total_cost",                std::make_unique<ConfigOptionFloat>(this->total_cost));
+    config.set_key_value("total_toolchanges",         std::make_unique<ConfigOptionInt>(this->total_toolchanges));
+    config.set_key_value("total_weight",              std::make_unique<ConfigOptionFloat>(this->total_weight));
+    config.set_key_value("total_wipe_tower_cost",     std::make_unique<ConfigOptionFloat>(this->total_wipe_tower_cost));
+    config.set_key_value("total_wipe_tower_filament", std::make_unique<ConfigOptionFloat>(this->total_wipe_tower_filament));
+    config.set_key_value("initial_tool",              std::make_unique<ConfigOptionInt>(int(this->initial_extruder_id)));
+    config.set_key_value("initial_extruder",          std::make_unique<ConfigOptionInt>(int(this->initial_extruder_id)));
+    config.set_key_value("initial_filament_type",     std::make_unique<ConfigOptionString>(this->initial_filament_type));
+    config.set_key_value("printing_filament_types",   std::make_unique<ConfigOptionString>(this->printing_filament_types));
+    config.set_key_value("num_printing_extruders",    std::make_unique<ConfigOptionInt>(int(this->printing_extruders.size())));
+//    config.set_key_value("printing_extruders",        std::make_unique<ConfigOptionInts>(std::vector<int>(this->printing_extruders.begin(), this->printing_extruders.end())));
     
     return config;
 }
@@ -2496,7 +2496,7 @@ DynamicConfig PrintStatistics::placeholders()
         "used_filament", "extruded_volume", "total_cost", "total_weight", 
         "total_toolchanges", "total_wipe_tower_cost", "total_wipe_tower_filament",
         "initial_tool", "initial_extruder", "initial_filament_type", "printing_filament_types", "num_printing_extruders" })
-        config.set_key_value(key, new ConfigOptionString(std::string("{") + key + "}"));
+        config.set_key_value(key, std::make_unique<ConfigOptionString>(std::string("{") + key + "}"));
     return config;
 }
 

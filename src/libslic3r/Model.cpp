@@ -1531,7 +1531,7 @@ void ModelObject::split(ModelObjectPtrs* new_objects)
             // otherwise there will no way to change extruder for object after splitting,
             // because volume's extruder value overrides object's extruder value.
             if (new_vol->config.has(kExtruder))
-                new_vol->config.set_key_value(kExtruder, new ConfigOptionInt(0));
+                new_vol->config.set_key_value(kExtruder, std::make_unique<ConfigOptionInt>(0));
 
             for (ModelInstance* model_instance : new_object->instances) {
                 const Vec3d shift = model_instance->get_transformation().get_matrix_no_offset() * new_vol->get_offset();
