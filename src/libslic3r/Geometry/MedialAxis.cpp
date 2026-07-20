@@ -2379,6 +2379,46 @@ MedialAxis::build(ThickPolylines& polylines_out)
 
 }
 
+// Replace lines[i] - a line whose width ramps by more than `tolerance` - with a staircase of
+// constant-width pieces. Returns how many pieces it became; the caller skips past them.
+// lines[i] is invalidated by the insertions, so nothing may use it after this returns.
+static uint16_t split_thick_line_by_width(ThickLines& lines, int i, coord_t tolerance, coord_t thickness_delta)
+{
+    ThickLine& line = lines[i];
+    const uint16_t segments = 1 + static_cast<uint16_t>(std::min(static_cast<uint32_t>(16000), static_cast<uint32_t>(ceil(float(thickness_delta) / float(tolerance)))));
+    Points pp;
+    std::vector<coordf_t> width;
+    {
+        for (size_t j = 0; j < segments; ++j) {
+            pp.push_back(line.a.interpolate(static_cast<double>(j) / segments, line.b));
+            double percent_width = static_cast<double>(j) / (segments - 1);
+            width.push_back(line.a_width * (1 - percent_width) + line.b_width * percent_width);
+        }
+        pp.push_back(line.b);
+        
+        assert(pp[0] == line.a);
+        assert(width.front() == line.a_width);
+        assert(width.back() == line.b_width);
+        assert(pp.size() == segments + 1);
+        assert(width.size() == segments);
+    }
+
+    // overwrite this line and insert new ones
+    line.b = pp[1];
+    line.b_width = width[0];
+    // from here, 'line' variable is invalid (vector is modified);
+    for (size_t j = 1; j < segments; ++j) {
+        lines.emplace(lines.begin() + i + j, pp[j], pp[j + 1], width[j], width[j]);
+    }
+
+    for (int j = i; j < i + segments; j++) {
+        assert(lines[j].a_width == lines[j].b_width);
+        assert(!lines[j].a.coincides_with_epsilon(lines[j].b));
+        assert(lines[j].a.distance_to(lines[j].b) > SCALED_EPSILON);
+    }
+    return segments;
+}
+
 ExtrusionMultiPath variable_width(const ThickPolyline& polyline, const ExtrusionRole role, const Flow& flow, const coord_t resolution_internal, const coord_t tolerance, bool can_reverse) {
     ExtrusionMultiPath temp(unsafe_variable_width(polyline, role, flow, resolution_internal, tolerance));
     //can reverse the whole multipath, but not each individual path inside.
@@ -2423,39 +2463,8 @@ unsafe_variable_width(const ThickPolyline& polyline, const ExtrusionRole role, c
         // split lines ?
         if (resolution_internal < line_len) {
             if (thickness_delta > tolerance && ceil(float(thickness_delta) / float(tolerance)) > 2) {  // need more than 2 subdivisions to bother splitting
-                const uint16_t segments = 1 + static_cast<uint16_t>(std::min(static_cast<uint32_t>(16000), static_cast<uint32_t>(ceil(float(thickness_delta) / float(tolerance)))));
-                Points pp;
-                std::vector<coordf_t> width;
-                {
-                    for (size_t j = 0; j < segments; ++j) {
-                        pp.push_back(line.a.interpolate(static_cast<double>(j) / segments, line.b));
-                        double percent_width = static_cast<double>(j) / (segments - 1);
-                        width.push_back(line.a_width * (1 - percent_width) + line.b_width * percent_width);
-                    }
-                    pp.push_back(line.b);
-                    
-                    assert(pp[0] == line.a);
-                    assert(width.front() == line.a_width);
-                    assert(width.back() == line.b_width);
-                    assert(pp.size() == segments + 1);
-                    assert(width.size() == segments);
-                }
-
-                // overwrite this line and insert new ones
-                line.b = pp[1];
-                line.b_width = width[0];
-                // from here, 'line' variable is invalid (vector is modified);
-                for (size_t j = 1; j < segments; ++j) {
-                    lines.emplace(lines.begin() + i + j, pp[j], pp[j + 1], width[j], width[j]);
-                }
-
-                for (int j = i; j < i + segments; j++) {
-                    assert(lines[j].a_width == lines[j].b_width);
-                    assert(!lines[j].a.coincides_with_epsilon(lines[j].b));
-                    assert(lines[j].a.distance_to(lines[j].b) > SCALED_EPSILON);
-                }
                 // go after the split
-                i += segments - 1;
+                i += split_thick_line_by_width(lines, i, tolerance, thickness_delta) - 1;
                 continue;
             } else if (thickness_delta > 0) {
                 //create a middle point
