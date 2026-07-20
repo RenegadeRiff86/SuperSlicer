@@ -921,12 +921,9 @@ void reverse(Path &path)
         assert(prev->orientation == Orientation::Unknown);
         for (auto it = std::next(prev); it != path.end(); ++ it) {
             prev->radius      = it->radius;
-            if (prev->radius == 0) {
-                assert(it->orientation == Orientation::Unknown);
-                prev->orientation = Orientation::Unknown;
-            } else {
-                prev->orientation = it->orientation == Orientation::CCW ? Orientation::CW : Orientation::CCW;
-            }
+            assert(prev->radius != 0 || it->orientation == Orientation::Unknown);
+            prev->orientation = prev->radius == 0 ? Orientation::Unknown :
+                                (it->orientation == Orientation::CCW ? Orientation::CW : Orientation::CCW);
 #ifdef _DEBUG
             prev->length = it->length;
             prev->center = it->center;
@@ -974,6 +971,55 @@ double clip_start(Path &path, const coordf_t len)
     return remaining;
 }
 
+// Trim up to `distance` off the end of a straight segment that was just popped off `path`.
+// Returns true when the whole remaining distance fits inside this segment, so the caller is done;
+// otherwise `distance` is reduced by the segment length and the walk continues.
+static bool clip_end_linear_segment(Path &path, const Segment &last, coordf_t &distance)
+{
+    Vec2d  v    = (path.back().point - last.point).cast<coordf_t>();
+    double lsqr = v.squaredNorm();
+    if (lsqr > sqr(distance + SCALED_EPSILON)) {
+        path.push_back({ last.point + Point::round(v * (distance / sqrt(lsqr))) });
+        return true;
+    }
+    distance -= sqrt(lsqr);
+    // check if not the same point as the one we just deleted.
+    if (distance < 0) {
+        assert(distance > -SCALED_EPSILON);
+        path.push_back(last);
+    }
+    return false;
+}
+
+// Same as clip_end_linear_segment, for a circular segment: the end point is rotated back along
+// the arc instead of interpolated along a line.
+static bool clip_end_arc_segment(Path &path, const Segment &last, coordf_t &distance)
+{
+    double angle = arc_angle(path.back().point.cast<double>(), last.point.cast<double>(), last.radius);
+    double len   = std::abs(last.radius) * angle;
+    // negated rather than `<=` so a NaN length still takes the not-consumed path, as the original did
+    if (! (len > distance + SCALED_EPSILON)) {
+        distance -= len;
+        return false;
+    }
+    // Rotate the segment end point in reverse towards the start point.
+    if (last.ccw())
+        angle *= -1.;
+    path.push_back({
+        last.point.rotated(angle * (distance / len), Point::round(
+            arc_center(path.back().point.cast<double>(), last.point.cast<double>(), double(last.radius), last.ccw()))),
+        last.radius, last.orientation });
+#ifdef _DEBUG
+    path.back().length = segment_length<coordf_t>(path[path.size()-2], path.back());
+    path.back().center = arc_center_scalar(path[path.size()-2].point, path.back().point, path.back().radius, path.back().ccw());
+    for (size_t i = 1; i < path.size(); i++) {
+        if(path[i].radius)
+            assert(is_approx(segment_length<coordf_t>(path[i-1], path[i]), path[i].length, EPSILON));
+    }
+#endif
+    return true;
+}
+
 double clip_end(Path &path, coordf_t distance)
 {
 #ifdef _DEBUG
@@ -989,46 +1035,11 @@ double clip_end(Path &path, coordf_t distance)
         path.pop_back();
         if (path.empty())
             break;
-        if (last.linear()) {
-            // Linear segment
-            Vec2d  v    = (path.back().point - last.point).cast<coordf_t>();
-            double lsqr = v.squaredNorm();
-            if (lsqr > sqr(distance + SCALED_EPSILON)) {
-                path.push_back({ last.point + Point::round(v * (distance / sqrt(lsqr))) });
-                // Length to go is zero.
-                return 0;
-            }
-            distance -= sqrt(lsqr);
-            // check if not the same point as the one we just deleted.
-            if (distance < 0) {
-                assert(distance > -SCALED_EPSILON);
-                path.push_back(last);
-            }
-        } else {
-            // Circular segment
-            double angle = arc_angle(path.back().point.cast<double>(), last.point.cast<double>(), last.radius);
-            double len   = std::abs(last.radius) * angle;
-            if (len > distance + SCALED_EPSILON) {
-                // Rotate the segment end point in reverse towards the start point.
-                if (last.ccw())
-                    angle *= -1.;
-                path.push_back({
-                    last.point.rotated(angle * (distance / len), Point::round(
-                        arc_center(path.back().point.cast<double>(), last.point.cast<double>(), double(last.radius), last.ccw()))),
-                    last.radius, last.orientation });
-#ifdef _DEBUG
-                path.back().length = segment_length<coordf_t>(path[path.size()-2], path.back());
-                path.back().center = arc_center_scalar(path[path.size()-2].point, path.back().point, path.back().radius, path.back().ccw());
-                for (size_t i = 1; i < path.size(); i++) {
-                    if(path[i].radius)
-                        assert(is_approx(segment_length<coordf_t>(path[i-1], path[i]), path[i].length, EPSILON));
-                }
-#endif
-                // Length to go is zero.
-                return 0;
-            }
-            distance -= len;
-        }
+        const bool consumed_here = last.linear() ? clip_end_linear_segment(path, last, distance)
+                                                 : clip_end_arc_segment(path, last, distance);
+        if (consumed_here)
+            // Length to go is zero.
+            return 0;
     }
     assert(path.size() > 1);
     assert(path[path.size() - 2].point.distance_to(path.back().point) > SCALED_EPSILON);
