@@ -1802,21 +1802,20 @@ MedialAxis::simplify_polygon_frontier()
         bool need_intersect = false;
         for (size_t i = 0; i < this->m_expolygon.contour.points.size(); i++) {
             Point& p_check = this->m_expolygon.contour.points[i];
-            //if (!find) {
-            if (!has_boundary_point(*this->m_bounds, p_check)) {
-                //check if we put it at a bound point instead of delete it
-                size_t prev_i = i == 0 ? this->m_expolygon.contour.points.size() - 1 : (i - 1);
-                size_t next_i = i == this->m_expolygon.contour.points.size() - 1 ? 0 : (i + 1);
-                const Point* closest = this->m_bounds->contour.closest_point(p_check);
-                if (closest != nullptr && closest->distance_to(p_check) + SCALED_EPSILON
-                    < std::min(p_check.distance_to(this->m_expolygon.contour.points[prev_i]), p_check.distance_to(this->m_expolygon.contour.points[next_i])) / 2) {  // half the neighbor-point spacing
-                    p_check.x() = closest->x();
-                    p_check.y() = closest->y();
-                    need_intersect = true;
-                } else {
-                    this->m_expolygon.contour.points.erase(this->m_expolygon.contour.points.begin() + i);
-                    i--;
-                }
+            if (has_boundary_point(*this->m_bounds, p_check))
+                continue;
+            //check if we put it at a bound point instead of delete it
+            size_t prev_i = i == 0 ? this->m_expolygon.contour.points.size() - 1 : (i - 1);
+            size_t next_i = i == this->m_expolygon.contour.points.size() - 1 ? 0 : (i + 1);
+            const Point* closest = this->m_bounds->contour.closest_point(p_check);
+            if (closest != nullptr && closest->distance_to(p_check) + SCALED_EPSILON
+                < std::min(p_check.distance_to(this->m_expolygon.contour.points[prev_i]), p_check.distance_to(this->m_expolygon.contour.points[next_i])) / 2) {  // half the neighbor-point spacing
+                p_check.x() = closest->x();
+                p_check.y() = closest->y();
+                need_intersect = true;
+            } else {
+                this->m_expolygon.contour.points.erase(this->m_expolygon.contour.points.begin() + i);
+                i--;
             }
         }
         if (need_intersect) {
@@ -1852,19 +1851,40 @@ MedialAxis::grow_to_nozzle_diameter(ThickPolylines& pp, const ExPolygons& anchor
     //ensure the width is not lower than min_width.
     for (ThickPolyline& polyline : pp) {
         for (int i = 0; i < polyline.points.size(); ++i) {
-            bool is_anchored = false;
-            for (const ExPolygon& poly : anchors) {
-                if (poly.contains(polyline.points[i])) {
-                    is_anchored = true;
-                    break;
-                }
-            }
+            const bool is_anchored = std::any_of(anchors.begin(), anchors.end(),
+                [&polyline, i](const ExPolygon& poly) { return poly.contains(polyline.points[i]); });
             if (!is_anchored && polyline.points_width[i] < min_width)
                 polyline.points_width[i] = min_width;
         }
     }
 }
 
+// Ramp the widths back up from `min_size` at one end of the polyline over `length` of travel,
+// splitting the segment the taper stops inside so the ramp ends exactly at `length`.
+// `near`/`far` are indices relative to the direction of travel, which lets one body serve both
+// ends: walking in from the back is the same walk with the indices mirrored.
+static void taper_polyline_end(ThickPolyline& polyline, const coord_t min_size, const coordf_t length, const bool from_front)
+{
+    const size_t point_count = polyline.points_width.size();
+    polyline.points_width[from_front ? 0 : point_count - 1] = min_size;
+    coord_t current_dist = 0;
+    coord_t last_dist = 0;
+    for (size_t step = 1; step < point_count; ++step) {
+        const size_t near_idx = from_front ? step - 1 : point_count - step;
+        const size_t far_idx = from_front ? step : point_count - step - 1;
+        current_dist += (coord_t)polyline.points[near_idx].distance_to(polyline.points[far_idx]);
+        if (current_dist > length) {
+            //create a new point if not near enough
+            coordf_t percent_dist = (length - last_dist) / (current_dist - last_dist);
+            const size_t insert_at = std::max(near_idx, far_idx);
+            polyline.points.insert(polyline.points.begin() + insert_at, polyline.points[near_idx].interpolate(percent_dist, polyline.points[far_idx]));
+            polyline.points_width.insert(polyline.points_width.begin() + insert_at, polyline.points_width[far_idx]);
+            return;
+        }
+        polyline.points_width[far_idx] = std::max((coordf_t)min_size, min_size + (polyline.points_width[far_idx] - min_size) * current_dist / length);
+        last_dist = current_dist;
+    }
+}
 void
 MedialAxis::taper_ends(ThickPolylines& pp)
 {
@@ -1875,40 +1895,10 @@ MedialAxis::taper_ends(ThickPolylines& pp)
     //ensure the width is not lower than min_size.
     for (ThickPolyline& polyline : pp) {
         if (polyline.length() < length * 2.2) continue;
-        if (polyline.endpoints.first) {
-            polyline.points_width[0] = min_size;
-            coord_t current_dist = 0;
-            coord_t last_dist = 0;
-            for (size_t i = 1; i < polyline.points_width.size(); ++i) {
-                current_dist += (coord_t)polyline.points[i - 1].distance_to(polyline.points[i]);
-                if (current_dist > length) {
-                    //create a new point if not near enough
-                    coordf_t percent_dist = (length - last_dist) / (current_dist - last_dist);
-                    polyline.points.insert(polyline.points.begin() + i, polyline.points[i - 1].interpolate(percent_dist, polyline.points[i]));
-                    polyline.points_width.insert(polyline.points_width.begin() + i, polyline.points_width[i]);
-                    break;
-                }
-                polyline.points_width[i] = std::max((coordf_t)min_size, min_size + (polyline.points_width[i] - min_size) * current_dist / length);
-                last_dist = current_dist;
-            }
-        }
-        if (polyline.endpoints.second) {
-            polyline.points_width[polyline.points_width.size() - 1] = min_size;
-            coord_t current_dist = 0;
-            coord_t last_dist = 0;
-            for (size_t i = polyline.points_width.size() - 1; i > 0; --i) {
-                current_dist += (coord_t)polyline.points[i].distance_to(polyline.points[i - 1]);
-                if (current_dist > length) {
-                    //create new point if not near enough
-                    coordf_t percent_dist = (length - last_dist) / (current_dist - last_dist);
-                    polyline.points.insert(polyline.points.begin() + i, polyline.points[i].interpolate(percent_dist, polyline.points[i - 1]));
-                    polyline.points_width.insert(polyline.points_width.begin() + i, polyline.points_width[i - 1]);
-                    break;
-                }
-                polyline.points_width[i - 1] = std::max((coordf_t)min_size, min_size + (polyline.points_width[i - 1] - min_size) * current_dist / length);
-                last_dist = current_dist;
-            }
-        }
+        if (polyline.endpoints.first)
+            taper_polyline_end(polyline, min_size, length, true);
+        if (polyline.endpoints.second)
+            taper_polyline_end(polyline, min_size, length, false);
     }
 }
 
