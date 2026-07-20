@@ -1632,8 +1632,49 @@ MedialAxis::concatenate_polylines_with_crossing(ThickPolylines& pp)
     }
 }
 
-void
-MedialAxis::remove_too_thin_points(ThickPolylines& pp) const
+// Erase the offending point at idx_point: at either end its neighbour goes with it, in the middle
+// the polyline is split in two and the tail becomes a new polyline.
+static void erase_bad_width_point(ThickPolylines& pp, size_t i, ThickPolyline*& polyline, size_t& idx_point)
+{
+    if (idx_point == 0) {
+        //too thin at start
+        polyline->points.erase(polyline->points.begin());
+        polyline->points_width.erase(polyline->points_width.begin());
+        idx_point = 0;
+    } else if (idx_point == 1) {
+        //too thin at start
+        polyline->points.erase(polyline->points.begin());
+        polyline->points_width.erase(polyline->points_width.begin());
+        polyline->points.erase(polyline->points.begin());
+        polyline->points_width.erase(polyline->points_width.begin());
+        idx_point = 0;
+    } else if (idx_point == polyline->points.size() - 2) {  // second-to-last point (near-end position)
+        //too thin at (near) end
+        polyline->points.erase(polyline->points.end() - 1);
+        polyline->points_width.erase(polyline->points_width.end() - 1);
+        polyline->points.erase(polyline->points.end() - 1);
+        polyline->points_width.erase(polyline->points_width.end() - 1);
+    } else if (idx_point == polyline->points.size() - 1) {
+        //too thin at end
+        polyline->points.erase(polyline->points.end() - 1);
+        polyline->points_width.erase(polyline->points_width.end() - 1);
+    } else {
+        //too thin in middle : split
+        pp.emplace_back();
+        polyline = &pp[i]; // have to refresh the pointer, as the emplace_back() may have moved the array
+        ThickPolyline& newone = pp.back();
+        newone.points.insert(newone.points.begin(), polyline->points.begin() + idx_point + 1, polyline->points.end());
+        newone.points_width.insert(newone.points_width.begin(), polyline->points_width.begin() + idx_point + 1, polyline->points_width.end());
+        polyline->points.erase(polyline->points.begin() + idx_point, polyline->points.end());
+        polyline->points_width.erase(polyline->points_width.begin() + idx_point, polyline->points_width.end());
+    }
+}
+
+// Shared body of remove_too_thin_points / remove_too_thick_points, which were identical apart from
+// the width test. Templated on the test rather than taking a std::function so it stays inlined in
+// this per-point loop.
+template<typename WidthIsBad>
+static void remove_points_with_bad_width(ThickPolylines& pp, WidthIsBad width_is_bad)
 {
     //remove too thin polylines points (inside a polyline : split it)
     for (size_t i = 0; i < pp.size(); ++i) {
@@ -1642,40 +1683,10 @@ MedialAxis::remove_too_thin_points(ThickPolylines& pp) const
         // remove bits with too small extrusion
         size_t idx_point = 0;
         while (idx_point < polyline->points.size()) {
-            if (polyline->points_width[idx_point] < this->m_min_width) {
-                if (idx_point == 0) {
-                    //too thin at start
-                    polyline->points.erase(polyline->points.begin());
-                    polyline->points_width.erase(polyline->points_width.begin());
-                    idx_point = 0;
-                } else if (idx_point == 1) {
-                    //too thin at start
-                    polyline->points.erase(polyline->points.begin());
-                    polyline->points_width.erase(polyline->points_width.begin());
-                    polyline->points.erase(polyline->points.begin());
-                    polyline->points_width.erase(polyline->points_width.begin());
-                    idx_point = 0;
-                } else if (idx_point == polyline->points.size() - 2) {  // second-to-last point (near-end position)
-                    //too thin at (near) end
-                    polyline->points.erase(polyline->points.end() - 1);
-                    polyline->points_width.erase(polyline->points_width.end() - 1);
-                    polyline->points.erase(polyline->points.end() - 1);
-                    polyline->points_width.erase(polyline->points_width.end() - 1);
-                } else if (idx_point == polyline->points.size() - 1) {
-                    //too thin at end
-                    polyline->points.erase(polyline->points.end() - 1);
-                    polyline->points_width.erase(polyline->points_width.end() - 1);
-                } else {
-                    //too thin in middle : split
-                    pp.emplace_back();
-                    polyline = &pp[i]; // have to refresh the pointer, as the emplace_back() may have moved the array
-                    ThickPolyline& newone = pp.back();
-                    newone.points.insert(newone.points.begin(), polyline->points.begin() + idx_point + 1, polyline->points.end());
-                    newone.points_width.insert(newone.points_width.begin(), polyline->points_width.begin() + idx_point + 1, polyline->points_width.end());
-                    polyline->points.erase(polyline->points.begin() + idx_point, polyline->points.end());
-                    polyline->points_width.erase(polyline->points_width.begin() + idx_point, polyline->points_width.end());
-                }
-            } else idx_point++;
+            if (width_is_bad(polyline->points_width[idx_point]))
+                erase_bad_width_point(pp, i, polyline, idx_point);
+            else
+                idx_point++;
 
             if (polyline->points.size() < 2) {  // need at least 2 points
                 //remove self if too small
@@ -1688,59 +1699,16 @@ MedialAxis::remove_too_thin_points(ThickPolylines& pp) const
 }
 
 void
+MedialAxis::remove_too_thin_points(ThickPolylines& pp) const
+{
+    remove_points_with_bad_width(pp, [this](coord_t width) { return width < this->m_min_width; });
+}
+
+void
 MedialAxis::remove_too_thick_points(ThickPolylines& pp) const
 {
     if (m_biggest_width <= 0) return;
-    //remove too thin polylines points (inside a polyline : split it)
-    for (size_t i = 0; i < pp.size(); ++i) {
-        ThickPolyline* polyline = &pp[i];
-
-        // remove bits with too small extrusion
-        size_t idx_point = 0;
-        while (idx_point < polyline->points.size()) {
-            if (polyline->points_width[idx_point] > m_biggest_width) {
-                if (idx_point == 0) {
-                    //too thin at start
-                    polyline->points.erase(polyline->points.begin());
-                    polyline->points_width.erase(polyline->points_width.begin());
-                    idx_point = 0;
-                } else if (idx_point == 1) {
-                    //too thin at start
-                    polyline->points.erase(polyline->points.begin());
-                    polyline->points_width.erase(polyline->points_width.begin());
-                    polyline->points.erase(polyline->points.begin());
-                    polyline->points_width.erase(polyline->points_width.begin());
-                    idx_point = 0;
-                } else if (idx_point == polyline->points.size() - 2) {  // second-to-last point (near-end position)
-                    //too thin at (near) end
-                    polyline->points.erase(polyline->points.end() - 1);
-                    polyline->points_width.erase(polyline->points_width.end() - 1);
-                    polyline->points.erase(polyline->points.end() - 1);
-                    polyline->points_width.erase(polyline->points_width.end() - 1);
-                } else if (idx_point == polyline->points.size() - 1) {
-                    //too thin at end
-                    polyline->points.erase(polyline->points.end() - 1);
-                    polyline->points_width.erase(polyline->points_width.end() - 1);
-                } else {
-                    //too thin in middle : split
-                    pp.emplace_back();
-                    polyline = &pp[i]; // have to refresh the pointer, as the emplace_back() may have moved the array
-                    ThickPolyline& newone = pp.back();
-                    newone.points.insert(newone.points.begin(), polyline->points.begin() + idx_point + 1, polyline->points.end());
-                    newone.points_width.insert(newone.points_width.begin(), polyline->points_width.begin() + idx_point + 1, polyline->points_width.end());
-                    polyline->points.erase(polyline->points.begin() + idx_point, polyline->points.end());
-                    polyline->points_width.erase(polyline->points_width.begin() + idx_point, polyline->points_width.end());
-                }
-            } else idx_point++;
-
-            if (polyline->points.size() < 2) {  // need at least 2 points
-                //remove self if too small
-                pp.erase(pp.begin() + i);
-                --i;
-                break;
-            }
-        }
-    }
+    remove_points_with_bad_width(pp, [this](coord_t width) { return width > m_biggest_width; });
 }
 
 void
