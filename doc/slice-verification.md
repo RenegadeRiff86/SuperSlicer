@@ -72,23 +72,42 @@ Adding a model means adding one `TestModel(...)` entry to `MODELS` in
 what it exercises. Do not skip the reproducibility field: it is the difference
 between a diff that means something and one that does not.
 
-## The test models are not in this repository
+## Where the test models live
 
-`build-default/Test Models/` is **gitignored on purpose**. The models there are
-other people's work and are not redistributable from this fork, so you have to
-supply them yourself. `slice_verify.py models` prints `MISSING from disk` for any
-it cannot find, and `slice` fails with the expected path rather than doing
-something surprising.
+Models are searched for in two places, in order:
 
-Expected filenames, exactly as the registry looks for them:
+1. **`tests/models/`** - tracked. Models we own, so a fresh clone has them.
+2. **`build-default/Test Models/`** - **gitignored on purpose.** Third-party models
+   that are not redistributable from this fork; you must supply these yourself.
 
-| File | Where it came from |
+`slice_verify.py models` shows where each one resolved and whether it is in the
+repo; missing ones report the expected path rather than failing obscurely.
+
+| File | Provenance |
 |---|---|
+| `handle_test.stl` | **ours** - in `tests/models/`, nothing to download |
 | `wedge_wall_arachne.stl` | [Thin wedge wall for Arachne testing](https://www.printables.com/model/286864-thin-wedge-wall-for-arachne-testing) (free) - 100mm x 2mm wall tapering 2mm to 0mm |
 | `Support_test.stl` | supplied locally |
 | `overhang test.stl` | supplied locally |
-| `handle test.stl` | supplied locally |
 | `All in 1 Calibration Cube 40x40x40 V1.3.stl` | widely mirrored calibration cube |
+
+### `handle_test.stl` is the support-behaviour test
+
+It was built deliberately to be hard for the slicer, and it is the most demanding
+model in the set for support generation. It combines:
+
+* **curved outer walls**,
+* **a bridge**, and
+* **a column that floats above the bed**, unsupported.
+
+The slicer has historically struggled to place supports correctly for that
+floating column, so this is the model to reach for when touching support
+generation. A representative slice yields 8 `Bridge infill` blocks, 368
+`Overhang perimeter`, and 166 `Support material` blocks.
+
+One caveat for diffing: the **order** of support islands varies between runs and
+cascades through the whole file, so judge changes here on support geometry and
+feature counts rather than on a line diff.
 
 Adding a model means adding one `TestModel(...)` entry to `MODELS` in
 `scripts/slice_verify.py`, recording **whether it is reproducible run to run** and

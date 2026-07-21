@@ -89,6 +89,15 @@ FINGERPRINTS = {
 # Test models
 # ---------------------------------------------------------------------------
 
+# Where models are looked for, in order. tests/models/ is tracked and holds the
+# models we own; build-default/Test Models/ is gitignored and holds third-party
+# ones that cannot be redistributed from this fork.
+MODEL_DIRS = (
+    REPO_ROOT / "tests" / "models",
+    REPO_ROOT / "build-default" / "Test Models",
+)
+
+
 @dataclass(frozen=True)
 class TestModel:
     key: str
@@ -97,10 +106,18 @@ class TestModel:
     exercises: str
     notes: str = ""
     needs_supports: bool = False
+    in_repo: bool = False          # tracked here, so a fresh clone has it
+    alt_filenames: tuple = ()      # other names the same model may go by
 
     @property
     def path(self) -> Path:
-        return REPO_ROOT / "build-default" / "Test Models" / self.filename
+        for directory in MODEL_DIRS:
+            for name in (self.filename,) + tuple(self.alt_filenames):
+                candidate = directory / name
+                if candidate.exists():
+                    return candidate
+        # Nothing found -- return the conventional location so the error names it.
+        return MODEL_DIRS[-1] / self.filename
 
 
 MODELS: dict[str, TestModel] = {
@@ -131,11 +148,18 @@ MODELS: dict[str, TestModel] = {
     ),
     "handle": TestModel(
         key="handle",
-        filename="handle test.stl",
+        filename="handle_test.stl",
+        alt_filenames=("handle test.stl",),
+        in_repo=True,
         deterministic=False,
-        exercises="curved surfaces, supports, arcs",
-        notes="Support island ORDER varies run to run, which cascades into the "
-              "whole file. Use only with compare's translation/ordering awareness.",
+        exercises="support placement, curved outer walls, a bridge, an unsupported "
+                  "floating column",
+        notes="Purpose-built to be hard for the slicer, and the best support-behaviour "
+              "test in the set: the slicer has historically struggled to put supports "
+              "in the right places for the column that floats above the bed. Ours, so "
+              "it is committed to tests/models/. Caveat for diffing: support island "
+              "ORDER varies run to run and cascades through the whole file, so judge "
+              "it on support geometry rather than a line diff.",
         needs_supports=True,
     ),
     "cube": TestModel(
@@ -415,7 +439,11 @@ def _cmd_models(args) -> int:
         print("          exercises: {0}".format(m.exercises))
         if m.notes:
             print("          {0}".format(m.notes))
-        print("          {0}".format("present" if m.path.exists() else "MISSING from disk"))
+        if m.path.exists():
+            where = "in repo" if m.in_repo else "local only (not redistributable)"
+            print("          present: {0}  [{1}]".format(m.path, where))
+        else:
+            print("          MISSING -- expected at {0} (see doc/slice-verification.md)".format(m.path))
     print("\nFeature gates (off by default -- without these the code does not run):")
     for g in FEATURE_GATES.values():
         print("  {0:9s} {1:34s} default: {2}".format(g.name, g.option, g.default_state))
