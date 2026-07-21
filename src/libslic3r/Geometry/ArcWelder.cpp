@@ -270,6 +270,79 @@ static inline int sign(const int64_t i)
     return i > 0 ? 1 : i < 0 ? -1 : 0;
 }
 
+// Fit a circle through exactly three points, then refine its center by non-linear least squares
+// over the mid point and the mid points of the two edges.
+static std::optional<Circle> fit_circle_through_three_points(
+    const Points::const_iterator begin, const Points::const_iterator end,
+    const double tolerance, const double max_radius)
+{
+    // Fit the circle throuh the three input points.
+    std::optional<Circle> out = try_create_circle(*begin, *std::next(begin), *std::prev(end), max_radius);
+    if (! out)
+        return out;
+    // Fit the center point and the two center points of the two edges with non-linear least squares.
+    std::array<Vec2d, 3> fpts;
+    Vec2d center_point = out->center.cast<double>();
+    Vec2d first_point  = begin->cast<double>();
+    Vec2d mid_point    = std::next(begin)->cast<double>();
+    Vec2d last_point   = std::prev(end)->cast<double>();
+    fpts[0] = 0.5 * (first_point + mid_point);
+    fpts[1] = mid_point;
+    fpts[2] = 0.5 * (mid_point + last_point);
+    const double radius = (first_point - center_point).norm();
+    if (! (std::abs((fpts[0] - center_point).norm() - radius) < 2. * tolerance &&
+           std::abs((fpts[2] - center_point).norm() - radius) < 2. * tolerance)) {
+        out.reset();
+        return out;
+    }
+    if (std::optional<Vec2d> opt_center = ArcWelder::arc_fit_center_gauss_newton_ls(first_point, last_point,
+            center_point, fpts.begin(), fpts.end(), 3);
+        opt_center) {
+        out->center = Point::round(*opt_center);
+        out->radius = (out->radius > 0 ? 1.f : -1.f) * (*opt_center - first_point).norm();
+    }
+    if (! circle_approximation_sufficient_from_first_last(*out, begin, end, tolerance))
+        out.reset();
+    return out;
+}
+
+// Refine an initial circle by least squares over every point of the path and the mid point of
+// every segment. Returns the refined circle only if it stays within tolerance and its radius does
+// not grow excessively large - beyond that a line segment is the better fit.
+static std::optional<Circle> refine_circle_by_least_squares(
+    Circle circle, const Points::const_iterator begin, const Points::const_iterator end,
+    const double tolerance, const double max_radius)
+{
+    // Fit the arc between the end points by least squares.
+    // Optimize over all points along the path and the centers of the segments.
+    boost::container::small_vector<Vec2d, 16> fpts;
+    Vec2d first_point = begin->cast<double>();
+    Vec2d last_point  = std::prev(end)->cast<double>();
+    Vec2d prev_point  = first_point;
+    for (auto it = std::next(begin); it != std::prev(end); ++ it) {
+        Vec2d this_point = it->cast<double>();
+        fpts.emplace_back(0.5 * (prev_point + this_point));
+        fpts.emplace_back(this_point);
+        prev_point = this_point;
+    }
+    fpts.emplace_back(0.5 * (prev_point + last_point));
+    std::optional<Vec2d> opt_center = ArcWelder::arc_fit_center_gauss_newton_ls(first_point, last_point,
+        circle.center.cast<double>(), fpts.begin(), fpts.end(), 5);
+    if (! opt_center)
+        return {};
+    // Fitted radius must not be excessively large. If so, it is better to fit with a line segment.
+    const double r2 = (*opt_center - first_point).squaredNorm();
+    if (! (r2 < max_radius * max_radius))
+        return {};
+    circle.center = Point::round(*opt_center);
+    circle.radius = (circle.radius > 0 ? 1.f : -1.f) * sqrt(r2);
+    if (! circle_approximation_sufficient_from_first_last(circle, begin, end, tolerance))
+        // One may consider adjusting the arc to fit the worst offender as a last effort,
+        // however Vojtech is not sure whether it is worth it.
+        return {};
+    return circle;
+}
+
 // Fit a circle through the first point, the last point, and the point where the polyline crosses
 // the bisector of the arc chord. At such a point the distance of a polyline to an arc wrt. the
 // circle center (or circle radius) will have a largest gradient of all points to be fitted.
@@ -329,32 +402,7 @@ static std::optional<Circle> try_create_circle(const Points::const_iterator begi
     std::optional<Circle> out;
     const size_t size = end - begin;
     if (size == 3) {
-        // Fit the circle throuh the three input points.
-        out = try_create_circle(*begin, *std::next(begin), *std::prev(end), max_radius);
-        if (out) {
-            // Fit the center point and the two center points of the two edges with non-linear least squares.
-            std::array<Vec2d, 3> fpts;
-            Vec2d center_point = out->center.cast<double>();
-            Vec2d first_point  = begin->cast<double>();
-            Vec2d mid_point    = std::next(begin)->cast<double>();
-            Vec2d last_point   = std::prev(end)->cast<double>();
-            fpts[0] = 0.5 * (first_point + mid_point);
-            fpts[1] = mid_point;
-            fpts[2] = 0.5 * (mid_point + last_point);
-            const double radius = (first_point - center_point).norm();
-            if (std::abs((fpts[0] - center_point).norm() - radius) < 2. * tolerance &&
-                std::abs((fpts[2] - center_point).norm() - radius) < 2. * tolerance) {
-                if (std::optional<Vec2d> opt_center = ArcWelder::arc_fit_center_gauss_newton_ls(first_point, last_point,
-                        center_point, fpts.begin(), fpts.end(), 3);
-                    opt_center) {
-                    out->center = Point::round(*opt_center);
-                    out->radius = (out->radius > 0 ? 1.f : -1.f) * (*opt_center - first_point).norm();
-                }
-                if (! circle_approximation_sufficient_from_first_last(*out, begin, end, tolerance))
-                    out.reset();
-            } else
-                out.reset();
-        }
+        out = fit_circle_through_three_points(begin, end, tolerance, max_radius);
     } else {        
         std::optional<Circle> circle;
         {
@@ -368,36 +416,8 @@ static std::optional<Circle> try_create_circle(const Points::const_iterator begi
         } 
         if (! circle)
             circle = try_create_circle_through_bisector(begin, end, tolerance, max_radius);
-        if (circle) {
-            // Fit the arc between the end points by least squares.
-            // Optimize over all points along the path and the centers of the segments.
-            boost::container::small_vector<Vec2d, 16> fpts;
-            Vec2d first_point = begin->cast<double>();
-            Vec2d last_point  = std::prev(end)->cast<double>();
-            Vec2d prev_point  = first_point;            
-            for (auto it = std::next(begin); it != std::prev(end); ++ it) {
-                Vec2d this_point = it->cast<double>();
-                fpts.emplace_back(0.5 * (prev_point + this_point));
-                fpts.emplace_back(this_point);
-                prev_point = this_point;
-            }
-            fpts.emplace_back(0.5 * (prev_point + last_point));
-            std::optional<Vec2d> opt_center = ArcWelder::arc_fit_center_gauss_newton_ls(first_point, last_point,
-                circle->center.cast<double>(), fpts.begin(), fpts.end(), 5);
-            if (opt_center) {
-                // Fitted radius must not be excessively large. If so, it is better to fit with a line segment.
-                if (const double r2 = (*opt_center - first_point).squaredNorm(); r2 < max_radius * max_radius) {
-                    circle->center = Point::round(*opt_center);
-                    circle->radius = (circle->radius > 0 ? 1.f : -1.f) * sqrt(r2);
-                    if (circle_approximation_sufficient_from_first_last(*circle, begin, end, tolerance)) {
-                        out = circle;
-                    } else {
-                        // One may consider adjusting the arc to fit the worst offender as a last effort,
-                        // however Vojtech is not sure whether it is worth it.
-                    }
-                }
-            }
-        }
+        if (circle)
+            out = refine_circle_by_least_squares(*circle, begin, end, tolerance, max_radius);
 /*
         // From the original arc welder.
         // Such a loop makes the time complexity of the arc fitting an ugly O(n^3).
