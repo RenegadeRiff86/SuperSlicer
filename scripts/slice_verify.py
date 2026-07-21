@@ -162,6 +162,29 @@ MODELS: dict[str, TestModel] = {
               "it on support geometry rather than a line diff.",
         needs_supports=True,
     ),
+    "thinwalls": TestModel(
+        key="thinwalls",
+        filename="thin_walls_bowflex.stl",
+        in_repo=True,
+        deterministic=False,   # not yet measured -- assume noisy until proven otherwise
+        exercises="thin walls and gap fill at scale; near-continuous acceleration",
+        notes="Ours. THE MedialAxis/gap-fill stress model: 372 Gap fill blocks in one slice, against "
+              "9 for the wedge and 80 for Support_test. Short segments mean the head is accelerating "
+              "almost constantly, so it is also the best case for anything involving acceleration or "
+              "pressure advance. Needs --perimeter-generator=classic.",
+    ),
+    "pins": TestModel(
+        key="pins",
+        filename="pins_tall_supports.stl",
+        in_repo=True,
+        deterministic=False,   # not yet measured -- assume noisy until proven otherwise
+        exercises="supports, brim adhesion, very tall part (1038 layers)",
+        notes="Ours. A T shape printed standing on one of its pin ends: 208mm tall with only ~30 of "
+              "7772 triangles touching the bed, so it NEEDS A BRIM (--brim-width) or it tips, and "
+              "supports for the crossbar arms. 1038 layers makes it the endurance case of the set - "
+              "slow to slice, so keep it out of quick loops.",
+        needs_supports=True,
+    ),
     "cube": TestModel(
         key="cube",
         filename="All in 1 Calibration Cube 40x40x40 V1.3.stl",
