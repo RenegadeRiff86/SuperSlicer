@@ -341,6 +341,120 @@ class GCode:
 
 
 # ---------------------------------------------------------------------------
+# Printability: the three ways this printer/model combination has actually failed
+# ---------------------------------------------------------------------------
+#
+# handle_test.stl was unprintable at one point. The failures were not "the G-code
+# changed", they were specific and physical:
+#
+#   1. supports were not generated in the right areas (the floating column),
+#   2. the fan was pinned to 100% instead of following the overhang curve,
+#   3. fan commands were emitted so densely that the printer's MCU overloaded.
+#
+# A diff cannot see any of those. These measurements can, so a regression in them
+# is caught as a regression rather than as an unexplained diff.
+
+_FEEDRATE = re.compile(r" F([\d.]+)")
+
+
+@dataclass
+class Printability:
+    minutes: float
+    fan_commands: int
+    fan_per_second: float
+    fan_worst_burst: int          # most fan commands inside any 1-second window
+    fan_gaps_under_20ms: int
+    fan_levels: dict[int, int]    # percent -> count
+    speeds: dict[str, tuple[float, float, float]]   # role -> (min, median, max) mm/s
+    features: dict[str, int]
+
+    def report(self) -> str:
+        out = ["estimated print time: {0:.1f} min".format(self.minutes), ""]
+        out.append("FAN  (MCU overload shows up here, not in a diff)")
+        out.append("  {0} commands, {1:.2f}/s average".format(self.fan_commands, self.fan_per_second))
+        out.append("  worst burst: {0} commands in a 1-second window".format(self.fan_worst_burst))
+        out.append("  {0} commands within 20ms of the previous one".format(self.fan_gaps_under_20ms))
+        pinned = self.fan_levels.get(100, 0)
+        out.append("  at 100%: {0}   (expected only where the overhang curve asks for it)".format(pinned))
+        out.append("")
+        out.append("SPEED  mm/s by feature (overhangs should not run at full speed)")
+        for role in sorted(self.speeds):
+            lo, mid, hi = self.speeds[role]
+            out.append("  {0:28s} min {1:6.1f}  median {2:6.1f}  max {3:6.1f}".format(role, lo, mid, hi))
+        out.append("")
+        out.append("SUPPORT")
+        for k in ("Support material", "Support material interface", "Bridge infill",
+                  "Internal bridge infill", "Overhang perimeter"):
+            out.append("  {0:28s} {1}".format(k, self.features.get(k, 0)))
+        return "\n".join(out)
+
+
+def printability(g: GCode) -> Printability:
+    """Measure the physical behaviours that made this part fail to print."""
+    import math
+
+    x = y = None
+    feed = 1200.0
+    clock = 0.0
+    fan_times: list[float] = []
+    fan_levels: Counter = Counter()
+    role = None
+    speeds: dict[str, list[float]] = {}
+
+    for line in g.lines:
+        if line.startswith(("M106", "M107")):
+            fan_times.append(clock)
+            m = re.match(r"^M106 S([\d.]+)", line)
+            level = float(m.group(1)) if m else 0.0
+            fan_levels[round(level / 255 * 100)] += 1
+            continue
+        if ";TYPE:" in line:
+            role = line.split(";TYPE:", 1)[1].strip()
+            continue
+        if not line.startswith(("G1 ", "G2 ", "G3 ")):
+            continue
+        mf = _FEEDRATE.search(line)
+        if mf:
+            feed = float(mf.group(1))
+        mx, my = _X.search(line), _Y.search(line)
+        nx = float(mx.group(1)) if mx else x
+        ny = float(my.group(1)) if my else y
+        if x is not None and nx is not None and ny is not None and y is not None:
+            dist = math.hypot(nx - x, ny - y)
+            if dist > 0 and feed > 0:
+                clock += dist / (feed / 60.0)
+        x, y = nx, ny
+        # Only extruding moves count towards feature speed; travel F would
+        # otherwise swamp it (travel is an order of magnitude faster).
+        if " E" in line and role and mx:
+            speeds.setdefault(role, []).append(feed / 60.0)
+
+    gaps = [b - a for a, b in zip(fan_times, fan_times[1:]) if b >= a]
+    worst = 0
+    start = 0
+    for i, tval in enumerate(fan_times):
+        while tval - fan_times[start] > 1.0:
+            start += 1
+        worst = max(worst, i - start + 1)
+
+    summary = {}
+    for r, v in speeds.items():
+        v.sort()
+        summary[r] = (v[0], v[len(v) // 2], v[-1])
+
+    return Printability(
+        minutes=clock / 60.0,
+        fan_commands=len(fan_times),
+        fan_per_second=len(fan_times) / max(clock, 1.0),
+        fan_worst_burst=worst,
+        fan_gaps_under_20ms=sum(1 for gap in gaps if gap < 0.02),
+        fan_levels=dict(fan_levels),
+        speeds=summary,
+        features=g.feature_blocks,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Comparison
 # ---------------------------------------------------------------------------
 
@@ -464,6 +578,11 @@ def _cmd_slice(args) -> int:
     return 0
 
 
+def _cmd_printability(args) -> int:
+    print(printability(GCode.from_file(args.gcode)).report())
+    return 0
+
+
 def _cmd_compare(args) -> int:
     result = compare(GCode.from_file(args.before), GCode.from_file(args.after),
                      require=args.require)
@@ -487,6 +606,10 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--slice-report", type=Path)
     s.add_argument("--config", default="RelWithDebInfo")
     s.set_defaults(func=_cmd_slice)
+
+    pr = sub.add_parser("printability", help="measure fan rate, feature speeds and support output")
+    pr.add_argument("gcode")
+    pr.set_defaults(func=_cmd_printability)
 
     c = sub.add_parser("compare", help="compare two G-code files")
     c.add_argument("before")

@@ -164,6 +164,58 @@ leaves a loaded model at its file coordinates.
 
 ---
 
+## `printability` - checking the failures a diff cannot see
+
+`handle_test.stl` was at one point **unprintable**, and none of the three reasons
+would show up as "the G-code changed":
+
+1. supports were not generated in the right areas (the floating column),
+2. the fan pinned to 100% instead of following the overhang curve,
+3. fan commands were emitted so densely the printer's **MCU overloaded**.
+
+```
+python scripts/slice_verify.py printability out.gcode
+```
+
+measures all three. Baseline on `handle_test.stl` with the classic generator,
+after the support and fan fixes:
+
+```
+estimated print time: 20.0 min
+
+FAN
+  891 commands, 0.74/s average
+  worst burst: 13 commands in a 1-second window
+  53 commands within 20ms of the previous one
+  at 100%: 83
+
+SPEED  mm/s by feature
+  Overhang perimeter           min   26.1  median   68.0  max  134.8
+  Perimeter                    min   26.8  median  107.9  max  155.0
+  Bridge infill                min   70.0  median   70.0  max   70.0
+
+SUPPORT
+  Support material             166
+  Support material interface   12
+```
+
+How to read it:
+
+* **Overhang slowdown is working** when `Overhang perimeter` runs materially
+  slower than `Perimeter` - here median 68 vs 108 mm/s, dropping to 26 mm/s. If
+  those two medians converge, the slowdown has regressed.
+* **Fan at 100% is not automatically a bug.** With
+  `overhangs_dynamic_fan_speed = ...33x100...` the curve *asks* for 100% at a 33%
+  overhang ratio. The old bug was pinning there and staying; judge it against the
+  configured curve, not against zero.
+* **Fan density is the MCU risk.** Average rate is not the problem - bursts are.
+  `worst burst` and the sub-20ms count are the numbers to watch; if either climbs
+  sharply, the fan churn has regressed towards the behaviour that overloaded the
+  MCU. The values above are the known-good residual, not a clean zero.
+* **Supports** should be a healthy non-zero count of both `Support material` and
+  `Support material interface`; zero interface with non-zero support means
+  contacts are being stripped, which is what commit `9acf7aa` fixed.
+
 ## Reading `compare`
 
 | Verdict | Meaning | Exit |
