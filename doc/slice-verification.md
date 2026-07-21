@@ -49,6 +49,52 @@ ArcWelder path (`ArcFittingType::ArcWelder`).
 the feature's fingerprint appears in the output before believing any result.**
 `slice` warns when a requested gate produces nothing; `compare --require` fails.
 
+## The test models are not in this repository
+
+`build-default/Test Models/` is **gitignored on purpose**. The models there are
+other people's work and are not redistributable from this fork, so you have to
+supply them yourself. `slice_verify.py models` prints `MISSING from disk` for any
+it cannot find, and `slice` fails with the expected path rather than doing
+something surprising.
+
+Expected filenames, exactly as the registry looks for them:
+
+| File | Where it came from |
+|---|---|
+| `wedge_wall_arachne.stl` | [Thin wedge wall for Arachne testing](https://www.printables.com/model/286864-thin-wedge-wall-for-arachne-testing) (free) — 100mm x 2mm wall tapering 2mm to 0mm |
+| `Support_test.stl` | supplied locally |
+| `overhang test.stl` | supplied locally |
+| `handle test.stl` | supplied locally |
+| `All in 1 Calibration Cube 40x40x40 V1.3.stl` | widely mirrored calibration cube |
+
+Adding a model means adding one `TestModel(...)` entry to `MODELS` in
+`scripts/slice_verify.py`, recording **whether it is reproducible run to run** and
+what it exercises. Do not skip the reproducibility field: it is the difference
+between a diff that means something and one that does not.
+
+## The test models are not in this repository
+
+`build-default/Test Models/` is **gitignored on purpose**. The models there are
+other people's work and are not redistributable from this fork, so you have to
+supply them yourself. `slice_verify.py models` prints `MISSING from disk` for any
+it cannot find, and `slice` fails with the expected path rather than doing
+something surprising.
+
+Expected filenames, exactly as the registry looks for them:
+
+| File | Where it came from |
+|---|---|
+| `wedge_wall_arachne.stl` | [Thin wedge wall for Arachne testing](https://www.printables.com/model/286864-thin-wedge-wall-for-arachne-testing) (free) - 100mm x 2mm wall tapering 2mm to 0mm |
+| `Support_test.stl` | supplied locally |
+| `overhang test.stl` | supplied locally |
+| `handle test.stl` | supplied locally |
+| `All in 1 Calibration Cube 40x40x40 V1.3.stl` | widely mirrored calibration cube |
+
+Adding a model means adding one `TestModel(...)` entry to `MODELS` in
+`scripts/slice_verify.py`, recording **whether it is reproducible run to run** and
+what it exercises. Do not skip the reproducibility field: it is the difference
+between a diff that means something and one that does not.
+
 ## Failure mode 2: the model is not reproducible
 
 Some models differ between two runs of the *same binary*, so any diff against them

@@ -27,3 +27,18 @@ CMakeUserPresets.json
 
 githubtoken.ini
 releases/
+
+# Third-party test models and slicing output. The models used by
+# scripts/slice_verify.py are other people's work and are NOT redistributable
+# from this fork -- see doc/slice-verification.md for where to obtain them.
+# "build*" on line 17 already covers build-default/Test Models/, but that is
+# incidental; these rules state the intent so a renamed or relocated build
+# directory cannot start tracking them.
+**/Test Models/
+*.stl.zip
+
+# G-code is always generated. Note resources/shapes/ IS tracked (it ships the
+# upstream sample .stl files), and the GUI writes its exports there by default,
+# so ignore the output without touching the models.
+resources/shapes/*.gcode
+*.gcode.tmp

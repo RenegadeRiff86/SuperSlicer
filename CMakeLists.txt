@@ -743,6 +743,19 @@ set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT S
 
 add_dependencies(gettext_make_pot hintsToPot)
 
+# Slice-verification tooling (scripts/slice_verify.py, doc/slice-verification.md).
+# Attached here rather than added to the solution by hand so it survives
+# regeneration -- a CMake-generated solution discards manual edits. Requires the
+# Visual Studio Python workload; skipped silently when it is not installed, since
+# an unloadable project would be worse than an absent one.
+if (MSVC AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/scripts/slice_verify.pyproj")
+    include_external_msproject(slice_verify
+        "${CMAKE_CURRENT_SOURCE_DIR}/scripts/slice_verify.pyproj"
+        TYPE 888888A0-9F3D-457C-B088-3A5042F75D52
+        GUID 6F3C1D9A-4B87-4E2A-9C5E-2B7A8D1F4E60)
+    set_target_properties(slice_verify PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+endif ()
+
 if(SLIC3R_BUILD_SANDBOXES)
     add_subdirectory(sandboxes)
 endif()
