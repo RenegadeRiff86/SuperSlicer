@@ -108,6 +108,11 @@ class TestModel:
     needs_supports: bool = False
     in_repo: bool = False          # tracked here, so a fresh clone has it
     alt_filenames: tuple = ()      # other names the same model may go by
+    # Setup this model REQUIRES to represent its real print job -- orientation, brim, etc.
+    # These travel with the model because slicing it without them measures the wrong thing:
+    # bed_cover_side flat produces 0 support blocks, on its side it produces 246.
+    extra_args: tuple = ()
+    setup_reason: str = ""
 
     @property
     def path(self) -> Path:
@@ -173,10 +178,26 @@ MODELS: dict[str, TestModel] = {
               "almost constantly, so it is also the best case for anything involving acceleration or "
               "pressure advance. Needs --perimeter-generator=classic.",
     ),
+    "bedcover": TestModel(
+        key="bedcover",
+        filename="bed_cover_side.stl",
+        in_repo=True,
+        deterministic=False,   # not yet measured
+        exercises="the heaviest overhang + support case in the set",
+        notes="Ours. MUST be printed on its side, which is what makes it interesting: the slicer has "
+              "to invent supports for a large tilted shell. Sliced flat it produces 0 support blocks "
+              "and 261 overhang perimeters; on its side, 246 support blocks and 1325 overhang "
+              "perimeters - the most of any model here. Judging it flat is meaningless.",
+        needs_supports=True,
+        extra_args=("--rotate-x", "90"),
+        setup_reason="stand it on its long edge; flat it is a different, far easier print",
+    ),
     "pins": TestModel(
         key="pins",
         filename="pins_tall_supports.stl",
         in_repo=True,
+        extra_args=("--brim-width", "5"),
+        setup_reason="208mm tall on a tiny footprint: without a brim it tips off the bed",
         deterministic=False,   # not yet measured -- assume noisy until proven otherwise
         exercises="supports, brim adhesion, very tall part (1038 layers)",
         notes="Ours. A T shape printed standing on one of its pin ends: 208mm tall with only ~30 of "
@@ -227,6 +248,8 @@ class SliceOptions:
         want_supports = model.needs_supports if self.support_material is None else self.support_material
         if want_supports:
             args.append("--support-material")
+        # Model-required setup (orientation, brim...) before any caller overrides.
+        args += list(model.extra_args)
         if self.center is not None:
             args.append("--center={0},{1}".format(*self.center))
         if self.slice_report is not None:
