@@ -412,7 +412,9 @@ private:
     GCodeWriter                         m_writer;
     // Per-extruder adaptive pressure advance models, built on first use from
     // filament_adaptive_pressure_advance_model. Empty entry => use static PA.
-    std::map<int, AdaptivePAModel>      m_adaptive_pa_models;
+    // Cache only: built on demand from filament_adaptive_pressure_advance_model, so filling it in
+    // does not change the generator's observable state.
+    mutable std::map<int, AdaptivePAModel> m_adaptive_pa_models;
 
     struct PlaceholderParserIntegration {
         void reset();
@@ -608,10 +610,25 @@ private:
     std::string               _before_extrude(const ExtrusionPath &path, const std::string_view description, double speed = -1);
     std::string               _travel_before_extrude(const ExtrusionPath &path, const std::string_view description, double speed_mm_s = -1);
     double_t                  _compute_speed_mm_per_sec(const ExtrusionPath &path_attrs, const double speed, double &fan_speed, std::string *comment) const;
-    std::pair<double, double> _compute_acceleration(const ExtrusionPath &path);
-    std::pair<double, double> _compute_pressure_advance(const ExtrusionPath &path, double speed_mm_s);
+    // const: these only read config and derive a value. _compute_speed_mm_per_sec is const and
+    // needs both of them to reserve pressure-advance headroom against the volumetric caps.
+    std::pair<double, double> _compute_acceleration(const ExtrusionPath &path) const;
+    std::pair<double, double> _compute_pressure_advance(const ExtrusionPath &path, double speed_mm_s) const;
+    // Volumetric flow of a path in mm3 per mm of travel, carrying every extrusion multiplier that
+    // _compute_e_per_mm() applies, so a volumetric cap can be converted into a speed.
+    double                    _path_mm3_per_mm(const ExtrusionPath &path) const;
+    // The binding volumetric cap in mm3/s - the smaller of max_volumetric_speed and
+    // filament_max_volumetric_speed - or 0 when neither is set.
+    double                    _max_volumetric_speed_mm3_per_s() const;
+    // Window Klipper spreads the pressure advance correction over, in seconds; 0 on the firmwares
+    // that apply it instantaneously, which is also what the peak-flow model wants for them.
+    double                    _klipper_pa_smooth_time() const;
+    // The profile acceleration, lowered if needed so that peak flow (extrusion plus the pressure
+    // advance overshoot) still fits that cap at the given speed. Unchanged when the option is off.
+    double                    _pressure_advance_acceleration(const ExtrusionPath &path, double speed_mm_s, double acceleration) const;
     // Lazily-built per-extruder adaptive pressure advance models, keyed by extruder id.
-    const AdaptivePAModel&    adaptive_pa_model(int extruder_id);
+    // Const because the map is only a cache of values derived from the config (hence mutable).
+    const AdaptivePAModel&    adaptive_pa_model(int extruder_id) const;
     std::string               _after_extrude(const ExtrusionPath &path);
     void print_machine_envelope(GCodeOutputStream &file, const Print &print);
     int32_t _compute_first_layer_bed_temperature(const Print &print);

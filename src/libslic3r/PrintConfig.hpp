@@ -1120,6 +1120,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloatOrPercent,      arc_fitting_tolerance))
     ((ConfigOptionBool,                autoemit_temperature_commands))
     ((ConfigOptionFloatOrPercent,      autospeed_min_thin_flow))
+    ((ConfigOptionBool,                autospeed_pressure_advance_headroom))
     ((ConfigOptionString,              before_layer_gcode))
     ((ConfigOptionString,              between_objects_gcode))
     ((ConfigOptionBool,                between_objects_gcode_before_move))
@@ -1255,6 +1256,9 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloats,              travel_slope))
     ((ConfigOptionBools,               travel_lift_before_obstacle))
     ((ConfigOptionStrings,             tool_name))
+    // Klipper stores pressure advance per stepper, so an [extruder_stepper] synced to a tool does
+    // NOT follow SET_PRESSURE_ADVANCE aimed at that tool. Names listed here get their own copy.
+    ((ConfigOptionStrings,             tool_pressure_advance_mirrors))
     ((ConfigOptionString,              toolchange_gcode))
     ((ConfigOptionFloat,               travel_speed))
     ((ConfigOptionFloat,               travel_speed_z))

@@ -270,22 +270,55 @@ std::string GCodeWriter::write_pressure_advance(double pa) {
         }
     } else if (FLAVOR_IS(gcfKlipper)) {
         pa = std::clamp(pa, 0.0, KLIPPER_PA_SANE_MAX);
-        gcode = std::string("SET_PRESSURE_ADVANCE ADVANCE=") + to_string_nozero(pa, PA_OUTPUT_DECIMALS);
+        // The name Klipper knows this tool's extruder stepper by.
+        std::string extruder_name;
         if (tool_id >= 0 && size_t(tool_id) < this->config.tool_name.size() && !this->config.tool_name.get_at(tool_id).empty()) {
-            gcode += std::string(" EXTRUDER=") + this->config.tool_name.get_at(tool_id);
-            } else if(tool_id > 0){
-                gcode += std::string(" EXTRUDER=extruder") + std::to_string(tool_id);
-            } else {
-                gcode += std::string(" EXTRUDER=extruder");
+            extruder_name = this->config.tool_name.get_at(tool_id);
+        } else if (tool_id > 0) {
+            extruder_name = std::string("extruder") + std::to_string(tool_id);
+        } else {
+            extruder_name = "extruder";
         }
         // Optional Klipper SMOOTH_TIME: when set, smooths pressure changes over this window.
         const int st_idx = tool_id >= 0 ? tool_id : 0;
+        std::string smooth_time_arg;
         if (this->config.filament_pressure_advance_smooth_time.is_enabled(st_idx)) {
             // Klipper hard-limits SMOOTH_TIME to 200ms and rejects the command above that, so
             // clamp before emitting (the config option itself is not capped). See issue #36.
             const double smooth_time = std::clamp(
                 this->config.filament_pressure_advance_smooth_time.get_at(st_idx), 0.0, 0.2);
-            gcode += std::string(" SMOOTH_TIME=") + to_string_nozero(smooth_time, PA_OUTPUT_DECIMALS);
+            smooth_time_arg = std::string(" SMOOTH_TIME=") + to_string_nozero(smooth_time, PA_OUTPUT_DECIMALS);
+        }
+        // Klipper keeps pressure advance PER STEPPER: an [extruder_stepper] synced to this tool with
+        // `extruder:` still holds its own value (0 unless configured) because SET_PRESSURE_ADVANCE is
+        // a mux command dispatched on the stepper name. A synced stepper that misses the update pushes
+        // a different amount of filament than the main drive during every acceleration, so repeat the
+        // command verbatim for each mirror the user named.
+        std::vector<std::string> targets{extruder_name};
+        if (tool_id >= 0 && size_t(tool_id) < this->config.tool_pressure_advance_mirrors.size()) {
+            const std::string &mirrors = this->config.tool_pressure_advance_mirrors.get_at(tool_id);
+            for (size_t start = 0; start <= mirrors.size(); ) {
+                size_t end = mirrors.find(',', start);
+                if (end == std::string::npos)
+                    end = mirrors.size();
+                const std::string entry = mirrors.substr(start, end - start);
+                const size_t first = entry.find_first_not_of(" \t");
+                if (first != std::string::npos)
+                    targets.push_back(entry.substr(first, entry.find_last_not_of(" \t") - first + 1));
+                if (end == mirrors.size())
+                    break;
+                start = end + 1;
+            }
+        }
+        const std::string command = std::string("SET_PRESSURE_ADVANCE ADVANCE=") + to_string_nozero(pa, PA_OUTPUT_DECIMALS);
+        for (size_t i = 0; i < targets.size(); ++i) {
+            if (i > 0) {
+                // Close the previous line the same way the tail of this function closes the last one.
+                if (this->config.gcode_comments)
+                    gcode += comment;
+                gcode += "\n";
+            }
+            gcode += command + " EXTRUDER=" + targets[i] + smooth_time_arg;
         }
     } else {
         // if (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfMarlinLegacy))

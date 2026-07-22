@@ -703,6 +703,9 @@ public:
 	wxSizer*	create_bed_shape_widget(wxWindow* parent);
 	void		cache_extruder_cnt(const DynamicPrintConfig* config = nullptr);
 	bool		apply_extruder_cnt_from_cache();
+	// Ask the Klipper host which [extruder_stepper]s follow this extruder and fill
+	// tool_pressure_advance_mirrors with them.
+	void		sync_pressure_advance_mirrors(int extruder_idx);
 
 };
 

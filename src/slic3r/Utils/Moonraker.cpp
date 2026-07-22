@@ -147,6 +147,74 @@ bool Moonraker::test(wxString& msg) const
     return res;
 }
 
+bool Moonraker::get_extruder_steppers(std::vector<KlipperExtruderStepper> &out, wxString &msg) const
+{
+    // GET /printer/objects/query?configfile
+    // Klipper answers with its own resolved configuration, so this is what the
+    // printer is really running. Sections the user never wrote still appear, with
+    // the defaults Klipper read them at; a section absent from printer.cfg is
+    // omitted entirely rather than returned as zeroes.
+    const char* name = get_name();
+    out.clear();
+
+    bool res = true;
+    auto url = make_url("printer/objects/query?configfile");
+
+    BOOST_LOG_TRIVIAL(info) << boost::format("%1%: Get printer config at: %2%") % name % url;
+
+    auto http = Http::get(std::move(url));
+    set_auth(http);
+    http.on_error([&](std::string body, std::string error, unsigned status) {
+        BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error getting printer config: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
+        res = false;
+        msg = format_error(body, error, status);
+    })
+    .on_complete([&](std::string body, unsigned) {
+        try {
+            std::stringstream ss(body);
+            pt::ptree ptree;
+            pt::read_json(ss, ptree);
+            const auto settings = ptree.get_child_optional("result.status.configfile.settings");
+            if (!settings) {
+                msg = "Could not read the printer configuration";
+                res = false;
+                return;
+            }
+            // Klipper lowercases section names, so a stepper appears as
+            // "extruder_stepper <name>". The main extruders are reported too (with
+            // an empty synced_to), so the caller can compare rotation distances.
+            static const std::string section_prefix = "extruder_stepper ";
+            for (const auto &section : *settings) {
+                const bool is_stepper = section.first.compare(0, section_prefix.size(), section_prefix) == 0;
+                const bool is_extruder = section.first == "extruder" ||
+                    (section.first.compare(0, 8, "extruder") == 0 &&
+                     section.first.find_first_not_of("0123456789", 8) == std::string::npos);
+                if (!is_stepper && !is_extruder)
+                    continue;
+                KlipperExtruderStepper stepper;
+                stepper.name = is_stepper ? section.first.substr(section_prefix.size()) : section.first;
+                if (stepper.name.empty())
+                    continue;
+                // 'extruder' names the extruder this stepper follows. A stepper
+                // synced to nothing is driven by hand and must not be mirrored.
+                if (is_stepper)
+                    stepper.synced_to = section.second.get<std::string>("extruder", "");
+                stepper.rotation_distance = section.second.get<double>("rotation_distance", 0.);
+                out.push_back(std::move(stepper));
+            }
+        } catch (const std::exception&) {
+            res = false;
+            msg = "Could not parse the printer configuration";
+        }
+    })
+#ifdef _WIN32
+    .ssl_revoke_best_effort(m_ssl_revoke_best_effort)
+#endif // _WIN32
+    .perform_sync();
+
+    return res;
+}
+
 bool Moonraker::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, ErrorFn error_fn, InfoFn info_fn) const
 {
     // POST /server/files/upload

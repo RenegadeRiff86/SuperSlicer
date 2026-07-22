@@ -50,8 +50,10 @@
 #include "PresetComboBoxes.hpp"
 #include "PresetHints.hpp"
 #include "slic3r/Utils/Http.hpp"
+#include "slic3r/Utils/Moonraker.hpp"
 #include "slic3r/Utils/PrintHost.hpp"
 #include "slic3r/Utils/Serial.hpp"
+#include <boost/algorithm/string/join.hpp>
 #include "SavePresetDialog.hpp"
 #include "Search.hpp"
 #include "UnsavedChangesDialog.hpp"
@@ -2775,6 +2777,29 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                 def.mode    = comAdvancedE | comSuSi;
                 Option option(def);
                 current_group->append_single_option_line(option);
+            } else if (full_line == "sync_pressure_advance_mirrors") {
+                TabPrinter *tab = nullptr;
+                if ((tab = dynamic_cast<TabPrinter *>(this)) == nullptr)
+                    continue;
+                widget_t sync_pa_mirrors = [this, idx_page, tab](wxWindow *parent) -> wxBoxSizer * {
+                    ScalableButton *btn = new ScalableButton(parent, wxID_ANY, "refresh", _L("Detect from printer"),
+                                                     wxDefaultSize, wxDefaultPosition, wxBU_LEFT | wxBU_EXACTFIT);
+                    btn->SetFont(Slic3r::GUI::wxGetApp().normal_font());
+                    btn->SetToolTip(_L("Ask the Klipper host which [extruder_stepper] units follow this "
+                                       "extruder, and fill the list with them. Needs the printer to be "
+                                       "online and a physical printer with a host URL selected."));
+                    btn->SetSize(btn->GetBestSize());
+                    wxBoxSizer *sizer = new wxBoxSizer(wxHORIZONTAL);
+                    sizer->Add(btn);
+                    assert(m_config);
+                    btn->Bind(wxEVT_BUTTON, [tab, idx_page](wxCommandEvent &e) {
+                        tab->sync_pressure_advance_mirrors(int(idx_page));
+                    });
+                    return sizer;
+                };
+                current_line = current_group->create_single_option_line("tool_pressure_advance_mirrors", "", idx_page);
+                current_line.append_widget(sync_pa_mirrors);
+                current_group->append_line(current_line);
             } else if (full_line == "reset_to_filament_color") {
                 TabPrinter *tab = nullptr;
                 if ((tab = dynamic_cast<TabPrinter *>(this)) == nullptr)
@@ -5826,6 +5851,95 @@ bool TabPrinter::apply_extruder_cnt_from_cache()
         return true;
     }
     return false;
+}
+
+void TabPrinter::sync_pressure_advance_mirrors(int extruder_idx)
+{
+    assert(m_config);
+    // The name Klipper knows this extruder by - same fallback GCodeWriter uses.
+    std::string extruder_name;
+    if (const ConfigOptionStrings *tool_names = m_config->option<ConfigOptionStrings>("tool_name");
+        tool_names != nullptr && size_t(extruder_idx) < tool_names->size())
+        extruder_name = tool_names->get_at(extruder_idx);
+    if (extruder_name.empty())
+        extruder_name = extruder_idx > 0 ? "extruder" + std::to_string(extruder_idx) : "extruder";
+
+    // The host address lives on the physical printer, not on this preset.
+    DynamicPrintConfig *host_config = wxGetApp().preset_bundle->physical_printers.get_selected_printer_config();
+    if (host_config == nullptr || host_config->opt_string("print_host").empty()) {
+        show_error(this, _L("Select a physical printer with a host address first - the steppers are read "
+                            "from the running printer."));
+        return;
+    }
+
+    // The stepper list comes from Moonraker's configfile endpoint. A Klipper
+    // machine is reached through Moonraker whether the upload host is set to
+    // "Klipper" or "Moonraker" (the SuperSlicer "Klipper" host is an OctoPrint
+    // variant, so we query Moonraker directly rather than through the upload
+    // host object). Any other host type does not expose the configuration.
+    const auto host_type_opt = host_config->option<ConfigOptionEnum<PrintHostType>>("host_type");
+    const PrintHostType host_type = host_type_opt != nullptr ? host_type_opt->value : htOctoPrint;
+    if (host_type != htKlipper && host_type != htMoonraker) {
+        show_error(this, _L("Detecting extruder steppers needs a Klipper or Moonraker host."));
+        return;
+    }
+
+    Moonraker moonraker(host_config);
+    std::vector<Moonraker::KlipperExtruderStepper> steppers;
+    wxString error;
+    {
+        wxBusyCursor busy;
+        if (!moonraker.get_extruder_steppers(steppers, error)) {
+            show_error(this, GUI::format_wxstr(_L("Could not read the printer configuration: %1%"), error));
+            return;
+        }
+    }
+
+    // Only steppers synced to THIS extruder may mirror it; an unsynced one moves
+    // independently and would be given a pressure advance meant for another path.
+    std::vector<std::string> mirrors;
+    double extruder_rotation_distance = 0.;
+    for (const Moonraker::KlipperExtruderStepper &stepper : steppers)
+        if (stepper.synced_to.empty() && stepper.name == extruder_name)
+            extruder_rotation_distance = stepper.rotation_distance;
+    wxString mismatched;
+    for (const Moonraker::KlipperExtruderStepper &stepper : steppers) {
+        if (stepper.synced_to != extruder_name)
+            continue;
+        mirrors.push_back(stepper.name);
+        // Both drives push the same filament, so a different rotation distance
+        // means they fight each other whatever the pressure advance is.
+        if (extruder_rotation_distance > 0. && stepper.rotation_distance > 0. &&
+            std::abs(stepper.rotation_distance - extruder_rotation_distance) > EPSILON)
+            mismatched += GUI::format_wxstr("\n%1%: %2% (%3%: %4%)", stepper.name,
+                                            stepper.rotation_distance, extruder_name,
+                                            extruder_rotation_distance);
+    }
+
+    if (mirrors.empty()) {
+        show_info(this, GUI::format_wxstr(_L("The printer reports no [extruder_stepper] synced to '%1%'. "
+                                             "Nothing to mirror."), extruder_name));
+        return;
+    }
+
+    std::vector<std::string> values =
+        static_cast<const ConfigOptionStrings *>(m_config->option("tool_pressure_advance_mirrors"))->get_values();
+    if (size_t(extruder_idx) >= values.size())
+        values.resize(extruder_idx + 1, "");
+    values[extruder_idx] = boost::algorithm::join(mirrors, ",");
+
+    DynamicPrintConfig new_conf = *m_config;
+    new_conf.set_key_value("tool_pressure_advance_mirrors",
+                           (new ConfigOptionStrings(values))->set_is_extruder_size(true));
+    load_config(new_conf);
+    update_dirty();
+    update();
+
+    wxString msg = GUI::format_wxstr(_L("Found for '%1%': %2%"), extruder_name, values[extruder_idx]);
+    if (!mismatched.empty())
+        msg += "\n\n" + _L("Warning - these steppers have a different rotation distance than the "
+                           "extruder, so they will not push the same amount of filament:") + mismatched;
+    show_info(this, msg);
 }
 
 void TabPrinter::update_machine_limits_description(const MachineLimitsUsage usage)

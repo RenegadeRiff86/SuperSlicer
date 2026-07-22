@@ -4731,7 +4731,11 @@ void PrintConfigDef::init_fff_params()
     def = this->add("machine_klipper_pressure_advance_smooth_time", coFloat);
     def->label = L("Pressure advance smooth time (Klipper)");
     def->category = OptionCategory::limits;
-    def->tooltip = L("Klipper [extruder] pressure_advance_smooth_time. It smooths extrusion step generation and does not add commanded motion time.");
+    def->tooltip = L("Klipper [extruder] pressure_advance_smooth_time. It smooths extrusion step generation and does not add commanded motion time."
+        "\nKeep this matching your printer.cfg: when 'Reserve pressure advance headroom' is on, this window is how long the"
+        " pressure advance transient is spread over, so a value larger than the printer really uses makes the slicer allow"
+        " more flow than the hotend will actually get. It applies whenever the printer's own value is in force - including when"
+        " the slicer drives pressure advance itself, since SET_PRESSURE_ADVANCE without SMOOTH_TIME leaves it untouched.");
     def->sidetext = L("s");
     def->min = 0;
     def->mode = comAdvancedE | comSuSi;
@@ -7601,6 +7605,19 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(std::make_unique<ConfigOptionStrings>(std::initializer_list<std::string>{""}));
 
+    def = this->add("tool_pressure_advance_mirrors", coStrings);
+    def->label = L("Pressure advance mirror steppers");
+    def->category = OptionCategory::extruders;
+    def->tooltip = L("Klipper only: names of [extruder_stepper] units synced to this tool that must be given the same"
+        " pressure advance. Klipper stores pressure advance PER STEPPER, so a stepper synced with 'extruder:' keeps its own"
+        " configured value (0 unless you set one) and ignores a SET_PRESSURE_ADVANCE aimed at the main extruder - during"
+        " acceleration the two then push different amounts of filament through the same path."
+        "\nName them here (separate several with commas) and an extra SET_PRESSURE_ADVANCE is emitted for each, next to every"
+        " change of this tool's own value. Leave empty when the tool drives a single stepper.");
+    def->mode = comExpert | comSuSi;
+    def->is_vector_extruder = true;
+    def->set_default_value(std::make_unique<ConfigOptionStrings>(std::initializer_list<std::string>{""}));
+
     def = this->add("top_fan_speed", coInts);
     def->label = L("Top Solid fan speed");
     def->category = OptionCategory::cooling;
@@ -8421,6 +8438,7 @@ void PrintConfigDef::init_extruder_option_keys()
         KEY_SEAM_GAP,
         "seam_gap_external",
         "tool_name",
+        "tool_pressure_advance_mirrors",
         "travel_lift_before_obstacle",
         // "travel_max_lift",
         KEY_TRAVEL_RAMPING_LIFT,
@@ -11145,6 +11163,7 @@ KEY_SUPPORT_MATERIAL_CONTACT_DISTANCE_TYPE,
 "time_start_gcode",
 "time_toolchange",
 "tool_name",
+"tool_pressure_advance_mirrors",
 "top_fan_speed",
 KEY_TOP_INFILL_EXTRUSION_SPACING,
 KEY_TOP_SOLID_INFILL_OVERLAP,

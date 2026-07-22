@@ -186,7 +186,7 @@ static int checked_config_int(T value, const char *field_name)
         return ok;
     }
 
-    double get_default_acceleration(PrintConfig& config) {
+    double get_default_acceleration(const PrintConfig& config) {
         double max = 0;
         max = config.machine_max_acceleration_extruding.get_at(0);
         // on 2.3, check for enable/disable if(config.machine_limits_usage)
@@ -196,7 +196,7 @@ static int checked_config_int(T value, const char *field_name)
             return config.get_computed_value("default_acceleration");
     }
 
-    double get_travel_acceleration(PrintConfig& config) {
+    double get_travel_acceleration(const PrintConfig& config) {
         double max = 0;
         max = config.machine_max_acceleration_travel.get_at(0);
         // on 2.3, check for enable/disable if(config.machine_limits_usage)
@@ -284,6 +284,99 @@ static int checked_config_int(T value, const char *field_name)
 
 #define EXTRUDER_CONFIG_WITH_DEFAULT(OPT,DEF) (m_writer.tool_is_extruder()?m_config.OPT.get_at(m_writer.tool()->id()):DEF)
 #define BOOL_EXTRUDER_CONFIG(OPT) (m_writer.tool_is_extruder() && m_config.OPT.get_at(m_writer.tool()->id()))
+
+// Klipper rejects SET_PRESSURE_ADVANCE above this SMOOTH_TIME; mirrors the clamp in GCodeWriter.
+static constexpr double PA_SMOOTH_TIME_MAX = 0.2;
+
+// Floor on how much of the steady-state flow budget the pressure-advance headroom may take out of
+// the SPEED before the acceleration has to give instead.
+//
+// Without it an unsmoothed profile whose transient exceeds the whole budget has no positive
+// solution for the speed, and the cap would floor at EPSILON - a move commanded at 1e-4 mm/s,
+// which is a stall, not a slow move. Half the budget is the natural place to stop: the remaining
+// half is always enough slack for a finite acceleration to satisfy the same inequality, so past
+// this point lowering the acceleration is strictly the better lever. Moves whose requested speed
+// is already below the floor are untouched by it and keep the acceleration solve as their remedy.
+static constexpr double PA_HEADROOM_MIN_BUDGET_FRACTION = 0.5;
+
+// Peak extruder demand of a move, in the same mm/s units as the nozzle speed - multiply by the
+// path's mm3/mm to get mm3/s.
+//
+// Pressure advance asks the extruder for an extra K * a of velocity while the head accelerates.
+// Klipper does not deliver that correction instantaneously: it smooths the advanced position with
+// a tent kernel of width pressure_advance_smooth_time (kin_extruder.c), so a ramp shorter than
+// that window never develops the full K * a. Convolving a constant-acceleration pulse of duration
+// T_a with the tent gives a peak of a * r * (2 - r), r = T_a / smooth_time, saturating at a. The
+// ramp is taken as a full 0 -> v acceleration, the worst case of a move starting after a travel,
+// which makes T_a = v / a.
+//
+// Two consequences worth knowing: with smoothing the transient can never exceed
+// 2 * K * v / smooth_time however hard the machine accelerates, while without it the transient is
+// K * a no matter how slowly the move goes - which is why an unsmoothed profile can find NO
+// printable speed and a smoothed one always can.
+//
+// Klipper's input shaper deliberately plays no part here. It is installed on the kinematic
+// steppers only (input_shaper.py iterates toolhead.get_kinematics().get_steppers()); the extruder
+// runs its own extruder_stepper kinematics off an unshaped trapezoid, so shaping changes what the
+// toolhead does without changing what the extruder is asked to deliver.
+//
+// Checked against direct numerical integration of the tent kernel: this bound never falls below
+// the simulated peak and exceeds it by at most 21%, because it charges the full speed to the
+// instant the smoothed acceleration peaks. That is the safe direction for a hardware limit.
+static double pa_peak_demand_mm_s(double speed, double acceleration, double pressure_advance, double smooth_time)
+{
+    if (pressure_advance <= 0 || acceleration <= 0 || speed <= 0)
+        return speed;
+    const double ramp_ratio = smooth_time > 0 ? std::min(1., speed / (acceleration * smooth_time)) : 1.;
+    return speed + pressure_advance * acceleration * ramp_ratio * (2. - ramp_ratio);
+}
+
+// Inverse of pa_peak_demand_mm_s in the speed: the fastest move whose peak demand still fits
+// `budget` mm/s (a volumetric cap divided by the path's mm3/mm). May come out non-positive when no
+// speed at all fits, which the caller floors.
+static double pa_speed_for_volumetric_budget(double budget, double acceleration, double pressure_advance, double smooth_time)
+{
+    if (pressure_advance <= 0 || acceleration <= 0)
+        return budget;
+    // Unsmoothed, the transient is a constant K * a whatever the speed, so the budget is simply
+    // reduced by it - and can go negative, which is the case that used to abort the slice.
+    if (smooth_time <= 0)
+        return budget - pressure_advance * acceleration;
+    // Above this speed the ramp outlasts the smoothing window and the transient is the full K * a.
+    if (budget >= acceleration * smooth_time + pressure_advance * acceleration)
+        return budget - pressure_advance * acceleration;
+    // Below it, substituting r = v / (a * smooth_time) leaves a quadratic in v. The peak curve is
+    // increasing, so the smaller root is the one on its rising branch.
+    const double b = acceleration * smooth_time * (smooth_time / pressure_advance + 2.);
+    const double c = acceleration * smooth_time * smooth_time * budget / pressure_advance;
+    const double discriminant = b * b - 4. * c;
+    if (discriminant <= 0)
+        return budget - pressure_advance * acceleration;
+    return 0.5 * (b - std::sqrt(discriminant));
+}
+
+// Inverse of pa_peak_demand_mm_s in the acceleration: the hardest a move at `speed` may accelerate
+// with its peak demand still inside `budget`. Infinite when the smoothing already bounds the
+// transient below the available slack however hard it accelerates.
+static double pa_acceleration_for_volumetric_budget(double budget, double speed, double pressure_advance, double smooth_time)
+{
+    if (pressure_advance <= 0 || speed <= 0)
+        return std::numeric_limits<double>::infinity();
+    if (budget <= speed)
+        return 0.;
+    const double slack = budget - speed;
+    if (smooth_time <= 0)
+        return slack / pressure_advance;
+    // The smoothed transient tops out here as the ramp shrinks against the window (r -> 0).
+    const double transient_ceiling = 2. * pressure_advance * speed / smooth_time;
+    if (transient_ceiling <= slack)
+        return std::numeric_limits<double>::infinity();
+    // Valid while the ramp still outlasts the smoothing window, i.e. a <= v / smooth_time.
+    const double unsmoothed = slack / pressure_advance;
+    if (unsmoothed <= speed / smooth_time)
+        return unsmoothed;
+    return pressure_advance * speed * speed / (smooth_time * smooth_time * (transient_ceiling - slack));
+}
 
 void GCodeGenerator::PlaceholderParserIntegration::reset()
 {
@@ -7208,21 +7301,12 @@ double_t GCodeGenerator::_compute_speed_mm_per_sec(const ExtrusionPath& path, co
         }
     }
 
-    // the first_layer_flow_ratio is added at the last time to take into account everything. So do the compute like it's here.
-    double path_mm3_per_mm = path.mm3_per_mm();
-    if (m_layer->bottom_z() < EPSILON) {
-        path_mm3_per_mm *= this->config().first_layer_flow_ratio.get_abs_value(1);
-    }
-    // Factor in extrusion multipliers so the volumetric speed cap
-    // reflects the actual plastic volume, not just the geometric flow.
-    // (These same multipliers are applied in _compute_e_per_mm().)
-    path_mm3_per_mm *= this->config().print_extrusion_multiplier.get_abs_value(1);
-    double filament_extrusion_multiplier = EXTRUDER_CONFIG_WITH_DEFAULT(extrusion_multiplier, 1);
-    path_mm3_per_mm *= filament_extrusion_multiplier;
+    const double path_mm3_per_mm = _path_mm3_per_mm(path);
     // Remember what the feature/config asked for before the flow caps, so an infeasible
     // width x height (one where even slowing down cannot satisfy the volumetric limit)
     // can be told apart from a deliberately slow user setting.
     const double speed_before_flow_caps = speed;
+
     // cap speed with max_volumetric_speed anyway (even if user is not using autospeed)
     if (m_config.max_volumetric_speed.value > 0 && path_mm3_per_mm > 0 && m_config.max_volumetric_speed.value / path_mm3_per_mm < speed) {
         speed = m_config.max_volumetric_speed.value / path_mm3_per_mm;
@@ -7240,16 +7324,59 @@ double_t GCodeGenerator::_compute_speed_mm_per_sec(const ExtrusionPath& path, co
         if(comment) *comment += ", reduced by filament_max_speed";
     }
 
-    // The caps above can only slow the move down. If they pushed it below the minimum
-    // usable speed, this line's width x height cannot be extruded at ANY acceptable
-    // speed: fail the slice now instead of exporting a print that will starve the
-    // extruder (or crawl) partway through. Only fire when the caps caused the drop -
-    // a feature speed the user deliberately set below the floor is not an error.
+    // The slowest this move is allowed to be driven, from whichever of the three floors applies.
     double min_feasible_speed = EXTRUDER_CONFIG_WITH_DEFAULT(min_print_speed, 0);
     if (m_config.machine_limits_usage <= MachineLimitsUsage::Limits)
         min_feasible_speed = std::max(min_feasible_speed, m_config.machine_min_extruding_rate.get_at(0));
     if (this->on_first_layer())
         min_feasible_speed = std::max(min_feasible_speed, m_config.first_layer_min_speed.value);
+
+    // Every cap above is STEADY-STATE: it describes the flow once the head is up to speed. Pressure
+    // advance makes the extruder overshoot on every acceleration, so a move that respects those
+    // caps on paper still commands the hotend past its rating on the way up to speed. Slow the move
+    // down until its PEAK demand fits instead - pa_peak_demand_mm_s documents the model and the
+    // Klipper smoothing that shapes it.
+    //
+    // Not below min_feasible_speed though: at that point the move has given up all the speed it is
+    // allowed to, and _pressure_advance_acceleration lowers the acceleration instead. That is the
+    // only lever left, since the size of the transient is set by K and a alone.
+    if (m_config.autospeed_pressure_advance_headroom.value && path_mm3_per_mm > 0) {
+        const double max_mm3_per_s = _max_volumetric_speed_mm3_per_s();
+        if (max_mm3_per_s > 0) {
+            // Adaptive pressure advance makes K a function of the flow, so of the very speed we are
+            // solving for. The calibration table is an arbitrary interpolation (AdaptivePAModel
+            // interpolates whatever points were measured), so K may rise OR fall as the speed drops
+            // - evaluating it once at the pre-cap speed is NOT conservative in general, and the
+            // usual shape, PA falling as flow rises, is exactly the direction that would under-
+            // reserve. So solve, re-evaluate K at that answer, and keep whichever K is larger: a
+            // larger K can only lower the speed, so the result never exceeds what the K actually
+            // emitted for this path would allow.
+            const double budget = max_mm3_per_s / path_mm3_per_mm;
+            const double acceleration = _compute_acceleration(path).first;
+            const double smooth_time = _klipper_pa_smooth_time();
+            double pressure_advance = _compute_pressure_advance(path, speed).first;
+            double pa_speed = pa_speed_for_volumetric_budget(budget, acceleration, pressure_advance, smooth_time);
+            if (pa_speed < speed) {
+                const double pa_at_capped = _compute_pressure_advance(path, std::max(pa_speed, 0.)).first;
+                if (pa_at_capped > pressure_advance) {
+                    pressure_advance = pa_at_capped;
+                    pa_speed = pa_speed_for_volumetric_budget(budget, acceleration, pressure_advance, smooth_time);
+                }
+            }
+            const double pa_floor = std::max(min_feasible_speed, budget * PA_HEADROOM_MIN_BUDGET_FRACTION);
+            const double pa_capped = std::min(speed, std::max(pa_speed, pa_floor));
+            if (pa_capped < speed) {
+                speed = pa_capped;
+                if (comment) *comment += ", reduced for pressure advance headroom";
+            }
+        }
+    }
+
+    // The caps above can only slow the move down. If they pushed it below the minimum
+    // usable speed, this line's width x height cannot be extruded at ANY acceptable
+    // speed: fail the slice now instead of exporting a print that will starve the
+    // extruder (or crawl) partway through. Only fire when the caps caused the drop -
+    // a feature speed the user deliberately set below the floor is not an error.
     if (min_feasible_speed > 0 && speed + EPSILON < min_feasible_speed &&
         speed_before_flow_caps + EPSILON > min_feasible_speed) {
         const std::string role_name =
@@ -7272,7 +7399,7 @@ double_t GCodeGenerator::_compute_speed_mm_per_sec(const ExtrusionPath& path, co
     return speed;
 }
 
-std::pair<double, double> GCodeGenerator::_compute_acceleration(const ExtrusionPath& path)
+std::pair<double, double> GCodeGenerator::_compute_acceleration(const ExtrusionPath& path) const
 {
     // adjust acceleration, inside the travel to set the deceleration (unless it's deactivated)
     double acceleration = get_default_acceleration(m_config);
@@ -7432,6 +7559,75 @@ std::pair<double, double> GCodeGenerator::_compute_acceleration(const ExtrusionP
     return {acceleration, travel_acceleration};
 }
 
+double GCodeGenerator::_path_mm3_per_mm(const ExtrusionPath& path) const
+{
+    // the first_layer_flow_ratio is added at the last time to take into account everything. So do the compute like it's here.
+    double path_mm3_per_mm = path.mm3_per_mm();
+    if (m_layer->bottom_z() < EPSILON) {
+        path_mm3_per_mm *= this->config().first_layer_flow_ratio.get_abs_value(1);
+    }
+    // Factor in extrusion multipliers so the volumetric speed cap
+    // reflects the actual plastic volume, not just the geometric flow.
+    // (These same multipliers are applied in _compute_e_per_mm().)
+    path_mm3_per_mm *= this->config().print_extrusion_multiplier.get_abs_value(1);
+    double filament_extrusion_multiplier = EXTRUDER_CONFIG_WITH_DEFAULT(extrusion_multiplier, 1);
+    path_mm3_per_mm *= filament_extrusion_multiplier;
+    return path_mm3_per_mm;
+}
+
+double GCodeGenerator::_max_volumetric_speed_mm3_per_s() const
+{
+    // 0 means "no limit" for both of these, so the binding cap is the smallest non-zero one.
+    double max_mm3_per_s = m_config.max_volumetric_speed.value > 0 ? m_config.max_volumetric_speed.value : 0;
+    const double filament_max_volumetric_speed = EXTRUDER_CONFIG_WITH_DEFAULT(filament_max_volumetric_speed, 0);
+    if (filament_max_volumetric_speed > 0 && (max_mm3_per_s <= 0 || filament_max_volumetric_speed < max_mm3_per_s))
+        max_mm3_per_s = filament_max_volumetric_speed;
+    return max_mm3_per_s;
+}
+
+double GCodeGenerator::_klipper_pa_smooth_time() const
+{
+    // Only Klipper smooths the pressure advance correction. Marlin's M900 K and RepRap's M572 S
+    // apply it as an instantaneous term, so there is no window to spread the transient over and
+    // the whole K * a has to be reserved.
+    if (m_config.gcode_flavor.value != gcfKlipper)
+        return 0.;
+    // The per-filament value is the one actually emitted as SMOOTH_TIME (see GCodeWriter), so it
+    // wins where enabled; otherwise the printer keeps whatever its own [extruder] section sets.
+    const int st_idx = m_writer.tool_is_extruder() ? m_writer.tool()->id() : 0;
+    const double smooth_time = m_config.filament_pressure_advance_smooth_time.is_enabled(st_idx) ?
+        m_config.filament_pressure_advance_smooth_time.get_at(st_idx) :
+        m_config.machine_klipper_pressure_advance_smooth_time.value;
+    return std::clamp(smooth_time, 0., PA_SMOOTH_TIME_MAX);
+}
+
+double GCodeGenerator::_pressure_advance_acceleration(const ExtrusionPath& path, double speed_mm_s, double acceleration) const
+{
+    // speed_mm_s <= 0 is the "no speed decided yet" sentinel some callers pass: there is nothing to
+    // solve against, and those moves keep the acceleration they have always used.
+    if (!m_config.autospeed_pressure_advance_headroom.value || acceleration <= 0 || speed_mm_s <= 0 ||
+        m_layer == nullptr)
+        return acceleration;
+    const double max_mm3_per_s   = _max_volumetric_speed_mm3_per_s();
+    const double path_mm3_per_mm = _path_mm3_per_mm(path);
+    if (max_mm3_per_s <= 0 || path_mm3_per_mm <= 0)
+        return acceleration;
+    // Evaluated at the FINAL speed, unlike the pre-cap evaluation _compute_speed_mm_per_sec used to
+    // pick that speed; with adaptive PA a slower move gets a smaller K, so this can only ever allow
+    // more acceleration than was assumed there, never less.
+    const double pressure_advance = _compute_pressure_advance(path, speed_mm_s).first;
+    if (pressure_advance <= 0)
+        return acceleration;
+    // Only ever lower what the profile asked for. A move whose speed the solver above capped gets
+    // its own acceleration handed straight back here, the two solves being inverses of the same
+    // peak model; one whose speed was floored at the minimum print speed instead gets the reduced
+    // acceleration that makes that floor printable, which is the only lever left once the speed
+    // cannot go any lower.
+    return std::min(acceleration,
+                    pa_acceleration_for_volumetric_budget(max_mm3_per_s / path_mm3_per_mm, speed_mm_s,
+                                                          pressure_advance, _klipper_pa_smooth_time()));
+}
+
 void GCodeGenerator::cooldown_marker_init() {
     if (_cooldown_marker_speed[uint8_t(GCodeExtrusionRole::ExternalPerimeter)].empty()) {
         std::string allow_speed_change = ";_EXTRUDE_SET_SPEED";
@@ -7464,6 +7660,10 @@ std::string GCodeGenerator::_travel_before_extrude(const ExtrusionPath &path, co
     std::string description{ description_in };
 
     auto [/*double*/acceleration, /*double*/travel_acceleration] = _compute_acceleration(path);
+    // Pressure advance makes the extruder overshoot the volumetric cap while accelerating. If the
+    // profile's acceleration no longer fits the budget left at this speed, lower it here instead of
+    // commanding the hotend past its rated flow. No-op unless autospeed_pressure_advance_headroom.
+    acceleration = _pressure_advance_acceleration(path, speed_mm_s, acceleration);
 
     bool moved_to_point = last_pos_defined() && last_pos().coincides_with_epsilon(path.first_point());
     if (m_config.travel_deceleration_use_target) {
@@ -7627,7 +7827,7 @@ std::string GCodeGenerator::_travel_before_extrude(const ExtrusionPath &path, co
     return gcode;
 }
 
-const AdaptivePAModel& GCodeGenerator::adaptive_pa_model(int extruder_id) {
+const AdaptivePAModel& GCodeGenerator::adaptive_pa_model(int extruder_id) const {
     auto it = m_adaptive_pa_models.find(extruder_id);
     if (it == m_adaptive_pa_models.end())
         it = m_adaptive_pa_models.emplace(extruder_id,
@@ -7635,7 +7835,7 @@ const AdaptivePAModel& GCodeGenerator::adaptive_pa_model(int extruder_id) {
     return it->second;
 }
 
-std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const ExtrusionPath &path, double speed_mm_s) {
+std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const ExtrusionPath &path, double speed_mm_s) const {
 
     // Maximum PA value we will emit when the active firmware requires it.
     // Values above this can crash Klipper's MCU planner.
