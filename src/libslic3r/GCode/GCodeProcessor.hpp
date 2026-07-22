@@ -883,6 +883,10 @@ namespace Slic3r {
         // Processes T line (Select Tool)
         void process_T(const GCodeReader::GCodeLine& line);
         void process_T(const std::string_view command);
+
+        // Dispatch a G... / M... command line on its command characters.
+        void process_G_line(const std::string_view cmd, const GCodeReader::GCodeLine& line);
+        void process_M_line(const std::string_view cmd, const GCodeReader::GCodeLine& line);
         void process_toolchange(uint16_t command_id);
         void process_klipper_ACTIVATE_EXTRUDER(const GCodeReader::GCodeLine& line);
         void process_klipper_SET_VELOCITY_LIMIT(const GCodeReader::GCodeLine& line);

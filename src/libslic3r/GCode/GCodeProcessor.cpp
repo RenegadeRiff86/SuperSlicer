@@ -1924,6 +1924,182 @@ void GCodeProcessor::move_next_layer_id() {
     ++m_layer_id;
 }
 
+// Dispatch a G... command line on its command characters.
+void GCodeProcessor::process_G_line(const std::string_view cmd, const GCodeReader::GCodeLine& line)
+{
+    switch (cmd.size()) {
+    case 2:
+        switch (cmd[1]) {
+        case '0': process_G0(line); break;  // Move
+        case '1': process_G1(line); break;  // Move
+        case '2': process_G2_G3(line, true); break;   // CW Arc Move
+        case '3': process_G2_G3(line, false); break;  // CCW Arc Move
+        default: break;
+        }
+        break;
+    case 3:
+        switch (cmd[1]) {
+        case '1':
+            switch (cmd[2]) {
+            case '0': process_G10(line); break; // Retract or Set tool temperature
+            case '1': process_G11(line); break; // Unretract
+            default: break;
+            }
+            break;
+        case '2':
+            switch (cmd[2]) {
+            case '0': process_G20(line); break; // Set Units to Inches
+            case '1': process_G21(line); break; // Set Units to Millimeters
+            case '2': process_G22(line); break; // Firmware controlled retract
+            case '3': process_G23(line); break; // Firmware controlled unretract
+            case '8': process_G28(line); break; // Move to origin
+            default: break;
+            }
+            break;
+        case '6':
+            switch (cmd[2]) {
+            case '0': process_G60(line); break; // Save Current Position
+            case '1': process_G61(line); break; // Return to Saved Position
+            default: break;
+            }
+            break;
+        case '9':
+            switch (cmd[2]) {
+            case '0': process_G90(line); break; // Set to Absolute Positioning
+            case '1': process_G91(line); break; // Set to Relative Positioning
+            case '2': process_G92(line); break; // Set Position
+            default: break;
+            }
+            break;
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+// Dispatch an M... command line on its command characters.
+void GCodeProcessor::process_M_line(const std::string_view cmd, const GCodeReader::GCodeLine& line)
+{
+    switch (cmd.size()) {
+    case 2:
+        switch (cmd[1]) {
+        case '1': process_M1(line); break;   // Sleep or Conditional stop
+        default: break;
+        }
+        break;
+    case 3:
+        switch (cmd[1]) {
+        case '8':
+            switch (cmd[2]) {
+            case '2': process_M82(line); break;  // Set extruder to absolute mode
+            case '3': process_M83(line); break;  // Set extruder to relative mode
+            default: break;
+            }
+            break;
+        default:
+            break;
+        }
+        break;
+    case 4:
+        switch (cmd[1]) {
+        case '1':
+            switch (cmd[2]) {
+            case '0':
+                switch (cmd[3]) {
+                case '4': process_M104(line); break; // Set extruder temperature
+                case '6': process_M106(line); break; // Set fan speed
+                case '7': process_M107(line); break; // Disable fan
+                case '8': process_M108(line); break; // Set tool (Sailfish)
+                case '9': process_M109(line); break; // Set extruder temperature and wait
+                default: break;
+                }
+                break;
+            case '3':
+                switch (cmd[3]) {
+                case '2': process_M132(line); break; // Recall stored home offsets
+                case '5': process_M135(line); break; // Set tool (MakerWare)
+                default: break;
+                }
+                break;
+            default:
+                break;
+            }
+            break;
+        case '2':
+            switch (cmd[2]) {
+            case '0':
+                switch (cmd[3]) {
+                case '1': process_M201(line); break; // Set max printing acceleration
+                case '3': process_M203(line); break; // Set maximum feedrate
+                case '4': process_M204(line); break; // Set default acceleration
+                case '5': process_M205(line); break; // Advanced settings
+                default: break;
+                }
+                break;
+            case '2':
+                switch (cmd[3]) {
+                case '0': process_M220(line); break; // Set Feedrate Percentage
+                case '1': process_M221(line); break; // Set extrude factor override percentage
+                default: break;
+                }
+                break;
+            default:
+                break;
+            }
+            break;
+        case '4':
+            switch (cmd[2]) {
+            case '0':
+                switch (cmd[3]) {
+                case '1': process_M401(line); break; // Repetier: Store x, y and z position
+                case '2': process_M402(line); break; // Repetier: Go to stored position
+                default: break;
+                }
+                break;
+            case '8':
+                switch (cmd[3]) {
+                case '6': process_M486(line); break; // Marlin/reprap: object change
+                default: break;
+                }
+                break;
+            default:
+                break;
+            }
+            break;
+        case '5':
+            switch (cmd[2]) {
+            case '6':
+                switch (cmd[3]) {
+                case '6': process_M566(line); break; // Set allowable instantaneous speed change
+                default: break;
+                }
+                break;
+            default:
+                break;
+            }
+            break;
+        case '7':
+            switch (cmd[2]) {
+            case '0':
+                switch (cmd[3]) {
+                case '2': process_M702(line); break; // Unload the current filament into the MK3 MMU2 unit at the end of print.
+                default: break;
+                }
+                break;
+            default:
+                break;
+            }
+            break;
+        default:
+            break;
+        }
+        break;
+    default:
+        break;
+    }
+}
+
 void GCodeProcessor::process_gcode_line(const GCodeReader::GCodeLine& line, bool producers_enabled)
 {
 /* std::cout << line.raw() << std::endl; */
@@ -1954,175 +2130,11 @@ void GCodeProcessor::process_gcode_line(const GCodeReader::GCodeLine& line, bool
         {
         case 'g':
         case 'G':
-            switch (cmd.size()) {
-            case 2:
-                switch (cmd[1]) {
-                case '0': { process_G0(line); break; }  // Move
-                case '1': { process_G1(line); break; }  // Move
-                case '2': { process_G2_G3(line, true); break; }   // CW Arc Move
-                case '3': { process_G2_G3(line, false); break; }  // CCW Arc Move
-                default: break;
-                }
-                break;
-            case 3:
-                switch (cmd[1]) {
-                case '1':
-                    switch (cmd[2]) {
-                    case '0': { process_G10(line); break; } // Retract or Set tool temperature
-                    case '1': { process_G11(line); break; } // Unretract
-                    default: break;
-                    }
-                    break;
-                case '2':
-                    switch (cmd[2]) {
-                    case '0': { process_G20(line); break; } // Set Units to Inches
-                    case '1': { process_G21(line); break; } // Set Units to Millimeters
-                    case '2': { process_G22(line); break; } // Firmware controlled retract
-                    case '3': { process_G23(line); break; } // Firmware controlled unretract
-                    case '8': { process_G28(line); break; } // Move to origin
-                    default: break;
-                    }
-                    break;
-                case '6':
-                    switch (cmd[2]) {
-                    case '0': { process_G60(line); break; } // Save Current Position
-                    case '1': { process_G61(line); break; } // Return to Saved Position
-                    default: break;
-                    }
-                    break;
-                case '9':
-                    switch (cmd[2]) {
-                    case '0': { process_G90(line); break; } // Set to Absolute Positioning
-                    case '1': { process_G91(line); break; } // Set to Relative Positioning
-                    case '2': { process_G92(line); break; } // Set Position
-                    default: break;
-                    }
-                    break;
-                }
-                break;
-            default:
-                break;
-            }
+            process_G_line(cmd, line);
             break;
         case 'm':
         case 'M':
-            switch (cmd.size()) {
-            case 2:
-                switch (cmd[1]) {
-                case '1': { process_M1(line); break; }   // Sleep or Conditional stop
-                default: break;
-                }
-                break;
-            case 3:
-                switch (cmd[1]) {
-                case '8':
-                    switch (cmd[2]) {
-                    case '2': { process_M82(line); break; }  // Set extruder to absolute mode
-                    case '3': { process_M83(line); break; }  // Set extruder to relative mode
-                    default: break;
-                    }
-                    break;
-                default:
-                    break;
-                }
-                break;
-            case 4:
-                switch (cmd[1]) {
-                case '1':
-                    switch (cmd[2]) {
-                    case '0':
-                        switch (cmd[3]) {
-                        case '4': { process_M104(line); break; } // Set extruder temperature
-                        case '6': { process_M106(line); break; } // Set fan speed
-                        case '7': { process_M107(line); break; } // Disable fan
-                        case '8': { process_M108(line); break; } // Set tool (Sailfish)
-                        case '9': { process_M109(line); break; } // Set extruder temperature and wait
-                        default: break;
-                        }
-                        break;
-                    case '3':
-                        switch (cmd[3]) {
-                        case '2': { process_M132(line); break; } // Recall stored home offsets
-                        case '5': { process_M135(line); break; } // Set tool (MakerWare)
-                        default: break;
-                        }
-                        break;
-                    default:
-                        break;
-                    }
-                    break;
-                case '2':
-                    switch (cmd[2]) {
-                    case '0':
-                        switch (cmd[3]) {
-                        case '1': { process_M201(line); break; } // Set max printing acceleration
-                        case '3': { process_M203(line); break; } // Set maximum feedrate
-                        case '4': { process_M204(line); break; } // Set default acceleration
-                        case '5': { process_M205(line); break; } // Advanced settings
-                        default: break;
-                        }
-                        break;
-                    case '2':
-                        switch (cmd[3]) {
-                        case '0': { process_M220(line); break; } // Set Feedrate Percentage
-                        case '1': { process_M221(line); break; } // Set extrude factor override percentage
-                        default: break;
-                        }
-                        break;
-                    default:
-                        break;
-                    }
-                    break;
-                case '4':
-                    switch (cmd[2]) {
-                    case '0':
-                        switch (cmd[3]) {
-                        case '1': { process_M401(line); break; } // Repetier: Store x, y and z position
-                        case '2': { process_M402(line); break; } // Repetier: Go to stored position
-                        default: break;
-                        }
-                        break;
-                    case '8':
-                        switch (cmd[3]) {
-                        case '6': { process_M486(line); break; } // Marlin/reprap: object change
-                        default: break;
-                        }
-                        break;
-                    default:
-                        break;
-                    }
-                    break;
-                case '5':
-                    switch (cmd[2]) {
-                    case '6':
-                        switch (cmd[3]) {
-                        case '6': { process_M566(line); break; } // Set allowable instantaneous speed change
-                        default: break;
-                        }
-                        break;
-                    default:
-                        break;
-                    }
-                    break;
-                case '7':
-                    switch (cmd[2]) {
-                    case '0':
-                        switch (cmd[3]) {
-                        case '2': { process_M702(line); break; } // Unload the current filament into the MK3 MMU2 unit at the end of print.
-                        default: break;
-                        }
-                        break;
-                    default:
-                        break;
-                    }
-                    break;
-                default:
-                    break;
-                }
-                break;
-            default:
-                break;
-            }
+            process_M_line(cmd, line);
             break;
         case 't':
         case 'T':
