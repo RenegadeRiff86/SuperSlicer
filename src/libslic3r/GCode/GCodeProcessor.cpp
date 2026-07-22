@@ -1812,6 +1812,63 @@ void GCodeProcessor::process_klipper_ACTIVATE_EXTRUDER(const GCodeReader::GCodeL
     process_toolchange(uint16_t(std::stoi(trsf)));
 }
 
+// Comment-config helpers for apply_config_simplify3d: values follow "key,value[|value...]".
+static bool extract_simplify3d_double(const std::string_view cmt, const std::string& key, double& out)
+{
+    size_t pos = cmt.find(key);
+    if (pos != cmt.npos) {
+        pos = cmt.find(',', pos);
+        if (pos != cmt.npos) {
+            out = string_to_double_decimal_point(cmt.substr(pos+1));
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool extract_simplify3d_floats(const std::string_view cmt, const std::string& key, std::vector<float>& out)
+{
+    size_t pos = cmt.find(key);
+    if (pos != cmt.npos) {
+        pos = cmt.find(',', pos);
+        if (pos != cmt.npos) {
+            const std::string_view data_str = cmt.substr(pos + 1);
+            std::vector<std::string> values_str;
+            boost::split(values_str, data_str, boost::is_any_of("|,"), boost::token_compress_on);
+            for (const std::string& s : values_str) {
+                out.emplace_back(static_cast<float>(string_to_double_decimal_point(s)));
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+// One Simplify3D header comment: bed size overrides, filament data, extruder count.
+static void process_simplify3d_config_comment(const std::string_view comment, double& bed_size_x, double& bed_size_y,
+                                              GCodeProcessorResult& result)
+{
+    if (bed_size_x == 0. && comment.find("strokeXoverride") != comment.npos)
+        extract_simplify3d_double(comment, "strokeXoverride", bed_size_x);
+    else if (bed_size_y == 0. && comment.find("strokeYoverride") != comment.npos)
+        extract_simplify3d_double(comment, "strokeYoverride", bed_size_y);
+    else if (comment.find("filamentDiameters") != comment.npos) {
+        result.filament_diameters.clear();
+        extract_simplify3d_floats(comment, "filamentDiameters", result.filament_diameters);
+    } else if (comment.find("filamentDensities") != comment.npos) {
+        result.filament_densities.clear();
+        extract_simplify3d_floats(comment, "filamentDensities", result.filament_densities);
+    }
+    else if (comment.find("filamentPricesPerKg") != comment.npos) {
+        result.filament_cost.clear();
+        extract_simplify3d_floats(comment, "filamentPricesPerKg", result.filament_cost);
+    } else if (comment.find("extruderDiameter") != comment.npos) {
+        std::vector<float> extruder_diameters;
+        extract_simplify3d_floats(comment, "extruderDiameter", extruder_diameters);
+        result.extruders_count = extruder_diameters.size();
+    }
+}
+
 void GCodeProcessor::apply_config_simplify3d(const std::string& filename)
 {
     struct BedSize
@@ -1827,35 +1884,6 @@ void GCodeProcessor::apply_config_simplify3d(const std::string& filename)
 
     m_parser.parse_file_raw(filename, [this, &bed_size, &producer_detected](GCodeReader& reader, const char* begin, const char* end) {
 
-        auto extract_double = [](const std::string_view cmt, const std::string& key, double& out) {
-            size_t pos = cmt.find(key);
-            if (pos != cmt.npos) {
-                pos = cmt.find(',', pos);
-                if (pos != cmt.npos) {
-                    out = string_to_double_decimal_point(cmt.substr(pos+1));
-                    return true;
-                }
-            }
-            return false;
-        };
-
-        auto extract_floats = [](const std::string_view cmt, const std::string& key, std::vector<float>& out) {
-            size_t pos = cmt.find(key);
-            if (pos != cmt.npos) {
-                pos = cmt.find(',', pos);
-                if (pos != cmt.npos) {
-                    const std::string_view data_str = cmt.substr(pos + 1);
-                    std::vector<std::string> values_str;
-                    boost::split(values_str, data_str, boost::is_any_of("|,"), boost::token_compress_on);
-                    for (const std::string& s : values_str) {
-                        out.emplace_back(static_cast<float>(string_to_double_decimal_point(s)));
-                    }
-                    return true;
-                }
-            }
-            return false;
-        };
-        
         begin = skip_whitespaces(begin, end);
         end   = remove_eols(begin, end);
         if (begin != end) {
@@ -1864,27 +1892,9 @@ void GCodeProcessor::apply_config_simplify3d(const std::string& filename)
                 begin = skip_whitespaces(++ begin, end);
                 if (begin != end) {
                     std::string_view comment(begin, end - begin);
-                    if (producer_detected) {
-                        if (bed_size.x == 0. && comment.find("strokeXoverride") != comment.npos)
-                            extract_double(comment, "strokeXoverride", bed_size.x);
-                        else if (bed_size.y == 0. && comment.find("strokeYoverride") != comment.npos)
-                            extract_double(comment, "strokeYoverride", bed_size.y);
-                        else if (comment.find("filamentDiameters") != comment.npos) {
-                            m_result.filament_diameters.clear();
-                            extract_floats(comment, "filamentDiameters", m_result.filament_diameters);
-                        } else if (comment.find("filamentDensities") != comment.npos) {
-                            m_result.filament_densities.clear();
-                            extract_floats(comment, "filamentDensities", m_result.filament_densities);
-                        }
-                        else if (comment.find("filamentPricesPerKg") != comment.npos) {
-                            m_result.filament_cost.clear();
-                            extract_floats(comment, "filamentPricesPerKg", m_result.filament_cost);
-                        } else if (comment.find("extruderDiameter") != comment.npos) {
-                            std::vector<float> extruder_diameters;
-                            extract_floats(comment, "extruderDiameter", extruder_diameters);
-                            m_result.extruders_count = extruder_diameters.size();
-                        }
-                    } else if (boost::starts_with(comment, "G-Code generated by Simplify3D(R)"))
+                    if (producer_detected)
+                        process_simplify3d_config_comment(comment, bed_size.x, bed_size.y, m_result);
+                    else if (boost::starts_with(comment, "G-Code generated by Simplify3D(R)"))
                         producer_detected = true;
                 }
             } else {
