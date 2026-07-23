@@ -301,6 +301,8 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
         //re-enable auto-center after this calibration.
         gui_app->app_config->set("autocenter", "1");
     }
+
+    close_dialog();
 }
 
 } // namespace GUI

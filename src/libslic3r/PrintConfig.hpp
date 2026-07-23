@@ -1187,6 +1187,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloats,              filament_dip_extraction_speed)) /* SKINNYDIP OPTIONS END */
     ((ConfigOptionFloats,              filament_pressure_advance))
     ((ConfigOptionFloats,              filament_pressure_advance_smooth_time))
+    ((ConfigOptionFloats,              filament_z_offset))
     ((ConfigOptionBools,               filament_adaptive_pressure_advance))
     ((ConfigOptionStrings,             filament_adaptive_pressure_advance_model))
     ((ConfigOptionBools,               filament_adaptive_pressure_advance_overhangs))

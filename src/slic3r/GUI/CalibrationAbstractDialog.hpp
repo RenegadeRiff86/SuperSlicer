@@ -26,9 +26,11 @@ private:
     wxPanel* create_header(wxWindow* parent, const wxFont& bold_font);
 protected:
     void create(boost::filesystem::path html_path, std::string html_name, wxSize dialogsize = wxSize(850, 550), bool include_close_button = false);
+    void fit_to_content();
     virtual void create_buttons(wxStdDialogButtonSizer*) = 0;
     void on_dpi_changed(const wxRect& suggested_rect) override;
     void close_me(wxCommandEvent& event_args);
+    void close_dialog();
     void add_part(ModelObject* model_object, std::string input_file, Vec3d move, Vec3d scale = Vec3d{ 1,1,1 }, bool rotate = true);
 
     wxHtmlWindow* html_viewer;

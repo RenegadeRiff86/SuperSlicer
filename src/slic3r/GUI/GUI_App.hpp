@@ -298,6 +298,8 @@ public:
     void            change_calibration_dialog(const wxDialog* have_to_destroy = nullptr, wxDialog* new_one = nullptr);
     void            html_dialog();
     void            bed_leveling_dialog();
+    void            z_offset_calibration_dialog();
+    void            z_offset_result_dialog();
     void            flow_ratio_dialog();
     void            flow_speed_dialog();
     void            filament_temperature_dialog();

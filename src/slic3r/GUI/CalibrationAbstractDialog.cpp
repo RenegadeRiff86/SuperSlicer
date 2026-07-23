@@ -11,6 +11,8 @@
 #include <wx/display.h>
 #include <wx/file.h>
 
+#include <algorithm>
+
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/path.hpp>
 
@@ -122,11 +124,75 @@ void CalibrationAbstractDialog::create(boost::filesystem::path html_path, std::s
     // can't change html text color, so keep white background
     html_viewer->SetHTMLBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
     // }
+
+    fit_to_content();
 }
 
-void CalibrationAbstractDialog::close_me(wxCommandEvent& event_args) {
-    this->gui_app->change_calibration_dialog(this, nullptr);
-    this->Destroy();
+// Best effort: resize the dialog so the whole help page is visible without scrolling.
+// The dialog will not grow beyond the main frame's footprint (or the screen work area
+// when the frame is minimized or degenerate); content that still does not fit at that
+// size keeps its scrollbars.
+void CalibrationAbstractDialog::fit_to_content()
+{
+    Layout();
+    wxHtmlContainerCell* content = html_viewer->GetInternalRepresentation();
+    if (content == nullptr)
+        return;
+
+    const int display_idx = wxDisplay::GetFromWindow(main_frame != nullptr ? static_cast<wxWindow*>(main_frame) : this);
+    const wxDisplay display(display_idx != wxNOT_FOUND ? display_idx : 0u);
+    const wxRect screen = display.GetClientArea();
+    // below this the frame is likely minimized or degenerate; use the screen instead
+    constexpr int min_usable_bound_width = 400;
+    constexpr int min_usable_bound_height = 300;
+    wxRect bound = main_frame != nullptr ? main_frame->GetScreenRect() : screen;
+    if (bound.width < min_usable_bound_width || bound.height < min_usable_bound_height)
+        bound = screen;
+
+    // Widen first: fixed-width content (e.g. tables) would otherwise force a horizontal
+    // scrollbar, and a wider page also rewraps to a shorter one.
+    const int extra_width = content->GetWidth() - html_viewer->GetClientSize().x;
+    if (extra_width > 0) {
+        const int target_width = std::min(GetSize().x + extra_width, bound.width);
+        if (target_width != GetSize().x) {
+            SetSize(target_width, GetSize().y);
+            Layout();
+            content = html_viewer->GetInternalRepresentation();
+            if (content == nullptr)
+                return;
+        }
+    }
+
+    // Then fit the height to the page at its final width, growing or shrinking, but
+    // never below what the controls row needs nor above the bound.
+    const int height_delta = content->GetHeight() - html_viewer->GetClientSize().y;
+    if (height_delta != 0) {
+        const int decorations = GetSize().y - GetClientSize().y;
+        int target_height = GetSize().y + height_delta;
+        target_height = std::max(target_height, GetSizer()->CalcMin().y + decorations);
+        target_height = std::min(target_height, bound.height);
+        if (target_height != GetSize().y)
+            SetSize(GetSize().x, target_height);
+    }
+
+    // Keep the dialog centered over the bound and fully on-screen.
+    wxPoint pos(bound.x + (bound.width - GetSize().x) / 2,
+                bound.y + (bound.height - GetSize().y) / 2);
+    pos.x = std::clamp(pos.x, screen.x, std::max(screen.x, screen.x + screen.width - GetSize().x));
+    pos.y = std::clamp(pos.y, screen.y, std::max(screen.y, screen.y + screen.height - GetSize().y));
+    SetPosition(pos);
+}
+
+void CalibrationAbstractDialog::close_me(wxCommandEvent& /*event_args*/)
+{
+    close_dialog();
+}
+
+void CalibrationAbstractDialog::close_dialog()
+{
+    if (gui_app != nullptr)
+        gui_app->change_calibration_dialog(this, nullptr);
+    Destroy();
 }
 
 void CalibrationAbstractDialog::add_part(ModelObject* model_object, std::string input_file, Vec3d move, Vec3d scale, bool rotate) {

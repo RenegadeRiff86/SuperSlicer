@@ -125,6 +125,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "duplicate_distance",
         "overhangs_dynamic_fan_speed",
         "filament_pressure_advance",
+        "filament_z_offset",
         "filament_adaptive_pressure_advance",
         "filament_adaptive_pressure_advance_model",
         "filament_adaptive_pressure_advance_overhangs",
@@ -138,8 +139,8 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "extruder_colour",
         "extruder_extrusion_multiplier_speed",
         "extruder_offset",
-        "extruder_fan_offset"
-        "extruder_pressure_factor"
+        "extruder_fan_offset",
+        "extruder_pressure_factor",
         "extruder_temperature_offset",
         "extrusion_multiplier",
         "fan_below_layer_time",

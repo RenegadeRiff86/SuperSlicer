@@ -2685,6 +2685,20 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{ NO_TOOLCHANGE_TIME_S }));
 
+    def = this->add("filament_z_offset", coFloats);
+    def->label = L("Z offset");
+    def->full_label = L("Filament Z offset");
+    def->tooltip = L("Klipper only: Z offset associated with this filament preset. SuperSlicer emits "
+        "SET_GCODE_OFFSET after the printer start G-code, making this preset the source of truth "
+        "instead of a Klipper saved variable. The value is applied print-wide from the initial filament.");
+    def->category = OptionCategory::filament;
+    def->sidetext = L("mm");
+    def->min = -2;
+    def->max = 2;
+    def->mode = comAdvancedE | comSuSi;
+    def->is_vector_extruder = true;
+    def->set_default_value(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{ 0. }));
+
     def = this->add("filament_pressure_advance", coFloats);
     def->label = L("Pressure advance");
     def->tooltip = L("Default pressure advance value (Linear advance factor for Marlin)."

@@ -209,6 +209,7 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
     freeze_gui.reset();
 
     plat->reslice();
+    close_dialog();
 }
 
 } // namespace GUI

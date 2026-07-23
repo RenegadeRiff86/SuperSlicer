@@ -1637,7 +1637,8 @@ void PerimeterGenerator::_sort_overhangs(const Parameters &params,
         }
 
         if (overhang_params.overhang_type_2_lh[OverhangType::SMALL_FLOW_OVERHANG] >= 0) {
-            size_t idx_to_merge = overhang_params.overhang_type_2_lh[OverhangType::SMALL_FLOW_OVERHANG];
+            const size_t idx_to_merge =
+                overhang_params.overhang_type_2_lh[OverhangType::SMALL_FLOW_OVERHANG];
             // small flow => big flow unless there is none, then merge into big speed
             foreach(paths, [idx_to_merge](
                                ExtrusionPath &previous, ExtrusionPath &current, ExtrusionPath &next) {
@@ -1646,32 +1647,14 @@ void PerimeterGenerator::_sort_overhangs(const Parameters &params,
             });
         }
 
-            // small speed => big speed unless there is none, then merge into normal (or dynamic)
+        // small speed => big speed unless there is none, then merge into normal (or dynamic)
         if (overhang_params.overhang_type_2_lh[OverhangType::SMALL_SPEED_OVERHANG] >= 0) {
-            size_t idx_to_merge = overhang_params.overhang_type_2_lh[OverhangType::SMALL_SPEED_OVERHANG];
-            foreach (paths, [idx_to_merge](ExtrusionPath &prev, ExtrusionPath &curr, ExtrusionPath &next) {
-                if (curr.height() == idx_to_merge) {
-                    // have to choose the rigth path
-                    if (prev.height() == idx_to_merge + 1 ||
-                        (prev.height() == idx_to_merge - 1 && next.height() > idx_to_merge + 1)) {
-                        // merge to previous
-                        assert(prev.last_point() == curr.first_point());
-                        assert(curr.polyline.size() > 1);
-                        prev.polyline.append(curr.polyline);
-                        return true;
-                    } else if (next.height() == idx_to_merge + 1 || (next.height() == idx_to_merge - 1)) {
-                        // merge to next
-                        assert(curr.last_point() == next.first_point());
-                        assert(curr.polyline.size() > 1);
-                        curr.polyline.append(next.polyline);
-                        next.polyline.swap(curr.polyline);
-                        return true;
-                    } else {
-                        // consider it as big speed
-                        // ie do nothing
-                    }
-                }
-                return false;
+            const size_t idx_to_merge =
+                overhang_params.overhang_type_2_lh[OverhangType::SMALL_SPEED_OVERHANG];
+            foreach(paths, [idx_to_merge](
+                               ExtrusionPath &previous, ExtrusionPath &current, ExtrusionPath &next) {
+                return merge_classified_small_overhang(
+                    previous, current, next, idx_to_merge, false);
             });
         }
     }

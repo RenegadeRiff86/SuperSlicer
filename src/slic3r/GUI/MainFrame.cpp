@@ -2045,6 +2045,10 @@ void MainFrame::init_menubar_as_editor()
         m_calibration_menu->AppendSeparator();
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Bed/Extruder leveling")), _(L("Create a test print to help you to level your printer bed.")),
             [this](wxCommandEvent&) { wxGetApp().bed_leveling_dialog(); });
+        append_menu_item(m_calibration_menu, wxID_ANY, _(L("Klipper Z offset calibration")), _(L("Generate a nine-pad first-layer test with a different Klipper Z offset on each pad.")),
+            [this](wxCommandEvent&) { wxGetApp().z_offset_calibration_dialog(); });
+        append_menu_item(m_calibration_menu, wxID_ANY, _(L("Apply Z offset calibration result")), _(L("Calculate and save a filament Z offset from a printed nine-pad calibration test.")),
+            [this](wxCommandEvent&) { wxGetApp().z_offset_result_dialog(); });
         m_calibration_menu->AppendSeparator();
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Filament Flow calibration")), _(L("Create a test print to help you to set your filament extrusion multiplier (visual inspection).")),
             [this](wxCommandEvent&) { wxGetApp().flow_ratio_dialog(); });

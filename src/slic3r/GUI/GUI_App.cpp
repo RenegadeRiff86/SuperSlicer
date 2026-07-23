@@ -2736,7 +2736,18 @@ void GUI_App::html_dialog()
 }
 void GUI_App::bed_leveling_dialog()
 {
-    change_calibration_dialog(nullptr, new CalibrationBedDialog(this, mainframe));
+    change_calibration_dialog(nullptr,
+        new CalibrationBedDialog(this, mainframe, CalibrationBedDialog::Mode::BedLeveling));
+}
+void GUI_App::z_offset_calibration_dialog()
+{
+    change_calibration_dialog(nullptr,
+        new CalibrationBedDialog(this, mainframe, CalibrationBedDialog::Mode::ZOffsetGenerate));
+}
+void GUI_App::z_offset_result_dialog()
+{
+    change_calibration_dialog(nullptr,
+        new CalibrationBedDialog(this, mainframe, CalibrationBedDialog::Mode::ZOffsetResult));
 }
 void GUI_App::flow_ratio_dialog()
 {

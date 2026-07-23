@@ -283,10 +283,7 @@ void CalibrationPressureAdvAdaptiveDialog::create_geometry(wxCommandEvent& event
     if (autocenter)
         gui_app->app_config->set("autocenter", "1");
 
-    // The calibration part is on the plate and slicing has started; dismiss this window so the
-    // user can go straight to slicing/exporting (Destroy is deferred, so finishing here is safe).
-    this->gui_app->change_calibration_dialog(this, nullptr);
-    this->Destroy();
+    close_dialog();
 }
 
 void CalibrationPressureAdvAdaptiveDialog::show_results_grid(wxCommandEvent& /*event_args*/)

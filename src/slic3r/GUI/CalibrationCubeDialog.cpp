@@ -115,7 +115,7 @@ void CalibrationCubeDialog::create_geometry(std::string calibration_path) {
     freeze_gui.reset();
 
     plat->reslice();
-
+    close_dialog();
 }
 
 } // namespace GUI

@@ -995,6 +995,7 @@ static std::vector<std::string> s_Preset_filament_options {
         "filament_cooling_initial_speed", "filament_cooling_final_speed", "filament_ramming_parameters", "filament_minimal_purge_on_wipe_tower",
         "filament_max_overlap",
         "filament_shrink",
+        "filament_z_offset",
         "filament_use_skinnydip",  // skinnydip params start
         "filament_use_fast_skinnydip",
         "filament_skinnydip_distance",
@@ -1085,7 +1086,6 @@ static std::vector<std::string> s_Preset_filament_options {
         //merill adds
         "filament_wipe_advanced_pigment",
         "chamber_temperature",
-        "filament_pressure_advance",
 };
 
 static std::vector<std::string> s_Preset_machine_limits_options {
