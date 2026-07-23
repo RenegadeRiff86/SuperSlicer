@@ -243,6 +243,14 @@ private:
     };
     void            _do_export(Print &print, GCodeOutputStream &file, ThumbnailsGeneratorCallback thumbnail_cb);
     void            _move_to_print_object(std::string& gcode_out, const Print& print, size_t finished_objects, uint16_t initial_extruder_id);
+    // Sequential "parallel objects" mode of _do_export: print all objects band-by-band (parallel_objects_step tall).
+    void            _do_export_parallel_objects(const Print &print, Print::StatusMonitor &status_monitor, GCodeOutputStream &file, std::string &preamble_to_put_start_layer, ToolOrdering &tool_ordering, std::vector<const PrintInstance*> &print_object_instances_ordering, uint16_t initial_extruder_id, uint16_t &final_extruder_id, bool has_wipe_tower);
+    // Single-extruder multi-material priming + overlap check of _do_export (requires m_wipe_tower).
+    void            _prime_wipe_tower_and_check_overlap(const Print &print, Print::StatusMonitor &status_monitor, const std::vector<std::pair<coordf_t, ObjectsLayerToPrint>> &layers_to_print, std::string &preamble_to_put_start_layer);
+    // extrude_loop helper: emit the wipe_extra_perimeter move and set up the wipe-on-retract path.
+    void            _extrude_extra_wipe_perimeter(const ExtrusionPaths &wipe_paths, coordf_t dist_wipe_extra_perimeter, coordf_t point_dist_for_vec, std::string &gcode, std::string &start_wipe, Point &current_point, Point &prev_point, Point &next_point);
+    // extrude_loop helper (wipe_inside_end): shift the wipe-on-retract path inside the loop and travel to its start.
+    void            _wipe_inside_end_shift(const ExtrusionLoop &original_loop, const ExtrusionPaths &paths, coordf_t dist, const Point &pt_inside, std::string &gcode, std::string &start_wipe);
     void            _init_multiextruders(const Print& print, std::string& gcode_out, GCodeWriter& writer, const ToolOrdering& tool_ordering, const std::string& custom_gcode);
 
     static ObjectsLayerToPrint         		                     collect_layers_to_print(const PrintObject &object, Print::StatusMonitor &status_monitor);
@@ -517,6 +525,12 @@ private:
         uint16_t last_extruder;
         coord_t diameter;
     }                                   m_layer_slices_offseted{ {},{},nullptr, 0};
+    // can_cross_perimeter helper: refresh m_layer_slices_offseted for the current layer/instance/extruder.
+    void _update_travel_slices_cache(bool is_support_layer);
+    // can_cross_perimeter helper: true when the travel enters/leaves/crosses this island or its holes.
+    bool _travel_crosses_island(const Polyline &travel, SliceIsland &expoly_2_bb);
+    // _travel_before_extrude helper: decelerated travel to the extrusion start (travel_deceleration_use_target).
+    void _travel_to_first_point_decelerated(Polyline &poly_start, double speed_mm_s, double acceleration, double travel_acceleration, const std::string &description, std::string &gcode, bool &moved_to_point);
     // one per extruder
     std::vector<double>                 m_volumetric_speed_mm3_per_s;
     // Support for the extrusion role markers. Which marker is active?
