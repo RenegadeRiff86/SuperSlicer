@@ -478,8 +478,12 @@ endif()
 # Boost 1.66 is the first version that provides both boost::process and
 # boost::beast::detail::base64.
 set(MINIMUM_BOOST_VERSION "1.66.0")
-set(_boost_components "system;filesystem;thread;log;locale;regex;chrono;atomic;date_time;iostreams")
-find_package(Boost ${MINIMUM_BOOST_VERSION} REQUIRED COMPONENTS ${_boost_components})
+set(_boost_components "filesystem;thread;log;locale;regex;chrono;atomic;date_time;iostreams")
+# Boost.System has been header-only since 1.66, and current Boost (1.89+) no longer
+# installs a boost_system CMake component config at all - so REQUIRED-ing it aborts the
+# configure on an up-to-date distro. Keep it optional: older Boost still resolves the
+# component, and the only consumer already guards with if(TARGET Boost::system).
+find_package(Boost ${MINIMUM_BOOST_VERSION} REQUIRED COMPONENTS ${_boost_components} OPTIONAL_COMPONENTS system)
 # Boost typically ships only Debug and Release binaries here, so map
 # RelWithDebInfo to Release for imported libraries.
 if (MSVC)
