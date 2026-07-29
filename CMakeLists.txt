@@ -44,6 +44,9 @@ else()
 endif()
 
 if(NOT WIN32)
+    # Static project libraries are also linked into OCCTWrapper, a shared module.
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
     # Add DEBUG flags to debug builds.
     # Also add -g to RELWITHDEBINFO on non-win32
     set(_CC_DEBUG_FLAGS $<$<CONFIG:DEBUG>:-DwxDEBUG_LEVEL=1>
@@ -478,7 +481,7 @@ endif()
 # Boost 1.66 is the first version that provides both boost::process and
 # boost::beast::detail::base64.
 set(MINIMUM_BOOST_VERSION "1.66.0")
-set(_boost_components "filesystem;thread;log;locale;regex;chrono;atomic;date_time;iostreams")
+set(_boost_components "filesystem;thread;log;locale;regex;chrono;atomic;date_time;iostreams;program_options")
 # Boost.System has been header-only since 1.66, and current Boost (1.89+) no longer
 # installs a boost_system CMake component config at all - so REQUIRED-ing it aborts the
 # configure on an up-to-date distro. Keep it optional: older Boost still resolves the
@@ -550,6 +553,11 @@ find_package(CURL REQUIRED)
 
 add_library(libcurl INTERFACE)
 target_link_libraries(libcurl INTERFACE CURL::libcurl)
+
+if (SLIC3R_STATIC AND UNIX AND NOT APPLE)
+    # Static Linux builds locate a usable CA bundle at first launch.
+    target_compile_definitions(libcurl INTERFACE OPENSSL_CERT_OVERRIDE)
+endif()
 
 # Work around incomplete or inconsistent CURL CMake package linkage by
 # attaching the extra platform libraries we rely on here.

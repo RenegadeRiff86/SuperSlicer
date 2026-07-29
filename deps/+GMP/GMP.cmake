@@ -18,7 +18,17 @@ if (MSVC)
 
 else ()
     string(TOUPPER "${CMAKE_BUILD_TYPE}" _buildtype_upper)
-    set(_gmp_ccflags "${CMAKE_CXX_FLAGS_${_buildtype_upper}} -fPIC -DPIC -Wall -Wmissing-prototypes -Wpointer-arith -pedantic -fomit-frame-pointer -fno-common")
+    set(_gmp_common_flags "-fPIC -DPIC -Wall -Wpointer-arith -pedantic -fomit-frame-pointer -fno-common")
+    set(_gmp_cflags "${CMAKE_C_FLAGS_${_buildtype_upper}} ${_gmp_common_flags} -Wmissing-prototypes")
+    set(_gmp_cxxflags "${CMAKE_CXX_FLAGS_${_buildtype_upper}} ${_gmp_common_flags}")
+
+    # GMP 6.2.1's configure probes use pre-C23 empty parameter lists. GCC 15+
+    # defaults to C23, where those probes no longer compile, so select the last
+    # language standard supported by this bundled release explicitly.
+    if (CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        string(APPEND _gmp_cflags " -std=gnu17")
+    endif ()
+
     set(_gmp_build_tgt "${CMAKE_SYSTEM_PROCESSOR}")
 
     set(_cross_compile_arg "")
@@ -59,8 +69,8 @@ else ()
         URL_HASH SHA256=eae9326beb4158c386e39a356818031bd28f3124cf915f8c5b1dc4c7a36b4d7c
         DOWNLOAD_DIR ${${PROJECT_NAME}_DEP_DOWNLOAD_DIR}/GMP
         BUILD_IN_SOURCE ON 
-        CONFIGURE_COMMAND  env "CFLAGS=${_gmp_ccflags}" "CXXFLAGS=${_gmp_ccflags}" ./configure ${_cross_compile_arg} --enable-shared=no --enable-cxx=yes --enable-static=yes "--prefix=${${PROJECT_NAME}_DEP_INSTALL_PREFIX}" ${_gmp_build_tgt}
-        BUILD_COMMAND     make -j
+        CONFIGURE_COMMAND  env "CFLAGS=${_gmp_cflags}" "CXXFLAGS=${_gmp_cxxflags}" ./configure ${_cross_compile_arg} --enable-shared=no --enable-cxx=yes --enable-static=yes "--prefix=${${PROJECT_NAME}_DEP_INSTALL_PREFIX}" ${_gmp_build_tgt}
+        BUILD_COMMAND     make "-j${DEP_MAX_THREADS}"
         INSTALL_COMMAND   make install
     )
 endif ()

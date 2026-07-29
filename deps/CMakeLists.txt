@@ -26,7 +26,18 @@
 cmake_minimum_required(VERSION 3.12)
 project(Slic3r-deps)
 
-# timestamp of the extracted content from archive set to the extraction date. OLD to set to the timestamp from the archive.
+include(ProcessorCount)
+set(DEP_MAX_THREADS "" CACHE STRING "Maximum parallel jobs used within each dependency build")
+if (NOT DEP_MAX_THREADS)
+    ProcessorCount(DEP_MAX_THREADS)
+endif ()
+if (NOT DEP_MAX_THREADS OR DEP_MAX_THREADS EQUAL 0)
+    set(DEP_MAX_THREADS 1)
+endif ()
+
+# Set extracted files to the extraction time so URL changes reliably rebuild
+# dependencies. Individual legacy Autotools recipes may override this when
+# their generated source timestamps must be preserved.
 if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
     cmake_policy(SET CMP0135 NEW)
 endif ()
@@ -56,10 +67,6 @@ endif ()
 
 if (MSVC)
   option(DEP_DEBUG "Build in debug version of packages automatically" ON)
-endif ()
-
-if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
-    cmake_policy(SET CMP0135 NEW)
 endif ()
 
 include(${PROJECT_SOURCE_DIR}/../cmake/modules/AddCMakeProject.cmake)
