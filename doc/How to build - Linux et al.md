@@ -9,7 +9,15 @@ Instead of compiling Slic3r from source code, one may also consider to install S
 
 ## How to build, the easy way
 
-Just use the `BuildLinux.sh` script (use the `-h` option to get the options available, and how to use them)
+Use the portable `BuildLinux.sh` bootstrap from the repository root:
+
+```shell
+./BuildLinux.sh --check     # inspect the host without changing it
+./BuildLinux.sh --install   # install missing prerequisites, if any
+./BuildLinux.sh             # build bundled dependencies and SuperSlicer
+```
+
+The script detects APT, DNF/YUM, Pacman, Zypper, or APK, probes the required commands and development interfaces, and only uses the distribution package map when something is missing. The application links against the repository's bundled dependency build so changing distributions does not make it depend on a different set of system C++ libraries. Run `./BuildLinux.sh --help` for cleanup, debug, packaging, test, and parallel-job options.
 
 ## Step by step guide, the hard way
 

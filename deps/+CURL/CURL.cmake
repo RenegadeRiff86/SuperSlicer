@@ -16,54 +16,40 @@ set(_curl_platform_flags
   # -DCURL_DISABLE_GOPHER:BOOL=ON
   -DHTTP_ONLY=ON
 
-  -DCMAKE_USE_GSSAPI:BOOL=OFF
-  -DCMAKE_USE_LIBSSH2:BOOL=OFF
-  -DUSE_RTMP:BOOL=OFF
+  -DCURL_USE_GSSAPI:BOOL=OFF
+  -DCURL_USE_LIBSSH2:BOOL=OFF
+  -DCURL_USE_LIBPSL:BOOL=OFF
+  -DCURL_USE_MBEDTLS:BOOL=OFF
+  -DUSE_LIBIDN2:BOOL=OFF
   -DUSE_NGHTTP2:BOOL=OFF
-  -DUSE_MBEDTLS:BOOL=OFF
+  -DCURL_BROTLI:STRING=OFF
+  -DCURL_ZSTD:STRING=OFF
 )
 
 if (WIN32)
-  set(_curl_platform_flags  ${_curl_platform_flags} -DCMAKE_USE_SCHANNEL=ON)
+  set(_curl_platform_flags ${_curl_platform_flags} -DCURL_USE_SCHANNEL:BOOL=ON)
 elseif (APPLE)
-  set(_curl_platform_flags 
-    
+  set(_curl_platform_flags
     ${_curl_platform_flags}
-
-    -DCMAKE_USE_SECTRANSP:BOOL=ON 
-    -DCMAKE_USE_OPENSSL:BOOL=OFF
-
+    -DCURL_USE_OPENSSL:BOOL=ON
+    -DUSE_APPLE_SECTRUST:BOOL=ON
     -DCURL_CA_PATH:STRING=none
+    -DCURL_CA_BUNDLE:STRING=none
   )
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  set(_curl_platform_flags 
-
+  set(_curl_platform_flags
     ${_curl_platform_flags}
-
-    -DCMAKE_USE_OPENSSL:BOOL=ON
-
+    -DCURL_USE_OPENSSL:BOOL=ON
     -DCURL_CA_PATH:STRING=none
     -DCURL_CA_BUNDLE:STRING=none
     -DCURL_CA_FALLBACK:BOOL=ON
   )
 endif ()
 
-set(_patch_command "")
-if (UNIX AND NOT APPLE)
-  # On non-apple UNIX platforms, finding the location of OpenSSL certificates is necessary at runtime, as there is no standard location usable across platforms.
-  # The OPENSSL_CERT_OVERRIDE flag is understood by PrusaSlicer and will trigger the search of certificates at initial application launch. 
-  # Then ask the user for consent about the correctness of the found location.
-  set (_patch_command echo set_target_properties(CURL::libcurl PROPERTIES INTERFACE_COMPILE_DEFINITIONS OPENSSL_CERT_OVERRIDE) >> CMake/curl-config.cmake.in)
-endif ()
-
 add_cmake_project(CURL
-  # GIT_REPOSITORY      https://github.com/curl/curl.git
-  # GIT_TAG             curl-7_75_0
-  URL                 https://github.com/curl/curl/archive/refs/tags/curl-7_75_0.zip
-  URL_HASH            SHA256=a63ae025bb0a14f119e73250f2c923f4bf89aa93b8d4fafa4a9f5353a96a765a
-  # PATCH_COMMAND       ${GIT_EXECUTABLE} checkout -f -- . && git clean -df && 
-  #                     ${GIT_EXECUTABLE} apply --whitespace=fix ${CMAKE_CURRENT_LIST_DIR}/curl-mods.patch
-  PATCH_COMMAND       "${_patch_command}"
+  URL                 https://curl.se/download/curl-8.21.0.tar.xz
+  URL_HASH            SHA256=aa1b66a70eace83dc624508745646c08ae561de512ab403adffb93ac87fc72e6
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
   CMAKE_ARGS
     -DBUILD_TESTING:BOOL=OFF
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON
@@ -71,7 +57,7 @@ add_cmake_project(CURL
 )
 
 set(DEP_CURL_DEPENDS ZLIB)
-if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+if (UNIX)
   list(APPEND DEP_CURL_DEPENDS OpenSSL)
 endif ()
 

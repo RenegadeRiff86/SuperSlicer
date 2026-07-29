@@ -13,7 +13,10 @@ xs/assertlib*
 .init_bundle.ini
 .vs/*
 /src/TAGS
-/.vscode/
+/.vscode/*
+!/.vscode/extensions.json
+!/.vscode/launch.json
+!/.vscode/tasks.json
 build*
 build-linux/*
 deps/build*
@@ -21,6 +24,8 @@ deps/build-linux/*
 **/.idea/
 .pkg_cache
 CMakeUserPresets.json
+/cmake/CPackConfig.cmake
+/resources/localization/*/SuperSlicer.mo
 **/bad_*
 # MacOS Ignores
 .DS_Store
