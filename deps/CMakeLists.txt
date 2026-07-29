@@ -184,8 +184,20 @@ option(${PROJECT_NAME}_SELECT_ALL "Choose all external projects to be built." ON
 
 find_package(Git REQUIRED)
 
-# The default command line for patching. Only works for newer 
-set(PATCH_CMD ${GIT_EXECUTABLE} apply --verbose --ignore-space-change --whitespace=fix)
+# The default command line for patching.
+#
+# NOT `git apply`. When git apply runs from a subdirectory INSIDE a repository it resolves patch
+# paths against the repository root and silently ignores anything outside the current
+# subdirectory - printing "Skipped patch 'x'" and exiting 0. Every dependency is extracted under
+# deps/build-*/ , which is inside this clone, so each of ZLIB, PNG, OpenEXR and wxWidgets applied
+# NO hunks at all while the build reported success. That is how wxWidgets was built without
+# webview support for two days: the WebKitGTK 4.1 patch never ran, wx found no WebKit 4.0, turned
+# wxUSE_WEBVIEW off, and nothing failed loudly enough to notice.
+#
+# GNU patch has no repository awareness, so it applies relative to the working directory as
+# intended. Cereal already invoked it directly for this reason; this makes it the default.
+# --forward keeps a re-run from reversing an already-applied patch.
+set(PATCH_CMD patch --batch --forward -p1 -i)
 
 # all required package targets that have existing definitions will be gathered here
 set(DEPS_TO_BUILD "")
