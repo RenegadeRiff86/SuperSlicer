@@ -253,7 +253,7 @@ static void fuzzy_paths(ExtrusionPaths& paths, coordf_t fuzzy_skin_thickness, co
     const bool is_debug_loop = (last_point == last_point);
     ExtrusionPaths saved_paths = paths;
     if (is_loop) assert(paths.back().last_point() == paths.front().first_point());
-    for (int i = 1; i < paths.size(); i++) {
+    for (size_t i = 1; i < paths.size(); i++) {
         assert(paths[i - 1].last_point() == paths[i].first_point());
     }
 #endif
@@ -347,7 +347,7 @@ static void fuzzy_paths(ExtrusionPaths& paths, coordf_t fuzzy_skin_thickness, co
     }
 #ifdef _DEBUG
     if (is_loop) assert(paths.back().last_point() == paths.front().first_point());
-    for (int i = 1; i < paths.size(); i++) {
+    for (size_t i = 1; i < paths.size(); i++) {
         assert(paths[i - 1].last_point() == paths[i].first_point());
     }
 #endif
@@ -575,7 +575,7 @@ ExtrusionEntityCollection PerimeterGenerator::_traverse_loops_classic(const Para
 
         bool can_overhang = params.config.overhangs.value &&
             (params.config.overhangs_width_speed.is_enabled() || params.config.overhangs_width.is_enabled()) &&
-            params.layer->id() > 0 && params.layer->id() >= params.object_config.raft_layers;
+            params.layer->id() > 0 && params.layer->id() >= size_t(params.object_config.raft_layers.value);
         if (params.object_config.support_material &&
             params.object_config.support_material_contact_distance_type.value == zdNone) {
             can_overhang = false;
@@ -1377,7 +1377,7 @@ void PerimeterGenerator::_sort_overhangs(const Parameters &params,
     }
 
     // ensure end & start are the same exact point.
-    for (int i = 1; i < paths.size(); i++) {
+    for (size_t i = 1; i < paths.size(); i++) {
         // diff/inter can generate points with ~3-5 unit of diff.
         if (paths[i - 1].last_point() != paths[i].first_point()) {
             assert(paths[i - 1].last_point().distance_to_square(paths[i].first_point()) < (SCALED_EPSILON * SCALED_EPSILON * 4));
@@ -1535,7 +1535,7 @@ void PerimeterGenerator::_sort_overhangs(const Parameters &params,
             ), OverhangAttributes{1, 2, 0, true, true, false, false}};
         }
     }
-    for (int i = 1; i < paths.size(); i++) {
+    for (size_t i = 1; i < paths.size(); i++) {
         assert(paths[i - 1].last_point().coincides_with_epsilon(paths[i].first_point()));
     }
     
@@ -1588,7 +1588,7 @@ void PerimeterGenerator::_sort_overhangs(const Parameters &params,
 #ifdef _DEBUG_OVERHANGS
         export_debug_overhangs_svg("%d_sort4_overhangs_%d_%d.svg");
 #endif
-        for (int i = 1; i < paths.size(); i++) {
+        for (size_t i = 1; i < paths.size(); i++) {
             assert(paths[i - 1].last_point().coincides_with_epsilon(paths[i].first_point()));
         }
 
@@ -1615,7 +1615,7 @@ void PerimeterGenerator::_sort_overhangs(const Parameters &params,
             }
             return false;
         });
-        for (int i = 1; i < paths.size(); i++) {
+        for (size_t i = 1; i < paths.size(); i++) {
             assert(paths[i - 1].last_point().coincides_with_epsilon(paths[i].first_point()));
         }
 #ifdef _DEBUG_OVERHANGS
@@ -1632,7 +1632,7 @@ void PerimeterGenerator::_sort_overhangs(const Parameters &params,
 #ifdef _DEBUG_OVERHANGS
         export_debug_overhangs_svg("%d_sort6_overhangs_%d_%d.svg");
 #endif
-        for (int i = 1; i < paths.size(); i++) {
+        for (size_t i = 1; i < paths.size(); i++) {
             assert(paths[i - 1].last_point().coincides_with_epsilon(paths[i].first_point()));
         }
 
@@ -1658,7 +1658,7 @@ void PerimeterGenerator::_sort_overhangs(const Parameters &params,
             });
         }
     }
-    for (int i = 1; i < paths.size(); i++) {
+    for (size_t i = 1; i < paths.size(); i++) {
         assert(paths[i - 1].last_point().coincides_with_epsilon(paths[i].first_point()));
     }
     if (paths.size() == 2) {
@@ -1675,7 +1675,7 @@ void PerimeterGenerator::_sort_overhangs(const Parameters &params,
             paths.erase(paths.begin() + 1);
         }
     }
-    for (int i = 1; i < paths.size(); i++) {
+    for (size_t i = 1; i < paths.size(); i++) {
         assert(paths[i - 1].last_point().coincides_with_epsilon(paths[i].first_point()));
     }
 
@@ -1704,7 +1704,7 @@ void PerimeterGenerator::_sort_overhangs(const Parameters &params,
         path.polyline.make_arc(ArcFittingType::Disabled, std::max(SCALED_EPSILON * 2, scale_t(params.print_config.resolution)), 0);
         assert(!path.polyline.has_arc());
     }
-    for (int i = 1; i < paths.size(); i++) {
+    for (size_t i = 1; i < paths.size(); i++) {
         assert(paths[i - 1].last_point().coincides_with_epsilon(paths[i].first_point()));
     }
 #ifdef _DEBUG_OVERHANGS
@@ -1769,7 +1769,7 @@ void PerimeterGenerator::_sort_overhangs(const Parameters &params,
         }
     }
 
-    for (int i = 1; i < paths.size(); i++) {
+    for (size_t i = 1; i < paths.size(); i++) {
         assert(paths[i - 1].last_point().coincides_with(paths[i].first_point()));
     }
 }
@@ -1817,7 +1817,7 @@ ExtrusionEntityCollection PerimeterGenerator::_traverse_extrusions(const Paramet
         // detect overhanging/bridging perimeters
         if (params.config.overhangs.value &&
             (params.config.overhangs_width_speed.is_enabled() || params.config.overhangs_width.is_enabled())
-            && params.layer->id() > 0 && params.layer->id() >= params.object_config.raft_layers
+            && params.layer->id() > 0 && params.layer->id() >= size_t(params.object_config.raft_layers.value)
             && !((params.object_config.support_material || params.object_config.support_material_enforce_layers > 0) &&
                 params.object_config.support_material_contact_distance.value == 0)) {
 
@@ -4328,7 +4328,7 @@ void PerimeterGenerator::process(// Input:
             nb_loop_holes = std::max(0, nb_loop_contour);
 
         if (params.print_config.spiral_vase) {
-            if (params.layer->id() >= params.config.bottom_solid_layers) {
+            if (params.layer->id() >= size_t(params.config.bottom_solid_layers.value)) {
                 nb_loop_contour = 1;
                 nb_loop_holes = 0;
             }
@@ -4497,7 +4497,7 @@ void PerimeterGenerator::process(// Input:
         
         if (lower_slices != nullptr &&
             overhang_extra_enabled &&
-            params.config.perimeters > 0 && params.layer->id() > params.object_config.raft_layers) {
+            params.config.perimeters > 0 && params.layer->id() > size_t(params.object_config.raft_layers.value)) {
 
             const ExPolygons *infill_area = polyWithoutOverlap.empty() ? &infill_exp : &polyWithoutOverlap;
             ExPolygons infill_areas_without_no_extra_overhangs;
@@ -4810,7 +4810,7 @@ void PerimeterGenerator::processs_no_bridge(const Parameters params, Surfaces& a
                         // store the results
                         last = diff_ex(last, unsupported_filtered, ApplySafetyOffset::Yes);
                         //remove "thin air" polygons (note: it assumes that all polygons below will be extruded)
-                        for (int i = 0; i < last.size(); i++) {
+                        for (int i = 0; i < int(last.size()); i++) {
                             if (intersection_ex(support, ExPolygons() = { last[i] }).empty()) {
                                 fill_surfaces.push_back(last[i]);
                                 last.erase(last.begin() + i);
@@ -5836,7 +5836,7 @@ ProcessSurfaceResult PerimeterGenerator::process_classic(const Parameters &     
                 assert(holes_count > perimeter_idx);
                 //assert(contours.size() == perimeter_idx);
                 contour_count = perimeter_idx + 1;
-                while (contours.size() < contour_count) {
+                while (int(contours.size()) < contour_count) {
                     contours.emplace_back();
                 }
             }
@@ -6063,7 +6063,7 @@ ProcessSurfaceResult PerimeterGenerator::process_classic(const Parameters &     
                     }
                 }
                 // no perimeter, then add the hole like a perimeter.
-                while(d >= contours.size())
+                while(d >= int(contours.size()))
                     contours.emplace_back();
                 contours[d].push_back(loop);
                 holes_d.erase(holes_d.begin() + hole_idx);
@@ -6253,7 +6253,7 @@ ProcessSurfaceResult PerimeterGenerator::process_classic(const Parameters &     
                 //if the shrink split the area in multipe bits
                 if (expoly_after_shrink_test.size() > 1) {
                     //remove too small bits
-                    for (int exp_idx = 0; exp_idx < expoly_after_shrink_test.size(); exp_idx++) {
+                    for (int exp_idx = 0; exp_idx < int(expoly_after_shrink_test.size()); exp_idx++) {
                         if (expoly_after_shrink_test[exp_idx].area() < (SCALED_EPSILON * SCALED_EPSILON * 4)) {
                             expoly_after_shrink_test.erase(expoly_after_shrink_test.begin() + exp_idx);
                             exp_idx--;
@@ -6268,7 +6268,7 @@ ProcessSurfaceResult PerimeterGenerator::process_classic(const Parameters &     
                     //maybe some areas are a just bit too thin, try with just a little more offset to remove them.
                     const coordf_t offset_test_2 = min * 0.8;
                     ExPolygons     expoly_after_shrink_test2 = offset_ex(ExPolygons{expoly}, -offset_test_2);
-                    for (int exp_idx = 0; exp_idx < expoly_after_shrink_test2.size(); exp_idx++) {
+                    for (int exp_idx = 0; exp_idx < int(expoly_after_shrink_test2.size()); exp_idx++) {
                         if (expoly_after_shrink_test2[exp_idx].area() < (SCALED_EPSILON * SCALED_EPSILON * 4)) {
                             expoly_after_shrink_test2.erase(expoly_after_shrink_test2.begin() + exp_idx);
                             exp_idx--;
@@ -6953,7 +6953,10 @@ ExtrusionLoop PerimeterGenerator::_extrude_and_cut_loop(const Parameters &params
                     if(direction_polyline.size() == 0 || direction_polyline.points.back() != path.first_point())
                         append(direction_polyline.points, path.polyline.to_polyline().points);
                 }
-                for (int i = 0; i < direction_polyline.points.size() - 1; i++)
+                // i + 1 < size() rather than i < size() - 1: the subtraction underflows to
+                // SIZE_MAX on an empty polyline, and with the assert compiled out in release
+                // that is a runaway loop rather than a no-op.
+                for (size_t i = 0; i + 1 < direction_polyline.points.size(); i++)
                     assert(direction_polyline.points[i] != direction_polyline.points[i + 1]);
                 if (direction_polyline.length() > direction_polyline_min_length) {
                     direction_polyline.clip_start(direction_polyline_trim);

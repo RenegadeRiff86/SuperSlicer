@@ -1605,7 +1605,11 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         }
         while (it != m_plater_data.end())
         {
-            if (it->first > m_plater_data.size())
+            // Plate keys are 1-based and indexed as [first - 1] below, so 0 and negatives are
+            // just as invalid as an over-range key. Previously only negatives were rejected,
+            // and only because the signed/unsigned compare wrapped them to a huge value; a
+            // key of 0 passed this check and then read plate_data_list[SIZE_MAX].
+            if (it->first < 1 || size_t(it->first) > m_plater_data.size())
             {
                 add_error("invalid plate index");
                 return false;
@@ -1998,7 +2002,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                     ObjectMetadata::VolumeMetadataList volumes;
                     ObjectMetadata::VolumeMetadataList* volumes_ptr = nullptr;
 
-                    for (int k = 0; k < object_id_list.size(); k++)
+                    for (size_t k = 0; k < object_id_list.size(); k++)
                     {
                         Id object_id = object_id_list[k].object_id;
                         volumes.emplace_back(object_id.second);
@@ -2039,7 +2043,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ":" << __LINE__ << boost::format(", begin to assemble objects, size %1%\n")%m_objects.size();
         //only load objects in plate_id
         PlateData* current_plate_data = nullptr;
-        if ((plate_id > 0) && (plate_id <= m_plater_data.size())) {
+        if ((plate_id > 0) && (size_t(plate_id) <= m_plater_data.size())) {
             auto it =m_plater_data.find(plate_id);
             if (it != m_plater_data.end()) {
                 current_plate_data = it->second.get();
@@ -2119,7 +2123,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
 
                 // add the entire geometry as the single volume to generate
                 //volumes.emplace_back(0, static_cast<int>(obj_geometry->second.triangles.size()) - 1);
-                for (int k = 0; k < object_id_list.size(); k++)
+                for (size_t k = 0; k < object_id_list.size(); k++)
                 {
                     Id object_id = object_id_list[k].object_id;
                     volumes.emplace_back(object_id.second);
@@ -2253,7 +2257,11 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         }
         while (it != m_plater_data.end())
         {
-            if (it->first > m_plater_data.size())
+            // Plate keys are 1-based and indexed as [first - 1] below, so 0 and negatives are
+            // just as invalid as an over-range key. Previously only negatives were rejected,
+            // and only because the signed/unsigned compare wrapped them to a huge value; a
+            // key of 0 passed this check and then read plate_data_list[SIZE_MAX].
+            if (it->first < 1 || size_t(it->first) > m_plater_data.size())
             {
                 add_error("invalid plate index");
                 return false;
@@ -2305,13 +2313,13 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 }
                 obj_index = object_item->second;
 
-                if (obj_index >= m_model->objects.size()) {
+                if (obj_index < 0 || size_t(obj_index) >= m_model->objects.size()) {
                     BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << ":" << __LINE__ << boost::format("invalid object id %1%\n")%obj_index;
                     map_it++;
                     continue;
                 }
                 ModelObject* obj =  m_model->objects[obj_index];
-                if (inst_index >= obj->instances.size()) {
+                if (inst_index < 0 || size_t(inst_index) >= obj->instances.size()) {
                     BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << ":" << __LINE__ << boost::format("invalid instance id %1%\n")%inst_index;
                     map_it++;
                     continue;
@@ -2322,10 +2330,10 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             }
         }
 
-        if ((plate_id > 0) && (plate_id <= m_plater_data.size())) {
+        if ((plate_id > 0) && (size_t(plate_id) <= m_plater_data.size())) {
             //remove the no need objects
             std::vector<size_t> delete_ids;
-            for (int index = 0; index < m_model->objects.size(); index++) {
+            for (size_t index = 0; index < m_model->objects.size(); index++) {
                 ModelObject* obj =  m_model->objects[index];
                 if (obj->volumes.size() == 0) {
                     //remove this model objects
@@ -3477,7 +3485,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                     first_id.second = 0;
                     IdToCurrentObjectMap::iterator current_object = m_current_objects.lower_bound(first_id);
                     IdToCurrentObjectMap new_map;
-                    for (int index = 0; index < m_curr_object->components.size(); index++)
+                    for (int index = 0; index < int(m_curr_object->components.size()); index++)
                     {
                         Component& component = m_curr_object->components[index];
                         Id new_id = component.object_id;
@@ -4123,7 +4131,9 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             add_error("can not find object for mesh_stats, id " + std::to_string(m_curr_config.object_id) );
             return false;
         }
-        if ((m_curr_config.volume_id == -1) || ((object->second.volumes.size() - 1) < m_curr_config.volume_id)) {
+        // size() - 1 underflows to SIZE_MAX on an empty volume list, which let every
+        // volume_id except -1 through and then indexed the empty vector below.
+        if ((m_curr_config.volume_id < 0) || (size_t(m_curr_config.volume_id) >= object->second.volumes.size())) {
             add_error("can not find part for mesh_stats");
             return false;
         }
@@ -4457,8 +4467,8 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
 
         Transform3d transform = bbs_get_transform_from_3mf_specs_string(bbs_get_attribute_value_string(attributes, num_attributes, TRANSFORM_ATTR));
         Vec3d ofs2ass = bbs_get_offset_from_3mf_specs_string(bbs_get_attribute_value_string(attributes, num_attributes, OFFSET_ATTR));
-        if (object_id < m_model->objects.size()) {
-            if (instance_id < m_model->objects[object_id]->instances.size()) {
+        if (object_id >= 0 && size_t(object_id) < m_model->objects.size()) {
+            if (instance_id >= 0 && size_t(instance_id) < m_model->objects[object_id]->instances.size()) {
                 //m_model->objects[object_id]->instances[instance_id]->set_assemble_from_transform(transform); //Susi_not_impl
                 //m_model->objects[object_id]->instances[instance_id]->set_offset_to_assembly(ofs2ass); //Susi_not_impl
             }
@@ -4478,7 +4488,9 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             add_error("can not find object for text_info, id " + std::to_string(m_curr_config.object_id));
             return false;
         }
-        if ((m_curr_config.volume_id == -1) || ((object->second.volumes.size() - 1) < m_curr_config.volume_id)) {
+        // size() - 1 underflows to SIZE_MAX on an empty volume list, which let every
+        // volume_id except -1 through and then indexed the empty vector below.
+        if ((m_curr_config.volume_id < 0) || (size_t(m_curr_config.volume_id) >= object->second.volumes.size())) {
             add_error("can not find part for text_info");
             return false;
         }
@@ -5111,7 +5123,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 }
                 //if (need_replace)
                 {
-                    for (int index = 0; index < current_object->components.size(); index++)
+                    for (int index = 0; index < int(current_object->components.size()); index++)
                     {
                         int temp_id = (index + 1) << 16 | backup_id;
                         Component& component = current_object->components[index];
