@@ -5,11 +5,9 @@
 #include <iostream>
 #endif
 
-#include <stdexcept>
 #include <string>
 #include <cmath>
 #include <type_traits>
-#include <limits>
 
 #if defined(_MSC_VER) &&  _MSC_VER <= 1800 || __cplusplus < 201103L
     #define BP2D_NOEXCEPT
@@ -141,6 +139,10 @@ public:
         return cos_;
     }
 };
+
+inline bool operator!=(const Radians& lhs, const Radians& rhs) BP2D_NOEXCEPT {
+    return static_cast<double>(lhs) != static_cast<double>(rhs);
+}
 
 /**
  * @brief Data type representing degrees. It supports conversion to radians.

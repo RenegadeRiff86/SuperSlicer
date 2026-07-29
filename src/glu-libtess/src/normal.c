@@ -38,6 +38,7 @@
 #include "normal.h"
 #include <math.h>
 #include <assert.h>
+#include <stddef.h>
 
 #ifndef TRUE
 #define TRUE 1
