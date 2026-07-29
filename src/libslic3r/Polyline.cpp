@@ -1471,11 +1471,11 @@ int ArcPolyline::simplify_straits(coordf_t min_tolerance,
         if (idx_end > this->m_path.size() - buffer_size / 2) {
             max_buffer_size = max_buffer_size_end + this->m_path.size() - idx_end;
             assert(max_buffer_size >= max_buffer_size_end);
-            if (idx_end < buffer_size) {
+            if (idx_end < size_t(buffer_size)) {
                 max_buffer_size = std::min(max_buffer_size, std::max(buffer_size - max_buffer_size_start, int(idx_end)));
             }
             min_buffer_length = coord_t(max_buffer_size * mean_dist_per_line);
-        } else if (idx_end < buffer_size) {
+        } else if (idx_end < size_t(buffer_size)) {
             max_buffer_size = std::max(buffer_size - max_buffer_size_start, int(idx_end));
             min_buffer_length = coord_t(max_buffer_size * mean_dist_per_line);
         }
@@ -1498,7 +1498,7 @@ int ArcPolyline::simplify_straits(coordf_t min_tolerance,
             // compute weight & get worst
             // push next point (to have next ofr tlast point)
             idxs.push_back(idx_end);
-            for (size_t i = 0; i < current_buffer_size; ++i) {
+            for (size_t i = 0; i < size_t(current_buffer_size); ++i) {
 //#ifdef _DEBUG
 //                    Point previous = m_path[idxs[i]].point;
 //                    Point current = m_path[idxs[i+1]].point;
@@ -1564,7 +1564,7 @@ int ArcPolyline::simplify_straits(coordf_t min_tolerance,
             weights.erase(weights.begin() + worst_idx);
             --current_buffer_size;
             // recompute next point things
-            if (worst_idx < current_buffer_size) {
+            if (worst_idx < size_t(current_buffer_size)) {
                 // recompute length from previous point
                 Point previous = m_path[worst_idx].point;
                 Point next = m_path[worst_idx + 1].point;
@@ -1727,7 +1727,7 @@ void ArcPolyline::make_arc(ArcFittingType with_fitting_arc, coordf_t tolerance, 
             // if current point is arc, make arc on the strait section before it (if enough points)
             // or if it's the last point of the path, do it on the last strait section (if enough points)
             if (!m_path[idx_end_mpath].linear() || idx_end_mpath + 1 >= m_path.size()) {
-                for(int ii=1;ii<pts.size();++ii) assert(!pts[ii-1].coincides_with_epsilon(pts[ii]));
+                for(size_t ii=1;ii<pts.size();++ii) assert(!pts[ii-1].coincides_with_epsilon(pts[ii]));
                 assert(m_path[idx_end_mpath].linear() || !pts.back().coincides_with_epsilon(m_path[idx_end_mpath].point));
                 // less than 3 points: don't use
                 if (pts.size() > 2) {

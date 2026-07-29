@@ -511,7 +511,7 @@ Points MultiPoint::_douglas_peucker_plus(const Points& pts, const double toleran
             }
         }
     }
-    for(int i=1;i<result_pts.size();++i)
+    for(size_t i=1;i<result_pts.size();++i)
         assert(!result_pts[i - 1].coincides_with_epsilon(result_pts[i]));
     return result_pts;
 }

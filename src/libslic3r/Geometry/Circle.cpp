@@ -297,7 +297,9 @@ bool ArcCircle::try_create_circle(const Points& points, const double max_radius,
     double least_deviation;
     bool found_circle = false;
     double current_deviation;
-    for (int index = 1; index < count - 1; index++)
+    // index + 1 < count, not index < count - 1: count is a size_t, so the subtraction
+    // underflows to SIZE_MAX when there are no points and the loop runs away.
+    for (size_t index = 1; index + 1 < count; index++)
     {
         if (index == middle_index)
             // BBS: We already checked this one, and it failed. don't need to do again
@@ -380,7 +382,7 @@ bool ArcCircle::get_deviation_sum_squared(const Points& points, const double tol
     Point temp;
     double distance_from_center, deviation;
     // BBS: skip the first and last points since they are on the circle
-    for (int index = 1; index < points.size() - 1; index++)
+    for (size_t index = 1; index + 1 < points.size(); index++)
     {
         //BBS: make sure the length from the center of our circle to the test point is 
         // at or below our max distance.
@@ -394,7 +396,7 @@ bool ArcCircle::get_deviation_sum_squared(const Points& points, const double tol
     }
     Point closest_point;
     //BBS: check the point perpendicular from the segment to the circle's center
-    for (int index = 0; index < points.size() - 1; index++)
+    for (size_t index = 0; index + 1 < points.size(); index++)
     {
         if (get_closest_perpendicular_point(points[index], points[index + 1], center, closest_point)) {
             temp = closest_point - center;
