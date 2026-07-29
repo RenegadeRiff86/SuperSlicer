@@ -2,8 +2,11 @@
 #define slic3r_TabDevice_hpp_
 
 #include <wx/panel.h>
+#if wxUSE_WEBVIEW
 #include <wx/webview.h>
+#endif
 
+class wxButton;
 class wxStaticText;
 class wxTextCtrl;
 
@@ -19,15 +22,22 @@ public:
     void load_printer_url();
 
 private:
-    wxWebView*    m_webview{nullptr};
-    wxTextCtrl*   m_url_bar{nullptr};
-    wxStaticText* m_message{nullptr};
-    wxPanel*      m_message_panel{nullptr};
+#if wxUSE_WEBVIEW
+    wxWebView* m_webview{nullptr};
 
     void on_webview_error(wxWebViewEvent& evt);
     void on_webview_navigated(wxWebViewEvent& evt);
-    void show_message(const wxString& msg);
     void show_webview();
+#endif
+
+    wxTextCtrl*  m_url_bar{nullptr};
+    wxButton*    m_open_browser_button{nullptr};
+    wxStaticText* m_message{nullptr};
+    wxPanel*      m_message_panel{nullptr};
+
+    void clear_printer_url();
+    void open_in_browser();
+    void show_message(const wxString& msg);
 };
 
 } // namespace GUI

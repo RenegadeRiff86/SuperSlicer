@@ -62,8 +62,7 @@ const std::string AppConfig::SECTION_MATERIALS = "sla_materials";
 const std::string AppConfig::SECTION_EMBOSS_STYLE = "font";
 
 // Common app config key literals extracted to address BP1001 repeated strings.
-// 'freecad_path' 7, splash screens 7, etc in get/set, defaults, and UI logic.
-constexpr const char* APP_FREECAD_PATH = "freecad_path";
+// splash screens 7, etc in get/set, defaults, and UI logic.
 constexpr const char* APP_SPLASH_SCREEN_EDITOR = "splash_screen_editor";
 constexpr const char* APP_SPLASH_SCREEN_GCODEVIEWER = "splash_screen_gcodeviewer";
 constexpr const char* APP_DATE_IN_CONFIG_FILE = "date_in_config_file";
@@ -147,40 +146,6 @@ void AppConfig::set_defaults()
 
         if (get("drop_project_action").empty())
             set("drop_project_action", "1");
-
-        if (get(APP_FREECAD_PATH).empty() || get(APP_FREECAD_PATH) == ".") {
-            set(APP_FREECAD_PATH, ".");
-            //try to find it
-#ifdef _WIN32
-            //windows
-            boost::filesystem::path prg_files = "C:/Program Files";
-            boost::filesystem::path freecad_path;
-            if (boost::filesystem::exists(prg_files)) {
-                for (const boost::filesystem::directory_entry& prg_dir : boost::filesystem::directory_iterator(prg_files)) {
-                    if (prg_dir.status().type() == boost::filesystem::file_type::directory_file
-                         && boost::starts_with(prg_dir.path().filename().string(), "FreeCAD")
-                         && (freecad_path.empty() || freecad_path.filename().string() < prg_dir.path().filename().string())) {
-                        freecad_path = prg_dir.path();
-                    }
-                }
-            }
-            if (!freecad_path.empty())
-                set(APP_FREECAD_PATH, freecad_path.string());
-#else
-#ifdef __APPLE__
-            //apple
-            if (boost::filesystem::exists("/Applications/FreeCAD.app/Contents/Frameworks/FreeCAD/lib"))
-                set(APP_FREECAD_PATH, "/Applications/FreeCAD.app/Contents/Frameworks/FreeCAD");
-
-#else
-            // linux
-            if (boost::filesystem::exists("/usr/lib/freecad/lib"))
-                set(APP_FREECAD_PATH, "/usr/lib/freecad");
-            else if (boost::filesystem::exists("/usr/local/bin/FreeCAD/lib"))
-                set(APP_FREECAD_PATH, "/usr/local/bin/FreeCAD");
-#endif
-#endif
-        }
 
         if (get("show_overwrite_dialog").empty())
             set("show_overwrite_dialog", "1");
