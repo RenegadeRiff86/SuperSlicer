@@ -134,7 +134,7 @@ public:
         std::unordered_map<Vec3f, CostItems, VecHash> results;
         BOOST_LOG_TRIVIAL(info) << CostItems::field_names();
         std::cout << CostItems::field_names() << std::endl;
-        for (int i = 0; i < orientations.size();i++) {
+        for (size_t i = 0; i < orientations.size();i++) {
             Vec3f orientation = -orientations[i];
 
             project_vertices(orientation);
@@ -162,7 +162,9 @@ public:
         Vec3f n1 = {0, 0, 1};
         auto best_orientation = results_vector[0].first;
 
-        for (int i = 1; i< results_vector.size()-1; i++) {
+        // i + 1 < size() rather than i < size() - 1: results_vector is indexed with a
+        // size_t so the subtraction underflows to SIZE_MAX when it is empty.
+        for (size_t i = 1; i + 1 < results_vector.size(); i++) {
             if (abs(results_vector[i].second.unprintability - results_vector[0].second.unprintability) < EPSILON && abs(results_vector[0].first.dot(n1)-1) > EPSILON) {
                 if (abs(results_vector[i].first.dot(n1)-1) < EPSILON*EPSILON) { 
                     best_orientation = n1;
@@ -185,7 +187,7 @@ public:
     {
         int count_apperance = 0;
         {
-            int face_count = mesh->facets_count();
+            size_t face_count = mesh->facets_count();
             auto its = mesh->its;
             face_normals = its_face_normals(its);
             areas = Eigen::VectorXf::Zero(face_count);
@@ -211,7 +213,7 @@ public:
             mesh_convex_hull = mesh->convex_hull_3d();
             //mesh_convex_hull.write_binary("convex_hull_debug.stl");
 
-            int face_count = mesh_convex_hull.facets_count();
+            size_t face_count = mesh_convex_hull.facets_count();
             auto its = mesh_convex_hull.its;
             face_count_hull = mesh_convex_hull.facets_count();
             face_normals_hull = its_face_normals(its);
@@ -229,7 +231,7 @@ public:
         }
     }
 
-    void area_cumulation(const Eigen::MatrixXf& normals_, const Eigen::VectorXf& areas_, int num_directions = 10)
+    void area_cumulation(const Eigen::MatrixXf& normals_, const Eigen::VectorXf& areas_, size_t num_directions = 10)
     {
         std::unordered_map<stl_normal, float, VecHash> alignments;
         // init to 0
@@ -245,7 +247,7 @@ public:
         std::vector<PAIR> align_counts(alignments.begin(), alignments.end());
         sort(align_counts.begin(), align_counts.end(), [](const PAIR& p1, const PAIR& p2) {return p1.second > p2.second; });
 
-        num_directions = std::min(static_cast<size_t>(num_directions), align_counts.size());
+        num_directions = std::min(num_directions, align_counts.size());
         for (size_t i = 0; i < num_directions; i++)
         {
             orientations.push_back(align_counts[i].first);
@@ -254,7 +256,7 @@ public:
         }
     }
     //This function is to make sure to return the accurate normal rather than quantized normal
-    void area_cumulation_accurate( std::vector<Vec3f>& normals_, const Eigen::MatrixXf& quantize_normals_, const Eigen::VectorXf& areas_, int num_directions = 10)
+    void area_cumulation_accurate( std::vector<Vec3f>& normals_, const Eigen::MatrixXf& quantize_normals_, const Eigen::VectorXf& areas_, size_t num_directions = 10)
     {
         std::unordered_map<stl_normal, std::pair<std::vector<float>, Vec3f>, VecHash> alignments_;
         Vec3f n1 = { 0, 0, 0 };
@@ -277,7 +279,7 @@ public:
         std::vector<PAIR> align_counts(alignments_.begin(), alignments_.end());
         sort(align_counts.begin(), align_counts.end(), [](const PAIR& p1, const PAIR& p2) {return p1.second.first[1] > p2.second.first[1]; });
 
-        num_directions = std::min(static_cast<size_t>(num_directions), align_counts.size());
+        num_directions = std::min(num_directions, align_counts.size());
         for (size_t i = 0; i < num_directions; i++)
         {
             orientations.push_back(align_counts[i].second.second);
@@ -321,7 +323,7 @@ public:
 
     void project_vertices(Vec3f orientation)
     {
-        int face_count = mesh->facets_count();
+        size_t face_count = mesh->facets_count();
         auto its = mesh->its;
         z_projected.resize(face_count, 3);  // 3 columns: the per-triangle vertex projections
         z_max.resize(face_count, 1);
@@ -420,7 +422,7 @@ public:
             costs.contour = 4 * sqrt(costs.bottom);  // empirical contour weight: 4x sqrt of bottom area
 #else
             float contour = 0;
-            int face_count = mesh->facets_count();
+            size_t face_count = mesh->facets_count();
             auto its = mesh->its;
             int contour_amout = 0;
             for (size_t i = 0; i < face_count; i++)

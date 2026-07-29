@@ -648,7 +648,7 @@ MedialAxis::remove_bits(ThickPolylines& pp) const
 
         //check if is smaller or the other ones are not endpoits
         int nb_better_than_me = 0;
-        for (int i = 0; i < crosspoint.size(); i++) {
+        for (size_t i = 0; i < crosspoint.size(); i++) {
             if (!pp[crosspoint[0]].endpoints.second || length <= pp[crosspoint[0]].length())
                 nb_better_than_me++;
         }
@@ -656,7 +656,7 @@ MedialAxis::remove_bits(ThickPolylines& pp) const
 
         //check if the length of the polyline is small vs width of the other lines
         coord_t local_max_width = 0;
-        for (int i = 0; i < crosspoint.size(); i++) {
+        for (size_t i = 0; i < crosspoint.size(); i++) {
             local_max_width = std::max(local_max_width, pp[crosspoint[i]].points_width[0]);
         }
         if (length > coordf_t(local_max_width + this->m_min_width))
@@ -1486,7 +1486,7 @@ MedialAxis::concatenate_small_polylines(ThickPolylines& pp) const
                 polyline.points_width.back() = std::min(polyline.points_width[polyline.points_width.size() - 2], best_candidate->points_width[1]);  // second-to-last point (for interpolating over-extrusion clamp)
             }
             //be far enough
-            int far_idx = 1;
+            size_t far_idx = 1;
             while (far_idx < best_candidate->points.size() && polyline.back().coincides_with_epsilon(best_candidate->points[far_idx]))
                 far_idx++;
             polyline.points.insert(polyline.points.end(), best_candidate->points.begin() + far_idx, best_candidate->points.end());
@@ -1570,7 +1570,7 @@ MedialAxis::concatenate_polylines_with_crossing(ThickPolylines& pp)
                 polyline.points_width.back() = std::min(polyline.points_width[polyline.points_width.size() - 2], best_candidate->points_width[1]);  // second-to-last point (for interpolating over-extrusion clamp)
             }
             //be far enough
-            int far_idx = 1;
+            size_t far_idx = 1;
             while (far_idx < best_candidate->points.size() && polyline.back().coincides_with_epsilon(best_candidate->points[far_idx]))
                 far_idx++;
             polyline.points.insert(polyline.points.end(), best_candidate->points.begin() + far_idx, best_candidate->points.end());
@@ -1846,7 +1846,7 @@ MedialAxis::grow_to_nozzle_diameter(ThickPolylines& pp, const ExPolygons& anchor
         1, false).scaled_width();
     //ensure the width is not lower than min_width.
     for (ThickPolyline& polyline : pp) {
-        for (int i = 0; i < polyline.points.size(); ++i) {
+        for (size_t i = 0; i < polyline.points.size(); ++i) {
             const bool is_anchored = std::any_of(anchors.begin(), anchors.end(),
                 [&polyline, i](const ExPolygon& poly) { return poly.contains(polyline.points[i]); });
             if (!is_anchored && polyline.points_width[i] < min_width)
@@ -1907,7 +1907,7 @@ check_circular(ExPolygon& expolygon, coord_t max_variation) {
         // Computing circle center
         Point center = expolygon.contour.centroid();
         coordf_t radius_min = std::numeric_limits<float>::max(), radius_max = 0;
-        for (int i = 0; i < expolygon.contour.points.size(); ++i) {
+        for (size_t i = 0; i < expolygon.contour.points.size(); ++i) {
             coordf_t dist = expolygon.contour.points[i].distance_to(center);
             radius_min = std::min(radius_min, dist);
             radius_max = std::max(radius_max, dist);
