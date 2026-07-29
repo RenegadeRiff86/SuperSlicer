@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "SuperSlicer: Run release",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build-linux-current-release/bin/superslicer",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "SuperSlicer: Build release"
+    },
+    {
+      "name": "SuperSlicer: Debug",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build-linux-current-debug/bin/superslicer",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "SuperSlicer: Build debug"
+    }
+  ]
+}

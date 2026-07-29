@@ -1,0 +1,90 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "SuperSlicer: Build release",
+      "type": "shell",
+      "command": "${workspaceFolder}/BuildLinux.sh",
+      "args": [
+        "--deps",
+        "--slicer"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [
+        {
+          "owner": "cpp",
+          "fileLocation": [
+            "absolute"
+          ],
+          "pattern": {
+            "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error|fatal error):\\s+(.*)$",
+            "file": 1,
+            "line": 2,
+            "column": 3,
+            "severity": 4,
+            "message": 5
+          }
+        }
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": false
+      }
+    },
+    {
+      "label": "SuperSlicer: Build debug",
+      "type": "shell",
+      "command": "${workspaceFolder}/BuildLinux.sh",
+      "args": [
+        "--debug",
+        "--deps",
+        "--slicer"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [
+        {
+          "owner": "cpp",
+          "fileLocation": [
+            "absolute"
+          ],
+          "pattern": {
+            "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error|fatal error):\\s+(.*)$",
+            "file": 1,
+            "line": 2,
+            "column": 3,
+            "severity": 4,
+            "message": 5
+          }
+        }
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": false
+      }
+    },
+    {
+      "label": "SuperSlicer: Run release",
+      "type": "process",
+      "command": "${workspaceFolder}/build-linux-current-release/bin/superslicer",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": "SuperSlicer: Build release",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    }
+  ]
+}
