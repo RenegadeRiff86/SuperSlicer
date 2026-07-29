@@ -171,11 +171,17 @@ static boost::filesystem::path clean_absolute_path(const boost::filesystem::path
 {
     assert(path.is_absolute());
     // make sure the path is well formed for the os.
-    boost::filesystem::path fixpath(path);
-    // note: lexically_normal() already do make_preferred()
-    fixpath.lexically_normal();
+    // lexically_normal() returns a normalized copy; it does not modify the path in place.
+    boost::filesystem::path fixpath(path.lexically_normal());
 #ifndef _WIN32
-    fixpath = boost::filesystem::canonical(fixpath);
+    if (boost::filesystem::exists(fixpath)) {
+        fixpath = boost::filesystem::canonical(fixpath);
+    } else if (boost::filesystem::exists(fixpath.parent_path())) {
+        // canonical() requires the target to exist. Canonicalize the existing
+        // parent while retaining the new leaf (for example, a first-run
+        // version-specific configuration directory).
+        fixpath = boost::filesystem::canonical(fixpath.parent_path()) / fixpath.filename();
+    }
 #else
     if (!fixpath.empty() && fixpath.string().front() != '\\') {
         if (boost::filesystem::exists(fixpath)) {
