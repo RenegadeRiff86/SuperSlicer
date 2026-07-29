@@ -95,7 +95,6 @@ class wxZipStreamLink;
 #include "ConfigWizard.hpp"
 #include "ConfigSnapshotDialog.hpp"
 #include "CreateMMUTiledCanvas.hpp"
-#include "FreeCADDialog.hpp"
 #include "Preferences.hpp"
 #include "Tab.hpp"
 #include "SysInfoDialog.hpp"
@@ -2335,37 +2334,6 @@ int GUI_App::get_max_font_pt_size() const
 
 void GUI_App::init_fonts()
 {
-    static bool first_run = true;
-    if (first_run) {
-        first_run = false;
-
-        auto copy_and_install_font = [](std::string_view font_filename) -> bool {
-            assert(boost::filesystem::exists(Slic3r::resources_path() / "fonts"));
-            boost::filesystem::path cache_path;
-            if (!Slic3r::data_dir().empty()) {
-                cache_path = Slic3r::data_path() / "cache";
-            } else {
-                cache_path = boost::filesystem::temp_directory_path();
-            }
-            // copy fonts into configuration, to avoid blocking them
-            if (!boost::filesystem::exists(cache_path / "fonts" / font_filename) &&
-                boost::filesystem::exists(Slic3r::resources_path() / "fonts" / font_filename)) {
-                if (!boost::filesystem::exists(cache_path / "fonts")) {
-                    boost::filesystem::create_directories(cache_path / "fonts");
-                }
-                boost::filesystem::copy(Slic3r::resources_path() / "fonts" / font_filename,
-                                        cache_path / "fonts" / font_filename);
-            }
-            return wxFont::AddPrivateFont(
-                (cache_path / "fonts" / font_filename)
-                    .string()); // this needs to be done just once per the application run
-        };
-        // Exemple of font add
-        // if (!copy_and_install_font("comic.ttf")) {
-        //    wxLogError("Could not find Comic Sans MS font");
-        // }
-    }
-
     m_small_font = wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT);
     m_bold_font = wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT).Bold();
     m_normal_font = wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT);
@@ -2788,10 +2756,6 @@ void GUI_App::calibration_pressureadv_adaptive_dialog()
 void GUI_App::calibration_pressureadv_adaptive_results_dialog()
 {
     change_calibration_dialog(nullptr, new CalibrationPressureAdvAdaptiveDialog(this, mainframe, /*results_mode*/ true));
-}
-void GUI_App::freecad_script_dialog()
-{
-    change_calibration_dialog(nullptr, new FreeCADDialog(this, mainframe));
 }
 void GUI_App::tiled_canvas_dialog()
 {
