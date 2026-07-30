@@ -1165,7 +1165,7 @@ void PrintObject::_transform_hole_to_polyholes()
                                 Point center = hole.centroid();
                                 double diameter_min = std::numeric_limits<float>::max(), diameter_max = 0;
                                 double diameter_sum = 0;
-                                for (int i = 0; i < hole.points.size(); ++i) {
+                                for (size_t i = 0; i < hole.points.size(); ++i) {
                                     double dist = hole.points[i].distance_to(center);
                                     diameter_min = std::min(diameter_min, dist);
                                     diameter_max = std::max(diameter_max, dist);
@@ -1701,7 +1701,7 @@ void PrintObject::slice_volumes()
                     //FIXME only apply the compensation if no raft is enabled.
                     coord_t first_layer_compensation = 0;
                     const int first_layers = m_config.first_layer_size_compensation_layers.value;
-                    if (layer_id < first_layers && layer_id >= m_config.raft_layers && m_config.first_layer_size_compensation.value != 0) {
+                    if (layer_id < size_t(first_layers) && layer_id >= size_t(m_config.raft_layers.value) && m_config.first_layer_size_compensation.value != 0) {
                         // Only enable Elephant foot compensation if printing directly on the print bed.
                         first_layer_compensation = scale_t(m_config.first_layer_size_compensation.value);
                         // reduce first_layer_compensation for every layer over the first one.
@@ -1713,7 +1713,7 @@ void PrintObject::slice_volumes()
                         first_layer_compensation = 0;
                     }
                     // preparation to apply the elephant foot compensation: grow what will be shrunk
-                    if (layer_id < first_layers && layer_id >= m_config.raft_layers && m_config.first_layer_size_compensation_no_collapse.value) {
+                    if (layer_id < size_t(first_layers) && layer_id >= size_t(m_config.raft_layers.value) && m_config.first_layer_size_compensation_no_collapse.value) {
                         first_layer_compensation = std::min(coord_t(0), std::min(hole_delta, std::min(inner_delta, outter_delta)));
                         assert(first_layer_compensation <= 0);
                         //hole_delta -= first_layer_compensation;

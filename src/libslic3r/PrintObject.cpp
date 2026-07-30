@@ -2958,11 +2958,16 @@ void PrintObject::discover_vertical_shells()
                                 combine_holes(cache.holes);
                             }
                             combine_shells(cache.top_surfaces);
-                            if (nb_perimeter_layers_for_solid_fill != 0 && (idx_layer > min_layer_no_solid || print_z < min_z_no_solid)) {
+                            // int(idx_layer), not a bare size_t compare: min_layer_no_solid is
+                            // bottom_solid_layers - 1 and that option's minimum is 0, so it is -1
+                            // when there are no bottom solid layers. As a size_t that -1 becomes
+                            // SIZE_MAX and the test can never pass, disabling this whole branch;
+                            // every layer is above layer -1, so it should always pass instead.
+                            if (nb_perimeter_layers_for_solid_fill != 0 && (int(idx_layer) > min_layer_no_solid || print_z < min_z_no_solid)) {
                                 if (!cache.top_fill_surfaces.empty()) {
                                     expolygons_append(fill_shell, cache.top_fill_surfaces);
                                     fill_shell = union_ex(fill_shell);
-                                }                                if (nb_perimeter_layers_for_solid_fill > 1 && i - idx_layer < nb_perimeter_layers_for_solid_fill) {
+                                }                                if (nb_perimeter_layers_for_solid_fill > 1 && i - int(idx_layer) < nb_perimeter_layers_for_solid_fill) {
                                     expolygons_append(max_perimeter_shell, cache.top_perimeter_surfaces);
                                     max_perimeter_shell = union_ex(max_perimeter_shell);
                                 }
@@ -2998,12 +3003,12 @@ void PrintObject::discover_vertical_shells()
                                 combine_holes(cache.holes);
                             }
                             combine_shells(cache.bottom_surfaces);
-                            if (nb_perimeter_layers_for_solid_fill != 0 && (idx_layer > min_layer_no_solid || layer->print_z < min_z_no_solid)) {
+                            if (nb_perimeter_layers_for_solid_fill != 0 && (int(idx_layer) > min_layer_no_solid || layer->print_z < min_z_no_solid)) {
                                 if (!cache.bottom_fill_surfaces.empty()) {
                                     expolygons_append(fill_shell, cache.bottom_fill_surfaces);
                                     fill_shell = union_ex(fill_shell);
                                 }
-                                if (nb_perimeter_layers_for_solid_fill > 1 && idx_layer - i < nb_perimeter_layers_for_solid_fill) {
+                                if (nb_perimeter_layers_for_solid_fill > 1 && int(idx_layer) - i < nb_perimeter_layers_for_solid_fill) {
                                     expolygons_append(max_perimeter_shell, cache.bottom_perimeter_surfaces);
                                     max_perimeter_shell = union_ex(max_perimeter_shell);
                                 }
@@ -3084,9 +3089,9 @@ void PrintObject::discover_vertical_shells()
                         expolygons_append(shell, diff_ex(polygonsInternal, holes));
                         shell = union_ex(shell);
                         //check if a polygon is only over perimeter, in this case evict it (depends from nb_perimeter_layers_for_solid_fill value)
-                        if (nb_perimeter_layers_for_solid_fill != 0 && (idx_layer > min_layer_no_solid || layer->print_z < min_z_no_solid)) {
+                        if (nb_perimeter_layers_for_solid_fill != 0 && (int(idx_layer) > min_layer_no_solid || layer->print_z < min_z_no_solid)) {
                             ExPolygons toadd;
-                            for (int i = 0; i < shell.size(); i++) {
+                            for (size_t i = 0; i < shell.size(); i++) {
                                 if (nb_perimeter_layers_for_solid_fill < 2 || intersection_ex(ExPolygons{ shell[i] }, max_perimeter_shell, ApplySafetyOffset::No).empty()) {  // need at least 2 solid-fill perimeter layers
                                     ExPolygons expoly = intersection_ex(ExPolygons{ shell[i] }, fill_shell);
                                     toadd.insert(toadd.end(), expoly.begin(), expoly.end());

@@ -10264,7 +10264,7 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
         double external_perimeter_speed = config.get_computed_value("external_perimeter_speed");
         double max = external_perimeter_speed;
         double min = external_perimeter_speed;
-        for (int x = 0; x < values.size(); ++x) {
+        for (size_t x = 0; x < values.size(); ++x) {
             if (values[x].percent) {
                 min = std::min(min, values[x].get_abs_value(external_perimeter_speed));
                 max = std::max(max, values[x].get_abs_value(external_perimeter_speed));
@@ -10287,7 +10287,7 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
         opt.set_can_be_disabled();
         // extract values
         Pointfs graph_curve;
-        for (int x = 0; x < values.size(); ++x) {
+        for (size_t x = 0; x < values.size(); ++x) {
             double speed = values[x].get_abs_value(external_perimeter_speed);
             speed = std::clamp(speed, min, max);
             double percent = (speed - min) / (max - min);
@@ -10351,10 +10351,10 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
             }
         }
         // while there is a value
-        for(int idx = 0 ;idx < enable_dynamic_fan_speeds.size(); ++idx) {
+        for(size_t idx = 0 ;idx < enable_dynamic_fan_speeds.size(); ++idx) {
             // extract values
             Pointfs graph_curve;
-            for (int x = 0; x < values.size(); ++x) {
+            for (size_t x = 0; x < values.size(); ++x) {
                 graph_curve.push_back(Vec2d(x*OVERLAP_GRAPH_STEP_PCT, values[x].get_at(idx)));
             }
             if (external_perimeter_fan_speed && external_perimeter_fan_speed->is_enabled(idx)) {
@@ -10370,7 +10370,7 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
         }
         // recreate fan speed graph
         opt.set(graph_data);
-        for (int idx = 0; idx < enable_dynamic_fan_speeds.size(); ++idx) {
+        for (size_t idx = 0; idx < enable_dynamic_fan_speeds.size(); ++idx) {
             opt.set_enabled(enable_dynamic_fan_speeds.get_at(idx), idx);
         }
         config.set_key_value("overhangs_dynamic_fan_speed", opt.clone());
@@ -11433,7 +11433,7 @@ std::map<std::string, std::string> PrintConfigDef::to_prusa(t_config_option_key&
             const ConfigOptionFloats *nozzle_diameters = all_conf.option<ConfigOptionFloats>(KEY_NOZZLE_DIAMETER);
             assert(current_opt && nozzle_diameters);
             assert(current_opt->size() == nozzle_diameters->size());
-            for (int i = 0; i < current_opt->size(); i++) {
+            for (size_t i = 0; i < current_opt->size(); i++) {
                 computed_opt.set_at(current_opt->get_abs_value(i, nozzle_diameters->get_at(i)), i);
             }
             assert(computed_opt.size() == nozzle_diameters->size());
