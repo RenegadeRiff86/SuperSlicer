@@ -1919,7 +1919,7 @@ void GCodeProcessor::apply_config_simplify3d(const std::string& filename)
 
 void GCodeProcessor::set_extruder_temp(float temp, size_t extruder_id) {
     if (m_single_extruder_multi_material) {
-        for (int i = 0; i < m_extruder_temps.size(); i++) {
+        for (size_t i = 0; i < m_extruder_temps.size(); i++) {
             m_extruder_temps[i] = temp;
         }
     } else {

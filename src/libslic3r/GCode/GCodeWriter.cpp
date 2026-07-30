@@ -415,7 +415,7 @@ std::string GCodeWriter::set_temperature(const int16_t temperature, bool wait, i
 
 std::string GCodeWriter::set_bed_temperature(uint32_t temperature, bool wait)
 {
-    if (temperature == m_last_bed_temperature && (! wait || m_last_bed_temperature_reached))
+    if (temperature == uint32_t(m_last_bed_temperature) && (! wait || m_last_bed_temperature_reached))
         return {};
 
     m_last_bed_temperature = temperature;
@@ -460,7 +460,7 @@ std::string GCodeWriter::set_bed_temperature(uint32_t temperature, bool wait)
 
 std::string GCodeWriter::set_chamber_temperature(uint32_t temperature, bool wait)
 {
-    if (temperature == m_last_chamber_temperature && !wait)
+    if (temperature == uint32_t(m_last_chamber_temperature) && !wait)
         return std::string();
 
     if (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfRepRap) || FLAVOR_IS(gcfMachinekit)) {

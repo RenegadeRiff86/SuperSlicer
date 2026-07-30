@@ -437,7 +437,11 @@ public:
         }
         gcode << temperature;
         bool multiple_tools = false; // ?
-        if (this->m_current_tool != -1 && (multiple_tools || this->m_gcode_flavor == (gcfMakerWare) || this->m_gcode_flavor == (gcfSailfish))) {
+        // m_current_tool is a size_t initialised to 0, so the "no tool" sentinel this test
+        // was written for cannot occur and the first clause is always true. Kept and spelled
+        // as size_t(-1) rather than dropped, since whether the member should be signed is a
+        // separate question.
+        if (this->m_current_tool != size_t(-1) && (multiple_tools || this->m_gcode_flavor == (gcfMakerWare) || this->m_gcode_flavor == (gcfSailfish))) {
             if (this->m_gcode_flavor != (gcfRepRap)) {
                 gcode << " T" << tool;
             }

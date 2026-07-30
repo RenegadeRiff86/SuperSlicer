@@ -242,7 +242,7 @@ static ExPolygons to_expolys(Polygons polys) {
             const Layer   &lower_layer    = *print_object.get_layer(layer_id - 1);
 
             // Guard clause to reduce nesting depth (addresses BP1015).
-            const bool enforced_layer = layer_id < support_enforce_layers;
+            const bool enforced_layer = layer_id < size_t(support_enforce_layers);
             if (!support_auto && !enforced_layer) {
                 out[layer_id + num_raft_layers] = {};
                 throw_on_cancel();

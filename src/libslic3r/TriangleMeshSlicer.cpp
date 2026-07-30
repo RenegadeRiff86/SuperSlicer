@@ -2154,10 +2154,13 @@ Polygons project_mesh(
     const int step = 10;
     for (Polygons *storage : {&top.front(), &bottom.back()}) {
         if (storage->size() > 1000) {
-            int i_start, i_end;
+            size_t i_start, i_end;
             for (i_start = 0, i_end = step; i_end < storage->size(); i_start = i_end, i_end += step) {
                 // don't cut before a hole, it may mess evrything.
-                while ((*storage)[i_end].is_clockwise() && i_end < storage->size()) {
+                // Bounds test first: the operands were the other way round, so
+                // (*storage)[i_end] was read before i_end was checked against size(),
+                // going one past the end whenever the walk reached the last polygon.
+                while (i_end < storage->size() && (*storage)[i_end].is_clockwise()) {
                     i_end++;
                 }
                 Polygons p2(storage->begin() + i_start, storage->begin() + i_end);

@@ -1566,7 +1566,9 @@ void SeamPlacer::align_seam_points(const PrintObject *po, const SeamPlacerImpl::
                     //old point
                     Point lower_pt{ scale_t(lower_peri->final_seam_position.x()), scale_t(lower_peri->final_seam_position.y()) };
                     //for each segment
-                    for (int i = perimeter.start_index; i < perimeter.end_index-1; i++) {
+                    // i + 1 < end_index rather than i < end_index - 1: end_index is a size_t,
+                    // so the subtraction underflows to SIZE_MAX on an empty perimeter.
+                    for (size_t i = perimeter.start_index; i + 1 < perimeter.end_index; i++) {
                         Point pt = lower_pt.projection_onto(Point{scale_t(points[i].position.x()), scale_t(points[i].position.y())},
                                                             Point{scale_t(points[i + 1].position.x()), scale_t(points[i + 1].position.y())});
                         double dist_sqr = pt.distance_to_square(lower_pt);

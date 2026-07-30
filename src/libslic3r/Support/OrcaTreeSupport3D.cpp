@@ -294,7 +294,7 @@ static Polygons generate_layer_overhangs(
     bool       raw_overhangs_calculated = false;
     ExPolygons overhangs;
 
-    const bool enforced_layer = layer_id < context.support_enforce_layers;
+    const bool enforced_layer = layer_id < size_t(context.support_enforce_layers);
     if (context.support_auto || enforced_layer) {
         const float lower_layer_offset = overhang_lower_layer_offset(
             lower_layer, enforced_layer, context.support_threshold_auto, context.tan_threshold);

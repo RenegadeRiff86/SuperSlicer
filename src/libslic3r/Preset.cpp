@@ -2033,7 +2033,7 @@ void add_correct_opts_to_diff(const t_config_option_key &opt_key,
     }
     for (int32_t i = 0; i < int32_t(opt_cur->size()); i++) {
         // if (new one & we need to report new idx) or if hte value isn't the same.
-        if (i >= opt_init->size()) {
+        if (i >= int32_t(opt_init->size())) {
             uint16_t status = PresetCollection::DIRTY_VECTOR_ADDED_IDX;
             if (opt_cur->get_at(i) == opt_init->get_at(0)) {
                 status |= PresetCollection::DIRTY_VECTOR_SAME_AS_FIRST;

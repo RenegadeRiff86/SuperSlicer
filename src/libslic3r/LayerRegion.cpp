@@ -1289,7 +1289,7 @@ void LayerRegion::prepare_fill_surfaces()
                         //not possible to have empty cut with more than one intersect
                         assert(!cut.empty());
                         surface->expolygon = std::move(intersect[0]);
-                        for (int i = 1; i < intersect.size(); i++) {
+                        for (size_t i = 1; i < intersect.size(); i++) {
                             srfs_to_add.emplace_back(*surface, std::move(intersect[i]));
                         }
                         for (ExPolygon& expoly : cut) {

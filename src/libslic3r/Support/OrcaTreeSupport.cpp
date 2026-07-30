@@ -434,7 +434,7 @@ static Point find_closest_ex(Point from, const ExPolygons& polygons)
     double min_dist2 = std::numeric_limits<double>::max();
 
     for (const ExPolygon &poly : polygons) {
-        for (int i = 0; i < poly.num_contours(); i++) {
+        for (size_t i = 0; i < poly.num_contours(); i++) {
             const Point* candidate = poly.contour_or_hole(i).closest_point(from);
             double dist2 = vsize2_with_unscale(*candidate - from);
             if (dist2 < min_dist2) {

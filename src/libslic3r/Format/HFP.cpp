@@ -175,7 +175,7 @@ void HFP::set_custom_gcode_z(Model &model) const {
     std::string extra;
 
     if (!m_filament_set.empty()) {
-        for (int i = 0; i < m_filament_set.size(); i++) {
+        for (size_t i = 0; i < m_filament_set.size(); i++) {
             model.custom_gcode_per_print_z.gcodes.push_back(CustomGCode::Item{m_layer_height * m_slider_values[i],
                                                                               type, extruder, m_filament_set[i].Color,
                                                                               extra});
