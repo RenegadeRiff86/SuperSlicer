@@ -187,10 +187,10 @@ public:
         while (btidx_to_tabpage.size() < n)
             btidx_to_tabpage.push_back(-1);
         int16_t last = -1;
-        for (int i = 0; i < n; i++)
+        for (size_t i = 0; i < n; i++)
             if (btidx_to_tabpage[i] >= 0)
                 last = i;
-        for (int i = 0; i < btidx_to_tabpage.size(); i++)
+        for (size_t i = 0; i < btidx_to_tabpage.size(); i++)
             if (btidx_to_tabpage[i] > last)
                 btidx_to_tabpage[i]++;
         btidx_to_tabpage.insert(btidx_to_tabpage.begin() + n, last + 1);
@@ -222,10 +222,10 @@ public:
         while (btidx_to_tabpage.size() < n)
             btidx_to_tabpage.push_back(-1);
         int16_t last = -1;
-        for (int i = 0; i < n; i++)
+        for (size_t i = 0; i < n; i++)
             if (btidx_to_tabpage[i] >= 0)
                 last = btidx_to_tabpage[i];
-        for (int i = 0; i < btidx_to_tabpage.size(); i++)
+        for (size_t i = 0; i < btidx_to_tabpage.size(); i++)
             if (btidx_to_tabpage[i] > last)
                 btidx_to_tabpage[i]++;
         btidx_to_tabpage.insert(btidx_to_tabpage.begin() + n, last + 1);
@@ -315,8 +315,9 @@ public:
             //_selection_override = int(-2);
 
             // check that only the selected page is visible and others are hidden:
+            // real_page is >= 0 inside this branch (checked above), so the cast is exact.
             for (size_t page = 0; page < m_pages.size(); page++)
-                if (page != real_page)
+                if (page != size_t(real_page))
                     m_pages[page]->Hide();
 
             EmitEventSelChanged(n);
@@ -348,7 +349,7 @@ public:
             btidx_to_tabpage.erase(btidx_to_tabpage.begin() + bt_page);
             if (real_page >= 0) {
                 DoSetSelectionAfterRemoval(real_page);
-                for (int i = bt_page; i < btidx_to_tabpage.size(); i++)
+                for (size_t i = bt_page; i < btidx_to_tabpage.size(); i++)
                     if (btidx_to_tabpage[i] > real_page)
                         btidx_to_tabpage[i]--;
                     else if (btidx_to_tabpage[i] == real_page)
@@ -597,10 +598,14 @@ protected:
                     btidx_to_tabpage.erase(btidx_to_tabpage.begin() + i);
                     --i;
                 }
-            for (int i = 0; i < btidx_to_tabpage.size(); i++)
-                if (btidx_to_tabpage[i] > page)
+            // Compare in the signed domain, as the loop above already does with
+            // int16_t(page). page is a size_t, so an int16_t element was promoted to size_t
+            // here: the -1 "no tab page" sentinel became SIZE_MAX, always compared greater,
+            // and so got decremented to -2 on every single page removal.
+            for (size_t i = 0; i < btidx_to_tabpage.size(); i++)
+                if (btidx_to_tabpage[i] > int16_t(page))
                     btidx_to_tabpage[i]--;
-                else if(btidx_to_tabpage[i] == page)
+                else if(btidx_to_tabpage[i] == int16_t(page))
                     btidx_to_tabpage[i] = -1;
             CleanBt();
             if (page >= 0)
