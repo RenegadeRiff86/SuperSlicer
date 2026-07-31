@@ -1321,7 +1321,7 @@ void GCodeProcessor::process_ascii_file(const std::string& filename, std::functi
             if (m_result.extruders_count == 0)
                 m_result.extruders_count = MIN_EXTRUDERS_COUNT;
         }
-      } catch (Exception ex) {
+      } catch (const Exception &) {
           m_producer = EProducer::Unknown;
       }
     }

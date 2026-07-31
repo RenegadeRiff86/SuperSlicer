@@ -1907,7 +1907,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
 
             wxString label = _(params[params.size()-2]);
 
-            for (int i = 1; i < params.size() - 1; i++) {
+            for (size_t i = 1; i + 1 < params.size(); i++) {
                 if (params[i] == "idx")
                 {
                     label = label + " " + std::to_string(int(idx_page + 1));
@@ -1943,7 +1943,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
             }
             bool no_title = false;
             bool no_search = false;
-            for (int i = 1; i < params.size() - 1; i++) {
+            for (size_t i = 1; i + 1 < params.size(); i++) {
                 if (params[i] == "nolabel")
                 {
                     no_title = true;
@@ -1956,7 +1956,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
             }
 
             current_group = current_page->new_optgroup(_(params.back()), no_title, !no_search, type_override);
-            for (int i = 1; i < params.size() - 1; i++) {
+            for (size_t i = 1; i + 1 < params.size(); i++) {
                 if (boost::starts_with(params[i], "title_width$")) {
                     current_group->title_width = atoi(params[i].substr(strlen("title_width$")).c_str());
                 }
@@ -2141,7 +2141,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
             }
 
             current_line = { _L(params.empty()?"":params.back().c_str()), wxString{""} };
-            for (int i = 1; i < params.size() - 1; i++) {
+            for (size_t i = 1; i + 1 < params.size(); i++) {
                 if (boost::starts_with(params[i], "url$")) { // only on line
                     current_line.label_path = params[i].substr(strlen("url$"));
                 }
@@ -2177,7 +2177,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
             }
 
             int id = -1;
-            for (int i = 1; i < params.size() - 1; i++) {
+            for (size_t i = 1; i + 1 < params.size(); i++) {
                 if (boost::starts_with(params[i], "id$"))
                     id = atoi(params[i].substr(strlen("id$")).c_str());
                 else if (params[i] == "idx")
@@ -2226,7 +2226,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
             bool colored = false;
             bool custom_label = false;
             std::string label_path;
-            for (int i = 1; i < params.size() - 1; i++) {
+            for (size_t i = 1; i + 1 < params.size(); i++) {
                 if (params[i] == "simple")
                 {
                     option.opt.mode = ConfigOptionMode::comSimpleAE;
@@ -2483,7 +2483,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                         DynamicPrintConfig new_conf = *m_config;
                         if (dialog.ShowModal() == wxID_YES) {
                             for (size_t i = 0; i < nozzle_diameters.size(); i++) {
-                                if (i == idx_page)
+                                if (i == size_t(idx_page))
                                     continue;
                                 nozzle_diameters[i] = new_nd;
                             }
@@ -4057,7 +4057,7 @@ void TabPrinter::toggle_options()
         bool has_changed = false;
         const std::vector<double>& nozzle_diameters = m_config->option<ConfigOptionFloats>("nozzle_diameter")->get_values();
         const std::vector<FloatOrPercent>& min_layer_height = m_config->option<ConfigOptionFloatsOrPercents>("min_layer_height")->get_values();
-        for (int i = 0; i < min_layer_height.size(); i++) {
+        for (size_t i = 0; i < min_layer_height.size(); i++) {
             if(!min_layer_height[i].percent)
                 if (min_layer_height[i].value != 0 && scale_t(min_layer_height[i].value) % z_step_Mlong != 0) {
                     if (!has_changed)
@@ -4067,7 +4067,7 @@ void TabPrinter::toggle_options()
                 }
         }
         std::vector<FloatOrPercent> max_layer_height = m_config->option<ConfigOptionFloatsOrPercents>("max_layer_height")->get_values();
-        for (int i = 0; i < max_layer_height.size(); i++) {
+        for (size_t i = 0; i < max_layer_height.size(); i++) {
             if (!max_layer_height[i].percent)
                 if (scale_t(max_layer_height[i].value) % z_step_Mlong != 0) {
                     if (!has_changed)
@@ -4253,7 +4253,7 @@ void Tab::load_current_preset()
                         try {
                             icon_size = atoi(wxGetApp().app_config->get("tab_icon_size").c_str());
                         }
-                        catch (std::exception e) {}
+                        catch (const std::exception &) {}
                         if (icon_size > 0) {
                             Notebook* notebook = dynamic_cast<Notebook*>(wxGetApp().tab_panel());
                             notebook->SetPageImage(notebook->FindFirstBtPage(tab), tab->icon_name(icon_size, printer_technology), icon_size);
@@ -5587,7 +5587,7 @@ wxSizer *VectorManager::init(DynamicPrintConfig *config, wxWindow *parent, PageS
 bool VectorManager::is_compatibile_with_ui()
 {
     size_t values_size = m_config->option<ConfigOptionFloats>(m_opt_key)->size();
-    if (int(values_size) != m_grid_sizer->GetItemCount()) {
+    if (values_size != m_grid_sizer->GetItemCount()) {
         ErrorDialog(m_parent,
                     std::string("Invalid compatibility between UI and BE: ") + std::to_string(values_size) +
                         std::string("=!=") + std::to_string(m_grid_sizer->GetItemCount()),

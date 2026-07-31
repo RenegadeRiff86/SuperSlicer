@@ -328,7 +328,12 @@ void CalibrationFlowSpeedDialog::create_geometry(
     }
 
     std::string str_parse = cmb_nb_steps->GetValue().ToStdString();
+    // The combo is editable, so this can parse as 0 or negative. Comparing
+    // `size_t i < nb_steps` then converts the negative to ~1.8e19 and the loop
+    // spins forever building objects, so clamp to at least one step.
     int         nb_steps  = std::stoi(str_parse);
+    if (nb_steps < 1)
+        nb_steps = 1;
 
     const DynamicPrintConfig* print_config = this->gui_app->get_tab(Preset::TYPE_FFF_PRINT)->get_config();
     const DynamicPrintConfig* printer_config = this->gui_app->get_tab(Preset::TYPE_PRINTER)->get_config();
@@ -337,7 +342,7 @@ void CalibrationFlowSpeedDialog::create_geometry(
     model.clear_objects();
     std::vector<ModelObject*> objs;
     std::vector<Flow> objs_flow;
-    for (size_t i = 0; i < nb_steps; i++) {
+    for (size_t i = 0; i < size_t(nb_steps); i++) {
         // if overlap, compute the size
         float overlap = max_overlap;
         if (nb_steps > 1 && min_overlap < max_overlap)
@@ -385,7 +390,7 @@ void CalibrationFlowSpeedDialog::create_geometry(
     const float extrusion_mult = filament_config->option("extrusion_multiplier")->get_float(0);
     assert(objs_flow.size() == objs.size());
     assert(nb_steps == objs.size());
-    for (size_t i = 0; i < nb_steps; i++) {
+    for (size_t i = 0; i < size_t(nb_steps); i++) {
 
         if (min_flow < max_flow) {
             if (nb_steps == 1) {

@@ -803,7 +803,7 @@ bool ConfigOptionsGroup::is_visible(ConfigOptionMode mode)
     if (m_options_mode.empty())
         return true;
 
-    int opt_mode_size = m_options_mode.size();
+    size_t opt_mode_size = m_options_mode.size();
     if (opt_mode_size == 1 && m_options_mode[0].size() == 1 && m_options_mode[0].begin()->second.size() == 1)
         return get_invisible_idx(m_options_mode[0], mode).empty();
 
@@ -832,18 +832,18 @@ bool ConfigOptionsGroup::update_visibility(ConfigOptionMode mode)
         return show;
     }
 
-    int opt_mode_size = m_options_mode.size();
-    if (m_grid_sizer->GetEffectiveRowsCount() != opt_mode_size &&
+    size_t opt_mode_size = m_options_mode.size();
+    if ((size_t)m_grid_sizer->GetEffectiveRowsCount() != opt_mode_size &&
         opt_mode_size == 1 && m_options_mode[0].size() == 1 && m_options_mode[0].begin()->second.size() == 1)
         return get_invisible_idx(m_options_mode[0], mode).empty();
 
     Show(true);
 
     int idx_item = 0;
-    int hidden_row_cnt = 0;
-    const int cols = m_grid_sizer->GetCols();
+    size_t hidden_row_cnt = 0;
+    const size_t cols = (size_t)m_grid_sizer->GetCols();
     assert(opt_mode_size == m_line_sizer.size());
-    for (int i = 0; i < opt_mode_size; i++) {
+    for (size_t i = 0; i < opt_mode_size; i++) {
         if ((m_options_mode[i].size() == 1 
             && m_options_mode[i].begin()->second.size() == 1 
             && m_options_mode[i].begin()->second[0] == (size_t)-1 

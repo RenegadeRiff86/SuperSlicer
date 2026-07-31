@@ -293,7 +293,7 @@ boost::filesystem::path AppUpdater::priv::download_file(const DownloadAppData& d
                     if (boost::filesystem::exists(tmp_path)) {
                         boost::filesystem::remove(tmp_path);
                     }
-                } catch (std::exception) {
+                } catch (const std::exception &) {
                     if (boost::filesystem::exists(tmp_path)) {
                         boost::filesystem::remove(tmp_path);
                     }
@@ -714,7 +714,7 @@ bool replace_me(DownloadAppData input_data, const boost::filesystem::path &archi
             }
         }
         boost::filesystem::rename(my_dir / "resources", temp_dir / "resources");
-    } catch (std::exception) {
+    } catch (const std::exception &) {
         std::string message = "Fail to rename / move current app. Maybe a file is opened and can't be removed.";
         BOOST_LOG_TRIVIAL(error) << message;
         wxCommandEvent *evt = new wxCommandEvent(EVT_SLIC3R_APP_DOWNLOAD_FAILED);
@@ -775,7 +775,7 @@ bool replace_me(DownloadAppData input_data, const boost::filesystem::path &archi
                 }
             }
         }
-    } catch (std::exception) {
+    } catch (const std::exception &) {
         std::string message = "Fail to upgrade current app by the content of the downloaded zip.";
         BOOST_LOG_TRIVIAL(error) << message;
         wxCommandEvent *evt = new wxCommandEvent(EVT_SLIC3R_APP_DOWNLOAD_FAILED);
@@ -935,7 +935,7 @@ void AppUpdater::sync_download()
                                         if (boost::filesystem::exists(dest_path)) {
                                             boost::filesystem::remove(dest_path);
                                         }
-                                    } catch (std::exception) {
+                                    } catch (const std::exception &) {
                                     
                                         if (boost::filesystem::exists(dest_path)) {
                                             boost::filesystem::remove(dest_path);

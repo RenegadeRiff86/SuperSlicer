@@ -308,7 +308,7 @@ fontinfo_opt load_font_info(
         }
         BOOST_LOG_TRIVIAL(debug) << "Font loaded";
         return font_info;
-    } catch (std::exception e) {
+    } catch (const std::exception &e) {
         BOOST_LOG_TRIVIAL(error) << "Error while loading font: " << e.what();
     }
     return {};

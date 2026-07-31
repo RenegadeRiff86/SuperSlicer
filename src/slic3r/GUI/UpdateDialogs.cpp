@@ -903,7 +903,7 @@ void UpdateConfigDialog::build_ui() {
 
             this->m_data.reload_all_vendors();
             this->request_rebuild_ui();
-        } catch (std::exception e) {
+        } catch (const std::exception &e) {
             MessageDialog msg_dlg(this,
                         format(_L("Failed to read this vendor bundle at '%1%'"), path.lexically_normal().string()),
                 _L("Fail to add a new vendor bundle"), wxICON_ERROR | wxOK);

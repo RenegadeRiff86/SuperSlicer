@@ -74,10 +74,15 @@ void CalibrationBridgeDialog::create_geometry(std::string setting_to_test, bool 
     if (!steps->GetValue().ToLong(&step)) {
         step = 10;
     }
-    long nb_items = 10;
-    if (!nb_tests->GetValue().ToLong(&nb_items)) {
-        nb_items = 10;
+    long parsed_nb_items = 10;
+    // The count comes from a text field, so it can parse as 0 or negative. Comparing
+    // `size_t i < nb_items` then converts the negative long to ~1.8e19 and the loop
+    // spins forever loading objects, so treat it like the unparseable case and fall
+    // back to the default.
+    if (!nb_tests->GetValue().ToLong(&parsed_nb_items) || parsed_nb_items < 1) {
+        parsed_nb_items = 10;
     }
+    const size_t nb_items = size_t(parsed_nb_items);
 
     std::vector<std::string> items;
     for (size_t i = 0; i < nb_items; i++)

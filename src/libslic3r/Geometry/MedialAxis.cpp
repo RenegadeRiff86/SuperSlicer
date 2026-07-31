@@ -1962,7 +1962,7 @@ MedialAxis::retry_voronoi_if_area_is_off(ThickPolylines& pp)
         if (fix_ratio_area < ratio_area) {
             pp = pp_stopgap;
         }
-    } catch (std::exception) {
+    } catch (const std::exception &) {
         //if error (like Slic3r::InvalidArgument("Voronoi cell doesn't contain a source point!")), then don't consider it.
     }
 }

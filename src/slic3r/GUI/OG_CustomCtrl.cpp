@@ -911,7 +911,7 @@ wxCoord OG_CustomCtrl::CtrlLine::draw_mode_bmp(wxDC& dc, wxCoord v_pos)
         return pix_cnt + ctrl->m_h_gap;
 
     //get all tags
-    for (int i = 1; i < og_line.get_options().size(); i++)
+    for (size_t i = 1; i < og_line.get_options().size(); i++)
         mode |= og_line.get_options()[i].opt.mode;
     wxBitmapBundle* bmp = get_bmp_bundle("mode", pix_cnt, pix_cnt, wxGetApp().get_first_mode_btn_color(mode));
     wxCoord y_draw = v_pos + lround((height - get_bitmap_size(bmp, ctrl).GetHeight()) / 2);

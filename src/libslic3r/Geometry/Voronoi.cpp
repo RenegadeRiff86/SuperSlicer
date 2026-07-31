@@ -167,7 +167,7 @@ VoronoiDiagram::detect_known_issues(const VoronoiDiagram &voronoi_diagram, Segme
             // Detection of non-planar Voronoi diagram detects at least GH issues #8474, #8514 and #8446.
             return IssueType::NON_PLANAR_VORONOI_DIAGRAM;
         }
-    } catch (std::exception) {
+    } catch (const std::exception &) {
         return IssueType::UNKNOWN;
     }
 

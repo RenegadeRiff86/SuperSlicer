@@ -584,8 +584,8 @@ bool Selection::is_single_text() const
 
 
     const GLVolume* gl_volume = this->get_first_volume();
-    if (gl_volume == nullptr || m_model->objects.size() <= gl_volume->object_idx() ||
-        m_model->objects[gl_volume->object_idx()]->volumes.size() <= gl_volume->volume_idx()) {
+    if (gl_volume == nullptr || m_model->objects.size() <= size_t(gl_volume->object_idx()) ||
+        m_model->objects[gl_volume->object_idx()]->volumes.size() <= size_t(gl_volume->volume_idx())) {
         // assert(false); // shouldn't happen // can happen on the wipetower
         return false;
     }

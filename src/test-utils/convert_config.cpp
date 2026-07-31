@@ -1225,7 +1225,7 @@ void convert_config(boost::filesystem::path &path_in, boost::filesystem::path &p
     path_dir_out /= path_out.stem();
     try {
         std::filesystem::copy(path_dir.string(), path_dir_out.string(), std::filesystem::copy_options::recursive);
-    } catch (std::exception) {}
+    } catch (const std::exception &) {}
     //ver
     Semver ver_susi  = vp.config_version;
     if (ver_susi.has_patch()) {

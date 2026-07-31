@@ -137,7 +137,7 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
             translate, Vec3d{ xyzScale, xyzScale, xyzScale * 0.43 });
         translate_from_rotation(0, translate);
     }
-    for (int16_t i = 1; i < nb_items; i++) {
+    for (int16_t i = 1; size_t(i) < nb_items; i++) {
         add_part(model.objects[objs_idx[0]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_temp" / ("Smart_compact_temperature_calibration_item.amf")).string(),
             Vec3d{ 0,0, i * 10 * xyzScale }, Vec3d{ xyzScale, xyzScale * 0.5, xyzScale });
         int sub_temp = temperature - i * step_temp;
@@ -163,7 +163,7 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
     //model.custom_gcode_per_print_z.gcodes.emplace_back(CustomGCode::Item{ firstChangeHeight + nozzle_diameter/2, CustomGCode::Type::Custom, -1, "", "M104 S" + std::to_string(temperature) + " ; ground floor temp tower set" });
     model.objects[objs_idx[0]]->config.set_key_value("print_temperature", new ConfigOptionInt(temperature));
     model.objects[objs_idx[0]]->config.set_key_value("print_first_layer_temperature", new ConfigOptionInt(first_layer_temperature));
-    for (int16_t i = 1; i < nb_items; i++) {
+    for (int16_t i = 1; size_t(i) < nb_items; i++) {
         model.custom_gcode_per_print_z.gcodes.emplace_back(CustomGCode::Item{ (i * 10 * xyzScale), CustomGCode::Type::Custom , -1, "",
           "M104 S" + std::to_string(temperature - i * step_temp) + " ; floor " + std::to_string(i) + " of the temp tower set" });
         //str_layer_gcode += "\n{ elsif layer_z >= " + std::to_string(i * 10 * xyzScale) + " and layer_z <= " + std::to_string((1 + i * 10) * xyzScale) + " }\nM104 S" + std::to_string(temperature - (int8_t)nb_delta * 5 + i * 5);

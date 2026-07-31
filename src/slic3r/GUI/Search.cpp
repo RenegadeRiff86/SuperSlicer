@@ -189,7 +189,7 @@ void OptionsSearcher::append_options(DynamicPrintConfig* config, Preset::Type ty
 
         // try with all idx, only the right ones will be added
         emplace_option(opt_key, type, -1);
-        for (int i = 0; i < config->option(opt_key)->size(); ++i)
+        for (int i = 0; i < int(config->option(opt_key)->size()); ++i)
             emplace_option(opt_key, type, i);
     }
 }
@@ -271,7 +271,7 @@ wxString OptionsSearcher::get_tooltip(const SearchOption &opt, bool with_icon) {
     // add "\n" to long tooltip lines
     std::wstring tooltip;
     int length = 0;
-    for (int i = 0; i < opt.tooltip_local.size(); i++) {
+    for (size_t i = 0; i < opt.tooltip_local.size(); i++) {
         if (length >= 80 && opt.tooltip_local[i] == u' ') {
             tooltip.push_back(u'\n');
         } else {
@@ -353,7 +353,7 @@ bool OptionsSearcher::search(const std::string& search,  bool force/* = false*/)
     try {
         if (view_params.exact)
             pattern = std::wregex(wsearch, std::regex_constants::icase);
-    } catch (std::regex_error) {
+    } catch (const std::regex_error &) {
         // Happens when std::wregex("]") or similar. => no result //TODO: add warning message 'wrong regexp'
         fail_pattern = true;
     }

@@ -226,7 +226,7 @@ void PresetUpdater::reload_all_vendors() {
                     copy_file_and_icons(resources_path / "profiles", vendor_cache / dir_cache_name / "profiles", vendor_file_id, true);
                 }
             }
-        } catch (std::exception) {
+        } catch (const std::exception &) {
         }
     }
 

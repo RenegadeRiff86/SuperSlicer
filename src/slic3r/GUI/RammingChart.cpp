@@ -450,8 +450,8 @@ void Chart::recalculate_line() {
             } else if (points.back().x < x) {
                 m_line_to_draw.push_back(points.back().y);
             } else {
-                assert(curr_idx <= N);
-                if (curr_idx < N && points[curr_idx].x < x) {
+                assert(curr_idx <= size_t(N));
+                if (curr_idx < size_t(N) && points[curr_idx].x < x) {
                     ++curr_idx;
                 }
                 if (points[curr_idx - 1].x == points[curr_idx].x) {

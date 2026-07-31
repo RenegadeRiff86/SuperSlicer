@@ -304,7 +304,7 @@ void PhysicalPrinterDialog::update_printers()
             rs->widget_disable();
         } else {
             std::vector<std::string> slugs;
-            for (int i = 0; i < printers.size(); i++) {
+            for (size_t i = 0; i < printers.size(); i++) {
                 slugs.push_back(printers[i].ToStdString());
             }
 

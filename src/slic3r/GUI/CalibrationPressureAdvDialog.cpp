@@ -359,7 +359,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         items.emplace_back((boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_pressure" / "base_plate.3mf").string());
     }
     std::vector<size_t> objs_idx = plat->load_files(items, LoadFileOption::LoadModel | LoadFileOption::DontUpdateDirs);
-    assert(objs_idx.size() == currentTestCount);
+    assert(objs_idx.size() == size_t(currentTestCount));
     const DynamicPrintConfig* print_config = this->gui_app->get_tab(Preset::TYPE_FFF_PRINT)->get_config();
     const DynamicPrintConfig* filament_config = this->gui_app->get_tab(Preset::TYPE_FFF_FILAMENT)->get_config();
     const DynamicPrintConfig* printer_config = this->gui_app->get_tab(Preset::TYPE_PRINTER)->get_config();
@@ -653,7 +653,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
             }
 
             if(enable_switch == false){
-            for (int i = 0; i < choice_extrusion_role.size(); i++) {
+            for (size_t i = 0; i < choice_extrusion_role.size(); i++) {
 
                 if (er_width_ToOptionKey.find(selected_extrusion_role) != er_width_ToOptionKey.end()) {
 
@@ -993,7 +993,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
 
     //assert(filament_temp_item_name.size() == nb_runs);
     //assert(model.objects.size() == nb_runs);
-    assert(objs_idx.size() == currentTestCount);
+    assert(objs_idx.size() == size_t(currentTestCount));
     for (int id_item = 0; id_item < currentTestCount; id_item++) {
 
         auto pa_result = pa_results[id_item];
@@ -1003,7 +1003,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         wxString firstPaValue = dynamicFirstPa[id_item]->GetValue();
         firstPaValue.Replace(",", ".");
         double first_pa = wxAtof(firstPaValue);
-        smooth_time = dynamicEnableST.size() > id_item ? dynamicEnableST[id_item]->GetValue() : 0;
+        smooth_time = dynamicEnableST.size() > size_t(id_item) ? dynamicEnableST[id_item]->GetValue() : 0;
         selected_extrusion_role = dynamicExtrusionRole[id_item]->GetValue().ToStdString();
 
         if (selected_extrusion_role == ROLE_CHECK_ALL) {// have to keep it in range
@@ -1270,7 +1270,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
             int pa_index = 0;
             int nb_number = 0;
 
-            while (nb_number < number_positions.size()) {
+            while (nb_number < int(number_positions.size())) {
 
                 // Skip borders or out-of-bounds or odd pa_index
                 if ((nb_number >= count_numbers && nb_number < count_numbers + count_borders) ||
@@ -1534,7 +1534,7 @@ void CalibrationPressureAdvDialog::create_row_controls(wxBoxSizer* parentSizer, 
 
     if (!dynamicExtrusionRole.empty()) {// If there's a previous selection, find the index of the last selected role
         std::string last_selected_er_role = dynamicExtrusionRole[currentTestCount-1]->GetValue().ToStdString();
-        for (int j = 0; j < sizeof(choices_extrusion_role) / sizeof(choices_extrusion_role[0]); j++) {
+        for (int j = 0; j < int(sizeof(choices_extrusion_role) / sizeof(choices_extrusion_role[0])); j++) {
             if (choices_extrusion_role[j] == wxString(last_selected_er_role)) {
                 current_selection = j + 1;
                 break;
@@ -1598,7 +1598,7 @@ void CalibrationPressureAdvDialog::create_row_controls(wxBoxSizer* parentSizer, 
 
         // Increment selection for the next row
         current_selection++;
-        if (current_selection >= sizeof(choices_extrusion_role) / sizeof(choices_extrusion_role[0])) {
+        if (current_selection >= int(sizeof(choices_extrusion_role) / sizeof(choices_extrusion_role[0]))) {
             current_selection = 0; // Wrap around: SetSelection does it's own memory access checks so this shouldn't be needed. but it's a nice safe guard to have.
         }
 

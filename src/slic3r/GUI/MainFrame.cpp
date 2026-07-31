@@ -367,7 +367,7 @@ void MainFrame::update_icon() {
     try {
         icon_size = atoi(wxGetApp().app_config->get(TAB_ICON_SIZE_CONFIG_KEY).c_str());
     }
-    catch (std::exception e) {}
+    catch (const std::exception &) {}
     switch (m_layout)
     {
     case ESettingsLayout::Unknown:
@@ -695,7 +695,7 @@ void MainFrame::update_layout()
     try {
         icon_size = atoi(wxGetApp().app_config->get(TAB_ICON_SIZE_CONFIG_KEY).c_str());
     }
-    catch (std::exception e) {}
+    catch (const std::exception &) {}
 
     const auto select_editor_view = [this](wxCommandEvent&) {
         m_plater->select_view_3D("3D");
@@ -996,12 +996,12 @@ void MainFrame::change_tab(Tab* old_tab, Tab* new_tab)
         try {
             icon_size = atoi(wxGetApp().app_config->get(TAB_ICON_SIZE_CONFIG_KEY).c_str());
         }
-        catch (std::exception e) {}
+        catch (const std::exception &) {}
 
         Notebook* notebook = dynamic_cast<Notebook*>(m_tabpanel);
         int page_id = m_tabpanel->FindPage(old_tab);
         int bt_id = notebook->FindFirstBtPage(old_tab);
-        if (page_id >= 0 && page_id < m_tabpanel->GetPageCount()) {
+        if (page_id >= 0 && size_t(page_id) < m_tabpanel->GetPageCount()) {
             m_tabpanel->GetPage(page_id)->Show(false);
             bool has_spacer = notebook->GetBtnsListCtrl()->HasSpacer(bt_id);
             m_tabpanel->RemovePage(page_id);
@@ -1017,7 +1017,7 @@ void MainFrame::change_tab(Tab* old_tab, Tab* new_tab)
 #endif
     {
         int page_id = m_tabpanel->FindPage(old_tab);
-        if (page_id >= 0 && page_id < m_tabpanel->GetPageCount()) {
+        if (page_id >= 0 && size_t(page_id) < m_tabpanel->GetPageCount()) {
             m_tabpanel->GetPage(page_id)->Show(false);
             m_tabpanel->RemovePage(page_id);
             m_tabpanel->InsertPage(page_id, new_tab, new_tab->title());
@@ -1352,7 +1352,7 @@ void MainFrame::add_created_tab(Tab* panel)
             try {
                 icon_size = atoi(wxGetApp().app_config->get(TAB_ICON_SIZE_CONFIG_KEY).c_str());
             }
-            catch (std::exception e) {}
+            catch (const std::exception &) {}
             dynamic_cast<Notebook*>(m_tabpanel)->InsertBtPage(m_tabpanel->GetPageCount(), panel, panel->title(), panel->icon_name(icon_size, printer_tech), icon_size);
         } else
 #endif
@@ -2590,7 +2590,7 @@ void MainFrame::select_tab(ETabType tab /* = Any*/, bool keep_tab_type)
     const auto restore_last_plater_view = [this, tab, &is_3d_tab](int last_selection, int page_index) {
         const bool returning_from_settings =
             last_selection > 0 && page_index < 3 &&
-            (page_index == m_last_selected_plater_tab || m_last_selected_plater_tab > 2);
+            (size_t(page_index) == m_last_selected_plater_tab || m_last_selected_plater_tab > 2);
         if (!returning_from_settings)
             return;
 

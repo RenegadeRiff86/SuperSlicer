@@ -458,7 +458,7 @@ wxBitmapBundle* BitmapCache::from_png(const std::string& bitmap_name, unsigned w
         height = unsigned(0.5f + float(image.GetHeight()) * width / image.GetWidth());
     }
 
-    if (height > 0 && width > 0 && image.GetWidth() != width && image.GetHeight() != height) {
+    if (height > 0 && width > 0 && image.GetWidth() != int(width) && image.GetHeight() != int(height)) {
         image.Rescale(width, height, wxIMAGE_QUALITY_BILINEAR);
     }
 
