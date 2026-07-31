@@ -2728,7 +2728,10 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
     // is the only system that needed the workarounds in the first place.
 #ifdef __linux__
     auto progress_dlg = new wxProgressDialog(loading, "", 100, find_toplevel_parent(q), wxPD_APP_MODAL | wxPD_AUTO_HIDE);
-    Slic3r::ScopeGuard([&progress_dlg](){ if (progress_dlg) progress_dlg->Destroy(); progress_dlg = nullptr; });
+    // The guard MUST be named. As an unnamed temporary it was destroyed at the end of
+    // this statement, which destroyed the dialog and nulled the pointer immediately -
+    // so every `if (progress_dlg)` below was dead and Linux showed no load progress.
+    Slic3r::ScopeGuard progress_dlg_guard([&progress_dlg](){ if (progress_dlg) progress_dlg->Destroy(); progress_dlg = nullptr; });
 #else
     wxProgressDialog progress_dlg_stack(loading, "", 100, find_toplevel_parent(q), wxPD_APP_MODAL | wxPD_AUTO_HIDE);
     wxProgressDialog* progress_dlg = &progress_dlg_stack;    

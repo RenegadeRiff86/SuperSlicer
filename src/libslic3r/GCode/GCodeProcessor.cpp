@@ -2246,6 +2246,12 @@ void GCodeProcessor::process_tags(const std::string_view comment, bool producers
         double seam_x, seam_y;
         bool ok = parse_number(first_part, seam_x);
         ok = ok && parse_number(second_part, seam_y);
+        // Both parses must succeed before the values are used: && short-circuits, so a
+        // failed seam_x parse leaves seam_y uninitialized and we would store garbage.
+        if (!ok) {
+            BOOST_LOG_TRIVIAL(error) << "GCodeProcessor encountered an invalid value for Seam (" << comment << ").";
+            return;
+        }
         assert(!m_seam);
         m_seam = m_end_position;
         (*m_seam)[0] = seam_x;
