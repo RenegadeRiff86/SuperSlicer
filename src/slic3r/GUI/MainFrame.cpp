@@ -2481,6 +2481,9 @@ void MainFrame::select_tab(Tab* tab)
     case Preset::Type::TYPE_PRINTER:
         tab_type = ETabType::PrinterSettings;
         break;
+    default:
+        // Every other Preset::Type keeps the ETabType::LastSettings default set above.
+        break;
     }
     select_tab(tab_type);
 

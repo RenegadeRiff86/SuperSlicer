@@ -2686,10 +2686,11 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
 
                     ramming_dialog_btn->Bind(wxEVT_BUTTON, ([this](wxCommandEvent &e) {
                         RammingDialog dlg(this, (m_config_base->option<ConfigOptionStrings>("filament_ramming_parameters"))->get_at(0));
-                        if (dlg.ShowModal() == wxID_OK)
+                        if (dlg.ShowModal() == wxID_OK) {
                             //(m_config_base->option<ConfigOptionStrings>("filament_ramming_parameters"))->get_at(0) = dlg.get_parameters();
                             load_key_value("filament_ramming_parameters", dlg.get_parameters(), false, 0);
                             update_changed_ui();
+                        }
                     }));
                     return sizer;
                 };
@@ -5714,6 +5715,11 @@ void VectorManager::update_from_config()
         assert(false); // todo
         break;
     }
+    default:
+        // VectorManager only ever drives vector-valued options; a scalar type here is a
+        // programming error that would otherwise silently render nothing.
+        assert(false);
+        break;
     }
 
     m_parent->GetParent()->Layout();
@@ -5770,6 +5776,10 @@ void VectorManager::edit_value(int32_t idx_value, const std::string &str_value)
         assert(false);  // todo
         break;
     }
+    default:
+        // As above: an unhandled type here silently discards the user's edit.
+        assert(false);
+        break;
     }
     call_ui_update();
 }

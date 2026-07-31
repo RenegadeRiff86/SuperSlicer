@@ -408,7 +408,8 @@ void OG_CustomCtrl::OnMotion(wxMouseEvent& event)
                 else if (field)
                     tooltip_ptr = field->undo_tooltip();
                 if(tooltip_ptr)
-                    tooltip = *tooltip_ptr;                break;
+                    tooltip = *tooltip_ptr;
+                break;
             }
             if (is_point_in_rect(pos, line.rects_undo_to_sys_icon[opt_idx])) {
                 const wxString* tooltip_ptr = nullptr;

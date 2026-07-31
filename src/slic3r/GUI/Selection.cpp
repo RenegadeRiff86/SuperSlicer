@@ -409,10 +409,11 @@ void Selection::remove_all()
     if (is_empty())
         return;
   
-// Not taking the snapshot with non-empty Redo stack will likely be more confusing than losing the Redo stack.
-// Let's wait for user feedback.
-//    if (!wxGetApp().plater()->can_redo())
-        wxGetApp().plater()->take_snapshot(_L("Selection-Remove All"), UndoRedo::SnapshotType::Selection);
+    // Not taking the snapshot with non-empty Redo stack will likely be more confusing than losing the Redo stack.
+    // Let's wait for user feedback.
+    //    if (!wxGetApp().plater()->can_redo())
+    // The guard above stays disabled on purpose, so the snapshot is unconditional.
+    wxGetApp().plater()->take_snapshot(_L("Selection-Remove All"), UndoRedo::SnapshotType::Selection);
 
     m_mode = Instance;
     clear();

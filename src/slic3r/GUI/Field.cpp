@@ -1994,7 +1994,7 @@ void ColourPicker::BUILD()
     if (!clr.IsOk())
         clr = wxTransparentColour;
 
-	auto temp = new wxColourPickerCtrl(m_parent, wxID_ANY, clr, wxDefaultPosition, size);
+    auto temp = new wxColourPickerCtrl(m_parent, wxID_ANY, clr, wxDefaultPosition, size);
     if (parent_is_custom_ctrl && m_opt.height < 0)
         opt_height = (double)temp->GetSize().GetHeight() / m_em_unit;
     temp->SetFont(Slic3r::GUI::wxGetApp().normal_font());

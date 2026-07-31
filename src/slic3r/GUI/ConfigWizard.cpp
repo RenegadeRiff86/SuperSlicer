@@ -880,9 +880,9 @@ void PageMaterials::reload_presets()
         list_printer->append(_L("(Templates)"), &TEMPLATES);
 
     //list_printer->SetLabelMarkup("<b>bald</b>");
-	for (const Preset* printer : materials->printers) {
-		list_printer->append(printer->name, &printer->name);
-	}
+    for (const Preset* printer : materials->printers) {
+        list_printer->append(printer->name, &printer->name);
+    }
     sort_list_data(list_printer, true, false);
     if (list_printer->GetCount() > 0) {
         list_printer->SetSelection(0);
