@@ -111,6 +111,7 @@ enum ConfigMenuIDs {
 
 class Tab;
 class ConfigWizard;
+class AutomationServer;
 
 static wxString dots("…", wxConvUTF8);
 
@@ -182,14 +183,19 @@ private:
     std::unique_ptr <AppUpdater> m_app_updater;
     std::unique_ptr <wxSingleInstanceChecker> m_single_instance_checker;
     std::unique_ptr <Downloader> m_downloader;
+#ifdef SLIC3R_ENABLE_AUTOMATION_API
+    std::unique_ptr<AutomationServer> m_automation_server;
+#endif
     std::string m_instance_hash_string;
 	size_t m_instance_hash_int = 0;
 
 public:
     bool            OnInit() override;
+    int             OnExit() override;
     bool            initialized() const { return m_initialized; }
 
     explicit GUI_App(EAppMode mode = EAppMode::Editor);
+    ~GUI_App() override;
 
     EAppMode get_app_mode() const { return m_app_mode; }
     bool is_editor() const { return m_app_mode == EAppMode::Editor; }
@@ -322,6 +328,7 @@ public:
 
     void            persist_window_geometry(wxTopLevelWindow *window, bool default_maximized = false);
     void            update_ui_from_settings();
+    void            configure_automation_api_from_preferences();
 
     bool            switch_language();
     bool            load_language(wxString language, bool initial);

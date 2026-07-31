@@ -73,6 +73,10 @@ class wxZipStreamLink;
 #include "Plater.hpp"
 #include "GLCanvas3D.hpp"
 
+#ifdef SLIC3R_ENABLE_AUTOMATION_API
+#include "Automation/AutomationServer.hpp"
+#endif
+
 #include "../Utils/PresetUpdater.hpp"
 #include "../Utils/PrintHost.hpp"
 #include "../Utils/Process.hpp"
@@ -969,6 +973,10 @@ void GUI_App::post_init()
     // Sets window property to mainframe so other instances can indentify it.
     OtherInstanceMessageHandler::init_windows_properties(mainframe, m_instance_hash_int);
 #endif //WIN32
+
+    if (mainframe != nullptr)
+        mainframe->SetName("superslicer.main_window");
+    configure_automation_api_from_preferences();
 }
 
 IMPLEMENT_APP(GUI_App)
@@ -983,6 +991,81 @@ GUI_App::GUI_App(EAppMode mode)
     , m_downloader(std::make_unique<Downloader>())
 {
     // all initailisation is reported into GUI_App::OnInit() to be able to have the gui set up and be abel to display messages.
+}
+
+GUI_App::~GUI_App()
+{
+#ifdef SLIC3R_ENABLE_AUTOMATION_API
+    if (m_automation_server != nullptr)
+        m_automation_server->stop();
+#endif
+}
+
+int GUI_App::OnExit()
+{
+#ifdef SLIC3R_ENABLE_AUTOMATION_API
+    if (m_automation_server != nullptr)
+        m_automation_server->stop();
+#endif
+    return wxApp::OnExit();
+}
+
+void GUI_App::configure_automation_api_from_preferences()
+{
+#ifdef SLIC3R_ENABLE_AUTOMATION_API
+    if (app_config == nullptr)
+        return;
+
+    bool enabled = app_config->get_bool("automation_api_enabled");
+    int configured_port = 43127;
+    try {
+        configured_port = std::stoi(app_config->get("automation_api_port"));
+    } catch (...) {
+        configured_port = 43127;
+    }
+
+    if (init_params != nullptr && init_params->automation_api_enabled.has_value())
+        enabled = *init_params->automation_api_enabled;
+    if (init_params != nullptr && init_params->automation_api_port.has_value())
+        configured_port = *init_params->automation_api_port;
+
+    if (!enabled) {
+        if (m_automation_server != nullptr)
+            m_automation_server->stop();
+        return;
+    }
+
+    if (configured_port < 1 || configured_port > 65535) {
+        wxLogError("Model automation API port must be between 1 and 65535.");
+        return;
+    }
+
+    const char* token = boost::nowide::getenv("SUPERSLICER_AUTOMATION_TOKEN");
+    if (token == nullptr || token[0] == '\0') {
+        if (m_automation_server != nullptr)
+            m_automation_server->stop();
+        wxLogError("Model automation API was requested, but SUPERSLICER_AUTOMATION_TOKEN is not set.");
+        return;
+    }
+
+    if (m_automation_server == nullptr)
+        m_automation_server = std::make_unique<AutomationServer>(*this);
+    if (m_automation_server->running() &&
+        m_automation_server->port() == static_cast<std::uint16_t>(configured_port))
+        return;
+
+    m_automation_server->stop();
+    std::string error;
+    if (!m_automation_server->start(
+            AutomationServer::Config {
+                static_cast<std::uint16_t>(configured_port),
+                token
+            },
+            error))
+        wxLogError("Model automation API failed to start: %s", from_u8(error));
+#else
+    // Kept as a no-op so preferences code can remain build-independent.
+#endif
 }
 
 // If formatted for github, plaintext with OpenGL extensions enclosed into <details>.
@@ -1151,12 +1234,12 @@ static void choose_app_dir(GUI_App &app) {
     AppConfig::ConfigurationEntry my_new_installation = my_default_installation;
     if (choice > 0) {
         choice--;
-        if (choice < same_version.size()) {
+        if (size_t(choice) < same_version.size()) {
             my_new_installation = *same_version[choice];
             my_new_installation.installed_name = my_default_installation.installed_name;
             my_new_installation.exe_path = my_default_installation.exe_path;
             //dir already created & in use
-        } else if (choice < same_version.size() * 2) {
+        } else if (size_t(choice) < same_version.size() * 2) {
             choice -=  same_version.size();
             // create dir & copy
             boost::filesystem::path path = my_default_installation.get_config_path(app.app_config->get_root_data_dir());
@@ -2134,10 +2217,15 @@ const wxColour& GUI_App::get_style_role_color(const std::string& role) const
         return m_color_default_btn_label;
     if (role == "tab.text.default")
         return dark_mode() ? m_color_dark_mode_label_default : m_color_label_default;
+    // Tab captions use the theme's label colours, not the accent colours. The accent
+    // belongs on the tab's background and border; painting it on the text put an
+    // orange caption on the blue selected fill at 3.2:1 contrast, under the 4.5:1
+    // needed to read it. m_color_highlight_label_default is what combo.text.selected
+    // already uses over the same accent background.
     if (role == "tab.text.hover")
-        return m_color_default_btn_label;
+        return dark_mode() ? m_color_dark_mode_label_default : m_color_label_default;
     if (role == "tab.text.selected")
-        return m_color_hovered_btn_label;
+        return m_color_highlight_label_default;
     if (role == "combo.bg.selected")
         return m_color_highlight_default;
     if (role == "combo.bg.disabled") {

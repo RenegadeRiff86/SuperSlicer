@@ -12,9 +12,13 @@
 #include <wx/file.h>
 
 #include <algorithm>
+#include <cstring>
+#include <sstream>
 
+#include <boost/algorithm/string/case_conv.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/path.hpp>
+#include <boost/nowide/fstream.hpp>
 
 #if ENABLE_SCROLLABLE
 static wxSize get_screen_size(wxWindow* window)
@@ -119,13 +123,44 @@ void CalibrationAbstractDialog::create(boost::filesystem::path html_path, std::s
     main_panel->Lower();// this may break some calibration windows... willl have to call Raise() on other calibration windows that have a panel
 
     wxGetApp().UpdateDlgDarkUI(this);
-    // bool dark_mode = app_config->get_bool("dark_color_mode");// i guss these can be set as global variables?
-    // if (dark_mode) {
-    // can't change html text color, so keep white background
+    // The surface follows the system window colour, which is dark under a dark theme.
     html_viewer->SetHTMLBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
-    // }
+    apply_html_theme(full_file_path);
 
     fit_to_content();
+}
+
+// wxHtmlWinParser::InitParser hardcodes the text colour to black (wx src/html/winpars.cpp),
+// and wxHtml ignores <style> blocks, so a dark background on its own leaves the help page
+// as black text on a near-black surface. The page's own <body> attributes are the one lever
+// wxHtml honours, so the colour is injected there. LoadPage() has already pointed the virtual
+// file system at the page's directory, so re-rendering with SetPage() keeps relative images
+// resolving.
+void CalibrationAbstractDialog::apply_html_theme(const boost::filesystem::path& full_file_path)
+{
+    if (!wxGetApp().dark_mode())
+        return;
+
+    boost::nowide::ifstream file(full_file_path.string().c_str());
+    if (!file.good())
+        return;
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string source = buffer.str();
+
+    const std::string lowered = boost::algorithm::to_lower_copy(source);
+    const std::size_t body_tag = lowered.find("<body");
+    if (body_tag == std::string::npos)
+        return;
+
+    const wxColour& text = wxGetApp().get_style_role_color("tab.text.default");
+    const wxColour background = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
+    const std::string attributes =
+        " text=\"" + into_u8(text.GetAsString(wxC2S_HTML_SYNTAX)) + "\"" +
+        " bgcolor=\"" + into_u8(background.GetAsString(wxC2S_HTML_SYNTAX)) + "\"";
+    source.insert(body_tag + std::strlen("<body"), attributes);
+
+    html_viewer->SetPage(from_u8(source));
 }
 
 // Best effort: resize the dialog so the whole help page is visible without scrolling.
