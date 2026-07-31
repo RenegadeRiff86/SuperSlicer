@@ -6,6 +6,7 @@
 
 #include "libslic3r/AppConfig.hpp"
 
+#include "Automation/AutomationIds.hpp"
 #include "GUI_App.hpp"
 #include "GUI_Tags.hpp"
 #include "ThemeMetrics.hpp"
@@ -217,6 +218,10 @@ bool ButtonsListCtrl::InsertPage(size_t n, const wxString& text, bool bSelect/* 
         wxBU_EXACTFIT | wxNO_BORDER | (bmp_name.empty() ? 0 : wxBU_LEFT),
 #endif //__APPLE__
         false, bmp_size);
+
+    // The automation API addresses controls by wxWindow::GetName(); every tab
+    // button would otherwise report the wx default "button" and be indistinguishable.
+    btn->SetName(Slic3r::GUI::AutomationIds::tab(text));
 
     if (Slic3r::GUI::ThemeMetrics::ui_density_preference() == "compact")
         btn->SetMinSize(wxSize(-1, Slic3r::GUI::ThemeMetrics::notebook_min_height(this)));

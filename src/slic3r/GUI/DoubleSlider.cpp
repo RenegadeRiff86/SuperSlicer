@@ -77,7 +77,7 @@ Control::Control( wxWindow *parent,
                   long style,
                   const wxValidator& val,
                   const wxString& name) : 
-    wxControl(parent, id, pos, size, wxWANTS_CHARS | wxBORDER_NONE),
+    wxControl(parent, id, pos, size, wxWANTS_CHARS | wxBORDER_NONE, val, name),
     m_lower_tick(lowerValue), 
     m_higher_tick (higherValue), 
     m_min_tick(minValue), 
@@ -602,7 +602,7 @@ bool Control::is_wipe_tower_layer(int tick) const
         return false;
     if (tick == 0 || (tick == (int)m_values.size() - 1 && m_values[tick] > m_values[tick - 1]))
         return false;
-    if (m_values.size() > tick + 1 && (m_values[tick - 1] == m_values[tick + 1] && m_values[tick] < m_values[tick + 1]) ||
+    if ((int)m_values.size() > tick + 1 && (m_values[tick - 1] == m_values[tick + 1] && m_values[tick] < m_values[tick + 1]) ||
         (tick > 0 && m_values[tick] < m_values[tick - 1]) ) // if there is just one wiping on the layer 
         return true;
 
@@ -1642,10 +1642,10 @@ wxString Control::get_tooltip(int tick/*=-1*/)
 		                format_wxstr(_L("Extruder (tool) is changed to Extruder \"%1%\""), tick_code_it->extruder) :                
 		                from_u8(format_gcode(tick_code_it->extra));// tick_code_it->type == Custom
 
-        assert(tick < m_values.size() && !m_values.empty());
+        assert(tick >= 0 && size_t(tick) < m_values.size() && !m_values.empty());
         // If tick is marked as a conflict (exclamation icon),
         // we should to explain why
-        ConflictType conflict = m_ticks.is_conflict_tick(*tick_code_it, m_mode, m_only_extruder, tick < m_values.size() ? m_values[tick] : m_values.back());
+        ConflictType conflict = m_ticks.is_conflict_tick(*tick_code_it, m_mode, m_only_extruder, (tick >= 0 && size_t(tick) < m_values.size()) ? m_values[tick] : m_values.back());
         if (conflict != ctNone)
             tooltip += "\n\n" + _L("Note") + "! ";
         if (conflict == ctModeConflict)
@@ -1806,8 +1806,8 @@ void Control::append_add_color_change_menu_item(wxMenu* menu, bool switch_curren
     const int extruders_cnt = GUI::wxGetApp().extruders_edited_cnt();
     if (extruders_cnt > 1) {
         int tick = m_selection == ssLower ? m_lower_tick : m_higher_tick; 
-        assert(tick < m_values.size() && !m_values.empty());
-        std::set<int> used_extruders_for_tick = m_ticks.get_used_extruders_for_tick(tick, m_only_extruder, tick < m_values.size() ? m_values[tick] : m_values.back());
+        assert(tick >= 0 && size_t(tick) < m_values.size() && !m_values.empty());
+        std::set<int> used_extruders_for_tick = m_ticks.get_used_extruders_for_tick(tick, m_only_extruder, (tick >= 0 && size_t(tick) < m_values.size()) ? m_values[tick] : m_values.back());
 
         wxMenu* add_color_change_menu = new wxMenu();
 
@@ -2489,8 +2489,8 @@ void Control::add_code_as_tick(Type type, int selected_extruder/* = -1*/)
     
     if ( it == m_ticks.ticks.end() ) {
         // try to add tick
-        assert(tick < m_values.size() && !m_values.empty());
-        if (!m_ticks.add_tick(tick, type, extruder, tick < m_values.size() ? m_values[tick] : m_values.back()))
+        assert(tick >= 0 && size_t(tick) < m_values.size() && !m_values.empty());
+        if (!m_ticks.add_tick(tick, type, extruder, (tick >= 0 && size_t(tick) < m_values.size()) ? m_values[tick] : m_values.back()))
             return;
     }
     else if (type == ToolChange || type == ColorChange) {

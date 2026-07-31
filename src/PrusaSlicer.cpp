@@ -1346,6 +1346,8 @@ int CLI::run(int argc, char **argv)
         params.start_downloader = start_downloader;
         params.download_url = download_url;
         params.delete_after_load = delete_after_load;
+        params.automation_api_enabled = m_automation_api_enabled;
+        params.automation_api_port = m_automation_api_port;
 #if ENABLE_GL_CORE_PROFILE
         params.opengl_version = opengl_version;
         params.opengl_debug = opengl_debug;
@@ -1453,13 +1455,33 @@ bool CLI::setup(int argc, char **argv)
         this->print_help();
         return false;
     }
-    // Parse actions and transform options.
+    // Parse actions, transform options, and launch-only automation overrides.
+    bool automation_enable_seen = false;
+    bool automation_disable_seen = false;
+    bool automation_port_seen = false;
     for (auto const &opt_key : opt_order) {
         if (cli_actions_config_def.has(opt_key))
             m_actions.emplace_back(opt_key);
         else if (cli_transform_config_def.has(opt_key))
             m_transforms.emplace_back(opt_key);
+        else if (opt_key == "automation_api")
+            automation_enable_seen = true;
+        else if (opt_key == "no_automation_api")
+            automation_disable_seen = true;
+        else if (opt_key == "automation_api_port")
+            automation_port_seen = true;
     }
+
+    if (automation_enable_seen && automation_disable_seen) {
+        boost::nowide::cerr << "error: --automation-api and --no-automation-api cannot be used together" << std::endl;
+        return false;
+    }
+    if (automation_enable_seen)
+        m_automation_api_enabled = true;
+    else if (automation_disable_seen)
+        m_automation_api_enabled = false;
+    if (automation_port_seen)
+        m_automation_api_port = m_config.opt_int("automation_api_port");
 
     {
         const ConfigOptionInt *opt_loglevel = m_config.opt<ConfigOptionInt>("loglevel");

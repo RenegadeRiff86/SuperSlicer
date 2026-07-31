@@ -2244,6 +2244,39 @@ void GLCanvas3D::render()
     m_render_stats.increment_fps_counter();
 }
 
+bool GLCanvas3D::capture_current_framebuffer(ThumbnailData& image)
+{
+    if (m_canvas == nullptr || !_is_shown_on_screen())
+        return false;
+
+    render();
+    if (!_set_current())
+        return false;
+
+    const Size& canvas_size = get_canvas_size();
+    const unsigned int width = static_cast<unsigned int>(canvas_size.get_width());
+    const unsigned int height = static_cast<unsigned int>(canvas_size.get_height());
+    if (width == 0 || height == 0)
+        return false;
+
+    image.set(width, height);
+    if (!image.is_valid())
+        return false;
+
+    GLint previous_read_buffer = GL_BACK;
+    GLint previous_pack_alignment = 4;
+    glsafe(::glGetIntegerv(GL_READ_BUFFER, &previous_read_buffer));
+    glsafe(::glGetIntegerv(GL_PACK_ALIGNMENT, &previous_pack_alignment));
+    glsafe(::glReadBuffer(GL_FRONT));
+    glsafe(::glPixelStorei(GL_PACK_ALIGNMENT, 1));
+    glsafe(::glReadPixels(
+        0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE,
+        static_cast<void*>(image.pixels.data())));
+    glsafe(::glPixelStorei(GL_PACK_ALIGNMENT, previous_pack_alignment));
+    glsafe(::glReadBuffer(previous_read_buffer));
+    return true;
+}
+
 void GLCanvas3D::render_thumbnail(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, const ThumbnailsParams& thumbnail_params, Camera::EType camera_type)
 {
     render_thumbnail(thumbnail_data, w, h, thumbnail_params, m_volumes, camera_type);
@@ -3987,7 +4020,7 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
                 if (evt.LeftDown() && m_moving_enabled && m_mouse.drag.move_volume_idx == -1) {
                     // Only accept the initial position, if it is inside the volume bounding box.
                     const int volume_idx = get_first_hover_volume_idx();
-                    if (m_volumes.volumes.size() > volume_idx) { //can fail if the screen takes a bit of time to refresh
+                    if (m_volumes.volumes.size() > size_t(volume_idx)) { //can fail if the screen takes a bit of time to refresh
                         BoundingBoxf3 volume_bbox = m_volumes.volumes[volume_idx]->transformed_bounding_box();
                         volume_bbox.offset(1.0);
                         const bool is_cut_connector_selected = m_selection.is_any_connector();

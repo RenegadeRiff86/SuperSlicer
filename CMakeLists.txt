@@ -64,6 +64,16 @@ option(SLIC3R_MSVC_PDB          "Generate PDB files on MSVC in Release mode" 1)
 option(SLIC3R_ASAN              "Enable ASan on Clang and GCC" 0)
 option(SLIC3R_UBSAN             "Enable UBSan on Clang and GCC" 0)
 option(SLIC3R_ENABLE_FORMAT_STEP "Enable compilation of STEP file support" ON)
+
+set(_SLIC3R_AUTOMATION_API_DEFAULT OFF)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(_SLIC3R_AUTOMATION_API_DEFAULT ON)
+endif()
+option(SLIC3R_ENABLE_AUTOMATION_API
+       "Build the loopback-only developer GUI automation API"
+       ${_SLIC3R_AUTOMATION_API_DEFAULT})
+unset(_SLIC3R_AUTOMATION_API_DEFAULT)
+
 # If SLIC3R_FHS is 1 -> SLIC3R_DESKTOP_INTEGRATION is always 0, othrewise variable.
 CMAKE_DEPENDENT_OPTION(SLIC3R_DESKTOP_INTEGRATION "Allow perfoming desktop integration during runtime" 1 "NOT SLIC3R_FHS" 0)
 

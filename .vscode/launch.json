@@ -2,22 +2,13 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "SuperSlicer: Run release",
+      "name": "SuperSlicer: Temporary automation verification",
       "type": "lldb",
       "request": "launch",
       "program": "${workspaceFolder}/build-linux-current-release/bin/superslicer",
-      "args": [],
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "SuperSlicer: Build release"
-    },
-    {
-      "name": "SuperSlicer: Debug",
-      "type": "lldb",
-      "request": "launch",
-      "program": "${workspaceFolder}/build-linux-current-debug/bin/superslicer",
-      "args": [],
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "SuperSlicer: Build debug"
+      "args": ["--automation-api"],
+      "envFile": "/tmp/superslicer-automation-session.env",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }

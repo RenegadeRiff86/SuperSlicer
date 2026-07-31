@@ -312,6 +312,7 @@ public:
 
     std::string get_export_path();
     void export_gcode(bool prefer_removable);
+    bool export_gcode_to_path(const boost::filesystem::path& output_path, bool overwrite, std::string& error);
     void export_platter();
     void export_stl_obj(std::string path, bool extended = false, bool selection_only = false);
     void export_amf();
@@ -334,6 +335,7 @@ public:
     void changed_all_objects();
     void schedule_background_process(bool schedule = true);
     bool is_background_process_update_scheduled() const;
+    bool is_background_process_running() const;
     void suppress_background_process(const bool stop_background_process) ;
     void send_gcode();
 	void eject_drive();
@@ -450,6 +452,7 @@ public:
     GLToolbar& get_collapse_toolbar();
 
     void set_preview_layers_slider_values_range(int bottom, int top);
+    void set_preview_moves_slider_values_range(int bottom, int top);
 
     void update_preview_moves_slider();
     void enable_preview_moves_slider(bool enable);

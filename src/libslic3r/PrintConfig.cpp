@@ -12744,6 +12744,26 @@ CLIMiscConfigDef::CLIMiscConfigDef()
     def->tooltip = L("The file where the output will be written (if not specified, it will be based on the input file).");
     def->cli = "output|o";
 
+    def = this->add("automation_api", coBool);
+    def->label = L("Enable model automation API");
+    def->tooltip = L("Enable the authenticated loopback GUI automation API for this launch.");
+    def->cli = "automation-api";
+    def->set_default_value(std::make_unique<ConfigOptionBool>(false));
+
+    def = this->add("no_automation_api", coBool);
+    def->label = L("Disable model automation API");
+    def->tooltip = L("Disable the GUI automation API for this launch, overriding the saved preference.");
+    def->cli = "no-automation-api";
+    def->set_default_value(std::make_unique<ConfigOptionBool>(false));
+
+    def = this->add("automation_api_port", coInt);
+    def->label = L("Model automation API port");
+    def->tooltip = L("Loopback TCP port used by the GUI automation API.");
+    def->cli = "automation-api-port";
+    def->min = 1;
+    def->max = 65535;
+    def->set_default_value(std::make_unique<ConfigOptionInt>(43127));
+
     def = this->add("single_instance", coBool);
     def->label = L("Single instance mode");
     def->tooltip = L("If enabled, the command line arguments are sent to an existing instance of GUI Slic3r, "

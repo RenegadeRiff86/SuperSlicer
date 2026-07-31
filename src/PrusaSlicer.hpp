@@ -4,6 +4,8 @@
 #include "libslic3r/Config.hpp"
 #include "libslic3r/Model.hpp"
 
+#include <optional>
+
 namespace Slic3r {
 
 namespace IO {
@@ -31,6 +33,8 @@ private:
     std::vector<std::string>    m_actions;
     std::vector<std::string>    m_transforms;
     std::vector<Model>          m_models;
+    std::optional<bool>        m_automation_api_enabled;
+    std::optional<int>         m_automation_api_port;
 
     bool setup(int argc, char **argv);
     

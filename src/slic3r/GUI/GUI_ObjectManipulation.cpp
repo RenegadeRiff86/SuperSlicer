@@ -199,6 +199,7 @@ ObjectManipulation::ObjectManipulation(wxWindow* parent) :
 
     // Add world local combobox
     m_word_local_combo = create_word_local_combo(parent);
+    m_word_local_combo->SetName("superslicer.transform.coordinate_space");
     m_word_local_combo->Bind(wxEVT_COMBOBOX, ([this](wxCommandEvent& evt) { this->set_coordinates_type(evt.GetString()); }), m_word_local_combo->GetId());
 
     // Small trick to correct layouting in different view_mode :
@@ -1145,6 +1146,59 @@ void ObjectManipulation::on_change(const std::string& opt_key, int axis, double 
     }
 }
 
+bool ObjectManipulation::commit_automation_value(
+    const std::string& opt_key, int axis, double value, std::string& error)
+{
+    if (axis < 0 || axis > 2) {
+        error = "transform axis must be x, y, or z";
+        return false;
+    }
+    if (!std::isfinite(value)) {
+        error = "transform value must be finite";
+        return false;
+    }
+
+    int editor_group = -1;
+    if (opt_key == "position")
+        editor_group = 0;
+    else if (opt_key == "rotation")
+        editor_group = 1;
+    else if (opt_key == "scale")
+        editor_group = 2;
+    else {
+        error = "transform kind must be position, rotation, or scale";
+        return false;
+    }
+    if (opt_key == "scale" && value <= 0.0) {
+        error = "scale values must be greater than zero";
+        return false;
+    }
+
+    set_dirty();
+    update_if_dirty();
+    if (!m_cache.is_valid() || !m_new_enabled) {
+        error = "a transformable object or part must be selected";
+        return false;
+    }
+
+    const int editor_index = editor_group * 3 + axis;
+    if (editor_index >= static_cast<int>(m_editors.size())) {
+        error = "transform editor is unavailable";
+        return false;
+    }
+
+    const double display_value = opt_key == "position" && m_imperial_units
+        ? value * mm_to_in
+        : value;
+    ManipulationEditor* editor = m_editors[editor_index];
+    editor->set_value(double_to_string(display_value, 6));
+
+    wxCommandEvent committed(wxEVT_TEXT_ENTER, editor->GetId());
+    committed.SetEventObject(editor);
+    editor->GetEventHandler()->ProcessEvent(committed);
+    return true;
+}
+
 void ObjectManipulation::set_uniform_scaling(const bool use_uniform_scale)
 { 
     if (!use_uniform_scale)
@@ -1261,6 +1315,10 @@ ManipulationEditor::ManipulationEditor(ObjectManipulation* parent,
 
     // A name used to call handle_sidebar_focus_event()
     m_full_opt_name = m_opt_key+"_"+axes[axis];
+    const wxString automation_id = wxString::Format(
+        "superslicer.transform.%s.%c", m_opt_key, axes[axis]);
+    SetName(automation_id + ".container");
+    GetTextCtrl()->SetName(automation_id);
 
     // Reset m_enter_pressed flag to _false_, when value is editing
     this->Bind(wxEVT_TEXT, [this](wxEvent&) { m_enter_pressed = false; }, this->GetId());

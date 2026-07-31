@@ -129,6 +129,12 @@ void AppConfig::set_defaults()
         // Disable support issues alerts by default
         if (get("alert_when_supports_needed").empty())
             set("alert_when_supports_needed", "0");
+
+        // The developer automation API is opt-in at runtime and loopback-only.
+        if (get("automation_api_enabled").empty())
+            set("automation_api_enabled", "0");
+        if (get("automation_api_port").empty())
+            set("automation_api_port", "43127");
         // If set, the "Controller" tab for the control of the printer over serial line and the serial port settings are hidden.
         // By default, Prusa has the controller hidden.
         if (get("no_controller").empty())

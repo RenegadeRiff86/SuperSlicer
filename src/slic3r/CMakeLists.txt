@@ -382,6 +382,31 @@ set(SLIC3R_GUI_SOURCES
 
 find_package(NanoSVG REQUIRED)
 
+if (SLIC3R_ENABLE_AUTOMATION_API)
+    if (NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        message(FATAL_ERROR "SLIC3R_ENABLE_AUTOMATION_API is supported on Linux only")
+    endif()
+
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(SLIC3R_AUTOMATION_INPUT REQUIRED IMPORTED_TARGET
+        liboeffis-1.0
+        libei-1.0
+        xkbcommon
+    )
+
+    list(APPEND SLIC3R_GUI_SOURCES
+        GUI/Automation/AutomationIds.cpp
+        GUI/Automation/AutomationIds.hpp
+        GUI/Automation/AutomationSecurity.cpp
+        GUI/Automation/AutomationSecurity.hpp
+        GUI/Automation/AutomationServer.cpp
+        GUI/Automation/AutomationServer.hpp
+        GUI/Automation/AutomationServerGui.inl
+        GUI/Automation/WaylandInput.cpp
+        GUI/Automation/WaylandInput.hpp
+    )
+endif()
+
 if (APPLE)
     list(APPEND SLIC3R_GUI_SOURCES
             Utils/RetinaHelperImpl.mm
@@ -407,7 +432,10 @@ if (MSVC)
 endif ()
 
 add_library(libslic3r_gui STATIC ${SLIC3R_GUI_SOURCES})
-target_compile_definitions(libslic3r_gui PRIVATE $<$<BOOL:${SLIC3R_ALPHA}>:SLIC3R_ALPHA>)
+target_compile_definitions(libslic3r_gui PRIVATE
+    $<$<BOOL:${SLIC3R_ALPHA}>:SLIC3R_ALPHA>
+    $<$<BOOL:${SLIC3R_ENABLE_AUTOMATION_API}>:SLIC3R_ENABLE_AUTOMATION_API>
+)
 
 foreach(_source IN ITEMS ${SLIC3R_GUI_SOURCES})
     get_filename_component(_source_path "${_source}" PATH)
@@ -422,7 +450,10 @@ target_link_libraries(libslic3r_gui libslic3r libcereal imgui GLEW::GLEW OpenGL:
 if (MSVC)
     target_link_libraries(libslic3r_gui Setupapi.lib)
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_link_libraries(libslic3r_gui ${DBUS_LIBRARIES}) 
+    target_link_libraries(libslic3r_gui ${DBUS_LIBRARIES})
+    if (SLIC3R_ENABLE_AUTOMATION_API)
+        target_link_libraries(libslic3r_gui PkgConfig::SLIC3R_AUTOMATION_INPUT)
+    endif()
 elseif (APPLE)
     target_link_libraries(libslic3r_gui ${DISKARBITRATION_LIBRARY} ${COREWLAN_LIBRARY})
 endif()

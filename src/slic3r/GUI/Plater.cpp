@@ -942,6 +942,11 @@ Sidebar::Sidebar(Plater *parent)
 
     init_btn(&p->btn_export_gcode, _L("Export G-code") + dots , scaled_height);
     init_btn(&p->btn_reslice     , _L("Slice now")            , scaled_height);
+    p->btn_export_gcode->SetName("superslicer.action.export_gcode");
+    p->btn_reslice->SetName("superslicer.action.slice");
+    p->btn_send_gcode->SetName("superslicer.action.send_gcode");
+    p->btn_export_gcode_removable->SetName(
+        "superslicer.action.export_gcode_removable");
 
     enable_buttons(false);
 
@@ -2029,6 +2034,7 @@ struct Plater::priv
     bool init_collapse_toolbar();
 
     void set_preview_layers_slider_values_range(int bottom, int top);
+    void set_preview_moves_slider_values_range(int bottom, int top);
 
     void update_preview_moves_slider();
     void enable_preview_moves_slider(bool enable);
@@ -5139,6 +5145,11 @@ void Plater::priv::set_preview_layers_slider_values_range(int bottom, int top)
     preview->set_layers_slider_values_range(bottom, top);
 }
 
+void Plater::priv::set_preview_moves_slider_values_range(int bottom, int top)
+{
+    preview->set_moves_slider_values_range(bottom, top);
+}
+
 void Plater::priv::update_preview_moves_slider()
 {
     preview->update_moves_slider();
@@ -7238,7 +7249,7 @@ void Plater::export_gcode(bool prefer_removable)
         if (printer_technology() == ptFFF) {
             const ConfigOptionStrings* filaments = fff_print().full_print_config().opt<ConfigOptionStrings>("filament_settings_id");
             assert(filaments->size() == fff_print().config().filament_type.size());
-            for (int i = 0; i < filaments->size(); i++) {
+            for (size_t i = 0; i < filaments->size(); i++) {
                 str_material += "\n" + format(_L("'%1%' of type %2%"), filaments->get_at(i), fff_print().config().filament_type.get_at(i));
             }
         } else if (printer_technology() == ptSLA) {
@@ -7338,6 +7349,85 @@ void Plater::export_gcode(bool prefer_removable)
         appconfig.update_last_output_dir(output_path.parent_path().string(), path_on_removable_media);
 		
 	}
+}
+
+bool Plater::export_gcode_to_path(const fs::path& output_path, bool overwrite, std::string& error)
+{
+    if (output_path.empty() || !output_path.is_absolute()) {
+        error = "output path must be an absolute path";
+        return false;
+    }
+    if (p->model.objects.empty()) {
+        error = "no model is loaded";
+        return false;
+    }
+    if (canvas3D()->get_gizmos_manager().is_in_editing_mode(true)) {
+        error = "an object editing tool is active";
+        return false;
+    }
+    if (p->process_completed_with_error) {
+        error = "the previous slicing operation failed";
+        return false;
+    }
+    if (p->background_process.is_export_scheduled()) {
+        error = "another export job is currently running";
+        return false;
+    }
+
+    try {
+        if (fs::exists(output_path)) {
+            if (!overwrite) {
+                error = "output file already exists";
+                return false;
+            }
+            if (!fs::is_regular_file(output_path)) {
+                error = "output path is not a regular file";
+                return false;
+            }
+        }
+        const fs::path parent = output_path.parent_path();
+        if (parent.empty() || !fs::exists(parent) || !fs::is_directory(parent)) {
+            error = "output directory does not exist";
+            return false;
+        }
+
+        const std::string filename = output_path.filename().string();
+        if (has_illegal_filename_characters(filename)) {
+            error = "output file name contains characters unsupported by FAT filesystems";
+            return false;
+        }
+
+        if (printer_technology() == ptFFF) {
+            const bool supports_binary = wxGetApp().preset_bundle->printers.get_edited_preset().config.opt_bool("binary_gcode");
+            const bool uses_binary = wxGetApp().app_config->get_bool("use_binary_gcode_when_supported");
+            const wxString extension_error = check_binary_vs_ascii_gcode_extension(
+                printer_technology(), boost::algorithm::to_lower_copy(output_path.extension().string()),
+                supports_binary && uses_binary);
+            if (!extension_error.IsEmpty()) {
+                error = into_u8(extension_error);
+                return false;
+            }
+        }
+
+        RemovableDriveManager& removable_drive_manager = *wxGetApp().removable_drive_manager();
+        const bool path_on_removable_media =
+            removable_drive_manager.set_and_verify_last_save_path(output_path.string());
+        p->notification_manager->new_export_began(path_on_removable_media);
+        p->exporting_status = path_on_removable_media
+            ? ExportingStatus::EXPORTING_TO_REMOVABLE
+            : ExportingStatus::EXPORTING_TO_LOCAL;
+        p->last_output_path = output_path.string();
+        p->last_output_dir_path = output_path.parent_path().string();
+        p->export_gcode(output_path, path_on_removable_media, PrintHostJob());
+        if (!p->background_process.is_export_scheduled()) {
+            error = "export could not be scheduled";
+            return false;
+        }
+        return true;
+    } catch (const std::exception& ex) {
+        error = ex.what();
+        return false;
+    }
 }
 
 bool OptionForExportPlatter_can_select = true;
@@ -8792,6 +8882,11 @@ bool Plater::is_background_process_update_scheduled() const
     return this->p->background_process_timer.IsRunning();
 }
 
+bool Plater::is_background_process_running() const
+{
+    return this->p->background_process.running();
+}
+
 void Plater::suppress_background_process(const bool stop_background_process)
 {
     if (stop_background_process)
@@ -8947,6 +9042,11 @@ GLToolbar& Plater::get_collapse_toolbar()
 void Plater::set_preview_layers_slider_values_range(int bottom, int top)
 {
     p->set_preview_layers_slider_values_range(bottom, top);
+}
+
+void Plater::set_preview_moves_slider_values_range(int bottom, int top)
+{
+    p->set_preview_moves_slider_values_range(bottom, top);
 }
 
 void Plater::update_preview_moves_slider()

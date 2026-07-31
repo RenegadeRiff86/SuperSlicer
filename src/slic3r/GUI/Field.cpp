@@ -10,6 +10,7 @@
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/PrintConfig.hpp"
 
+#include "Automation/AutomationIds.hpp"
 #include "BitmapComboBox.hpp"
 #include "format.hpp"
 #include "GraphDialog.hpp"
@@ -178,7 +179,17 @@ void Field::PostInitialize()
     m_em_unit = em_unit(m_parent);
     parent_is_custom_ctrl = dynamic_cast<OG_CustomCtrl*>(m_parent) != nullptr;
 
-	BUILD();
+
+    BUILD();
+
+    // The automation API reports wxWindow::GetName() as an element's identity, and
+    // BUILD() leaves every control with the wx default ("text", "check"), which no
+    // script can address. The option key is the name the rest of the code already
+    // uses for a setting, so hand that to the window.
+    if (getWindow()) {
+        getWindow()->SetName(from_u8(
+            AutomationIds::option(m_opt_key_idx.key, m_opt_key_idx.idx)));
+    }
 
 	// For the mode, when settings are in non-modal dialog, neither dialog nor tabpanel doesn't receive wxEVT_KEY_UP event, when some field is selected.
 	// So, like a workaround check wxEVT_KEY_UP event for the Filed and switch between tabs if Ctrl+(1-6) was pressed 
@@ -317,7 +328,7 @@ wxString Field::get_rich_tooltip_text(const wxString& default_string)
 
     //add "\n" to long tooltip lines
     int length = 0;
-    for (int i = 0; i < wtooltip.size(); i++) {
+    for (size_t i = 0; i < wtooltip.size(); i++) {
         if (length >= 80 && wtooltip[i] == u' ')
             wtooltip_text.push_back(u'\n');
         else
@@ -2174,8 +2185,8 @@ void GraphButton::set_internal_any_value(const boost::any &value, bool change_ev
         std::vector<GraphData> graphs = boost::any_cast<std::vector<GraphData>>(value);
         assert(!graphs.empty());
         if (!graphs.empty()) {
-            assert(m_opt_key_idx.idx <graphs.size());
-            m_value = current_value = graphs[m_opt_key_idx.idx <graphs.size() ? m_opt_key_idx.idx : 0];
+            assert(size_t(m_opt_key_idx.idx) < graphs.size());
+            m_value = current_value = graphs[size_t(m_opt_key_idx.idx) < graphs.size() ? m_opt_key_idx.idx : 0];
             if (this->m_opt.graph_settings) {
                 this->window->update_bitmap(*this->m_opt.graph_settings, current_value);
             }

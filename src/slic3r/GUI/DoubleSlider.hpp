@@ -268,6 +268,8 @@ public:
     bool is_rendering_as_disabled() const { return m_render_as_disabled; }
 
     bool is_horizontal() const      { return m_style == wxSL_HORIZONTAL; }
+    wxRect GetThumbRect(SelectedSlider selection) const
+        { return selection == ssLower ? m_rect_lower_thumb : m_rect_higher_thumb; }
     bool is_one_layer() const       { return m_is_one_layer; }
     bool is_lower_at_min() const    { return m_lower_tick == m_min_tick; }
     bool is_higher_at_max() const   { return m_higher_tick == m_max_tick; }

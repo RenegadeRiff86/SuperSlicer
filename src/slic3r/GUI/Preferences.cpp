@@ -517,7 +517,27 @@ void PreferencesDialog::build()
 
 	bool is_editor = wxGetApp().is_editor();
 
+#if defined(SLIC3R_ENABLE_AUTOMATION_API) && defined(__linux__)
     m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Automation"), tabs, 0));
+    append_bool_option(
+        m_tabid_2_optgroups.back().back(),
+        "automation_api_enabled",
+        L("Enable model automation API"),
+        L("Start an authenticated API on the local machine for model-driven GUI testing. "
+          "The SUPERSLICER_AUTOMATION_TOKEN environment variable must be set."),
+        app_config->get_bool("automation_api_enabled"));
+    append_int_option(
+        m_tabid_2_optgroups.back().back(),
+        "automation_api_port",
+        L("Model automation API port"),
+        L("Fixed loopback port for the automation API. The default is 43127."),
+        8,
+        std::atoi(app_config->get("automation_api_port").c_str()),
+        ConfigOptionMode::comNone,
+        1,
+        65535);
+#endif
+
 	if (is_editor) {
 
 		append_bool_option(m_tabid_2_optgroups.back().back(), "remember_output_path", 
@@ -1405,6 +1425,11 @@ void PreferencesDialog::accept(wxEvent&)
 		wxGetApp().plater()->force_filament_cb_update();
 
 	wxGetApp().update_ui_from_settings();
+#if defined(SLIC3R_ENABLE_AUTOMATION_API) && defined(__linux__)
+    if (m_values.find("automation_api_enabled") != m_values.end() ||
+        m_values.find("automation_api_port") != m_values.end())
+        wxGetApp().configure_automation_api_from_preferences();
+#endif
 	clear_cache();
 }
 
@@ -1562,7 +1587,7 @@ void PreferencesDialog::layout()
         wxRect screen = display.GetClientArea();
         best_size.x = std::min(best_size.x, screen.width);
         best_size.y = std::min(best_size.y, screen.height);
-    } catch (std::exception) {
+    } catch (const std::exception &) {
         BOOST_LOG_TRIVIAL(error) << "Bad display_id: " << display_id;
     }
     // apply

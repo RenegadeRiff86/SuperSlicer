@@ -78,10 +78,12 @@ bool View3D::init(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig
 
     if (!Create(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0 /* disable wxTAB_TRAVERSAL */))
         return false;
+    SetName("superslicer.view.3d");
 
     m_canvas_widget = OpenGLManager::create_wxglcanvas(*this);
     if (m_canvas_widget == nullptr)
         return false;
+    m_canvas_widget->SetName("superslicer.canvas.3d");
 
     m_canvas = new GLCanvas3D(m_canvas_widget, bed);
     m_canvas->set_context(wxGetApp().init_glcontext(*m_canvas_widget));
@@ -212,6 +214,13 @@ void Preview::set_layers_slider_values_range(int bottom, int top)
     m_layers_slider->SetLowerValue(std::max(bottom, m_layers_slider->GetMinValue()));
 }
 
+void Preview::set_moves_slider_values_range(int bottom, int top)
+{
+    const int lower = std::max(bottom, m_moves_slider->GetMinValue());
+    const int higher = std::min(top, m_moves_slider->GetMaxValue());
+    m_moves_slider->SetSelectionSpan(lower, std::max(lower, higher));
+}
+
 bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
 {
 
@@ -220,6 +229,7 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
 
     if (!Create(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0 /* disable wxTAB_TRAVERSAL */))
         return false;
+    SetName("superslicer.view.preview");
 
     // to match the background of the sliders
 #ifdef _WIN32 
@@ -231,6 +241,7 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     m_canvas_widget = OpenGLManager::create_wxglcanvas(*this);
     if (m_canvas_widget == nullptr)
         return false;
+    m_canvas_widget->SetName("superslicer.canvas.preview");
 
     m_canvas = new GLCanvas3D(m_canvas_widget, bed);
     m_canvas->set_context(wxGetApp().init_glcontext(*m_canvas_widget));
@@ -251,7 +262,10 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     wxBoxSizer* right_sizer = new wxBoxSizer(wxVERTICAL);
     right_sizer->Add(m_layers_slider_sizer, 1, wxEXPAND, 0);
 
-    m_moves_slider = new DoubleSlider::Control(m_bottom_toolbar_panel, wxID_ANY, 0, 0, 0, 100, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL);
+    m_moves_slider = new DoubleSlider::Control(
+        m_bottom_toolbar_panel, wxID_ANY, 0, 0, 0, 100,
+        wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL,
+        wxDefaultValidator, "superslicer.preview.moves_slider");
     m_moves_slider->SetDrawMode(DoubleSlider::dmSequentialGCodeView);
 
     wxBoxSizer* bottom_toolbar_sizer = new wxBoxSizer(wxHORIZONTAL);
@@ -452,7 +466,10 @@ void Preview::on_size(wxSizeEvent& evt)
 wxBoxSizer* Preview::create_layers_slider_sizer()
 {
     wxBoxSizer* sizer = new wxBoxSizer(wxHORIZONTAL);
-    m_layers_slider = new DoubleSlider::Control(this, wxID_ANY, 0, 0, 0, 100);
+    m_layers_slider = new DoubleSlider::Control(
+        this, wxID_ANY, 0, 0, 0, 100,
+        wxDefaultPosition, wxDefaultSize, wxSL_VERTICAL,
+        wxDefaultValidator, "superslicer.preview.layers_slider");
     std::lock_guard lock(m_layers_slider->lock_render());
 
     m_layers_slider->SetDrawMode(wxGetApp().get_current_printer_technology() == ptSLA,
@@ -555,13 +572,13 @@ void Preview::update_layers_slider(const std::vector<double>& layers_z, bool sho
 
     int current_lower_tick = m_layers_slider->GetLowerValue();
     int current_higher_tick = m_layers_slider->GetHigherValue();
-    if (layers_z.size() == m_layers_slider->GetMaxValue() + 2) {
+    if (int(layers_z.size()) == m_layers_slider->GetMaxValue() + 2) {
         // new array is bigger by one
         if (current_lower_tick == current_higher_tick || !snap_to_min) {
             current_lower_tick++;
         }
         current_higher_tick++;
-    } else if (layers_z.size() == m_layers_slider->GetMaxValue()) {
+    } else if (int(layers_z.size()) == m_layers_slider->GetMaxValue()) {
         // new array is smaller by one
         current_lower_tick = std::max(current_lower_tick - 1, 0);
         current_higher_tick =  std::max(current_higher_tick - 1, 0);
@@ -590,12 +607,12 @@ void Preview::update_layers_slider(const std::vector<double>& layers_z, bool sho
     int idx_low = std::max(current_lower_tick, 0);
     int idx_high = snap_to_max ? m_layers_slider->GetMaxValue() : std::min(current_higher_tick, m_layers_slider->GetMaxValue());
     if (!layers_z.empty()) {
-        if (!snap_to_min && idx_low < layers_z.size() && !is_approx(layers_z[idx_low], z_low, 0.0000001)) {
+        if (!snap_to_min && size_t(idx_low) < layers_z.size() && !is_approx(layers_z[idx_low], z_low, 0.0000001)) {
             int idx_new = find_close_layer_idx(layers_z, z_low, DoubleSlider::epsilon()/*1e-6*/);
             if (idx_new != -1)
                 idx_low = idx_new;
         }
-        if (!snap_to_max && idx_high < layers_z.size() && !is_approx(layers_z[idx_high], z_high, 0.0000001)) {
+        if (!snap_to_max && size_t(idx_high) < layers_z.size() && !is_approx(layers_z[idx_high], z_high, 0.0000001)) {
             int idx_new = find_close_layer_idx(layers_z, z_high, DoubleSlider::epsilon()/*1e-6*/);
             if (idx_new != -1)
                 idx_high = idx_new;

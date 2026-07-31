@@ -226,6 +226,10 @@ public:
     void msw_rescale();
     void sys_color_changed();
     void on_change(const std::string& opt_key, int axis, double new_value);
+    // Set a transform through the same wxEVT_TEXT_ENTER commit path as the
+    // sidebar editors. Position values are expressed in millimetres even when
+    // the UI is currently displaying inches.
+    bool commit_automation_value(const std::string& opt_key, int axis, double value, std::string& error);
     void set_focused_editor(ManipulationEditor* focused_editor) {
         m_focused_editor = focused_editor;
     }

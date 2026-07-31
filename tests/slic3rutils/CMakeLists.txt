@@ -19,6 +19,20 @@ endif()
 
 add_executable(${_TEST_NAME}_tests ${_SLIC3RUTILS_TEST_SOURCES})
 
+if (SLIC3R_ENABLE_AUTOMATION_API)
+    set(_AUTOMATION_SECURITY_TEST_NAME superslicer_automation_security_tests)
+    add_executable(${_AUTOMATION_SECURITY_TEST_NAME}
+        automation_tests_main.cpp
+        automation_security_tests.cpp
+        ../../src/slic3r/GUI/Automation/AutomationSecurity.cpp
+    )
+    target_include_directories(${_AUTOMATION_SECURITY_TEST_NAME} PRIVATE ../../src)
+    target_link_libraries(${_AUTOMATION_SECURITY_TEST_NAME} test_common)
+    set_property(TARGET ${_AUTOMATION_SECURITY_TEST_NAME} PROPERTY FOLDER "tests")
+    add_test(NAME ${_AUTOMATION_SECURITY_TEST_NAME}
+             COMMAND ${_AUTOMATION_SECURITY_TEST_NAME})
+endif()
+
 # mold linker for successful linking needs also to link TBB library and link it before libslic3r.
 target_link_libraries(${_TEST_NAME}_tests test_common TBB::tbb TBB::tbbmalloc libslic3r_gui libslic3r)
 

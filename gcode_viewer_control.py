@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Launch or attach to SuperSlicer and control its integrated or standalone viewer."""
+"""Legacy Windows GUI driver retained for reference.
+
+Deprecated: Linux development and model-driven testing should use SuperSlicer's
+embedded automation HTTP/MCP API. Remove this script after Linux parity has been
+validated across the supported KDE/Wayland configurations.
+"""
 
 from __future__ import annotations
 

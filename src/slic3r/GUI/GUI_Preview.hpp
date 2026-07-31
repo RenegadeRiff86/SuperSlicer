@@ -187,6 +187,7 @@ Preview(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig* config, 
     void set_keep_current_preview_type(bool value) { m_keep_current_preview_type = value; }
 
     void set_layers_slider_values_range(int bottom, int top);
+    void set_moves_slider_values_range(int bottom, int top);
 
 private:
     ForceState current_force_state = ForceState::NoForce;
