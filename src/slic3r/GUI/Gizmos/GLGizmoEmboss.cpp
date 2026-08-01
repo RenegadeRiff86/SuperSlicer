@@ -11,6 +11,7 @@
 #include "slic3r/GUI/NotificationManager.hpp"
 #include "slic3r/GUI/Plater.hpp"
 #include "slic3r/GUI/MsgDialog.hpp"
+#include "slic3r/GUI/Automation/AutomationFileDialog.hpp"
 #include "slic3r/GUI/format.hpp"
 #include "slic3r/GUI/I18N.hpp"
 #include "slic3r/GUI/CameraUtils.hpp"
@@ -3134,7 +3135,7 @@ bool GLGizmoEmboss::choose_true_type_file()
     wxArrayString input_files;
     wxString      fontDir      = wxEmptyString;
     wxString      selectedFile = wxEmptyString;
-    wxFileDialog  dialog(nullptr, "Choose one or more files (TTF, TTC):",
+    FileDialog  dialog(nullptr, "Choose one or more files (TTF, TTC):",
                         fontDir, selectedFile, file_wildcards(FT_FONTS),
                         wxFD_OPEN | wxFD_FILE_MUST_EXIST);
     if (dialog.ShowModal() == wxID_OK) dialog.GetPaths(input_files);

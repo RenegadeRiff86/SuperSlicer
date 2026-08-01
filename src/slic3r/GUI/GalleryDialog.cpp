@@ -23,6 +23,7 @@
 
 #include "GUI.hpp"
 #include "GUI_App.hpp"
+#include "Automation/AutomationFileDialog.hpp"
 #include "format.hpp"
 #include "wxExtensions.hpp"
 #include "I18N.hpp"
@@ -431,7 +432,7 @@ void GalleryDialog::get_input_files(wxArrayString& input_files)
 void GalleryDialog::add_custom_shapes(wxEvent& event)
 {
     wxArrayString input_files;
-    wxFileDialog dialog(this, _L("Choose one or more files (STL, OBJ):"),
+    FileDialog dialog(this, _L("Choose one or more files (STL, OBJ):"),
         from_u8(wxGetApp().app_config->get_last_dir()), "",
         file_wildcards(FT_GALLERY), wxFD_OPEN | wxFD_MULTIPLE | wxFD_FILE_MUST_EXIST);
 
@@ -482,7 +483,7 @@ void GalleryDialog::change_thumbnail()
     if (m_selected_items.size() != 1 || m_selected_items[0].is_system)
         return;
 
-    wxFileDialog dialog(this, _L("Choose one PNG file:"),
+    FileDialog dialog(this, _L("Choose one PNG file:"),
                         from_u8(wxGetApp().app_config->get_last_dir()), "",
                         "PNG files (*.png)|*.png;*.PNG", wxFD_OPEN | wxFD_FILE_MUST_EXIST);
     if (dialog.ShowModal() != wxID_OK)

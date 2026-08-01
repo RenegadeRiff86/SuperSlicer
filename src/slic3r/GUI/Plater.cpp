@@ -98,6 +98,7 @@
 #include "GLToolbar.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"
+#include "Automation/AutomationFileDialog.hpp"
 #include "GUI_Factories.hpp"
 #include "GUI_Geometry.hpp"
 #include "GUI_ObjectList.hpp"
@@ -3310,7 +3311,7 @@ std::pair<wxString, int> Plater::priv::get_export_file(
     std::string out_dir = (boost::filesystem::path(output_file).parent_path()).string();
     std::string temp_dir = wxStandardPaths::Get().GetTempDir().utf8_str().data();
     
-    wxFileDialog dlg(q, dlg_title,
+    FileDialog dlg(q, dlg_title,
         out_dir == temp_dir ? from_u8(wxGetApp().app_config->get("last_output_path"))  : (is_shapes_dir(out_dir) ? from_u8(wxGetApp().app_config->get_last_dir()) : from_path(output_file.parent_path())), from_path(output_file.filename()),
         wildcard, wxFD_SAVE |(get_app_config()->get_show_overwrite_dialog() ? wxFD_OVERWRITE_PROMPT : 0) );
 
@@ -4044,7 +4045,7 @@ void Plater::priv::replace_with_stl()
 
     wxString title = _L("Select the new file");
     title += ":";
-    wxFileDialog dialog(q, title, "", from_u8(input_path.filename().string()), file_wildcards(FT_MODEL), wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+    FileDialog dialog(q, title, "", from_u8(input_path.filename().string()), file_wildcards(FT_MODEL), wxFD_OPEN | wxFD_FILE_MUST_EXIST);
     if (dialog.ShowModal() != wxID_OK)
         return;
 
@@ -4142,7 +4143,7 @@ void Plater::priv::reload_from_disk()
         title += " (" + from_u8(search.filename().string()) + ")";
 #endif // __APPLE__
         title += ":";
-        wxFileDialog dialog(q, title, "", from_u8(search.filename().string()), file_wildcards(FT_MODEL), wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+        FileDialog dialog(q, title, "", from_u8(search.filename().string()), file_wildcards(FT_MODEL), wxFD_OPEN | wxFD_FILE_MUST_EXIST);
         if (dialog.ShowModal() != wxID_OK)
             return;
 
@@ -6877,9 +6878,11 @@ void Plater::reset_with_confirm()
 {
     if (get_app_config()->get_bool("default_action_delete_all")) {
         if (!p->model.objects.empty()) {
-            MessageDialog /*wxMessageDialog*/ dialog(static_cast<wxWindow*>(this), _L("All objects will be removed, continue?"), wxString(SLIC3R_APP_NAME) + " - " + _L("Delete all"), wxYES_NO | wxCANCEL | wxYES_DEFAULT | wxCENTRE);
+            // Cancel is the default: both other answers are destructive (New Project discards the
+            // plate, Erase all objects empties it), so a stray Enter must not throw work away.
+            MessageDialog /*wxMessageDialog*/ dialog(static_cast<wxWindow*>(this), _L("All objects will be removed, continue?"), wxString(SLIC3R_APP_NAME) + " - " + _L("Delete all"), wxYES_NO | wxCANCEL | wxCANCEL_DEFAULT | wxCENTRE);
             dialog.SetButtonLabel(wxID_NO, _L("Erase all objects"));
-            dialog.SetButtonLabel(wxID_YES, _L("New Project"), true);
+            dialog.SetButtonLabel(wxID_YES, _L("New Project"));
             int result = dialog.ShowModal();
             if (result == wxID_YES)
                 new_project();
@@ -7300,7 +7303,7 @@ void Plater::export_gcode(bool prefer_removable)
     fs::path output_path;
     {
         std::string ext = default_output_file.extension().string();
-        wxFileDialog dlg(this, (printer_technology() == ptFFF) ? _L("Save G-code file as:") : _L("Save SL1 / SL1S file as:"),
+        FileDialog dlg(this, (printer_technology() == ptFFF) ? _L("Save G-code file as:") : _L("Save SL1 / SL1S file as:"),
             start_dir,
             from_path(default_output_file.filename()),
             printer_technology() == ptFFF ? GUI::file_wildcards(FT_GCODE, ext) :
@@ -7551,7 +7554,7 @@ void Plater::export_platter()
 
     std::string out_dir = (boost::filesystem::path(output_file).parent_path()).string();
 
-    wxFileDialog dlg(this, dlg_title,
+    FileDialog dlg(this, dlg_title,
         is_shapes_dir(out_dir) ? from_u8(wxGetApp().app_config->get_last_dir()) : from_path(output_file.parent_path()), from_path(output_file.filename()),
         wildcard, wxFD_SAVE |(wxGetApp().app_config->get_show_overwrite_dialog() ? wxFD_OVERWRITE_PROMPT : 0) );
 

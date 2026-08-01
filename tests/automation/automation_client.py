@@ -209,6 +209,36 @@ class ApiClient:
         )
         return self.wait_operation(started["operation_id"], timeout_ms)
 
+    # -- file dialogs ------------------------------------------------------
+
+    def arm_file_dialog(
+        self,
+        answer: str = "cancel",
+        paths: list[Path | str] | None = None,
+        title_contains: str | None = None,
+        filter_index: int = 0,
+        checkbox: bool = False,
+    ) -> dict[str, Any]:
+        """Queue the answer for the next file dialog. Arm BEFORE triggering the
+        action that opens one: ShowModal() blocks the GUI thread, so once a native
+        chooser is up there is no request that can still answer it."""
+        payload: dict[str, Any] = {
+            "answer": answer,
+            "filter_index": filter_index,
+            "checkbox": checkbox,
+        }
+        if paths is not None:
+            payload["paths"] = [str(Path(path).resolve()) for path in paths]
+        if title_contains is not None:
+            payload["title_contains"] = title_contains
+        return self.rest("POST", "/api/v1/workflows/arm_file_dialog", payload)
+
+    def clear_file_dialogs(self) -> dict[str, Any]:
+        return self.rest("POST", "/api/v1/workflows/arm_file_dialog", {"clear": True})
+
+    def file_dialog_status(self) -> dict[str, Any]:
+        return self.rest("POST", "/api/v1/workflows/file_dialog_status", {})
+
     def wait_operation(self, operation_id: str, timeout_ms: int = 60000) -> dict[str, Any]:
         state = self.rest(
             "POST",

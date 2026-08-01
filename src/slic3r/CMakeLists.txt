@@ -138,6 +138,10 @@ set(SLIC3R_GUI_SOURCES
     GUI/GUI_App.hpp
     GUI/GUI_Utils.cpp
     GUI/GUI_Utils.hpp
+    # Built even without SLIC3R_ENABLE_AUTOMATION_API: every file dialog in the
+    # app is one of these, and the seam is inert until the API arms it.
+    GUI/Automation/AutomationFileDialog.cpp
+    GUI/Automation/AutomationFileDialog.hpp
     GUI/GUI_Geometry.cpp
     GUI/GUI_Geometry.hpp
     GUI/I18N.cpp

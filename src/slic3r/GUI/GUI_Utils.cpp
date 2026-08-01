@@ -216,7 +216,7 @@ CheckboxFileDialog::CheckboxFileDialog(wxWindow *parent,
     const wxSize &size,
     const wxString &name
 )
-    : wxFileDialog(parent, message, default_dir, default_file, wildcard, style, pos, size, name)
+    : FileDialog(parent, message, default_dir, default_file, wildcard, style, pos, size, name)
     , checkbox_label(checkbox_label)
 {
     if (checkbox_label.IsEmpty()) {
@@ -228,6 +228,10 @@ CheckboxFileDialog::CheckboxFileDialog(wxWindow *parent,
 
 bool CheckboxFileDialog::get_checkbox_value() const
 {
+    // An answered dialog never built its extra control, so the checkbox has to
+    // come from the armed response instead of from a panel that does not exist.
+    if (automation_intercepted())
+        return automation_checkbox();
     auto *extra_panel = dynamic_cast<ExtraPanel*>(GetExtraControl());
     return extra_panel != nullptr ? extra_panel->cbox->GetValue() : false;
 }

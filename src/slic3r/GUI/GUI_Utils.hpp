@@ -24,6 +24,7 @@
 #include <chrono>
 
 #include "Event.hpp"
+#include "Automation/AutomationFileDialog.hpp"
 
 class wxCheckBox;
 class wxTopLevelWindow;
@@ -370,7 +371,7 @@ public:
 };
 
 
-class CheckboxFileDialog : public wxFileDialog
+class CheckboxFileDialog : public FileDialog
 {
 public:
     CheckboxFileDialog(wxWindow *parent,

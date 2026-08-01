@@ -26,10 +26,18 @@
         std::vector<wxWindow*> roots { scope };
         if (scope != m_app.mainframe)
             return roots;
+        // Every shown dialog the application owns is a root, modal or not. A top-level dialog is
+        // reachable upwards through GetParent() but is NOT part of its parent's GetChildren(), so
+        // walking the scope alone never descends into one - that is why a "Delete all" confirmation
+        // was absent from the snapshot and could not be answered. Do not filter on IsModal() here
+        // either: active_scope() already claims the ones wx reports as modal, and the ones it does
+        // not report would otherwise fall through both branches and vanish. collect_windows()
+        // de-duplicates, so naming a window that the walk also reaches costs nothing.
         for (wxWindow* top : wxTopLevelWindows) {
             auto* dialog = dynamic_cast<wxDialog*>(top);
-            if (dialog != nullptr && dialog != scope && dialog->IsShown() &&
-                !dialog->IsModal() && is_descendant_or_self(dialog, m_app.mainframe))
+            if (dialog == nullptr || dialog == scope || !dialog->IsShown())
+                continue;
+            if (is_descendant_or_self(dialog, m_app.mainframe))
                 roots.push_back(dialog);
         }
         return roots;
@@ -43,14 +51,15 @@
         return false;
     }
 
-    void collect_windows(wxWindow* window, bool include_hidden, std::vector<wxWindow*>& output) const
+    void collect_windows(wxWindow* window, bool include_hidden, std::vector<wxWindow*>& output,
+                         std::set<wxWindow*>& seen) const
     {
-        if (window == nullptr)
+        if (window == nullptr || !seen.insert(window).second)
             return;
         if (include_hidden || window->IsShownOnScreen())
             output.push_back(window);
         for (wxWindow* child : window->GetChildren())
-            collect_windows(child, include_hidden, output);
+            collect_windows(child, include_hidden, output, seen);
     }
 
     wxRect element_client_rect(
@@ -233,8 +242,9 @@
             return failure(ERROR_OPERATION_FAILED, "SuperSlicer main window is not ready");
 
         std::vector<wxWindow*> windows;
+        std::set<wxWindow*> seen;
         for (wxWindow* root : snapshot_roots(scope))
-            collect_windows(root, include_hidden, windows);
+            collect_windows(root, include_hidden, windows, seen);
 
         std::lock_guard lock(m_registry_mutex);
         ++m_registry_generation;
@@ -1037,6 +1047,81 @@
             { "path", path },
             { "state", "running" }
         }, request_id);
+    }
+
+    // Queue an answer for a file dialog the app has not raised yet. Arming has to
+    // happen BEFORE the action that opens the dialog, because ShowModal() blocks the
+    // GUI thread this handler runs on -- once the native chooser is up, nothing here
+    // gets a turn to answer it.
+    json gui_arm_file_dialog(const json& arguments, const std::string& request_id)
+    {
+        if (arguments.value("clear", false)) {
+            FileDialog::disarm_all();
+            FileDialog::clear_record();
+            return success({ { "armed", FileDialog::armed_count() } }, request_id);
+        }
+
+        FileDialogResponse response;
+        const std::string answer = lower_ascii(arguments.value("answer", std::string("cancel")));
+        if (answer == "ok")
+            response.return_code = wxID_OK;
+        else if (answer == "cancel")
+            response.return_code = wxID_CANCEL;
+        else
+            return failure(ERROR_OPERATION_FAILED, "answer must be ok or cancel", request_id);
+
+        if (arguments.contains("paths")) {
+            if (!arguments["paths"].is_array())
+                return failure(ERROR_OPERATION_FAILED, "paths must be an array of strings", request_id);
+            for (const json& entry : arguments["paths"]) {
+                if (!entry.is_string())
+                    return failure(ERROR_OPERATION_FAILED, "paths must be an array of strings", request_id);
+                response.paths.push_back(entry.get<std::string>());
+            }
+        }
+        const std::string single_path = arguments.value("path", std::string());
+        if (!single_path.empty())
+            response.paths.push_back(single_path);
+
+        if (response.return_code == wxID_OK && response.paths.empty())
+            return failure(
+                ERROR_OPERATION_FAILED,
+                "an ok response needs path or paths, because the caller reads the chosen file back",
+                request_id);
+
+        response.title_contains = arguments.value("title_contains", std::string());
+        response.filter_index   = arguments.value("filter_index", 0);
+        response.checkbox       = arguments.value("checkbox", false);
+
+        FileDialog::arm(std::move(response));
+        return success({ { "armed", FileDialog::armed_count() } }, request_id);
+    }
+
+    // Reports the dialog the app raised most recently. Arming with result=cancel and
+    // then reading this is how a menu item gets audited: it proves which dialog the
+    // item opened -- title, wildcard, save-vs-open -- without writing any files.
+    json gui_file_dialog_status(const std::string& request_id)
+    {
+        json status = { { "armed", FileDialog::armed_count() } };
+
+        FileDialogRecord record;
+        if (!FileDialog::last_record(record)) {
+            status["last"] = nullptr;
+            return success(std::move(status), request_id);
+        }
+
+        status["last"] = {
+            { "title", record.title },
+            { "wildcard", record.wildcard },
+            { "directory", record.directory },
+            { "filename", record.filename },
+            { "save", record.save },
+            { "multiple", record.multiple },
+            { "intercepted", record.intercepted },
+            { "accepted", record.return_code == wxID_OK },
+            { "paths", record.paths }
+        };
+        return success(std::move(status), request_id);
     }
 
     json gui_operation_status(const json& arguments, const std::string& request_id)

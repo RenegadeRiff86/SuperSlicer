@@ -12,6 +12,7 @@
 #include "../GUI/GUI_App.hpp"
 // localization
 #include "../GUI/I18N.hpp"
+#include "../GUI/Automation/AutomationFileDialog.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -188,7 +189,7 @@ void start_new_gcodeviewer(const wxString *path_to_open)
 
 void start_new_gcodeviewer_open_file(wxWindow *parent)
 {
-    wxFileDialog dialog(parent ? parent : wxGetApp().GetTopWindow(),
+    FileDialog dialog(parent ? parent : wxGetApp().GetTopWindow(),
         _L("Open G-code file:"),
         from_u8(wxGetApp().app_config->get_last_dir()), wxString(),
         file_wildcards(FT_GCODE), wxFD_OPEN | wxFD_FILE_MUST_EXIST);

@@ -56,6 +56,7 @@
 #include <string_view>
 
 #include "GUI_App.hpp"
+#include "Automation/AutomationFileDialog.hpp"
 #include "UnsavedChangesDialog.hpp"
 #include "MsgDialog.hpp"
 #include "Notebook.hpp"
@@ -1663,7 +1664,7 @@ static void init_macos_application_menu(wxMenuBar* menu_bar, MainFrame* main_fra
 static wxMenu* generate_help_menu()
 {
     wxMenu* helpMenu = new wxMenu();
-    append_menu_item(helpMenu, wxID_ANY, wxString::Format(_L("%s website"), SLIC3R_APP_NAME), _L("Open the Slic3r website in your browser"),
+    append_menu_item(helpMenu, wxID_ANY, wxString::Format(_L("%s website"), SLIC3R_APP_NAME), wxString::Format(_L("Open the %s website in your browser"), SLIC3R_APP_NAME),
         [](wxCommandEvent&) { wxGetApp().open_browser_with_warning_dialog("https://www.superslicer.org/"); });
     append_menu_item(helpMenu, wxID_ANY, wxString::Format(_L("%s Releases"), SLIC3R_APP_NAME), wxString::Format(_L("Open the %s releases page in your browser"), SLIC3R_APP_NAME),
         [](wxCommandEvent&) { wxGetApp().open_browser_with_warning_dialog(SLIC3R_DOWNLOAD); });
@@ -2251,7 +2252,7 @@ void MainFrame::repair_stl()
 {
     wxString input_file;
     {
-        wxFileDialog dlg(this, _L("Select the STL file to repair:"),
+        FileDialog dlg(this, _L("Select the STL file to repair:"),
             wxGetApp().app_config->get_last_dir(), "",
             file_wildcards(FT_STL), wxFD_OPEN | wxFD_FILE_MUST_EXIST);
         if (dlg.ShowModal() != wxID_OK)
@@ -2261,7 +2262,7 @@ void MainFrame::repair_stl()
 
     wxString output_file = input_file;
     {
-        wxFileDialog dlg( this, L("Save OBJ file (less prone to coordinate errors than STL) as:"),
+        FileDialog dlg( this, L("Save OBJ file (less prone to coordinate errors than STL) as:"),
                                         get_dir_name(output_file), get_base_name(output_file, ".obj"),
                                         file_wildcards(FT_OBJ), wxFD_SAVE | (get_app_config()->get_show_overwrite_dialog() ? wxFD_OVERWRITE_PROMPT : 0));
         if (dlg.ShowModal() != wxID_OK)
@@ -2292,7 +2293,7 @@ void MainFrame::export_config(bool to_prusa)
         return;
     }
     // Ask user for the file name for the config file.
-    wxFileDialog dlg(this, _L("Save configuration as:"),
+    FileDialog dlg(this, _L("Save configuration as:"),
         !m_last_config.IsEmpty() ? get_dir_name(m_last_config) : wxGetApp().app_config->get_last_dir(),
         !m_last_config.IsEmpty() ? get_base_name(m_last_config) : "config.ini",
         file_wildcards(FT_INI), wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
@@ -2311,7 +2312,7 @@ void MainFrame::load_config_file(bool from_prusa)
 {
     if (!wxGetApp().check_and_save_current_preset_changes(_L("Loading of a configuration file"), "", false))
         return;
-    wxFileDialog dlg(this, _L("Select configuration to load:"),
+    FileDialog dlg(this, _L("Select configuration to load:"),
         !m_last_config.IsEmpty() ? get_dir_name(m_last_config) : wxGetApp().app_config->get_last_dir(),
         "config.ini", "INI files (*.ini, *.gcode, *.bgcode)|*.ini;*.INI;*.gcode;*.g;*.bgcode;*.bgc", wxFD_OPEN | wxFD_FILE_MUST_EXIST);
     wxString file;
@@ -2366,7 +2367,7 @@ void MainFrame::export_configbundle(bool export_physical_printers /*= false*/)
         return;
     }
     // Ask user for a file name.
-    wxFileDialog dlg(this, _L("Save presets bundle as:"),
+    FileDialog dlg(this, _L("Save presets bundle as:"),
         !m_last_config.IsEmpty() ? get_dir_name(m_last_config) : wxGetApp().app_config->get_last_dir(),
         SLIC3R_APP_KEY "_config_bundle.ini",
         file_wildcards(FT_INI), wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
@@ -2392,7 +2393,7 @@ void MainFrame::load_configbundle(wxString file/* = wxEmptyString*/, bool from_p
     if (!wxGetApp().check_and_save_current_preset_changes(_L("Loading of a configuration bundle"), "", false))
         return;
     if (file.IsEmpty()) {
-        wxFileDialog dlg(this, _L("Select configuration to load:"),
+        FileDialog dlg(this, _L("Select configuration to load:"),
             !m_last_config.IsEmpty() ? get_dir_name(m_last_config) : wxGetApp().app_config->get_last_dir(),
             "config.ini", file_wildcards(FT_INI), wxFD_OPEN | wxFD_FILE_MUST_EXIST);
         if (dlg.ShowModal() != wxID_OK)

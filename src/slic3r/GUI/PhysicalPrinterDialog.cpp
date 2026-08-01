@@ -24,6 +24,7 @@
 
 #include "GUI.hpp"
 #include "GUI_App.hpp"
+#include "Automation/AutomationFileDialog.hpp"
 #include "MainFrame.hpp"
 #include "format.hpp"
 #include "Tab.hpp"
@@ -446,7 +447,7 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
         auto sizer = create_sizer_with_btn(parent, &m_printhost_client_cert_browse_btn, "browse", _L("Browse") + " " + dots);
         m_printhost_client_cert_browse_btn->Bind(wxEVT_BUTTON, [this, m_optgroup](wxCommandEvent e) {
             static const auto filemasks = _L("Client certificate files (*.pfx, *.p12)|*.pfx;*.p12|All files|*.*");
-            wxFileDialog openFileDialog(this, _L("Open Client certificate file"), "", "", filemasks, wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+            FileDialog openFileDialog(this, _L("Open Client certificate file"), "", "", filemasks, wxFD_OPEN | wxFD_FILE_MUST_EXIST);
             if (openFileDialog.ShowModal() != wxID_CANCEL) {
                 m_optgroup->set_value(OptionKeyIdx::scalar("printhost_client_cert"), std::move(openFileDialog.GetPath()), true, true);
                 m_optgroup->get_field(OptionKeyIdx::scalar("printhost_client_cert"))->field_changed();
@@ -492,7 +493,7 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
             auto sizer = create_sizer_with_btn(parent, &m_printhost_cafile_browse_btn, "browse", _L("Browse") + " " + dots);
             m_printhost_cafile_browse_btn->Bind(wxEVT_BUTTON, [this, m_optgroup](wxCommandEvent e) {
                 static const auto filemasks = _L("Certificate files (*.crt, *.pem)|*.crt;*.pem|All files|*.*");
-                wxFileDialog openFileDialog(this, _L("Open CA certificate file"), "", "", filemasks, wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+                FileDialog openFileDialog(this, _L("Open CA certificate file"), "", "", filemasks, wxFD_OPEN | wxFD_FILE_MUST_EXIST);
                 if (openFileDialog.ShowModal() != wxID_CANCEL) {
                     m_optgroup->set_value(OptionKeyIdx::scalar("printhost_cafile"), openFileDialog.GetPath(), true, true);
                     m_optgroup->get_field(OptionKeyIdx::scalar("printhost_cafile"))->field_changed();

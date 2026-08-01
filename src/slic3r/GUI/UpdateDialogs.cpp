@@ -30,6 +30,7 @@
 #include "ConfigWizard.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"
+#include "Automation/AutomationFileDialog.hpp"
 #include "I18N.hpp"
 #include "UnsavedChangesDialog.hpp"
 #include "wxExtensions.hpp"
@@ -869,7 +870,7 @@ void UpdateConfigDialog::build_ui() {
     wxButton *bt_load = new wxButton(this, wxID_ANY, _L("Load vendor ini file"));
         bt_load->Bind(wxEVT_BUTTON, ([this](wxCommandEvent& e) {
         
-        wxFileDialog dlg(this, _L("Load vendor configuration bundle"), "", "", "*.ini",
+        FileDialog dlg(this, _L("Load vendor configuration bundle"), "", "", "*.ini",
                                        wxFD_OPEN | wxFD_FILE_MUST_EXIST);
         wxGetApp().UpdateDarkUI(&dlg);
 

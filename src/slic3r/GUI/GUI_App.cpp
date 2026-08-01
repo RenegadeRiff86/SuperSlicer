@@ -74,6 +74,7 @@ class wxZipStreamLink;
 #include "GLCanvas3D.hpp"
 
 #ifdef SLIC3R_ENABLE_AUTOMATION_API
+#include "Automation/AutomationFileDialog.hpp"
 #include "Automation/AutomationServer.hpp"
 #endif
 
@@ -2964,7 +2965,7 @@ void GUI_App::persist_window_geometry(wxTopLevelWindow *window, bool default_max
 bool GUI_App::load_project(wxWindow *parent, wxString& input_file) const
 {
     input_file.Clear();
-    wxFileDialog dialog(parent ? parent : GetTopWindow(),
+    FileDialog dialog(parent ? parent : GetTopWindow(),
         _L("Choose one file (3MF/AMF):"),
         app_config->get_last_dir(), "",
         file_wildcards(FT_PROJECT)+ "|" + file_wildcards(FT_3MF_UNKBAKE), wxFD_OPEN | wxFD_FILE_MUST_EXIST);
@@ -2980,7 +2981,7 @@ bool GUI_App::load_project(wxWindow *parent, wxString& input_file) const
 void GUI_App::import_model(wxWindow *parent, wxArrayString& input_files) const
 {
     input_files.Clear();
-    wxFileDialog dialog(parent ? parent : GetTopWindow(),
+    FileDialog dialog(parent ? parent : GetTopWindow(),
         _L("Choose one or more files (STL/3MF/STEP/OBJ/AMF/SVG):"),
         from_u8(app_config->get_last_dir()), "",
         file_wildcards(FT_MODEL), wxFD_OPEN | wxFD_MULTIPLE | wxFD_FILE_MUST_EXIST);
@@ -2995,7 +2996,7 @@ void GUI_App::import_model_hueforge(wxWindow *parent, wxString& input_file) cons
     input_file.Clear();
 
     // Open dialog to select the .HFP file
-    wxFileDialog dialog(parent ? parent : GetTopWindow(),
+    FileDialog dialog(parent ? parent : GetTopWindow(),
             _L("Choose your modifier file (HFP):"),
             from_u8(app_config->get_last_dir()), "",
             file_wildcards(FT_HFP), wxFD_OPEN | wxFD_FILE_MUST_EXIST);
@@ -3006,7 +3007,7 @@ void GUI_App::import_model_hueforge(wxWindow *parent, wxString& input_file) cons
 
 void GUI_App::import_zip(wxWindow* parent, wxString& input_file) const
 {
-    wxFileDialog dialog(parent ? parent : GetTopWindow(),
+    FileDialog dialog(parent ? parent : GetTopWindow(),
         _L("Choose ZIP file") + ":",
         from_u8(app_config->get_last_dir()), "",
         file_wildcards(FT_ZIP), wxFD_OPEN | wxFD_FILE_MUST_EXIST);
@@ -3018,7 +3019,7 @@ void GUI_App::import_zip(wxWindow* parent, wxString& input_file) const
 void GUI_App::load_gcode(wxWindow* parent, wxString& input_file) const
 {
     input_file.Clear();
-    wxFileDialog dialog(parent ? parent : GetTopWindow(),
+    FileDialog dialog(parent ? parent : GetTopWindow(),
         _L("Choose one file (GCODE/GCO/G/BGCODE/BGC/NGC):"),
         app_config->get_last_dir(), "",
         file_wildcards(FT_GCODE), wxFD_OPEN | wxFD_FILE_MUST_EXIST);
@@ -3433,7 +3434,7 @@ void GUI_App::update_mode()
 void GUI_App::add_config_menu(wxMenuBar *menu)
 {
     auto local_menu = new wxMenu();
-    wxWindowID config_id_base = wxWindow::NewControlId(int(ConfigMenuCnt + Slic3r::GUI::get_app_config()->tags().size() * 2));
+    wxWindowID config_id_base = wxWindow::NewControlId(int(ConfigMenuCnt + Slic3r::GUI::get_app_config()->tags().size()));
 
     const wxString config_wizard_name = _(ConfigWizard::name(true));
     const wxString config_wizard_tooltip = from_u8((boost::format(_u8L("Run %s")) % config_wizard_name).str());
@@ -3460,7 +3461,6 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
 #endif
         _L("Application preferences"));
     wxMenu* mode_menu = nullptr;
-    wxMenu* tag_menu = nullptr;
     if (is_editor()) {
         local_menu->AppendSeparator();
         mode_menu = new wxMenu();
@@ -3474,14 +3474,13 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
 
         local_menu->AppendSubMenu(mode_menu, _L("Mode"), wxString::Format(_L("%s View Mode"), SLIC3R_APP_NAME));
 
-        tag_menu = new wxMenu();
-        for (const AppConfig::Tag& tag : Slic3r::GUI::get_app_config()->tags()) {
-            tag_menu->AppendCheckItem(config_id_base + ConfigMenuCnt + config_menu_idx, _(tag.name), _(tag.description));
-            Bind(wxEVT_UPDATE_UI, [this, tag](wxUpdateUIEvent& evt) { evt.Check((get_mode() & tag.tag) == tag.tag); }, config_id_base + ConfigMenuCnt + config_menu_idx);
-            config_menu_idx++;
-        }
-
-        local_menu->AppendSubMenu(tag_menu, _L("Tags"), wxString::Format(_L("%s View Mode"), SLIC3R_APP_NAME));
+        // The "Tags" submenu that used to sit here is gone. It listed the same tags under the same
+        // labels with the same check predicate and the same "View Mode" tooltip as Mode above, but
+        // its handler XOR-ed the bit into the mode instead of setting it. The view mode is a single
+        // exclusive choice - the mode buttons are push buttons, pressed until another is chosen -
+        // so a XOR-ed multi-bit mode is not a state the UI can represent: ModeSizer::SetMode lights
+        // each button with (m_bt_mode[m] & mode) != 0, so e.g. Simple^Expert lit two buttons at once.
+        // With exclusive semantics the submenu would just duplicate Mode, so it was removed.
     }
     local_menu->AppendSeparator();
     local_menu->Append(config_id_base + ConfigMenuLanguage, _L("&Language"));
@@ -3653,13 +3652,6 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
         for (const AppConfig::Tag& tag : Slic3r::GUI::get_app_config()->tags()) {
             mode_menu->Bind(wxEVT_MENU, std::bind(modefn, tag.tag, _1), config_id_base + ConfigMenuCnt + config_menu_idx);
             config_menu_idx++;
-        }
-        if (tag_menu != nullptr) {
-            auto tagfn = [this](ConfigOptionMode mode, wxCommandEvent&) { if (get_mode() != mode) save_mode(get_mode() ^ mode); };
-            for (const AppConfig::Tag& tag : Slic3r::GUI::get_app_config()->tags()) {
-                tag_menu->Bind(wxEVT_MENU, std::bind(tagfn, tag.tag, _1), config_id_base + ConfigMenuCnt + config_menu_idx);
-                config_menu_idx++;
-            }
         }
         //mode_menu->Bind(wxEVT_MENU, std::bind(modfn, comSimple, _1), config_id_base + ConfigMenuModeSimple);
         //mode_menu->Bind(wxEVT_MENU, std::bind(modfn, comAdvanced, _1), config_id_base + ConfigMenuModeAdvanced);
@@ -4301,7 +4293,7 @@ void GUI_App::gcode_thumbnails_debug()
     unsigned int width = 0;
     unsigned int height = 0;
 
-    wxFileDialog dialog(GetTopWindow(), _L("Select a gcode file:"), "", "", "G-code files (*.gcode)|*.gcode;*.GCODE;", wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+    FileDialog dialog(GetTopWindow(), _L("Select a gcode file:"), "", "", "G-code files (*.gcode)|*.gcode;*.GCODE;", wxFD_OPEN | wxFD_FILE_MUST_EXIST);
     if (dialog.ShowModal() != wxID_OK)
         return;
 

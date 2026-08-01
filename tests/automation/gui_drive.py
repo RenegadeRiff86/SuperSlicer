@@ -155,6 +155,41 @@ def command_export(client: ApiClient, args: argparse.Namespace) -> None:
     print(client.export_gcode(args.path))
 
 
+def command_arm_file_dialog(client: ApiClient, args: argparse.Namespace) -> None:
+    if args.clear:
+        print(client.clear_file_dialogs())
+        return
+    print(
+        client.arm_file_dialog(
+            answer=args.answer,
+            paths=args.path or None,
+            title_contains=args.title,
+            filter_index=args.filter_index,
+            checkbox=args.checkbox,
+        )
+    )
+
+
+def command_file_dialog(client: ApiClient, args: argparse.Namespace) -> None:
+    status = client.file_dialog_status()
+    last = status.get("last")
+    if last is None:
+        print(f"armed={status['armed']} last=none")
+        return
+    kind = "save" if last["save"] else "open"
+    print(
+        f"armed={status['armed']} {kind}"
+        f" {'answered' if last['intercepted'] else 'shown'}"
+        f" accepted={last['accepted']}"
+    )
+    print(f"  title:    {last['title']}")
+    print(f"  wildcard: {last['wildcard']}")
+    print(f"  dir:      {last['directory']}")
+    print(f"  filename: {last['filename']}")
+    for path in last["paths"]:
+        print(f"  path:     {path}")
+
+
 def command_status(client: ApiClient, args: argparse.Namespace) -> None:
     for key, value in sorted(client.status().items()):
         print(f"{key}: {value}")
@@ -270,6 +305,25 @@ def build_parser() -> argparse.ArgumentParser:
     screenshot_parser.add_argument("--ref", help="automation_id of the element to capture")
     screenshot_parser.set_defaults(handler=command_screenshot)
 
+    add_workflow_commands(commands)
+    add_file_dialog_commands(commands)
+
+    wait_parser = commands.add_parser("wait", help="wait for a UI state")
+    wait_parser.add_argument(
+        "--dialog",
+        nargs="?",
+        const="",
+        help="wait for a dialog, modal or not; optionally matching this title",
+    )
+    wait_parser.add_argument("--modal", action="store_true")
+    wait_parser.add_argument("--scope")
+    wait_parser.add_argument("--element")
+    wait_parser.set_defaults(handler=command_wait)
+
+    return parser
+
+
+def add_workflow_commands(commands) -> None:
     load_parser = commands.add_parser("load", help="load a model")
     load_parser.add_argument("model")
     load_parser.set_defaults(handler=command_load)
@@ -285,19 +339,30 @@ def build_parser() -> argparse.ArgumentParser:
     export_parser.add_argument("path")
     export_parser.set_defaults(handler=command_export)
 
-    wait_parser = commands.add_parser("wait", help="wait for a UI state")
-    wait_parser.add_argument(
-        "--dialog",
-        nargs="?",
-        const="",
-        help="wait for a dialog, modal or not; optionally matching this title",
-    )
-    wait_parser.add_argument("--modal", action="store_true")
-    wait_parser.add_argument("--scope")
-    wait_parser.add_argument("--element")
-    wait_parser.set_defaults(handler=command_wait)
 
-    return parser
+def add_file_dialog_commands(commands) -> None:
+    arm_parser = commands.add_parser(
+        "arm-file-dialog",
+        help="queue the answer for the next file dialog; arm before the action that opens it",
+    )
+    arm_parser.add_argument("--answer", choices=("cancel", "ok"), default="cancel")
+    arm_parser.add_argument(
+        "--path",
+        action="append",
+        help="file the dialog should report; repeat it for a multi-select dialog",
+    )
+    arm_parser.add_argument("--title", help="only answer a dialog whose title contains this")
+    arm_parser.add_argument("--filter-index", type=int, default=0)
+    arm_parser.add_argument("--checkbox", action="store_true")
+    arm_parser.add_argument(
+        "--clear", action="store_true", help="drop every armed answer and the last record"
+    )
+    arm_parser.set_defaults(handler=command_arm_file_dialog)
+
+    file_dialog_parser = commands.add_parser(
+        "file-dialog", help="report the file dialog the app raised most recently"
+    )
+    file_dialog_parser.set_defaults(handler=command_file_dialog)
 
 
 def add_wait_flags(parser: argparse.ArgumentParser) -> None:

@@ -10,6 +10,7 @@
 #include "format.hpp"
 #include "GUI.hpp"
 #include "GUI_Utils.hpp"
+#include "Automation/AutomationFileDialog.hpp"
 #include "GUI_ObjectList.hpp"
 #include "Plater.hpp"
 #include "slic3r/Utils/Http.hpp"
@@ -1558,7 +1559,7 @@ void CreateMMUTiledCanvas::create_main_tab(wxPanel* tab)
     wxGetApp().UpdateDarkUI(bt_file);
     horiSizer->Add(bt_file, 0, wxALIGN_CENTER_VERTICAL);
     bt_file->Bind(wxEVT_BUTTON, ([this](wxCommandEvent& e) {
-        wxFileDialog openFileDialog(this, _("Open png file"), "", "",
+        FileDialog openFileDialog(this, _("Open png file"), "", "",
             "png files (*.png)|*.png", wxFD_OPEN | wxFD_FILE_MUST_EXIST);
         if (openFileDialog.ShowModal() == wxID_CANCEL)
             return;

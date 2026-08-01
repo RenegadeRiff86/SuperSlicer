@@ -7,6 +7,7 @@
 #include "slic3r/GUI/NotificationManager.hpp"
 #include "slic3r/GUI/Plater.hpp"
 #include "slic3r/GUI/MsgDialog.hpp"
+#include "slic3r/GUI/Automation/AutomationFileDialog.hpp"
 #include "slic3r/GUI/format.hpp"
 #include "slic3r/GUI/CameraUtils.hpp"
 #include "slic3r/GUI/Jobs/EmbossJob.hpp"
@@ -1562,7 +1563,7 @@ void GLGizmoSVG::draw_filename(){
             wxString dlg_title = _L("Save SVG file");
             const EmbossShape::SvgFile& svg = *m_volume_shape.svg_file;
             wxString dlg_file = from_u8(get_file_name(((!svg.path.empty()) ? svg.path : svg.path_in_3mf))) + ".svg";
-            wxFileDialog dlg(parent, dlg_title, last_used_directory, dlg_file, wildcard, wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+            FileDialog dlg(parent, dlg_title, last_used_directory, dlg_file, wildcard, wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
             if (dlg.ShowModal() == wxID_OK ){
                 last_used_directory = dlg.GetDirectory();
                 wxString out_path = dlg.GetPath();
@@ -1596,7 +1597,7 @@ void GLGizmoSVG::draw_filename(){
         //    wxString dlg_dir = from_u8(wxGetApp().app_config->get_last_dir());
         //    const EmbossShape::SvgFile& svg = m_volume_shape.svg_file;
         //    wxString dlg_file = from_u8(get_file_name(((!svg.path.empty()) ? svg.path : svg.path_in_3mf))) + ".svg";
-        //    wxFileDialog dlg(nullptr, dlg_title, dlg_dir, dlg_file, wildcard, wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+        //    FileDialog dlg(nullptr, dlg_title, dlg_dir, dlg_file, wildcard, wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
         //    if (dlg.ShowModal() == wxID_OK ){
         //        wxString out_path = dlg.GetPath();        
         //        std::string path{out_path.c_str()};
@@ -2165,7 +2166,7 @@ std::string choose_svg_file()
     wxString selected_file = wxEmptyString;
     wxString wildcard = file_wildcards(FT_SVG);
     long style = wxFD_OPEN | wxFD_FILE_MUST_EXIST;
-    wxFileDialog dialog(parent, message, last_used_directory, selected_file, wildcard, style);
+    FileDialog dialog(parent, message, last_used_directory, selected_file, wildcard, style);
     if (dialog.ShowModal() != wxID_OK) {
         BOOST_LOG_TRIVIAL(warning) << "SVG file for emboss was NOT selected.";
         return {};

@@ -2,6 +2,7 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher.
 
 #include "AutomationServer.hpp"
+#include "AutomationFileDialog.hpp"
 #include "AutomationIds.hpp"
 #include "AutomationSecurity.hpp"
 #include "WaylandInput.hpp"
@@ -18,6 +19,8 @@
 #include "libslic3r/GCode/ThumbnailData.hpp"
 
 #include <nlohmann/json.hpp>
+
+#include <set>
 
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/core.hpp>
@@ -87,7 +90,9 @@ constexpr char ERROR_TARGET_NOT_FOREGROUND[] = "target_not_" "foreground";
 constexpr char FIELD_ACCEPTED[] = "acc" "epted";
 constexpr char FIELD_OPERATION_ID[] = "operation_" "id";
 constexpr char FIELD_REQUEST_ID[] = "request_" "id";
+constexpr char TOOL_ARM_FILE_DIALOG[] = "superslicer_" "arm_file_dialog";
 constexpr char TOOL_BATCH[] = "superslicer_" "batch";
+constexpr char TOOL_FILE_DIALOG_STATUS[] = "superslicer_" "file_dialog_status";
 constexpr char TOOL_INPUT[] = "superslicer_" "input";
 constexpr char TOOL_STATUS[] = "superslicer_" "status";
 constexpr char TOOL_UI_SCREENSHOT[] = "superslicer_ui_" "screenshot";
@@ -688,7 +693,9 @@ private:
             { "select_view", "superslicer_select_view" },
             { "set_preview", "superslicer_set_preview" },
             { "set_transform", "superslicer_set_transform" },
-            { "export_gcode", "superslicer_export_gcode" }
+            { "export_gcode", "superslicer_export_gcode" },
+            { "arm_file_dialog", "superslicer_arm_file_dialog" },
+            { "file_dialog_status", "superslicer_file_dialog_status" }
         };
         const auto found = tools.find(operation);
         return found == tools.end() ? std::string() : found->second;
@@ -709,7 +716,9 @@ private:
             "superslicer_select_view",
             "superslicer_set_preview",
             "superslicer_set_transform",
-            "superslicer_export_gcode"
+            "superslicer_export_gcode",
+            TOOL_ARM_FILE_DIALOG,
+            TOOL_FILE_DIALOG_STATUS
         };
         return std::find(names.begin(), names.end(), name) != names.end();
     }
@@ -719,7 +728,8 @@ private:
         return name != TOOL_STATUS &&
                name != TOOL_UI_SNAPSHOT &&
                name != TOOL_UI_SCREENSHOT &&
-               name != TOOL_WAIT;
+               name != TOOL_WAIT &&
+               name != TOOL_FILE_DIALOG_STATUS;
     }
 
     static json tool_definitions()
@@ -749,7 +759,9 @@ private:
             tool("superslicer_select_view", "Select the 3D or Preview panel."),
             tool("superslicer_set_preview", "Set preview layer or move slider ranges."),
             tool("superslicer_set_transform", "Commit selected-object position, rotation, or scale."),
-            tool("superslicer_export_gcode", "Export G-code to an explicit path with overwrite protection.")
+            tool("superslicer_export_gcode", "Export G-code to an explicit path with overwrite protection."),
+            tool("superslicer_arm_file_dialog", "Queue the answer for the next file dialog, so an action that opens one can run unattended. Arm before triggering it."),
+            tool("superslicer_file_dialog_status", "Report the file dialog the app raised most recently: title, wildcard, save or open, and the paths returned.")
         });
     }
 
@@ -898,6 +910,10 @@ private:
             return gui_set_transform(arguments, request_id);
         if (tool == "superslicer_export_gcode")
             return gui_export_gcode(arguments, request_id);
+        if (tool == TOOL_ARM_FILE_DIALOG)
+            return gui_arm_file_dialog(arguments, request_id);
+        if (tool == TOOL_FILE_DIALOG_STATUS)
+            return gui_file_dialog_status(request_id);
         if (tool == "__operation_status")
             return gui_operation_status(arguments, request_id);
         if (tool == "__wayland_target")
