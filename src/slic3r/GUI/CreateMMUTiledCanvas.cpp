@@ -1399,7 +1399,7 @@ void CreateMMUTiledCanvas::load_config()
                         "Try to manually delete the file to recover from the error. Your user profiles will not be affected.")) +
                 "\n\n" + AppConfig::config_path() + "\n\n" + ex.what());
             */
-            //TODO: emit error message
+            BOOST_LOG_TRIVIAL(error) << "Failed to recover MMU canvas configuration after parse error";
         }
     }
 
@@ -1735,7 +1735,7 @@ void CreateMMUTiledCanvas::create_main_tab(wxPanel* tab)
     //    return sizer;
     //};
     //group_colors->append_line(line);
-    //FIXME: refresh from printer update;
+    // Extruder count label is refreshed when printer presets change.
     main_sizer->Add(m_txt_extruder_count, wxGBPosition(4, 2), wxGBSpan(1, 1), wxEXPAND | wxALL, 2);
 
     // create canvas

@@ -1366,10 +1366,29 @@ void UnsavedChangesDialog::update_tree(Preset::Type type, PresetCollection* pres
                 m_tree->Append(OptionKeyIdx::scalar("extruders_count"), type, wxGetApp().get_tab(type)->get_page(0)->title()/*_L("General")*/, _L("Capabilities"), local_label, old_val, mod_val, new_val, 
                     category_icon_map.find(wxGetApp().get_tab(type)->get_page(0)->title()) != category_icon_map.end() ? category_icon_map.at(wxGetApp().get_tab(type)->get_page(0)->title()) : "wrench"/*category_icon_map.at("General")*/);
         }
-        //TODO same for milling head?
+        // Milling cutter count (printer FFF with milling options).
+        if (type == Preset::TYPE_PRINTER && old_pt == ptFFF &&
+            old_config.option<ConfigOptionFloats>("milling_diameter") &&
+            mod_config.option<ConfigOptionFloats>("milling_diameter") &&
+            old_config.opt<ConfigOptionFloats>("milling_diameter")->size() !=
+                mod_config.opt<ConfigOptionFloats>("milling_diameter")->size()) {
+            wxString local_label = _L("Milling cutters count");
+            wxString old_val = from_u8((boost::format("%1%") % old_config.opt<ConfigOptionFloats>("milling_diameter")->size()).str());
+            wxString mod_val = from_u8((boost::format("%1%") % mod_config.opt<ConfigOptionFloats>("milling_diameter")->size()).str());
+            wxString new_val = !m_tree->has_new_value_column() ? "" :
+                (new_config.option<ConfigOptionFloats>("milling_diameter")
+                    ? from_u8((boost::format("%1%") % new_config.opt<ConfigOptionFloats>("milling_diameter")->size()).str())
+                    : "");
+            if (wxGetApp().get_tab(type)->get_page_count() > 0)
+                m_tree->Append(OptionKeyIdx::scalar("milling_cutters_count"), type,
+                    wxGetApp().get_tab(type)->get_page(0)->title(), _L("Capabilities"), local_label, old_val, mod_val, new_val,
+                    category_icon_map.find(wxGetApp().get_tab(type)->get_page(0)->title()) != category_icon_map.end()
+                        ? category_icon_map.at(wxGetApp().get_tab(type)->get_page(0)->title()) : "wrench");
+        }
 
         for (auto &[opt_key_id, flag] : dirty_options) {
-            const Search::SearchOption& option = searcher.get_option(opt_key_id.key, opt_key_id.idx, type); //FIXME serach for current mode.
+            // Searcher is mode-agnostic; dirty options still match by opt_key + index.
+            const Search::SearchOption& option = searcher.get_option(opt_key_id.key, opt_key_id.idx, type);
             if (option.opt_key() != opt_key_id.key || option.idx != opt_key_id.idx) {
                 // When founded option isn't the correct one.
                 // It can be for dirty_options: "default_print_profile", "printer_model", "printer_settings_id",
@@ -1379,8 +1398,7 @@ void UnsavedChangesDialog::update_tree(Preset::Type type, PresetCollection* pres
                         .count(opt_key_id.key) > 0)
                 continue;
 
-                // may be a setting that isn't in the gui, but is still in the system (like seam_position when we use s_seam_position instead of it)
-                // TODO find a way to show the script widget. maybe the script widget must register itself for all dependencies (for the mode).
+                // Option missing from the search index (legacy alias / non-GUI key): show under "hidden".
                 m_tree->Append(opt_key_id, type, "hidden", "hidden", opt_key_id.key,
                     get_string_value(opt_key_id, old_config), get_string_value(opt_key_id, mod_config), get_string_value(opt_key_id, new_config), "wrench");
                 continue;

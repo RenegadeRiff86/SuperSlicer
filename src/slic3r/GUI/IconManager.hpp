@@ -30,7 +30,6 @@ public:
         white_only_data = 1 << 2, 
         gray_only_data  = 1 << 3,
         color_wite_gray = color | white_only_data | gray_only_data
-        // TODO: add type with backgrounds
     };
 
     struct InitType {

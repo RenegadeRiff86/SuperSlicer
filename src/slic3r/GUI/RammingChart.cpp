@@ -94,8 +94,7 @@ void Chart::draw() {
         } else {
             pos = screen_to_math(m_previous_mouse);
         }
-        // show on bottom right
-        // TODO: compute legend height instead of '3 * scale_unit'
+        // Bottom-right legend placement (one legend_side from the chart corner).
         wxPoint ptx = math_to_screen(wxPoint2DDouble(m_visible_area.m_x + m_visible_area.m_width, m_visible_area.m_y));
         wxPoint pty = math_to_screen(wxPoint2DDouble(m_visible_area.m_x + m_visible_area.m_width, m_visible_area.m_y));
         ptx.x -= 1 * legend_side;

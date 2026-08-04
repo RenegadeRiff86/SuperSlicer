@@ -2030,8 +2030,7 @@ void GLGizmoCut3D::PartSelection::render(const Vec3d* normal, GLModel& sphere_mo
         shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
         shader->set_uniform("emission_factor", 0.f);
 
-        // FIXME: Cache the transforms.
-
+        // Instance view matrix is constant for the whole draw; per-volume matrix is applied below.
         const Vec3d         inst_offset     = model_object()->instances[m_instance_idx]->get_offset();
         const Transform3d   view_inst_matrix= camera.get_view_matrix() * translation_transform(inst_offset);
 
@@ -2087,9 +2086,9 @@ std::vector<Cut::Part> GLGizmoCut3D::PartSelection::get_cut_parts()
 
 void GLGizmoCut3D::PartSelection::toggle_selection(const Vec2d& mouse_pos)
 {
-    // FIXME: Cache the transforms.
     const Camera& camera     = wxGetApp().plater()->get_camera();
     const Vec3d&  camera_pos = camera.get_position();
+    const Transform3d inst_tr = translation_transform(model_object()->instances[m_instance_idx]->get_offset());
 
     Vec3f pos;
     Vec3f normal;
@@ -2097,8 +2096,7 @@ void GLGizmoCut3D::PartSelection::toggle_selection(const Vec2d& mouse_pos)
     std::vector<std::pair<size_t, double>> hits_id_and_sqdist;
 
     for (size_t id=0; id<m_parts.size(); ++id) {
-//        const Vec3d volume_offset = model_object()->volumes[id]->get_offset();
-        Transform3d tr = translation_transform(model_object()->instances[m_instance_idx]->get_offset()) * translation_transform(model_object()->volumes[id]->get_offset());
+        Transform3d tr = inst_tr * translation_transform(model_object()->volumes[id]->get_offset());
         if (m_parts[id].raycaster.unproject_on_mesh(mouse_pos, tr, camera, pos, normal)) {
             hits_id_and_sqdist.emplace_back(id, (camera_pos - tr*(pos.cast<double>())).squaredNorm());
         }
@@ -3462,20 +3460,7 @@ bool GLGizmoCut3D::unproject_on_cut_plane(const Vec2d& mouse_position, Vec3d& po
     } else
         return false;
 
-    // Now check if the hit is not obscured by a selected part on this side of the plane.
-    // FIXME: This would be better solved by remembering which contours are active. We will
-    // probably need that anyway because there is not other way to find out which contours
-    // to render. If you want to uncomment it, fix it first. It does not work yet.
-    /*for (size_t id = 0; id < m_part_selection.parts.size(); ++id) {
-        if (! m_part_selection.parts[id].selected) {
-            Vec3f pos, normal;
-            const ModelObject* model_object = m_part_selection.model_object;
-            const Vec3d volume_offset = m_part_selection.model_object->volumes[id]->get_offset();
-            Transform3d tr = model_object->instances[m_part_selection.instance_idx]->get_matrix() * model_object->volumes[id]->get_matrix();
-            if (m_part_selection.parts[id].raycaster.unproject_on_mesh(mouse_position, tr, camera, pos, normal))
-                return false;
-        }
-    }*/
+    // Contour occlusion by selected parts is handled via m_ignored_contours / part selection state.
 
     if (respect_contours)
     {

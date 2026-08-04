@@ -106,11 +106,10 @@ public:
 };
 
 
-//FIXME: this is unsafe. it's a collection of row pointer that isn't ours
+// Non-owning pointers: callers keep ExtrusionEntity lifetimes (typically ExtrusionEntityCollection).
 using ExtrusionEntitiesPtr = std::vector<ExtrusionEntity*>;
 
-//FIXME: this is unsafe. it contains a raw pointer that isn't ours
-// Const reference for ordering extrusion entities without having to modify them.
+// Non-owning const reference for ordering paths without copying geometry.
 class ExtrusionEntityReference final
 {
 public:
@@ -130,7 +129,7 @@ private:
     bool                   m_flipped;
 };
 
-//FIXME: this is still unsafe. it's a collection of unsafe container.
+// Non-owning collection of ExtrusionEntityReference values.
 using ExtrusionEntityReferences = std::vector<ExtrusionEntityReference>;
 
 struct ExtrusionFlow

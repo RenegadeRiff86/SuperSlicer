@@ -183,13 +183,8 @@ using PageShp = std::shared_ptr<Page>;
 
 
 
-// VectorManager Manager - helper for manipulation of a vector field
-// TODO resolce current issues:
-//  - it needs to have the growable line under a normal line, as it needs the full_length to be able to layout new items.
-//     ideally, i want everythign in the same line.
-//  - it misseds the rest buttons & gui things on the first line
-//  - the second line will pop at the end of the group, not when it's inserted at the creation.
-//  - line_full_width or something is creating a vertical gap, to remove.
+// Growable vector editor: values render on a follow-up full-width line under the option label.
+// Known layout limits: undo/reset sit on the label line; vector rows append at group end.
 class VectorManager
 {
     std::string         m_opt_key;

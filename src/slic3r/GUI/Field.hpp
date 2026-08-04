@@ -328,7 +328,7 @@ public:
     inline bool is_widget_enabled() const { return m_is_enable; }
 
 	virtual wxString	get_tooltip_text(const wxString& default_string);
-	// hack via richtooltip that are also hacked
+	// Delayed rich tooltip (avoids flicker while the mouse crosses fields).
 	RichTooltipTimer	m_rich_tooltip_timer;
 	virtual wxString	get_rich_tooltip_text(const wxString& default_string);
 	virtual wxString	get_rich_tooltip_title(const wxString& default_string);

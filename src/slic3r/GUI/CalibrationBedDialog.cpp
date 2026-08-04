@@ -366,7 +366,9 @@ void CalibrationBedDialog::create_geometry(wxCommandEvent& event_args) {
         Worker &ui_job_worker = plat->get_ui_job_worker();
         plat->arrange(ui_job_worker, false);
         ui_job_worker.wait_for_current_job(20000);
-        //TODO add message
+        show_info(this,
+            _L("Calibration objects were auto-arranged because the bed was too small for the default layout."),
+            _L("Bed calibration"));
     }
     //if(!plat->is_background_process_update_scheduled())
     //    plat->schedule_background_process();

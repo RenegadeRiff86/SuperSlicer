@@ -2351,7 +2351,6 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
 
                 } else if (false /* is_script support removed */) {
                     //be careful, "floatX" has to deteted before "float".
-                    // TODO: set default value
                     if (params[i] == "bools") {
                         option.opt.type = coBools;
                         option.opt.set_default_value(std::make_unique<ConfigOptionBools>(ConfigOptionBools{ false }));
@@ -2474,7 +2473,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
             while (arg.size() > 1 && (arg.back() == ' ' || arg.back() == '\t')) arg = arg.substr(0, arg.size() - 1);
             height = atoi(arg.c_str());
         } else if (full_line == "freq_purging_volumes") {
-            // hack (see FreqChangedParams::init() in plater.cpp)
+            // Marker for FreqChangedParams::init() to attach the purging-volumes button.
             current_line.label_tooltip = full_line;
         } else if (full_line == "update_nozzle_diameter") {
             current_group->m_on_change = set_or_add(current_group->m_on_change, [this, idx_page]
@@ -3375,7 +3374,7 @@ void TabFilament::update_description_lines()
 }
 
 void TabFilament::toggle_options()
-{ //TODO: check prusa changes
+{
     if (!m_active_page)
         return;
 
@@ -3570,8 +3569,7 @@ void TabPrinter::init()
 
     // For DiffPresetDialog we use options list which is saved in Searcher class.
     // Options for the Searcher is added in the moment of pages creation.
-    // So, fake-build first of all printer pages for non-selected printer technology...
-    // //FIXME: split into PRINTERSLA and PRINTERFFF
+    // Fake-build the opposite technology first so Searcher sees both FFF and SLA printer options.
     Tab::fake_build = true;
     std::string def_preset_name = "- default " + std::string(m_printer_technology == ptSLA ? "FFF" : "SLA") + " -";
     m_config = &m_presets->find_preset(def_preset_name)->config;
@@ -4514,8 +4512,8 @@ bool Tab::select_preset(std::string preset_name, bool delete_current /*=false*/,
         try {
             // cache previously selected names
             delete_current_preset();
-        } catch (const std::exception & /* e */) {
-            //FIXME add some error reporting!
+        } catch (const std::exception &e) {
+            show_error(this, format_wxstr(_L("Failed to delete the current preset: %1%"), e.what()));
             canceled = true;
         }
     }

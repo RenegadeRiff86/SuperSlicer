@@ -205,7 +205,6 @@ static const constexpr std::array<std::pair<const char *, const char *>, 3> SVG_
     {L("Add SVG part"),     "svg_part"},     // ~ModelVolumeType::MODEL_PART
     {L("Add negative SVG"), "svg_negative"}, // ~ModelVolumeType::NEGATIVE_VOLUME
     {L("Add SVG modifier"), "svg_modifier"}, // ~ModelVolumeType::PARAMETER_MODIFIER
-    //TODO: svg brim patch & negative
 }};
 
 static Plater* plater()

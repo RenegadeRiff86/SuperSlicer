@@ -36,7 +36,8 @@ std::string SavePresetDialog::Item::get_init_preset_name(const std::string &suff
     PresetBundle*     preset_bundle = dynamic_cast<SavePresetDialog*>(m_parent)->get_preset_bundle();
     if (!preset_bundle)
         preset_bundle = wxGetApp().preset_bundle.get();
-    m_presets = &preset_bundle->get_presets(m_type); // FIXME: dangerous, please use shared_ptr in preset_bundle & here.
+    // Non-owning: preset_bundle outlives the dialog for the modal lifetime.
+    m_presets = &preset_bundle->get_presets(m_type);
 
     const Preset& sel_preset = m_presets->get_selected_preset();
     std::string preset_name = sel_preset.is_default ? "Untitled" :

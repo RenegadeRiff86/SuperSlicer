@@ -1743,29 +1743,6 @@ void PreferencesDialog::create_settings_mode_widget(wxWindow* tab, std::shared_p
 	add_radio(&m_rb_old_settings_layout_mode, ++id, app_config->get_bool("old_settings_layout_mode"));
 	add_radio(&m_rb_new_settings_layout_mode, ++id, app_config->get_bool("new_settings_layout_mode"));
 	add_radio(&m_rb_dlg_settings_layout_mode, ++id, app_config->get_bool("dlg_settings_layout_mode"));
-/* //TODO: to merge	int id = 0;
-	for (const wxString& label : choices) {
-		wxRadioButton* btn = new wxRadioButton(parent, wxID_ANY, label, wxDefaultPosition, wxDefaultSize, id==0 ? wxRB_GROUP : 0);
-		sizer_v->Add(btn);
-		btn->SetValue(id == selection);
-
-
-        btn->Bind(wxEVT_RADIOBUTTON, [this, id
-#ifdef _USE_CUSTOM_NOTEBOOK
-			, disable_new_layout
-#endif
-		](wxCommandEvent& ) {
-            int test = 0;
-            m_values["tab_settings_layout_mode"] = (id == test++) ? "1" : "0";
-            m_values["old_settings_layout_mode"] = (id == test++) ? "1" : "0";
-#ifdef _USE_CUSTOM_NOTEBOOK
-			if (!disable_new_layout)
-#endif
-            m_values["new_settings_layout_mode"] = (id == test++) ? "1" : "0";
-            m_values["dlg_settings_layout_mode"] = (id == test++) ? "1" : "0";
-		});
-		id++;
-	}*/
 #ifdef _USE_CUSTOM_NOTEBOOK
 	if (app_config->get_bool(OPT_tabs_as_menu)) {
 		m_rb_new_settings_layout_mode->Hide();

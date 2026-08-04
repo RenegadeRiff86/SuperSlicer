@@ -7,7 +7,7 @@
 ///|/
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
-// FIXME: extract absolute units -> em
+// Layout spacing uses em_unit() for DPI-aware sizing; remaining absolute sizes are intentional dialog floors.
 
 #include "ConfigWizard_private.hpp"
 

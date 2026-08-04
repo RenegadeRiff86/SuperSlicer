@@ -78,15 +78,7 @@ public:
     wxString    m_mod_value;
     wxString    m_new_value;
 
-    // TODO/FIXME:
-    // the GTK version of wxDVC (in particular wxDataViewCtrlInternal::ItemAdded)
-    // needs to know in advance if a node is or _will be_ a container.
-    // Thus implementing:
-    //   bool IsContainer() const
-    //    { return m_children.size()>0; }
-    // doesn't work with wxGTK when DiffModel::AddToClassical is called
-    // AND the classical node was removed (a new node temporary without children
-    // would be added to the control)
+    // wxGTK DataView requires IsContainer() to stay true even before children are attached.
     bool                m_container {true};
 
     // preset(root) node

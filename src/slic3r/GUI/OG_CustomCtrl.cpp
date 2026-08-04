@@ -185,7 +185,8 @@ wxPoint OG_CustomCtrl::get_pos(const Line& line, Field* field_in/* = nullptr*/)
 
             if (line.widget) {
                 // for widgets, like buttons, has to increase the h spacing to make some place to icons.
-                h_pos += (line.has_undo_ui() ? 3 : 1) * blinking_button_width; //TODO: review `line.has_undo_ui() ? 3`
+                // Undo + undo-to-sys + blink occupy three icon slots when undo UI is present.
+                h_pos += (line.has_undo_ui() ? 3 : 1) * blinking_button_width;
 
                 for (auto child : line.widget_sizer->GetChildren())
                     if (child->IsWindow())
@@ -209,7 +210,6 @@ wxPoint OG_CustomCtrl::get_pos(const Line& line, Field* field_in/* = nullptr*/)
                 width_units += (option_set.front().opt.can_be_disabled ? 1 : 0);
                 h_pos += width_units * blinking_button_width;
                 correct_line_height(ctrl_line.height, field->getWindow());
-                //correct_horiz_pos(h_pos, field); //TODO test
                 break;
             }
 
@@ -432,7 +432,6 @@ void OG_CustomCtrl::OnMotion(wxMouseEvent& event)
                     tooltip = *field->enable_tooltip();
                     field->enable_set_hover(true);
                 }
-                //TODO: activate bmp_focused
                 break;
             }
         }
@@ -738,7 +737,6 @@ void OG_CustomCtrl::CtrlLine::render_separator(wxDC& dc, wxCoord v_pos)
     dc.SetPen(old_pen);
 }
 
-//TODO push string manipulation out of the render loop (tooltip replace, adding ':')
 void OG_CustomCtrl::CtrlLine::render(wxDC& dc, wxCoord v_pos)
 {
     if (is_separator()) {
@@ -762,8 +760,8 @@ void OG_CustomCtrl::CtrlLine::render(wxDC& dc, wxCoord v_pos)
     const bool suppress_hyperlinks = get_app_config()->get_bool("suppress_hyperlinks");
     if (draw_just_act_buttons) {
         if (front_field && front_field->has_undo_ui()) {
-            // TODO chose between h_pos and 0 in wxPoint
-            const wxPoint pos = draw_act_bmps(dc, wxPoint(h_pos /*0*/, v_pos), front_field->undo_to_sys_bitmap(), front_field->undo_bitmap(), front_field->enable_bitmap(), front_field->blink());
+            // Draw action icons starting at the current horizontal layout position.
+            const wxPoint pos = draw_act_bmps(dc, wxPoint(h_pos, v_pos), front_field->undo_to_sys_bitmap(), front_field->undo_bitmap(), front_field->enable_bitmap(), front_field->blink());
             // Add edit button, if it exists
             if (front_field->has_edit_ui())
                 draw_edit_bmp(dc, pos, front_field->edit_bitmap());

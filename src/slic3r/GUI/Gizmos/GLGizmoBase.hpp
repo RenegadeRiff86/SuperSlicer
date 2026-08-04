@@ -115,7 +115,7 @@ public:
 protected:
     GLCanvas3D& m_parent;
 
-    int m_group_id; // TODO: remove only for rotate
+    int m_group_id; // Rotate gizmo groups multiple axes under one id
     EState m_state;
     int m_shortcut_key;
     std::string m_icon_filename;

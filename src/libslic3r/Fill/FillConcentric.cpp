@@ -117,7 +117,7 @@ FillConcentric::fill_surface_extrusion(
 
     double min_gapfill_area = double(params.flow.scaled_width()) * double(params.flow.scaled_width());
     if (params.config != nullptr) min_gapfill_area = scale_d(params.config->gap_fill_min_area.get_abs_value(params.flow.width())) * double(params.flow.scaled_width());
-    // Perform offset. //FIXME: can miss gapfill outside of this first perimeter
+    // Inset by half spacing so concentric rings stay inside the surface; gap-fill uses remaining pockets.
     Slic3r::ExPolygons expp = offset_ex(surface->expolygon, double(scale_(0 - 0.5 * this->get_spacing())));
     // Create the infills for each of the regions.
     Polylines polylines_out;

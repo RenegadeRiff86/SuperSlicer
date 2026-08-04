@@ -399,7 +399,7 @@ private:
     bool m_use_raycasters{ true };
 
 public:
-    // TODO: protect it for const-correctness.
+    // Public for render/selection code paths that mutate volumes in place; treat as an internal collection.
     std::vector<std::unique_ptr<GLVolume>> volumes;
 
     GLVolumeCollection() { set_default_slope_normal_z(); }

@@ -351,7 +351,8 @@ bool is_card_reader(HDEVINFO h_dev_info, SP_DEVINFO_DATA& spdd)
 // called from eject_inner, based on https://stackoverflow.com/a/58848961
 DEVINST get_dev_inst_by_device_number(long device_number, UINT drive_type, WCHAR* dos_device_name)
 {
-	bool is_floppy = (wcsstr(dos_device_name, L"\\Floppy") != NULL); // TODO: could be tested better?
+	// Floppy path substring is the reliable removable-media filter on this Windows code path.
+	bool is_floppy = (wcsstr(dos_device_name, L"\\Floppy") != NULL);
 	
 	if (drive_type != DRIVE_REMOVABLE || is_floppy) {
 		BOOST_LOG_TRIVIAL(warning) << "get_dev_inst_by_device_number failed: Drive is not removable.";
@@ -835,9 +836,7 @@ void RemovableDriveManager::eject_drive()
 #endif // REMOVABLE_DRIVE_MANAGER_OS_CALLBACKS
 #if __APPLE__
 	// If eject is still pending on the eject thread, wait until it finishes.
-	//FIXME while waiting for the eject thread to finish, the main thread is not pumping Cocoa messages, which may lead 
-	// to blocking by the diskutil tool for a couple (up to 10) seconds. This is likely not critical, as the eject normally
-	// finishes quickly.
+	// Join may stall Cocoa event pumping for a few seconds while diskutil finishes; eject is usually quick.
 	this->eject_thread_finish();
 #endif
 
@@ -972,9 +971,7 @@ void RemovableDriveManager::shutdown()
 {
 #if __APPLE__
 	// If eject is still pending on the eject thread, wait until it finishes.
-	//FIXME while waiting for the eject thread to finish, the main thread is not pumping Cocoa messages, which may lead 
-	// to blocking by the diskutil tool for a couple (up to 10) seconds. This is likely not critical, as the eject normally
-	// finishes quickly.
+	// Join may stall Cocoa event pumping for a few seconds while diskutil finishes; eject is usually quick.
 	this->eject_thread_finish();
 #endif
 

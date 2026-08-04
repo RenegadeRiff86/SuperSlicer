@@ -75,7 +75,7 @@ IconManager::Icons IconManager::init(const InitTypes &input)
     if (input.empty())
         return {};
 
-    // TODO: remove in future
+    // Re-init replaces the atlas: free the previous GL texture if any.
     if (m_id != 0) {
         glsafe(::glDeleteTextures(1, &m_id));
         m_id = 0;
@@ -224,9 +224,8 @@ std::vector<IconManager::Icons> IconManager::init(const std::vector<std::string>
     assert(size.x >= 1);
     assert(size.x < 256*16);
 
-    // TODO: remove in future
+    // Re-init: drop previous atlas entries before packing a new set.
     if (!m_icons.empty()) {
-        // not first initialization
         priv::clear(m_icons);
         m_icons.clear();
         m_icons_texture.reset();

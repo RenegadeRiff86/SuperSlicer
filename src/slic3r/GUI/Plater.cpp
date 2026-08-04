@@ -1388,7 +1388,7 @@ void Sidebar::show_info_sizer()
     if ( (m_mode < comExpert && !get_app_config()->get_bool(kObjectsAlwaysExpertKey))
         || objects.empty() || obj_idx < 0 || int(objects.size()) <= obj_idx
         || inst_idx < 0 || int(objects[obj_idx]->instances.size()) <= inst_idx
-        || objects[obj_idx]->volumes.empty()                                             // hack to avoid crash when deleting the last object on the bed
+        || objects[obj_idx]->volumes.empty()                                             // object mid-delete may still be selected
         || (selection.is_single_full_object() && objects[obj_idx]->instances.size()> 1)
         || !(selection.is_single_full_instance() || selection.is_single_volume())
         ) {

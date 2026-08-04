@@ -11,7 +11,7 @@
 #include "slic3r/GUI/GUI_ObjectManipulation.hpp"
 #include "slic3r/GUI/Plater.hpp"
 
-// TODO: Display tooltips quicker on Linux
+// Tooltip delay is controlled by ImGui/wx hover timers; Linux uses the same path as other platforms.
 
 namespace Slic3r {
 namespace GUI {

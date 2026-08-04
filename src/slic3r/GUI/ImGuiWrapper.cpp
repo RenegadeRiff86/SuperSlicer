@@ -1015,8 +1015,7 @@ static bool selectable(const char* label, bool selected, ImGuiSelectableFlags fl
     if (!item_add)
         return false;
 
-    // FIXME: We can standardize the behavior of those two, we could also keep the fast path of override ClipRect + full push on render only,
-    // which would be advantageous since most selectable are not selected.
+    // Column vs table background push mirrors Dear ImGui selectable internals for span-all-columns rows.
     if (span_all_columns && window->DC.CurrentColumns)
         ImGui::PushColumnsBackground();
     else if (span_all_columns && g.CurrentTable)
@@ -1788,8 +1787,7 @@ void ImGuiWrapper::init_font(bool compress)
             return (Slic3r::data_path() / "cache" / "fonts" / str).string();
         };
 
-    //FIXME replace with io.Fonts->AddFontFromMemoryTTF(buf_decompressed_data, static_cast<int>(buf_decompressed_size), m_font_size, nullptr, ranges.Data);
-    //https://github.com/ocornut/imgui/issues/220
+    // File-based load after copying into the cache dir (TTC CJK fonts need a path for face indexing).
 	ImFont* font = io.Fonts->AddFontFromFileTTF(copy_and_get_font(m_font_cjk ? "NotoSansCJK-Regular.ttc" : "NotoSans-Regular.ttf").c_str(), m_font_size, nullptr, ranges.Data);
     if (font == nullptr) {
         font = io.Fonts->AddFontDefault();

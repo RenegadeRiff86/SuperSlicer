@@ -281,7 +281,7 @@ static const ConfigOptionFloatOrPercent& first_positive(const ConfigOptionFloatO
     return (v1 != nullptr && v1->value > 0) ? *v1 : ((v2.value > 0) ? v2 : v3);
 }
 
-//TODO since 2.4: check the flow computation (and try to simplify them)
+// Volumetric flow hint: max of feature mm3/s estimates for the active extruder/filament.
 std::string PresetHints::maximum_volumetric_flow_description(const PresetBundle &preset_bundle)
 {
     // Find out, to which nozzle index is the current filament profile assigned.
@@ -316,7 +316,7 @@ std::string PresetHints::maximum_volumetric_flow_description(const PresetBundle 
     //double over_bridge_flow_ratio           = full_print_config.get_computed_value("over_bridge_flow_ratio");
     double perimeter_speed                  = full_print_config.get_computed_value("perimeter_speed");
     double external_perimeter_speed         = full_print_config.get_computed_value("external_perimeter_speed");
-    // double gap_fill_speed                = full_print_config.get_computed_value("gap_fill_speed");
+    double gap_fill_speed                   = full_print_config.get_computed_value("gap_fill_speed");
     double infill_speed                     = full_print_config.get_computed_value("infill_speed");
     double small_perimeter_speed            = full_print_config.get_computed_value("small_perimeter_speed");
     double solid_infill_speed               = full_print_config.get_computed_value("solid_infill_speed");
@@ -511,7 +511,22 @@ std::string PresetHints::maximum_volumetric_flow_description(const PresetBundle 
                 max_flow_extrusion_type = _u8L("support interface");
             }
         }
-        //FIXME handle gap_fill_speed
+        if (! bridging && perimeter_extruder_active && gap_fill_speed > 0.) {
+            Flow gap_fill_flow = Flow::new_from_config_width(frPerimeter,
+                first_positive(first_layer_extrusion_width_ptr, perimeter_extrusion_width, extrusion_width),
+                first_positive(first_layer_extrusion_spacing_ptr, perimeter_extrusion_spacing, extrusion_spacing),
+                nozzle_diameter, lh,
+                std::min(filament_max_overlap, static_cast<float>(print_config.opt<ConfigOptionPercent>("perimeter_overlap")->get_abs_value(1))),
+                bfr);
+            if (gap_fill_flow.height() > gap_fill_flow.width())
+                gap_fill_flow = gap_fill_flow.with_height(gap_fill_flow.width());
+            double gap_fill_rate = gap_fill_flow.mm3_per_mm() *
+                limit_by_first_layer_speed(gap_fill_speed, max_print_speed);
+            if (max_flow < gap_fill_rate) {
+                max_flow = gap_fill_rate;
+                max_flow_extrusion_type = _u8L("gap fill");
+            }
+        }
         if (! out.empty())
             out += "\n";
         bool limited_by_max_volumetric_speed = max_volumetric_speed > 0 && max_volumetric_speed < max_flow;
@@ -644,8 +659,14 @@ std::string PresetHints::top_bottom_shell_thickness_explanation(const PresetBund
     double  bottom_solid_min_thickness  	= print_config.opt_float("bottom_solid_min_thickness");
     double  layer_height                    = print_config.opt_float("layer_height");
     bool    variable_layer_height			= printer_config.opt_bool("variable_layer_height");
-    //FIXME the following line takes into account the 1st extruder only.
-    double  min_layer_height				= variable_layer_height ? Slicing::min_layer_height_from_nozzle(printer_config, 0) : layer_height;
+    // Variable LH floor is the smallest min height across all nozzles (most restrictive).
+    double  min_layer_height = layer_height;
+    if (variable_layer_height) {
+        const auto &nozzles = printer_config.option<ConfigOptionFloats>("nozzle_diameter")->get_values();
+        min_layer_height = Slicing::min_layer_height_from_nozzle(printer_config, 0);
+        for (size_t i = 1; i < nozzles.size(); ++i)
+            min_layer_height = std::min(min_layer_height, Slicing::min_layer_height_from_nozzle(printer_config, uint16_t(i)));
+    }
 
 	if (layer_height <= 0.f) {
 		out += _u8L("Top / bottom shell thickness hint: Not available due to invalid layer height.");

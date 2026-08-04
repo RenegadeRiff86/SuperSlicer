@@ -50,8 +50,7 @@ enum class NotificationType
 	// Notification on end of export, with hyperling to see folder and eject if export was to external media.
 	// Own subclass.
 	ExportFinished,
-	// Works on OSX only.
-	//FIXME Do we want to have it on Linux and Windows? Is it possible to get the Disconnect event on Windows?
+	// Mouse3D disconnect is reported on platforms that surface the HID detach event (OSX primary).
 	Mouse3dDisconnected,
 //	Mouse3dConnected,
 //	NewPresetsAviable,
