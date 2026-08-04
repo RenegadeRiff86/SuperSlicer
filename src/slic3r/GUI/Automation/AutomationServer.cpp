@@ -694,6 +694,8 @@ private:
             { "set_preview", "superslicer_set_preview" },
             { "set_transform", "superslicer_set_transform" },
             { "export_gcode", "superslicer_export_gcode" },
+            { "new_project", "superslicer_new_project" },
+            { "arrange", "superslicer_arrange" },
             { "arm_file_dialog", "superslicer_arm_file_dialog" },
             { "file_dialog_status", "superslicer_file_dialog_status" }
         };
@@ -717,6 +719,8 @@ private:
             "superslicer_set_preview",
             "superslicer_set_transform",
             "superslicer_export_gcode",
+            "superslicer_new_project",
+            "superslicer_arrange",
             TOOL_ARM_FILE_DIALOG,
             TOOL_FILE_DIALOG_STATUS
         };
@@ -760,6 +764,8 @@ private:
             tool("superslicer_set_preview", "Set preview layer or move slider ranges."),
             tool("superslicer_set_transform", "Commit selected-object position, rotation, or scale."),
             tool("superslicer_export_gcode", "Export G-code to an explicit path with overwrite protection."),
+            tool("superslicer_new_project", "Reset the plater to a new empty project."),
+            tool("superslicer_arrange", "Arrange objects on the bed through the normal plater handler."),
             tool("superslicer_arm_file_dialog", "Queue the answer for the next file dialog, so an action that opens one can run unattended. Arm before triggering it."),
             tool("superslicer_file_dialog_status", "Report the file dialog the app raised most recently: title, wildcard, save or open, and the paths returned.")
         });
@@ -910,6 +916,10 @@ private:
             return gui_set_transform(arguments, request_id);
         if (tool == "superslicer_export_gcode")
             return gui_export_gcode(arguments, request_id);
+        if (tool == "superslicer_new_project")
+            return gui_new_project(arguments, request_id);
+        if (tool == "superslicer_arrange")
+            return gui_arrange(request_id);
         if (tool == TOOL_ARM_FILE_DIALOG)
             return gui_arm_file_dialog(arguments, request_id);
         if (tool == TOOL_FILE_DIALOG_STATUS)

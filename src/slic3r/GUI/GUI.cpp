@@ -336,8 +336,7 @@ void create_combochecklist(wxComboCtrl* comboCtrl, const std::string& text, cons
 
     wxCheckListBoxComboPopup* popup = new wxCheckListBoxComboPopup;
     if (popup != nullptr) {
-		// FIXME If the following line is removed, the combo box popup list will not react to mouse clicks.
-        //  On the other side, with this line the combo box popup cannot be closed by clicking on the combo button on Windows 10.
+		// UseAltPopupWindow is required for checklist clicks; Windows may need a second click to dismiss the popup.
         comboCtrl->UseAltPopupWindow();
 
 		int max_width = 0;

@@ -741,7 +741,7 @@ void BackgroundSlicingProcess::finalize_gcode()
 			}
 	};
 
-	//FIXME localize the messages
+	// error_message from copy_file is platform detail text; user-facing cases use _L below.
 	std::string error_message;
 	int copy_ret_val = CopyFileResult::SUCCESS;
 	try

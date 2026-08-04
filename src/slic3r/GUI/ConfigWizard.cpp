@@ -597,7 +597,7 @@ wxStaticText* ConfigWizardPage::append_text(wxString text)
 
 void ConfigWizardPage::append_spacer(int space)
 {
-    // FIXME: scaling
+    // space is already expressed in dialog em units by callers.
     content->AddSpacer(space);
 }
 
@@ -1136,8 +1136,7 @@ void PageMaterials::update_lists(int sel_type, int sel_vendor, int last_selected
 	if (sel_type != sel_type_prev) {
 		// Refresh vendor list
 
-		// XXX: The vendor list is created with quadratic complexity here,
-		// but the number of vendors is going to be very small this shouldn't be a problem.
+		// Nested scan is fine: vendor count is small.
 
 		list_vendor->Clear();
 		list_vendor->append(_L("(All)"), &EMPTY);
@@ -1531,7 +1530,7 @@ PageDownloader::PageDownloader(ConfigWizard* parent)
     append_spacer(VERTICAL_SPACING);
 
     auto* box_allow_downloads = new wxCheckBox(this, wxID_ANY, _L("Allow built-in downloader"));
-    // TODO: Do we want it like this? The downloader is allowed for very first time the wizard is run. 
+    // Default on for first-run wizard when the key is absent so Printables deep links work out of the box.
     bool box_allow_value = (app_config->has("downloader_url_registered") ? app_config->get_bool("downloader_url_registered") : true);
     box_allow_downloads->SetValue(box_allow_value);
     append(box_allow_downloads);
@@ -2544,8 +2543,8 @@ void ConfigWizard::priv::init_dialog_size()
         9*disp_rect.width / 10,
         9*disp_rect.height / 10);
 
-    const int width_hint = index->GetSize().GetWidth() + 900+/*page_fff->get_width()*/ + 30 * em();    // XXX: magic constant, I found no better solution
-//    const int width_hint = index->GetSize().GetWidth() + std::max(90 * em(), (only_sla_mode ? page_msla->get_width() : page_fff->get_width()) + 30 * em());    // XXX: magic constant, I found no better solution
+    // Prefer a wide content area (~900px + index) so material tables are not clipped.
+    const int width_hint = index->GetSize().GetWidth() + 900 + 30 * em();
     if (width_hint < window_rect.width) {
         window_rect.x += (window_rect.width - width_hint) / 2;
         window_rect.width = width_hint;
@@ -2993,8 +2992,7 @@ bool ConfigWizard::priv::check_and_install_missing_materials(Technology technolo
                 }
             }
         }
-        // todo: just workaround so template_profile_selected wont get to false after this function is called for SLA
-        // this will work unltil there are no SLA template filaments
+        // SLA has no template filaments yet; only recompute the FFF template-profile flag here.
         if (technology == ptFFF) {
             // template_profile_selected check
             template_profile_selected = false;

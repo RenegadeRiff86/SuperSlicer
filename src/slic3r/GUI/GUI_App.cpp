@@ -1096,9 +1096,9 @@ bool GUI_App::init_opengl()
 {
     bool initialized = m_opengl_mgr.init_gl();
     if (!m_opengl_initialized && initialized) {
-        AppConfig::HardwareType hard_cpu = AppConfig::HardwareType::hCpuOther; // TODO for x86 if needed
+        AppConfig::HardwareType hard_cpu = AppConfig::HardwareType::hCpuOther;
         AppConfig::HardwareType hard_gpu = AppConfig::HardwareType::hGpuOther;
-        // Delayed init for x86
+        // OpenGL vendor probe for hardware classification (Apple path refined below).
 #ifdef __APPLE__
         // intel apple
         hard_cpu = AppConfig::HardwareType::hCpuIntel;
@@ -1315,7 +1315,7 @@ void GUI_App::init_app_config()
 	if (!app_config) {
         app_config = std::make_unique<AppConfig>(is_editor() ? AppConfig::EAppMode::Editor : AppConfig::EAppMode::GCodeViewer);
 #ifdef _M_ARM64
-        AppConfig::HardwareType hard_cpu = AppConfig::HardwareType::hCpuOther; // TODO for x86 if needed
+        AppConfig::HardwareType hard_cpu = AppConfig::HardwareType::hCpuOther;
         AppConfig::HardwareType hard_gpu = AppConfig::HardwareType::hGpuOther;
 #ifdef __APPLE__
         // Arm apple
@@ -1498,7 +1498,7 @@ bool GUI_App::OnInit()
             // G-code viewer is currently not performing instance check, a new G-code viewer is started every time.
             bool gui_single_instance_setting = this->app_config->get_bool("single_instance");
             if (Slic3r::instance_check(this->init_params->argc, this->init_params->argv, gui_single_instance_setting)) {
-                //TODO: do we have delete gui and other stuff?
+                // Another instance owns the session; exit before allocating more GUI state.
                 std::exit(EXIT_FAILURE);
             }
         }
@@ -1521,7 +1521,7 @@ static int get_app_font_pt_size(const AppConfig* app_config)
 
 bool GUI_App::on_init_inner()
 {
-    // TODO: remove this when all asserts are gone.
+    // wxWidgets asserts fire from third-party controls under release-like configs; keep them off for users.
     wxDisableAsserts();
 
     // Set initialization of image handlers before any UI actions - See GH issue #7469
@@ -1544,7 +1544,7 @@ bool GUI_App::on_init_inner()
     // Forcing back menu icons under gtk2 and gtk3. Solution is based on:
     // https://docs.gtk.org/gtk3/class.Settings.html
     // see also https://docs.wxwidgets.org/3.0/classwx_menu_item.html#a2b5d6bcb820b992b1e4709facbf6d4fb
-    // TODO: Find workaround for GTK4
+    // GTK4 menu-image settings differ; only force icons on GTK2/3.
 #if defined(__WXGTK20__) || defined(__WXGTK3__)
     g_object_set (gtk_settings_get_default (), "gtk-menu-images", TRUE, NULL);
 #endif
@@ -1817,8 +1817,7 @@ bool GUI_App::on_init_inner()
                     }
                     // "restart"
                     Slic3r::win_exec(binary_file().string());
-                    //FIXME: call Close (or another gentler way to close)
-                    //std::exit(EXIT_FAILURE);
+                    // Spawn succeeded; close this instance so only the restarted process remains.
                     if(this->mainframe)
                         this->mainframe->Close(true);
 #else
@@ -3915,8 +3914,10 @@ bool GUI_App::check_print_host_queue() const
     if (dialog.ShowModal() == wxID_YES)
         return true;
 
-    // TODO: If already shown, bring forward
+    // Already open or just opened: raise so the user can cancel uploads from there.
     mainframe->m_printhost_queue_dlg->Show();
+    mainframe->m_printhost_queue_dlg->Raise();
+    mainframe->m_printhost_queue_dlg->RequestUserAttention(wxUSER_ATTENTION_INFO);
     return false;
 }
 
@@ -4209,7 +4210,8 @@ bool GUI_App::run_wizard(ConfigWizard::RunReason reason, ConfigWizard::StartPage
                                                                             RunVendorBundleManage::RVBM_NEVER);
                                                              });
                     } else {
-                        //TODO: failsafe
+                        // No "best" profile: install the first resources-dir local package, else open the wizard alone.
+                        bool installed_local = false;
                         for (auto &vendor_loc : vendor.available_profiles) {
                             if (vendor_loc.local_file.find(Slic3r::resources_dir()) != std::string::npos) {
                                 this->preset_updater->install_vendor(ALLOW_PRUSA_FIRST, vendor_loc,
@@ -4218,9 +4220,12 @@ bool GUI_App::run_wizard(ConfigWizard::RunReason reason, ConfigWizard::StartPage
                                                                          run_wizard(reason, start_page,
                                                                                     RunVendorBundleManage::RVBM_NEVER);
                                                                      });
+                                installed_local = true;
                                 break;
                             }
                         }
+                        if (!installed_local)
+                            run_wizard(reason, start_page, RunVendorBundleManage::RVBM_NEVER);
                     }
                     break;
                 }

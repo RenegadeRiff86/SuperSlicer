@@ -209,6 +209,15 @@ class ApiClient:
         )
         return self.wait_operation(started["operation_id"], timeout_ms)
 
+    def new_project(self, name: str = "") -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if name:
+            payload["name"] = name
+        return self.rest("POST", "/api/v1/workflows/new_project", payload)
+
+    def arrange(self) -> dict[str, Any]:
+        return self.rest("POST", "/api/v1/workflows/arrange", {})
+
     # -- file dialogs ------------------------------------------------------
 
     def arm_file_dialog(

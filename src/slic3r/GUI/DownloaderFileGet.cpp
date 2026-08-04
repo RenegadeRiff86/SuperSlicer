@@ -226,7 +226,6 @@ void FileGet::priv::get_perform()
 				evt->SetInt(m_id);
 				m_evt_handler->QueueEvent(evt.release());
 				return;
-				// TODO: send canceled event?
 			}		
 			if (m_pause) {
 				m_stopped = true;
@@ -284,32 +283,30 @@ void FileGet::priv::get_perform()
 			m_evt_handler->QueueEvent(evt.release());
 		})
 		.on_complete([&](const std::string& body, unsigned /* http_status */) {
-
-			// TODO: perform a body size check
-			// 
-			//size_t body_size = body.size();
-			//if (body_size != expected_size) {
-			//	return;
-			//}
+			// Payload is already written via on_progress; body is unused. Reject empty downloads.
+			if (m_written == 0 && body.empty()) {
+				if (file != NULL)
+					fclose(file);
+				std::remove(m_tmp_path.string().c_str());
+				auto evt = std::make_unique<wxCommandEvent>(EVT_DWNLDR_FILE_ERROR);
+				evt->SetString("Downloaded file is empty.");
+				evt->SetInt(m_id);
+				m_evt_handler->QueueEvent(evt.release());
+				return;
+			}
 			try
 			{
-				/*
-				if (m_written < body.size())
-				{
-					// this code should never be entered. As there should be on_progress call after last bit downloaded.
-					std::string part_for_write = body.substr(m_written);
-					fwrite(part_for_write.c_str(), 1, part_for_write.size(), file);
-				}
-				*/
 				fclose(file);
+				file = NULL;
 				boost::filesystem::rename(m_tmp_path, dest_path);
 			}
-			catch (const std::exception& /*e*/)
+			catch (const std::exception& e)
 			{
-				//TODO: report?
-				//error_message = GUI::format("Failed to write and move %1% to %2%", tmp_path, dest_path);
+				if (file != NULL)
+					fclose(file);
 				auto evt = std::make_unique<wxCommandEvent>(EVT_DWNLDR_FILE_ERROR);
-				evt->SetString("Failed to write and move.");
+				evt->SetString(GUI::from_u8(GUI::format("Failed to write and move %1% to %2%: %3%",
+					m_tmp_path.string(), dest_path.string(), e.what())));
 				evt->SetInt(m_id);
 				m_evt_handler->QueueEvent(evt.release());
 				return;

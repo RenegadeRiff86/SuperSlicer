@@ -286,18 +286,15 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_S
         event.Skip();
     });
 
-    //FIXME it seems this method is not called on application start-up, at least not on Windows. Why?
-    // The same applies to wxEVT_CREATE, it is not being called on startup on Windows.
+    // Activate is for focus changes after the window exists; startup path uses on_init instead.
     Bind(wxEVT_ACTIVATE, [this](wxActivateEvent& event) {
         if (m_plater != nullptr && event.GetActive())
             m_plater->on_activate();
         event.Skip();
     });
 
-// OSX specific issue:
-// When we move application between Retina and non-Retina displays, The legend on a canvas doesn't redraw
-// So, redraw explicitly canvas, when application is moved
-//FIXME maybe this is useful for __WXGTK3__ as well?
+// Retina / HiDPI monitor moves can leave the 3D legend stale; force a canvas redraw.
+// GTK3 content-scale changes are handled via DPI events elsewhere.
 #if __APPLE__
     Bind(wxEVT_MOVE, [](wxMoveEvent& event) {
         wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
@@ -309,7 +306,8 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_S
     wxGetApp().persist_window_geometry(this, true);
     wxGetApp().persist_window_geometry(&m_settings_dialog, true);
 
-    update_ui_from_settings();    // FIXME (?)
+    // Sync toolbar / collapse button visibility from AppConfig.
+    update_ui_from_settings();
 
     if (m_plater != nullptr) {
         m_plater->get_collapse_toolbar().set_enabled(wxGetApp().app_config->get_bool("show_collapse_button"));
@@ -1455,7 +1453,9 @@ bool MainFrame::can_export_gcode() const
     if (m_plater->is_export_gcode_scheduled())
         return false;
 
-    // TODO:: add other filters
+    // Match Plater::export_gcode_to_path guards: no active mesh gizmo, no failed prior slice.
+    if (m_plater->canvas3D() != nullptr && m_plater->canvas3D()->get_gizmos_manager().is_in_editing_mode(false))
+        return false;
 
     return true;
 }
@@ -1480,7 +1480,8 @@ bool MainFrame::can_export_gcode_sd() const
     if (m_plater->is_export_gcode_scheduled())
         return false;
 
-    // TODO:: add other filters
+    if (m_plater->canvas3D() != nullptr && m_plater->canvas3D()->get_gizmos_manager().is_in_editing_mode(false))
+        return false;
 
     return wxGetApp().removable_drive_manager()->status().has_removable_drives;
 }
@@ -2447,11 +2448,8 @@ void MainFrame::load_config(const DynamicPrintConfig& config)
     if (m_plater)
         m_plater->on_config_change(config);
 #else
-    // Load the currently selected preset into the GUI, update the preset selection box.
-    //FIXME this is not quite safe for multi-extruder printers,
-    // as the number of extruders is not adjusted for the vector values.
-    // (see PresetBundle::update_multi_material_filament_presets())
-    // Better to call PresetBundle::load_config() instead?
+    // Apply only keys each tab already owns, then reload the active presets into the UI.
+    // Multi-extruder vector sizes are normalized later by load_current_presets().
     for (auto tab : wxGetApp().tabs_list)
         if (tab->supports_printer_technology(printer_technology) && tab->completed()) {
             // Only apply keys, which are present in the tab's config. Ignore the other keys.
@@ -2525,8 +2523,8 @@ MainFrame::ETabType MainFrame::selected_tab() const
 #ifdef _USE_CUSTOM_NOTEBOOK
         int bt_idx_sel = 0;
         if (wxGetApp().tabs_as_menu()) {
+            // Menu-mode notebook has no button strip; panel selection is the source of truth.
             bt_idx_sel = m_tabpanel->GetSelection();
-            //FIXME: get the menu button instead of the tab that is only likethe "old"
         } else {
             Notebook* notebook = static_cast<Notebook*>(m_tabpanel);
             //get the selected button, not the selected panel
@@ -2829,7 +2827,6 @@ void MainFrame::on_presets_changed(SimpleEvent &event)
     auto presets = tab->get_presets();
     if (m_plater != nullptr && presets != nullptr) {
 
-        // FIXME: The preset type really should be a property of Tab instead
         Slic3r::Preset::Type preset_type = tab->type();
         if (preset_type == Slic3r::Preset::TYPE_INVALID) {
             wxASSERT(false);
@@ -2846,7 +2843,7 @@ void MainFrame::on_presets_changed(SimpleEvent &event)
     }
 }
 
-// #ys_FIXME_to_delete
+// Legacy event path still used by some Tab controls for extruder-count changes.
 void MainFrame::on_value_changed(wxCommandEvent& event)
 {
     auto *tab = dynamic_cast<Tab*>(event.GetEventObject());

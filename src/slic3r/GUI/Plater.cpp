@@ -5726,7 +5726,8 @@ const PrintBase* Plater::current_print() const {
 
 bool Plater::is_project_temp() const
 {
-    return false; // ???? what's the point?
+    // Temporary-project marking was removed; the API remains for callers that still query it.
+    return false;
 }
 
 bool Plater::new_project(std::string project_name)

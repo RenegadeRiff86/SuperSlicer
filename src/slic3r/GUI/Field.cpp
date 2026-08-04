@@ -605,7 +605,7 @@ bool TextField::get_vector_value(const wxString &str, ConfigOptionVectorBase &re
     return (str.ToStdString() != good_str);
 }
 
-//TODO move value verification on another methods that won't be called at each value.get()
+// Validation runs when values are read so invalid fields are caught before apply/save.
 void TextField::get_value_by_opt_type(wxString &str, const bool check_value /* = true*/)
 {
     bool need_update = false;
@@ -770,7 +770,7 @@ void TextField::get_value_by_opt_type(wxString &str, const bool check_value /* =
     case coFloatOrPercent: {
         bool is_percent = false;
         if (!str.IsEmpty()) {
-            //TODO: remove from here, put in config manipualtion
+            // Soft limit: absolute infill_overlap larger than half nozzle diameter is usually a mistake.
             if ("infill_overlap" == m_opt_key_idx.key && m_last_validated_value != str) {
                 bool bad = false;
                 if (str.Last() != '%') {

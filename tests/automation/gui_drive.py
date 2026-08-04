@@ -162,6 +162,14 @@ def command_export(client: ApiClient, args: argparse.Namespace) -> None:
     print(client.export_gcode(args.path))
 
 
+def command_new_project(client: ApiClient, args: argparse.Namespace) -> None:
+    print(client.new_project(args.name or ""))
+
+
+def command_arrange(client: ApiClient, args: argparse.Namespace) -> None:
+    print(client.arrange())
+
+
 def command_arm_file_dialog(client: ApiClient, args: argparse.Namespace) -> None:
     if args.clear:
         print(client.clear_file_dialogs())
@@ -350,6 +358,13 @@ def add_workflow_commands(commands) -> None:
     export_parser = commands.add_parser("export", help="export G-code and wait")
     export_parser.add_argument("path")
     export_parser.set_defaults(handler=command_export)
+
+    new_project_parser = commands.add_parser("new-project", help="reset to an empty project")
+    new_project_parser.add_argument("name", nargs="?", default="")
+    new_project_parser.set_defaults(handler=command_new_project)
+
+    arrange_parser = commands.add_parser("arrange", help="arrange objects on the bed")
+    arrange_parser.set_defaults(handler=command_arrange)
 
 
 def add_file_dialog_commands(commands) -> None:

@@ -7,6 +7,8 @@
 #include "NotificationManager.hpp"
 #include "format.hpp"
 
+#include <cstring>
+
 #include <boost/algorithm/string.hpp>
 #include <boost/log/trivial.hpp>
 
@@ -65,11 +67,36 @@ void open_folder(const std::string& path)
 
 std::string filename_from_url(const std::string& url)
 {
-	// TODO: can it be done with curl?
-	size_t slash = url.find_last_of("/");
-	if (slash == std::string::npos && slash != url.size() - 1)
-		return std::string();
-	return url.substr(slash + 1, url.size() - slash + 1);
+	// Last path segment only; drop query/fragment so "file.stl?dl=1" still works.
+	size_t start = url.find_last_of('/');
+	if (start == std::string::npos)
+		start = 0;
+	else
+		++start;
+	size_t end = url.find_first_of("?#", start);
+	if (end == std::string::npos)
+		end = url.size();
+	if (start >= end)
+		return {};
+	return url.substr(start, end - start);
+}
+
+// Accept both Windows (open/?file=) and Unix (open?file=) Printables deep links on every host.
+bool is_printables_open_url(const std::string& full_url)
+{
+	return boost::starts_with(full_url, "prusaslicer://open/?file=")
+		|| boost::starts_with(full_url, "prusaslicer://open?file=");
+}
+
+std::string file_url_from_open_link(const std::string& full_url)
+{
+	static constexpr const char* kWithSlash = "prusaslicer://open/?file=";
+	static constexpr const char* kNoSlash   = "prusaslicer://open?file=";
+	if (boost::starts_with(full_url, kWithSlash))
+		return FileGet::escape_url(full_url.substr(std::strlen(kWithSlash)));
+	if (boost::starts_with(full_url, kNoSlash))
+		return FileGet::escape_url(full_url.substr(std::strlen(kNoSlash)));
+	return {};
 }
 }
 
@@ -132,23 +159,16 @@ void Downloader::start_download(const std::string& full_url)
 {
 	assert(m_initialized);
 	
-	// TODO: There is a misterious slash appearing in recieved msg on windows
-#ifdef _WIN32
-	if (!boost::starts_with(full_url, "prusaslicer://open/?file=")) {
-#else
-    if (!boost::starts_with(full_url, "prusaslicer://open?file=")) {
-#endif
-		BOOST_LOG_TRIVIAL(error) << "Could not start download due to wrong URL: " << full_url;
-		// TODO: show error?
+	if (!is_printables_open_url(full_url)) {
+		const std::string msg = format(_L("Could not start download due to wrong URL: %1%"), full_url);
+		BOOST_LOG_TRIVIAL(error) << msg;
+		wxGetApp().notification_manager()->push_notification(
+			NotificationType::CustomNotification,
+			NotificationManager::NotificationLevel::RegularNotificationLevel, msg);
 		return;
 	}
     size_t id = get_next_id();
-    // TODO: still same mistery 
-#ifdef _WIN32
-    std::string escaped_url = FileGet::escape_url(full_url.substr(25));
-#else
-    std::string escaped_url = FileGet::escape_url(full_url.substr(24));
-#endif
+    std::string escaped_url = file_url_from_open_link(full_url);
 	if (!boost::starts_with(escaped_url, "https://") || !FileGet::is_subdomain(escaped_url, "printables.com")) {
 		std::string msg = format(_L("Download won't start. Download URL doesn't point to https://printables.com : %1%"), escaped_url);
 		BOOST_LOG_TRIVIAL(error) << msg;
@@ -185,12 +205,12 @@ void Downloader::on_error(wxCommandEvent& event)
 }
 void Downloader::on_complete(wxCommandEvent& event)
 {
-	// TODO: is this always true? :
-	// here we open the file itself, notification should get 1.f progress from on progress.
+	// Complete event carries the dest path; progress UI already reached 100% via on_progress.
     set_download_state(event.GetInt(), DownloadState::DownloadDone);
 	wxArrayString paths;
 	paths.Add(event.GetString());
-	wxGetApp().plater()->load_files(paths);
+	if (wxGetApp().plater() != nullptr)
+		wxGetApp().plater()->load_files(paths);
 }
 bool Downloader::user_action_callback(DownloaderUserAction action, int id)
 {

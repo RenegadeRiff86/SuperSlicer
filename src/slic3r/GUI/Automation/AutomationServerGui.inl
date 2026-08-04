@@ -1049,6 +1049,37 @@
         }, request_id);
     }
 
+    json gui_new_project(const json& arguments, const std::string& request_id)
+    {
+        if (!m_app.is_editor() || m_app.plater() == nullptr)
+            return failure(ERROR_OPERATION_FAILED, "new project requires editor mode", request_id);
+        // force=true skips dirty-project prompts so unattended scripts can reset the plate.
+        const bool force = arguments.value("force", true);
+        if (force) {
+            m_app.plater()->select_view_3D("3D");
+            m_app.plater()->reset();
+        } else if (!m_app.plater()->new_project(arguments.value("name", std::string()))) {
+            return failure(ERROR_OPERATION_FAILED, "new project was cancelled or failed", request_id);
+        }
+        return success({
+            { "reset", true },
+            { "object_count", static_cast<int>(m_app.model().objects.size()) }
+        }, request_id);
+    }
+
+    json gui_arrange(const std::string& request_id)
+    {
+        if (!m_app.is_editor() || m_app.plater() == nullptr)
+            return failure(ERROR_OPERATION_FAILED, "arrange requires editor mode", request_id);
+        if (m_app.model().objects.empty())
+            return failure(ERROR_OPERATION_FAILED, "no model is loaded", request_id);
+        m_app.plater()->arrange();
+        return success({
+            { "arranged", true },
+            { "object_count", static_cast<int>(m_app.model().objects.size()) }
+        }, request_id);
+    }
+
     // Queue an answer for a file dialog the app has not raised yet. Arming has to
     // happen BEFORE the action that opens the dialog, because ShowModal() blocks the
     // GUI thread this handler runs on -- once the native chooser is up, nothing here
