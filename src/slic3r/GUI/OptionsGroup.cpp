@@ -435,7 +435,7 @@ void OptionsGroup::activate_line(Line& line)
         // add field
         auto& field = build_field(opt);
 
-        if (!custom_ctrl) { // TODO review if this if shoudln't be always true
+        if (!custom_ctrl) { // Custom-control layouts build labels elsewhere.
             ConfigOptionDef option = opt.opt;
             // add label if any
             if ((option_set.size() > 1 || line.label.IsEmpty()) && !option.label.empty()) {

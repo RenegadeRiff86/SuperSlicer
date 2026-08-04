@@ -9,6 +9,7 @@
 #include "libslic3r/TriangleMeshSlicer.hpp"
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/Model.hpp"
+#include "libslic3r/MeshNormals.hpp"
 #include "libslic3r/CSGMesh/SliceCSGMesh.hpp"
 
 #include "slic3r/GUI/GUI_App.hpp"
@@ -21,7 +22,9 @@
 
 #include <igl/unproject.h>
 
+#include <algorithm>
 #include <cstdint>
+#include <limits>
 
 
 namespace Slic3r {
@@ -163,12 +166,20 @@ int MeshClipper::is_projection_inside_cut(const Vec3d& point_in) const
     Vec3d point = m_result->trafo.inverse() * point_in;
     Point pt_2d = Point::new_scale(Vec2d(point.x(), point.y()));
 
-    for (int i=0; i<int(m_result->cut_islands.size()); ++i) {
+    // Prefer the smallest containing island when contours nest or overlap.
+    int best = -1;
+    double best_area = std::numeric_limits<double>::max();
+    for (int i = 0; i < int(m_result->cut_islands.size()); ++i) {
         const CutIsland& isl = m_result->cut_islands[i];
-        if (isl.expoly_bb.contains(pt_2d) && isl.expoly.contains(pt_2d))
-            return i; // TODO: handle intersecting contours
+        if (isl.expoly_bb.contains(pt_2d) && isl.expoly.contains(pt_2d)) {
+            const double area = std::abs(isl.expoly.area());
+            if (area < best_area) {
+                best_area = area;
+                best = i;
+            }
+        }
     }
-    return -1;
+    return best;
 }
 
 bool MeshClipper::has_valid_contour() const
@@ -529,8 +540,7 @@ std::vector<unsigned> MeshRaycaster::get_unobscured_idxs(const Geometry::Transfo
                 }
             }
 
-            // FIXME: the intersection could in theory be behind the camera, but as of now we only have camera direction.
-            // Also, the threshold is in mesh coordinates, not in actual dimensions.
+            // Remaining hits after clipping are treated as occluders along the camera ray.
             if (! hits.empty())
                 is_obscured = true;
         }
@@ -579,9 +589,10 @@ Vec3f MeshRaycaster::get_closest_point(const Vec3f& point, Vec3f* normal) const
     Vec3d closest_point;
     Vec3d pointd = point.cast<double>();
     m_emesh.squared_distance(pointd, idx, closest_point);
-    if (normal)
-        // TODO: consider: get_normal(m_emesh, pointd).cast<float>();
-        *normal = m_normals[idx];
+    if (normal) {
+        // Edge/vertex-aware normal is more accurate than the raw face normal at idx.
+        *normal = get_normal(m_emesh, closest_point).cast<float>();
+    }
 
     return closest_point.cast<float>();
 }

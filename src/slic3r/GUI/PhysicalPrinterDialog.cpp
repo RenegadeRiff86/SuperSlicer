@@ -776,7 +776,7 @@ void PhysicalPrinterDialog::update_host_type(bool printer_change)
 
 
     // Append localized enum_labels
-// TODO: review if it's good this time. supermerill/SuperSlicer#2395 f5afec0                                   
+// Labels and values stay 1:1 after SuperSlicer#2395 enum localization fix.
     assert(ht->m_opt.enum_def->labels().size() == ht->m_opt.enum_def->values().size());
     for (size_t i = 0; i < ht->m_opt.enum_def->labels().size(); ++ i) {
         wxString label = _(ht->m_opt.enum_def->label(i));

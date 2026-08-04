@@ -1595,10 +1595,9 @@ void GCodeViewer::refresh(const GCodeProcessorResult& gcode_result, const std::v
         }
     }
 
-    // TODO: TEST: needed ?
+    // Seed per-mode layer times; elapsed-time coloring uses an infinite domain until samples arrive.
     for (size_t i = 0; i < gcode_result.print_statistics.modes.size(); ++i) {
         m_layers_times[i] = gcode_result.print_statistics.modes[i].layers_times;
-        // if we manage to just update_from() the first & last, this is needed to simulate many values. 
         m_extrusions.ranges.elapsed_time[i].set_infinite_values();
     }
 
@@ -3123,7 +3122,7 @@ void GCodeViewer::refresh_render_paths(bool keep_sequential_current_first, bool 
             }
             break;
         }
-        case EViewType::Chronology:     { color = m_extrusions.ranges.elapsed_time[static_cast<size_t>(m_time_estimate_mode)].get_color_at(path.elapsed_time); break; } //TODO: 
+        case EViewType::Chronology:     { color = m_extrusions.ranges.elapsed_time[static_cast<size_t>(m_time_estimate_mode)].get_color_at(path.elapsed_time); break; }
         case EViewType::VolumetricRate: { color = m_extrusions.ranges.volumetric_rate.get_color_at(path.volumetric_rate); break; }
         case EViewType::VolumetricFlow: { color = m_extrusions.ranges.volumetric_flow.get_color_at(path.volumetric_flow); break; }
         case EViewType::Tool:           { color = m_tool_colors[path.extruder_id]; break; }
@@ -3277,9 +3276,9 @@ void GCodeViewer::refresh_render_paths(bool keep_sequential_current_first, bool 
     }
 
     //fix error (all paths in m_buffers may be out of the m_layers_z_range)
-    //FIXME better than this dumb stop-gap
+    // Collapse sequential range so sliders stay valid when no path is in the Z range.
     if (global_endpoints.first > global_endpoints.last) {
-        global_endpoints = { 0, 0 };//m_moves_count };
+        global_endpoints = { 0, 0 };
         top_layer_endpoints = global_endpoints;
     }
 

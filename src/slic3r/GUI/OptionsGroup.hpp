@@ -298,7 +298,7 @@ public:
 
 	const wxString& config_category() const throw() { return m_config_category; }
 	int config_type() const throw() { return m_config_type; }
-    // TODO: is it really useful? called by Tab::update_changed_tree_ui(), but can't he call options()?
+    // Full registered option set (including options not yet on a line); used by Tab::update_changed_tree_ui().
     const std::set<OptionKeyIdx> &opt_set() const throw() { return m_opt_set; }
 	void		copy_for_freq_settings(const ConfigOptionsGroup& origin) { this->m_opt_set = origin.m_opt_set; }
 
@@ -363,7 +363,7 @@ private:
     // If the config is modelconfig, then ModelConfig::touch() has to be called after value change.
     ModelConfig                *m_modelconfig{nullptr};
     // this contains all the option key used to create options, even if not added to a line.
-    //TODO: investigate more the diff between m_opt_set and m_options
+    // m_opt_set: options registered for this group; m_options: built Field widgets only.
     std::set<OptionKeyIdx>      m_opt_set;
     wxString                    m_config_category;
     int                         m_config_type = 0;

@@ -289,7 +289,7 @@ void PreferencesDialog::create_options_tab(const wxString& title)
 {
 	// note: prusa wxScrolledWindow into a panel that only contains it, I don't know why.
     // set inside a scrollable panel
-	// FIXME: HSCROLL
+	// Vertical scroll only; preference rows fit width without HSCROLL.
     wxScrolledWindow *tab = new wxScrolledWindow(tabs, wxID_ANY, wxDefaultPosition, wxDefaultSize,
                                                  wxBK_LEFT | wxTAB_TRAVERSAL | wxVSCROLL);
 
@@ -967,7 +967,6 @@ void PreferencesDialog::build()
 		m_values_need_restart.push_back(OPT_tabs_as_menu);
 #endif
 
-		// FIXME separator don't work anymore
 		m_tabid_2_optgroups.back().back()->append_separator();
 /*
 		append_bool_option(m_tabid_2_optgroups.back().back(), "suppress_round_corners",

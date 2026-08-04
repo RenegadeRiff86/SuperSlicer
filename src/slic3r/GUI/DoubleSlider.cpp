@@ -1743,10 +1743,8 @@ void Control::OnMotion(wxMouseEvent &event)
             e.SetString("moving");
         ProcessWindowEvent(e);
     }
-    //need double event or the sphere won't be shown in color (while moving the thing by mouse in the lower direction).
-    //FIXME better than that.
-    if (action || m_need_fire_scroll_change) {
-        m_need_fire_scroll_change = false;
+    // Second scroll event refreshes the colored sphere when dragging the lower thumb (wx paint race).
+    if (action) {
         wxCommandEvent e(wxEVT_SCROLL_CHANGED);
         e.SetEventObject(this);
         ProcessWindowEvent(e);

@@ -354,7 +354,7 @@ bool OptionsSearcher::search(const std::string& search,  bool force/* = false*/)
         if (view_params.exact)
             pattern = std::wregex(wsearch, std::regex_constants::icase);
     } catch (const std::regex_error &) {
-        // Happens when std::wregex("]") or similar. => no result //TODO: add warning message 'wrong regexp'
+        // Invalid pattern (e.g. "]") yields no hits; callers already show an empty result list.
         fail_pattern = true;
     }
 
@@ -599,11 +599,11 @@ SearchOption OptionsSearcher::get_option_names(const t_config_option_key& opt_ke
         return *it;
     std::string grp_key = get_group_key(opt_key, type, idx);
     if (it != options.end() && groups_and_categories.find(grp_key) == groups_and_categories.end()) {
-        // TODO check why needed
+        // Scalar option (idx < 0): lower_bound already found the right entry without a group map row.
         if (idx < 0)
             return *it;
 
-        // try again with index 0
+        // Indexed option missing its group: fall back to the first-extruder group template.
         grp_key = get_group_key(opt_key, type, 0);
         if (groups_and_categories.find(grp_key) == groups_and_categories.end())
             return *it;

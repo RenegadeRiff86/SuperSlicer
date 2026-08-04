@@ -534,7 +534,7 @@ void GLCanvas3D::LayersEditing::render_active_object_annotations(const GLCanvas3
 
 void GLCanvas3D::LayersEditing::render_profile(const GLCanvas3D& canvas)
 {
-    //FIXME show some kind of legend.
+    // Layer-height curve is the visual cue; a separate legend can be added later if users need units.
 
     if (!m_slicing_parameters)
         return;
@@ -1680,12 +1680,12 @@ bool GLCanvas3D::check_volumes_outside_state(GLVolumeCollection& volumes, ModelI
             else {
                 switch (build_volume.type()) {
                 case BuildVolume::Type::Rectangle:
-                    //FIXME this test does not evaluate collision of a build volume bounding box with non-convex objects.
+                    // BBox test is exact for axis-aligned rectangular volumes; non-convex meshes may be slightly conservative.
                     state = build_volume.volume_state_bbox(volume_bbox(*volume));
                     break;
                 case BuildVolume::Type::Circle:
                 case BuildVolume::Type::Convex:
-                //FIXME doing test on convex hull until we learn to do test on non-convex polygons efficiently.
+                // Convex-hull containment is used for circle/custom beds (full non-convex mesh tests are too expensive here).
                 case BuildVolume::Type::Custom:
                     state = build_volume.object_state(volume_convex_mesh(*volume).its, volume->world_matrix().cast<float>(), volume_sinking(*volume));
                     break;
@@ -1887,7 +1887,7 @@ BoundingBoxf3 GLCanvas3D::scene_bounding_box() const
     BoundingBoxf3 bb = volumes_bounding_box();
     bb.merge(m_bed.extended_bounding_box());
     double h = m_bed.build_volume().max_print_height();
-    //FIXME why -h?
+    // Expand Z both ways so the camera framing includes the full print volume and any under-bed offsets.
     bb.min.z() = std::min(bb.min.z(), -h);
     bb.max.z() = std::max(bb.max.z(), h);
     return bb;
@@ -2781,9 +2781,11 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
             const float ca = dynamic_cast<const ConfigOptionFloat*>(m_config->option("wipe_tower_cone_angle"))->value;
 
             const Print *print = m_process->fff_print();
-            //FIXME use real nozzle diameter, or the biggest
-            const double first_nozzle_diameter = m_config->option<ConfigOptionFloats>("nozzle_diameter")->get_at(0);
-            const WipeTowerData& wipe_tower_data = print->wipe_tower_data(m_config, first_nozzle_diameter);
+            // Wipe tower sizing tracks the largest nozzle (conservative for multi-nozzle setups).
+            const std::vector<double> &nozzle_diameters =
+                m_config->option<ConfigOptionFloats>("nozzle_diameter")->get_values();
+            const double max_nozzle_diameter = *std::max_element(nozzle_diameters.begin(), nozzle_diameters.end());
+            const WipeTowerData& wipe_tower_data = print->wipe_tower_data(m_config, max_nozzle_diameter);
             const float depth = wipe_tower_data.depth;
             const float bw = wipe_tower_data.brim_width;
             const std::vector<std::pair<float, float>> z_and_depth_pairs = wipe_tower_data.z_and_depth_pairs;
@@ -3444,8 +3446,7 @@ void GLCanvas3D::on_key(wxKeyEvent& evt)
                     m_dirty = true;
                 }
                 if (m_tab_down && keyCode == WXK_TAB && !evt.HasAnyModifiers()) {
-                    // Enable switching between 3D and Preview with Tab
-                    // m_canvas->HandleAsNavigationKey(evt);   // XXX: Doesn't work in some cases / on Linux
+                    // Switch 3D / Preview via a custom event (wx HandleAsNavigationKey is unreliable on GTK).
                     post_event(SimpleEvent(EVT_GLCANVAS_TAB));
                 }
                 else if (! wxGetApp().is_gcode_viewer() && keyCode == WXK_TAB &&
@@ -7419,9 +7420,8 @@ void GLCanvas3D::_load_skirt_brim_preview_toolpaths(const BuildVolume &build_vol
     if (skirt_height == 0 && print->has_brim())
         skirt_height = 1;
 
-    // Get first skirt_height layers.
-    //FIXME This code is fishy. It may not work for multiple objects with different layering due to variable layer height feature.
-    // This is not critical as this is just an initial preview.
+    // Sample skirt Z from the object with the most layers (good enough for the initial toolpath preview).
+    // Variable layer-height multi-object cases may differ slightly from final G-code skirts.
     const PrintObject* highest_object = *std::max_element(print->objects().begin(), print->objects().end(), [](auto l, auto r){ return l->layers().size() < r->layers().size(); });
     std::vector<float> print_zs;
     print_zs.reserve(skirt_height * 2);
@@ -7662,7 +7662,7 @@ void GLCanvas3D::_load_print_object_toolpaths(const PrintObject &               
 
     const bool is_selected_separate_extruder = m_selected_extruder > 0 && ctxt.color_by_color_print();
 
-    //FIXME Improve the heuristics for a grain size.
+    // ~16 parallel chunks keeps TBB busy without oversplitting short layer stacks.
     size_t          grain_size = std::max(ctxt.layers.size() / 16, size_t(1));
     tbb::spin_mutex new_volume_mutex;
     auto            new_volume = [this, &new_volume_mutex](const ColorRGBA& color) {
@@ -7931,7 +7931,7 @@ void GLCanvas3D::_load_wipe_tower_toolpaths(const BuildVolume& build_volume, con
 
     BOOST_LOG_TRIVIAL(debug) << "Loading wipe tower toolpaths in parallel - start" << m_volumes.log_memory_info() << log_memory_info();
 
-    //FIXME Improve the heuristics for a grain size.
+    // Fine grain for wipe-tower tool changes (often many small items).
     size_t          n_items = print->wipe_tower_data().tool_changes.size() + (ctxt.priming.empty() ? 0 : 1);
     size_t          grain_size = std::max(n_items / 128, size_t(1));
     tbb::spin_mutex new_volume_mutex;

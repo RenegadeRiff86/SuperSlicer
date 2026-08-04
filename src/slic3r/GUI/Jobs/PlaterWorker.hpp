@@ -87,27 +87,24 @@ class PlaterWorker: public Worker {
                 show_error(m_plater, _L("An unexpected error occured") + ": " + e.what());
                 eptr = nullptr;
             }
+
+            // Re-enable action buttons after arrange/orient/fill-bed jobs.
+            if (m_plater) {
+                const bool enable = !m_plater->model().objects.empty()
+                    && !m_plater->is_export_gcode_scheduled();
+                m_plater->sidebar().enable_buttons(enable);
+            }
         }
 
         PlaterJob(Plater *p, std::unique_ptr<Job> j)
             : m_job{std::move(j)}, m_plater{p}
         {
-            // TODO: decide if disabling slice button during UI job is what we
-            // want.
-            //        if (m_plater)
-            //            m_plater->sidebar().enable_buttons(false);
+            // Freeze slice/export buttons while a UI job owns the plate.
+            if (m_plater)
+                m_plater->sidebar().enable_buttons(false);
         }
 
-        ~PlaterJob() override
-        {
-            // TODO: decide if disabling slice button during UI job is what we want.
-
-            // Reload scene ensures that the slice button gets properly
-            // enabled or disabled after the job finishes, depending on the
-            // state of slicing. This might be an overkill but works for now.
-            //        if (m_plater)
-            //            m_plater->canvas3D()->reload_scene(false);
-        }
+        ~PlaterJob() override = default;
     };
 
 public:

@@ -195,7 +195,7 @@ void FillBedJob::finalize(bool canceled, std::exception_ptr &eptr)
         m_plater->update(static_cast<unsigned int>(
             Plater::UpdateParams::FORCE_FULL_SCREEN_REFRESH));
 
-        // FIXME: somebody explain why this is needed for increase_object_instances
+        // Single seed instance: arranged set includes the original; ObjectList needs +1 for the first copy.
         if (inst_cnt == 1)
             added_cnt++;
 

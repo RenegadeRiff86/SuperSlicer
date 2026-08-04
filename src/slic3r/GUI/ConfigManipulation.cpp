@@ -697,9 +697,21 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
             || (have_support_material && config->option<ConfigOptionEnum<InfillPattern>>("support_material_top_interface_pattern")->value == InfillPattern::ipSmooth)
             || (have_support_material && config->option<ConfigOptionEnum<InfillPattern>>("support_material_bottom_interface_pattern")->value == InfillPattern::ipSmooth));
 
-    //TODO: can the milling_diameter or the milling_cutter be check to enable/disable this?
+    // Enable milling detail fields only when post-process is on and a cutter diameter is set.
+    bool have_milling = config->opt_bool("milling_post_process");
+    if (have_milling) {
+        if (const ConfigOptionFloats *diameters = config->option<ConfigOptionFloats>("milling_diameter")) {
+            have_milling = false;
+            for (double d : diameters->get_values()) {
+                if (d > 0.) {
+                    have_milling = true;
+                    break;
+                }
+            }
+        }
+    }
     for (auto el : { "milling_after_z", "milling_extra_size", "milling_speed" })
-        toggle_field(el, config->opt_bool("milling_post_process"));
+        toggle_field(el, have_milling);
 
     bool have_default_acceleration = config->option<ConfigOptionFloatOrPercent>("default_acceleration")->value > 0;
     for (auto el : { "perimeter_acceleration", "external_perimeter_acceleration", "thin_walls_acceleration" })

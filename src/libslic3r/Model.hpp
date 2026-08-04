@@ -338,8 +338,8 @@ enum class ModelVolumeType : int {
     SUPPORT_ENFORCER,
     SEAM_POSITION_CENTER,
     SEAM_POSITION_CENTER_Z,
-    SEAM_POSITION_INSIDE_CENTER, //TODO
-    SEAM_POSITION_INSIDE, //TODO
+    SEAM_POSITION_INSIDE_CENTER, // reserved: seam painting volume (inside center)
+    SEAM_POSITION_INSIDE,        // reserved: seam painting volume (inside)
     BRIM_PATCH,
     BRIM_NEGATIVE,
 };

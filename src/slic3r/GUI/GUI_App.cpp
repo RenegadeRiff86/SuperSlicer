@@ -895,18 +895,9 @@ void GUI_App::post_init()
         if (! this->init_params->preset_substitutions.empty())
             show_substitutions_info(this->init_params->preset_substitutions);
 
-#if 0
-        // Load the cummulative config over the currently active profiles.
-        //FIXME if multiple configs are loaded, only the last one will have an effect.
-        // We need to decide what to do about loading of separate presets (just print preset, just filament preset etc).
-        // As of now only the full configs are supported here.
-        if (!m_print_config.empty())
-            this->gui->mainframe->load_config(m_print_config);
-#endif
+        // CLI may pass several configs; load the last path so the UI shows a concrete preset name.
+        // Partial profile files are accepted by load_config_file (same path as File→Import Config).
         if (! this->init_params->load_configs.empty())
-            // Load the last config to give it a name at the UI. The name of the preset may be later
-            // changed by loading an AMF or 3MF.
-            //FIXME this is not strictly correct, as one may pass a print/filament/printer profile here instead of a full config.
             this->mainframe->load_config_file(this->init_params->load_configs.back());
         // If loading a 3MF file, the config is loaded from the last one.
         if (!this->init_params->input_files.empty()) {
@@ -4541,19 +4532,6 @@ bool GUI_App::open_browser_with_warning_dialog(const wxString& url,  wxWindow* p
 //             : Wx::MessageDialog->new($self, @params)->ShowModal;
 //     };
 // }
-
-// Do we need this function???
-// void GUI_App::notify(message) {
-//     auto frame = GetTopWindow();
-//     // try harder to attract user attention on OS X
-//     if (!frame->IsActive())
-//         frame->RequestUserAttention(defined(__WXOSX__/*&Wx::wxMAC */)? wxUSER_ATTENTION_ERROR : wxUSER_ATTENTION_INFO);
-// 
-//     // There used to be notifier using a Growl application for OSX, but Growl is dead.
-//     // The notifier also supported the Linux X D - bus notifications, but that support was broken.
-//     //TODO use wxNotificationMessage ?
-// }
-
 
 #ifdef __WXMSW__
 void GUI_App::associate_3mf_files()

@@ -467,7 +467,7 @@ void FreqChangedParams::init()
             PageShp page = tab_freq_fff->get_page(0);
             m_og->copy_for_freq_settings(*(page->m_optgroups[0].get()));
 
-            // hacks
+            // Layout tweaks for frequent-settings: full-width spacer widgets + purging-volumes button line.
             Line *line_for_purge = nullptr;
             for (Line &l : page->m_optgroups[0]->set_lines()) {
                 if (l.label_tooltip == "freq_purging_volumes") {
@@ -551,7 +551,9 @@ void FreqChangedParams::init()
                 Tab::set_or_add(m_og_sla->m_on_change,
                                 [tab_freq_sla](const OptionKeyIdx &opt_key_idx, bool enabled,
                                                      const boost::any &value) {
-                assert(enabled);
+                // Frequent settings UI only edits enabled options.
+                if (!enabled)
+                    return;
                 tab_freq_sla->update_dirty();
                 tab_freq_sla->reload_config();
                 static_cast<TabFrequent *>(tab_freq_sla)->update_changed_setting(opt_key_idx.key);
@@ -560,7 +562,7 @@ void FreqChangedParams::init()
             assert(tab_freq_sla->get_page(0)->m_optgroups.size() == 1);
             PageShp page = tab_freq_sla->get_page(0);
             m_og_sla->copy_for_freq_settings(*(page->m_optgroups[0].get()));
-            // hacks
+            // Full-width option rows need a trailing spacer for alignment with FFF frequent settings.
             for (Line &l : page->m_optgroups[0]->set_lines()) {
                 if (l.get_options().size() == 1 && l.get_options().front().opt.full_width) {
                     l.append_widget(empty_widget);
@@ -4403,9 +4405,9 @@ void Plater::priv::set_current_panel(wxTitledPanel* panel)
     }
     else if (current_panel == preview) {
         if (wxGetApp().is_editor()) {
-            // see: Plater::priv::object_list_changed()
-            // FIXME: it may be better to have a single function making this check and let it be called wherever needed
-            bool export_in_progress = this->background_process.is_export_scheduled();
+            // Same gate as object_list_changed(): no export/upload, model not partly outside.
+            bool export_in_progress = this->background_process.is_export_scheduled()
+                || this->background_process.is_upload_scheduled();
             bool model_fits = view3D->get_canvas3d()->check_volumes_outside_state() != ModelInstancePVS_Partly_Outside;
             if (!model.objects.empty() && !export_in_progress && model_fits) {
                 //check if already slicing

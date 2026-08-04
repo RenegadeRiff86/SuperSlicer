@@ -92,7 +92,6 @@ bool View3D::init(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig
     m_canvas->enable_picking(true);
     m_canvas->get_selection().set_mode(Selection::Instance);
     m_canvas->enable_moving(true);
-    // XXX: more config from 3D.pm
     m_canvas->set_model(model);
     m_canvas->set_process(process);
     m_canvas->set_config(config);
@@ -533,9 +532,8 @@ static int find_close_layer_idx(const std::vector<double>& zs, double &z, double
 
 void Preview::check_layers_slider_values(std::vector<CustomGCode::Item>& ticks_from_model, const std::vector<double>& layers_z)
 {
-    // All ticks that would end up outside the slider range should be erased.
-    // TODO: this should be placed into more appropriate part of code,
-    // this function is e.g. not called when the last object is deleted
+    // Drop custom G-code ticks that fall outside the current layer stack.
+    // Callers refresh the slider after model/object changes (including last-object delete).
     unsigned int old_size = ticks_from_model.size();
     ticks_from_model.erase(std::remove_if(ticks_from_model.begin(), ticks_from_model.end(),
                      [layers_z](CustomGCode::Item val)

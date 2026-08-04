@@ -849,7 +849,7 @@ void Tab::update_changed_ui()
     const Preset* system_preset   = m_presets->get_selected_preset_parent();
     for (auto& opt_key : m_presets->get_edited_preset().config.keys()) {
         OptionKeyIdx opt_key_idx = OptionKeyIdx::scalar(opt_key);
-        //TODO: add idx if needed
+        // Phony flags are tracked per scalar option key (vector indices share the same phony bit).
         if (edited_preset.config.option(opt_key)->is_phony()) {
             // ensure that osCurrentPhony is in the bitmask
             assert(m_options_list.find(opt_key_idx) != m_options_list.end());
@@ -1093,7 +1093,7 @@ void Tab::on_roll_back_value(const bool to_sys /*= true*/)
     }
 
     m_postpone_update_ui = true;
-    // TODO: / FIXME: remove group->title == "xx" for checks
+    // Extruders count is keyed; bed shape still identified by its group title in the printer tab layout.
     for (const auto& group : m_active_page->m_optgroups) {
         if (group->has_option_def(OptionKeyIdx::scalar(kExtrudersCountKey))) {
             assert(m_options_list.find(OptionKeyIdx::scalar(kExtrudersCountKey)) != m_options_list.end());
@@ -1773,7 +1773,6 @@ void Tab::update_preset_description_line()
             switch (preset.printer_technology()) {
             case ptFFF:
             {
-                //FIXME add prefered_sla_material_profile for SLA
                 const std::string              &default_print_profile = preset.config.opt_string("default_print_profile");
                 const std::vector<std::string> &default_filament_profiles = preset.config.option<ConfigOptionStrings>("default_filament_profile")->get_values();
                 if (!default_print_profile.empty())
@@ -1791,7 +1790,6 @@ void Tab::update_preset_description_line()
             }
             case ptSLA:
             {
-                //FIXME add prefered_sla_material_profile for SLA
                 const std::string &default_sla_material_profile = preset.config.opt_string("default_sla_material_profile");
                 if (!default_sla_material_profile.empty())
                     description_line += "\n\n\t" + _(L("default SLA material profile")) + ": \n\t\t" + default_sla_material_profile;
