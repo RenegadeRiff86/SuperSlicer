@@ -264,6 +264,10 @@ void PresetUpdater::download_logs(const std::string &vendor_id, std::function<vo
         boost::filesystem::create_directories(cache_path);
         // for each tag
         for (size_t available_idx = 0; available_idx < vendor.available_profiles.size(); available_idx++) {
+            if (cancel.load()) {
+                result = false;
+                goto callback_after_unlock;
+            }
             VendorAvailable &version = vendor.available_profiles[available_idx];
             if (version.commit_url.empty()) {
                 if (--changelog_synch == 0) {
@@ -439,6 +443,10 @@ callback_after_unlock:
 }
 
 void PresetUpdater::sync_async(std::function<void(int)> callback_for_after_update_preset, bool force) {
+    if (cancel.load()) {
+        callback_for_after_update_preset(get_profile_count_to_update());
+        return;
+    }
     if (this->all_vendors.empty()) {
         callback_for_after_update_preset(get_profile_count_to_update());
         // already done
@@ -469,6 +477,11 @@ void PresetUpdater::sync_async(std::function<void(int)> callback_for_after_updat
 }
 
 void PresetUpdater::update_vendor(VendorSync &vendor, bool force) {
+    if (cancel.load()) {
+        vendor.synch_in_progress = false;
+        end_updating();
+        return;
+    }
     // reuse
     boost::filesystem::path cache_path = data_path() / "cache" / "vendor" / vendor.profile.usable_id() / (vendor.profile.usable_id() + "_tags.json");
     if (boost::filesystem::exists(cache_path) && !force) {

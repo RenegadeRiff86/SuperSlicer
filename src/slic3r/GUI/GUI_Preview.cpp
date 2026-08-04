@@ -634,8 +634,7 @@ void Preview::update_layers_slider(const std::vector<double>& layers_z, bool sho
                 m_layers_slider->SetLayersTimes(print_mode_stat.layers_times, print_mode_stat.time);
             }
         }
-        // create area array
-        // area not computed for sla_print_technology //TODO
+        // Layer areas are FFF-only; SLA print statistics do not expose per-layer area.
         if (!sla_print_technology) {
             if (plater->fff_print().print_statistics().is_computing_gcode || !plater->fff_print().finished()) {
                 // do not fetch uncomplete data

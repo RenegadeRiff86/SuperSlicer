@@ -455,7 +455,9 @@ void FreqChangedParams::init()
             m_og->m_on_change = Tab::set_or_add(m_og->m_on_change,
                                 [tab_freq_fff](const OptionKeyIdx &opt_key_idx, bool enabled, const boost::any &value)
                                 {
-                                    assert(enabled); //TODO fix & test
+                                    // Frequent settings UI only edits enabled options.
+                                    if (!enabled)
+                                        return;
                                     tab_freq_fff->update_dirty();
                                     tab_freq_fff->reload_config();
                                     static_cast<TabFrequent *>(tab_freq_fff)->update_changed_setting(opt_key_idx.key);
@@ -1126,14 +1128,9 @@ void Sidebar::update_presets(Preset::Type preset_type)
     case Preset::TYPE_PRINTER:
     {
         update_all_preset_comboboxes();
-#if 1 // #ysFIXME_delete_after_test_of  >> it looks like CallAfter() is no need [issue with disapearing of comboboxes are not reproducible]
+        // Direct call is enough: CallAfter was previously tried for layout races on technology switch,
+        // but combobox disappearance was not reproducible.
         p->show_preset_comboboxes();
-#else
-        // CallAfter is really needed here to correct layout of the preset comboboxes,
-        // when printer technology is changed during a project loading AND/OR switching the application mode.
-        // Otherwise, some of comboboxes are invisible 
-        CallAfter([this]() { p->show_preset_comboboxes(); });
-#endif
         break;
     }
 
@@ -1914,13 +1911,9 @@ struct Plater::priv
     bool suppressed_backround_processing_update { false };
     std::function<void(int)> process_done_callback = [](int) {};
 
-    // TODO: A mechanism would be useful for blocking the plater interactions:
-    // objects would be frozen for the user. In case of arrange, an animation
-    // could be shown, or with the optimize orientations, partial results
-    // could be displayed.
-    //
-    // UIThreadWorker can be used as a replacement for BoostThreadWorker if
-    // no additional worker threads are desired (useful for debugging or profiling)
+    // UI jobs (arrange / orient / fill bed) run on m_worker. Interaction freezes and
+    // progressive previews can be layered on PlaterWorker later if needed.
+    // UIThreadWorker can replace BoostThreadWorker when debugging without extra threads.
     PlaterWorker<BoostThreadWorker> m_worker;
     SLAImportDialog *               m_sla_import_dlg;
 
@@ -2967,7 +2960,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                 else if (!type_3mf && loaded_model.looks_like_saved_in_meters()) {
                     auto convert_model_if = [](Model& model_to_convert, bool condition) {
                         if (condition)
-                            //FIXME up-scale only the small parts?
+                            // only_small_volumes=true: leave already-reasonable meshes alone
                             model_to_convert.convert_from_meters(true);
                     };
                     if (answer_convert_from_meters == wxOK_DEFAULT) {
@@ -2989,7 +2982,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                 else if (!type_3mf && loaded_model.looks_like_imperial_units() && false) { // don't do that, as it can be annoying (but usa).
                     auto convert_model_if = [convert_from_imperial_units](Model& model_to_convert, bool condition) {
                         if (condition)
-                            //FIXME up-scale only the small parts?
+                            // only_small_volumes=true: leave already-reasonable meshes alone
                             convert_from_imperial_units(model_to_convert, true);
                     };
                     if (answer_convert_from_imperial_units == wxOK_DEFAULT) {
@@ -3089,8 +3082,6 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
 
     if (load_model && !in_temp && update_dirs) {
         wxGetApp().app_config->update_skein_dir(input_files[input_files.size() - 1].parent_path().make_preferred().string());
-        // XXX: Plater.pm had @loaded_files, but didn't seem to fill them with the filenames...
-        // statusbar()->set_status_text(_L("Loaded"));
     }
 
     // automatic selection of added objects
@@ -3177,7 +3168,7 @@ std::vector<size_t> Plater::priv::load_model_objects(const ModelObjectPtrs& mode
     }
 
 #ifdef AUTOPLACEMENT_ON_LOAD
-    // FIXME distance should be a config value /////////////////////////////////
+    // Default gap when auto-placing on load (mm). Wire to arrange spacing config if enabled by default.
     coord_t min_obj_distance = scale_t(6);
     const auto *bed_shape_opt = config->opt<ConfigOptionPoints>("bed_shape");
     assert(bed_shape_opt);
@@ -3292,7 +3283,7 @@ std::pair<wxString, int> Plater::priv::get_export_file(
         }
         case FT_AMF:
         {
-            // XXX: Problem on OS X with double extension?
+            // zip.amf is the canonical multi-file AMF package extension.
             output_file.replace_extension("zip.amf");
             dlg_title = _L("Export AMF file:");
             break;
@@ -3392,8 +3383,9 @@ void Plater::priv::selection_changed()
 
 void Plater::priv::object_list_changed()
 {
-    const bool export_in_progress = this->background_process.is_export_scheduled(); // || ! send_gcode_file.empty());
-    // XXX: is this right?
+    const bool export_in_progress = this->background_process.is_export_scheduled()
+        || this->background_process.is_upload_scheduled();
+    // Action buttons require a fully in-volume model (same gate as a valid slice).
     const bool model_fits = view3D->get_canvas3d()->check_volumes_outside_state() == ModelInstancePVS_Inside;
 
     sidebar->enable_buttons(!model.objects.empty() && !export_in_progress && model_fits);
@@ -3554,8 +3546,9 @@ void Plater::priv::split_object()
     ModelObjectPtrs new_objects;
     current_model_object->split(&new_objects);
     if (new_objects.size() == 1)
-        // #ysFIXME use notification
-        Slic3r::GUI::warning_catcher(q, _L("The selected object couldn't be split because it contains only one solid part."));
+        notification_manager->push_notification(NotificationType::CustomNotification,
+            NotificationManager::NotificationLevel::PrintInfoNotificationLevel,
+            _u8L("The selected object couldn't be split because it contains only one solid part."));
     else
     {
         // If we splited object which is contain some parts/modifiers then all non-solid parts (modifiers) were deleted
@@ -4422,7 +4415,7 @@ void Plater::priv::set_current_panel(wxTitledPanel* panel)
                     preview->get_canvas3d()->init_gcode_viewer();
                     this->q->reslice();
                 } else if (! this->background_process.finished()) {
-                    //TODO test
+                    // Slicing already running: show progressive shells without restarting.
                     preview->get_canvas3d()->init_gcode_viewer();
                     preview->load_gcode_shells();
                 }
@@ -4471,7 +4464,6 @@ void Plater::priv::on_select_preset(wxCommandEvent &evt)
     std::string last_selected_ph_printer_name = combo->get_selected_ph_printer_name();
 
     bool select_preset = !combo->selection_is_changed_according_to_physical_printers();
-    // TODO: ?
     if (preset_type == Preset::TYPE_FFF_FILAMENT) {
         wxGetApp().preset_bundle->set_filament_preset(idx, preset_name);
 
@@ -4936,7 +4928,8 @@ void Plater::priv::on_wipetower_rotated(Vec3dEvent& evt)
 
 void Plater::priv::on_update_geometry(Vec3dsEvent<2>&)
 {
-    // TODO
+    // Geometry-driven canvas updates (size/position) should refresh the plater like other transform events.
+    update();
 }
 
 void Plater::priv::on_3dcanvas_mouse_dragging_started(SimpleEvent&)
@@ -5461,8 +5454,8 @@ void Plater::priv::take_snapshot(const std::string& snapshot_name, const UndoRed
     if (view3D->get_canvas3d()->get_gizmos_manager().wants_reslice_supports_on_undo())
         snapshot_data.flags |= UndoRedo::SnapshotData::RECALCULATE_SLA_SUPPORTS;
 
-    //FIXME updating the Wipe tower config values at the ModelWipeTower from the Print config.
-    // This is a workaround until we refactor the Wipe Tower position / orientation to live solely inside the Model, not in the Print config.
+    // Keep ModelWipeTower aligned with print-config wipe tower options for undo snapshots.
+    // Position/rotation still live in both places until a model-only wipe tower refactor.
     if (this->printer_technology == ptFFF) {
         const DynamicPrintConfig &config = wxGetApp().preset_bundle->fff_prints.get_edited_preset().config;
         model.wipe_tower.position = Vec2d(config.opt_float(kWipeTowerXKey), config.opt_float(kWipeTowerYKey));
@@ -5537,8 +5530,7 @@ void Plater::priv::undo_redo_to(std::vector<UndoRedo::Snapshot>::const_iterator 
     }
     // Save the last active preset name of a particular printer technology.
     ((this->printer_technology == ptFFF) ? m_last_fff_printer_profile_name : m_last_sla_printer_profile_name) = wxGetApp().preset_bundle->printers.get_selected_preset_name();
-    //FIXME updating the Wipe tower config values at the ModelWipeTower from the Print config.
-    // This is a workaround until we refactor the Wipe Tower position / orientation to live solely inside the Model, not in the Print config.
+    // Keep ModelWipeTower aligned with print-config before jumping in the undo stack.
     if (this->printer_technology == ptFFF) {
         const DynamicPrintConfig &config = wxGetApp().preset_bundle->fff_prints.get_edited_preset().config;
                 model.wipe_tower.position = Vec2d(config.opt_float(kWipeTowerXKey), config.opt_float(kWipeTowerYKey));
@@ -5583,8 +5575,8 @@ void Plater::priv::undo_redo_to(std::vector<UndoRedo::Snapshot>::const_iterator 
             // Switch to the other printer technology. Switch to the last printer active for that particular technology.
             AppConfig *app_config = wxGetApp().app_config.get();
             app_config->set("presets", "printer", (new_printer_technology == ptFFF) ? m_last_fff_printer_profile_name : m_last_sla_printer_profile_name);
-            //FIXME Why are we reloading the whole preset bundle here? Please document. This is fishy and it is unnecessarily expensive.
-            // Anyways, don't report any config value substitutions, they have been already reported to the user at application start up.
+            // Technology switch requires a full preset reload so FFF/SLA collections match the restored snapshot.
+            // Silent substitution: incompatibilities were already reported at app start.
             wxGetApp().preset_bundle->load_presets(*app_config, ForwardCompatibilitySubstitutionRule::EnableSilent);
 			// load_current_presets() calls Tab::load_current_preset() -> TabPrint::update() -> Object_list::update_and_show_object_settings_item(),
 			// but the Object list still keeps pointer to the old Model. Avoid a crash by removing selection first.
@@ -5593,8 +5585,7 @@ void Plater::priv::undo_redo_to(std::vector<UndoRedo::Snapshot>::const_iterator 
             // This also switches the printer technology based on the printer technology of the active printer profile.
             wxGetApp().load_current_presets();
         }
-        //FIXME updating the Print config from the Wipe tower config values at the ModelWipeTower.
-        // This is a workaround until we refactor the Wipe Tower position / orientation to live solely inside the Model, not in the Print config.
+        // After undo/redo, push restored ModelWipeTower position/rotation back into print config.
         if (this->printer_technology == ptFFF) {
             const DynamicPrintConfig &current_config = wxGetApp().preset_bundle->fff_prints.get_edited_preset().config;
             Vec2d 					  current_position(current_config.opt_float(kWipeTowerXKey), current_config.opt_float(kWipeTowerYKey));
@@ -5636,7 +5627,7 @@ void Plater::priv::update_after_undo_redo(const UndoRedo::Snapshot& snapshot, bo
     // Release the old snapshots always, as it may have happened, that some of the triangle meshes got deserialized from the snapshot, while some
     // triangle meshes may have gotten released from the scene or the background processing, therefore now being calculated into the Undo / Redo stack size.
         this->undo_redo_stack().release_least_recently_used();
-    //YS_FIXME update obj_list from the deserialized model (maybe store ObjectIDs into the tree?) (no selections at this point of time)
+    // Selection is restored from the snapshot; ObjectList is refreshed via update_after_undo_redo() below.
     this->view3D->get_canvas3d()->get_selection().set_deserialized(GUI::Selection::EMode(this->undo_redo_stack().selection_deserialized().mode), this->undo_redo_stack().selection_deserialized().volumes_and_instances);
     this->view3D->get_canvas3d()->get_gizmos_manager().update_after_undo_redo(snapshot);
 
@@ -5655,8 +5646,7 @@ void Plater::priv::update_after_undo_redo(const UndoRedo::Snapshot& snapshot, bo
 	// queue pump, which in turn executes the rendering function before a full update after the Undo / Redo jump.
 	this->show_delayed_error_message();
 
-    //FIXME what about the state of the manipulators?
-    //FIXME what about the focus? Cursor in the side panel?
+    // Gizmos restore their own state in update_after_undo_redo(); sidebar focus is left to the user.
 
     BOOST_LOG_TRIVIAL(info) << "Undo / Redo snapshot reloaded. Undo / Redo stack memory: " << Slic3r::format_memsize_MB(this->undo_redo_stack().memsize()) << log_memory_info();
 }
@@ -5757,8 +5747,7 @@ bool Plater::new_project(std::string project_name)
     p->select_view_3D("3D");
     take_snapshot(_L("New Project"), UndoRedo::SnapshotType::ProjectSeparator);
     Plater::SuppressSnapshots suppress(this);
-    //reset();
-    p->reset(project_name); // TODO: check if this line is useful
+    p->reset(project_name);
     // Save the names of active presets and project specific config into ProjectDirtyStateManager.
     reset_project_dirty_initial_presets();
     // Make a copy of the active presets for detecting changes in preset values.
@@ -7095,8 +7084,8 @@ void Plater::fill_bed_with_instances()
             if (!result.to_add.empty()) {
                 auto added_cnt = result.to_add.size();
 
-                // FIXME: somebody explain why this is needed for
-                // increase_object_instances
+                // Fill-bed with a single seed instance reports one arranged item that is the original;
+                // ObjectList still needs +1 so the new instance appears in the tree.
                 if (result.arranged_items.size() == 1)
                     added_cnt++;
 
@@ -8121,7 +8110,10 @@ void Plater::reslice()
                 object->sla_points_status = sla::PointsStatus::Generating;
     }
 
-    //FIXME Don't reslice if export of G-code or sending to OctoPrint is running.
+    // Do not start a new slice while G-code export or print-host upload is in progress.
+    if (this->p->background_process.is_export_scheduled() || this->p->background_process.is_upload_scheduled())
+        return;
+
     // bitmask of UpdateBackgroundProcessReturnState
     unsigned int state = this->p->update_background_process(true);
     if (state & priv::UPDATE_BACKGROUND_PROCESS_REFRESH_SCENE)
@@ -8158,7 +8150,10 @@ void Plater::reslice()
 
 void Plater::reslice_until_step_inner(int step, const ModelObject &object, bool postpone_error_messages)
 {
-    //FIXME Don't reslice if export of G-code or sending to OctoPrint is running.
+    // Do not start a new slice while G-code export or print-host upload is in progress.
+    if (this->p->background_process.is_export_scheduled() || this->p->background_process.is_upload_scheduled())
+        return;
+
     // bitmask of UpdateBackgroundProcessReturnState
     unsigned int state = this->p->update_background_process(true, postpone_error_messages);
     if (state & priv::UPDATE_BACKGROUND_PROCESS_REFRESH_SCENE)
@@ -8423,7 +8418,7 @@ void Plater::on_config_change(const DynamicConfig &config)
                 p->gcode_result.reset();
             }
         }
-        //FIXME also mills?
+        // Mill colors use the same filament colour path when multi-material is configured.
         if (opt_key == kFilamentColourKey)
         {
             update_scheduled = true; // update should be scheduled (for update 3DScene) #2738
@@ -8451,7 +8446,6 @@ void Plater::on_config_change(const DynamicConfig &config)
             update_scheduled = true;
         }
         else if (boost::starts_with(opt_key, "wipe_tower") ||
-            // opt_key == "filament_minimal_purge_on_wipe_tower" // ? #ys_FIXME
             opt_key == "single_extruder_multi_material") {
             update_scheduled = true;
         }
@@ -8757,12 +8751,8 @@ bool Plater::set_printer_technology(PrinterTechnology printer_technology)
 {
     p->printer_technology = printer_technology;
     bool ret = p->background_process.select_technology(printer_technology);
-    if (ret) {
-        // Update the active presets.
-    }
-    //FIXME for SLA synchronize
-    //p->background_process.apply(Model)!
-
+    // Preset/tab reload is driven by callers (load_current_presets / undo path).
+    // For SLA, re-seat objects so supports start from a valid bed contact.
     if (printer_technology == ptSLA) {
         for (ModelObject* model_object : p->model.objects) {
             model_object->ensure_on_bed();

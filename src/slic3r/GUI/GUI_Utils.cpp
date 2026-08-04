@@ -7,6 +7,7 @@
 #include "format.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <boost/lexical_cast.hpp>
 #include <boost/format.hpp>
 
@@ -121,14 +122,20 @@ int get_dpi_for_window(const wxWindow *window)
         if (hdc == NULL) { return DPI_DEFAULT; }
         return GetDeviceCaps(hdc, LOGPIXELSX);
     }
-#elif defined __linux__
-    // TODO
-    return DPI_DEFAULT;
-#elif defined __APPLE__
-    // TODO
+#elif defined __linux__ || defined __APPLE__
+    // wx reports content scale relative to 96 DPI on GTK3/macOS (see RetinaHelper).
+    if (window != nullptr) {
+        const double scale = window->GetContentScaleFactor();
+        if (scale > 0.0)
+            return int(std::lround(96.0 * scale));
+    }
     return DPI_DEFAULT;
 #else // freebsd and others
-    // TODO
+    if (window != nullptr) {
+        const double scale = window->GetContentScaleFactor();
+        if (scale > 0.0)
+            return int(std::lround(96.0 * scale));
+    }
     return DPI_DEFAULT;
 #endif
 }

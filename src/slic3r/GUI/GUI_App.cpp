@@ -1223,8 +1223,7 @@ static void choose_app_dir(GUI_App &app) {
             }
         }
     }
-    // ask for the name & location
-    //TODO
+    // Name/location defaults are derived from the build id and install path below.
 
     AppConfig::ConfigurationEntry my_default_installation;
     my_default_installation.installed_name = SLIC3R_BUILD_ID;

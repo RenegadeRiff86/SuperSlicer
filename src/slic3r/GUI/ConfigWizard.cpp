@@ -1657,7 +1657,7 @@ void DownloaderUtils::Worker::deregister()
     }
     key_full = key_string;
 #elif __APPLE__
-    // TODO
+    // macOS registration is handled via the app Info.plist URL types; nothing to undo here.
 #else 
     BOOST_LOG_TRIVIAL(debug) << "DesktopIntegrationDialog::undo_downloader_registration";
     DesktopIntegrationDialog::undo_downloader_registration();

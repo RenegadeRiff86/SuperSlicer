@@ -64,7 +64,8 @@ class PresetUpdater
 {
 protected:
 public:
-    bool cancel = false; //TODO
+    // Set true to stop in-flight vendor sync/downloads; destructor joins the worker after signalling cancel.
+    std::atomic_bool cancel{false};
     std::thread thread;
 
     // max request: 60/h per ip

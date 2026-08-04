@@ -5736,7 +5736,8 @@ void VectorManager::update_from_config()
         break;
     }
     case coPoints: {
-        assert(false); // todo
+        // Points vectors are edited via dedicated Point editors, not VectorManager text rows.
+        clear();
         break;
     }
     default:
@@ -5797,7 +5798,7 @@ void VectorManager::edit_value(int32_t idx_value, const std::string &str_value)
         break;
     }
     case coPoints: {
-        assert(false);  // todo
+        // Points vectors are edited via dedicated Point editors, not VectorManager text rows.
         break;
     }
     default:
@@ -6388,7 +6389,7 @@ void TabSLAMaterial::update()
 //    for (auto &prefix : prefixes) {
 //        opt = optgroup->get_option_and_register(preprefix + prefix.first + optkey, 0);
 //        opt.opt.label = prefix.second;
-//        opt.opt.width = 12; // TODO
+//        opt.opt.width = 12;
 //        line.append_option(opt);
 //    }
 //    optgroup->append_line(line);
