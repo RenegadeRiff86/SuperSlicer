@@ -203,7 +203,7 @@ WipingDialog::WipingDialog(wxWindow* parent, const std::vector<float>& matrix, c
     auto main_sizer = new wxBoxSizer(wxVERTICAL);
 
 	// set min sizer width according to extruders count
-	const auto sizer_width = (int)((sqrt(matrix.size()) + 2.8)*ITEM_WIDTH());
+	const auto sizer_width = static_cast<int>((sqrt(matrix.size()) + 2.8)*ITEM_WIDTH());
 	main_sizer->SetMinSize(wxSize(sizer_width, -1));
 
     main_sizer->Add(m_panel_wiping, 0, wxEXPAND | wxALL, 5);
@@ -249,7 +249,7 @@ WipingPanel::WipingPanel(wxWindow* parent, const std::vector<float>& matrix, con
     m_widget_button = widget_button;    // pointer to the button in parent dialog
     m_widget_button->Bind(wxEVT_BUTTON,[this](wxCommandEvent&){ toggle_advanced(true); });
 
-    m_number_of_extruders = (int)(sqrt(matrix.size())+0.001);
+    m_number_of_extruders = static_cast<int>(sqrt(matrix.size())+0.001);
 
     for (const std::string& color : extruder_colours) {
         Slic3r::ColorRGB rgb;
@@ -336,7 +336,7 @@ WipingPanel::WipingPanel(wxWindow* parent, const std::vector<float>& matrix, con
 
     auto add_spin_ctrl = [this](std::vector<::SpinInput*>& vec, float initial)
     {
-        ::SpinInput* spin_ctrl = new ::SpinInput(m_page_simple, "", wxEmptyString, wxDefaultPosition, wxSize(ITEM_WIDTH(), -1), style | wxALIGN_RIGHT, 0, 300, (int)initial);
+        ::SpinInput* spin_ctrl = new ::SpinInput(m_page_simple, "", wxEmptyString, wxDefaultPosition, wxSize(ITEM_WIDTH(), -1), style | wxALIGN_RIGHT, 0, 300, static_cast<int>(initial));
         update_ui(spin_ctrl);
         vec.push_back(spin_ctrl);
     };
@@ -396,7 +396,7 @@ std::vector<float> WipingPanel::read_matrix_values() {
         for (unsigned int j=0;j<m_number_of_extruders;++j) {
             double val = 0.;
             edit_boxes[j][i]->GetValue().ToDouble(&val);
-            output.push_back((float)val);
+            output.push_back(static_cast<float>(val));
         }
     }
     return output;

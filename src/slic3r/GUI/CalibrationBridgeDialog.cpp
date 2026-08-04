@@ -97,7 +97,7 @@ void CalibrationBridgeDialog::create_geometry(std::string setting_to_test, bool 
     full_print_config.apply(*print_config);
     full_print_config.apply(*filament_config);
     full_print_config.apply(*printer_config);
-    full_print_config.set_key_value("extruder_id", new ConfigOptionInt(0));
+    full_print_config.set_key_value("extruder_id", std::make_unique<ConfigOptionInt>(0));
 
     /// --- scale ---
     // model is created for a 0.4 nozzle, scale xy with nozzle size.
@@ -140,24 +140,24 @@ void CalibrationBridgeDialog::create_geometry(std::string setting_to_test, bool 
 
     /// --- main config, please modify object config when possible ---
     DynamicPrintConfig new_print_config = *print_config; //make a copy
-    new_print_config.set_key_value("complete_objects", new ConfigOptionBool(true));
+    new_print_config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(true));
     //if skirt, use only one
     if (print_config->option<ConfigOptionInt>("skirts")->get_int() > 0 && print_config->option<ConfigOptionInt>("skirt_height")->get_int() > 0) {
-        new_print_config.set_key_value("complete_objects_one_skirt", new ConfigOptionBool(true));
+        new_print_config.set_key_value("complete_objects_one_skirt", std::make_unique<ConfigOptionBool>(true));
     }
 
     /// --- custom config ---
     for (size_t i = 0; i < nb_items; i++) {
-        model.objects[objs_idx[i]]->config.set_key_value("brim_width", new ConfigOptionFloat(brim_width));
-        model.objects[objs_idx[i]]->config.set_key_value("brim_ears", new ConfigOptionBool(false));
-        model.objects[objs_idx[i]]->config.set_key_value("perimeters", new ConfigOptionInt(2));
-        model.objects[objs_idx[i]]->config.set_key_value("bottom_solid_layers", new ConfigOptionInt(2));
-        model.objects[objs_idx[i]]->config.set_key_value("gap_fill_enabled", new ConfigOptionBool(false));
-        model.objects[objs_idx[i]]->config.set_key_value(setting_to_test, new ConfigOptionPercent(start + (add ? 1 : -1) * i * step));
-        model.objects[objs_idx[i]]->config.set_key_value("layer_height", new ConfigOptionFloat(nozzle_diameter / 2));
-        model.objects[objs_idx[i]]->config.set_key_value("no_perimeter_unsupported_algo", new ConfigOptionEnum<NoPerimeterUnsupportedAlgo>(npuaBridges));
-        //model.objects[objs_idx[i]]->config.set_key_value("top_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipSmooth)); /not needed
-        model.objects[objs_idx[i]]->config.set_key_value("ironing", new ConfigOptionBool(false)); // not needed, and it slow down things.
+        model.objects[objs_idx[i]]->config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(brim_width));
+        model.objects[objs_idx[i]]->config.set_key_value("brim_ears", std::make_unique<ConfigOptionBool>(false));
+        model.objects[objs_idx[i]]->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(2));
+        model.objects[objs_idx[i]]->config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(2));
+        model.objects[objs_idx[i]]->config.set_key_value("gap_fill_enabled", std::make_unique<ConfigOptionBool>(false));
+        model.objects[objs_idx[i]]->config.set_key_value(setting_to_test, std::make_unique<ConfigOptionPercent>(start + (add ? 1 : -1) * i * step));
+        model.objects[objs_idx[i]]->config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(nozzle_diameter / 2));
+        model.objects[objs_idx[i]]->config.set_key_value("no_perimeter_unsupported_algo", std::make_unique<ConfigOptionEnum<NoPerimeterUnsupportedAlgo>>(npuaBridges));
+        //model.objects[objs_idx[i]]->config.set_key_value("top_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipSmooth)); /not needed
+        model.objects[objs_idx[i]]->config.set_key_value("ironing", std::make_unique<ConfigOptionBool>(false)); // not needed, and it slow down things.
     }
     /// if first ayer height is excactly at the wrong value, the text isn't drawed. Fix that by switching the first layer height just a little bit.
     double first_layer_height = full_print_config.get_computed_value("first_layer_height", 0);
@@ -171,10 +171,10 @@ void CalibrationBridgeDialog::create_geometry(std::string setting_to_test, bool 
             max_height = 0.75 * nozzle_diameter;
         if (max_height > first_layer_height + z_step)
             for (size_t i = 0; i < nb_items; i++)
-                model.objects[objs_idx[i]]->config.set_key_value("first_layer_height", new ConfigOptionFloatOrPercent(first_layer_height + z_step, false));
+                model.objects[objs_idx[i]]->config.set_key_value("first_layer_height", std::make_unique<ConfigOptionFloatOrPercent>(first_layer_height + z_step, false));
         else
             for (size_t i = 0; i < nb_items; i++)
-                model.objects[objs_idx[i]]->config.set_key_value("first_layer_height", new ConfigOptionFloatOrPercent(first_layer_height - z_step, false));
+                model.objects[objs_idx[i]]->config.set_key_value("first_layer_height", std::make_unique<ConfigOptionFloatOrPercent>(first_layer_height - z_step, false));
     }
 
     //update plater

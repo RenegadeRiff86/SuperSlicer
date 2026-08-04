@@ -175,13 +175,13 @@ SCENARIO("Placeholder parser scripting", "[PlaceholderParser]") {
 
     SECTION("write to a scalar variable") {
         DynamicConfig config_outputs;
-        config_outputs.set_key_value("writable_string", new ConfigOptionString());
+        config_outputs.set_key_value("writable_string", std::make_unique<ConfigOptionString>());
         parser.process("{writable_string = \"Written\"}", 0, nullptr, &config_outputs, nullptr);
         REQUIRE(parser.process("{writable_string}", 0, nullptr, &config_outputs, nullptr) == "Written");
     }
     SECTION("write to a vector variable") {
         DynamicConfig config_outputs;
-        config_outputs.set_key_value("writable_floats", new ConfigOptionFloats({ 0., 0., 0. }));
+        config_outputs.set_key_value("writable_floats", std::make_unique<ConfigOptionFloats>(ConfigOptionFloats{ 0., 0., 0. }));
         parser.process("{writable_floats[1] = 33}", 0, nullptr, &config_outputs, nullptr);
         REQUIRE(config_outputs.opt_float("writable_floats", 1) == Approx(33.));
     }

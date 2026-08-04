@@ -24,12 +24,12 @@ namespace GUI {
 
 wxDEFINE_EVENT(wxCUSTOMEVT_LAST_VOLUME_IS_DELETED, wxCommandEvent);
 
-BitmapCache* m_bitmap_cache = nullptr;
+std::unique_ptr<BitmapCache> m_bitmap_cache;
 
 wxBitmapBundle* find_bndl(const std::string& bmp_name)
 {
     if (!m_bitmap_cache)
-        m_bitmap_cache = new BitmapCache;
+        m_bitmap_cache = std::make_unique<BitmapCache>();
 
     return m_bitmap_cache->find_bndl(bmp_name);
 }
@@ -353,10 +353,9 @@ ObjectDataViewModel::ObjectDataViewModel()
 
 ObjectDataViewModel::~ObjectDataViewModel()
 {
-    for (auto object : m_objects)
-			delete object;
-    delete m_bitmap_cache;
-    m_bitmap_cache = nullptr;
+    // m_objects owns the top-level nodes; clearing it frees each object subtree.
+    m_objects.clear();
+    m_bitmap_cache.reset();
 }
 
 void ObjectDataViewModel::UpdateBitmapForNode(ObjectDataViewModelNode* node)
@@ -411,14 +410,15 @@ wxDataViewItem ObjectDataViewModel::AddObject(const wxString &name,
                                         const std::string& warning_icon_name,
                                         const bool has_lock)
 {
-	auto root = new ObjectDataViewModelNode(name, extruder);
+	auto owned_root = std::make_unique<ObjectDataViewModelNode>(name, extruder);
+	ObjectDataViewModelNode* const root = owned_root.get();
     // Add warning icon if detected auto-repaire
     UpdateBitmapForNode(root, warning_icon_name, has_lock);
 
-    m_objects.push_back(root);
+    m_objects.push_back(std::move(owned_root));
 	// notify control
-	wxDataViewItem child((void*)root);
-	wxDataViewItem parent((void*)NULL);
+	wxDataViewItem child(static_cast<void*>(root));
+	wxDataViewItem parent(nullptr);
 
 	ItemAdded(parent, child);
 	return child;
@@ -441,9 +441,10 @@ wxDataViewItem ObjectDataViewModel::AddVolumeChild( const wxDataViewItem &parent
     if (insert_position < 0)
         insert_position = get_root_idx(root, itInstanceRoot);
 
-    const auto node = new ObjectDataViewModelNode(root, name, volume_type, is_text_volume, is_svg_volume, extruder, volume_idx);
+    auto owned_node = std::make_unique<ObjectDataViewModelNode>(root, name, volume_type, is_text_volume, is_svg_volume, extruder, volume_idx);
+    ObjectDataViewModelNode* const node = owned_node.get();
     UpdateBitmapForNode(node, warning_icon_name, root->has_lock() && volume_type < ModelVolumeType::PARAMETER_MODIFIER);
-    insert_position < 0 ? root->Append(node) : root->Insert(node, insert_position);
+    insert_position < 0 ? root->Append(std::move(owned_node)) : root->Insert(std::move(owned_node), insert_position);
 
     // if part with errors is added, but object wasn't marked, then mark it
     if (!warning_icon_name.empty() && warning_icon_name != root->warning_icon_name() &&
@@ -453,7 +454,7 @@ wxDataViewItem ObjectDataViewModel::AddVolumeChild( const wxDataViewItem &parent
     }
 
 	// notify control
-    const wxDataViewItem child((void*)node);
+    const wxDataViewItem child(static_cast<void*>(node));
     ItemAdded(parent_item, child);
     root->m_volumes_cnt++;
 
@@ -465,7 +466,8 @@ wxDataViewItem ObjectDataViewModel::AddInfoChild(const wxDataViewItem &parent_it
     ObjectDataViewModelNode *root = static_cast<ObjectDataViewModelNode*>(parent_item.GetID());
     if (!root) return wxDataViewItem(0);
 
-    const auto node = new ObjectDataViewModelNode(root, info_type);
+    auto owned_node = std::make_unique<ObjectDataViewModelNode>(root, info_type);
+    ObjectDataViewModelNode* const node = owned_node.get();
 
     // The new item should be added according to its order in InfoItemType.
     // Find last info item with lower index and append after it.
@@ -478,10 +480,10 @@ wxDataViewItem ObjectDataViewModel::AddInfoChild(const wxDataViewItem &parent_it
             idx = i;
     }
 
-    root->Insert(node, idx+1);
+    root->Insert(std::move(owned_node), idx+1);
     node->SetBitmap(*m_info_bmps.at(info_type));
     // notify control
-    const wxDataViewItem child((void*)node);
+    const wxDataViewItem child(static_cast<void*>(node));
     ItemAdded(parent_item, child);
     return child;
 }
@@ -491,11 +493,12 @@ wxDataViewItem ObjectDataViewModel::AddSettingsChild(const wxDataViewItem &paren
     ObjectDataViewModelNode *root = static_cast<ObjectDataViewModelNode*>(parent_item.GetID());
     if (!root) return wxDataViewItem(0);
 
-    const auto node = new ObjectDataViewModelNode(root, itSettings);
+    auto owned_node = std::make_unique<ObjectDataViewModelNode>(root, itSettings);
+    ObjectDataViewModelNode* const node = owned_node.get();
 
-    root->Insert(node, 0);
+    root->Insert(std::move(owned_node), 0);
     // notify control
-    const wxDataViewItem child((void*)node);
+    const wxDataViewItem child(static_cast<void*>(node));
     ItemAdded(parent_item, child);
     return child;
 }
@@ -510,16 +513,20 @@ static bool append_root_node(ObjectDataViewModelNode *parent_node,
 {
     const int inst_root_id = get_root_idx(parent_node, root_type);
 
-    *root_node = inst_root_id < 0 ?
-                new ObjectDataViewModelNode(parent_node, root_type) :
-                parent_node->GetNthChild(inst_root_id);
-    
+    std::unique_ptr<ObjectDataViewModelNode> owned_root;
+    if (inst_root_id < 0) {
+        owned_root = std::make_unique<ObjectDataViewModelNode>(parent_node, root_type);
+        *root_node = owned_root.get();
+    }
+    else
+        *root_node = parent_node->GetNthChild(inst_root_id);
+
     if (inst_root_id < 0) {
         if ((root_type&itInstanceRoot) ||
             ( (root_type&itLayerRoot) && get_root_idx(parent_node, itInstanceRoot)<0) )
-            parent_node->Append(*root_node);
+            parent_node->Append(std::move(owned_root));
         else if (root_type&itLayerRoot)
-            parent_node->Insert(*root_node, static_cast<unsigned int>(get_root_idx(parent_node, itInstanceRoot)));
+            parent_node->Insert(std::move(owned_root), static_cast<unsigned int>(get_root_idx(parent_node, itInstanceRoot)));
         return true;
     }
 
@@ -536,7 +543,7 @@ wxDataViewItem ObjectDataViewModel::AddRoot(const wxDataViewItem &parent_item, I
     const bool appended = append_root_node(parent_node, &root_node, root_type);
     if (!root_node) return wxDataViewItem(0);
 
-    const wxDataViewItem root_item((void*)root_node);
+    const wxDataViewItem root_item(static_cast<void*>(root_node));
 
     if (appended)
         ItemAdded(parent_item, root_item);// notify control
@@ -557,7 +564,7 @@ wxDataViewItem ObjectDataViewModel::AddInstanceChild(const wxDataViewItem &paren
         // use object's printable state to first instance
         print_indicator[0] = IsPrintable(parent_item);
     
-    return wxDataViewItem((void*)AddInstanceChild(parent_item, print_indicator));
+    return wxDataViewItem(static_cast<void*>(AddInstanceChild(parent_item, print_indicator)));
 }
 
 wxDataViewItem ObjectDataViewModel::AddInstanceChild(const wxDataViewItem& parent_item,
@@ -572,13 +579,14 @@ wxDataViewItem ObjectDataViewModel::AddInstanceChild(const wxDataViewItem& paren
     ObjectDataViewModelNode *instance_node = nullptr;    
     size_t counter = 0;
     while (counter < print_indicator.size()) {
-        instance_node = new ObjectDataViewModelNode(inst_root_node, itInstance);
+        auto owned_instance = std::make_unique<ObjectDataViewModelNode>(inst_root_node, itInstance);
+        instance_node = owned_instance.get();
 
         instance_node->set_printable_icon(print_indicator[counter] ? piPrintable : piUnprintable);
 
-        inst_root_node->Append(instance_node);
+        inst_root_node->Append(std::move(owned_instance));
         // notify control
-        const wxDataViewItem instance_item((void*)instance_node);
+        const wxDataViewItem instance_item(static_cast<void*>(instance_node));
         ItemAdded(inst_root_item, instance_item);
         ++counter;
     }
@@ -586,7 +594,7 @@ wxDataViewItem ObjectDataViewModel::AddInstanceChild(const wxDataViewItem& paren
     // update object_node printable property
     UpdateObjectPrintable(parent_item);
 
-    return wxDataViewItem((void*)instance_node);
+    return wxDataViewItem(static_cast<void*>(instance_node));
 }
 
 void ObjectDataViewModel::UpdateObjectPrintable(wxDataViewItem parent_item)
@@ -597,7 +605,7 @@ void ObjectDataViewModel::UpdateObjectPrintable(wxDataViewItem parent_item)
 
     ObjectDataViewModelNode* inst_root_node = static_cast<ObjectDataViewModelNode*>(inst_root_item.GetID());
 
-    const size_t child_cnt = inst_root_node->GetChildren().Count();
+    const size_t child_cnt = inst_root_node->GetChildCount();
     PrintIndicator obj_pi = piUnprintable;
     for (size_t i=0; i < child_cnt; i++)
         if (inst_root_node->GetNthChild(i)->IsPrintable() & piPrintable) {
@@ -621,14 +629,14 @@ void ObjectDataViewModel::UpdateInstancesPrintable(wxDataViewItem parent_item)
     const PrintIndicator obj_pi = obj_node->IsPrintable();
 
     ObjectDataViewModelNode* inst_root_node = static_cast<ObjectDataViewModelNode*>(inst_root_item.GetID());
-    const size_t child_cnt = inst_root_node->GetChildren().Count();
+    const size_t child_cnt = inst_root_node->GetChildCount();
 
     for (size_t i=0; i < child_cnt; i++)
     {
         ObjectDataViewModelNode* inst_node = inst_root_node->GetNthChild(i);
         // and set printable state for object_node to piUndef
         inst_node->set_printable_icon(obj_pi);
-        ItemChanged(wxDataViewItem((void*)inst_node));
+        ItemChanged(wxDataViewItem(static_cast<void*>(inst_node)));
     }
 }
 
@@ -666,18 +674,19 @@ wxDataViewItem ObjectDataViewModel::AddLayersChild(const wxDataViewItem &parent_
         const int root_idx = get_root_idx(parent_node, itLayerRoot);
         if (root_idx < 0) return wxDataViewItem(0);
         layer_root_node = parent_node->GetNthChild(root_idx);
-        layer_root_item = wxDataViewItem((void*)layer_root_node);
+        layer_root_item = wxDataViewItem(static_cast<void*>(layer_root_node));
     }
 
     // Add layer node
-    ObjectDataViewModelNode *layer_node = new ObjectDataViewModelNode(layer_root_node, layer_range, index, extruder);
+    auto owned_layer = std::make_unique<ObjectDataViewModelNode>(layer_root_node, layer_range, index, extruder);
+    ObjectDataViewModelNode* const layer_node = owned_layer.get();
     if (index < 0)
-        layer_root_node->Append(layer_node);
+        layer_root_node->Append(std::move(owned_layer));
     else
-        layer_root_node->Insert(layer_node, index);
+        layer_root_node->Insert(std::move(owned_layer), index);
 
     // notify control
-    const wxDataViewItem layer_item((void*)layer_node);
+    const wxDataViewItem layer_item(static_cast<void*>(layer_node));
     ItemAdded(layer_root_item, layer_item);
 
     return layer_item;
@@ -702,9 +711,10 @@ wxDataViewItem ObjectDataViewModel::Delete(const wxDataViewItem &item)
 	auto node_parent = node->GetParent();
 	wxDataViewItem parent(node_parent);
 
-	// first remove the node from the parent's array of children;
-	// NOTE: MyObjectTreeModelNodePtrArray is only an array of _pointers_
-	//       thus removing the node from it doesn't result in freeing it
+	// Detach the node from its parent first. ReleaseChild() hands ownership back rather than
+	// destroying, so the node stays alive for the type checks below and is freed at exactly
+	// the point the old code called 'delete node'.
+	std::unique_ptr<ObjectDataViewModelNode> released_node;
 	if (node_parent) {
         if (node->m_type & (itInstanceRoot|itLayerRoot))
         {
@@ -717,7 +727,7 @@ wxDataViewItem ObjectDataViewModel::Delete(const wxDataViewItem &item)
             return parent;
         }
 
-		auto id = node_parent->GetChildren().Index(node);
+		auto id = node_parent->GetChildIndex(node);
         auto idx = node->GetIdx();
 
 
@@ -725,15 +735,15 @@ wxDataViewItem ObjectDataViewModel::Delete(const wxDataViewItem &item)
             node_parent->m_volumes_cnt--;
             DeleteSettings(item);
         }
-		node_parent->GetChildren().Remove(node);
+		released_node = node_parent->ReleaseChild(node);
 
 		if (id > 0) { 
             if (size_t(id) == node_parent->GetChildCount()) id--;
-			ret_item = wxDataViewItem(node_parent->GetChildren().Item(id));
+			ret_item = wxDataViewItem(node_parent->GetNthChild(id));
 		}
 
 		//update idx value for remaining child-nodes
-		auto children = node_parent->GetChildren();
+		auto& children = node_parent->GetChildren();
         for (size_t i = 0; i < node_parent->GetChildCount() && idx>=0; i++)
 		{
             auto cur_idx = children[i]->GetIdx();
@@ -744,19 +754,17 @@ wxDataViewItem ObjectDataViewModel::Delete(const wxDataViewItem &item)
         // if there is last instance item, delete both of it and instance root item
         if (node_parent->GetChildCount() == 1 && node_parent->GetNthChild(0)->m_type == itInstance)
         {
-            delete node;
+            released_node.reset();
             ItemDeleted(parent, item);
 
             ObjectDataViewModelNode *last_instance_node = node_parent->GetNthChild(0);
             PrintIndicator last_instance_printable = last_instance_node->IsPrintable();
-            node_parent->GetChildren().Remove(last_instance_node);
-            delete last_instance_node;
+            node_parent->ReleaseChild(last_instance_node);
             ItemDeleted(parent, wxDataViewItem(last_instance_node));
 
             ObjectDataViewModelNode *obj_node = node_parent->GetParent();
             obj_node->set_printable_icon(last_instance_printable);
-            obj_node->GetChildren().Remove(node_parent);
-            delete node_parent;
+            obj_node->ReleaseChild(node_parent);
             ret_item = wxDataViewItem(obj_node);
 
             obj_node->invalidate_container();
@@ -771,8 +779,7 @@ wxDataViewItem ObjectDataViewModel::Delete(const wxDataViewItem &item)
         if (node_parent->GetChildCount() == 0 && node_parent->m_type == itLayerRoot)
         {
             ObjectDataViewModelNode *obj_node = node_parent->GetParent();
-            obj_node->GetChildren().Remove(node_parent);
-            delete node_parent;
+            obj_node->ReleaseChild(node_parent);
             ret_item = wxDataViewItem(obj_node);
 
             obj_node->invalidate_container();
@@ -784,7 +791,7 @@ wxDataViewItem ObjectDataViewModel::Delete(const wxDataViewItem &item)
         if (node_parent->m_volumes_cnt == 1)
         {
             // delete selected (penult) volume
-            delete node;
+            released_node.reset();
             ItemDeleted(parent, item);
 
             // get index of the last VolumeItem in CildrenList
@@ -793,15 +800,15 @@ wxDataViewItem ObjectDataViewModel::Delete(const wxDataViewItem &item)
 
             // delete this last volume
             DeleteSettings(wxDataViewItem(last_child_node));
-            node_parent->GetChildren().Remove(last_child_node);
+            node_parent->ReleaseChild(last_child_node);
             node_parent->m_volumes_cnt = 0;
-            delete last_child_node;
 
             node_parent->invalidate_container();
             ItemDeleted(parent, wxDataViewItem(last_child_node));
 
             wxCommandEvent event(wxCUSTOMEVT_LAST_VOLUME_IS_DELETED);
-            auto it = find(m_objects.begin(), m_objects.end(), node_parent);
+            auto it = std::find_if(m_objects.begin(), m_objects.end(),
+                                   [node_parent](const auto& obj) { return obj.get() == node_parent; });
             event.SetInt(it == m_objects.end() ? -1 : it - m_objects.begin());
             wxPostEvent(m_ctrl, event);
 
@@ -810,7 +817,8 @@ wxDataViewItem ObjectDataViewModel::Delete(const wxDataViewItem &item)
 	}
 	else
 	{
-		auto it = find(m_objects.begin(), m_objects.end(), node);
+		auto it = std::find_if(m_objects.begin(), m_objects.end(),
+		                       [node](const auto& obj) { return obj.get() == node; });
         size_t id = it - m_objects.begin();
 		if (it != m_objects.end())
 		{
@@ -828,15 +836,18 @@ wxDataViewItem ObjectDataViewModel::Delete(const wxDataViewItem &item)
                     break;
                 i = after - 1;
             }
+			// Take ownership out of m_objects before erasing the slot, so the node is freed
+			// below at the same point the old 'delete node' ran, not here.
+			released_node = std::move(*it);
 			m_objects.erase(it);
         }
 		if (id > 0) { 
 			if(id == m_objects.size()) id--;
-			ret_item = wxDataViewItem(m_objects[id]);
+			ret_item = wxDataViewItem(m_objects[id].get());
 		}
 	}
 	// free the node
-	delete node;
+	released_node.reset();
 
 	// set m_containet to FALSE if parent has no child
 	if (node_parent) {
@@ -860,7 +871,7 @@ wxDataViewItem ObjectDataViewModel::DeleteLastInstance(const wxDataViewItem &par
 
     wxDataViewItemArray items;
     ObjectDataViewModelNode *inst_root_node = parent_node->GetNthChild(inst_root_id);
-    const wxDataViewItem inst_root_item((void*)inst_root_node);
+    const wxDataViewItem inst_root_item(static_cast<void*>(inst_root_node));
 
     const int inst_cnt = inst_root_node->GetChildCount();
     const bool delete_inst_root_item = inst_cnt - num < 2 ? true : false;
@@ -871,14 +882,14 @@ wxDataViewItem ObjectDataViewModel::DeleteLastInstance(const wxDataViewItem &par
     for (int i = inst_cnt - 1; i >= stop;--i) {
         ObjectDataViewModelNode *last_instance_node = inst_root_node->GetNthChild(i);
         if (i==0) last_inst_printable = last_instance_node->IsPrintable();
-        inst_root_node->GetChildren().Remove(last_instance_node);
-        delete last_instance_node;
+        inst_root_node->ReleaseChild(last_instance_node);
         ItemDeleted(inst_root_item, wxDataViewItem(last_instance_node));
     }
 
     if (delete_inst_root_item) {
         ret_item = parent_item;
-        parent_node->GetChildren().Remove(inst_root_node);
+        // Detaching frees it. The old code only dropped the pointer here, leaking the node.
+        parent_node->ReleaseChild(inst_root_node);
         parent_node->set_printable_icon(last_inst_printable);
         ItemDeleted(parent_item, inst_root_item);
         ItemChanged(parent_item);
@@ -895,7 +906,7 @@ void ObjectDataViewModel::DeleteAll()
 {
 	while (!m_objects.empty())
 	{
-		auto object = m_objects.back();
+		auto object = m_objects.back().get();
 // 		object->RemoveAllChildren();
 		Delete(wxDataViewItem(object));	
 	}
@@ -907,21 +918,21 @@ void ObjectDataViewModel::DeleteChildren(wxDataViewItem& parent)
     if (!root)      // happens if item.IsOk()==false
         return;
 
-    // first remove the node from the parent's array of children;
-    // NOTE: MyObjectTreeModelNodePtrArray is only an array of _pointers_
-    //       thus removing the node from it doesn't result in freeing it
+    // Detach each child from the parent, then free it. ReleaseChild() hands ownership back
+    // so the node stays alive for the checks below, exactly as the old RemoveAt()/delete
+    // pair did; 'item' holds the pointer only as wx's identity token.
     auto& children = root->GetChildren();
     for (int id = root->GetChildCount() - 1; id >= 0; --id)
     {
-        auto node = children[id];
+        ObjectDataViewModelNode* node = children[id].get();
         auto item = wxDataViewItem(node);
-        children.RemoveAt(id);
+        std::unique_ptr<ObjectDataViewModelNode> released = root->ReleaseChild(node);
 
         if (node->m_type == itVolume)
             root->m_volumes_cnt--;
 
         // free the node
-        delete node;
+        released.reset();
 
         // notify control
         ItemDeleted(parent, item);
@@ -936,22 +947,21 @@ void ObjectDataViewModel::DeleteVolumeChildren(wxDataViewItem& parent)
     if (!root)      // happens if item.IsOk()==false
         return;
 
-    // first remove the node from the parent's array of children;
-    // NOTE: MyObjectTreeModelNodePtrArray is only an array of _pointers_
-    //       thus removing the node from it doesn't result in freeing it
+    // Detach each volume child from the parent, then free it. See DeleteChildren() above
+    // for why ownership is taken back before the node is released.
     auto& children = root->GetChildren();
     for (int id = root->GetChildCount() - 1; id >= 0; --id)
     {
-        auto node = children[id];
+        ObjectDataViewModelNode* node = children[id].get();
         if (node->m_type != itVolume)
             continue;
 
         auto item = wxDataViewItem(node);
         DeleteSettings(item);
-        children.RemoveAt(id);
+        std::unique_ptr<ObjectDataViewModelNode> released = root->ReleaseChild(node);
 
         // free the node
-        delete node;
+        released.reset();
 
         // notify control
         ItemDeleted(parent, item);
@@ -969,8 +979,8 @@ void ObjectDataViewModel::DeleteSettings(const wxDataViewItem& parent)
     if (node->GetChildCount() > 0 && node->GetNthChild(0)->GetType() == itSettings) {
         auto settings_node = node->GetNthChild(0);
         auto settings_item = wxDataViewItem(settings_node);
-        node->GetChildren().RemoveAt(0);
-        delete settings_node;
+        // Detaching drops the last owner, which frees the node.
+        node->ReleaseChild(settings_node);
         ItemDeleted(parent, settings_item);
     }
 }
@@ -982,7 +992,7 @@ wxDataViewItem ObjectDataViewModel::GetItemById(int obj_idx)
 		printf("Error! Out of objects range.\n");
 		return wxDataViewItem(0);
 	}
-	return wxDataViewItem(m_objects[obj_idx]);
+	return wxDataViewItem(m_objects[obj_idx].get());
 }
 
 
@@ -993,7 +1003,7 @@ wxDataViewItem ObjectDataViewModel::GetItemByVolumeId(int obj_idx, int volume_id
 		return wxDataViewItem(0);
 	}
 
-    auto parent = m_objects[obj_idx];
+    auto parent = m_objects[obj_idx].get();
     if (parent->GetChildCount() == 0 ||
         (parent->GetChildCount() == 1 && parent->GetNthChild(0)->GetType() & itSettings )) {
         if (volume_idx == 0)
@@ -1017,7 +1027,7 @@ wxDataViewItem ObjectDataViewModel::GetItemById(const int obj_idx, const int sub
         return wxDataViewItem(0);
     }
 
-    auto item = GetItemByType(wxDataViewItem(m_objects[obj_idx]), parent_type);
+    auto item = GetItemByType(wxDataViewItem(m_objects[obj_idx].get()), parent_type);
     if (!item)
         return wxDataViewItem(0);
 
@@ -1046,7 +1056,7 @@ wxDataViewItem ObjectDataViewModel::GetItemByLayerRange(const int obj_idx, const
         return wxDataViewItem(0);
     }
 
-    auto item = GetItemByType(wxDataViewItem(m_objects[obj_idx]), itLayerRoot);
+    auto item = GetItemByType(wxDataViewItem(m_objects[obj_idx].get()), itLayerRoot);
     if (!item)
         return wxDataViewItem(0);
 
@@ -1083,7 +1093,8 @@ int ObjectDataViewModel::GetIdByItem(const wxDataViewItem& item) const
         return -1;
 
 	ObjectDataViewModelNode *node = static_cast<ObjectDataViewModelNode*>(item.GetID());
-	auto it = find(m_objects.begin(), m_objects.end(), node);
+	auto it = std::find_if(m_objects.begin(), m_objects.end(),
+	                       [node](const auto& obj) { return obj.get() == node; });
 	if (it == m_objects.end())
 		return -1;
 
@@ -1170,7 +1181,7 @@ void ObjectDataViewModel::UpdateVolumesExtruderBitmap(wxDataViewItem obj_item)
     if (!obj_item.IsOk() || GetItemType(obj_item) != itObject)
         return;
     ObjectDataViewModelNode* obj_node = static_cast<ObjectDataViewModelNode*>(obj_item.GetID());
-    for (auto child : obj_node->GetChildren())
+    for (const auto& child : obj_node->GetChildren())
         if (child->GetVolumeType() == ModelVolumeType::MODEL_PART)
             child->UpdateExtruderAndColorIcon();
 }
@@ -1215,7 +1226,8 @@ void ObjectDataViewModel::GetItemInfo(const wxDataViewItem& item, ItemType& type
     while (parent_node->m_type != itObject)
         parent_node = parent_node->GetParent();
 
-    auto it = find(m_objects.begin(), m_objects.end(), parent_node);
+    auto it = std::find_if(m_objects.begin(), m_objects.end(),
+                           [parent_node](const auto& obj) { return obj.get() == parent_node; });
     if (it != m_objects.end())
         obj_idx = it - m_objects.begin();
     else
@@ -1232,7 +1244,7 @@ int ObjectDataViewModel::GetRowByItem(const wxDataViewItem& item) const
     for (size_t i = 0; i < m_objects.size(); i++)
     {
         row_num++;
-        if (item == wxDataViewItem(m_objects[i]))
+        if (item == wxDataViewItem(m_objects[i].get()))
             return row_num;
 
         for (size_t j = 0; j < m_objects[i]->GetChildCount(); j++)
@@ -1397,9 +1409,9 @@ void ObjectDataViewModel::AddAllChildren(const wxDataViewItem& parent)
     wxDataViewItemArray array;
     const size_t count = node->GetChildCount();
     for (size_t pos = 0; pos < count; pos++) {
-        ObjectDataViewModelNode* child = node->GetChildren().Item(pos);
-        array.Add(wxDataViewItem((void*)child));
-        ItemAdded(parent, wxDataViewItem((void*)child));
+        ObjectDataViewModelNode* child = node->GetNthChild(pos);
+        array.Add(wxDataViewItem(static_cast<void*>(child)));
+        ItemAdded(parent, wxDataViewItem(static_cast<void*>(child)));
     }
 
     for (const auto& item : array)
@@ -1423,9 +1435,11 @@ wxDataViewItem ObjectDataViewModel::ReorganizeChildren( const int current_volume
     size_t shift = GetItemIndexForFirstVolume(node_parent);
 
     ObjectDataViewModelNode *deleted_node = node_parent->GetNthChild(current_volume_id+shift);
-    node_parent->GetChildren().Remove(deleted_node);
+    // Move within the same parent: detach, then re-insert at the new index. Ownership is
+    // held here in between, so the node is never destroyed.
+    std::unique_ptr<ObjectDataViewModelNode> moved_node = node_parent->ReleaseChild(deleted_node);
     ItemDeleted(parent, wxDataViewItem(deleted_node));
-    node_parent->Insert(deleted_node, new_volume_id+shift);
+    node_parent->Insert(std::move(moved_node), new_volume_id+shift);
     ItemAdded(parent, wxDataViewItem(deleted_node));
 
     // If some item has a children, just to add a deleted item is not enough on Linux 
@@ -1433,7 +1447,7 @@ wxDataViewItem ObjectDataViewModel::ReorganizeChildren( const int current_volume
     AddAllChildren(wxDataViewItem(deleted_node));
 
     //update volume_id value for child-nodes
-    auto children = node_parent->GetChildren();
+    auto& children = node_parent->GetChildren();
     int id_frst = current_volume_id < new_volume_id ? current_volume_id : new_volume_id;
     int id_last = current_volume_id > new_volume_id ? current_volume_id : new_volume_id;
     for (int id = id_frst; id <= id_last; ++id)
@@ -1447,11 +1461,13 @@ wxDataViewItem ObjectDataViewModel::ReorganizeObjects(  const int current_id, co
     if (current_id == new_id)
         return wxDataViewItem(nullptr);
 
-    ObjectDataViewModelNode* deleted_node = m_objects[current_id];
+    // Move the object within m_objects: take ownership out, erase the slot, re-insert.
+    std::unique_ptr<ObjectDataViewModelNode> moved_node = std::move(m_objects[current_id]);
+    ObjectDataViewModelNode* const deleted_node = moved_node.get();
     m_objects.erase(m_objects.begin() + current_id);
     ItemDeleted(wxDataViewItem(nullptr), wxDataViewItem(deleted_node));
 
-    m_objects.emplace(m_objects.begin() + new_id, deleted_node);
+    m_objects.insert(m_objects.begin() + new_id, std::move(moved_node));
     ItemAdded(wxDataViewItem(nullptr), wxDataViewItem(deleted_node));
 
     // If some item has a children, just to add a deleted item is not enough on Linux 
@@ -1483,7 +1499,7 @@ wxDataViewItem ObjectDataViewModel::GetParent(const wxDataViewItem &item) const
     if (node->m_type == itObject)
 		return wxDataViewItem(0);
 
-	return wxDataViewItem((void*)node->GetParent());
+	return wxDataViewItem(static_cast<void*>(node->GetParent()));
 }
 
 wxDataViewItem ObjectDataViewModel::GetTopParent(const wxDataViewItem &item) const
@@ -1500,7 +1516,7 @@ wxDataViewItem ObjectDataViewModel::GetTopParent(const wxDataViewItem &item) con
     while (parent_node->m_type != itObject)
         parent_node = parent_node->GetParent();
 
-    return wxDataViewItem((void*)parent_node);
+    return wxDataViewItem(static_cast<void*>(parent_node));
 }
 
 bool ObjectDataViewModel::IsContainer(const wxDataViewItem &item) const
@@ -1518,8 +1534,8 @@ unsigned int ObjectDataViewModel::GetChildren(const wxDataViewItem &parent, wxDa
 	ObjectDataViewModelNode *node = static_cast<ObjectDataViewModelNode*>(parent.GetID());
 	if (!node)
 	{
-		for (auto object : m_objects)
-			array.Add(wxDataViewItem((void*)object));
+		for (const auto& object : m_objects)
+			array.Add(wxDataViewItem(static_cast<void*>(object.get())));
 		return m_objects.size();
 	}
 
@@ -1528,11 +1544,11 @@ unsigned int ObjectDataViewModel::GetChildren(const wxDataViewItem &parent, wxDa
 		return 0;
 	}
 
-	unsigned int count = node->GetChildren().GetCount();
+	unsigned int count = node->GetChildCount();
 	for (unsigned int pos = 0; pos < count; pos++)
 	{
-		ObjectDataViewModelNode *child = node->GetChildren().Item(pos);
-		array.Add(wxDataViewItem((void*)child));
+		ObjectDataViewModelNode *child = node->GetNthChild(pos);
+		array.Add(wxDataViewItem(static_cast<void*>(child)));
 	}
 
 	return count;
@@ -1542,16 +1558,16 @@ void ObjectDataViewModel::GetAllChildren(const wxDataViewItem &parent, wxDataVie
 {
 	ObjectDataViewModelNode *node = static_cast<ObjectDataViewModelNode*>(parent.GetID());
 	if (!node) {
-		for (auto object : m_objects)
-			array.Add(wxDataViewItem((void*)object));
+		for (const auto& object : m_objects)
+			array.Add(wxDataViewItem(static_cast<void*>(object.get())));
 	}
 	else if (node->GetChildCount() == 0)
 		return;
     else {
-        const size_t count = node->GetChildren().GetCount();
+        const size_t count = node->GetChildCount();
         for (size_t pos = 0; pos < count; pos++) {
-            ObjectDataViewModelNode *child = node->GetChildren().Item(pos);
-            array.Add(wxDataViewItem((void*)child));
+            ObjectDataViewModelNode *child = node->GetNthChild(pos);
+            array.Add(wxDataViewItem(static_cast<void*>(child)));
         }
     }
 
@@ -1566,7 +1582,7 @@ void ObjectDataViewModel::GetAllChildren(const wxDataViewItem &parent, wxDataVie
 
 bool ObjectDataViewModel::HasInfoItem(InfoItemType type) const
 {
-    for (ObjectDataViewModelNode* obj_node : m_objects)
+    for (const auto& obj_node : m_objects)
         for (size_t j = 0; j < obj_node->GetChildCount(); j++)
             if (obj_node->GetNthChild(j)->GetInfoItemType() == type)
                 return true;
@@ -1601,7 +1617,7 @@ wxDataViewItem ObjectDataViewModel::GetItemByType(const wxDataViewItem &parent_i
 
     for (size_t i = 0; i < node->GetChildCount(); i++) {
         if (node->GetNthChild(i)->m_type == type)
-            return wxDataViewItem((void*)node->GetNthChild(i));
+            return wxDataViewItem(static_cast<void*>(node->GetNthChild(i)));
     }
 
     return wxDataViewItem(0);
@@ -1631,7 +1647,7 @@ wxDataViewItem ObjectDataViewModel::GetInfoItemByType(const wxDataViewItem &pare
     for (size_t i = 0; i < node->GetChildCount(); i++) {
         const ObjectDataViewModelNode* child_node = node->GetNthChild(i);
         if (child_node->m_type == itInfo && child_node->m_info_item_type == type)
-            return wxDataViewItem((void*)child_node);
+            return wxDataViewItem(const_cast<void*>(static_cast<const void*>(child_node)));
     }
 
     return wxDataViewItem(0); // not found

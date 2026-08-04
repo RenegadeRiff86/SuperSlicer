@@ -111,7 +111,7 @@ public:
     ModelNode*          GetParent()                 { return m_parent; }
     ModelNodePtrArray&  GetChildren()               { return m_children; }
     ModelNode*          GetNthChild(unsigned int n) { return m_children[n].get(); }
-    unsigned int        GetChildCount() const       { return (unsigned int)(m_children.size()); }
+    unsigned int        GetChildCount() const       { return static_cast<unsigned int>(m_children.size()); }
 
     void Append(std::unique_ptr<ModelNode> child)   { m_children.emplace_back(std::move(child)); }
 

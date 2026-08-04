@@ -409,7 +409,7 @@ void HintDatabase::load_hints_from_file(const boost::filesystem::path& path)
 			}
 
 			if (dict.find("weight") != dict.end()) {
-				weight = (size_t)std::max(1, std::atoi(dict["weight"].c_str()));
+				weight = static_cast<size_t>(std::max(1, std::atoi(dict["weight"].c_str())));
 			}
 
 			// create HintData
@@ -625,7 +625,7 @@ void NotificationManager::HintNotification::count_lines()
 					ImGui::CalcTextSize(text.substr(last_end, next_space - last_end).c_str()).x < (m_window_width - m_window_width_offset) / 5 * 3
 				    ) {
 					float width_of_a = ImGui::CalcTextSize("a").x;
-					int letter_count = (int)((m_window_width - m_window_width_offset) / width_of_a);
+					int letter_count = static_cast<int>((m_window_width - m_window_width_offset) / width_of_a);
 					while (last_end + letter_count < text.size() && ImGui::CalcTextSize(text.substr(last_end, letter_count).c_str()).x < m_window_width - m_window_width_offset) {
 						letter_count += get_utf8_sequence_length(text, last_end + letter_count);
 					}
@@ -695,7 +695,7 @@ void NotificationManager::HintNotification::count_lines()
 						ImGui::CalcTextSize(text.substr(last_end, next_space - last_end).c_str()).x + size_of_last_line < (m_window_width - m_window_width_offset) / 5 * 3
 						) {
 						float width_of_a = ImGui::CalcTextSize("a").x;
-						int letter_count = (int)((m_window_width - m_window_width_offset - size_of_last_line) / width_of_a);
+						int letter_count = static_cast<int>((m_window_width - m_window_width_offset - size_of_last_line) / width_of_a);
 						while (last_end + letter_count < text.size() && ImGui::CalcTextSize(text.substr(last_end, letter_count).c_str()).x < m_window_width - m_window_width_offset - size_of_last_line) {
 							letter_count += get_utf8_sequence_length(text, last_end + letter_count);
 						}

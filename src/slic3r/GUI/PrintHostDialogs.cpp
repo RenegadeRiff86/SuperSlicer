@@ -381,7 +381,7 @@ void PrintHostQueueDialog::append_job(const PrintHostJob &job)
         size_i = 0;
         BOOST_LOG_TRIVIAL(error) << ec.message();
     } else 
-        stream << std::fixed << std::setprecision(2) << ((float)size_i / 1024 / 1024) << "MB";
+        stream << std::fixed << std::setprecision(2) << (static_cast<float>(size_i) / 1024 / 1024) << "MB";
     fields.push_back(wxVariant(stream.str()));
     fields.push_back(wxVariant(from_path(job.upload_data.upload_path)));
     fields.push_back(wxVariant(""));
@@ -389,7 +389,7 @@ void PrintHostQueueDialog::append_job(const PrintHostJob &job)
     // Both strings are UTF-8 encoded.
     upload_names.emplace_back(job.printhost->get_host(), job.upload_data.upload_path.string());
 
-    wxGetApp().notification_manager()->push_upload_job_notification(job_list->GetItemCount(), (float)size_i / 1024 / 1024, job.upload_data.upload_path.string(), job.printhost->get_host());
+    wxGetApp().notification_manager()->push_upload_job_notification(job_list->GetItemCount(), static_cast<float>(size_i) / 1024 / 1024, job.upload_data.upload_path.string(), job.printhost->get_host());
 }
 
 void PrintHostQueueDialog::on_dpi_changed(const wxRect &suggested_rect)
@@ -452,7 +452,7 @@ void PrintHostQueueDialog::on_list_select()
 
 void PrintHostQueueDialog::on_progress(Event &evt)
 {
-    wxCHECK_RET(evt.job_id < (size_t)job_list->GetItemCount(), "Out of bounds access to job list");
+    wxCHECK_RET(evt.job_id < static_cast<size_t>(job_list->GetItemCount()), "Out of bounds access to job list");
 
     if (evt.progress < 100) {
         set_state(evt.job_id, ST_PROGRESS);
@@ -475,7 +475,7 @@ void PrintHostQueueDialog::on_progress(Event &evt)
 
 void PrintHostQueueDialog::on_error(Event &evt)
 {
-    wxCHECK_RET(evt.job_id < (size_t)job_list->GetItemCount(), "Out of bounds access to job list");
+    wxCHECK_RET(evt.job_id < static_cast<size_t>(job_list->GetItemCount()), "Out of bounds access to job list");
 
     set_state(evt.job_id, ST_ERROR);
 
@@ -495,7 +495,7 @@ void PrintHostQueueDialog::on_error(Event &evt)
 
 void PrintHostQueueDialog::on_cancel(Event &evt)
 {
-    wxCHECK_RET(evt.job_id < (size_t)job_list->GetItemCount(), "Out of bounds access to job list");
+    wxCHECK_RET(evt.job_id < static_cast<size_t>(job_list->GetItemCount()), "Out of bounds access to job list");
 
     set_state(evt.job_id, ST_CANCELLED);
     job_list->SetValue(wxVariant(0), evt.job_id, COL_PROGRESS);
@@ -510,7 +510,7 @@ void PrintHostQueueDialog::on_cancel(Event &evt)
 
 void PrintHostQueueDialog::on_info(Event& evt)
 {
-    wxCHECK_RET(evt.job_id < (size_t)job_list->GetItemCount(), "Out of bounds access to job list");
+    wxCHECK_RET(evt.job_id < static_cast<size_t>(job_list->GetItemCount()), "Out of bounds access to job list");
     
     if (evt.tag == L"resolve") {
         wxVariant hst(evt.status);

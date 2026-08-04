@@ -978,7 +978,7 @@ void TextCtrl::BUILD() {
     long style = m_opt.multiline ? wxTE_MULTILINE : wxTE_PROCESS_ENTER;
 	auto temp = new text_ctrl(m_parent, text_value, "", "", wxDefaultPosition, size, style);
     if (parent_is_custom_ctrl && m_opt.height < 0)
-        opt_height = (double)temp->GetSize().GetHeight()/m_em_unit;
+        opt_height = static_cast<double>(temp->GetSize().GetHeight())/m_em_unit;
     temp->SetFont(m_opt.is_code ?
                   Slic3r::GUI::wxGetApp().code_font():
                   Slic3r::GUI::wxGetApp().normal_font());
@@ -1426,8 +1426,8 @@ void SpinCtrl::BUILD() {
     if (default_value != UNDEF_VALUE)
         text_value = wxString::Format(_T("%i"), default_value);
 
-    const int min_val = m_opt.min == -FLT_MAX ? (int)0 : (int)m_opt.min;
-	const int max_val = m_opt.max < FLT_MAX ? (int)m_opt.max : INT_MAX;
+    const int min_val = m_opt.min == -FLT_MAX ? (int)0 : static_cast<int>(m_opt.min);
+	const int max_val = m_opt.max < FLT_MAX ? static_cast<int>(m_opt.max) : INT_MAX;
 
 	auto temp = new ::SpinInput(m_parent, text_value, "", wxDefaultPosition, size,
 		wxTE_PROCESS_ENTER | wxSP_ARROW_KEYS
@@ -1444,7 +1444,7 @@ void SpinCtrl::BUILD() {
 	wxGetApp().UpdateDarkUI(temp);
 
     if (m_opt.height < 0 && parent_is_custom_ctrl) {
-        opt_height = (double)temp->GetSize().GetHeight() / m_em_unit;
+        opt_height = static_cast<double>(temp->GetSize().GetHeight()) / m_em_unit;
     }
 
 	temp->Bind(wxEVT_KILL_FOCUS, ([this](wxEvent& e)
@@ -1474,9 +1474,9 @@ void SpinCtrl::BUILD() {
         if (value < INT_MIN || value > INT_MAX)
             tmp_value = UNDEF_VALUE;
         else {
-            tmp_value = std::min(std::max((int32_t)value, temp->GetMin()), temp->GetMax());
+            tmp_value = std::min(std::max(static_cast<int32_t>(value), temp->GetMin()), temp->GetMax());
             // update value for the control only if it was changed in respect to the Min/max values
-            if (tmp_value != (int32_t)value) {
+            if (tmp_value != static_cast<int32_t>(value)) {
                 temp->SetValue(tmp_value);
                 // But after SetValue() cursor ison the first position
                 // so put it to the end of string
@@ -1796,7 +1796,7 @@ void Choice::set_internal_any_value(const boost::any &value, bool change_event)
 		break;
 	}
 	case coEnum: {
-        std::optional<int32_t> val = m_opt.enum_def->enum_to_index((int)boost::any_cast<int32_t>(value));
+        std::optional<int32_t> val = m_opt.enum_def->enum_to_index(static_cast<int>(boost::any_cast<int32_t>(value)));
         assert(val.has_value());
         BOOST_LOG_TRIVIAL(debug) << "Set field from key " << m_opt_key_idx.key << " as int "
                                  << boost::any_cast<int32_t>(value) << " modified to "
@@ -1988,15 +1988,15 @@ void ColourPicker::BUILD()
     if (m_opt.type == coString)
         clr = wxColour{wxString{m_opt.get_default_value<ConfigOptionString>()->value}};
     if (m_opt.type == coInts)
-        clr = wxColour{(unsigned long) m_opt.get_default_value<ConfigOptionInts>()->get_at(m_opt_key_idx.idx)};
+        clr = wxColour{static_cast<unsigned long>(m_opt.get_default_value<ConfigOptionInts>()->get_at(m_opt_key_idx.idx))};
     if (m_opt.type == coInt)
-        clr = wxColour{(unsigned long) m_opt.get_default_value<ConfigOptionInt>()->value};
+        clr = wxColour{static_cast<unsigned long>(m_opt.get_default_value<ConfigOptionInt>()->value)};
     if (!clr.IsOk())
         clr = wxTransparentColour;
 
     auto temp = new wxColourPickerCtrl(m_parent, wxID_ANY, clr, wxDefaultPosition, size);
     if (parent_is_custom_ctrl && m_opt.height < 0)
-        opt_height = (double)temp->GetSize().GetHeight() / m_em_unit;
+        opt_height = static_cast<double>(temp->GetSize().GetHeight()) / m_em_unit;
     temp->SetFont(Slic3r::GUI::wxGetApp().normal_font());
     if (!wxOSX) temp->SetBackgroundStyle(wxBG_STYLE_PAINT);
 
@@ -2048,9 +2048,9 @@ void ColourPicker::set_internal_any_value(const boost::any &value, bool change_e
     } else if (this->m_opt.type == coGraph || this->m_opt.type == coGraphs) {
         str_value = boost::any_cast<std::string>(value);
     } else if (this->m_opt.type == coInt) {
-        str_value = wxColour((unsigned long) boost::any_cast<int32_t>(value)).GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
+        str_value = wxColour(static_cast<unsigned long>(boost::any_cast<int32_t>(value))).GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
     } else if (this->m_opt.type == coInts) {
-        str_value = wxColour((unsigned long) boost::any_cast<int32_t>(value)).GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
+        str_value = wxColour(static_cast<unsigned long>(boost::any_cast<int32_t>(value))).GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
     }
     // can be ConfigOptionDef::GUIType::color
     const wxString clr_str(str_value);
@@ -2121,7 +2121,7 @@ void GraphButton::BUILD()
     }
     GraphBitmapButton* bt_widget = new GraphBitmapButton(m_parent, bitmap_size);//, wxID_ANY, _L("Edit graph"), wxDefaultPosition, size);
     if (parent_is_custom_ctrl && m_opt.height < 0)
-        opt_height = (double)bt_widget->GetSize().GetHeight() / m_em_unit;
+        opt_height = static_cast<double>(bt_widget->GetSize().GetHeight()) / m_em_unit;
     bt_widget->SetFont(Slic3r::GUI::wxGetApp().normal_font());
     if (!wxOSX) bt_widget->SetBackgroundStyle(wxBG_STYLE_PAINT);
 
@@ -2262,7 +2262,7 @@ void PointCtrl::BUILD()
 	x_textctrl = new text_ctrl(m_parent, X, "", "", wxDefaultPosition, field_size, style);
 	y_textctrl = new text_ctrl(m_parent, Y, "", "", wxDefaultPosition, field_size, style);
     if (parent_is_custom_ctrl && m_opt.height < 0)
-        opt_height = (double)x_textctrl->GetSize().GetHeight() / m_em_unit;
+        opt_height = static_cast<double>(x_textctrl->GetSize().GetHeight()) / m_em_unit;
 
     x_textctrl->SetFont(Slic3r::GUI::wxGetApp().normal_font());
 	if (!wxOSX) x_textctrl->SetBackgroundStyle(wxBG_STYLE_PAINT);
@@ -2443,7 +2443,7 @@ void SliderCtrl::BUILD()
 	auto temp = new wxBoxSizer(wxHORIZONTAL);
 
 	int def_val = m_opt.get_default_value<ConfigOptionInt>()->value;
-	int min = m_opt.min == -FLT_MAX ? 0   : (int)m_opt.min;
+	int min = m_opt.min == -FLT_MAX ? 0   : static_cast<int>(m_opt.min);
 	int max = m_opt.max ==  FLT_MAX ? 100 : INT_MAX;
 
 	m_slider = new wxSlider(m_parent, wxID_ANY, def_val * m_scale,

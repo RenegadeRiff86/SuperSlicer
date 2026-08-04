@@ -47,8 +47,8 @@ void Camera::set_type(EType type)
 
 void Camera::select_next_type()
 {
-    unsigned char next = (unsigned char)m_type + 1;
-    if (next == (unsigned char)EType::Num_types)
+    unsigned char next = static_cast<unsigned char>(m_type) + 1;
+    if (next == static_cast<unsigned char>(EType::Num_types))
         next = 1;
 
     set_type((EType)next);
@@ -200,8 +200,8 @@ void Camera::apply_projection(const BoundingBoxf3& box, double near_z, double fa
     if (far_z > 0.0)
         m_frustrum_zs.second = std::max(m_frustrum_zs.second, far_z);
 
-    w = 0.5 * (double)m_viewport[2];
-    h = 0.5 * (double)m_viewport[3];
+    w = 0.5 * static_cast<double>(m_viewport[2]);
+    h = 0.5 * static_cast<double>(m_viewport[3]);
 
     const double inv_zoom = get_inv_zoom();
     w *= inv_zoom;
@@ -294,18 +294,18 @@ void Camera::debug_render() const
 
     Vec3f position = get_position().cast<float>();
     Vec3f target = m_target.cast<float>();
-    float distance = (float)get_distance();
-    float zenit = (float)m_zenit;
+    float distance = static_cast<float>(get_distance());
+    float zenit = static_cast<float>(m_zenit);
     Vec3f forward = get_dir_forward().cast<float>();
     Vec3f right = get_dir_right().cast<float>();
     Vec3f up = get_dir_up().cast<float>();
-    float nearZ = (float)m_frustrum_zs.first;
-    float farZ = (float)m_frustrum_zs.second;
+    float nearZ = static_cast<float>(m_frustrum_zs.first);
+    float farZ = static_cast<float>(m_frustrum_zs.second);
     float deltaZ = farZ - nearZ;
-    float zoom = (float)m_zoom;
-    float fov = (float)get_fov();
+    float zoom = static_cast<float>(m_zoom);
+    float fov = static_cast<float>(get_fov());
     std::array<int, 4>viewport = get_viewport();
-    float gui_scale = (float)get_gui_scale();
+    float gui_scale = static_cast<float>(get_gui_scale());
 
     ImGui::InputText("Type", type.data(), type.length(), ImGuiInputTextFlags_ReadOnly);
     ImGui::Separator();
@@ -461,7 +461,7 @@ double Camera::calc_zoom_to_bounding_box_factor(const BoundingBoxf3& box, double
     dx *= margin_factor;
     dy *= margin_factor;
 
-    return std::min((double)m_viewport[2] / dx, (double)m_viewport[3] / dy);
+    return std::min(static_cast<double>(m_viewport[2]) / dx, static_cast<double>(m_viewport[3]) / dy);
 }
 
 double Camera::calc_zoom_to_volumes_factor(const std::vector<GLVolume*>& volumes, Vec3d& center, double margin_factor) const
@@ -519,7 +519,7 @@ double Camera::calc_zoom_to_volumes_factor(const std::vector<GLVolume*>& volumes
     if (dx <= 0.0 || dy <= 0.0)
         return -1.0f;
 
-    return std::min((double)m_viewport[2] / dx, (double)m_viewport[3] / dy);
+    return std::min(static_cast<double>(m_viewport[2]) / dx, static_cast<double>(m_viewport[3]) / dy);
 }
 
 void Camera::set_distance(double distance)
@@ -570,7 +570,7 @@ void Camera::look_at(const Vec3d& position, const Vec3d& target, const Vec3d& up
 void Camera::set_default_orientation()
 {
     m_zenit = 45.0f;
-    const double theta_rad = Geometry::deg2rad(-(double)m_zenit);
+    const double theta_rad = Geometry::deg2rad(-static_cast<double>(m_zenit));
     const double phi_rad = Geometry::deg2rad(45.0);
     const double sin_theta = ::sin(theta_rad);
     const Vec3d camera_pos = m_target + m_distance * Vec3d(sin_theta * ::sin(phi_rad), sin_theta * ::cos(phi_rad), ::cos(theta_rad));

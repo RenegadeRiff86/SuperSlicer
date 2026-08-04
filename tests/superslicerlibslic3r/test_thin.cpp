@@ -281,27 +281,6 @@ SCENARIO("thin walls: ")
     //GIVEN("tooth")
     //{
     //    ExPolygon expolygon;
-    //    expolygon.contour = Slic3r::Polygon{ Points{
-    //        Point::new_scale(0.86526705, 1.4509841), Point::new_scale(0.57696039, 1.8637021), 
-    //        Point::new_scale(0.4502297, 2.5569978), Point::new_scale(0.45626199, 3.2965596), 
-    //        Point::new_scale(1.1218851, 3.3049455), Point::new_scale(0.96681072, 2.8243202), 
-    //        Point::new_scale(0.86328971, 2.2056997), Point::new_scale(0.85367905, 1.7790778)
-    //    } };
-    //    expolygon.contour.make_counter_clockwise();
-    //    WHEN("creating the medial axis"){
-    //        Polylines res;
-    //        expolygon.medial_axis(scale_(1), scale_(0.25), &res);
-    //        THEN("medial axis of a tooth is two lines"){
-    //            REQUIRE(res.size() == 2);
-    //            THEN("medial axis has reasonable length") {
-    //                REQUIRE(res[0].length() >= scale_(1.4) - SCALED_EPSILON);
-    //                REQUIRE(res[1].length() >= scale_(1.4) - SCALED_EPSILON);
-    //                // TODO: check if min width is < 0.3 and max width is > 0.6 (min($res->[0]->width.front, $res->[0]->width.back) # problem: can't have access to width
-    //                //TODO: now i have access! correct it!
-    //            }
-    //        }
-    //    }
-    //} 
 
     GIVEN("Anchor & Tapers")
     {

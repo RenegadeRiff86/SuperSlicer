@@ -60,14 +60,14 @@ public:
 class View3D : public wxTitledPanel
 {
     wxGLCanvas* m_canvas_widget;
-    GLCanvas3D* m_canvas;
+    std::unique_ptr<GLCanvas3D> m_canvas;
 
 public:
     View3D(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig* config, BackgroundSlicingProcess* process);
     virtual ~View3D();
 
     wxGLCanvas* get_wxglcanvas() { return m_canvas_widget; }
-    GLCanvas3D* get_canvas3d() override { return m_canvas; }
+    GLCanvas3D* get_canvas3d() override { return m_canvas.get(); }
 
     void set_as_dirty() override;
     void bed_shape_changed();
@@ -95,7 +95,7 @@ private:
 class Preview : public wxTitledPanel
 {
     wxGLCanvas* m_canvas_widget { nullptr };
-    GLCanvas3D* m_canvas { nullptr };
+    std::unique_ptr<GLCanvas3D> m_canvas;
     wxBoxSizer* m_left_sizer { nullptr };
     wxBoxSizer* m_layers_slider_sizer { nullptr };
     wxPanel* m_bottom_toolbar_panel { nullptr };
@@ -152,7 +152,7 @@ Preview(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig* config, 
     virtual ~Preview();
 
     wxGLCanvas* get_wxglcanvas() { return m_canvas_widget; }
-    GLCanvas3D* get_canvas3d() override { return m_canvas; }
+    GLCanvas3D* get_canvas3d() override { return m_canvas.get(); }
 
     void set_as_dirty();
 

@@ -243,7 +243,7 @@ public:
     };
 
 private:
-    typedef std::vector<GLToolbarItem*> ItemsList;
+    typedef std::vector<std::unique_ptr<GLToolbarItem>> ItemsList;
 
     EType m_type;
     std::string m_name;
@@ -311,7 +311,7 @@ public:
 
     bool is_any_item_pressed() const;
 
-    unsigned int get_items_count() const { return (unsigned int)m_items.size(); }
+    unsigned int get_items_count() const { return static_cast<unsigned int>(m_items.size()); }
     int get_item_id(const std::string& name) const;
 
     void force_left_action(int item_id, GLCanvas3D& parent) { do_action(GLToolbarItem::Left, item_id, parent, false); }

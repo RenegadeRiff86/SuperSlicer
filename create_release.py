@@ -18,6 +18,11 @@ import argparse
 import re
 from pathlib import Path
 
+ARTIFACT_DOWNLOAD_URL_KEY = "archive_download_url"
+ARTIFACT_REQUEST_LOG_PREFIX = "ask for: "
+ISO_DATE_LENGTH = 10
+MAX_ARTIFACT_PAGES = 10
+
 # function to get a var from version.inc
 def get_cmake_var(filepath, var_name):
 	pattern = rf'set\(\s*{var_name}\s+"([^"]+)"\s*\)'
@@ -104,35 +109,35 @@ def handle_artifact(json_artifact):
 	
 	if json_artifact["workflow_run"]["head_branch"] == branch_name:
 		if first_day == "":
-			print("encounter the first " + branch_name + " at " + json_artifact["created_at"][:10]);
-			first_day = json_artifact["created_at"][:10];
-		if json_artifact["created_at"][:10] == first_day:
+			print("encounter the first " + branch_name + " at " + json_artifact["created_at"][:ISO_DATE_LENGTH]);
+			first_day = json_artifact["created_at"][:ISO_DATE_LENGTH];
+		if json_artifact["created_at"][:ISO_DATE_LENGTH] == first_day:
 			print("Next artifact: " + json_artifact["name"]);
-		elif json_artifact["created_at"][:10] > first_day:
-			print("Ignored artifact (bad day): ("+json_artifact["name"] + "  @ "+json_artifact["created_at"][:10]+")");
+		elif json_artifact["created_at"][:ISO_DATE_LENGTH] > first_day:
+			print("Ignored artifact (bad day): ("+json_artifact["name"] + "  @ "+json_artifact["created_at"][:ISO_DATE_LENGTH]+")");
 			return True
 		else:
 			print(f"End of {branch_name} artifacts (date too far away). Closing");
-			print("("+json_artifact["name"] + "  @ "+json_artifact["created_at"][:10]+")");
+			print("("+json_artifact["name"] + "  @ "+json_artifact["created_at"][:ISO_DATE_LENGTH]+")");
 			return False;
 		if json_artifact["name"] == prefix + "_" +program_name + "-win64" and not found_win:
 			found_win = True;
 			print("Found win64 artifact");
-			print("ask for: "+json_artifact["archive_download_url"]);
-			resp = requests.get(json_artifact["archive_download_url"], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
+			print(ARTIFACT_REQUEST_LOG_PREFIX+json_artifact[ARTIFACT_DOWNLOAD_URL_KEY]);
+			resp = requests.get(json_artifact[ARTIFACT_DOWNLOAD_URL_KEY], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
 			print("win: " +str(resp));
 			z = zipfile.ZipFile(io.BytesIO(resp.content))
 			base_name = release_path+"/"+program_name+"_"+version+"_win64_"+date_str;
 			z.extractall(base_name);
 			try:
-				ret = subprocess.check_output([path_7zip, "a", "-tzip", base_name+".zip", base_name]);
-			except:
-				print("Failed to zip the win directory, do it yourself");
+				subprocess.check_output([path_7zip, "a", "-tzip", base_name+".zip", base_name]);
+			except (OSError, subprocess.CalledProcessError) as error:
+				print(f"Failed to zip the win directory; create it manually: {error}", file=sys.stderr);
 		if json_artifact["name"] ==  prefix + "_" +program_name + "-win64.msi" and not found_win_msi:
 			found_win_msi = True;
 			print("Found win64 msi artifact");
-			print("ask for: "+json_artifact["archive_download_url"]);
-			resp = requests.get(json_artifact["archive_download_url"], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
+			print(ARTIFACT_REQUEST_LOG_PREFIX+json_artifact[ARTIFACT_DOWNLOAD_URL_KEY]);
+			resp = requests.get(json_artifact[ARTIFACT_DOWNLOAD_URL_KEY], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
 			print("win: " +str(resp));
 			z = zipfile.ZipFile(io.BytesIO(resp.content))
 			z.extractall(release_path);
@@ -140,8 +145,8 @@ def handle_artifact(json_artifact):
 		if json_artifact["name"] == prefix + "_"+program_name+"-macOS-intel.dmg" and not found_macos:
 			found_macos = True;
 			print("Found macos-intel artifact");
-			print("ask for: "+json_artifact["archive_download_url"]);
-			resp = requests.get(json_artifact["archive_download_url"], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
+			print(ARTIFACT_REQUEST_LOG_PREFIX+json_artifact[ARTIFACT_DOWNLOAD_URL_KEY]);
+			resp = requests.get(json_artifact[ARTIFACT_DOWNLOAD_URL_KEY], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
 			print("macos: " +str(resp));
 			z = zipfile.ZipFile(io.BytesIO(resp.content));
 			z.extractall(release_path);
@@ -149,8 +154,8 @@ def handle_artifact(json_artifact):
 		if json_artifact["name"] == prefix + "_"+program_name+"-macOS-arm.dmg" and not found_macos_arm:
 			found_macos_arm = True;
 			print("Found macos-arm artifact");
-			print("ask for: "+json_artifact["archive_download_url"]);
-			resp = requests.get(json_artifact["archive_download_url"], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
+			print(ARTIFACT_REQUEST_LOG_PREFIX+json_artifact[ARTIFACT_DOWNLOAD_URL_KEY]);
+			resp = requests.get(json_artifact[ARTIFACT_DOWNLOAD_URL_KEY], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
 			print("macos-arm: " +str(resp));
 			z = zipfile.ZipFile(io.BytesIO(resp.content));
 			z.extractall(release_path);
@@ -158,8 +163,8 @@ def handle_artifact(json_artifact):
 		if json_artifact["name"] == prefix + "_"+program_name+"-linux-x64-GTK2.AppImage" and not found_linux_appimage_gtk2:
 			found_linux_appimage_gtk2 = True;
 			print("Found ubuntu GTK2 artifact");
-			print("ask for: "+json_artifact["archive_download_url"]);
-			resp = requests.get(json_artifact["archive_download_url"], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
+			print(ARTIFACT_REQUEST_LOG_PREFIX+json_artifact[ARTIFACT_DOWNLOAD_URL_KEY]);
+			resp = requests.get(json_artifact[ARTIFACT_DOWNLOAD_URL_KEY], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
 			print("appimage: " +str(resp));
 			z = zipfile.ZipFile(io.BytesIO(resp.content));
 			z.extractall(release_path);
@@ -167,8 +172,8 @@ def handle_artifact(json_artifact):
 		if json_artifact["name"] == prefix + "_"+program_name+"-linux-x64-GTK3.AppImage" and not found_linux_appimage_gtk3:
 			found_linux_appimage_gtk3 = True;
 			print("Found ubuntu GTK3 artifact");
-			print("ask for: "+json_artifact["archive_download_url"]);
-			resp = requests.get(json_artifact["archive_download_url"], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
+			print(ARTIFACT_REQUEST_LOG_PREFIX+json_artifact[ARTIFACT_DOWNLOAD_URL_KEY]);
+			resp = requests.get(json_artifact[ARTIFACT_DOWNLOAD_URL_KEY], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
 			print("appimage: " +str(resp));
 			z = zipfile.ZipFile(io.BytesIO(resp.content));
 			z.extractall(release_path);
@@ -176,8 +181,8 @@ def handle_artifact(json_artifact):
 		if json_artifact["name"] == prefix + "_"+program_name+"-linux-x64-GTK3.tgz" and not found_linux:
 			found_linux = True;
 			print("Found ubuntu GTK3 archive artifact");
-			print("ask for: "+json_artifact["archive_download_url"]);
-			resp = requests.get(json_artifact["archive_download_url"], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
+			print(ARTIFACT_REQUEST_LOG_PREFIX+json_artifact[ARTIFACT_DOWNLOAD_URL_KEY]);
+			resp = requests.get(json_artifact[ARTIFACT_DOWNLOAD_URL_KEY], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
 			print("appimage: " +str(resp));
 			z = zipfile.ZipFile(io.BytesIO(resp.content));
 			z.extractall(release_path);
@@ -209,7 +214,7 @@ os.mkdir(release_path);
 #urllib.urlretrieve ("https://api.github.com/repos/"+repo+"/actions/artifacts", release_path+"artifacts.json");
 need_more = True
 page = 1
-while need_more and page < 10:
+while need_more and page < MAX_ARTIFACT_PAGES:
 	with urlopen("https://api.github.com/repos/"+repo+"/actions/artifacts?page="+str(page)) as f:
 		artifacts = json.loads(f.read().decode('utf-8'));
 		print("there is "+ str(artifacts["total_count"])+ " artifacts in the repo");

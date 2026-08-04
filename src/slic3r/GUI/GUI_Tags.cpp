@@ -143,8 +143,8 @@ void ModeButton::update_bitmap()
     assert(!color_hash.empty() && color_hash[0]=='#');
     color_replaces.add("#E70000", color_hash);
     color_replaces.add("#D30000", "#" + int2hex(rgb2int(hsv2rgb(color_to_darken))));
-    int px_cnt = (int)(em_unit(m_parent) * mode_icon_px_size() * 0.1f + 0.5f);
-    // wxBitmap* icon = cache.load_svg("mode_expert", 0, (unsigned int)px_cnt, color_replace);
+    int px_cnt = static_cast<int>(em_unit(m_parent) * mode_icon_px_size() * 0.1f + 0.5f);
+    // wxBitmap* icon = cache.load_svg("mode_expert", 0, static_cast<unsigned int>(px_cnt), color_replace);
     std::string icon_template_name = "mode_expert";
     auto bundle = get_bmp_bundle(icon_template_name, m_bmp_width, m_bmp_height, color_replaces);
     m_bmp = *bundle;
@@ -193,7 +193,7 @@ void ModeButton::sys_color_changed()
 
 ModeSizer::ModeSizer(wxWindow *parent, int hgap, int max_col) :
     wxFlexGridSizer(3, 0, hgap),
-    m_hgap_unscaled((double)(hgap)/em_unit(parent))
+    m_hgap_unscaled(static_cast<double>(hgap)/em_unit(parent))
 {
     static BitmapCache cache;
     SetFlexibleDirection(wxHORIZONTAL);
@@ -216,7 +216,7 @@ ModeSizer::ModeSizer(wxWindow *parent, int hgap, int max_col) :
     };
     
     m_mode_btns.reserve(name_2_color.size());
-    this->SetCols(max_col != 0 ? std::min(max_col, (int)name_2_color.size()) : (int)name_2_color.size());
+    this->SetCols(max_col != 0 ? std::min(max_col, static_cast<int>(name_2_color.size())) : static_cast<int>(name_2_color.size()));
     for (const auto& button : name_2_color) {
         // create bt
         m_mode_btns.push_back(new ModeButton(parent, button.first, mode_icon_px_size()));

@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
 
 namespace
 {
@@ -372,10 +373,9 @@ void Notebook::EmitEventSelChanged(int16_t new_sel) {
     if (new_sel >=0 && GetBtnsListCtrl() && this->GetPageCount() > size_t(new_sel)) {
         ScalableButton* btn = GetBtnsListCtrl()->GetPageButton(new_sel);
         if (btn) {
-            wxCommandEvent* evt = new wxCommandEvent(wxCUSTOMEVT_NOTEBOOK_BT_PRESSED);
+            auto evt = std::make_unique<wxCommandEvent>(wxCUSTOMEVT_NOTEBOOK_BT_PRESSED);
             evt->SetId(new_sel);
-            //btn->ProcessEvent(*evt);
-            wxQueueEvent(btn, evt);
+            wxQueueEvent(btn, evt.release());
         }
     }
 }

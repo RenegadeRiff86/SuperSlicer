@@ -13,7 +13,6 @@
 #include <wx/display.h>
 #include <wx/file.h>
 #include <wx/wupdlock.h>
-#include "wxExtensions.hpp"
 
 #if ENABLE_SCROLLABLE
 static wxSize get_screen_size(wxWindow* window)
@@ -26,6 +25,18 @@ static wxSize get_screen_size(wxWindow* window)
 
 namespace Slic3r {
 namespace GUI {
+
+namespace {
+constexpr char kCalibrationResourceDirectory[] = "calibration";
+constexpr char kFilamentFlowResourceDirectory[] = "filament_flow";
+constexpr char kFlowTestCubeFilename[] = "filament_flow_test_cube.amf";
+
+boost::filesystem::path flow_resource_path(const char* filename)
+{
+    return boost::filesystem::path(Slic3r::resources_dir()) /
+           kCalibrationResourceDirectory / kFilamentFlowResourceDirectory / filename;
+}
+} // namespace
 
 void CalibrationFlowDialog::create_buttons(wxStdDialogButtonSizer* buttons){
     wxButton* bt = new wxButton(this, wxID_FILE1, _L("Generate 10% intervals around current value"));
@@ -80,11 +91,11 @@ void CalibrationFlowDialog::create_geometry(float start, float delta) {
     }
 
     std::vector<size_t> objs_idx = plat->load_files(std::vector<std::string>{
-            (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "filament_flow_test_cube.amf").string(),
-            (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "filament_flow_test_cube.amf").string(),
-            (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "filament_flow_test_cube.amf").string(),
-            (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "filament_flow_test_cube.amf").string(),
-            (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "filament_flow_test_cube.amf").string()},
+            flow_resource_path(kFlowTestCubeFilename).string(),
+            flow_resource_path(kFlowTestCubeFilename).string(),
+            flow_resource_path(kFlowTestCubeFilename).string(),
+            flow_resource_path(kFlowTestCubeFilename).string(),
+            flow_resource_path(kFlowTestCubeFilename).string()},
         LoadFileOption::LoadModel | LoadFileOption::DontUpdateDirs);
 
 
@@ -141,27 +152,27 @@ void CalibrationFlowDialog::create_geometry(float start, float delta) {
         };
     
     if (delta == 10.f && start == 80.f) {
-        add_part(model.objects[objs_idx[0]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "m20.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[1]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "m10.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
-        add_part(model.objects[objs_idx[2]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "_0.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
-        add_part(model.objects[objs_idx[3]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "p10.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
-        add_part(model.objects[objs_idx[4]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "p20.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
+        add_part(model.objects[objs_idx[0]], flow_resource_path("m20.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[1]], flow_resource_path("m10.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
+        add_part(model.objects[objs_idx[2]], flow_resource_path("_0.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
+        add_part(model.objects[objs_idx[3]], flow_resource_path("p10.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
+        add_part(model.objects[objs_idx[4]], flow_resource_path("p20.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
     } else if (delta == 2.f && start == 92.f) {
-        add_part(model.objects[objs_idx[0]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "m8.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[1]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "m6.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[2]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "m4.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[3]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "m2.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[4]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "_0.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[0]], flow_resource_path("m8.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[1]], flow_resource_path("m6.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[2]], flow_resource_path("m4.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[3]], flow_resource_path("m2.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[4]], flow_resource_path("_0.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
     } else if (delta == 2.f && start == 100.f) {
-        add_part(model.objects[objs_idx[0]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "_0.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[1]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "p2.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[2]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "p4.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[3]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "p6.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[4]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "p8.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[0]], flow_resource_path("_0.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[1]], flow_resource_path("p2.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[2]], flow_resource_path("p4.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[3]], flow_resource_path("p6.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[4]], flow_resource_path("p8.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
     }
     for (size_t i = 0; i < 5; i++) {
         translate_from_rotation(i, Vec3d{ 10 * xyScale, 0, zscale/2 - z_origin });
-        add_part(model.objects[objs_idx[i]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_flow" / "O.amf").string(),
+        add_part(model.objects[objs_idx[i]], flow_resource_path("O.amf").string(),
           Vec3d{ 0,0, zscale / 2.0 + z_origin + layer_height / 2.0 }, Vec3d{xyScale , xyScale, layer_height / 0.2}); // base: 0.2mm height
     }
 
@@ -172,37 +183,37 @@ void CalibrationFlowDialog::create_geometry(float start, float delta) {
 
     /// --- main config, please modify object config when possible ---
     DynamicPrintConfig new_print_config = *print_config; //make a copy
-    new_print_config.set_key_value("complete_objects", new ConfigOptionBool(true));
+    new_print_config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(true));
     //if skirt, use only one
     if (print_config->option<ConfigOptionInt>("skirts")->get_int() > 0 && print_config->option<ConfigOptionInt>("skirt_height")->get_int() > 0) {
-        new_print_config.set_key_value("complete_objects_one_skirt", new ConfigOptionBool(true));
+        new_print_config.set_key_value("complete_objects_one_skirt", std::make_unique<ConfigOptionBool>(true));
     }
 
     /// --- custom config ---
     for (size_t i = 0; i < 5; i++) {
         //brim to have some time to build up pressure in the nozzle
-        model.objects[objs_idx[i]]->config.set_key_value("brim_width", new ConfigOptionFloat(brim_width));
-        model.objects[objs_idx[i]]->config.set_key_value("thin_perimeters", new ConfigOptionPercent(0));
-        model.objects[objs_idx[i]]->config.set_key_value("external_perimeter_overlap", new ConfigOptionPercent(80));
-        model.objects[objs_idx[i]]->config.set_key_value("perimeter_overlap", new ConfigOptionPercent(80));
-        model.objects[objs_idx[i]]->config.set_key_value("brim_ears", new ConfigOptionBool(false));
-        model.objects[objs_idx[i]]->config.set_key_value("perimeters", new ConfigOptionInt(3));
-        model.objects[objs_idx[i]]->config.set_key_value("only_one_perimeter_top", new ConfigOptionBool(true));
-        model.objects[objs_idx[i]]->config.set_key_value("enforce_full_fill_volume", new ConfigOptionBool(true));
-        model.objects[objs_idx[i]]->config.set_key_value("solid_infill_every_layers", new ConfigOptionInt(1));
-        model.objects[objs_idx[i]]->config.set_key_value("thin_walls", new ConfigOptionBool(true));
-        model.objects[objs_idx[i]]->config.set_key_value("thin_walls_min_width", new ConfigOptionFloatOrPercent(50,true));
-        model.objects[objs_idx[i]]->config.set_key_value("gap_fill_enabled", new ConfigOptionBool(true)); 
-        model.objects[objs_idx[i]]->config.set_key_value("layer_height", new ConfigOptionFloat(layer_height));
-        model.objects[objs_idx[i]]->config.set_key_value("first_layer_height", new ConfigOptionFloatOrPercent(first_layer_height, false));
-        model.objects[objs_idx[i]]->config.set_key_value("external_infill_margin", new ConfigOptionFloatOrPercent(100, true));
-        model.objects[objs_idx[i]]->config.set_key_value("solid_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipRectilinear));
-        model.objects[objs_idx[0]]->config.set_key_value("infill_filled_solid", new ConfigOptionBool(true));
-        model.objects[objs_idx[i]]->config.set_key_value("top_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipMonotonic));
+        model.objects[objs_idx[i]]->config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(brim_width));
+        model.objects[objs_idx[i]]->config.set_key_value("thin_perimeters", std::make_unique<ConfigOptionPercent>(0));
+        model.objects[objs_idx[i]]->config.set_key_value("external_perimeter_overlap", std::make_unique<ConfigOptionPercent>(80));
+        model.objects[objs_idx[i]]->config.set_key_value("perimeter_overlap", std::make_unique<ConfigOptionPercent>(80));
+        model.objects[objs_idx[i]]->config.set_key_value("brim_ears", std::make_unique<ConfigOptionBool>(false));
+        model.objects[objs_idx[i]]->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(3));
+        model.objects[objs_idx[i]]->config.set_key_value("only_one_perimeter_top", std::make_unique<ConfigOptionBool>(true));
+        model.objects[objs_idx[i]]->config.set_key_value("enforce_full_fill_volume", std::make_unique<ConfigOptionBool>(true));
+        model.objects[objs_idx[i]]->config.set_key_value("solid_infill_every_layers", std::make_unique<ConfigOptionInt>(1));
+        model.objects[objs_idx[i]]->config.set_key_value("thin_walls", std::make_unique<ConfigOptionBool>(true));
+        model.objects[objs_idx[i]]->config.set_key_value("thin_walls_min_width", std::make_unique<ConfigOptionFloatOrPercent>(50,true));
+        model.objects[objs_idx[i]]->config.set_key_value("gap_fill_enabled", std::make_unique<ConfigOptionBool>(true)); 
+        model.objects[objs_idx[i]]->config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(layer_height));
+        model.objects[objs_idx[i]]->config.set_key_value("first_layer_height", std::make_unique<ConfigOptionFloatOrPercent>(first_layer_height, false));
+        model.objects[objs_idx[i]]->config.set_key_value("external_infill_margin", std::make_unique<ConfigOptionFloatOrPercent>(100, true));
+        model.objects[objs_idx[i]]->config.set_key_value("solid_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipRectilinear));
+        model.objects[objs_idx[0]]->config.set_key_value("infill_filled_solid", std::make_unique<ConfigOptionBool>(true));
+        model.objects[objs_idx[i]]->config.set_key_value("top_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipMonotonic));
         //disable ironing post-process
-        model.objects[objs_idx[i]]->config.set_key_value("ironing", new ConfigOptionBool(false));
+        model.objects[objs_idx[i]]->config.set_key_value("ironing", std::make_unique<ConfigOptionBool>(false));
         //set extrusion mult: 80 90 100 110 120
-        model.objects[objs_idx[i]]->config.set_key_value("print_extrusion_multiplier", new ConfigOptionPercent(start + (float)i * delta));
+        model.objects[objs_idx[i]]->config.set_key_value("print_extrusion_multiplier", std::make_unique<ConfigOptionPercent>(start + static_cast<float>(i) * delta));
     }
 
     //update plater

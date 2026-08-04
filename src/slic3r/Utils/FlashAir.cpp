@@ -52,12 +52,12 @@ bool FlashAir::test(wxString &msg) const
 	BOOST_LOG_TRIVIAL(info) << boost::format("%1%: Get upload enabled at: %2%") % name % url;
 
 	auto http = Http::get(std::move(url));
-	http.on_error([&](std::string body, std::string error, unsigned status) {
+	http.on_error([&](const std::string& body, const std::string& error, unsigned status) {
 			BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error getting upload enabled: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
 			res = false;
 			msg = format_error(body, error, status);
 		})
-        .on_complete([&](std::string body, unsigned) {
+        .on_complete([&](const std::string& body, unsigned) {
 			BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: Got upload enabled: %2%") % name % body;
 
 			res = boost::starts_with(body, "1");
@@ -111,12 +111,12 @@ bool FlashAir::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, Error
 
 	// set filetime for upload and make card writeprotect to prevent filesystem damage
 	auto httpPrepare = Http::get(std::move(urlPrepare));
-	httpPrepare.on_error([&](std::string body, std::string error, unsigned status) {
+	httpPrepare.on_error([&](const std::string& body, const std::string& error, unsigned status) {
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error preparing upload: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
 			error_fn(format_error(body, error, status));
 			res = false;
 		})
-		.on_complete([&, this](std::string body, unsigned) {
+		.on_complete([&, this](const std::string& body, unsigned) {
 			BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: Got prepare result: %2%") % name % body;
 			res = boost::icontains(body, "SUCCESS");
 			if (! res) {
@@ -132,12 +132,12 @@ bool FlashAir::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, Error
 	
 	// start file upload
     auto httpDir = Http::get(std::move(urlSetDir));
-    httpDir.on_error([&](std::string body, std::string error, unsigned status) {
+    httpDir.on_error([&](const std::string& body, const std::string& error, unsigned status) {
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error setting upload dir: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
             error_fn(format_error(body, error, status));
             res = false;
         })
-        .on_complete([&, this](std::string body, unsigned) {
+        .on_complete([&, this](const std::string& body, unsigned) {
             BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: Got dir select result: %2%") % name % body;
             res = boost::icontains(body, "SUCCESS");
             if (! res) {
@@ -153,7 +153,7 @@ bool FlashAir::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, Error
 
 	auto http = Http::post(std::move(urlUpload));
 	http.form_add_file("file", upload_data.source_path.string(), upload_filename.string())
-		.on_complete([&](std::string body, unsigned status) {
+		.on_complete([&](const std::string& body, unsigned status) {
 			BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: File uploaded: HTTP %2%: %3%") % name % status % body;
 			res = boost::icontains(body, "SUCCESS");
 			if (! res) {
@@ -161,7 +161,7 @@ bool FlashAir::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, Error
 				error_fn(format_error(body, L("Unknown error occured"), 0));
 			}
 		})
-		.on_error([&](std::string body, std::string error, unsigned status) {
+		.on_error([&](const std::string& body, const std::string& error, unsigned status) {
 			BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error uploading file: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
 			error_fn(format_error(body, error, status));
 			res = false;

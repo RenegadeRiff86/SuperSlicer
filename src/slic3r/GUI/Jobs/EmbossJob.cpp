@@ -366,7 +366,7 @@ void CreateObjectJob::finalize(bool canceled, std::exception_ptr &eptr)
 
         ModelVolume *new_volume = new_object->add_volume(std::move(m_result));
         // set a default extruder value, since user can't add it manually
-        new_volume->config.set_key_value("extruder", new ConfigOptionInt(0));
+        new_volume->config.set_key_value("extruder", std::make_unique<ConfigOptionInt>(0));
         // write emboss data into volume
         m_input.base->write(*new_volume);
 
@@ -1105,7 +1105,7 @@ void create_volume(TriangleMesh                    &&mesh,
     volume->calculate_convex_hull();
 
     // set a default extruder value, since user can't add it manually
-    volume->config.set_key_value("extruder", new ConfigOptionInt(0));
+    volume->config.set_key_value("extruder", std::make_unique<ConfigOptionInt>(0));
 
     // do not allow model reload from disk
     volume->source.is_from_builtin_objects = true;
@@ -1424,7 +1424,7 @@ bool is_valid(ModelVolumeType volume_type)
         volume_type == ModelVolumeType::PARAMETER_MODIFIER)
         return true;
 
-    BOOST_LOG_TRIVIAL(error) << "Can't create embossed volume with this type: " << (int) volume_type;
+    BOOST_LOG_TRIVIAL(error) << "Can't create embossed volume with this type: " << static_cast<int>(volume_type);
     return false;
 }
 

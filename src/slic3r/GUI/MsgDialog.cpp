@@ -140,7 +140,7 @@ static void add_msg_content(MsgDialog* parent, wxBoxSizer* content_sizer, const 
                 if (cur_line_len == 0 || line_len > cur_line_len)
                     msg_lines++;
                 else
-                    msg_lines += std::lround((double)(cur_line_len) / line_len);
+                    msg_lines += std::lround(static_cast<double>(cur_line_len) / line_len);
             }
         }
         msg_lines++;
@@ -169,7 +169,7 @@ static void add_msg_content(MsgDialog* parent, wxBoxSizer* content_sizer, const 
         // So, initialize default width_unit according to the width of the one symbol ("m") of the currently active font of this window.
         em = std::max<size_t>(10, parent->GetTextExtent("m").x - 1);
 #else
-        double scale_factor = (double)get_dpi_for_window(parent) / (double)DPI_DEFAULT;
+        double scale_factor = static_cast<double>(get_dpi_for_window(parent)) / static_cast<double>(DPI_DEFAULT);
         em = std::max<size_t>(10, 10.0f * scale_factor);
 #endif // __WXGTK__
     }
@@ -178,7 +178,7 @@ static void add_msg_content(MsgDialog* parent, wxBoxSizer* content_sizer, const 
     if (content.msg.Contains("<tr>")) {
         int lines = content.msg.Freq('\n') + 1;
         int pos = 0;
-        while (pos < (int)content.msg.Len() && pos != wxNOT_FOUND) {
+        while (pos < static_cast<int>(content.msg.Len()) && pos != wxNOT_FOUND) {
             pos = content.msg.find("<tr>", pos + 1);
             lines += 2;
         }
@@ -275,8 +275,10 @@ WarningDialog::WarningDialog(wxWindow *parent,
     finalize();
 }
 
-#ifdef _WIN32
 // MessageDialog
+// Built on MsgDialog on every platform - see the note on the class declaration for why the
+// native wxMessageDialog cannot be used here (its buttons are not wxWindows, so custom button
+// labels were silently discarded).
 
 MessageDialog::MessageDialog(wxWindow* parent,
     const wxString& message,
@@ -287,18 +289,6 @@ MessageDialog::MessageDialog(wxWindow* parent,
     add_msg_content(this, content_sizer, HtmlContent{ get_wraped_wxString(message) });
     finalize();
 }
-#else
-
-void MessageDialog::SetButtonLabel(wxWindowID btn_id, const wxString& label, bool set_focus/* = false*/)
-{
-    if (wxButton* btn = static_cast<wxButton*>(FindWindowById(btn_id, this))) {
-        btn->SetLabel(label);
-        if (set_focus)
-            btn->SetFocus();
-    }
-}
-
-#endif
 
 
 // RichMessageDialogBase

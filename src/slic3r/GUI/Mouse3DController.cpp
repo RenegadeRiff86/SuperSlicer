@@ -481,7 +481,7 @@ void Mouse3DController::render_settings_dialog(GLCanvas3D& canvas) const
     Size cnv_size = canvas.get_canvas_size();
 
     ImGuiWrapper& imgui = *wxGetApp().imgui();
-    imgui.set_next_window_pos(0.5f * (float)cnv_size.get_width(), 0.5f * (float)cnv_size.get_height(), ImGuiCond_Always, 0.5f, 0.5f);
+    imgui.set_next_window_pos(0.5f * static_cast<float>(cnv_size.get_width()), 0.5f * static_cast<float>(cnv_size.get_height()), ImGuiCond_Always, 0.5f, 0.5f);
 
     static ImVec2 last_win_size(0.0f, 0.0f);
     bool shown = true;
@@ -524,9 +524,9 @@ void Mouse3DController::render_settings_dialog(GLCanvas3D& canvas) const
             ImGui::Separator();
             imgui.text_colored(color, _L("Deadzone:"));
 
-            float translation_deadzone = (float)params_copy.translation.deadzone;
-            if (imgui.slider_float(_L("Translation") + "/" + _L("Zoom"), &translation_deadzone, 0.0f, (float)Params::MaxTranslationDeadzone, "%.2f")) {
-            	params_copy.translation.deadzone = (double)translation_deadzone;
+            float translation_deadzone = static_cast<float>(params_copy.translation.deadzone);
+            if (imgui.slider_float(_L("Translation") + "/" + _L("Zoom"), &translation_deadzone, 0.0f, static_cast<float>(Params::MaxTranslationDeadzone), "%.2f")) {
+            	params_copy.translation.deadzone = static_cast<double>(translation_deadzone);
             	params_changed = true;
             }
 
@@ -697,9 +697,9 @@ bool Mouse3DController::handle_input(const DataPacketAxis& packet)
     }
     // rotation
     deadzone = m_params.rotation.deadzone;
-    Vec3f rotation(std::abs(packet[3]) > deadzone ? (float)packet[3] : 0.0,
-                   std::abs(packet[4]) > deadzone ? (float)packet[4] : 0.0,
-                   std::abs(packet[5]) > deadzone ? (float)packet[5] : 0.0);
+    Vec3f rotation(std::abs(packet[3]) > deadzone ? static_cast<float>(packet[3]) : 0.0,
+                   std::abs(packet[4]) > deadzone ? static_cast<float>(packet[4]) : 0.0,
+                   std::abs(packet[5]) > deadzone ? static_cast<float>(packet[5]) : 0.0);
     if (! rotation.isApprox(Vec3f::Zero())) {
         m_state.append_rotation(rotation, m_params.input_queue_max_size);
         updated = true;
@@ -1136,7 +1136,7 @@ void Mouse3DController::disconnect_device()
 // Convert a signed 16bit word from a 3DConnexion mouse HID packet into a double coordinate, apply a dead zone.
 static double convert_spnav_input(int value)
 {
-    return (double)value/100;
+    return static_cast<double>(value)/100;
 }
 
 void Mouse3DController::collect_input()
@@ -1167,7 +1167,7 @@ void Mouse3DController::collect_input()
                 }
                 case SPNAV_EVENT_BUTTON:
                     if (ev.button.press)
-                        m_state.append_button((unsigned int)ev.button.bnum, m_params.input_queue_max_size);
+                        m_state.append_button(static_cast<unsigned int>(ev.button.bnum), m_params.input_queue_max_size);
                     break;
             }
             wxGetApp().plater()->set_current_canvas_as_dirty();
@@ -1219,7 +1219,7 @@ bool Mouse3DController::handle_input(const DataPacketRaw& packet, const int pack
         updated = handle_packet(packet, res, params, state_in_out);
 #if ENABLE_3DCONNEXION_DEVICES_DEBUG_OUTPUT
     else if (res > 0)
-        std::cout << "Got unknown data packet of length: " << res << ", code:" << (int)packet[0] << std::endl;
+        std::cout << "Got unknown data packet of length: " << res << ", code:" << static_cast<int>(packet[0]) << std::endl;
 #endif // ENABLE_3DCONNEXION_DEVICES_DEBUG_OUTPUT
 
     if (updated) {
@@ -1263,14 +1263,14 @@ bool Mouse3DController::handle_packet(const DataPacketRaw& packet, const int pac
     case 23: // Battery charge
         {
 #if ENABLE_3DCONNEXION_DEVICES_DEBUG_OUTPUT
-            std::cout << "3DConnexion - battery level: " << (int)packet[1] << " percent" << std::endl;
+            std::cout << "3DConnexion - battery level: " << static_cast<int>(packet[1]) << " percent" << std::endl;
 #endif // ENABLE_3DCONNEXION_DEVICES_DEBUG_OUTPUT
             break;
         }
     default:
         {
 #if ENABLE_3DCONNEXION_DEVICES_DEBUG_OUTPUT
-            std::cout << "3DConnexion - Got unknown data packet of code: " << (int)packet[0] << std::endl;
+            std::cout << "3DConnexion - Got unknown data packet of code: " << static_cast<int>(packet[0]) << std::endl;
 #endif // ENABLE_3DCONNEXION_DEVICES_DEBUG_OUTPUT
             break;
         }
@@ -1285,7 +1285,7 @@ static double convert_input(int coord_byte_low, int coord_byte_high, double dead
     int value = coord_byte_low | (coord_byte_high << 8);
     if (value >= 32768)
     	value = value - 65536;
-    double ret = (double)value / 350.0;
+    double ret = static_cast<double>(value) / 350.0;
     return (std::abs(ret) > deadzone) ? ret : 0.0;
 }
 
@@ -1309,10 +1309,10 @@ bool Mouse3DController::handle_packet_translation(const DataPacketRaw& packet, c
 // Unpack raw 3DConnexion HID packet, decode state of rotation axes into state_in_out. Called by the handle_input() from worker thread.
 bool Mouse3DController::handle_packet_rotation(const DataPacketRaw& packet, unsigned int first_byte, const Params &params, State &state_in_out)
 {
-    double deadzone = (double)params.rotation.deadzone;
-    Vec3f rotation((float)convert_input(packet[first_byte + 0], packet[first_byte + 1], deadzone),
-        (float)convert_input(packet[first_byte + 2], packet[first_byte + 3], deadzone),
-        (float)convert_input(packet[first_byte + 4], packet[first_byte + 5], deadzone));
+    double deadzone = static_cast<double>(params.rotation.deadzone);
+    Vec3f rotation(static_cast<float>(convert_input(packet[first_byte + 0], packet[first_byte + 1], deadzone)),
+        static_cast<float>(convert_input(packet[first_byte + 2], packet[first_byte + 3], deadzone)),
+        static_cast<float>(convert_input(packet[first_byte + 4], packet[first_byte + 5], deadzone)));
 
     if (!rotation.isApprox(Vec3f::Zero()))
     {
@@ -1337,7 +1337,7 @@ bool Mouse3DController::handle_packet_button(const DataPacketRaw& packet, unsign
     {
         if (data_bits.test(i))
         {
-            state_in_out.append_button((unsigned int)i, params.input_queue_max_size);
+            state_in_out.append_button(static_cast<unsigned int>(i), params.input_queue_max_size);
             return true;
         }
     }

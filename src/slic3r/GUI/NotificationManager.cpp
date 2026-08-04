@@ -176,7 +176,7 @@ void NotificationManager::PopNotification::render(GLCanvas3D& canvas, float init
 	// top y of window
 	m_top_y = initial_y + m_window_height;
 
-	ImVec2 win_pos(1.0f * (float)cnv_size.get_width() - right_gap, 1.0f * (float)cnv_size.get_height() - m_top_y);
+	ImVec2 win_pos(1.0f * static_cast<float>(cnv_size.get_width()) - right_gap, 1.0f * static_cast<float>(cnv_size.get_height()) - m_top_y);
 	imgui.set_next_window_pos(win_pos.x, win_pos.y, ImGuiCond_Always, 1.0f, 0.0f);
 	imgui.set_next_window_size(m_window_width, m_window_height, ImGuiCond_Always);
 
@@ -311,7 +311,7 @@ void NotificationManager::PopNotification::count_lines()
 					ImGui::CalcTextSize(text.substr(last_end, next_space - last_end).c_str()).x < (m_window_width - m_window_width_offset) / 4 * 3
 					) {
 					float width_of_a = ImGui::CalcTextSize("a").x;
-					int letter_count = (int)((m_window_width - m_window_width_offset) / width_of_a);
+					int letter_count = static_cast<int>((m_window_width - m_window_width_offset) / width_of_a);
 					while (last_end + letter_count < text.size() && ImGui::CalcTextSize(text.substr(last_end, letter_count).c_str()).x < m_window_width - m_window_width_offset) {
 						letter_count += get_utf8_sequence_length(text, last_end + letter_count);
 					}
@@ -392,7 +392,7 @@ void NotificationManager::PopNotification::count_lines()
 						ImGui::CalcTextSize(text.substr(last_end, next_space - last_end).c_str()).x + size_of_last_line < (m_window_width - m_window_width_offset) / 5 * 3
 						) {
 						float width_of_a = ImGui::CalcTextSize("a").x;
-						int letter_count = (int)((m_window_width - m_window_width_offset - size_of_last_line) / width_of_a);
+						int letter_count = static_cast<int>((m_window_width - m_window_width_offset - size_of_last_line) / width_of_a);
 						while (last_end + letter_count < text.size() && ImGui::CalcTextSize(text.substr(last_end, letter_count).c_str()).x < m_window_width - m_window_width_offset - size_of_last_line) {
 							letter_count += get_utf8_sequence_length(text, last_end + letter_count);
 						}
@@ -550,8 +550,8 @@ void NotificationManager::PopNotification::render_hypertext(ImGuiWrapper& imgui,
 	lineEnd.y -= 2;
 	ImVec2 lineStart = lineEnd;
 	lineStart.x = ImGui::GetItemRectMin().x;
-	ImGui::GetWindowDrawList()->AddLine(lineStart, lineEnd, IM_COL32((int)(blue_color_vec.x * 255), (int)(blue_color_vec.y * 255), (int)(blue_color_vec.z * 255),
-  (int)(blue_color_vec.w * 255.f * (m_state == EState::FadingOut ? m_current_fade_opacity : 1.f))));
+	ImGui::GetWindowDrawList()->AddLine(lineStart, lineEnd, IM_COL32(static_cast<int>(blue_color_vec.x * 255), static_cast<int>(blue_color_vec.y * 255), static_cast<int>(blue_color_vec.z * 255),
+  static_cast<int>(blue_color_vec.w * 255.f * (m_state == EState::FadingOut ? m_current_fade_opacity : 1.f))));
 
 }
 
@@ -948,12 +948,12 @@ void NotificationManager::ProgressBarNotification::render_bar(ImGuiWrapper& imgu
 	ImVec2 lineEnd = ImVec2(win_pos_x - m_window_width_offset, win_pos_y + win_size_y / 2 + y_indentation);
 	ImVec2 lineStart = ImVec2(win_pos_x - win_size_x + m_left_indentation, win_pos_y + win_size_y / 2 + y_indentation);
 	ImVec2 midPoint = ImVec2(lineStart.x + (lineEnd.x - lineStart.x) * percent, lineStart.y);
-	ImGui::GetWindowDrawList()->AddLine(lineStart, lineEnd, IM_COL32((int)(gray_color.x * 255), (int)(gray_color.y * 255), (int)(gray_color.z * 255), (m_current_fade_opacity * 255.f)), m_line_height * 0.2f);
-	ImGui::GetWindowDrawList()->AddLine(lineStart, midPoint, IM_COL32((int)(orange_color.x * 255), (int)(orange_color.y * 255), (int)(orange_color.z * 255), (m_current_fade_opacity * 255.f)), m_line_height * 0.2f);
+	ImGui::GetWindowDrawList()->AddLine(lineStart, lineEnd, IM_COL32(static_cast<int>(gray_color.x * 255), static_cast<int>(gray_color.y * 255), static_cast<int>(gray_color.z * 255), (m_current_fade_opacity * 255.f)), m_line_height * 0.2f);
+	ImGui::GetWindowDrawList()->AddLine(lineStart, midPoint, IM_COL32(static_cast<int>(orange_color.x * 255), static_cast<int>(orange_color.y * 255), static_cast<int>(orange_color.z * 255), (m_current_fade_opacity * 255.f)), m_line_height * 0.2f);
 	if (render) {
 		std::string text;
 		std::stringstream stream;
-		stream << std::fixed << std::setprecision(2) << (int)(percent * 100) << "%";
+		stream << std::fixed << std::setprecision(2) << static_cast<int>(percent * 100) << "%";
 		text = stream.str();
 		ImGui::SetCursorPosX(m_left_indentation);
 		ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / 6 + y_indentation - m_line_height / 2);
@@ -1071,7 +1071,7 @@ void NotificationManager::ProgressBarWithCancelNotification::render_bar(ImGuiWra
 		text = _u8L("ERROR");
 	} else {
 		std::stringstream stream;
-		stream << std::fixed << std::setprecision(2) << (int)(m_percentage * 100) << "%";
+		stream << std::fixed << std::setprecision(2) << static_cast<int>(m_percentage * 100) << "%";
 		text = stream.str();
 	}
 	ImGui::SetCursorPosX(m_left_indentation);
@@ -1286,7 +1286,7 @@ void NotificationManager::URLDownloadNotification::render_bar(ImGuiWrapper& imgu
 		text = _u8L("COMPLETED");
 	} else {
 		std::stringstream stream;
-		stream << std::fixed << std::setprecision(2) << (int)(m_percentage * 100) << "%";
+		stream << std::fixed << std::setprecision(2) << static_cast<int>(m_percentage * 100) << "%";
 		text = stream.str();
 	}
 	ImGui::SetCursorPosX(m_left_indentation);
@@ -1474,7 +1474,7 @@ void NotificationManager::PrintHostUploadNotification::render_bar(ImGuiWrapper& 
 		ProgressBarNotification::render_bar(imgui, win_size_x, win_size_y, win_pos_x, win_pos_y);
 		float uploaded = m_file_size * m_percentage;
 		std::stringstream stream;
-		stream << std::fixed << std::setprecision(2) << (int)(m_percentage * 100) << "% - " << uploaded << " of " << m_file_size << "MB uploaded";
+		stream << std::fixed << std::setprecision(2) << static_cast<int>(m_percentage * 100) << "% - " << uploaded << " of " << m_file_size << "MB uploaded";
 		text = stream.str();
 		ImGui::SetCursorPosX(m_left_indentation);
 		ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / 6 - (m_multiline ? 0 : m_line_height / 4));
@@ -2983,8 +2983,8 @@ void NotificationManager::sort_notifications()
 {
 	// Stable sorting, so that the order of equal ranges is stable.
 	std::stable_sort(m_pop_notifications.begin(), m_pop_notifications.end(), [](const std::unique_ptr<PopNotification> &n1, const std::unique_ptr<PopNotification> &n2) {
-		int n1l = (int)n1->get_data().level;
-		int n2l = (int)n2->get_data().level;
+		int n1l = static_cast<int>(n1->get_data().level);
+		int n2l = static_cast<int>(n2->get_data().level);
 		if (n1l == n2l && n1->is_gray() && !n2->is_gray())
 			return true;
 		return (n1l < n2l);

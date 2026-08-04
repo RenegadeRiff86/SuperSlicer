@@ -5,29 +5,25 @@
 ///|/
 #include "wxExtensions.hpp"
 
-#include <stdexcept>
-#include <cmath>
+#include <exception>
+#include <sstream>
 
 #include <wx/sizer.h>
 
 #include <boost/algorithm/string/replace.hpp>
-
+#include <boost/format.hpp>
 
 #include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Exception.hpp"
 
 #include "BitmapCache.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"
 #include "GUI_ObjectList.hpp"
-#include "libslic3r/Config.hpp"
 #include "I18N.hpp"
 #include "GUI_Utils.hpp"
 #include "Plater.hpp"
-#include "../Utils/MacDarkMode.hpp"
 #include "BitmapComboBox.hpp"
-#include "libslic3r/Utils.hpp"
-#include "OG_CustomCtrl.hpp"
-#include "format.hpp"
 
 #include "libslic3r/Color.hpp"
 
@@ -81,8 +77,10 @@ wxMenuItem* append_menu_item(wxMenu* menu, int id, const wxString& string, const
     if (event_handler != nullptr && event_handler != menu)
         event_handler->Bind(wxEVT_MENU, cb, id);
     else
-#endif // __WXMSW__
         menu->Bind(wxEVT_MENU, cb, id);
+#else
+    menu->Bind(wxEVT_MENU, cb, id);
+#endif // __WXMSW__
 
     if (parent) {
         parent->Bind(wxEVT_UPDATE_UI, [cb_condition, item, parent](wxUpdateUIEvent& evt) {
@@ -147,8 +145,10 @@ wxMenuItem* append_menu_radio_item(wxMenu* menu, int id, const wxString& string,
     if (event_handler != nullptr && event_handler != menu)
         event_handler->Bind(wxEVT_MENU, cb, id);
     else
-#endif // __WXMSW__
         menu->Bind(wxEVT_MENU, cb, id);
+#else
+    menu->Bind(wxEVT_MENU, cb, id);
+#endif // __WXMSW__
 
     return item;
 }
@@ -166,8 +166,10 @@ wxMenuItem* append_menu_check_item(wxMenu* menu, int id, const wxString& string,
     if (event_handler != nullptr && event_handler != menu)
         event_handler->Bind(wxEVT_MENU, cb, id);
     else
-#endif // __WXMSW__
         menu->Bind(wxEVT_MENU, cb, id);
+#else
+    menu->Bind(wxEVT_MENU, cb, id);
+#endif // __WXMSW__
 
     if (parent)
         parent->Bind(wxEVT_UPDATE_UI, [enable_condition, check_condition](wxUpdateUIEvent& evt)
@@ -324,10 +326,13 @@ void wxCheckListBoxComboPopup::OnListBoxSelection(wxCommandEvent& evt)
     int selId = GetSelection();
     if (selId != wxNOT_FOUND)
     {
-        #ifndef _WIN32
-            if (m_check_box_events_status == OnCheckListBoxFunction::RefuseToProceed)
-        #endif
-                Check((unsigned int)selId, !IsChecked((unsigned int)selId));
+#ifdef _WIN32
+        const bool should_toggle = true;
+#else
+        const bool should_toggle = m_check_box_events_status == OnCheckListBoxFunction::RefuseToProceed;
+#endif
+        if (should_toggle)
+            Check(static_cast<unsigned int>(selId), !IsChecked(static_cast<unsigned int>(selId)));
 
         m_check_box_events_status = OnCheckListBoxFunction::FreeToProceed; // so the checkbox reacts to square-click the next time
 
@@ -822,11 +827,11 @@ void ScalableButton::sys_color_changed()
     Slic3r::GUI::wxGetApp().UpdateDarkUI(this, m_has_border);
 
     wxBitmapBundle bmp = *get_bmp_bundle(m_current_icon_name, m_bmp_width, m_bmp_height);
-        SetBitmap(bmp);
-        SetBitmapCurrent(bmp);
-        SetBitmapPressed(bmp);
-        SetBitmapFocus(bmp);
-        if (!m_disabled_icon_name.empty())
+    SetBitmap(bmp);
+    SetBitmapCurrent(bmp);
+    SetBitmapPressed(bmp);
+    SetBitmapFocus(bmp);
+    if (!m_disabled_icon_name.empty())
         SetBitmapDisabled(*get_bmp_bundle(m_disabled_icon_name, m_bmp_width, m_bmp_height));
     if (!GetLabelText().IsEmpty())
         SetBitmapMargins(int(0.5 * em_unit(m_parent)), 0);

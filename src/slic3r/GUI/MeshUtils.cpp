@@ -110,8 +110,8 @@ void MeshClipper::render_cut(const ColorRGBA& color, const std::vector<size_t>* 
     if (shader != nullptr) {
         shader->start_using();
         const Camera& camera = wxGetApp().plater()->get_camera();
-        shader->set_uniform("view_model_matrix", camera.get_view_matrix());
-        shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
         for (size_t i=0; i<m_result->cut_islands.size(); ++i) {
             if (ignore_idxs && std::binary_search(ignore_idxs->begin(), ignore_idxs->end(), i))
                 continue;
@@ -140,8 +140,8 @@ void MeshClipper::render_contour(const ColorRGBA& color, const std::vector<size_
     if (shader != nullptr) {
         shader->start_using();
         const Camera& camera = wxGetApp().plater()->get_camera();
-        shader->set_uniform("view_model_matrix", camera.get_view_matrix());
-        shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
         for (size_t i=0; i<m_result->cut_islands.size(); ++i) {
             if (ignore_idxs && std::binary_search(ignore_idxs->begin(), ignore_idxs->end(), i))
                 continue;
@@ -337,7 +337,7 @@ void MeshClipper::recalculate_triangles()
                 init_data.add_vertex((Vec3f)(tr * Vec3d((*(it + 1)).x(), (*(it + 1)).y(), height_mesh)).cast<float>(), (Vec3f)up.cast<float>());
                 init_data.add_vertex((Vec3f)(tr * Vec3d((*(it + 2)).x(), (*(it + 2)).y(), height_mesh)).cast<float>(), (Vec3f)up.cast<float>());
                 const size_t idx = it - triangles2d.cbegin();
-                init_data.add_triangle((unsigned int)idx, (unsigned int)idx + 1, (unsigned int)idx + 2);
+                init_data.add_triangle(static_cast<unsigned int>(idx), static_cast<unsigned int>(idx) + 1, static_cast<unsigned int>(idx) + 2);
             }
 
             if (!init_data.is_empty())
@@ -397,7 +397,7 @@ void MeshClipper::recalculate_triangles()
                 init_data.add_vertex((Vec3f)(tr2 * Vec3d((*(it + 1)).x(), (*(it + 1)).y(), height_mesh)).cast<float>(), (Vec3f)up.cast<float>());
                 init_data.add_vertex((Vec3f)(tr2 * Vec3d((*(it + 2)).x(), (*(it + 2)).y(), height_mesh)).cast<float>(), (Vec3f)up.cast<float>());
                 const size_t idx = it - triangles2d.cbegin();
-                init_data.add_triangle((unsigned short)idx, (unsigned short)idx + 1, (unsigned short)idx + 2);
+                init_data.add_triangle(static_cast<unsigned short>(idx), static_cast<unsigned short>(idx) + 1, static_cast<unsigned short>(idx) + 2);
             }
 
             if (!init_data.is_empty())

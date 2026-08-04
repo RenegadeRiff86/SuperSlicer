@@ -3,6 +3,7 @@
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 #include <exception>
+#include <memory>
 
 #include "Exception.hpp"
 #include "Zipper.hpp"
@@ -41,7 +42,7 @@ public:
 
 Zipper::Zipper(const std::string &zipfname, e_compression compression)
 {
-    m_impl.reset(new Impl());
+    m_impl = std::make_unique<Impl>();
 
     m_compression = compression;
     m_impl->m_zipname = zipfname;

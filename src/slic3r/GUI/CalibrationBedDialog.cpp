@@ -14,7 +14,6 @@
 #include <wx/display.h>
 #include <wx/file.h>
 #include <wx/wupdlock.h>
-#include "wxExtensions.hpp"
 
 #include <array>
 #include <cmath>
@@ -32,6 +31,26 @@ static wxSize get_screen_size(wxWindow* window)
 
 namespace Slic3r {
 namespace GUI {
+
+namespace {
+constexpr char kAutocenterConfigKey[]             = "autocenter";
+constexpr char kBedLevelingResourceDirectory[]    = "bed_leveling";
+constexpr char kCalibrationResourceDirectory[]    = "calibration";
+constexpr char kCalibrationPatchFilename[]        = "patch.amf";
+constexpr char kFillAngleConfigKey[]              = "fill_angle";
+
+constexpr int    kZOffsetDecimalPlaces     = 4;   // to_string_nozero precision for Z cal values
+constexpr int    kFieldGapPx               = 5;   // horizontal sizer spacing between fields
+constexpr int    kSectionGapPx             = 6;   // vertical spacing between form sections
+constexpr int    kBedPadMarginBase         = 10;  // base mm margin (scaled by xyScale) around pads
+constexpr int    kBedLevelPadCount         = 5;   // center + four corner pads for bed leveling
+constexpr int    kCenterPadNumber          = 5;   // 1-based center pad label in the 3x3 Z grid
+constexpr int    kZOffsetGridSize          = 3;   // 3x3 Klipper Z-offset pad grid
+constexpr int    kRectangularBedCorners    = 4;
+constexpr int    kCalibPerimeters          = 2;
+constexpr int    kCalibBottomSolidLayers   = 2;
+constexpr double kZOffsetAbsLimitMm        = 2.0; // supported filament Z offset range ±mm
+} // namespace
 
 // First-layer height of the active print profile for nozzle 1, the default pad height.
 double CalibrationBedDialog::profile_first_layer_height() const
@@ -58,7 +77,7 @@ void CalibrationBedDialog::recalled_grid_parameters(std::string& center, std::st
     if (step.empty())
         step = "0.027";
     if (layer_height.empty())
-        layer_height = Slic3r::to_string_nozero(profile_first_layer_height(), 4);
+        layer_height = Slic3r::to_string_nozero(profile_first_layer_height(), kZOffsetDecimalPlaces);
 }
 
 void CalibrationBedDialog::create_buttons(wxStdDialogButtonSizer* buttons)
@@ -92,24 +111,24 @@ void CalibrationBedDialog::create_buttons(wxStdDialogButtonSizer* buttons)
         txt_layer_height->SetToolTip(_L("Height of the single-layer pads. Defaults to the active print profile's first-layer height for nozzle 1."));
 
         wxBoxSizer* offset_fields = new wxBoxSizer(wxHORIZONTAL);
-        offset_fields->Add(new wxStaticText(this, wxID_ANY, _L("Center offset:")), 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
-        offset_fields->Add(txt_z_center, 0, wxRIGHT, 5);
-        offset_fields->Add(new wxStaticText(this, wxID_ANY, _L("mm   Step:")), 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
-        offset_fields->Add(txt_z_step, 0, wxRIGHT, 5);
+        offset_fields->Add(new wxStaticText(this, wxID_ANY, _L("Center offset:")), 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, kFieldGapPx);
+        offset_fields->Add(txt_z_center, 0, wxRIGHT, kFieldGapPx);
+        offset_fields->Add(new wxStaticText(this, wxID_ANY, _L("mm   Step:")), 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, kFieldGapPx);
+        offset_fields->Add(txt_z_step, 0, wxRIGHT, kFieldGapPx);
         offset_fields->Add(new wxStaticText(this, wxID_ANY, _L("mm")), 0, wxALIGN_CENTER_VERTICAL);
-        vertical->Add(offset_fields, 0, wxBOTTOM, 6);
+        vertical->Add(offset_fields, 0, wxBOTTOM, kSectionGapPx);
 
         wxBoxSizer* layer_fields = new wxBoxSizer(wxHORIZONTAL);
         layer_fields->Add(new wxStaticText(this, wxID_ANY, _L("Layer height:")),
-            0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
-        layer_fields->Add(txt_layer_height, 0, wxRIGHT, 5);
+            0, wxALIGN_CENTER_VERTICAL | wxRIGHT, kFieldGapPx);
+        layer_fields->Add(txt_layer_height, 0, wxRIGHT, kFieldGapPx);
         txt_outer_walls = new wxTextCtrl(this, wxID_ANY, outer_walls,
             wxDefaultPosition, field_size, wxBORDER_SIMPLE);
         txt_outer_walls->SetToolTip(_L("Number of perimeter walls around each pad. More walls make edge thickness measurements more repeatable."));
         layer_fields->Add(new wxStaticText(this, wxID_ANY, _L("mm   Outer walls:")),
-            0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
+            0, wxALIGN_CENTER_VERTICAL | wxRIGHT, kFieldGapPx);
         layer_fields->Add(txt_outer_walls, 0);
-        vertical->Add(layer_fields, 0, wxBOTTOM, 6);
+        vertical->Add(layer_fields, 0, wxBOTTOM, kSectionGapPx);
 
         wxButton* generate = new wxButton(this, wxID_FILE1, _L("Generate nine-pad Z offset test"),
             wxDefaultPosition, button_size);
@@ -123,7 +142,7 @@ void CalibrationBedDialog::create_buttons(wxStdDialogButtonSizer* buttons)
             _L("Printed test grid: center offset ") + Slic3r::from_dot_to_local(center) +
             _L(" mm, step ") + Slic3r::from_dot_to_local(step) +
             _L(" mm, target height ") + Slic3r::from_dot_to_local(layer_height) + _L(" mm")),
-            0, wxBOTTOM, 6);
+            0, wxBOTTOM, kSectionGapPx);
 
         txt_z_result_pad = new wxTextCtrl(this, wxID_ANY, "5",
             wxDefaultPosition, field_size, wxBORDER_SIMPLE);
@@ -134,14 +153,14 @@ void CalibrationBedDialog::create_buttons(wxStdDialogButtonSizer* buttons)
 
         wxBoxSizer* result_fields = new wxBoxSizer(wxHORIZONTAL);
         result_fields->Add(new wxStaticText(this, wxID_ANY, _L("Measured pad:")),
-            0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
-        result_fields->Add(txt_z_result_pad, 0, wxRIGHT, 5);
+            0, wxALIGN_CENTER_VERTICAL | wxRIGHT, kFieldGapPx);
+        result_fields->Add(txt_z_result_pad, 0, wxRIGHT, kFieldGapPx);
         result_fields->Add(new wxStaticText(this, wxID_ANY, _L("Measured height:")),
-            0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
-        result_fields->Add(txt_measured_height, 0, wxRIGHT, 5);
+            0, wxALIGN_CENTER_VERTICAL | wxRIGHT, kFieldGapPx);
+        result_fields->Add(txt_measured_height, 0, wxRIGHT, kFieldGapPx);
         result_fields->Add(new wxStaticText(this, wxID_ANY, _L("mm")),
             0, wxALIGN_CENTER_VERTICAL);
-        vertical->Add(result_fields, 0, wxBOTTOM, 6);
+        vertical->Add(result_fields, 0, wxBOTTOM, kSectionGapPx);
 
         wxButton* apply_result = new wxButton(this, wxID_ANY, _L("Apply result to filament preset"),
             wxDefaultPosition, button_size);
@@ -184,11 +203,11 @@ void CalibrationBedDialog::apply_z_offset_result(wxCommandEvent& /*event_args*/)
         return;
     }
 
-    const double tested_offset = center + (pad_number - 5) * step;
+    const double tested_offset = center + (pad_number - kCenterPadNumber) * step;
     double corrected_offset = tested_offset - (measured_height - target_height);
     if (std::abs(corrected_offset) < 1e-6)
         corrected_offset = 0.;
-    if (!std::isfinite(corrected_offset) || corrected_offset < -2. || corrected_offset > 2.) {
+    if (!std::isfinite(corrected_offset) || corrected_offset < -kZOffsetAbsLimitMm || corrected_offset > kZOffsetAbsLimitMm) {
         show_error(this, _L("The calculated filament Z offset is outside the supported -2 to 2 mm range."));
         return;
     }
@@ -196,20 +215,20 @@ void CalibrationBedDialog::apply_z_offset_result(wxCommandEvent& /*event_args*/)
     Tab* filament_tab = this->gui_app->get_tab(Preset::TYPE_FFF_FILAMENT);
     const DynamicPrintConfig* filament_config = filament_tab->get_config();
     DynamicPrintConfig new_filament_config = *filament_config;
-    auto* new_offsets = new ConfigOptionFloats({ 0. });
+    auto new_offsets = std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{0.});
     if (const ConfigOptionFloats* current_offsets = filament_config->option<ConfigOptionFloats>("filament_z_offset"))
         new_offsets->set(*current_offsets);
     new_offsets->set_at(corrected_offset, 0);
-    new_filament_config.set_key_value("filament_z_offset", new_offsets);
+    new_filament_config.set_key_value("filament_z_offset", std::move(new_offsets));
 
     filament_tab->load_config(new_filament_config);
     this->main_frame->plater()->on_config_change(new_filament_config);
     filament_tab->update_dirty();
 
-    const std::string corrected_text = Slic3r::to_string_nozero(corrected_offset, 4);
+    const std::string corrected_text = Slic3r::to_string_nozero(corrected_offset, kZOffsetDecimalPlaces);
     gui_app->app_config->set("z_offset_cal_center", corrected_text);
-    gui_app->app_config->set("z_offset_cal_step", Slic3r::to_string_nozero(step, 4));
-    gui_app->app_config->set("z_offset_cal_layer_height", Slic3r::to_string_nozero(target_height, 4));
+    gui_app->app_config->set("z_offset_cal_step", Slic3r::to_string_nozero(step, kZOffsetDecimalPlaces));
+    gui_app->app_config->set("z_offset_cal_layer_height", Slic3r::to_string_nozero(target_height, kZOffsetDecimalPlaces));
 
     wxMessageBox(
         _L("Calculated filament Z offset: ") + wxString::FromUTF8(corrected_text.c_str()) +
@@ -227,20 +246,20 @@ void CalibrationBedDialog::create_geometry(wxCommandEvent& event_args) {
     wxGetApp().Yield();
     
     std::unique_ptr<wxWindowUpdateLocker> freeze_gui = std::make_unique<wxWindowUpdateLocker>(this);
-    bool autocenter = gui_app->app_config->get("autocenter") == "1";
+    bool autocenter = gui_app->app_config->get(kAutocenterConfigKey) == "1";
     if(autocenter) {
         //disable aut-ocenter for this calibration.
-        gui_app->app_config->set("autocenter", "0");
+        gui_app->app_config->set(kAutocenterConfigKey, "0");
     }
     std::vector<size_t> objs_idx = plat->load_files(std::vector<std::string>{
-            (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "bed_leveling" / "patch.amf").string(),
-            (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "bed_leveling" / "patch.amf").string(),
-            (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "bed_leveling" / "patch.amf").string(),
-            (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "bed_leveling" / "patch.amf").string(),
-            (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "bed_leveling" / "patch.amf").string()},
+            (boost::filesystem::path(Slic3r::resources_dir()) / kCalibrationResourceDirectory / kBedLevelingResourceDirectory / kCalibrationPatchFilename).string(),
+            (boost::filesystem::path(Slic3r::resources_dir()) / kCalibrationResourceDirectory / kBedLevelingResourceDirectory / kCalibrationPatchFilename).string(),
+            (boost::filesystem::path(Slic3r::resources_dir()) / kCalibrationResourceDirectory / kBedLevelingResourceDirectory / kCalibrationPatchFilename).string(),
+            (boost::filesystem::path(Slic3r::resources_dir()) / kCalibrationResourceDirectory / kBedLevelingResourceDirectory / kCalibrationPatchFilename).string(),
+            (boost::filesystem::path(Slic3r::resources_dir()) / kCalibrationResourceDirectory / kBedLevelingResourceDirectory / kCalibrationPatchFilename).string()},
         LoadFileOption::LoadModel | LoadFileOption::DontUpdateDirs);
 
-    assert(objs_idx.size() == 5);
+    assert(objs_idx.size() == kBedLevelPadCount);
     const DynamicPrintConfig* printConfig = this->gui_app->get_tab(Preset::TYPE_FFF_PRINT)->get_config();
     const DynamicPrintConfig* printerConfig = this->gui_app->get_tab(Preset::TYPE_PRINTER)->get_config();
     
@@ -254,16 +273,16 @@ void CalibrationBedDialog::create_geometry(wxCommandEvent& event_args) {
     float zscale = first_layer_height->get_abs_value(nozzle_diameter->get_at(0)) / 0.2;
     //do scaling
     if (xyScale < 0.9 || 1.2 < xyScale) {
-        for (size_t i = 0; i < 5; i++)
+        for (size_t i = 0; i < kBedLevelPadCount; i++)
             model.objects[objs_idx[i]]->scale(xyScale, xyScale, zscale);
     } else {
-        for (size_t i = 0; i < 5; i++)
+        for (size_t i = 0; i < kBedLevelPadCount; i++)
             model.objects[objs_idx[i]]->scale(1, 1, zscale);
     }
 
     /// --- rotate ---
     const ConfigOptionPoints* bed_shape = printerConfig->option<ConfigOptionPoints>("bed_shape");
-    if (bed_shape->size() == 4) {
+    if (bed_shape->size() == kRectangularBedCorners) {
         model.objects[objs_idx[0]]->rotate(PI / 4, { 0,0,1 });
         model.objects[objs_idx[1]]->rotate(5 * PI / 4, { 0,0,1 });
         model.objects[objs_idx[3]]->rotate(3 * PI / 4, { 0,0,1 });
@@ -277,17 +296,18 @@ void CalibrationBedDialog::create_geometry(wxCommandEvent& event_args) {
     //three first will stay with this orientation (top left, middle, bottom right)
     //last two with 90deg (top left, middle, bottom right)
     //get position for patches
-    Vec2d bed_size = BoundingBoxf(bed_shape->get_values()).size();
-    Vec2d bed_min = BoundingBoxf(bed_shape->get_values()).min;
-    float offsetx = 10 + 10 * xyScale;
-    float offsety = 10 + 10 * xyScale;
-    if (bed_shape->size() > 4) {
-        offsetx = bed_size.x() / 2 - bed_size.x() * 1.414 / 4 + 10 * xyScale;
-        offsety = bed_size.y() / 2 - bed_size.y() * 1.414 / 4 + 10 * xyScale;
+    const BoundingBoxf bed_bounds(bed_shape->get_values());
+    const Vec2d bed_size = bed_bounds.size();
+    const Vec2d bed_min = bed_bounds.min;
+    float offsetx = kBedPadMarginBase + kBedPadMarginBase * xyScale;
+    float offsety = kBedPadMarginBase + kBedPadMarginBase * xyScale;
+    if (bed_shape->size() > kRectangularBedCorners) {
+        offsetx = bed_size.x() / 2 - bed_size.x() * 1.414 / 4 + kBedPadMarginBase * xyScale;
+        offsety = bed_size.y() / 2 - bed_size.y() * 1.414 / 4 + kBedPadMarginBase * xyScale;
     }
-    bool large_enough = bed_shape->size() == 4 ?
+    bool large_enough = bed_shape->size() == kRectangularBedCorners ?
         (bed_size.x() > offsetx * 3 && bed_size.y() > offsety * 3) :
-        (bed_size.x() > offsetx * 2 + 10 * xyScale && bed_size.y() > offsety * 2 + 10 * xyScale);
+        (bed_size.x() > offsetx * 2 + kBedPadMarginBase * xyScale && bed_size.y() > offsety * 2 + kBedPadMarginBase * xyScale);
     // note: objects are loaded around bed_size center (because of load_model bool : center_instances_around_point(this->bed.build_volume().bed_center());)
     if (large_enough) {
         ModelInstance *instance = model.objects[objs_idx[0]]->instances.front();
@@ -304,30 +324,32 @@ void CalibrationBedDialog::create_geometry(wxCommandEvent& event_args) {
 
     /// --- main config, please modify object config when possible ---
     DynamicPrintConfig new_print_config = *printConfig; //make a copy
-    new_print_config.set_key_value("complete_objects", new ConfigOptionBool(true));
+    new_print_config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(true));
 
     /// --- custom config ---
-    for (size_t i = 0; i < 5; i++) {
-        model.objects[objs_idx[i]]->config.set_key_value("perimeters", new ConfigOptionInt(2));
-        model.objects[objs_idx[i]]->config.set_key_value("bottom_solid_layers", new ConfigOptionInt(2));
-        model.objects[objs_idx[i]]->config.set_key_value("gap_fill_enabled", new ConfigOptionBool(false));
-        model.objects[objs_idx[i]]->config.set_key_value("first_layer_extrusion_width", new ConfigOptionFloatOrPercent(140, true));
-        model.objects[objs_idx[i]]->config.set_key_value("first_layer_infill_extrusion_width", (new ConfigOptionFloatOrPercent(140, true))->set_can_be_disabled(true));
-        model.objects[objs_idx[i]]->config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipRectilinear));
-        model.objects[objs_idx[i]]->config.set_key_value("infill_filled_bottom", new ConfigOptionBool(true));
+    for (size_t i = 0; i < kBedLevelPadCount; i++) {
+        model.objects[objs_idx[i]]->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(kCalibPerimeters));
+        model.objects[objs_idx[i]]->config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(kCalibBottomSolidLayers));
+        model.objects[objs_idx[i]]->config.set_key_value("gap_fill_enabled", std::make_unique<ConfigOptionBool>(false));
+        model.objects[objs_idx[i]]->config.set_key_value("first_layer_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(140, true));
+        auto first_layer_infill_width = std::make_unique<ConfigOptionFloatOrPercent>(140, true);
+        first_layer_infill_width->set_can_be_disabled(true);
+        model.objects[objs_idx[i]]->config.set_key_value("first_layer_infill_extrusion_width", std::move(first_layer_infill_width));
+        model.objects[objs_idx[i]]->config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipRectilinear));
+        model.objects[objs_idx[i]]->config.set_key_value("infill_filled_bottom", std::make_unique<ConfigOptionBool>(true));
         //disable ironing post-process
-        model.objects[objs_idx[i]]->config.set_key_value("ironing", new ConfigOptionBool(false));
+        model.objects[objs_idx[i]]->config.set_key_value("ironing", std::make_unique<ConfigOptionBool>(false));
     }
-    if (bed_shape->size() == 4) {
-        model.objects[objs_idx[0]]->config.set_key_value("fill_angle", new ConfigOptionFloat(90));
-        model.objects[objs_idx[1]]->config.set_key_value("fill_angle", new ConfigOptionFloat(90));
-        model.objects[objs_idx[2]]->config.set_key_value("fill_angle", new ConfigOptionFloat(45));
-        model.objects[objs_idx[3]]->config.set_key_value("fill_angle", new ConfigOptionFloat(0));
-        model.objects[objs_idx[4]]->config.set_key_value("fill_angle", new ConfigOptionFloat(0));
+    if (bed_shape->size() == kRectangularBedCorners) {
+        model.objects[objs_idx[0]]->config.set_key_value(kFillAngleConfigKey, std::make_unique<ConfigOptionFloat>(90));
+        model.objects[objs_idx[1]]->config.set_key_value(kFillAngleConfigKey, std::make_unique<ConfigOptionFloat>(90));
+        model.objects[objs_idx[2]]->config.set_key_value(kFillAngleConfigKey, std::make_unique<ConfigOptionFloat>(45));
+        model.objects[objs_idx[3]]->config.set_key_value(kFillAngleConfigKey, std::make_unique<ConfigOptionFloat>(0));
+        model.objects[objs_idx[4]]->config.set_key_value(kFillAngleConfigKey, std::make_unique<ConfigOptionFloat>(0));
     } else {
         for (size_t i = 0; i < 3; i++)
         for (size_t i = 3; i < 5; i++)
-            model.objects[objs_idx[i]]->config.set_key_value("fill_angle", new ConfigOptionFloat(135));
+            model.objects[objs_idx[i]]->config.set_key_value(kFillAngleConfigKey, std::make_unique<ConfigOptionFloat>(135));
     }
 
     //update plater
@@ -352,7 +374,7 @@ void CalibrationBedDialog::create_geometry(wxCommandEvent& event_args) {
 
     if (autocenter) {
         //re-enable auto-center after this calibration.
-        gui_app->app_config->set("autocenter", "1");
+        gui_app->app_config->set(kAutocenterConfigKey, "1");
     }
 
     close_dialog();
@@ -387,7 +409,7 @@ void CalibrationBedDialog::create_z_offset_geometry(wxCommandEvent& /*event_args
     }
 
     if (!std::isfinite(center) || !std::isfinite(step) || step <= 0. || step > 0.25 ||
-        center - 4. * step < -2. || center + 4. * step > 2.) {
+        center - 4. * step < -kZOffsetAbsLimitMm || center + 4. * step > kZOffsetAbsLimitMm) {
         show_error(this, _L("Use a positive step no greater than 0.25 mm, with all nine offsets between -2 and 2 mm."));
         return;
     }
@@ -404,9 +426,9 @@ void CalibrationBedDialog::create_z_offset_geometry(wxCommandEvent& /*event_args
     }
 
     constexpr double pad_xy = 30.;
-    constexpr double gap = 3.;
+    constexpr double gap = 3.; // spacing between pads in the 3x3 grid (mm)
     constexpr double pitch = pad_xy + gap;
-    constexpr double grid_span = 3. * pad_xy + 2. * gap;
+    constexpr double grid_span = double(kZOffsetGridSize) * pad_xy + 2. * gap;
 
     const ConfigOptionPoints* bed_shape = printer_config->option<ConfigOptionPoints>("bed_shape");
     if (bed_shape == nullptr || bed_shape->get_values().empty()) {
@@ -425,13 +447,13 @@ void CalibrationBedDialog::create_z_offset_geometry(wxCommandEvent& /*event_args
         return;
     wxGetApp().Yield();
 
-    const bool autocenter = gui_app->app_config->get("autocenter") == "1";
+    const bool autocenter = gui_app->app_config->get(kAutocenterConfigKey) == "1";
     if (autocenter)
-        gui_app->app_config->set("autocenter", "0");
+        gui_app->app_config->set(kAutocenterConfigKey, "0");
 
-    const std::string center_text = Slic3r::to_string_nozero(center, 4);
-    const std::string step_text = Slic3r::to_string_nozero(step, 4);
-    const std::string layer_height_text = Slic3r::to_string_nozero(layer_height, 4);
+    const std::string center_text = Slic3r::to_string_nozero(center, kZOffsetDecimalPlaces);
+    const std::string step_text = Slic3r::to_string_nozero(step, kZOffsetDecimalPlaces);
+    const std::string layer_height_text = Slic3r::to_string_nozero(layer_height, kZOffsetDecimalPlaces);
     gui_app->app_config->set("z_offset_cal_center", center_text);
     gui_app->app_config->set("z_offset_cal_step", step_text);
     gui_app->app_config->set("z_offset_cal_layer_height", layer_height_text);
@@ -450,10 +472,11 @@ void CalibrationBedDialog::create_z_offset_geometry(wxCommandEvent& /*event_args
     object_indices.reserve(positions.size());
 
     for (size_t index = 0; index < positions.size(); ++index) {
-        const int row = int(index / 3);
-        const int column = int(index % 3);
+        const int row = int(index / kZOffsetGridSize);
+        const int column = int(index % kZOffsetGridSize);
+        // Center of 0..8 is index 4 (middle of 3x3).
         const double offset = center + (int(index) - 4) * step;
-        const std::string offset_text = Slic3r::to_string_nozero(offset, 4);
+        const std::string offset_text = Slic3r::to_string_nozero(offset, kZOffsetDecimalPlaces);
         const std::string object_name = "Z" + std::to_string(index + 1) + " " +
             positions[index] + " " + offset_text + " mm";
 
@@ -466,16 +489,16 @@ void CalibrationBedDialog::create_z_offset_geometry(wxCommandEvent& /*event_args
         object->instances.front()->set_offset(Vec3d(x, y, 0.));
         object->ensure_on_bed();
 
-        object->config.set_key_value("layer_height", new ConfigOptionFloat(layer_height));
-        object->config.set_key_value("first_layer_height", new ConfigOptionFloatOrPercent(layer_height, false));
-        object->config.set_key_value("perimeters", new ConfigOptionInt(static_cast<int>(outer_walls)));
-        object->config.set_key_value("top_solid_layers", new ConfigOptionInt(1));
-        object->config.set_key_value("bottom_solid_layers", new ConfigOptionInt(1));
-        object->config.set_key_value("fill_density", new ConfigOptionPercent(100));
-        object->config.set_key_value("infill_filled_bottom", new ConfigOptionBool(true));
-        object->config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipRectilinear));
-        object->config.set_key_value("gap_fill_enabled", new ConfigOptionBool(false));
-        object->config.set_key_value("ironing", new ConfigOptionBool(false));
+        object->config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(layer_height));
+        object->config.set_key_value("first_layer_height", std::make_unique<ConfigOptionFloatOrPercent>(layer_height, false));
+        object->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(static_cast<int>(outer_walls)));
+        object->config.set_key_value("top_solid_layers", std::make_unique<ConfigOptionInt>(1));
+        object->config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(1));
+        object->config.set_key_value("fill_density", std::make_unique<ConfigOptionPercent>(100));
+        object->config.set_key_value("infill_filled_bottom", std::make_unique<ConfigOptionBool>(true));
+        object->config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipRectilinear));
+        object->config.set_key_value("gap_fill_enabled", std::make_unique<ConfigOptionBool>(false));
+        object->config.set_key_value("ironing", std::make_unique<ConfigOptionBool>(false));
 
         const std::string object_gcode =
             "; SuperSlicer-generated Z offset calibration pad " + std::to_string(index + 1) + "\n" +
@@ -483,14 +506,14 @@ void CalibrationBedDialog::create_z_offset_geometry(wxCommandEvent& /*event_args
             "SET_GCODE_OFFSET Z=" + offset_text + " MOVE=0\n" +
             "RESPOND MSG=\"Z offset pad " + std::to_string(index + 1) + ": " +
                 positions[index] + ", offset " + offset_text + " mm, target " + layer_height_text + " mm\"\n";
-        object->config.set_key_value("object_gcode", new ConfigOptionString(object_gcode));
+        object->config.set_key_value("object_gcode", std::make_unique<ConfigOptionString>(object_gcode));
         object_indices.push_back(index);
     }
 
     DynamicPrintConfig new_print_config = *print_config;
-    new_print_config.set_key_value("complete_objects", new ConfigOptionBool(false));
-    new_print_config.set_key_value("brim_width", new ConfigOptionFloat(0.));
-    new_print_config.set_key_value("skirts", new ConfigOptionInt(0));
+    new_print_config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(false));
+    new_print_config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(0.));
+    new_print_config.set_key_value("skirts", std::make_unique<ConfigOptionInt>(0));
 
     // The generated project already injects each Klipper offset. Remove only the legacy script
     // that performed the same injection, while preserving unrelated post-processing scripts.
@@ -500,7 +523,7 @@ void CalibrationBedDialog::create_z_offset_geometry(wxCommandEvent& /*event_args
         for (const std::string& script : scripts->get_values())
             if (script.find("z_offset_test_postprocess.py") == std::string::npos)
                 filtered_scripts.push_back(script);
-        new_print_config.set_key_value("post_process", new ConfigOptionStrings(std::move(filtered_scripts)));
+        new_print_config.set_key_value("post_process", std::make_unique<ConfigOptionStrings>(std::move(filtered_scripts)));
     }
 
     this->gui_app->get_tab(Preset::TYPE_FFF_PRINT)->load_config(new_print_config);
@@ -514,7 +537,7 @@ void CalibrationBedDialog::create_z_offset_geometry(wxCommandEvent& /*event_args
     plat->reslice();
 
     if (autocenter)
-        gui_app->app_config->set("autocenter", "1");
+        gui_app->app_config->set(kAutocenterConfigKey, "1");
 
     close_dialog();
 }

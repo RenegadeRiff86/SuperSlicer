@@ -317,8 +317,8 @@
                 return { {}, failure(ERROR_STALE_REF, "element reference is stale") };
             selected = &found->second;
         } else {
-            for (const auto& [entry_ref, entry] : m_registry) {
-                static_cast<void>(entry_ref);
+            for (const auto& item : m_registry) {
+                const auto& entry = item.second;
                 if (entry.automation_id == automation_id) {
                     selected = &entry;
                     break;

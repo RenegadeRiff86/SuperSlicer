@@ -95,7 +95,7 @@ bool Duet::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, ErrorFn e
 	} else {
 		http.set_post_body(upload_data.source_path);
 	}
-	http.on_complete([&](std::string body, unsigned status) {
+	http.on_complete([&](const std::string& body, unsigned status) {
 			BOOST_LOG_TRIVIAL(debug) << boost::format("Duet: File uploaded: HTTP %1%: %2%") % status % body;
 
 			int err_code = dsf ? (status == 201 ? 0 : 1) : get_err_code_from_body(body);
@@ -117,7 +117,7 @@ bool Duet::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, ErrorFn e
 				}
 			}
 		})
-		.on_error([&](std::string body, std::string error, unsigned status) {
+		.on_error([&](const std::string& body, const std::string& error, unsigned status) {
 			BOOST_LOG_TRIVIAL(error) << boost::format("Duet: Error uploading file: %1%, HTTP %2%, body: `%3%`") % error % status % body;
 			error_fn(format_error(body, error, status));
 			res = false;
@@ -143,14 +143,14 @@ Duet::ConnectionType Duet::connect(wxString &msg) const
 	auto url = get_connect_url(false);
 
 	auto http = Http::get(std::move(url));
-	http.on_error([&](std::string body, std::string error, unsigned status) {
+	http.on_error([&](const std::string& body, const std::string& error, unsigned status) {
 			auto dsfUrl = get_connect_url(true);
 			auto dsfHttp = Http::get(std::move(dsfUrl));
-			dsfHttp.on_error([&](std::string body, std::string error, unsigned status) {
+			dsfHttp.on_error([&](const std::string& body, const std::string& error, unsigned status) {
 					BOOST_LOG_TRIVIAL(error) << boost::format("Duet: Error connecting: %1%, HTTP %2%, body: `%3%`") % error % status % body;
 					msg = format_error(body, error, status);
 				})
-				.on_complete([&](std::string body, unsigned) {
+				.on_complete([&](const std::string& body, unsigned) {
 					try {		
 						pt::ptree root;
 						std::istringstream iss(body);
@@ -168,7 +168,7 @@ Duet::ConnectionType Duet::connect(wxString &msg) const
 				})
 				.perform_sync();
 		})
-		.on_complete([&](std::string body, unsigned) {
+		.on_complete([&](const std::string& body, unsigned) {
 			BOOST_LOG_TRIVIAL(debug) << boost::format("Duet: Got: %1%") % body;
 
 			int err_code = get_err_code_from_body(body);
@@ -203,7 +203,7 @@ void Duet::disconnect(ConnectionType connectionType) const
 			% get_base_url()).str();
 
 	auto http = Http::get(std::move(url));
-	http.on_error([&](std::string body, std::string error, unsigned status) {
+	http.on_error([&](const std::string& body, const std::string& error, unsigned status) {
 		// we don't care about it, if disconnect is not working Duet will disconnect automatically after some time
 		BOOST_LOG_TRIVIAL(error) << boost::format("Duet: Error disconnecting: %1%, HTTP %2%, body: `%3%`") % error % status % body;
 	})
@@ -291,11 +291,11 @@ bool Duet::start_print(wxString &msg, const std::string &filename, ConnectionTyp
 					% filename).str()
 				);
 	}
-	http.on_error([&](std::string body, std::string error, unsigned status) {
+	http.on_error([&](const std::string& body, const std::string& error, unsigned status) {
 			BOOST_LOG_TRIVIAL(error) << boost::format("Duet: Error starting print: %1%, HTTP %2%, body: `%3%`") % error % status % body;
 			msg = format_error(body, error, status);
 		})
-		.on_complete([&](std::string body, unsigned) {
+		.on_complete([&](const std::string& body, unsigned) {
 			BOOST_LOG_TRIVIAL(debug) << boost::format("Duet: Got: %1%") % body;
 			res = true;
 		})

@@ -62,20 +62,18 @@ class PlaterWorker: public Worker {
 
             CursorSetterRAII busycursor{wctl};
             
-            using namespace std::chrono;
-            steady_clock::time_point process_start = steady_clock::now();
+            const std::chrono::steady_clock::time_point process_start = std::chrono::steady_clock::now();
             m_job->process(wctl);
-            steady_clock::time_point process_end = steady_clock::now();
-            m_process_duration = duration_cast<milliseconds>(process_end - process_start).count();
+            const std::chrono::steady_clock::time_point process_end = std::chrono::steady_clock::now();
+            m_process_duration = std::chrono::duration_cast<std::chrono::milliseconds>(process_end - process_start).count();
         }
 
         void finalize(bool canceled, std::exception_ptr &eptr) override
         {
-            using namespace std::chrono;
-            steady_clock::time_point finalize_start = steady_clock::now();
+            const std::chrono::steady_clock::time_point finalize_start = std::chrono::steady_clock::now();
             m_job->finalize(canceled, eptr);
-            steady_clock::time_point finalize_end = steady_clock::now();
-            long long finalize_duration = duration_cast<milliseconds>(finalize_end - finalize_start).count();
+            const std::chrono::steady_clock::time_point finalize_end = std::chrono::steady_clock::now();
+            const long long finalize_duration = std::chrono::duration_cast<std::chrono::milliseconds>(finalize_end - finalize_start).count();
 
             BOOST_LOG_TRIVIAL(info)
                 << std::fixed // do not use scientific notations

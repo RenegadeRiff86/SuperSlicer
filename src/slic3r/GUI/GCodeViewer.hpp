@@ -277,10 +277,14 @@ class GCodeViewer
 
             // count of all item passed into update
             uint64_t total_count;
+            // Values are bucketed by log2, so one bucket per power of two covers the whole
+            // int32 range the scaled values can occupy. has_outliers()/get_ratio() walk these
+            // buckets, so they and the arrays have to agree on the count.
+            static constexpr size_t OutlierBucketCount = 20;
             // total_count per log item
-            uint32_t counts[20];
-            int32_t maxs[20];
-            int32_t mins[20];
+            uint32_t counts[OutlierBucketCount];
+            int32_t maxs[OutlierBucketCount];
+            int32_t mins[OutlierBucketCount];
             
             // set 0 or lower to disable
             int32_t m_user_min = 0;

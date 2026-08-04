@@ -4522,55 +4522,68 @@ void PrintConfigDef::init_fff_params()
             { "z", {  12.,  12. }, {   500.,  200. }, {  0.2,  0.4 } },
             { "e", { 120., 120. }, { 10000., 5000. }, {  2.5,  2.5 } }
         };
+        // Per-axis labels are real UI strings (and xgettext markers). Do not build them
+        // with boost::format + a discarded L() call — that was only silencing unused-result.
+        auto axis_feedrate_label = [](const std::string& name) -> const char* {
+            if (name == "x") return L("Maximum feedrate X");
+            if (name == "y") return L("Maximum feedrate Y");
+            if (name == "z") return L("Maximum feedrate Z");
+            return L("Maximum feedrate E");
+        };
+        auto axis_feedrate_tip = [](const std::string& name) -> const char* {
+            if (name == "x") return L("Maximum feedrate of the X axis");
+            if (name == "y") return L("Maximum feedrate of the Y axis");
+            if (name == "z") return L("Maximum feedrate of the Z axis");
+            return L("Maximum feedrate of the E axis");
+        };
+        auto axis_accel_label = [](const std::string& name) -> const char* {
+            if (name == "x") return L("Maximum acceleration X");
+            if (name == "y") return L("Maximum acceleration Y");
+            if (name == "z") return L("Maximum acceleration Z");
+            return L("Maximum acceleration E");
+        };
+        auto axis_accel_tip = [](const std::string& name) -> const char* {
+            if (name == "x") return L("Maximum acceleration of the X axis");
+            if (name == "y") return L("Maximum acceleration of the Y axis");
+            if (name == "z") return L("Maximum acceleration of the Z axis");
+            return L("Maximum acceleration of the E axis");
+        };
+        auto axis_jerk_label = [](const std::string& name) -> const char* {
+            if (name == "x") return L("Maximum jerk X");
+            if (name == "y") return L("Maximum jerk Y");
+            if (name == "z") return L("Maximum jerk Z");
+            return L("Maximum jerk E");
+        };
+        auto axis_jerk_tip = [](const std::string& name) -> const char* {
+            if (name == "x") return L("Maximum jerk of the X axis");
+            if (name == "y") return L("Maximum jerk of the Y axis");
+            if (name == "z") return L("Maximum jerk of the Z axis");
+            return L("Maximum jerk of the E axis");
+        };
         for (const AxisDefault &axis : axes) {
-            std::string axis_upper = boost::to_upper_copy<std::string>(axis.name);
             // Add the machine feedrate limits for XYZE axes. (M203)
             def = this->add("machine_max_feedrate_" + axis.name, coFloats);
-            def->full_label = (boost::format("Maximum feedrate %1%") % axis_upper).str();
-            static_cast<void>(L("Maximum feedrate X"));
-            static_cast<void>(L("Maximum feedrate Y"));
-            static_cast<void>(L("Maximum feedrate Z"));
-            static_cast<void>(L("Maximum feedrate E"));
+            def->full_label = axis_feedrate_label(axis.name);
             def->category = OptionCategory::limits;
-            def->tooltip  = (boost::format("Maximum feedrate of the %1% axis") % axis_upper).str();
-            static_cast<void>(L("Maximum feedrate of the X axis"));
-            static_cast<void>(L("Maximum feedrate of the Y axis"));
-            static_cast<void>(L("Maximum feedrate of the Z axis"));
-            static_cast<void>(L("Maximum feedrate of the E axis"));
+            def->tooltip  = axis_feedrate_tip(axis.name);
             def->sidetext = L("mm/s");
             def->min = 0;
             def->mode = comAdvancedE | comPrusa;
             def->set_default_value(std::make_unique<ConfigOptionFloats>(axis.max_feedrate));
             // Add the machine acceleration limits for XYZE axes (M201)
             def = this->add("machine_max_acceleration_" + axis.name, coFloats);
-            def->full_label = (boost::format("Maximum acceleration %1%") % axis_upper).str();
-            static_cast<void>(L("Maximum acceleration X"));
-            static_cast<void>(L("Maximum acceleration Y"));
-            static_cast<void>(L("Maximum acceleration Z"));
-            static_cast<void>(L("Maximum acceleration E"));
+            def->full_label = axis_accel_label(axis.name);
             def->category = OptionCategory::limits;
-            def->tooltip  = (boost::format("Maximum acceleration of the %1% axis") % axis_upper).str();
-            static_cast<void>(L("Maximum acceleration of the X axis"));
-            static_cast<void>(L("Maximum acceleration of the Y axis"));
-            static_cast<void>(L("Maximum acceleration of the Z axis"));
-            static_cast<void>(L("Maximum acceleration of the E axis"));
+            def->tooltip  = axis_accel_tip(axis.name);
             def->sidetext = L("mm/s²");
             def->min = 0;
             def->mode = comAdvancedE | comPrusa;
             def->set_default_value(std::make_unique<ConfigOptionFloats>(axis.max_acceleration));
             // Add the machine jerk limits for XYZE axes (M205)
             def = this->add("machine_max_jerk_" + axis.name, coFloats);
-            def->full_label = (boost::format("Maximum jerk %1%") % axis_upper).str();
-            static_cast<void>(L("Maximum jerk X"));
-            static_cast<void>(L("Maximum jerk Y"));
-            static_cast<void>(L("Maximum jerk Z"));
-            static_cast<void>(L("Maximum jerk E"));
+            def->full_label = axis_jerk_label(axis.name);
             def->category = OptionCategory::limits;
-            def->tooltip  = (boost::format("Maximum jerk of the %1% axis") % axis_upper).str();
-            static_cast<void>(L("Maximum jerk of the X axis"));
-            static_cast<void>(L("Maximum jerk of the Y axis"));
-            static_cast<void>(L("Maximum jerk of the Z axis"));
-            static_cast<void>(L("Maximum jerk of the E axis"));
+            def->tooltip  = axis_jerk_tip(axis.name);
             def->sidetext = L("mm/s");
             def->min = 0;
             def->mode = comAdvancedE | comPrusa;

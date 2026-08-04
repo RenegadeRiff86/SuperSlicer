@@ -301,7 +301,7 @@ public:
     void            recreate_GUI(const wxString& message);
     void            system_info();
     void            keyboard_shortcuts();
-    void            change_calibration_dialog(const wxDialog* have_to_destroy = nullptr, wxDialog* new_one = nullptr);
+    void            change_calibration_dialog(const wxDialog* have_to_destroy = nullptr, std::unique_ptr<wxDialog> new_one = nullptr);
     void            html_dialog();
     void            bed_leveling_dialog();
     void            z_offset_calibration_dialog();

@@ -60,14 +60,13 @@ namespace GUI {
 
 View3D::View3D(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig* config, BackgroundSlicingProcess* process)
     : m_canvas_widget(nullptr)
-    , m_canvas(nullptr)
 {
     init(parent, bed, model, config, process);
 }
 
 View3D::~View3D()
 {
-    delete m_canvas;
+    m_canvas.reset();
     delete m_canvas_widget;
 }
 
@@ -85,7 +84,7 @@ bool View3D::init(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig
         return false;
     m_canvas_widget->SetName("superslicer.canvas.3d");
 
-    m_canvas = new GLCanvas3D(m_canvas_widget, bed);
+    m_canvas = std::make_unique<GLCanvas3D>(m_canvas_widget, bed);
     m_canvas->set_context(wxGetApp().init_glcontext(*m_canvas_widget));
 
     m_canvas->allow_multisample(OpenGLManager::can_multisample());
@@ -243,7 +242,7 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
         return false;
     m_canvas_widget->SetName("superslicer.canvas.preview");
 
-    m_canvas = new GLCanvas3D(m_canvas_widget, bed);
+    m_canvas = std::make_unique<GLCanvas3D>(m_canvas_widget, bed);
     m_canvas->set_context(wxGetApp().init_glcontext(*m_canvas_widget));
     m_canvas->allow_multisample(OpenGLManager::can_multisample());
     m_canvas->set_config(m_config);
@@ -292,8 +291,7 @@ Preview::~Preview()
 {
     unbind_event_handlers();
 
-    if (m_canvas != nullptr)
-        delete m_canvas;
+    m_canvas.reset();
 
     if (m_canvas_widget != nullptr)
         delete m_canvas_widget;
@@ -931,7 +929,7 @@ void Preview::load_print_as_fff(bool keep_z_range)
     {
         const ConfigOptionStrings* extruders_opt = dynamic_cast<const ConfigOptionStrings*>(m_config->option("extruder_colour"));
         const ConfigOptionStrings* filamemts_opt = dynamic_cast<const ConfigOptionStrings*>(m_config->option("filament_colour"));
-        unsigned int colors_count = std::max((unsigned int)extruders_opt->size(), (unsigned int)filamemts_opt->size());
+        unsigned int colors_count = std::max(static_cast<unsigned int>(extruders_opt->size()), static_cast<unsigned int>(filamemts_opt->size()));
 
         ColorRGBA rgba;
         for (unsigned int i = 0; i < colors_count; ++i)
@@ -996,7 +994,7 @@ void Preview::load_print_as_fff(bool keep_z_range)
 
         if (!zs.empty() && !m_keep_current_preview_type) {
             unsigned int number_extruders = wxGetApp().is_editor() ?
-                (unsigned int)print->extruders().size() :
+                static_cast<unsigned int>(print->extruders().size()) :
                 m_canvas->get_gcode_extruders_count();
             std::vector<Item> gcodes = wxGetApp().is_editor() ?
                 wxGetApp().plater()->model().custom_gcode_per_print_z.gcodes :
@@ -1052,7 +1050,7 @@ void Preview::load_print_as_sla()
     m_canvas->reset_clipping_planes_cache();
     m_canvas->set_use_clipping_planes(true);
 
-    n_layers = (unsigned int)zs.size();
+    n_layers = static_cast<unsigned int>(zs.size());
     if (n_layers == 0) {
         hide_layers_slider();
         m_canvas_widget->Refresh();

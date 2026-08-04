@@ -187,7 +187,7 @@ void GLGizmoSlaSupports::render_points(const Selection& selection)
     const Transform3d instance_scaling_matrix_inverse = transformation.get_scaling_factor_matrix().inverse();
     const Camera& camera = wxGetApp().plater()->get_camera();
     const Transform3d& view_matrix = camera.get_view_matrix();
-    shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 
     ColorRGBA render_color;
     for (size_t i = 0; i < cache_size; ++i) {
@@ -244,17 +244,17 @@ void GLGizmoSlaSupports::render_points(const Selection& selection)
                 Geometry::translation_transform((CONE_HEIGHT + support_point.head_front_radius * RenderPointScale) * Vec3d::UnitZ()) *
                 Geometry::rotation_transform({ double(PI), 0.0, 0.0 }) * Geometry::scale_transform({ CONE_RADIUS, CONE_RADIUS, CONE_HEIGHT });
 
-            shader->set_uniform("view_model_matrix", view_matrix * model_matrix);
+            shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
             const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-            shader->set_uniform("view_normal_matrix", view_normal_matrix);
+            shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
             m_cone.model.render();
         }
 
-        const double radius = (double)support_point.head_front_radius * RenderPointScale;
+        const double radius = static_cast<double>(support_point.head_front_radius) * RenderPointScale;
         const Transform3d model_matrix = transformation.get_matrix() * support_matrix * Geometry::scale_transform(radius);
-        shader->set_uniform("view_model_matrix", view_matrix * model_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
         const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-        shader->set_uniform("view_normal_matrix", view_normal_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         m_sphere.model.render();
 
         if (transformation.is_left_handed())
@@ -701,14 +701,14 @@ RENDER_AGAIN:
         }
         if (slider_edited) {
             mo->config.set("support_points_minimal_distance", minimal_point_distance);
-            mo->config.set("support_points_density_relative", (int)density);
+            mo->config.set("support_points_density_relative", static_cast<int>(density));
         }
         if (slider_released) {
             mo->config.set("support_points_minimal_distance", m_minimal_point_distance_stash);
-            mo->config.set("support_points_density_relative", (int)m_density_stash);
+            mo->config.set("support_points_density_relative", static_cast<int>(m_density_stash));
             Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L("Support parameter change"));
             mo->config.set("support_points_minimal_distance", minimal_point_distance);
-            mo->config.set("support_points_density_relative", (int)density);
+            mo->config.set("support_points_density_relative", static_cast<int>(density));
             wxGetApp().obj_list()->update_and_show_object_settings_item();
         }
 
@@ -1234,7 +1234,7 @@ void GLGizmoSlaSupports::update_point_raycasters_for_picking_transform()
                 Vec3d(PI, 0.0, 0.0), Vec3d(CONE_RADIUS, CONE_RADIUS, CONE_HEIGHT));
         m_point_raycasters[i].second->set_transform(cone_matrix);
 
-        const double radius = (double)m_editing_cache[i].support_point.head_front_radius * RenderPointScale;
+        const double radius = static_cast<double>(m_editing_cache[i].support_point.head_front_radius) * RenderPointScale;
         const Transform3d sphere_matrix = transformation.get_matrix() * support_matrix * Geometry::scale_transform(radius);
         m_point_raycasters[i].first->set_transform(sphere_matrix);
     }

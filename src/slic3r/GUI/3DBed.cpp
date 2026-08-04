@@ -138,7 +138,7 @@ bool Bed3D::set_shape(const Pointfs& bed_shape, const double max_print_height, c
     if (!bbox.defined)
         throw RuntimeError(std::string("Invalid bed shape"));
     // Keep a slightly expanded polygon for tolerant edge hit-testing and projection.
-    m_polygon = offset(m_contour.contour, (float)bbox.radius() * 1.7f, jtRound, scale_(0.5)).front();
+    m_polygon = offset(m_contour.contour, static_cast<float>(bbox.radius()) * 1.7f, jtRound, scale_(0.5)).front();
 
     m_triangles.reset();
     m_gridlines.reset();
@@ -336,7 +336,7 @@ void Bed3D::init_gridlines()
 	    for (const Slic3r::Line& l : grid_lines) {
 	        init_data.add_vertex(Vec3f(unscale<float>(l.a.x()), unscale<float>(l.a.y()), GROUND_Z));
 	        init_data.add_vertex(Vec3f(unscale<float>(l.b.x()), unscale<float>(l.b.y()), GROUND_Z));
-	        const unsigned int vertices_counter = (unsigned int)init_data.vertices_count();
+	        const unsigned int vertices_counter = static_cast<unsigned int>(init_data.vertices_count());
 	        init_data.add_line(vertices_counter - 2, vertices_counter - 1);
 	    }
 
@@ -366,7 +366,7 @@ void Bed3D::init_contourlines()
     for (const Slic3r::Line& l : contour_lines) {
         init_data.add_vertex(Vec3f(unscale<float>(l.a.x()), unscale<float>(l.a.y()), GROUND_Z));
         init_data.add_vertex(Vec3f(unscale<float>(l.b.x()), unscale<float>(l.b.y()), GROUND_Z));
-        const unsigned int vertices_counter = (unsigned int)init_data.vertices_count();
+        const unsigned int vertices_counter = static_cast<unsigned int>(init_data.vertices_count());
         init_data.add_line(vertices_counter - 2, vertices_counter - 1);
     }
 
@@ -468,8 +468,8 @@ void Bed3D::render_camera_grid(const Transform3d &view_matrix,
 
         Transform3d translate = Geometry::translation_transform(Vec3d(0,0,camera_z));
         Transform3d finalmat = view_matrix * translate;
-        shader->set_uniform("view_model_matrix", finalmat);
-        shader->set_uniform("projection_matrix", projection_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, finalmat);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, projection_matrix);
 
         glsafe(::glEnable(GL_DEPTH_TEST));
         glsafe(::glEnable(GL_BLEND));
@@ -560,8 +560,8 @@ void Bed3D::render_texture(bool bottom, GLCanvas3D& canvas, const Transform3d& v
     GLShaderProgram* shader = wxGetApp().get_shader("printbed");
     if (shader != nullptr) {
         shader->start_using();
-        shader->set_uniform("view_model_matrix", view_matrix);
-        shader->set_uniform("projection_matrix", projection_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, projection_matrix);
         shader->set_uniform("transparent_background", bottom);
         shader->set_uniform("svg_source", boost::algorithm::iends_with(m_texture.get_source(), ".svg"));
 
@@ -637,10 +637,10 @@ void Bed3D::render_model(const Transform3d& view_matrix, const Transform3d& proj
             shader->start_using();
             shader->set_uniform("emission_factor", 0.0f);
             const Transform3d model_matrix = Geometry::translation_transform(m_model_offset);
-            shader->set_uniform("view_model_matrix", view_matrix * model_matrix);
-            shader->set_uniform("projection_matrix", projection_matrix);
+            shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
+            shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, projection_matrix);
             const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-            shader->set_uniform("view_normal_matrix", view_normal_matrix);
+            shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
             m_model.model.render();
             shader->stop_using();
         }
@@ -688,8 +688,8 @@ void Bed3D::render_default(bool bottom, bool picking, bool show_texture, const T
     if (shader != nullptr) {
         shader->start_using();
 
-        shader->set_uniform("view_model_matrix", view_matrix);
-        shader->set_uniform("projection_matrix", projection_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, projection_matrix);
 
         glsafe(::glEnable(GL_DEPTH_TEST));
         glsafe(::glEnable(GL_BLEND));
@@ -721,8 +721,8 @@ void Bed3D::render_contour(const Transform3d& view_matrix, const Transform3d& pr
     GLShaderProgram* shader = wxGetApp().get_shader("flat");
     if (shader != nullptr) {
         shader->start_using();
-        shader->set_uniform("view_model_matrix", view_matrix);
-        shader->set_uniform("projection_matrix", projection_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, projection_matrix);
 
         glsafe(::glEnable(GL_DEPTH_TEST));
         glsafe(::glEnable(GL_BLEND));

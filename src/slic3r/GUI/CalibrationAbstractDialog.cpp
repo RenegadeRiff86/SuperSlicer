@@ -32,8 +32,11 @@ static wxSize get_screen_size(wxWindow* window)
 namespace Slic3r {
 namespace GUI {
 
+// Parented to the main frame rather than NULL: an unparented top-level dialog is not a
+// descendant of mainframe, and the automation server's snapshot_roots() only picks up
+// non-modal dialogs that are, so every calibration dialog was invisible to UI automation.
 CalibrationAbstractDialog::CalibrationAbstractDialog(GUI_App* app, MainFrame* mainframe, std::string name)
-        : DPIDialog(NULL, wxID_ANY, wxString(SLIC3R_APP_NAME) + " - " + _(L(name)),
+        : DPIDialog(mainframe, wxID_ANY, wxString(SLIC3R_APP_NAME) + " - " + _(L(name)),
 #if ENABLE_SCROLLABLE
         wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER
 #else
@@ -185,8 +188,13 @@ void CalibrationAbstractDialog::fit_to_content()
         bound = screen;
 
     // Widen first: fixed-width content (e.g. tables) would otherwise force a horizontal
-    // scrollbar, and a wider page also rewraps to a shorter one.
-    const int extra_width = content->GetWidth() - html_viewer->GetClientSize().x;
+    // scrollbar, and a wider page also rewraps to a shorter one. The controls row is a floor
+    // as well as the page - it is laid out horizontally and does not wrap, so a row wider than
+    // the help page would otherwise have its right-hand controls clipped by the dialog edge.
+    const int decorations_x = GetSize().x - GetClientSize().x;
+    const int controls_width = GetSizer()->CalcMin().x + decorations_x;
+    const int extra_width = std::max(content->GetWidth() - html_viewer->GetClientSize().x,
+                                     controls_width - GetSize().x);
     if (extra_width > 0) {
         const int target_width = std::min(GetSize().x + extra_width, bound.width);
         if (target_width != GetSize().x) {
@@ -262,8 +270,8 @@ void CalibrationAbstractDialog::add_part(ModelObject* model_object, std::string 
             //volumes_info.push_back(std::make_pair(from_u8(new_volume->name), new_volume->get_mesh_errors_count() > 0));
 
             // set a default extruder value, since user can't add it manually
-            new_volume->config.set_key_value("extruder", new ConfigOptionInt(0));
-            new_volume->config.set_key_value("first_layer_extruder", new ConfigOptionInt(0));
+            new_volume->config.set_key_value("extruder", std::make_unique<ConfigOptionInt>(0));
+            new_volume->config.set_key_value("first_layer_extruder", std::make_unique<ConfigOptionInt>(0));
 
             //move to bed
             /* const TriangleMesh& hull = new_volume->get_convex_hull();

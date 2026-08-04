@@ -17,6 +17,10 @@ from pathlib import Path
 
 
 CENTER_DIVISOR = 2
+# Poll / animation delays (seconds).
+VIEW_READY_POLL_S = 0.5
+ZOOM_SCROLL_DELAY_S = 0.05
+CENTER_RATIO = 0.5  # default zoom focus
 Desktop = import_module("pywinauto").Desktop
 
 
@@ -112,7 +116,7 @@ def select_main_view(window, view: str, slice_model: bool, timeout: float) -> No
             viewer_sliders(window)
             return
         except (RuntimeError, LookupError):
-            time.sleep(0.5)
+            time.sleep(VIEW_READY_POLL_S)
     raise TimeoutError(f"Integrated {title} did not become ready within {timeout:g} seconds")
 
 
@@ -160,7 +164,7 @@ def zoom_view(window, notches: float, focus_x: float, focus_y: float) -> None:
     for _ in range(int(abs(notches))):
         # The G-code viewer zooms toward the cursor, so keep the pointer on the focus point.
         mouse.scroll(coords=(x, y), wheel_dist=step)
-        time.sleep(0.05)
+        time.sleep(ZOOM_SCROLL_DELAY_S)
 
 
 def manipulation_edits(window):
@@ -183,14 +187,14 @@ def manipulation_edits(window):
 
 def set_rotation(window, axis: int, degrees: float) -> None:
     # Select every object so the sidebar manipulation fields are active.
-    window.type_keys("^a", pause=0.05)
-    time.sleep(0.5)
+    window.type_keys("^a", pause=ZOOM_SCROLL_DELAY_S)
+    time.sleep(VIEW_READY_POLL_S)
     # Sidebar row order: Position, Rotation, Scale factors, Size [World].
     field = manipulation_edits(window)[1][axis]
     field.click_input()
-    field.type_keys("^a", pause=0.05)
-    field.type_keys(f"{degrees:g}", with_spaces=False, pause=0.05)
-    field.type_keys("{ENTER}", pause=0.05)
+    field.type_keys("^a", pause=ZOOM_SCROLL_DELAY_S)
+    field.type_keys(f"{degrees:g}", with_spaces=False, pause=ZOOM_SCROLL_DELAY_S)
+    field.type_keys("{ENTER}", pause=ZOOM_SCROLL_DELAY_S)
     # Give the plater time to apply the transform and re-arrange.
     time.sleep(1.5)
 
@@ -252,7 +256,7 @@ def export_gcode(window, out_path, timeout: float) -> None:
         name_edit.set_edit_text(str(out_path))
     except Exception:
         name_edit.click_input()
-        name_edit.type_keys("^a{DEL}", pause=0.05)
+        name_edit.type_keys("^a{DEL}", pause=ZOOM_SCROLL_DELAY_S)
         name_edit.type_keys(str(out_path), with_spaces=True, pause=0.01)
     time.sleep(0.3)
     save_button = next(
@@ -269,7 +273,7 @@ def export_gcode(window, out_path, timeout: float) -> None:
             if out_path.stat().st_size == size:
                 print(f"exported={out_path}")
                 return
-        time.sleep(0.5)
+        time.sleep(VIEW_READY_POLL_S)
     raise TimeoutError(f"exported G-code did not appear: {out_path}")
 
 
@@ -324,8 +328,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--layer-ratio", type=ratio, help="Visible upper layer, 0=bottom and 1=top")
     parser.add_argument("--move-ratio", type=ratio, help="Visible toolpath progress, 0=start and 1=end")
     parser.add_argument("--zoom", type=float, default=None, help="Zoom the 3D view by N mouse-wheel notches (positive=in, negative=out)")
-    parser.add_argument("--zoom-x", type=ratio, default=0.5, help="Horizontal focus point for zoom within the window, 0=left 1=right (default 0.5)")
-    parser.add_argument("--zoom-y", type=ratio, default=0.5, help="Vertical focus point for zoom within the window, 0=top 1=bottom (default 0.5)")
+    parser.add_argument("--zoom-x", type=ratio, default=CENTER_RATIO, help="Horizontal focus point for zoom within the window, 0=left 1=right (default 0.5)")
+    parser.add_argument("--zoom-y", type=ratio, default=CENTER_RATIO, help="Vertical focus point for zoom within the window, 0=top 1=bottom (default 0.5)")
     parser.add_argument("--screenshot", type=Path, help="Save the controlled viewer window as PNG")
     parser.add_argument(
         "--export-gcode",
@@ -395,10 +399,10 @@ def main() -> int:
                 args.window_width,
                 args.window_height,
             )
-            time.sleep(0.5)
+            time.sleep(VIEW_READY_POLL_S)
         if args.window_state is not None and args.window_state != "minimized":
             set_window_state(window, args.window_state)
-            time.sleep(0.5)
+            time.sleep(VIEW_READY_POLL_S)
 
         if args.main_window and args.rotate_x is not None:
             set_rotation(window, 0, args.rotate_x)

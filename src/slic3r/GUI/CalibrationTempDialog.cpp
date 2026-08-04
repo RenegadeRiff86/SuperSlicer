@@ -154,15 +154,15 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
 
     /// --- main config, please modify object config when possible ---
     DynamicPrintConfig new_print_config = *print_config; //make a copy
-    new_print_config.set_key_value("complete_objects", new ConfigOptionBool(false));
+    new_print_config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(false));
     
     /// -- generate the heat change gcode
     //std::string str_layer_gcode = "{if layer_num > 0 and layer_z  <= " + std::to_string(2 * xyzScale) + "}\nM104 S" + std::to_string(temperature - (int8_t)nb_delta * 5);
     //    double print_z, std::string gcode,int extruder, std::string color
     double firstChangeHeight = print_config->get_abs_value("first_layer_height", nozzle_diameter);
     //model.custom_gcode_per_print_z.gcodes.emplace_back(CustomGCode::Item{ firstChangeHeight + nozzle_diameter/2, CustomGCode::Type::Custom, -1, "", "M104 S" + std::to_string(temperature) + " ; ground floor temp tower set" });
-    model.objects[objs_idx[0]]->config.set_key_value("print_temperature", new ConfigOptionInt(temperature));
-    model.objects[objs_idx[0]]->config.set_key_value("print_first_layer_temperature", new ConfigOptionInt(first_layer_temperature));
+    model.objects[objs_idx[0]]->config.set_key_value("print_temperature", std::make_unique<ConfigOptionInt>(temperature));
+    model.objects[objs_idx[0]]->config.set_key_value("print_first_layer_temperature", std::make_unique<ConfigOptionInt>(first_layer_temperature));
     for (int16_t i = 1; size_t(i) < nb_items; i++) {
         model.custom_gcode_per_print_z.gcodes.emplace_back(CustomGCode::Item{ (i * 10 * xyzScale), CustomGCode::Type::Custom , -1, "",
           "M104 S" + std::to_string(temperature - i * step_temp) + " ; floor " + std::to_string(i) + " of the temp tower set" });
@@ -170,28 +170,28 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
     }
     //str_layer_gcode += "\n{endif}\n";
     //DynamicPrintConfig new_printer_config = *printerConfig; //make a copy
-    //new_printer_config.set_key_value("layer_gcode", new ConfigOptionString(str_layer_gcode));
+    //new_printer_config.set_key_value("layer_gcode", std::make_unique<ConfigOptionString>(str_layer_gcode));
 
     /// --- custom config ---
     float brim_width = print_config->option<ConfigOptionFloat>("brim_width")->value;
     if (brim_width < nozzle_diameter * 8) {
-        model.objects[objs_idx[0]]->config.set_key_value("brim_width", new ConfigOptionFloat(nozzle_diameter * 8));
+        model.objects[objs_idx[0]]->config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(nozzle_diameter * 8));
     }
-    model.objects[objs_idx[0]]->config.set_key_value("brim_ears", new ConfigOptionBool(false));
-    model.objects[objs_idx[0]]->config.set_key_value("perimeters", new ConfigOptionInt(1));
-    model.objects[objs_idx[0]]->config.set_key_value("extra_perimeters_on_overhangs", new ConfigOptionBool(true));
-    model.objects[objs_idx[0]]->config.set_key_value("bottom_solid_layers", new ConfigOptionInt(2));
-    model.objects[objs_idx[0]]->config.set_key_value("top_solid_layers", new ConfigOptionInt(3)); 
-    model.objects[objs_idx[0]]->config.set_key_value("gap_fill_enabled", new ConfigOptionBool(false)); 
-    model.objects[objs_idx[0]]->config.set_key_value("thin_perimeters", new ConfigOptionPercent(100));
-    model.objects[objs_idx[0]]->config.set_key_value("layer_height", new ConfigOptionFloat(nozzle_diameter / 2));
-    model.objects[objs_idx[0]]->config.set_key_value("fill_density", new ConfigOptionPercent(7));
-    model.objects[objs_idx[0]]->config.set_key_value("solid_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipRectilinear));
-    model.objects[objs_idx[0]]->config.set_key_value("infill_filled_solid", new ConfigOptionBool(true));
-    model.objects[objs_idx[0]]->config.set_key_value("top_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipRectilinear));
-    model.objects[objs_idx[0]]->config.set_key_value("infill_filled_bottom", new ConfigOptionBool(true));
+    model.objects[objs_idx[0]]->config.set_key_value("brim_ears", std::make_unique<ConfigOptionBool>(false));
+    model.objects[objs_idx[0]]->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(1));
+    model.objects[objs_idx[0]]->config.set_key_value("extra_perimeters_on_overhangs", std::make_unique<ConfigOptionBool>(true));
+    model.objects[objs_idx[0]]->config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(2));
+    model.objects[objs_idx[0]]->config.set_key_value("top_solid_layers", std::make_unique<ConfigOptionInt>(3)); 
+    model.objects[objs_idx[0]]->config.set_key_value("gap_fill_enabled", std::make_unique<ConfigOptionBool>(false)); 
+    model.objects[objs_idx[0]]->config.set_key_value("thin_perimeters", std::make_unique<ConfigOptionPercent>(100));
+    model.objects[objs_idx[0]]->config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(nozzle_diameter / 2));
+    model.objects[objs_idx[0]]->config.set_key_value("fill_density", std::make_unique<ConfigOptionPercent>(7));
+    model.objects[objs_idx[0]]->config.set_key_value("solid_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipRectilinear));
+    model.objects[objs_idx[0]]->config.set_key_value("infill_filled_solid", std::make_unique<ConfigOptionBool>(true));
+    model.objects[objs_idx[0]]->config.set_key_value("top_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipRectilinear));
+    model.objects[objs_idx[0]]->config.set_key_value("infill_filled_bottom", std::make_unique<ConfigOptionBool>(true));
     //disable ironing post-process, it only slow down things
-    model.objects[objs_idx[0]]->config.set_key_value("ironing", new ConfigOptionBool(false));
+    model.objects[objs_idx[0]]->config.set_key_value("ironing", std::make_unique<ConfigOptionBool>(false));
 
     //update plater
     //GLCanvas3D::set_warning_freeze(false);

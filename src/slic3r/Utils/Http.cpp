@@ -50,14 +50,17 @@ namespace Slic3r {
 		Slic3r::Http::get(url)
 			.on_progress([](Http::Progress, bool& cancel) {
 				})
-			.on_error([&](std::string body, std::string error, unsigned http_status) {
-					(void)body;
-					BOOST_LOG_TRIVIAL(error) << boost::format("Error getting: `%1%`: HTTP %2%, %3%")
+			.on_error([&](const std::string& body, const std::string& error, unsigned http_status) {
+					// Include a short body snippet — many servers put the real reason there
+					// (HTML error page, JSON message) while curl's error string is generic.
+					const std::string body_snip = body.size() > 200 ? body.substr(0, 200) + "..." : body;
+					BOOST_LOG_TRIVIAL(error) << boost::format("Error getting: `%1%`: HTTP %2%, %3%, body: `%4%`")
 						% url
 						% http_status
-						% error;
+						% error
+						% body_snip;
 			})
-			.on_complete([&](std::string body, unsigned /* http_status */) {
+			.on_complete([&](const std::string& body, unsigned /* http_status */) {
 				boost::nowide::fstream file(tmp_path.string(), std::ios::out | std::ios::binary | std::ios::trunc);
 				file.write(body.c_str(), body.size());
 				file.close();
@@ -175,7 +178,9 @@ struct Http::priv
 	static bool ca_file_supported(::CURL *curl);
 	static size_t writecb(void *data, size_t size, size_t nmemb, void *userp);
 	static int xfercb(void *userp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow);
+#if !(LIBCURL_VERSION_MAJOR >= 7 && LIBCURL_VERSION_MINOR >= 32)
 	static int xfercb_legacy(void *userp, double dltotal, double dlnow, double ultotal, double ulnow);
+#endif
 	static size_t form_file_read_cb(char *buffer, size_t size, size_t nitems, void *userp);
 
 	void set_timeout_connect(long timeout);
@@ -276,10 +281,12 @@ int Http::priv::xfercb(void *userp, curl_off_t dltotal, curl_off_t dlnow, curl_o
 	return self->cancel;
 }
 
+#if !(LIBCURL_VERSION_MAJOR >= 7 && LIBCURL_VERSION_MINOR >= 32)
 int Http::priv::xfercb_legacy(void *userp, double dltotal, double dlnow, double ultotal, double ulnow)
 {
 	return xfercb(userp, dltotal, dlnow, ultotal, ulnow);
 }
+#endif
 
 size_t Http::priv::form_file_read_cb(char *buffer, size_t size, size_t nitems, void *userp)
 {
@@ -375,7 +382,7 @@ void Http::priv::set_put_body(const fs::path &path)
 	}
 
 	request_setup_error.clear();
-	::curl_easy_setopt(curl, CURLOPT_READDATA, (void *) (file.get()));
+	::curl_easy_setopt(curl, CURLOPT_READDATA, static_cast<void*>(file.get()));
 		::curl_easy_setopt(curl, CURLOPT_INFILESIZE, filesize);
 		putFile = std::move(file);
 }
@@ -409,13 +416,14 @@ void Http::priv::http_perform()
 
 	::curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
 #if LIBCURL_VERSION_MAJOR >= 7 && LIBCURL_VERSION_MINOR >= 32
+	// Modern curl: curl_off_t progress callback.
 	::curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, xfercb);
 	::curl_easy_setopt(curl, CURLOPT_XFERINFODATA, static_cast<void*>(this));
-#ifndef _WIN32
-	(void)xfercb_legacy;   // prevent unused function warning
-#endif
 #else
-	::curl_easy_setopt(curl, CURLOPT_PROGRESSFUNCTION, xfercb);
+	// Pre-7.32 curl: double progress callback — xfercb_legacy just forwards to xfercb.
+	// (Previously this branch wired xfercb itself, which is the wrong signature, and
+	// silenced xfercb_legacy as unused instead of using it.)
+	::curl_easy_setopt(curl, CURLOPT_PROGRESSFUNCTION, xfercb_legacy);
 	::curl_easy_setopt(curl, CURLOPT_PROGRESSDATA, static_cast<void*>(this));
 #endif
 
@@ -479,7 +487,7 @@ void Http::priv::http_perform()
 	}
 }
 
-Http::Http(const std::string &url) : p(new priv(url)) {}
+Http::Http(const std::string &url) : p(std::make_unique<priv>(url)) {}
 
 
 // Public

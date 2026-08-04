@@ -44,27 +44,38 @@ struct TokenTable {
     float toolbar_collapse_gap_px;
 };
 
+// Design tokens, one row per [platform][density]. The values are tabulated data, not
+// independent constants: the same number means a different token in different rows
+// (0.40 is space_lg_em on Windows but space_md_em on macOS), so they are labelled here
+// rather than folded into shared named constants that would imply a coupling.
+//
+// Column order follows TokenTable above:
+//   line 1 - space xs/sm/md/lg, radius sm/md, stroke thin,
+//            notebook button margin, notebook line margin, notebook min height   (em)
+//   line 2 - settings row gap, horizontal gap, sidebar width, group margin,
+//            group padding, scroll step (em); toolbar border, separator,
+//            main gap, view gap, collapse gap (px)
 constexpr std::array<std::array<TokenTable, 2>, 3> TOKEN_TABLE = {{
     // Windows
     {{
-        {0.10, 0.20, 0.30, 0.40, 0.20, 0.30, 0.10, 0.30, 0.10, 2.40,
-         1.15, 0.35, 22.0, 0.75, 0.55, 2.40, 5.0f, 5.0f, 4.0f, 1.0f, 2.0f},
-        {0.08, 0.15, 0.23, 0.30, 0.16, 0.24, 0.08, 0.23, 0.08, 1.80,
-         0.80, 0.20, 19.0, 0.45, 0.35, 1.80, 4.0f, 4.0f, 3.0f, 1.0f, 1.0f}
+        {0.10, 0.20, 0.30, 0.40, 0.20, 0.30, 0.10, 0.30, 0.10, 2.40,        // comfortable, em
+         1.15, 0.35, 22.0, 0.75, 0.55, 2.40, 5.0f, 5.0f, 4.0f, 1.0f, 2.0f}, // comfortable, em then px
+        {0.08, 0.15, 0.23, 0.30, 0.16, 0.24, 0.08, 0.23, 0.08, 1.80,        // compact, em
+         0.80, 0.20, 19.0, 0.45, 0.35, 1.80, 4.0f, 4.0f, 3.0f, 1.0f, 1.0f}  // compact, em then px
     }},
     // macOS
     {{
-        {0.12, 0.24, 0.40, 0.50, 0.22, 0.34, 0.10, 0.40, 0.10, 2.40,
-         1.20, 0.40, 22.0, 0.80, 0.60, 2.40, 5.0f, 5.0f, 4.0f, 1.0f, 2.0f},
-        {0.09, 0.18, 0.30, 0.38, 0.17, 0.26, 0.08, 0.30, 0.08, 1.80,
-         0.85, 0.25, 19.0, 0.50, 0.40, 1.80, 4.0f, 4.0f, 3.0f, 1.0f, 1.0f}
+        {0.12, 0.24, 0.40, 0.50, 0.22, 0.34, 0.10, 0.40, 0.10, 2.40,        // comfortable, em
+         1.20, 0.40, 22.0, 0.80, 0.60, 2.40, 5.0f, 5.0f, 4.0f, 1.0f, 2.0f}, // comfortable, em then px
+        {0.09, 0.18, 0.30, 0.38, 0.17, 0.26, 0.08, 0.30, 0.08, 1.80,        // compact, em
+         0.85, 0.25, 19.0, 0.50, 0.40, 1.80, 4.0f, 4.0f, 3.0f, 1.0f, 1.0f}  // compact, em then px
     }},
     // Linux and others
     {{
-        {0.12, 0.24, 0.40, 0.50, 0.22, 0.34, 0.10, 0.40, 0.10, 2.40,
-         1.20, 0.40, 22.0, 0.80, 0.60, 2.40, 5.0f, 5.0f, 4.0f, 1.0f, 2.0f},
-        {0.09, 0.18, 0.30, 0.38, 0.17, 0.26, 0.08, 0.30, 0.08, 1.80,
-         0.85, 0.25, 19.0, 0.50, 0.40, 1.80, 4.0f, 4.0f, 3.0f, 1.0f, 1.0f}
+        {0.12, 0.24, 0.40, 0.50, 0.22, 0.34, 0.10, 0.40, 0.10, 2.40,        // comfortable, em
+         1.20, 0.40, 22.0, 0.80, 0.60, 2.40, 5.0f, 5.0f, 4.0f, 1.0f, 2.0f}, // comfortable, em then px
+        {0.09, 0.18, 0.30, 0.38, 0.17, 0.26, 0.08, 0.30, 0.08, 1.80,        // compact, em
+         0.85, 0.25, 19.0, 0.50, 0.40, 1.80, 4.0f, 4.0f, 3.0f, 1.0f, 1.0f}  // compact, em then px
     }}
 }};
 

@@ -351,7 +351,7 @@ void SLAPrint::Steps::hollow_model(SLAPrintObject &po)
     if (!interior || sla::get_mesh(*interior).empty())
         BOOST_LOG_TRIVIAL(warning) << "Hollowed interior is empty!";
     else {
-        po.m_hollowing_data.reset(new SLAPrintObject::HollowingData());
+        po.m_hollowing_data = std::make_unique<SLAPrintObject::HollowingData>();
         po.m_hollowing_data->interior = std::move(interior);
 
         indexed_triangle_set &m = sla::get_mesh(*po.m_hollowing_data->interior);

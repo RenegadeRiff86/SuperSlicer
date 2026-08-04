@@ -86,7 +86,7 @@ public:
     static const Registry& get_instance()
     {
         if (!registry)
-            registry.reset(new Registry());
+            registry.reset(new Registry()); // Private constructor: std::make_unique cannot access it.
 
         return *registry;
     }

@@ -129,8 +129,8 @@ MedialAxis::polyline_from_voronoi(const ExPolygon& voronoi_polygon, ThickPolylin
         polyline.points_width.push_back(thickness[edge].second);
 
         // remove this edge and its twin from the available edges
-        static_cast<void>(edges.erase(edge));
-        static_cast<void>(edges.erase(edge->twin()));
+        edges.erase(edge);
+        edges.erase(edge->twin());
 
         // get next points
         this->process_edge_neighbors(edge, &polyline, edges, valid_edges, thickness);
@@ -200,8 +200,8 @@ MedialAxis::process_edge_neighbors(const VD::edge_type* edge, ThickPolyline* pol
             polyline->points.push_back(new_point);
             polyline->points_width.push_back(thickness[neighbor].second);
 
-            static_cast<void>(edges.erase(neighbor));
-            static_cast<void>(edges.erase(neighbor->twin()));
+            edges.erase(neighbor);
+            edges.erase(neighbor->twin());
             edge = neighbor;
         } else if (neighbors.size() == 0) {
             polyline->endpoints.second = true;
@@ -217,7 +217,8 @@ bool
 MedialAxis::validate_edge(const VD::edge_type* edge, Lines& lines, const ExPolygon& expolygon_touse, std::map<const VD::edge_type*, std::pair<coordf_t, coordf_t> >& thickness)
 {
     // not relevant anymore... prusa has removed the (1 << 17) from clipper
-    const double CLIPPER_MAX_COORD_UNSCALED = 0x3FFFFFFFFFFFFFFFLL / (1 << 17);
+    // Divide in floating point so the limit is not truncated by integer division.
+    const double CLIPPER_MAX_COORD_UNSCALED = double(0x3FFFFFFFFFFFFFFFLL) / double(1 << 17);
     // prevent overflows and detect almost-infinite edges
     if (std::abs(edge->vertex0()->x()) > double(CLIPPER_MAX_COORD_UNSCALED) ||
         std::abs(edge->vertex0()->y()) > double(CLIPPER_MAX_COORD_UNSCALED) ||
@@ -646,10 +647,13 @@ MedialAxis::remove_bits(ThickPolylines& pp) const
         }
         if (crosspoint.size() < 2) continue;  // need at least 2 crossing branches
 
-        //check if is smaller or the other ones are not endpoits
+        //check if is smaller or the other ones are not endpoints
         int nb_better_than_me = 0;
-        for (size_t i = 0; i < crosspoint.size(); i++) {
-            if (!pp[crosspoint[0]].endpoints.second || length <= pp[crosspoint[0]].length())
+        for (size_t j = 0; j < crosspoint.size(); j++) {
+            // Compare against EACH crossing branch — not crosspoint[0] alone (that made the
+            // count loop-invariant: always 0 or crosspoint.size()). The next loop already
+            // indexes crosspoint[j] correctly for local_max_width.
+            if (!pp[crosspoint[j]].endpoints.second || length <= pp[crosspoint[j]].length())
                 nb_better_than_me++;
         }
         if (nb_better_than_me < 2) continue;  // need to be worse than at least 2 neighbors to remove
@@ -920,7 +924,9 @@ MedialAxis::extends_line(ThickPolyline& polyline, const ExPolygons& anchors, con
             p_obj.y() /= 2;  // midpoint of the two candidate points
             Line l2 = Line(new_back, p_obj);
             l2.extend_end((coordf_t)this->m_max_width);
-            static_cast<void>(this->m_bounds->contour.first_intersection(l2, &new_bound));
+            // No boundary hit → leave the polyline as-is rather than inventing a point.
+            if (!this->m_bounds->contour.first_intersection(l2, &new_bound))
+                return;
         }
         if (new_bound.coincides_with_epsilon(new_back))
             return;
@@ -1017,7 +1023,7 @@ MedialAxis::evaluate_fusion_candidate(ThickPolylines& pp, size_t i, size_t j, do
     //note that this isn't the real calcul. It's just to avoid merging lines too far apart.
     if (
         ((polyline.points.back().distance_to(other.points.back())
-            + (polyline.points_width.back() + other.points_width.back()) / 4)  // average width contribution, halved twice (approx quarter)
+            + (polyline.points_width.back() + other.points_width.back()) / 4.0)  // average width contribution, halved twice (approx quarter)
     > this->m_max_width * 1.05))
         return false;
     // test if the lines are not too different in length.
@@ -1032,7 +1038,7 @@ MedialAxis::evaluate_fusion_candidate(ThickPolylines& pp, size_t i, size_t j, do
     if (other.points_width.back() == 0) {
         coeffSizeOtherJ = 0.1 + 0.9 * get_coeff_from_angle_countour(other.points.back(), this->m_expolygon, std::min(this->m_min_width, (coord_t)(polyline.length() / 2)));  // 10% floor + 90% angle-based weight
     }
-    if (abs(polyline.length() * coeffSizePolyI - other.length() * coeffSizeOtherJ) > (coordf_t)(this->m_max_width / 2)) return false;  // half max-width tolerance
+    if (abs(polyline.length() * coeffSizePolyI - other.length() * coeffSizeOtherJ) > coordf_t(this->m_max_width) / 2) return false;  // half max-width tolerance
 
     //compute angle to see if it's better than previous ones (straighter = better).
     //we need to add how strait we are from our main.
@@ -1703,7 +1709,6 @@ MedialAxis::remove_too_short_polylines(ThickPolylines& pp) const
     changes = true;
     while (changes) {
         changes = false;
-        size_t shortest_idx = -1;
         for (size_t polyidx = 0; polyidx < pp.size(); ++polyidx) {
             ThickPolyline& tp = pp[polyidx];
             for (size_t pt_idx = 1; pt_idx < tp.points.size() - 1; pt_idx++) {
@@ -1753,12 +1758,11 @@ MedialAxis::ensure_not_overextrude(ThickPolylines& pp)
 {
     //ensure the volume extruded is correct for what we have been asked
     // => don't over-extrude
-    double surface = 0;
     double volume = 0;
     for (ThickPolyline& polyline : pp) {
         for (ThickLine& l : polyline.thicklines()) {
-            surface += l.length() * (l.a_width + l.b_width) / 2;  // average of the two endpoint widths
-            coord_t width_mean = (l.a_width + l.b_width) / 2;  // average of the two endpoint widths
+            // Floating mean width: integer /2 would truncate thin segments.
+            const double width_mean = (double(l.a_width) + double(l.b_width)) / 2.0;
             volume += this->m_height * (width_mean - this->m_height * (1. - 0.25 * PI)) * l.length();
         }
     }

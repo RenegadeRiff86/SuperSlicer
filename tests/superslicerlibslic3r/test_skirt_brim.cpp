@@ -20,7 +20,7 @@ SCENARIO("skirt test by merill", "") {
         config.set_deserialize("fill_density", "0");
         config.set_deserialize("perimeters", "1");
         config.set_deserialize("complete_objects", "0");
-        config.set_key_value("gcode_comments", new ConfigOptionBool(true));
+        config.set_key_value("gcode_comments", std::make_unique<ConfigOptionBool>(true));
 
         WHEN("skirt with 3 layers is requested") {
             config.set_deserialize("skirts", "1");
@@ -61,7 +61,7 @@ SCENARIO("skirt test by merill", "") {
                 REQUIRE(layers_with_brim.size() == 0);
             }
             THEN("skirt_height is honored") {
-                REQUIRE(layers_with_skirt.size() == (size_t)config.opt_int("skirt_height"));
+                REQUIRE(layers_with_skirt.size() == static_cast<size_t>(c)onfig.opt_int("skirt_height"));
             }
         }
 
@@ -104,7 +104,7 @@ SCENARIO("skirt test by merill", "") {
                 REQUIRE(layers_with_brim.size() == 1);
             }
             THEN("skirt_height is honored") {
-                REQUIRE(layers_with_skirt.size() == (size_t)config.opt_int("skirt_height"));
+                REQUIRE(layers_with_skirt.size() == static_cast<size_t>(c)onfig.opt_int("skirt_height"));
             }
         }
 
@@ -200,7 +200,7 @@ SCENARIO("skirt test by merill", "") {
                 REQUIRE(layers_with_brim.size() == 0);
             }
             THEN("skirt_height is honored") {
-                REQUIRE(layers_with_skirt.size() == (size_t)config.opt_int("skirt_height"));
+                REQUIRE(layers_with_skirt.size() == static_cast<size_t>(c)onfig.opt_int("skirt_height"));
             }
         }
 
@@ -243,7 +243,7 @@ SCENARIO("skirt test by merill", "") {
                 REQUIRE(layers_with_brim.size() == 1);
             }
             THEN("skirt_height is honored") {
-                REQUIRE(layers_with_skirt.size() == (size_t)config.opt_int("skirt_height"));
+                REQUIRE(layers_with_skirt.size() == static_cast<size_t>(c)onfig.opt_int("skirt_height"));
             }
         }
 
@@ -327,7 +327,7 @@ SCENARIO("Original Slic3r Skirt/Brim tests", "[!mayfail]") {
             clean_file(gcode_filepath, "gcode");
 
             THEN("skirt_height is honored") {
-                REQUIRE(layers_with_skirt.size() == (size_t)config.opt_int("skirt_height"));
+                REQUIRE(layers_with_skirt.size() == static_cast<size_t>(c)onfig.opt_int("skirt_height"));
             }
         }
     }

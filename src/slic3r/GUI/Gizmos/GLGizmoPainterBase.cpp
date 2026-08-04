@@ -103,10 +103,10 @@ void GLGizmoPainterBase::render_triangles(const Selection& selection) const
 
         const Camera& camera = wxGetApp().plater()->get_camera();
         const Transform3d& view_matrix = camera.get_view_matrix();
-        shader->set_uniform("view_model_matrix", view_matrix * trafo_matrix);
-        shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * trafo_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
         const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * trafo_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-        shader->set_uniform("view_normal_matrix", view_normal_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
 
         // For printers with multiple extruders, it is necessary to pass trafo_matrix
         // to the shader input variable print_box.volume_world_matrix before
@@ -190,7 +190,7 @@ void GLGizmoPainterBase::render_cursor_circle()
 
         GLModel::Geometry init_data;
 #if ENABLE_GL_CORE_PROFILE || ENABLE_OPENGL_ES
-        const unsigned int StepsCount = (unsigned int)(2 * (4 + int(252 * (zoom - 1.0f) / (250.0f - 1.0f))));
+        const unsigned int StepsCount = static_cast<unsigned int>(2 * (4 + int(252 * (zoom - 1.0f) / (250.0f - 1.0f))));
         const float StepSize = 2.0f * float(PI) / float(StepsCount);
         init_data.format = { GLModel::Geometry::EPrimitiveType::Lines, GLModel::Geometry::EVertexLayout::P2 };
 #else
@@ -237,11 +237,11 @@ void GLGizmoPainterBase::render_cursor_circle()
 #if ENABLE_GL_CORE_PROFILE || ENABLE_OPENGL_ES
         const Transform3d view_model_matrix = Geometry::translation_transform(Vec3d(2.0f * (center.x() * cnv_inv_width - 0.5f), -2.0f * (center.y() * cnv_inv_height - 0.5f), 0.0)) *
             Geometry::scale_transform(Vec3d(2.0f * radius * cnv_inv_width, 2.0f * radius * cnv_inv_height, 1.0f));
-        shader->set_uniform("view_model_matrix", view_model_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_model_matrix);
 #else
-        shader->set_uniform("view_model_matrix", Transform3d::Identity());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, Transform3d::Identity());
 #endif // ENABLE_GL_CORE_PROFILE || ENABLE_OPENGL_ES
-        shader->set_uniform("projection_matrix", Transform3d::Identity());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, Transform3d::Identity());
 #if ENABLE_GL_CORE_PROFILE
         const std::array<int, 4>& viewport = wxGetApp().plater()->get_camera().get_viewport();
         shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
@@ -285,8 +285,8 @@ void GLGizmoPainterBase::render_cursor_sphere(const Transform3d& trafo) const
         Geometry::translation_transform(m_rr.hit.cast<double>()) * complete_scaling_matrix_inverse *
         Geometry::scale_transform(m_cursor_radius * Vec3d::Ones());
 
-    shader->set_uniform("view_model_matrix", view_model_matrix);
-    shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_model_matrix);
+    shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 
     const bool is_left_handed = Geometry::Transformation(view_model_matrix).is_left_handed();
     if (is_left_handed)
@@ -948,7 +948,7 @@ void TriangleSelectorGUI::update_render_data()
         iva.add_vertex(v0 + offset_n, n);
         iva.add_vertex(v1 + offset_n, n);
         iva.add_vertex(v2 + offset_n, n);
-        iva.add_triangle((unsigned int)cnt, (unsigned int)cnt + 1, (unsigned int)cnt + 2);
+        iva.add_triangle(static_cast<unsigned int>(cnt), static_cast<unsigned int>(cnt) + 1, static_cast<unsigned int>(cnt) + 2);
         cnt += 3;
     }
 
@@ -1050,8 +1050,8 @@ void TriangleSelectorGUI::render_debug(ImGuiWrapper* imgui)
         shader->start_using();
 
         const Camera& camera = wxGetApp().plater()->get_camera();
-        shader->set_uniform("view_model_matrix", camera.get_view_matrix());
-        shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 
     ::glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
     for (vtype i : {ORIGINAL, SPLIT, INVALID}) {
@@ -1109,8 +1109,8 @@ void TriangleSelectorGUI::render_paint_contour(const Transform3d& matrix)
 
         contour_shader->set_uniform("offset", OpenGLManager::get_gl_info().is_mesa() ? 0.0005 : 0.00001);
         const Camera& camera = wxGetApp().plater()->get_camera();
-        contour_shader->set_uniform("view_model_matrix", camera.get_view_matrix() * matrix);
-        contour_shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+        contour_shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix() * matrix);
+        contour_shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 
         m_paint_contour.render();
         contour_shader->stop_using();

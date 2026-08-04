@@ -146,7 +146,7 @@ void GLGizmoHollow::render_points(const Selection& selection)
     const Transform3d instance_scaling_matrix_inverse = transformation.get_scaling_factor_matrix().inverse();
     const Camera& camera = wxGetApp().plater()->get_camera();
     const Transform3d& view_matrix = camera.get_view_matrix();
-    shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 
     ColorRGBA render_color;
     const sla::DrainHoles& drain_holes = m_c->selection_info()->model_object()->sla_drain_holes;
@@ -180,9 +180,9 @@ void GLGizmoHollow::render_points(const Selection& selection)
         const Eigen::AngleAxisd aa(q);
         const Transform3d model_matrix = trafo * hole_matrix * Transform3d(aa.toRotationMatrix()) *
             Geometry::translation_transform(-drain_hole.height * Vec3d::UnitZ()) * Geometry::scale_transform(Vec3d(drain_hole.radius, drain_hole.radius, drain_hole.height + sla::HoleStickOutLength));
-        shader->set_uniform("view_model_matrix", view_matrix * model_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
         const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-        shader->set_uniform("view_normal_matrix", view_normal_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         m_cylinder.model.render();
 
         if (transformation.is_left_handed())
@@ -451,7 +451,7 @@ void GLGizmoHollow::register_hole_raycasters_for_picking()
     const CommonGizmosDataObjects::SelectionInfo* info = m_c->selection_info();
     if (info != nullptr && !info->model_object()->sla_drain_holes.empty()) {
         const sla::DrainHoles& drain_holes = info->model_object()->sla_drain_holes;
-        for (int i = 0; i < (int)drain_holes.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(drain_holes.size()); ++i) {
             m_hole_raycasters.emplace_back(m_parent.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, i, *m_cylinder.mesh_raycaster, Transform3d::Identity()));
         }
         update_hole_raycasters_for_picking_transform();

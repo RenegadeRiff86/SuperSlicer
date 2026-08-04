@@ -104,7 +104,14 @@ def command_tab(client: ApiClient, args: argparse.Namespace) -> None:
 
 
 def command_invoke(client: ApiClient, args: argparse.Namespace) -> None:
-    print(client.invoke(args.automation_id))
+    # Automation ids are not unique: an unnamed control falls back to its wx class
+    # name, so a dialog routinely exposes several elements all called "button" and
+    # the bare id hits whichever comes first. --label picks by visible text, which
+    # is the only thing that actually distinguishes them.
+    if args.label is not None:
+        print(client.invoke(args.automation_id, name=args.label))
+    else:
+        print(client.invoke(args.automation_id))
     settle(client, args)
 
 
@@ -283,6 +290,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     invoke_parser = commands.add_parser("invoke", help="invoke any element")
     invoke_parser.add_argument("automation_id")
+    invoke_parser.add_argument(
+        "--label",
+        help="disambiguate by the element's visible text, e.g. --label '&Cancel'; "
+             "needed whenever several elements share an automation_id",
+    )
     add_wait_flags(invoke_parser)
     invoke_parser.set_defaults(handler=command_invoke)
 

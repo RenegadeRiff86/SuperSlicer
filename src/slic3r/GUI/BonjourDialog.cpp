@@ -6,6 +6,7 @@
 
 #include "BonjourDialog.hpp"
 
+#include <memory>
 #include <set>
 #include <mutex>
 
@@ -61,9 +62,9 @@ struct LifetimeGuard
 BonjourDialog::BonjourDialog(wxWindow *parent, Slic3r::PrinterTechnology tech)
 	: wxDialog(parent, wxID_ANY, _(L("Network lookup")), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER)
 	, list(new wxListView(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT|wxSIMPLE_BORDER))
-	, replies(new ReplySet)
+	, replies(std::make_unique<ReplySet>())
 	, label(new wxStaticText(this, wxID_ANY, ""))
-	, timer(new wxTimer())
+	, timer(std::make_unique<wxTimer>())
 	, timer_state(0)
 	, tech(tech)
 {
@@ -135,16 +136,16 @@ bool BonjourDialog::show_and_lookup()
 			std::lock_guard<std::mutex> lock_guard(dguard->mutex);
 			auto dialog = dguard->dialog;
 			if (dialog != nullptr) {
-				auto evt = new BonjourReplyEvent(EVT_BONJOUR_REPLY, dialog->GetId(), std::move(reply));
-				wxQueueEvent(dialog, evt);
+				auto evt = std::make_unique<BonjourReplyEvent>(EVT_BONJOUR_REPLY, dialog->GetId(), std::move(reply));
+				wxQueueEvent(dialog, evt.release());
 			}
 		})
 		.on_complete([dguard]() {
 			std::lock_guard<std::mutex> lock_guard(dguard->mutex);
 			auto dialog = dguard->dialog;
 			if (dialog != nullptr) {
-				auto evt = new wxCommandEvent(EVT_BONJOUR_COMPLETE, dialog->GetId());
-				wxQueueEvent(dialog, evt);
+				auto evt = std::make_unique<wxCommandEvent>(EVT_BONJOUR_COMPLETE, dialog->GetId());
+				wxQueueEvent(dialog, evt.release());
 			}
 		})
 		.lookup();
@@ -186,7 +187,7 @@ void BonjourDialog::on_reply(BonjourReplyEvent &e)
 	auto selected = get_selected();
 
 	wxWindowUpdateLocker freeze_guard(this);
-	(void)freeze_guard;
+	
 
 	list->DeleteAllItems();
 
@@ -280,7 +281,7 @@ IPListDialog::~IPListDialog()
 void IPListDialog::EndModal(int retCode)
 {
 	if (retCode == wxID_OK) {
-		m_selected_index = (size_t)m_list->GetFirstSelected();
+		m_selected_index = static_cast<size_t>(m_list->GetFirstSelected());
 	}
 	wxDialog::EndModal(retCode);
 }

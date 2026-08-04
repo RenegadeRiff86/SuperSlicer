@@ -2703,7 +2703,7 @@ void GCodeGenerator::process_layers(
         if (fan_mover.get() == nullptr) {
             const bool slowdown_overhang_fan = config.overhangs_fan_speedup_slowdown.value
                 || (config.fan_kickstart.value > 0 && config.fan_speedup_time.value != 0);
-            fan_mover.reset(new Slic3r::FanMover(
+            fan_mover = std::make_unique<Slic3r::FanMover>(
                 writer,
                 std::abs(static_cast<float>(config.fan_speedup_time.value)),
                 config.fan_speedup_time.value > 0,
@@ -2712,7 +2712,7 @@ void GCodeGenerator::process_layers(
                 static_cast<float>(config.fan_kickstart.value),
                 slowdown_overhang_fan,
                 static_cast<float>(config.overhangs_speed.value),
-                config.overhangs_speed.percent));
+                config.overhangs_speed.percent);
         }
         //flush as it's a whole layer
         this->m_throw_if_canceled();
@@ -2857,7 +2857,7 @@ void GCodeGenerator::process_layers(
         if (fan_mover.get() == nullptr) {
             const bool slowdown_overhang_fan = config.overhangs_fan_speedup_slowdown.value
                 || (config.fan_kickstart.value > 0 && config.fan_speedup_time.value != 0);
-            fan_mover.reset(new Slic3r::FanMover(
+            fan_mover = std::make_unique<Slic3r::FanMover>(
                 writer,
                 std::abs(static_cast<float>(config.fan_speedup_time.value)),
                 config.fan_speedup_time.value > 0,
@@ -2866,7 +2866,7 @@ void GCodeGenerator::process_layers(
                 static_cast<float>(config.fan_kickstart.value),
                 slowdown_overhang_fan,
                 static_cast<float>(config.overhangs_speed.value),
-                config.overhangs_speed.percent));
+                config.overhangs_speed.percent);
         }
         this->m_throw_if_canceled();
         //flush as it's a whole layer
@@ -7701,7 +7701,17 @@ double GCodeGenerator::_pressure_advance_acceleration(const ExtrusionPath& path,
     // Evaluated at the FINAL speed, unlike the pre-cap evaluation _compute_speed_mm_per_sec used to
     // pick that speed; with adaptive PA a slower move gets a smaller K, so this can only ever allow
     // more acceleration than was assumed there, never less.
-    const double pressure_advance = _compute_pressure_advance(path, speed_mm_s).first;
+    double pressure_advance = _compute_pressure_advance(path, speed_mm_s).first;
+    if (pressure_advance <= 0 && config().gcode_flavor.value == gcfKlipper) {
+        // Nothing is emitted for this move, but the printer still applies whatever its own
+        // [extruder] section configures, and machine_klipper_pressure_advance is where the user
+        // records that. Without this the solve assumes PA = 0 and reserves no headroom for an
+        // overshoot the printer really does produce - the one setup this setting exists to
+        // describe. Deliberately kept out of _compute_pressure_advance: that value is what gets
+        // emitted, and the printer needs no SET_PRESSURE_ADVANCE for a value it already holds.
+        // Mirrors the fallback _klipper_pa_smooth_time() already applies to smooth time.
+        pressure_advance = m_config.machine_klipper_pressure_advance.value;
+    }
     if (pressure_advance <= 0)
         return acceleration;
     // Only ever lower what the profile asked for. A move whose speed the solver above capped gets

@@ -23,23 +23,16 @@ public:
     void close_me_wrapper(wxCommandEvent& event);
     
 protected:
-    enum class CalibrationStyle : int {
-        ClassicLineSweep = 0,
-        SegmentedLineSweep = 1
-    };
-
     void create_buttons(wxStdDialogButtonSizer* sizer) override;
     void create_row_controls(wxBoxSizer* parent_sizer, int row_count);
     void create_geometry(wxCommandEvent& event_args);
     void on_row_change(wxCommandEvent& event);
     void on_smooth_time_toggle(wxCommandEvent& event);
     std::pair<std::vector<double>, int> calc_PA_values(int id_item);
-    double magical_scaling(double, double, double, double, double, double, double );
+    double magical_scaling(double, double, double, double, double);
 
     //i've set choice boxes for now just to save me typing numbers in when i want to test it :)
     wxComboBox* nbRuns = nullptr;
-    wxChoice* m_style_choice{ nullptr };
-    CalibrationStyle m_selected_style{ CalibrationStyle::SegmentedLineSweep };
 
     std::vector<wxComboBox*> dynamicFirstPa;      //first layer PA -user manual entry
     std::vector<wxComboBox*> dynamicStartPa;      //starting PA value -user manual entry

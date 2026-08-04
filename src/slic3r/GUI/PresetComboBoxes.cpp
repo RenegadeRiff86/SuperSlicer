@@ -159,7 +159,7 @@ void PresetComboBox::OnSelect(wxCommandEvent& evt)
         auto selected_item = evt.GetSelection();
 
         //protected as selected_item is often at a weird value
-        if (selected_item < (int)this->GetCount() && selected_item >= 0) {
+        if (selected_item < static_cast<int>(this->GetCount()) && selected_item >= 0) {
             auto marker = reinterpret_cast<Marker>(this->GetClientData(selected_item));
             if (marker >= LABEL_ITEM_DISABLED && marker < LABEL_ITEM_MAX)
                 this->SetSelection(m_last_selected);
@@ -184,7 +184,7 @@ BitmapCache& PresetComboBox::bitmap_cache()
 
 void PresetComboBox::set_label_marker(int item, LabelItemType label_item_type)
 {
-    this->SetClientData(item, (void*)label_item_type);
+    this->SetClientData(item, reinterpret_cast<void*>(static_cast<intptr_t>(label_item_type)));
 }
 
 bool PresetComboBox::set_printer_technology(PrinterTechnology pt)
@@ -239,7 +239,7 @@ void PresetComboBox::update_selection()
 
     if (!cell) return;
 
-    g_object_set(G_OBJECT(cell), "ellipsize", PANGO_ELLIPSIZE_END, (char*)NULL);
+    g_object_set(G_OBJECT(cell), "ellipsize", PANGO_ELLIPSIZE_END, static_cast<char*>(nullptr));
 
     // Only the list of cells must be freed, the renderer isn't ours to free
     g_list_free(cells);
@@ -876,7 +876,7 @@ void PlaterPresetComboBox::update()
 {
     if (m_type == Preset::TYPE_FFF_FILAMENT &&
         (m_preset_bundle->printers.get_edited_preset().printer_technology() == ptSLA ||
-        m_preset_bundle->extruders_filaments.size() <= (size_t)m_extruder_idx) )
+        m_preset_bundle->extruders_filaments.size() <= static_cast<size_t>(m_extruder_idx)) )
         return;
 
     // Otherwise fill in the list from scratch.

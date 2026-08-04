@@ -129,7 +129,7 @@ SceneRaycaster::HitResult SceneRaycaster::hit(const Vec2d& mouse_pos, const Came
                 return false;
 
             if (hit.type == SceneRaycaster::EType::Volume)
-                m_selected_volume_already_found = *m_selected_volume_id == (unsigned int)decode_id(hit.type, hit.raycaster_id);
+                m_selected_volume_already_found = *m_selected_volume_id == static_cast<unsigned int>(decode_id(hit.type, hit.raycaster_id));
 
             m_closest_hit_pos = hit.position;
             return true;
@@ -214,11 +214,11 @@ void SceneRaycaster::render_hit(const Camera& camera)
     GLShaderProgram* shader = wxGetApp().get_shader("flat");
     shader->start_using();
 
-    shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 
     const Transform3d sphere_view_model_matrix = camera.get_view_matrix() * Geometry::translation_transform((*m_last_hit).position.cast<double>()) *
         Geometry::scale_transform(4.0 * camera.get_inv_zoom());
-    shader->set_uniform("view_model_matrix", sphere_view_model_matrix);
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, sphere_view_model_matrix);
     m_sphere.render();
 
     Eigen::Quaterniond q;
@@ -226,7 +226,7 @@ void SceneRaycaster::render_hit(const Camera& camera)
     m.matrix().block(0, 0, 3, 3) = q.setFromTwoVectors(Vec3d::UnitZ(), (*m_last_hit).normal.cast<double>()).toRotationMatrix();
 
     const Transform3d line_view_model_matrix = sphere_view_model_matrix * m * Geometry::scale_transform(10.0);
-    shader->set_uniform("view_model_matrix", line_view_model_matrix);
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, line_view_model_matrix);
     m_line.render();
 
     shader->stop_using();

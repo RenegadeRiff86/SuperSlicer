@@ -27,14 +27,14 @@ Button::Button()
     : paddingSize(10, 8)
 {
     background_color = StateColor(
-        std::make_pair(0xF0F0F0, (int) StateColor::Disabled),
-        std::make_pair(0x37EE7C, (int) StateColor::Hovered | StateColor::Checked),
-        std::make_pair(0x00AE42, (int) StateColor::Checked),
-        std::make_pair(*wxLIGHT_GREY, (int) StateColor::Hovered), 
-        std::make_pair(*wxWHITE, (int) StateColor::Normal));
+        std::make_pair(0xF0F0F0, static_cast<int>(StateColor::Disabled)),
+        std::make_pair(0x37EE7C, static_cast<int>(StateColor::Hovered) | StateColor::Checked),
+        std::make_pair(0x00AE42, static_cast<int>(StateColor::Checked)),
+        std::make_pair(*wxLIGHT_GREY, static_cast<int>(StateColor::Hovered)), 
+        std::make_pair(*wxWHITE, static_cast<int>(StateColor::Normal)));
     text_color       = StateColor(
-        std::make_pair(*wxLIGHT_GREY, (int) StateColor::Disabled), 
-        std::make_pair(*wxBLACK, (int) StateColor::Normal));
+        std::make_pair(*wxLIGHT_GREY, static_cast<int>(StateColor::Disabled)), 
+        std::make_pair(*wxBLACK, static_cast<int>(StateColor::Normal)));
 }
 
 Button::Button(wxWindow* parent, wxString text, wxString icon, long style, wxSize iconSize/* = wxSize(16, 16)*/)
@@ -157,8 +157,8 @@ void Button::render(wxDC& dc)
     wxSize szContent = textSize;
 
     ScalableBitmap icon;
-    if (m_selected || ((states & (int)StateColor::State::Hovered) != 0))
-//    if (m_selected || (states & (int)StateColor::State::Hovered))
+    if (m_selected || ((states & static_cast<int>(StateColor::State::Hovered)) != 0))
+//    if (m_selected || (states & static_cast<int>(StateColor::State::Hovered)))
         icon = active_icon;
     else
         icon = inactive_icon;

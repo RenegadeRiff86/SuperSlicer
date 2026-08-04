@@ -4,6 +4,7 @@
 ///|/
 #include "DownloaderFileGet.hpp"
 
+#include <memory>
 #include <thread>
 #include <curl/curl.h>
 #include <boost/nowide/fstream.hpp>
@@ -148,20 +149,20 @@ void FileGet::priv::get_perform()
 			{
 				++version;
 				if (version > 999) {
-					wxCommandEvent* evt = new wxCommandEvent(EVT_DWNLDR_FILE_ERROR);
+					auto evt = std::make_unique<wxCommandEvent>(EVT_DWNLDR_FILE_ERROR);
 					evt->SetString(GUI::format_wxstr(L"Failed to find suitable filename. Last name: %1%." , (m_dest_folder / (final_filename + extension)).string()));
 					evt->SetInt(m_id);
-					m_evt_handler->QueueEvent(evt);
+					m_evt_handler->QueueEvent(evt.release());
 					return;
 				}
 				final_filename = GUI::format("%1%(%2%)", just_filename, std::to_string(version));
 			}
 		} catch (const boost::filesystem::filesystem_error& e)
 		{
-			wxCommandEvent* evt = new wxCommandEvent(EVT_DWNLDR_FILE_ERROR);
+			auto evt = std::make_unique<wxCommandEvent>(EVT_DWNLDR_FILE_ERROR);
 			evt->SetString(e.what());
 			evt->SetInt(m_id);
-			m_evt_handler->QueueEvent(evt);
+			m_evt_handler->QueueEvent(evt.release());
 			return;
 		}
 		
@@ -169,10 +170,10 @@ void FileGet::priv::get_perform()
 
 		m_tmp_path = m_dest_folder / (m_filename + "." + std::to_string(get_current_pid()) + ".download");
 
-		wxCommandEvent* evt = new wxCommandEvent(EVT_DWNLDR_FILE_NAME_CHANGE);
+		auto evt = std::make_unique<wxCommandEvent>(EVT_DWNLDR_FILE_NAME_CHANGE);
 		evt->SetString(boost::nowide::widen(m_filename));
 		evt->SetInt(m_id);
-		m_evt_handler->QueueEvent(evt);
+		m_evt_handler->QueueEvent(evt.release());
 	}
 	
 	boost::filesystem::path dest_path = m_dest_folder / m_filename;
@@ -193,11 +194,11 @@ void FileGet::priv::get_perform()
 
 	//assert(file != NULL);
 	if (file == NULL) {
-		wxCommandEvent* evt = new wxCommandEvent(EVT_DWNLDR_FILE_ERROR);
+		auto evt = std::make_unique<wxCommandEvent>(EVT_DWNLDR_FILE_ERROR);
 		// TRN %1% = file path
 		evt->SetString(GUI::format_wxstr(_L("Can't create file at %1%"), temp_path_wstring));
 		evt->SetInt(m_id);
-		m_evt_handler->QueueEvent(evt);
+		m_evt_handler->QueueEvent(evt.release());
 		return;
 	}
 
@@ -221,9 +222,9 @@ void FileGet::priv::get_perform()
 				std::remove(m_tmp_path.string().c_str());
 				m_written = 0;
 				cancel = true;
-				wxCommandEvent* evt = new wxCommandEvent(EVT_DWNLDR_FILE_CANCELED);
+				auto evt = std::make_unique<wxCommandEvent>(EVT_DWNLDR_FILE_CANCELED);
 				evt->SetInt(m_id);
-				m_evt_handler->QueueEvent(evt);
+				m_evt_handler->QueueEvent(evt.release());
 				return;
 				// TODO: send canceled event?
 			}		
@@ -233,9 +234,9 @@ void FileGet::priv::get_perform()
 				cancel = true;
 				if (m_written == 0)
 					std::remove(m_tmp_path.string().c_str());
-				wxCommandEvent* evt = new wxCommandEvent(EVT_DWNLDR_FILE_PAUSED);
+				auto evt = std::make_unique<wxCommandEvent>(EVT_DWNLDR_FILE_PAUSED);
 				evt->SetInt(m_id);
-				m_evt_handler->QueueEvent(evt);
+				m_evt_handler->QueueEvent(evt.release());
 				return;
 			}
 			
@@ -253,36 +254,36 @@ void FileGet::priv::get_perform()
 					catch (const std::exception& e)
 					{
 						// fclose(file); do it?
-						wxCommandEvent* evt = new wxCommandEvent(EVT_DWNLDR_FILE_ERROR);
+						auto evt = std::make_unique<wxCommandEvent>(EVT_DWNLDR_FILE_ERROR);
 						evt->SetString(e.what());
 						evt->SetInt(m_id);
-						m_evt_handler->QueueEvent(evt);
+						m_evt_handler->QueueEvent(evt.release());
 						cancel = true;
 						return;
 					}
 					written_this_session = progress.dlnow;
 					m_written = written_previously + written_this_session;
 				}
-				wxCommandEvent* evt = new wxCommandEvent(EVT_DWNLDR_FILE_PROGRESS);
+				auto evt = std::make_unique<wxCommandEvent>(EVT_DWNLDR_FILE_PROGRESS);
 				int percent_total = (written_previously + progress.dlnow) * 100 / m_absolute_size;
 				evt->SetString(std::to_string(percent_total));
 				evt->SetInt(m_id);
-				m_evt_handler->QueueEvent(evt);
+				m_evt_handler->QueueEvent(evt.release());
 			}
 			
 		})
-		.on_error([&](std::string body, std::string error, unsigned http_status) {
+		.on_error([&](const std::string& body, const std::string& error, unsigned http_status) {
 			if (file != NULL)
 				fclose(file);
-			wxCommandEvent* evt = new wxCommandEvent(EVT_DWNLDR_FILE_ERROR);
+			auto evt = std::make_unique<wxCommandEvent>(EVT_DWNLDR_FILE_ERROR);
 			if (!error.empty())
 				evt->SetString(GUI::from_u8(error));
 			else
 				evt->SetString(GUI::from_u8(body));
 			evt->SetInt(m_id);
-			m_evt_handler->QueueEvent(evt);
+			m_evt_handler->QueueEvent(evt.release());
 		})
-		.on_complete([&](std::string body, unsigned /* http_status */) {
+		.on_complete([&](const std::string& body, unsigned /* http_status */) {
 
 			// TODO: perform a body size check
 			// 
@@ -307,24 +308,24 @@ void FileGet::priv::get_perform()
 			{
 				//TODO: report?
 				//error_message = GUI::format("Failed to write and move %1% to %2%", tmp_path, dest_path);
-				wxCommandEvent* evt = new wxCommandEvent(EVT_DWNLDR_FILE_ERROR);
+				auto evt = std::make_unique<wxCommandEvent>(EVT_DWNLDR_FILE_ERROR);
 				evt->SetString("Failed to write and move.");
 				evt->SetInt(m_id);
-				m_evt_handler->QueueEvent(evt);
+				m_evt_handler->QueueEvent(evt.release());
 				return;
 			}
 
-			wxCommandEvent* evt = new wxCommandEvent(EVT_DWNLDR_FILE_COMPLETE);
+			auto evt = std::make_unique<wxCommandEvent>(EVT_DWNLDR_FILE_COMPLETE);
 			evt->SetString(dest_path.wstring());
 			evt->SetInt(m_id);
-			m_evt_handler->QueueEvent(evt);
+			m_evt_handler->QueueEvent(evt.release());
 		})
 		.perform_sync();
 
 }
 
 FileGet::FileGet(int ID, std::string url, const std::string& filename, wxEvtHandler* evt_handler, const boost::filesystem::path& dest_folder)
-	: p(new priv(ID, std::move(url), filename, evt_handler, dest_folder))
+	: p(std::make_unique<priv>(ID, std::move(url), filename, evt_handler, dest_folder))
 {}
 
 FileGet::FileGet(FileGet&& other) : p(std::move(other.p)) {}
@@ -359,9 +360,9 @@ void FileGet::cancel()
 		if (p->m_io_thread.joinable()) {
 			p->m_cancel = true;
 			p->m_io_thread.join();
-			wxCommandEvent* evt = new wxCommandEvent(EVT_DWNLDR_FILE_CANCELED);
+			auto evt = std::make_unique<wxCommandEvent>(EVT_DWNLDR_FILE_CANCELED);
 			evt->SetInt(p->m_id);
-			p->m_evt_handler->QueueEvent(evt);
+			p->m_evt_handler->QueueEvent(evt.release());
 		}
 	}
 

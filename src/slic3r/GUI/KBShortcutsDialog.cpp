@@ -325,7 +325,7 @@ wxPanel* KBShortcutsDialog::create_page(wxWindow* parent, const ShortcutsItem& s
     wxBoxSizer* scrollable_panel_sizer = new wxBoxSizer(wxVERTICAL);
     wxFlexGridSizer* grid_sizer = new wxFlexGridSizer(2 * columns_count, 5, 15);
 
-    int items_count = (int)shortcuts.second.size();
+    int items_count = static_cast<int>(shortcuts.second.size());
     for (int i = 0; i < max_items_per_column; ++i) {
         for (int j = 0; j < columns_count; ++j) {
             int id = j * max_items_per_column + i;

@@ -162,55 +162,6 @@ void load_preset(const VendorProfile &vendor_profile, PrstPtr preset_to_load)
         assert(false);
         ph_printers = &default_bundle.physical_printers;
     }
-    //else if (preset_to_load->section_name == "presets") {
-    //    // Load the names of the active presets.
-    //    for (auto &kvp : *preset_to_load->node) {
-    //        if (kvp.first == "print") {
-    //            active_print = kvp.second.data();
-    //        } else if (boost::starts_with(kvp.first, "filament")) {
-    //            int idx = 0;
-    //            if (kvp.first == "filament" || sscanf(kvp.first.c_str(), "filament_%d", &idx) == 1) {
-    //                if (int(active_filaments.size()) <= idx)
-    //                    active_filaments.resize(idx + 1, std::string());
-    //                active_filaments[idx] = kvp.second.data();
-    //            }
-    //        } else if (kvp.first == "sla_print") {
-    //            active_sla_print = kvp.second.data();
-    //        } else if (kvp.first == "sla_material") {
-    //            active_sla_material = kvp.second.data();
-    //        } else if (kvp.first == "printer") {
-    //            active_printer = kvp.second.data();
-    //        } else if (kvp.first == "physical_printer") {
-    //            active_physical_printer = kvp.second.data();
-    //        }
-    //    }
-    //}
-    //else if (preset_to_load->section_name == "obsolete_presets") {
-    //    // Parse the names of obsolete presets. These presets will be deleted from user's
-    //    // profile directory on installation of this vendor preset.
-    //    for (auto &kvp : *preset_to_load->node) {
-    //        std::vector<std::string> *dst = nullptr;
-    //        if (kvp.first == "print")
-    //            dst = &default_bundle.obsolete_presets.fff_prints;
-    //        else if (kvp.first == "filament")
-    //            dst = &default_bundle.obsolete_presets.filaments;
-    //        else if (kvp.first == "sla_print")
-    //            dst = &default_bundle.obsolete_presets.sla_prints;
-    //        else if (kvp.first == "sla_material")
-    //            dst = &default_bundle.obsolete_presets.sla_materials;
-    //        else if (kvp.first == "printer")
-    //            dst = &default_bundle.obsolete_presets.printers;
-    //        if (dst)
-    //            unescape_strings_cstyle(kvp.second.data(), *dst);
-    //    }
-    //}
-    //else if (section_name == "settings") {
-    //    // Load the settings.
-    //    for (auto &kvp : *preset_to_load->node) {
-    //        if (kvp.first == "autocenter") {
-    //        }
-    //    }
-    //}
     else {
         // Ignore an unknown section.
         BOOST_LOG_TRIVIAL(error) << "Error, unknown section: " <<preset_to_load->section_name;
@@ -1182,31 +1133,6 @@ void save(boost::nowide::ofstream &c, VendorProfile &vp, std::vector<PrstPtr> &p
 }
 
 void convert_config(boost::filesystem::path &path_in, boost::filesystem::path &path_out){
-    //if(path_in.string().find("Tri") == std::string::npos) return;
-    //Semver slic3r_2_7_61("2.7.61-alpha+UNKNOWN");
-    //Semver slic3r_2_7_alpha("2.7-alpha+UNKNOWN");
-    //Semver slic3r_2_6_1_rc2("2.6.1-rc2");
-    //Semver slic3r_2_6_2_alpha0("2.6.2-alpha0");
-    //Semver slic3r_2_7_0_alpha2("2.7.0-alpha2");
-    //Semver slic3r_2_7_0_beta1("2.7.0-beta1");
-
-    //auto test = [](Semver& s1, Semver& s2){
-    //    std::cout << ((s1 == s2) ? "equal" : ((s1 < s2) ? "lower" : "higher")) << "\n"; };
-    //
-    //test(slic3r_2_6_1_rc2,slic3r_2_6_2_alpha0);
-    //test(slic3r_2_6_2_alpha0,slic3r_2_7_0_alpha2);
-    //test(slic3r_2_7_0_alpha2,slic3r_2_7_0_beta1);
-    //std::cout<<"test 2.7-alpha+UNKNOWN\n";
-    //test(slic3r_2_7_alpha,slic3r_2_6_1_rc2);
-    //test(slic3r_2_7_alpha,slic3r_2_6_2_alpha0);
-    //test(slic3r_2_7_alpha,slic3r_2_7_0_alpha2);
-    //test(slic3r_2_7_alpha,slic3r_2_7_0_beta1);
-    //test(slic3r_2_7_alpha,slic3r_2_7_61);
-    //std::cout<<"2.7.61-alpha+UNKNOWN\n";
-    //test(slic3r_2_7_61,slic3r_2_6_1_rc2);
-    //test(slic3r_2_7_61,slic3r_2_6_2_alpha0);
-    //test(slic3r_2_7_61,slic3r_2_7_0_alpha2);
-    //test(slic3r_2_7_61,slic3r_2_7_0_beta1);
 
 
     

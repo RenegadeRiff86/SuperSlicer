@@ -113,7 +113,7 @@ std::string Slic3r::GUI::get_font_path(const wxFont &font, bool reload_fonts)
     if (FcPatternGetString(resultPattern, FC_FILE, 0, &fileName) !=
         FcResultMatch)
         return "";
-    wxString fontFileName = wxString::FromUTF8((char *) fileName);
+    wxString fontFileName = wxString::FromUTF8(reinterpret_cast<char*>(fileName));
 
     if (fontFileName.IsEmpty()) return "";
 

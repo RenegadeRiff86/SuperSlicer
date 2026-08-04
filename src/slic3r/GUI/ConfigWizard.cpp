@@ -99,9 +99,13 @@ bool Bundle::load(fs::path source_path, BundleLocation location, bool ais_prusa_
     // Throw when parsing invalid configuration. Only valid configuration is supposed to be provided over the air.
     auto [config_substitutions, presets_loaded] = preset_bundle->load_configbundle(
         path_string, PresetBundle::LoadConfigBundleAttribute::LoadSystem, ForwardCompatibilitySubstitutionRule::Disable);
-    UNUSED(config_substitutions);
-    // No substitutions shall be reported when loading a system config bundle, no substitutions are allowed.
-    assert(config_substitutions.empty());
+    // System bundles must load without substitutions (rule is Disable). Treat a hit as a hard failure
+    // rather than discarding the result with UNUSED() — assert alone vanishes in release.
+    if (!config_substitutions.empty()) {
+        BOOST_LOG_TRIVIAL(error) << boost::format(
+            "Vendor bundle: `%1%`: unexpected config substitutions when loading a system bundle.") % path_string;
+        return false;
+    }
     auto first_vendor = preset_bundle->vendors.begin();
     if (first_vendor == preset_bundle->vendors.end()) {
         BOOST_LOG_TRIVIAL(error) << boost::format("Vendor bundle: `%1%`: No vendor information defined, cannot install.") % path_string;
@@ -352,7 +356,7 @@ PrinterPicker::PrinterPicker(wxWindow *parent, const VendorProfile &vendor, wxSt
         
         wxStaticText* title = new wxStaticText(this, wxID_ANY, from_u8(model.name), wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT);
         title->SetFont(font_name);
-        const int wrap_width = std::max((int)MODEL_MIN_WRAP, bitmap_width);
+        const int wrap_width = std::max(static_cast<int>(MODEL_MIN_WRAP), bitmap_width);
         title->Wrap(wrap_width);
 
         current_row_width += wrap_width;
@@ -628,10 +632,10 @@ PageWelcome::PageWelcome(ConfigWizard *parent)
     bt_new_vendor->Bind(wxEVT_BUTTON, [this, parent](wxCommandEvent &) {
         ConfigWizard::RunReason rr = this->run_reason;
         parent->EndModal(wxID_CANCEL);
-        wxCommandEvent *evt = new wxCommandEvent(EVT_WIZARD_SHOW_DIALOG);
+        auto evt = std::make_unique<wxCommandEvent>(EVT_WIZARD_SHOW_DIALOG);
         // set args for GUI_App::run_wizard
         evt->SetInt(int(rr) + 8*(GUI_App::RunVendorBundleManage::RVBM_ALWAYS));
-        GUI::wxGetApp().QueueEvent(evt);
+        GUI::wxGetApp().QueueEvent(evt.release());
     });
 }
 
@@ -1025,7 +1029,7 @@ void PageMaterials::on_material_highlighted(int sel_material)
 void PageMaterials::update_lists(int sel_type, int sel_vendor, int last_selected_printer/* = -1*/)
 {
 	wxWindowUpdateLocker freeze_guard(this);
-	(void)freeze_guard;
+	
 
 	wxArrayInt sel_printers;
 	int sel_printers_count = list_printer->GetSelections(sel_printers);
@@ -1338,7 +1342,7 @@ void PageMaterials::select_material(int i)
 void PageMaterials::select_all(bool select)
 {
     wxWindowUpdateLocker freeze_guard(this);
-    (void)freeze_guard;
+    
 
     for (unsigned i = 0; i < list_profile->GetCount(); i++) {
         const bool current = list_profile->IsChecked(i);
@@ -1377,7 +1381,7 @@ PageCustom::PageCustom(ConfigWizard *parent)
     auto *label = new wxStaticText(this, wxID_ANY, _L("Custom profile name:"));
 
     wxBoxSizer* profile_name_sizer = new wxBoxSizer(wxVERTICAL);
-    profile_name_editor = new SavePresetDialog::Item{ this, profile_name_sizer, default_profile_name };
+    profile_name_editor = std::make_unique<SavePresetDialog::Item>(this, profile_name_sizer, default_profile_name);
     profile_name_editor->Enable(false);
 
     cb_custom->Bind(wxEVT_CHECKBOX, [this](wxCommandEvent &) {
@@ -1578,8 +1582,10 @@ PageDownloader::PageDownloader(ConfigWizard* parent)
 
     box_allow_downloads->Bind(wxEVT_CHECKBOX, [this](wxCommandEvent& event) { this->m_downloader->allow(event.IsChecked()); });
 
-    m_downloader = new DownloaderUtils::Worker(this);
+    auto downloader = std::make_unique<DownloaderUtils::Worker>(this);
+    m_downloader = downloader.get();
     append(m_downloader);
+    downloader.release(); // The page's sizer now owns this nested sizer.
     m_downloader->allow(box_allow_value);
 }
 
@@ -1843,9 +1849,10 @@ PageFirmware::PageFirmware(ConfigWizard *parent)
 void PageFirmware::apply_custom_config(DynamicPrintConfig &config)
 {
     auto sel = gcode_picker->GetSelection();
-    if (sel >= 0 && (size_t)sel < gcode_opt.enum_def->labels().size()) {
-        auto *opt = new ConfigOptionEnum<GCodeFlavor>(static_cast<GCodeFlavor>(sel));
-        config.set_key_value("gcode_flavor", opt);
+    if (sel >= 0 && static_cast<size_t>(sel) < gcode_opt.enum_def->labels().size()) {
+        config.set_key_value(
+            "gcode_flavor",
+            std::make_unique<ConfigOptionEnum<GCodeFlavor>>(static_cast<GCodeFlavor>(sel)));
     }
 }
 
@@ -1906,9 +1913,9 @@ void PageBedShape::apply_custom_config(DynamicPrintConfig &config)
     const std::vector<Vec2d>& points = shape_panel->get_shape();
     const std::string& custom_texture = shape_panel->get_custom_texture();
     const std::string& custom_model = shape_panel->get_custom_model();
-    config.set_key_value("bed_shape", new ConfigOptionPoints(points));
-    config.set_key_value("bed_custom_texture", new ConfigOptionString(custom_texture));
-    config.set_key_value("bed_custom_model", new ConfigOptionString(custom_model));
+    config.set_key_value("bed_shape", std::make_unique<ConfigOptionPoints>(points));
+    config.set_key_value("bed_custom_texture", std::make_unique<ConfigOptionString>(custom_texture));
+    config.set_key_value("bed_custom_model", std::make_unique<ConfigOptionString>(custom_model));
 }
 
 PageBuildVolume::PageBuildVolume(ConfigWizard* parent)
@@ -1966,8 +1973,7 @@ void PageBuildVolume::apply_custom_config(DynamicPrintConfig& config)
 {
     double val = 0.0;
     build_volume->GetValue().ToDouble(&val);
-    auto* opt_volume = new ConfigOptionFloat(val);
-    config.set_key_value("max_print_height", opt_volume);
+    config.set_key_value("max_print_height", std::make_unique<ConfigOptionFloat>(val));
 }
 
 PageDiameters::PageDiameters(ConfigWizard *parent)
@@ -2016,34 +2022,38 @@ void PageDiameters::apply_custom_config(DynamicPrintConfig &config)
 {
     double val = 0.0;
     diam_nozzle->GetValue().ToDouble(&val);
-    auto *opt_nozzle = new ConfigOptionFloats(1, val);
-    config.set_key_value("nozzle_diameter", opt_nozzle->set_is_extruder_size(true));
+    auto opt_nozzle = std::make_unique<ConfigOptionFloats>(1, val);
+    opt_nozzle->set_is_extruder_size(true);
+    config.set_key_value("nozzle_diameter", std::move(opt_nozzle));
 
     val = 0.0;
     diam_filam->GetValue().ToDouble(&val);
-    auto * opt_filam = new ConfigOptionFloats(1, val);
-    config.set_key_value("filament_diameter", opt_filam->set_is_extruder_size(true));
+    auto opt_filam = std::make_unique<ConfigOptionFloats>(1, val);
+    opt_filam->set_is_extruder_size(true);
+    config.set_key_value("filament_diameter", std::move(opt_filam));
 
-    config.set_key_value("extrusion_width", new ConfigOptionFloatOrPercent(105, true));
-    config.set_key_value("first_layer_extrusion_width", new ConfigOptionFloatOrPercent(140, true));
-    config.set_key_value("first_layer_infill_extrusion_width", (new ConfigOptionFloatOrPercent(140, true))->set_can_be_disabled(true));
-    config.set_key_value("perimeter_extrusion_width", new ConfigOptionFloatOrPercent(105, true));
-    config.set_key_value("external_perimeter_extrusion_width", new ConfigOptionFloatOrPercent(100, true));
-    config.set_key_value("infill_extrusion_width", new ConfigOptionFloatOrPercent(100, true));
-    config.set_key_value("solid_infill_extrusion_width", new ConfigOptionFloatOrPercent(105, true));
-    config.set_key_value("top_infill_extrusion_width", new ConfigOptionFloatOrPercent(100, true));
-    config.set_key_value("support_material_extrusion_width", new ConfigOptionFloatOrPercent(100, true));
-    config.set_key_value("skirt_extrusion_width", new ConfigOptionFloatOrPercent(110, true));
+    config.set_key_value("extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(105, true));
+    config.set_key_value("first_layer_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(140, true));
+    auto first_layer_infill_width = std::make_unique<ConfigOptionFloatOrPercent>(140, true);
+    first_layer_infill_width->set_can_be_disabled(true);
+    config.set_key_value("first_layer_infill_extrusion_width", std::move(first_layer_infill_width));
+    config.set_key_value("perimeter_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(105, true));
+    config.set_key_value("external_perimeter_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(100, true));
+    config.set_key_value("infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(100, true));
+    config.set_key_value("solid_infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(105, true));
+    config.set_key_value("top_infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(100, true));
+    config.set_key_value("support_material_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(100, true));
+    config.set_key_value("skirt_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(110, true));
 
     //configure spacing where needed
-    config.set_key_value("extrusion_spacing", new ConfigOptionFloatOrPercent(105, true));
-    config.set_key_value("first_layer_extrusion_spacing", new ConfigOptionFloatOrPercent(140, true));
-    config.set_key_value("first_layer_infill_extrusion_spacing", new ConfigOptionFloatOrPercent(140, true));
-    config.set_key_value("perimeter_extrusion_spacing", new ConfigOptionFloatOrPercent(105, true));
-    config.set_key_value("external_perimeter_extrusion_spacing", new ConfigOptionFloatOrPercent(100, true));
-    config.set_key_value("infill_extrusion_spacing", new ConfigOptionFloatOrPercent(100, true));
-    config.set_key_value("solid_infill_extrusion_spacing", new ConfigOptionFloatOrPercent(105, true));
-    config.set_key_value("top_infill_extrusion_spacing", new ConfigOptionFloatOrPercent(100, true));
+    config.set_key_value("extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(105, true));
+    config.set_key_value("first_layer_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(140, true));
+    config.set_key_value("first_layer_infill_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(140, true));
+    config.set_key_value("perimeter_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(105, true));
+    config.set_key_value("external_perimeter_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(100, true));
+    config.set_key_value("infill_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(100, true));
+    config.set_key_value("solid_infill_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(105, true));
+    config.set_key_value("top_infill_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(100, true));
     config.option("extrusion_width")->set_phony(true);
     config.option("first_layer_extrusion_width")->set_phony(true);
     config.option("perimeter_extrusion_width")->set_phony(true);
@@ -2051,10 +2061,10 @@ void PageDiameters::apply_custom_config(DynamicPrintConfig &config)
     config.option("infill_extrusion_width")->set_phony(true);
     config.option("solid_infill_extrusion_width")->set_phony(true);
     config.option("top_infill_extrusion_width")->set_phony(true);
-    config.set_key_value("perimeter_extrusion_change_odd_layers", new ConfigOptionFloatOrPercent(0, false));
-    config.set_key_value("external_perimeter_extrusion_change_odd_layers", new ConfigOptionFloatOrPercent(0, false));
-    config.set_key_value("infill_extrusion_change_odd_layers", new ConfigOptionFloatOrPercent(0, false));
-    config.set_key_value("solid_infill_extrusion_change_odd_layers", new ConfigOptionFloatOrPercent(0, false));
+    config.set_key_value("perimeter_extrusion_change_odd_layers", std::make_unique<ConfigOptionFloatOrPercent>(0, false));
+    config.set_key_value("external_perimeter_extrusion_change_odd_layers", std::make_unique<ConfigOptionFloatOrPercent>(0, false));
+    config.set_key_value("infill_extrusion_change_odd_layers", std::make_unique<ConfigOptionFloatOrPercent>(0, false));
+    config.set_key_value("solid_infill_extrusion_change_odd_layers", std::make_unique<ConfigOptionFloatOrPercent>(0, false));
     config.update_phony({});
 }
 
@@ -2120,14 +2130,18 @@ PageTemperatures::PageTemperatures(ConfigWizard *parent)
 
 void PageTemperatures::apply_custom_config(DynamicPrintConfig &config)
 {
-    auto *opt_extr = new ConfigOptionInts(1, spin_extr->GetValue());
-    config.set_key_value("temperature", opt_extr->set_is_extruder_size(true));
-    auto *opt_extr1st = new ConfigOptionInts(1, spin_extr->GetValue());
-    config.set_key_value("first_layer_temperature", opt_extr1st->set_is_extruder_size(true));
-    auto *opt_bed = new ConfigOptionInts(1, spin_bed->GetValue());
-    config.set_key_value("bed_temperature", opt_bed->set_is_extruder_size(true));
-    auto *opt_bed1st = new ConfigOptionInts(1, spin_bed->GetValue());
-    config.set_key_value("first_layer_bed_temperature", opt_bed1st->set_is_extruder_size(true));
+    auto opt_extr = std::make_unique<ConfigOptionInts>(1, spin_extr->GetValue());
+    opt_extr->set_is_extruder_size(true);
+    config.set_key_value("temperature", std::move(opt_extr));
+    auto opt_extr1st = std::make_unique<ConfigOptionInts>(1, spin_extr->GetValue());
+    opt_extr1st->set_is_extruder_size(true);
+    config.set_key_value("first_layer_temperature", std::move(opt_extr1st));
+    auto opt_bed = std::make_unique<ConfigOptionInts>(1, spin_bed->GetValue());
+    opt_bed->set_is_extruder_size(true);
+    config.set_key_value("bed_temperature", std::move(opt_bed));
+    auto opt_bed1st = std::make_unique<ConfigOptionInts>(1, spin_bed->GetValue());
+    opt_bed1st->set_is_extruder_size(true);
+    config.set_key_value("first_layer_bed_temperature", std::move(opt_bed1st));
 }
 
 
@@ -2294,7 +2308,7 @@ void ConfigWizardIndex::on_paint(wxPaintEvent &evt)
         const Item &item = items[i];
         unsigned x = em_w / 2 + item.indent * em_w;
 
-        if (i == item_active || (item_hover >= 0 && i == (size_t) item_hover)) {
+        if (i == item_active || (item_hover >= 0 && i == static_cast<size_t>(item_hover))) {
             dc.DrawBitmap(bullet_blue.get_bitmap(), x, y + yoff_icon, false);
         } else if (i < item_active) {
             dc.DrawBitmap(bullet_black.get_bitmap(), x, y + yoff_icon, false);
@@ -2308,7 +2322,7 @@ void ConfigWizardIndex::on_paint(wxPaintEvent &evt)
         dc.DrawText(item.label, x, y + yoff_text);
 
         y += yinc;
-        index_width = std::max(index_width, (int) x + text_size.x);
+        index_width = std::max(index_width, static_cast<int>(x) + text_size.x);
     }
 
     // draw logo
@@ -2437,7 +2451,7 @@ const std::string& Materials::get_material_vendor(const Preset *preset)
 void ConfigWizard::priv::load_pages()
 {
     wxWindowUpdateLocker freeze_guard(q);
-    (void)freeze_guard;
+    
 
     const ConfigWizardPage *former_active = index->active_page();
 
@@ -3483,7 +3497,7 @@ bool ConfigWizard::priv::check_sla_selected()
 
 ConfigWizard::ConfigWizard(wxWindow *parent)
     : DPIDialog(parent, wxID_ANY, wxString(SLIC3R_APP_NAME) + " - " + _(name()), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER, "configwizard")
-    , p(new priv(this))
+    , p(std::make_unique<priv>(this))
 {
 #ifdef __APPLE__
     this->SetBackgroundColour(wxGetApp().get_window_default_clr());
@@ -3593,7 +3607,7 @@ ConfigWizard::ConfigWizard(wxWindow *parent)
             name.Replace("{technology}", tech_to_string.at(tech));
             wxString description = _(L(vendor.vendor_profile->full_name));
             description.Replace("{technology}", tech_to_string.at(tech));
-            p->pages_vendors.push_back(new PagePrinters(this, description, name, *vendor.vendor_profile, (uint32_t)(vendor.vendor_profile->technologies.size()>1 && !first ? 1 : 0), (Technology)(uint8_t)tech));
+            p->pages_vendors.push_back(new PagePrinters(this, description, name, *vendor.vendor_profile, static_cast<uint32_t>(vendor.vendor_profile->technologies.size() > 1 && !first ? 1 : 0), static_cast<Technology>(static_cast<uint8_t>(tech))));
             p->add_page(p->pages_vendors.back());
             first = false;
         }

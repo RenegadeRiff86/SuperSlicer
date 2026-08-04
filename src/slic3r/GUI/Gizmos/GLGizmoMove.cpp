@@ -175,8 +175,8 @@ void GLGizmoMove3D::on_render()
         if (shader != nullptr) {
             shader->start_using();
             const Camera& camera = wxGetApp().plater()->get_camera();
-            shader->set_uniform("view_model_matrix", camera.get_view_matrix() * base_matrix);
-            shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+            shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix() * base_matrix);
+            shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
             const std::array<int, 4>& viewport = camera.get_viewport();
             shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
@@ -206,8 +206,8 @@ void GLGizmoMove3D::on_render()
             shader->start_using();
 
             const Camera& camera = wxGetApp().plater()->get_camera();
-            shader->set_uniform("view_model_matrix", camera.get_view_matrix()* base_matrix);
-            shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+            shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix()* base_matrix);
+            shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
             const std::array<int, 4>& viewport = camera.get_viewport();
             shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
@@ -226,7 +226,7 @@ void GLGizmoMove3D::on_render()
             glsafe(::glDisable(GL_CULL_FACE));
             // draw grabber
             const Vec3d box_size = m_bounding_box.size();
-            const float mean_size = (float)((box_size.x() + box_size.y() + box_size.z()) / 3.0);
+            const float mean_size = static_cast<float>((box_size.x() + box_size.y() + box_size.z()) / 3.0);
             m_grabbers[m_hover_id].render(true, mean_size);
             glsafe(::glEnable(GL_CULL_FACE));
             shader->stop_using();
@@ -266,7 +266,7 @@ double GLGizmoMove3D::calc_projection(const UpdateData& data) const
     }
 
     if (wxGetKeyState(WXK_SHIFT))
-        projection = m_snap_step * (double)std::round(projection / m_snap_step);
+        projection = m_snap_step * static_cast<double>(std::round(projection / m_snap_step));
 
     return projection;
 }

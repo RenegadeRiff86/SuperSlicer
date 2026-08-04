@@ -38,12 +38,8 @@ BitmapCache::BitmapCache()
 
 void BitmapCache::clear()
 {
-    for (std::pair<const std::string, wxBitmap*> &bitmap : m_map)
-        delete bitmap.second;
     m_map.clear();
 
-    for (std::pair<const std::string, wxBitmapBundle*> &bitmap_bundle : m_bndl_map)
-        delete bitmap_bundle.second;
     m_bndl_map.clear();
 }
 
@@ -189,11 +185,12 @@ wxBitmapBundle* BitmapCache::insert_bndl(const std::string &bitmap_key, const ch
     wxSize sizeDef(width, height);
     auto it = m_bndl_map.find(bitmap_key);
     if (it == m_bndl_map.end()) {
-        bndl = new wxBitmapBundle(wxBitmapBundle::FromSVG(data, sizeDef));
-        m_bndl_map[bitmap_key] = bndl;
+        auto owned_bndl = std::make_unique<wxBitmapBundle>(wxBitmapBundle::FromSVG(data, sizeDef));
+        bndl = owned_bndl.get();
+        m_bndl_map[bitmap_key] = std::move(owned_bndl);
     }
     else {
-        bndl = it->second;
+        bndl = it->second.get();
         *bndl = wxBitmapBundle::FromSVG(data, sizeDef);
     }
     return bndl;
@@ -204,11 +201,12 @@ wxBitmapBundle* BitmapCache::insert_bndl(const std::string& bitmap_key, const wx
     wxBitmapBundle* bndl = nullptr;
     auto it = m_bndl_map.find(bitmap_key);
     if (it == m_bndl_map.end()) {
-        bndl = new wxBitmapBundle(bmp);
-        m_bndl_map[bitmap_key] = bndl;
+        auto owned_bndl = std::make_unique<wxBitmapBundle>(bmp);
+        bndl = owned_bndl.get();
+        m_bndl_map[bitmap_key] = std::move(owned_bndl);
     }
     else {
-        bndl = it->second;
+        bndl = it->second.get();
         *bndl = wxBitmapBundle(bmp);
     }
     return bndl;
@@ -219,11 +217,12 @@ wxBitmapBundle* BitmapCache::insert_bndl(const std::string& bitmap_key, const wx
     wxBitmapBundle* bndl = nullptr;
     auto it = m_bndl_map.find(bitmap_key);
     if (it == m_bndl_map.end()) {
-        bndl = new wxBitmapBundle(wxBitmapBundle::FromBitmaps(bmps));
-        m_bndl_map[bitmap_key] = bndl;
+        auto owned_bndl = std::make_unique<wxBitmapBundle>(wxBitmapBundle::FromBitmaps(bmps));
+        bndl = owned_bndl.get();
+        m_bndl_map[bitmap_key] = std::move(owned_bndl);
     }
     else {
-        bndl = it->second;
+        bndl = it->second.get();
         *bndl = wxBitmapBundle::FromBitmaps(bmps);
     }
     return bndl;
@@ -234,11 +233,12 @@ wxBitmap* BitmapCache::insert(const std::string &bitmap_key, size_t width, size_
     wxBitmap *bitmap = nullptr;
     auto      it     = m_map.find(bitmap_key);
     if (it == m_map.end()) {
-        bitmap = new wxBitmap(width, height
+        auto owned_bitmap = std::make_unique<wxBitmap>(width, height
 #ifdef __WXGTK3__
             , 32
 #endif
             );
+        bitmap = owned_bitmap.get();
 #ifdef __APPLE__
         // Contrary to intuition, the `scale` argument isn't "please scale this to such and such"
         // but rather "the wxImage is sized for backing scale such and such".
@@ -247,9 +247,9 @@ wxBitmap* BitmapCache::insert(const std::string &bitmap_key, size_t width, size_
         // and thereby that it's not supposed to upscale it.
         bitmap->CreateScaled(width, height, -1, scale < 0.0 ? m_scale : scale);
 #endif
-        m_map[bitmap_key] = bitmap;
+        m_map[bitmap_key] = std::move(owned_bitmap);
     } else {
-        bitmap = it->second;
+        bitmap = it->second.get();
         if (size_t(bitmap->GetWidth()) != width || size_t(bitmap->GetHeight()) != height)
             bitmap->Create(width, height);
     }
@@ -265,10 +265,11 @@ wxBitmap* BitmapCache::insert(const std::string &bitmap_key, const wxBitmap &bmp
     wxBitmap *bitmap = nullptr;
     auto      it     = m_map.find(bitmap_key);
     if (it == m_map.end()) {
-        bitmap = new wxBitmap(bmp);
-        m_map[bitmap_key] = bitmap;
+        auto owned_bitmap = std::make_unique<wxBitmap>(bmp);
+        bitmap = owned_bitmap.get();
+        m_map[bitmap_key] = std::move(owned_bitmap);
     } else {
-        bitmap = it->second;
+        bitmap = it->second.get();
         *bitmap = bmp;
     }
     return bitmap;
@@ -308,7 +309,7 @@ NSVGimage* BitmapCache::nsvgParseFromFileWithReplace(const char* filename, const
     fseek(fp, 0, SEEK_END);
     size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    data = (char*)malloc(size + 1);
+    data = static_cast<char*>(malloc(size + 1));
     if (data == NULL) goto error;
     if (fread(data, 1, size, fp) != size) goto error;
     data[size] = '\0';	// Must be null terminated.
@@ -343,7 +344,7 @@ void BitmapCache::nsvgGetDataFromFileWithReplace(const char* filename, std::stri
     fseek(fp, 0, SEEK_END);
     size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    data = (char*)malloc(size + 1);
+    data = static_cast<char*>(malloc(size + 1));
     if (data == NULL) goto error;
     if (fread(data, 1, size, fp) != size) goto error;
     data[size] = '\0';	// Must be null terminated.
@@ -383,7 +384,7 @@ wxBitmapBundle* BitmapCache::from_svg(const std::string& bitmap_name, unsigned t
 
     auto it = m_bndl_map.find(bitmap_key);
     if (it != m_bndl_map.end())
-        return it->second;
+        return it->second.get();
 
     // map of color replaces
     //std::map<std::string, std::string> replaces;
@@ -444,7 +445,7 @@ wxBitmapBundle* BitmapCache::from_png(const std::string& bitmap_name, unsigned w
 
     auto it = m_bndl_map.find(bitmap_key);
     if (it != m_bndl_map.end())
-        return it->second;
+        return it->second.get();
 
     wxImage image;
     BOOST_LOG_TRIVIAL(debug) << "Loading (load_png) image: '"<<bitmap_name<<"'.png";
@@ -494,7 +495,7 @@ wxBitmapBundle* BitmapCache::from_png(const std::string& bitmap_name, unsigned w
 //
 //    auto it = m_map.find(bitmap_key);
 //    if (it != m_map.end())
-//        return it->second;
+//        return it->second.get();
 //
 //    // map of color replaces
 //    std::map<std::string, std::string> replaces;
@@ -531,11 +532,11 @@ wxBitmapBundle* BitmapCache::from_png(const std::string& bitmap_name, unsigned w
 //    target_height != 0 ? target_height *= m_scale : target_width *= m_scale;
 //
 //    float svg_scale = target_height != 0 ?
-//        (float)target_height / image->height : target_width != 0 ?
-//        (float)target_width / image->width : 1;
+//        static_cast<float>(target_height) / image->height : target_width != 0 ?
+//        static_cast<float>(target_width) / image->width : 1;
 //
-//    int   width = (int)(svg_scale * image->width + 0.5f);
-//    int   height = (int)(svg_scale * image->height + 0.5f);
+//    int   width = static_cast<int>(svg_scale * image->width + 0.5f);
+//    int   height = static_cast<int>(svg_scale * image->height + 0.5f);
 //    int   n_pixels = width * height;
 //    if (n_pixels <= 0) {
 //        ::nsvgDelete(image);
@@ -581,8 +582,8 @@ wxBitmapBundle* BitmapCache::from_png(const std::string& bitmap_name, unsigned w
 //        if (border_width > height) border_width = height - 1;
 //        if (border_width > width) border_width = width - 1;
 //
-//        auto px_data = (uint8_t*)image.GetData();
-//        auto a_data = (uint8_t*)image.GetAlpha();
+//        auto px_data = image.GetData();
+//        auto a_data = image.GetAlpha();
 //
 //        for (size_t x = 0; x < width; ++x) {
 //            for (size_t y = 0; y < height; ++y) {
@@ -640,8 +641,8 @@ wxBitmapBundle BitmapCache::mksolid(size_t width_in, size_t height_in, unsigned 
             if (border_width > height) border_width = height - 1;
             if (border_width > width) border_width = width - 1;
 
-            auto px_data = (uint8_t*)image.GetData();
-            auto a_data = (uint8_t*)image.GetAlpha();
+            auto px_data = image.GetData();
+            auto a_data = image.GetAlpha();
 
             for (size_t x = 0; x < width; ++x) {
                 for (size_t y = 0; y < height; ++y) {
@@ -665,21 +666,21 @@ wxBitmapBundle* BitmapCache::mksolid_bndl(size_t width, size_t height, const std
 {
     std::string bitmap_key = (color.empty() ? "empty" : color) + "-h" + std::to_string(height) + "-w" + std::to_string(width) + (dark_mode ? "-dm" : "");
 
-    wxBitmapBundle* bndl = nullptr;
     auto it = m_bndl_map.find(bitmap_key);
-    if (it == m_bndl_map.end()) {
-        if (color.empty())
-            bndl = new wxBitmapBundle(mksolid(width, height, 0, 0, 0, wxALPHA_TRANSPARENT, size_t(0)));
-        else {
-            ColorRGB rgb;// [3] ;
-            decode_color(color, rgb);
-            bndl = new wxBitmapBundle(mksolid(width, height, rgb.r_uchar(), rgb.g_uchar(), rgb.b_uchar(), wxALPHA_OPAQUE, border_width, dark_mode));
-        }
-        m_bndl_map[bitmap_key] = bndl;
-    }
-    else
-        return it->second;
+    if (it != m_bndl_map.end())
+        return it->second.get();
 
+    std::unique_ptr<wxBitmapBundle> owned_bndl;
+    if (color.empty())
+        owned_bndl = std::make_unique<wxBitmapBundle>(mksolid(width, height, 0, 0, 0, wxALPHA_TRANSPARENT, size_t(0)));
+    else {
+        ColorRGB rgb;// [3] ;
+        decode_color(color, rgb);
+        owned_bndl = std::make_unique<wxBitmapBundle>(mksolid(width, height, rgb.r_uchar(), rgb.g_uchar(), rgb.b_uchar(), wxALPHA_OPAQUE, border_width, dark_mode));
+    }
+
+    wxBitmapBundle* bndl = owned_bndl.get();
+    m_bndl_map[bitmap_key] = std::move(owned_bndl);
     return bndl;
 }
 

@@ -286,7 +286,7 @@ std::string PresetHints::maximum_volumetric_flow_description(const PresetBundle 
 {
     // Find out, to which nozzle index is the current filament profile assigned.
     int idx_extruder  = 0;
-    int num_extruders = (int)preset_bundle.extruders_filaments.size();
+    int num_extruders = static_cast<int>(preset_bundle.extruders_filaments.size());
     for (; idx_extruder < num_extruders; ++ idx_extruder)
         if (preset_bundle.extruders_filaments[idx_extruder].get_selected_preset_name() == preset_bundle.filaments.get_selected_preset_name())
             break;
@@ -299,7 +299,7 @@ std::string PresetHints::maximum_volumetric_flow_description(const PresetBundle 
     const DynamicPrintConfig &printer_config  = preset_bundle.printers  .get_edited_preset().config;
 
     // Current printer values.
-    float  nozzle_diameter                  = (float)printer_config.opt_float("nozzle_diameter", idx_extruder);
+    float  nozzle_diameter                  = static_cast<float>(printer_config.opt_float("nozzle_diameter", idx_extruder));
 
     // Print config values
     DynamicPrintConfig full_print_config;
@@ -406,7 +406,7 @@ std::string PresetHints::maximum_volumetric_flow_description(const PresetBundle 
                 first_positive(first_layer_extrusion_width_ptr, external_perimeter_extrusion_width, extrusion_width),
                 first_positive(first_layer_extrusion_spacing_ptr, external_perimeter_extrusion_spacing, extrusion_spacing),
                 nozzle_diameter, lh, 
-                std::min(filament_max_overlap, (float)print_config.opt<ConfigOptionPercent>("external_perimeter_overlap")->get_abs_value(1)),
+                std::min(filament_max_overlap, static_cast<float>(print_config.opt<ConfigOptionPercent>("external_perimeter_overlap")->get_abs_value(1))),
                 bfr);
             if (external_flow.height() > external_flow.width())
                 external_flow = external_flow.with_height(external_flow.width());
@@ -421,7 +421,7 @@ std::string PresetHints::maximum_volumetric_flow_description(const PresetBundle 
                 first_positive(first_layer_extrusion_width_ptr, perimeter_extrusion_width, extrusion_width),
                 first_positive(first_layer_extrusion_spacing_ptr, perimeter_extrusion_spacing, extrusion_spacing),
                 nozzle_diameter, lh,
-                std::min(filament_max_overlap, (float)print_config.opt<ConfigOptionPercent>("perimeter_overlap")->get_abs_value(1)),
+                std::min(filament_max_overlap, static_cast<float>(print_config.opt<ConfigOptionPercent>("perimeter_overlap")->get_abs_value(1))),
                 bfr);
             if (perimeter_flow.height() > perimeter_flow.width())
                 perimeter_flow = perimeter_flow.with_height(perimeter_flow.width());
@@ -549,9 +549,9 @@ std::string PresetHints::recommended_thin_wall_thickness(const PresetBundle& pre
         return out;
     }
 
-    float filament_max_overlap = (float)filament_config.get_computed_value("filament_max_overlap", 0);
-    float ext_peri_overlap = (float)print_config.opt<ConfigOptionPercent>("external_perimeter_overlap")->get_abs_value(1);
-    float peri_overlap = (float)print_config.opt<ConfigOptionPercent>("perimeter_overlap")->get_abs_value(1);
+    float filament_max_overlap = static_cast<float>(filament_config.get_computed_value("filament_max_overlap", 0));
+    float ext_peri_overlap = static_cast<float>(print_config.opt<ConfigOptionPercent>("external_perimeter_overlap")->get_abs_value(1));
+    float peri_overlap = static_cast<float>(print_config.opt<ConfigOptionPercent>("perimeter_overlap")->get_abs_value(1));
     Flow  external_perimeter_flow =  Flow::new_from_config(frExternalPerimeter,
         print_config,
         nozzle_diameter,

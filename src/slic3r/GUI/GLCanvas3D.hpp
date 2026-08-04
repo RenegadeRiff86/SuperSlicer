@@ -800,11 +800,7 @@ public:
 
     OrientSettings& get_orient_settings()
     {
-        PrinterTechnology ptech = this->current_printer_technology();
-
-        auto* ptr = &this->m_orient_settings_fff;
-
-        return *ptr;
+        return m_orient_settings_fff;
     }
 
     void set_clipping_plane(unsigned int id, const ClippingPlane& plane) {

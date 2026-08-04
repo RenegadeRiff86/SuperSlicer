@@ -175,6 +175,8 @@ def check_transport_and_protocol(client: ApiClient, status: dict[str, Any]) -> N
         "superslicer_set_preview",
         "superslicer_set_transform",
         "superslicer_export_gcode",
+        "superslicer_arm_file_dialog",
+        "superslicer_file_dialog_status",
     }
     assert names == expected
     assert client.mcp_tool("superslicer_status")["pid"] == status["pid"]

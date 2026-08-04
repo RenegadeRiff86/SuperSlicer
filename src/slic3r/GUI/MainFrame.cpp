@@ -2802,7 +2802,7 @@ void MainFrame::select_tab(ETabType tab /* = Any*/, bool keep_tab_type)
             cur_tab->update_changed_tree_ui();
 
     //// when tab == -1, it means we should show the last selected tab
-    //size_t new_selection = tab == (size_t)(-1) ? m_last_selected_tab : (m_layout == ESettingsLayout::Dlg && tab != 0) ? tab - 1 : tab;
+    //size_t new_selection = tab == static_cast<size_t>(-1) ? m_last_selected_tab : (m_layout == ESettingsLayout::Dlg && tab != 0) ? tab - 1 : tab;
     //if (m_tabpanel->GetSelection() != new_selection)
     //    m_tabpanel->SetSelection(new_selection);
     //if (tabpanel_was_hidden)

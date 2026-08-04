@@ -324,8 +324,8 @@ void TextLinesModel::render(const Transform3d &text_world)
     const Camera &camera = app.plater()->get_camera();
 
     shader->start_using();
-    shader->set_uniform("view_model_matrix", camera.get_view_matrix() * text_world);
-    shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix() * text_world);
+    shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 
     bool is_depth_test = glIsEnabled(GL_DEPTH_TEST);
     if (!is_depth_test)

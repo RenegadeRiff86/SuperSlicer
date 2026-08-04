@@ -112,6 +112,25 @@ namespace Slic3r {
 
 namespace GUI {
 
+namespace {
+
+constexpr const char* OPT_custom_toolbar_size                   = "custom_toolbar_" "size";
+constexpr const char* OPT_use_custom_toolbar_size               = "use_custom_toolbar_" "size";
+constexpr const char* OPT_auto_switch_preview                   = "auto_switch_" "preview";
+constexpr const char* OPT_suppress_hyperlinks                   = "suppress_" "hyperlinks";
+constexpr const char* OPT_splash_screen_editor                  = "splash_screen_" "editor";
+constexpr const char* OPT_splash_screen_gcodeviewer             = "splash_screen_" "gcodeviewer";
+constexpr const char* OPT_ui_layout                             = "ui_" "layout";
+constexpr const char* OPT_downloader_url_registered             = "downloader_url_" "registered";
+constexpr const char* OPT_default_action_on_close_application   = "default_action_on_" "close_application";
+constexpr const char* OPT_default_action_on_new_project         = "default_action_on_" "new_project";
+constexpr const char* OPT_default_action_on_select_preset       = "default_action_on_" "select_preset";
+constexpr const char* OPT_default_action_on_dirty_project       = "default_action_on_" "dirty_project";
+constexpr const char* OPT_tabs_as_menu                          = "tabs_as_" "menu";
+constexpr const char* OPT_remember_output_path                  = "remember_output_" "path";
+
+} // namespace
+
 wxIcon icon_from_bitmap(const wxBitmap &bitmap) {
     wxIcon temp_icon;
     temp_icon.CopyFromBitmap(bitmap);
@@ -186,16 +205,16 @@ void PreferencesDialog::show(const std::string& highlight_opt_key /*= std::strin
     }
 
     // cache input values for custom toolbar size
-    m_custom_toolbar_size       = atoi(get_app_config()->get("custom_toolbar_size").c_str());
-    m_use_custom_toolbar_size   = get_app_config()->get_bool("use_custom_toolbar_size");
+    m_custom_toolbar_size       = atoi(get_app_config()->get(OPT_custom_toolbar_size).c_str());
+    m_use_custom_toolbar_size   = get_app_config()->get_bool(OPT_use_custom_toolbar_size);
 
     // Set enum value
     // set Field for notify_release to its value
     if (wxGetApp().is_editor()) {
         std::vector<std::pair<std::string, t_config_enum_values>> enums = {
             {"notify_release", s_keys_map_NotifyReleaseMode},
-            {"auto_switch_preview", s_keys_map_AutoSwitchPreview},
-            {"suppress_hyperlinks", s_keys_map_SuppressHyperlinks},
+            {OPT_auto_switch_preview, s_keys_map_AutoSwitchPreview},
+            {OPT_suppress_hyperlinks, s_keys_map_SuppressHyperlinks},
             {"ui_density", s_keys_map_UiDensityMode},
         };
         for (auto key2map : enums) {
@@ -216,7 +235,7 @@ void PreferencesDialog::show(const std::string& highlight_opt_key /*= std::strin
         }
     }
     // set Field for splashscreen to its value
-    std::string splashscreen_key = wxGetApp().is_editor() ? "splash_screen_editor" : "splash_screen_gcodeviewer";
+    std::string splashscreen_key = wxGetApp().is_editor() ? OPT_splash_screen_editor : OPT_splash_screen_gcodeviewer;
     if (m_optkey_to_optgroup.find(splashscreen_key) != m_optkey_to_optgroup.end()) {
         auto field = m_optkey_to_optgroup[splashscreen_key]->get_field(OptionKeyIdx::scalar(splashscreen_key));
         if (field != nullptr) {
@@ -225,10 +244,10 @@ void PreferencesDialog::show(const std::string& highlight_opt_key /*= std::strin
         }
     }
     // set Field for splashscreen to its value
-    if (m_optkey_to_optgroup.find("ui_layout") != m_optkey_to_optgroup.end()) {
-        auto field = m_optkey_to_optgroup["ui_layout"]->get_field(OptionKeyIdx::scalar("ui_layout"));
+    if (m_optkey_to_optgroup.find(OPT_ui_layout) != m_optkey_to_optgroup.end()) {
+        auto field = m_optkey_to_optgroup[OPT_ui_layout]->get_field(OptionKeyIdx::scalar(OPT_ui_layout));
         if (field != nullptr) {
-            boost::any val = wxGetApp().app_config->get("ui_layout");
+            boost::any val = wxGetApp().app_config->get(OPT_ui_layout);
             field->set_any_value(val, false);
         }
     }
@@ -238,18 +257,18 @@ void PreferencesDialog::show(const std::string& highlight_opt_key /*= std::strin
 
         if (m_downloader) {
             this->m_downloader->set_path_name(app_config->get("url_downloader_dest"));
-            this->m_downloader->allow(!app_config->has("downloader_url_registered") ||
-                                      app_config->get_bool("downloader_url_registered"));
+            this->m_downloader->allow(!app_config->has(OPT_downloader_url_registered) ||
+                                      app_config->get_bool(OPT_downloader_url_registered));
         }
-        for (const std::string &opt_key : {"downloader_url_registered"})
+        for (const std::string &opt_key : {OPT_downloader_url_registered})
             m_optkey_to_optgroup[opt_key]->set_value(OptionKeyIdx::scalar(opt_key), app_config->get_bool(opt_key), true, false);
 
-        for (const std::string opt_key : {"default_action_on_close_application", "default_action_on_new_project",
-                                          "default_action_on_select_preset", "show_step_import_parameters"})
+        for (const std::string opt_key : {OPT_default_action_on_close_application, OPT_default_action_on_new_project,
+                                          OPT_default_action_on_select_preset, "show_step_import_parameters"})
             m_optkey_to_optgroup[opt_key]->set_value(OptionKeyIdx::scalar(opt_key), app_config->get(opt_key) == "none", true, false);
-        m_optkey_to_optgroup["default_action_on_dirty_project"]
-            ->set_value(OptionKeyIdx::scalar("default_action_on_dirty_project"),
-                        app_config->get("default_action_on_dirty_project").empty(), true, false);
+        m_optkey_to_optgroup[OPT_default_action_on_dirty_project]
+            ->set_value(OptionKeyIdx::scalar(OPT_default_action_on_dirty_project),
+                        app_config->get(OPT_default_action_on_dirty_project).empty(), true, false);
 
 		// update colors for color pickers of the labels
 		update_color(m_sys_colour, wxGetApp().get_label_clr_sys());
@@ -305,26 +324,26 @@ std::shared_ptr<ConfigOptionsGroup> PreferencesDialog::create_options_group(cons
         if (opt_key_idx.key == "notify_release") {
             get_app_config()->set("version_online_seen", "");
         }
-        if (opt_key_idx.key == "use_custom_toolbar_size") {
+        if (opt_key_idx.key == OPT_use_custom_toolbar_size) {
             m_icon_size_sizer->ShowItems(boost::any_cast<bool>(value));
-            refresh_og(m_optkey_to_optgroup["use_custom_toolbar_size"]);
-            get_app_config()->set("use_custom_toolbar_size", boost::any_cast<bool>(value) ? "1" : "0");
+            refresh_og(m_optkey_to_optgroup[OPT_use_custom_toolbar_size]);
+            get_app_config()->set(OPT_use_custom_toolbar_size, boost::any_cast<bool>(value) ? "1" : "0");
             wxGetApp().plater()->get_current_canvas3D()->render();
             return;
-        } else if (opt_key_idx.key == "tabs_as_menu") {
+        } else if (opt_key_idx.key == OPT_tabs_as_menu) {
             bool disable_new_layout = boost::any_cast<bool>(value);
             m_rb_new_settings_layout_mode->Show(!disable_new_layout);
             if (disable_new_layout && m_rb_new_settings_layout_mode->GetValue()) {
                 m_rb_new_settings_layout_mode->SetValue(false);
                 m_rb_old_settings_layout_mode->SetValue(true);
             }
-            refresh_og(m_optkey_to_optgroup["tabs_as_menu"]);
-        } else if (opt_key_idx.key == "default_action_on_close_application" || opt_key_idx.key == "default_action_on_select_preset" ||
-                   opt_key_idx.key == "default_action_on_new_project") {
+            refresh_og(m_optkey_to_optgroup[OPT_tabs_as_menu]);
+        } else if (opt_key_idx.key == OPT_default_action_on_close_application || opt_key_idx.key == OPT_default_action_on_select_preset ||
+                   opt_key_idx.key == OPT_default_action_on_new_project) {
             m_values[opt_key_idx.key] = boost::any_cast<bool>(value) ? "none" : "discard";
-        } else if (opt_key_idx.key == "default_action_on_dirty_project") {
+        } else if (opt_key_idx.key == OPT_default_action_on_dirty_project) {
             m_values[opt_key_idx.key] = boost::any_cast<bool>(value) ? "" : "0";
-        } else if ("ui_layout" == opt_key_idx.key) {
+        } else if (OPT_ui_layout == opt_key_idx.key) {
             std::vector<std::string> splitted;
             boost::split(splitted, boost::any_cast<std::string>(value), boost::is_any_of(":"));
             m_values[opt_key_idx.key] = splitted[0];
@@ -386,7 +405,7 @@ void PreferencesDialog::append_bool_option( std::shared_ptr<ConfigOptionsGroup> 
 	def.label = label;
 	def.tooltip = tooltip;
 	def.mode = mode;
-	def.set_default_value(new ConfigOptionBool{ def_val });
+	def.set_default_value(std::make_unique<ConfigOptionBool>(ConfigOptionBool{ def_val }));
 	Option option(def);
 	optgroup->append_single_option_line(option);
 	
@@ -413,7 +432,7 @@ void PreferencesDialog::append_int_option( std::shared_ptr<ConfigOptionsGroup> o
 	def.mode = mode;
 	def.min = double(min);
 	def.max = double(max);
-	def.set_default_value(new ConfigOptionInt(def_val));
+	def.set_default_value(std::make_unique<ConfigOptionInt>(def_val));
 	Option option(def);
 	option.opt.width = option_width;
 	optgroup->append_single_option_line(option);
@@ -437,7 +456,7 @@ void PreferencesDialog::append_color_option( std::shared_ptr<ConfigOptionsGroup>
 	def.tooltip = tooltip;
 	def.mode = mode;
 	if (color_str[0] != '#') color_str = "#" + color_str;
-	def.set_default_value(new ConfigOptionString{ color_str });
+	def.set_default_value(std::make_unique<ConfigOptionString>(ConfigOptionString{ color_str }));
 	Option option(def);
 	option.opt.gui_type = ConfigOptionDef::GUIType::color;
 	optgroup->append_single_option_line(option);
@@ -455,7 +474,7 @@ void PreferencesDialog::append_enum_option( std::shared_ptr<ConfigOptionsGroup> 
 								const t_config_option_key& opt_key,
 								const std::string& label,
 								const std::string& tooltip,
-								ConfigOption* def_val,
+								std::unique_ptr<ConfigOption> def_val,
 								std::initializer_list<std::pair<std::string_view, std::string_view>> enum_values,
 								ConfigOptionMode mode)
 {
@@ -465,7 +484,7 @@ void PreferencesDialog::append_enum_option( std::shared_ptr<ConfigOptionsGroup> 
 	def.mode = mode;
 	def.set_enum<EnumType>(enum_values);
 
-	def.set_default_value(def_val);
+	def.set_default_value(std::move(def_val));
 	Option option(def);
 	optgroup->append_single_option_line(option);
 	
@@ -540,10 +559,10 @@ void PreferencesDialog::build()
 
 	if (is_editor) {
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), "remember_output_path", 
+		append_bool_option(m_tabid_2_optgroups.back().back(), OPT_remember_output_path, 
 			L("Remember output directory"),
 			L("If this is enabled, Slic3r will prompt the last output directory instead of the one containing the input files."),
-			app_config->has("remember_output_path") ? app_config->get_bool("remember_output_path") : true);
+			app_config->has(OPT_remember_output_path) ? app_config->get_bool(OPT_remember_output_path) : true);
 		
 		append_bool_option(m_tabid_2_optgroups.back().back(), "autocenter", 
 			L("Auto-center parts"),
@@ -566,31 +585,31 @@ void PreferencesDialog::build()
         // auto_switch_preview
         {
             //convert from old 0-3 values
-            std::string auto_switch_preview_value = app_config->get("auto_switch_preview");
+            std::string auto_switch_preview_value = app_config->get(OPT_auto_switch_preview);
             bool need_set = true;
-            if (app_config->get("auto_switch_preview") == "0") {
+            if (app_config->get(OPT_auto_switch_preview) == "0") {
                 auto_switch_preview_value = "never";
-            } else if (app_config->get("auto_switch_preview") == "1") {
+            } else if (app_config->get(OPT_auto_switch_preview) == "1") {
                 auto_switch_preview_value = "always";
-            } else if (app_config->get("auto_switch_preview") == "2") {
+            } else if (app_config->get(OPT_auto_switch_preview) == "2") {
                 auto_switch_preview_value = "platter";
-            } else if (app_config->get("auto_switch_preview") == "3") {
+            } else if (app_config->get(OPT_auto_switch_preview) == "3") {
                 auto_switch_preview_value = "gcode";
             } else {
                 need_set = false;
             }
             if (need_set) {
-                app_config->set("auto_switch_preview", auto_switch_preview_value);
+                app_config->set(OPT_auto_switch_preview, auto_switch_preview_value);
             }
             if (s_keys_map_AutoSwitchPreview.find(auto_switch_preview_value) == s_keys_map_AutoSwitchPreview.end()) {
                 assert(false);
                 auto_switch_preview_value = "platter";
             }
             append_enum_option<AutoSwitchPreview>(
-                m_tabid_2_optgroups.back().back(), "auto_switch_preview", L("Switch to Preview when sliced"),
+                m_tabid_2_optgroups.back().back(), OPT_auto_switch_preview, L("Switch to Preview when sliced"),
                 L("When an object is sliced, it will switch your view from the curent view to the "
                   "preview (and then gcode-preview) automatically, depending on the option choosen."),
-                new ConfigOptionEnum<AutoSwitchPreview>(
+                std::make_unique<ConfigOptionEnum<AutoSwitchPreview>>(
                     static_cast<AutoSwitchPreview>(s_keys_map_AutoSwitchPreview.at(auto_switch_preview_value))),
                 {
                     {"never", L("Don't switch")},
@@ -599,8 +618,8 @@ void PreferencesDialog::build()
                     {"gcode", L("Only when GCode is ready")},
                 });
         }
-        //m_optkey_to_optgroup["auto_switch_preview"] = m_tabid_2_optgroups.back().back();
-        //wxGetApp().sidebar().get_searcher().add_key(OptionKeyIdx::scalar("auto_switch_preview"), Preset::TYPE_PREFERENCES, m_tabid_2_optgroups.back().back()->config_category(), L("Preferences"), def_combobox_auto_switch_preview);
+        //m_optkey_to_optgroup[OPT_auto_switch_preview] = m_tabid_2_optgroups.back().back();
+        //wxGetApp().sidebar().get_searcher().add_key(OptionKeyIdx::scalar(OPT_auto_switch_preview), Preset::TYPE_PREFERENCES, m_tabid_2_optgroups.back().back()->config_category(), L("Preferences"), def_combobox_auto_switch_preview);
 
 		// Please keep in sync with ConfigWizard
 		append_bool_option(m_tabid_2_optgroups.back().back(), "export_sources_full_pathnames",
@@ -616,7 +635,7 @@ void PreferencesDialog::build()
         def.type = coBool;
         def.tooltip = L("If enabled, Slic3r will check for the new versions of itself online. When a new version becomes available a notification is displayed at the next application startup (never during program usage). "
                         "This is only a notification mechanisms, no automatic installation is done.");
-        def.set_default_value(new ConfigOptionBool(app_config->get("version_check") == "1"));
+        def.set_default_value(std::make_unique<ConfigOptionBool>(app_config->get("version_check") == "1"));
             option = Option(def, "version_check");
         m_tabid_2_optgroups.back().back()->append_single_option_line(option);
 */
@@ -671,11 +690,11 @@ void PreferencesDialog::build()
 			app_config->get_bool("associate_stl"));
 #endif // _WIN32
 		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "remember_output_path",
+		append_bool_option(m_tabid_2_optgroups.back().back(), OPT_remember_output_path,
 			L("Remember output directory"),
 			L("If this is enabled, Slic3r will prompt the last output directory "
             "instead of the one containing the input files."),
-			app_config->get_bool("remember_output_path"));
+			app_config->get_bool(OPT_remember_output_path));
 		
 		append_bool_option(m_tabid_2_optgroups.back().back(), "date_in_config_file",
 			L("Export headers with date and time"),
@@ -724,29 +743,29 @@ void PreferencesDialog::build()
             app_config->has("single_instance") ? app_config->get_bool("single_instance") : false);
 
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), "default_action_on_dirty_project",
+		append_bool_option(m_tabid_2_optgroups.back().back(), OPT_default_action_on_dirty_project,
 			L("Ask for unsaved changes in project"),
 			L("Always ask for unsaved changes in project, when: \n"
 						"- Closing Slic3r,\n"
 						"- Loading or creating a new project"),
-			app_config->get("default_action_on_dirty_project").empty());
+			app_config->get(OPT_default_action_on_dirty_project).empty());
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), "default_action_on_close_application",
+		append_bool_option(m_tabid_2_optgroups.back().back(), OPT_default_action_on_close_application,
 			L("Ask to save unsaved changes in presets when closing the application or when loading a new project"),
 			L("Always ask for unsaved changes in presets, when: \n"
 						"- Closing Slic3r while some presets are modified,\n"
 						"- Loading a new project while some presets are modified"),
-			app_config->get("default_action_on_close_application") == "none");
+			app_config->get(OPT_default_action_on_close_application) == "none");
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), "default_action_on_select_preset",
+		append_bool_option(m_tabid_2_optgroups.back().back(), OPT_default_action_on_select_preset,
 			L("Ask for unsaved changes in presets when selecting new preset"),
 			L("Always ask for unsaved changes in presets when selecting new preset or resetting a preset"),
-			app_config->get("default_action_on_select_preset") == "none");
+			app_config->get(OPT_default_action_on_select_preset) == "none");
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), "default_action_on_new_project",
+		append_bool_option(m_tabid_2_optgroups.back().back(), OPT_default_action_on_new_project,
 			L("Ask for unsaved changes in presets when creating new project"),
 			L("Always ask for unsaved changes in presets when creating new project"),
-			app_config->get("default_action_on_new_project") == "none");
+			app_config->get(OPT_default_action_on_new_project) == "none");
 		
 		append_bool_option(m_tabid_2_optgroups.back().back(), "default_action_delete_all",
 			L("Ask for 'new project' on 'Delete all'"),
@@ -786,10 +805,10 @@ void PreferencesDialog::build()
 		m_tabid_2_optgroups.back().back()->title_width = 20;
 		m_tabid_2_optgroups.back().back()->label_width = 20;
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), "downloader_url_registered",
+		append_bool_option(m_tabid_2_optgroups.back().back(), OPT_downloader_url_registered,
 			L("Allow downloads from Printables.com"),
 			L("If enabled, Slic3r will be allowed to download from Printables.com"),
-			app_config->get_bool("downloader_url_registered"));
+			app_config->get_bool(OPT_downloader_url_registered));
 		assert(m_tabid_2_optgroups.size() == tabs->GetPageCount());
 		create_downloader_path_sizer(tabs->GetPage(tabs->GetPageCount()-1), m_tabid_2_optgroups.back().back());
 		create_settings_font_widget(tabs->GetPage(tabs->GetPageCount()-1), m_tabid_2_optgroups.back().back());
@@ -872,11 +891,11 @@ void PreferencesDialog::build()
 
     if (is_editor) {
         {
-            std::string suppress_hyperlinks_value = app_config->get("suppress_hyperlinks");
+            std::string suppress_hyperlinks_value = app_config->get(OPT_suppress_hyperlinks);
             bool need_set = true;
-            if (app_config->get("suppress_hyperlinks") == "0") {
+            if (app_config->get(OPT_suppress_hyperlinks) == "0") {
                 suppress_hyperlinks_value = "disable";
-            } else if (app_config->get("suppress_hyperlinks") == "1") {
+            } else if (app_config->get(OPT_suppress_hyperlinks) == "1") {
                 suppress_hyperlinks_value = "confirm";
             } else if (suppress_hyperlinks_value.empty()) {
                 suppress_hyperlinks_value = "confirm";
@@ -884,19 +903,20 @@ void PreferencesDialog::build()
                 need_set = false;
             }
             if (need_set) {
-                app_config->set("suppress_hyperlinks", suppress_hyperlinks_value);
+                app_config->set(OPT_suppress_hyperlinks, suppress_hyperlinks_value);
             }
             if (s_keys_map_SuppressHyperlinks.find(suppress_hyperlinks_value) == s_keys_map_SuppressHyperlinks.end()) {
                 assert(false);
                 suppress_hyperlinks_value = "confirm";
             }
-            append_enum_option<SuppressHyperlinks>(m_tabid_2_optgroups.back().back(), "suppress_hyperlinks",
+            append_enum_option<SuppressHyperlinks>(m_tabid_2_optgroups.back().back(), OPT_suppress_hyperlinks,
                 L("Allow to open hyperlink in browser"),
                 L("Sometimes an option is available to be opened in your browser, to have a link to documentation or a resource."
                     "\nDo you want to disabled these links (Disable)?"
                     "\nDo you want to have a confirm dialog (Confirm)?"
                     "\nDo you prefer to allow these (Allow)?"),
-                new ConfigOptionEnum<SuppressHyperlinks>(static_cast<SuppressHyperlinks>(s_keys_map_SuppressHyperlinks.at(suppress_hyperlinks_value))),
+                std::make_unique<ConfigOptionEnum<SuppressHyperlinks>>(
+                    static_cast<SuppressHyperlinks>(s_keys_map_SuppressHyperlinks.at(suppress_hyperlinks_value))),
                 { { "disable", L("Disable") },
                     { "confirm", L("Confirm") },
                     { "allow", L("Allow") }
@@ -940,11 +960,11 @@ void PreferencesDialog::build()
 			app_config->get_bool("show_step_import_parameters"));
 
 #ifdef _USE_CUSTOM_NOTEBOOK
-		append_bool_option(m_tabid_2_optgroups.back().back(), "tabs_as_menu",
+		append_bool_option(m_tabid_2_optgroups.back().back(), OPT_tabs_as_menu,
 			L("Set settings tabs as menu items"),
 			L("If enabled, Settings Tabs will be placed as menu items. If disabled, old UI will be used."),
-			app_config->get_bool("tabs_as_menu"));
-		m_values_need_restart.push_back("tabs_as_menu");
+			app_config->get_bool(OPT_tabs_as_menu));
+		m_values_need_restart.push_back(OPT_tabs_as_menu);
 #endif
 
 		// FIXME separator don't work anymore
@@ -971,7 +991,8 @@ void PreferencesDialog::build()
         append_enum_option<NotifyReleaseMode>(m_tabid_2_optgroups.back().back(), "notify_release",
             L("Notify about new releases"),
             L("You will be notified about new release after startup acordingly: All = Regular release and alpha / beta releases. Release only = regular release."),
-            new ConfigOptionEnum<NotifyReleaseMode>(static_cast<NotifyReleaseMode>(s_keys_map_NotifyReleaseMode.at(notify_release_value))),
+            std::make_unique<ConfigOptionEnum<NotifyReleaseMode>>(
+                static_cast<NotifyReleaseMode>(s_keys_map_NotifyReleaseMode.at(notify_release_value))),
             { { "all", L("All") },
               { "release", L("Release only") },
               { "none", L("None") }
@@ -979,12 +1000,12 @@ void PreferencesDialog::build()
 
 		m_tabid_2_optgroups.back().back()->append_separator(); //seems it's not working
 		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "use_custom_toolbar_size",
+		append_bool_option(m_tabid_2_optgroups.back().back(), OPT_use_custom_toolbar_size,
 			L("Use custom size for toolbar icons"),
 			L("If enabled, you can change size of toolbar icons manually."),
-			app_config->get_bool("use_custom_toolbar_size"));
+			app_config->get_bool(OPT_use_custom_toolbar_size));
 		create_icon_size_slider(tabs->GetPage(m_tabid_2_optgroups.size() - 1), m_tabid_2_optgroups.back().back());
-		m_icon_size_sizer->ShowItems(app_config->get("use_custom_toolbar_size") == "1");
+		m_icon_size_sizer->ShowItems(app_config->get(OPT_use_custom_toolbar_size) == "1");
 		
 		append_int_option(m_tabid_2_optgroups.back().back(), "tab_icon_size",
 			L("Tab icon size"),
@@ -999,7 +1020,8 @@ void PreferencesDialog::build()
 		append_enum_option<UiDensityMode>(m_tabid_2_optgroups.back().back(), "ui_density",
 			L("UI density"),
 			L("Controls spacing across tabs, toolbars, and combo boxes. Compact fits more UI on screen; Comfortable provides roomier spacing."),
-			new ConfigOptionEnum<UiDensityMode>(static_cast<UiDensityMode>(s_keys_map_UiDensityMode.at(ui_density_value))),
+			std::make_unique<ConfigOptionEnum<UiDensityMode>>(
+				static_cast<UiDensityMode>(s_keys_map_UiDensityMode.at(ui_density_value))),
 			{ { "comfortable", L("Comfortable") },
 			  { "compact", L("Compact") } });
 		m_values_need_restart.push_back("ui_density");
@@ -1094,13 +1116,13 @@ void PreferencesDialog::build()
             def_combobox.gui_flags = "show_value";
 
             AppConfig::LayoutEntry selected = get_app_config()->get_ui_layout();
-            def_combobox.set_default_value(new ConfigOptionStrings{selected.name + ": " + selected.description});
-            def_combobox.opt_key = "ui_layout";
+            def_combobox.set_default_value(std::make_unique<ConfigOptionStrings>(ConfigOptionStrings{selected.name + ": " + selected.description}));
+            def_combobox.opt_key = OPT_ui_layout;
             Option option = Option(def_combobox);
             m_tabid_2_optgroups.back().back()->append_single_option_line(option);
-            m_values_need_restart.push_back("ui_layout");
-            m_optkey_to_optgroup["ui_layout"] = m_tabid_2_optgroups.back().back();
-            wxGetApp().sidebar().get_searcher().add_key(OptionKeyIdx::scalar("ui_layout"), Preset::TYPE_PREFERENCES,
+            m_values_need_restart.push_back(OPT_ui_layout);
+            m_optkey_to_optgroup[OPT_ui_layout] = m_tabid_2_optgroups.back().back();
+            wxGetApp().sidebar().get_searcher().add_key(OptionKeyIdx::scalar(OPT_ui_layout), Preset::TYPE_PREFERENCES,
                                                         m_tabid_2_optgroups.back().back()->config_category(),
                                                         L("Preferences"), def_combobox);
             activate_options_tab(m_tabid_2_optgroups.back().back(), 3);
@@ -1119,7 +1141,7 @@ void PreferencesDialog::build()
     {
 
         ConfigOptionDef def_combobox;
-        def_combobox.opt_key = is_editor ? "splash_screen_editor" : "splash_screen_gcodeviewer";
+        def_combobox.opt_key = is_editor ? OPT_splash_screen_editor : OPT_splash_screen_gcodeviewer;
         def_combobox.label = L("Splash screen image");
         def_combobox.type = coString;
         def_combobox.tooltip = L("Choose the image to use as splashscreen");
@@ -1136,18 +1158,18 @@ void PreferencesDialog::build()
         }
         def_combobox.set_enum_values(ConfigOptionDef::GUIType::select_close, enum_key_values);
         assert(def_combobox.enum_def->is_valid_open_enum());
-        std::string current_file_name = app_config->get(is_editor ? "splash_screen_editor" : "splash_screen_gcodeviewer");
+        std::string current_file_name = app_config->get(is_editor ? OPT_splash_screen_editor : OPT_splash_screen_gcodeviewer);
         if (std::find(def_combobox.enum_def->values().begin(), def_combobox.enum_def->values().end(), current_file_name) == def_combobox.enum_def->values().end()) {
             assert(false);
             current_file_name = def_combobox.enum_def->values()[0];
-            app_config->set(is_editor ? "splash_screen_editor" : "splash_screen_gcodeviewer", current_file_name);
+            app_config->set(is_editor ? OPT_splash_screen_editor : OPT_splash_screen_gcodeviewer, current_file_name);
         }
-        def_combobox.set_default_value(new ConfigOptionString{ current_file_name });
+        def_combobox.set_default_value(std::make_unique<ConfigOptionString>(ConfigOptionString{ current_file_name }));
         Option option = Option(def_combobox);
         m_tabid_2_optgroups.back().back()->append_single_option_line(option);
-        m_optkey_to_optgroup[is_editor ? "splash_screen_editor" : "splash_screen_gcodeviewer"] = m_tabid_2_optgroups.back().back();
-        wxGetApp().sidebar().get_searcher().add_key(OptionKeyIdx::scalar(is_editor ? "splash_screen_editor" :
-                                                                                     "splash_screen_gcodeviewer"),
+        m_optkey_to_optgroup[is_editor ? OPT_splash_screen_editor : OPT_splash_screen_gcodeviewer] = m_tabid_2_optgroups.back().back();
+        wxGetApp().sidebar().get_searcher().add_key(OptionKeyIdx::scalar(is_editor ? OPT_splash_screen_editor :
+                                                                                     OPT_splash_screen_gcodeviewer),
                                                     Preset::TYPE_PREFERENCES,
                                                     m_tabid_2_optgroups.back().back()->config_category(),
                                                     L("Preferences"), def_combobox);
@@ -1289,7 +1311,7 @@ std::vector<ConfigOptionsGroup*> PreferencesDialog::optgroups()
 	std::vector<ConfigOptionsGroup*> out;
 	out.reserve(10);
     for (auto &opt_group_list : m_tabid_2_optgroups) {
-        for (int i = 0; i < (int) opt_group_list.size(); i++) {
+        for (int i = 0; i < static_cast<int>(opt_group_list.size()); i++) {
             if (opt_group_list[i]) {
                 out.push_back(opt_group_list[i].get());
             } else {
@@ -1323,7 +1345,7 @@ void PreferencesDialog::update_ctrls_alignment()
 void PreferencesDialog::accept(wxEvent&)
 {
 	if(wxGetApp().is_editor()) {
-		if (const auto it = m_values.find("downloader_url_registered"); it != m_values.end())
+		if (const auto it = m_values.find(OPT_downloader_url_registered); it != m_values.end())
 			this->m_downloader->allow(it->second == "1");
 		if (!this->m_downloader->on_finish())
 			return;
@@ -1332,7 +1354,7 @@ void PreferencesDialog::accept(wxEvent&)
 			DesktopIntegrationDialog::perform_downloader_desktop_integration();
 #endif // __linux__
 	}
-//	std::vector<std::string> options_to_recreate_GUI = { "no_defaults", "tabs_as_menu", "sys_menu_enabled", "font_pt_size", "suppress_round_corners" };
+//	std::vector<std::string> options_to_recreate_GUI = { "no_defaults", OPT_tabs_as_menu, "sys_menu_enabled", "font_pt_size", "suppress_round_corners" };
 
 
 	for (const std::string& option : m_values_need_restart) {
@@ -1382,8 +1404,8 @@ void PreferencesDialog::accept(wxEvent&)
     auto it_background_processing = m_values.find("background_processing");
     if (it_background_processing != m_values.end() && it_background_processing->second == "1" &&
         app_config->get("background_processing") != it_background_processing->second) {
-        bool warning = app_config->get("auto_switch_preview") != "never";
-        auto it_auto_switch_preview = m_values.find("auto_switch_preview");
+        bool warning = app_config->get(OPT_auto_switch_preview) != "never";
+        auto it_auto_switch_preview = m_values.find(OPT_auto_switch_preview);
         if (it_auto_switch_preview != m_values.end()) {
             warning = it_auto_switch_preview->second != "never";
         }
@@ -1391,7 +1413,7 @@ void PreferencesDialog::accept(wxEvent&)
             wxMessageDialog dialog(nullptr, "Using background processing with automatic tab switching may be combersome"
                 ", are-you sure to keep the automatic tab switching?", _L("Are you sure?"), wxOK | wxCANCEL | wxICON_QUESTION);
             if (dialog.ShowModal() == wxID_CANCEL) {
-                m_values["auto_switch_preview"] = "never";
+                m_values[OPT_auto_switch_preview] = "never";
             }
         }
     }
@@ -1437,27 +1459,27 @@ void PreferencesDialog::revert(wxEvent&)
 {
 	auto app_config = get_app_config();
 
-	if (m_custom_toolbar_size != atoi(app_config->get("custom_toolbar_size").c_str())) {
-		app_config->set("custom_toolbar_size", (boost::format("%d") % m_custom_toolbar_size).str());
+	if (m_custom_toolbar_size != atoi(app_config->get(OPT_custom_toolbar_size).c_str())) {
+		app_config->set(OPT_custom_toolbar_size, (boost::format("%d") % m_custom_toolbar_size).str());
 		m_icon_size_slider->SetValue(m_custom_toolbar_size);
 	}
-    if (m_use_custom_toolbar_size != (get_app_config()->get_bool("use_custom_toolbar_size"))) {
-        app_config->set("use_custom_toolbar_size", m_use_custom_toolbar_size ? "1" : "0");
+    if (m_use_custom_toolbar_size != (get_app_config()->get_bool(OPT_use_custom_toolbar_size))) {
+        app_config->set(OPT_use_custom_toolbar_size, m_use_custom_toolbar_size ? "1" : "0");
 
-        m_optkey_to_optgroup["use_custom_toolbar_size"]->set_value(OptionKeyIdx::scalar("use_custom_toolbar_size"),
+        m_optkey_to_optgroup[OPT_use_custom_toolbar_size]->set_value(OptionKeyIdx::scalar(OPT_use_custom_toolbar_size),
                                                                    m_use_custom_toolbar_size, true, false);
         m_icon_size_sizer->ShowItems(m_use_custom_toolbar_size);
-        refresh_og(m_optkey_to_optgroup["use_custom_toolbar_size"]);
+        refresh_og(m_optkey_to_optgroup[OPT_use_custom_toolbar_size]);
     }
 
 	for (auto value : m_values) {
 		const std::string& key = value.first;
 		// special cases
-		if (key == "default_action_on_dirty_project") {
+		if (key == OPT_default_action_on_dirty_project) {
 			m_optkey_to_optgroup[key]->set_value(OptionKeyIdx::scalar(key), app_config->get(key).empty(), true, false);
 			continue;
 		}
-		if (key == "default_action_on_close_application" || key == "default_action_on_select_preset" || key == "default_action_on_new_project") {
+		if (key == OPT_default_action_on_close_application || key == OPT_default_action_on_select_preset || key == OPT_default_action_on_new_project) {
 			m_optkey_to_optgroup[key]->set_value(OptionKeyIdx::scalar(key), app_config->get(key) == "none", true, false);
 			continue;
 		}
@@ -1476,7 +1498,7 @@ void PreferencesDialog::revert(wxEvent&)
 			m_settings_layout_changed = false;
 			continue;
 		}
-		if (key == "tabs_as_menu") {
+		if (key == OPT_tabs_as_menu) {
 			m_rb_new_settings_layout_mode->Show(!app_config->get_bool(key));
 			refresh_og(m_optkey_to_optgroup[key]);
 			continue;
@@ -1629,7 +1651,7 @@ void PreferencesDialog::create_icon_size_slider(wxWindow* tab, std::shared_ptr<C
 
     m_icon_size_sizer->Add(label, 0, wxALIGN_CENTER_VERTICAL| wxRIGHT | (isOSX ? 0 : wxLEFT), em);
 
-    const int def_val = atoi(app_config->get("custom_toolbar_size").c_str());
+    const int def_val = atoi(app_config->get(OPT_custom_toolbar_size).c_str());
 
     long style = wxSL_HORIZONTAL;
     if (!isOSX)
@@ -1653,7 +1675,7 @@ void PreferencesDialog::create_icon_size_slider(wxWindow* tab, std::shared_ptr<C
     m_icon_size_slider->Bind(wxEVT_SLIDER, ([this, val_label, app_config](wxCommandEvent e) {
         auto val = m_icon_size_slider->GetValue();
 
-		app_config->set("custom_toolbar_size", (boost::format("%d") % val).str());
+		app_config->set(OPT_custom_toolbar_size, (boost::format("%d") % val).str());
 		wxGetApp().plater()->get_current_canvas3D()->render();
 
         if (val_label)
@@ -1746,7 +1768,7 @@ void PreferencesDialog::create_settings_mode_widget(wxWindow* tab, std::shared_p
 		id++;
 	}*/
 #ifdef _USE_CUSTOM_NOTEBOOK
-	if (app_config->get_bool("tabs_as_menu")) {
+	if (app_config->get_bool(OPT_tabs_as_menu)) {
 		m_rb_new_settings_layout_mode->Hide();
 		if (m_rb_new_settings_layout_mode->GetValue()) {
 			m_rb_new_settings_layout_mode->SetValue(false);

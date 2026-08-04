@@ -57,6 +57,37 @@ static wxSize get_screen_size(wxWindow* window)
 
 namespace Slic3r {
 namespace GUI {
+
+namespace {
+constexpr char kColorComponentKey[]  = "color_comp";
+constexpr char kNearColorKey[]       = "near_color";
+constexpr char kBackgroundColorKey[] = "background_color";
+constexpr char kExtruderKey[]        = "extruder";
+constexpr char kExtrudersKey[]       = "extruders";
+constexpr char kSeparationXyKey[]    = "separation_xy";
+constexpr char kSpoolColorsKey[]     = "spool_colors";
+constexpr char kOriginalKey[]        = "original";
+constexpr char kAvailableColorsKey[] = "available_colors";
+constexpr char kOrderDarkKey[]       = "order_dark";
+constexpr char kSeparationZKey[]     = "separation_z";
+
+// r/place dialog + canvas layout (shared meanings, not identity arithmetic)
+constexpr long   kRPlaceEpochUnix        = 1648764000; // 2022-04-01 00:00:00 UTC
+constexpr int    kSecondsPerMinute       = 60;
+constexpr int    kSecondsPerHour         = 3600;
+constexpr int    kSecondsPerDay          = 86400;
+constexpr int    kHoursPerDay            = 24;
+constexpr int    kSpinCtrlWidthPx        = 80;
+constexpr int    kSpinCtrlHeightPx       = 20;
+constexpr int    kCanvasBorderPx         = 4;  // panel margin reserved around the tile grid
+constexpr int    kCanvasOriginOffsetPx   = 2;  // DrawRectangle origin inset from panel edge
+constexpr int    kConfigFieldWidthChars  = 4;
+constexpr int    kBluePerceptualHalf     = 2;  // blue channel weighted half as much as R/G
+constexpr int    kRoundingHalfDivisor    = 2;  // half-up residual for pixel conversion
+constexpr double kMinSeparationZMm       = 0.01;
+constexpr double kPlaceholderCubeEdgeMm  = 0.01;
+} // namespace
+
     //available on https://rplace.space/combined/ the 2022/06/04 (15gio of png)
     std::vector<long> rplace_timestamp{ 
         //1
@@ -621,7 +652,7 @@ namespace GUI {
         int dist = std::abs(col1.Red() - col2.Red());
         dist += std::abs(col1.Green() - col2.Green());
         //blue is less perceptible by humans
-        dist += std::abs(col1.Blue() - col2.Blue())/ 2;
+        dist += std::abs(col1.Blue() - col2.Blue()) / kBluePerceptualHalf;
         return dist;
     }
 
@@ -732,30 +763,30 @@ namespace GUI {
         Vec2d size_dbl = parent->m_config.option<ConfigOptionPoint>("size")->value;
         wxSize size(std::min(int(size_dbl.x()), bmp.GetSize().x - offset.x), std::min(int(size_dbl.y()), bmp.GetSize().y - offset.y));
         Vec2d pixel_size = parent->m_config.option<ConfigOptionPoint>("size_px")->value;
-        double separation = parent->m_config.opt_float("separation_xy");
+        double separation = parent->m_config.opt_float(kSeparationXyKey);
 
         //compute pixel per mm
         double max_x_mm = (size.x * (pixel_size.x() + separation) - separation);
         double max_y_mm = (size.y * (pixel_size.y() + separation) - separation);
-        float mm_per_pixel = std::max(max_x_mm / (GetSize().x - 4), max_y_mm / (GetSize().y - 4));
+        float mm_per_pixel = std::max(max_x_mm / (GetSize().x - kCanvasBorderPx), max_y_mm / (GetSize().y - kCanvasBorderPx));
 
         //compute pixel per tile & per separation
-        int pixels_separation = int(separation / mm_per_pixel) + (separation - int(separation / mm_per_pixel) > mm_per_pixel / 2 ? 1 : 0);
+        int pixels_separation = int(separation / mm_per_pixel) + (separation - int(separation / mm_per_pixel) > mm_per_pixel / kRoundingHalfDivisor ? 1 : 0);
         float ratiox = std::max(1.f, float(pixel_size.x() / pixel_size.y()));
         float ratioy = std::max(1.f, float(pixel_size.y() / pixel_size.x()));
-        int pixels_reste_x = (GetSize().x - 4 - pixels_separation * (size.x - 1));
-        int pixels_reste_y = (GetSize().y - 4 - pixels_separation * (size.y - 1));
+        int pixels_reste_x = (GetSize().x - kCanvasBorderPx - pixels_separation * (size.x - 1));
+        int pixels_reste_y = (GetSize().y - kCanvasBorderPx - pixels_separation * (size.y - 1));
         double pixels_per_tile_dbl_x = (pixels_reste_x / double(size.x * ratiox)); // (pixel_size.x() / pixel_size.y())));
         double pixels_per_tile_dbl_y = (pixels_reste_y / double(size.y * ratioy)); // (pixel_size.y() / pixel_size.x())));
         double pixels_per_tile = std::min(pixels_per_tile_dbl_x, pixels_per_tile_dbl_y);
         int pixels_per_tile_x = std::max(1, int(pixels_per_tile * ratiox));
         int pixels_per_tile_y = std::max(1, int(pixels_per_tile * ratioy));
 
-        bool show_original = parent->m_config.option<ConfigOptionBool>("original")->value;
-        const int color_algo = parent->m_config.option<ConfigOptionInt>("color_comp")->value;
-        bool use_near_color = parent->m_config.option<ConfigOptionBool>("near_color")->value;
-        bool use_spool_colors = parent->m_config.option<ConfigOptionBool>("spool_colors")->value;
-        wxColour background_color{ wxString{ parent->m_config.option<ConfigOptionString>("background_color")->value } };
+        bool show_original = parent->m_config.option<ConfigOptionBool>(kOriginalKey)->value;
+        const int color_algo = parent->m_config.option<ConfigOptionInt>(kColorComponentKey)->value;
+        bool use_near_color = parent->m_config.option<ConfigOptionBool>(kNearColorKey)->value;
+        bool use_spool_colors = parent->m_config.option<ConfigOptionBool>(kSpoolColorsKey)->value;
+        wxColour background_color{ wxString{ parent->m_config.option<ConfigOptionString>(kBackgroundColorKey)->value } };
 
         parent->recompute_colors();
 
@@ -789,8 +820,8 @@ namespace GUI {
         dc.SetBrush(*wxBLACK_BRUSH);
         dc.SetBrush(*col2nearest[background_color.GetRGB()]); //beckground color is in the m_pixel_colors list
         dc.DrawRectangle(
-            2,
-            2,
+            kCanvasOriginOffsetPx,
+            kCanvasOriginOffsetPx,
             size.x * (pixels_separation + pixels_per_tile_x) - pixels_separation,
             size.y * (pixels_separation + pixels_per_tile_y) - pixels_separation);
         
@@ -806,8 +837,8 @@ namespace GUI {
                 wxColour color(p.Red(), p.Green(), p.Blue());
                 dc.SetBrush(*col2nearest[color.GetRGB()]);
                 dc.DrawRectangle(
-                    2 + x * (pixels_separation + pixels_per_tile_x),
-                    2 + y * (pixels_separation + pixels_per_tile_y),
+                    kCanvasOriginOffsetPx + x * (pixels_separation + pixels_per_tile_x),
+                    kCanvasOriginOffsetPx + y * (pixels_separation + pixels_per_tile_y),
                     pixels_per_tile_x,
                     pixels_per_tile_y);
             }
@@ -843,10 +874,9 @@ namespace GUI {
         static inline long last_timestamp = 1649112424;
 
         void check_file(int delta = 0) {
-            const long timestamp_2022_04_01 = 1648764000;
-            timestamp = timestamp_2022_04_01 + 86400 * (day->GetValue() - 1);
-            timestamp += 3600 * (hour->GetValue());
-            timestamp += 60 * (minute->GetValue());
+            timestamp = kRPlaceEpochUnix + kSecondsPerDay * (day->GetValue() - 1);
+            timestamp += kSecondsPerHour * (hour->GetValue());
+            timestamp += kSecondsPerMinute * (minute->GetValue());
             timestamp += (second->GetValue());
             timestamp += delta;
             //it's ordered
@@ -856,10 +886,10 @@ namespace GUI {
             if (idx >= int(rplace_timestamp.size()) || (timestamp != rplace_timestamp[idx] && idx > 0 && delta<=0)) idx--;
             //enforce a good file
             timestamp = rplace_timestamp[idx];
-            day->SetValue(1 + (timestamp - 1648764000) / 86400);
-            hour->SetValue(((timestamp - 1648764000) / 3600) % 24);
-            minute->SetValue(((timestamp - 1648764000) / 60) % 60);
-            second->SetValue((timestamp - 1648764000) % 60);
+            day->SetValue(1 + (timestamp - kRPlaceEpochUnix) / kSecondsPerDay);
+            hour->SetValue(((timestamp - kRPlaceEpochUnix) / kSecondsPerHour) % kHoursPerDay);
+            minute->SetValue(((timestamp - kRPlaceEpochUnix) / kSecondsPerMinute) % kSecondsPerMinute);
+            second->SetValue((timestamp - kRPlaceEpochUnix) % kSecondsPerMinute);
         }
 
 
@@ -874,15 +904,15 @@ namespace GUI {
             wxStaticText* lbl_hour = new wxStaticText(this, wxID_ANY, "Hour");
             wxStaticText* lbl_minute = new wxStaticText(this, wxID_ANY, "Minute");
             wxStaticText* lbl_second = new wxStaticText(this, wxID_ANY, "Second");
-            day = new wxSpinCtrl(this, wxID_ANY, "Day", wxDefaultPosition, wxSize(80,20), spin_options, 1, 6, 5);
-            hour = new wxSpinCtrl(this, wxID_ANY, "H", wxDefaultPosition, wxSize(80, 20), spin_options, 0, 24, 0);
-            minute = new wxSpinCtrl(this, wxID_ANY, "M", wxDefaultPosition, wxSize(80, 20), spin_options, 0, 60, 47);
-            second = new wxSpinCtrl(this, wxID_ANY, "S", wxDefaultPosition, wxSize(80, 20), spin_options, 0, 60, 35);
+            day = new wxSpinCtrl(this, wxID_ANY, "Day", wxDefaultPosition, wxSize(kSpinCtrlWidthPx, kSpinCtrlHeightPx), spin_options, 1, 6, 5);
+            hour = new wxSpinCtrl(this, wxID_ANY, "H", wxDefaultPosition, wxSize(kSpinCtrlWidthPx, kSpinCtrlHeightPx), spin_options, 0, kHoursPerDay, 0);
+            minute = new wxSpinCtrl(this, wxID_ANY, "M", wxDefaultPosition, wxSize(kSpinCtrlWidthPx, kSpinCtrlHeightPx), spin_options, 0, kSecondsPerMinute, 47);
+            second = new wxSpinCtrl(this, wxID_ANY, "S", wxDefaultPosition, wxSize(kSpinCtrlWidthPx, kSpinCtrlHeightPx), spin_options, 0, kSecondsPerMinute, 35);
             timestamp = last_timestamp;
-            day->SetValue(1 + (timestamp - 1648764000) / 86400);
-            hour->SetValue(((timestamp - 1648764000) / 3600) % 24);
-            minute->SetValue(((timestamp - 1648764000) / 60) % 60);
-            second->SetValue((timestamp - 1648764000) % 60);
+            day->SetValue(1 + (timestamp - kRPlaceEpochUnix) / kSecondsPerDay);
+            hour->SetValue(((timestamp - kRPlaceEpochUnix) / kSecondsPerHour) % kHoursPerDay);
+            minute->SetValue(((timestamp - kRPlaceEpochUnix) / kSecondsPerMinute) % kSecondsPerMinute);
+            second->SetValue((timestamp - kRPlaceEpochUnix) % kSecondsPerMinute);
             day->Bind(wxEVT_SPINCTRL, ([this](wxCommandEvent e) {  check_file();  }), day->GetId());
             hour->Bind(wxEVT_SPINCTRL, ([this](wxCommandEvent e) {  check_file();  }), hour->GetId());
             minute->Bind(wxEVT_SPINCTRL, ([this](wxCommandEvent e) {  check_file();  }), minute->GetId());
@@ -949,27 +979,27 @@ void CreateMMUTiledCanvas::recompute_colors()
     Vec2d size_dbl = m_config.option<ConfigOptionPoint>("size")->value;
     wxSize size(std::min(int(size_dbl.x()), bmp.GetSize().x - offset.x), std::min(int(size_dbl.y()), bmp.GetSize().y - offset.y));
     Vec2d pixel_size = m_config.option<ConfigOptionPoint>("size_px")->value;
-    double separation = m_config.opt_float("separation_xy");
+    double separation = m_config.opt_float(kSeparationXyKey);
 
     //compute pixel per mm
     double max_x_mm = (size.x * (pixel_size.x() + separation) - separation);
     double max_y_mm = (size.y * (pixel_size.y() + separation) - separation);
-    float mm_per_pixel = std::max(max_x_mm / (GetSize().x - 4), max_y_mm / (GetSize().y - 4));
+    float mm_per_pixel = std::max(max_x_mm / (GetSize().x - kCanvasBorderPx), max_y_mm / (GetSize().y - kCanvasBorderPx));
 
     //compute pixel per tile & per separation
-    int pixels_separation = int(separation / mm_per_pixel) + (separation - int(separation / mm_per_pixel) > mm_per_pixel / 2 ? 1 : 0);
+    int pixels_separation = int(separation / mm_per_pixel) + (separation - int(separation / mm_per_pixel) > mm_per_pixel / kRoundingHalfDivisor ? 1 : 0);
     int ratiox = std::min(1, int(pixel_size.x() / pixel_size.y()));
     int ratioy = std::min(1, int(pixel_size.y() / pixel_size.x()));
-    int pixels_reste_x = (GetSize().x - 4 - pixels_separation * (size.x - 1));
-    int pixels_reste_y = (GetSize().y - 4 - pixels_separation * (size.y - 1));
+    int pixels_reste_x = (GetSize().x - kCanvasBorderPx - pixels_separation * (size.x - 1));
+    int pixels_reste_y = (GetSize().y - kCanvasBorderPx - pixels_separation * (size.y - 1));
     double pixels_per_tile_dbl_x = (pixels_reste_x / double(size.x * (pixel_size.x() / pixel_size.y())));
     double pixels_per_tile_dbl_y = (pixels_reste_y / double(size.y * (pixel_size.y() / pixel_size.x())));
     double pixels_per_tile = std::min(pixels_per_tile_dbl_x, pixels_per_tile_dbl_y);
     int pixels_per_tile_x = std::max(1, int(pixels_per_tile * ratiox));
     int pixels_per_tile_y = std::max(1, int(pixels_per_tile * ratioy));
 
-    bool show_original = m_config.option<ConfigOptionBool>("original")->value;
-    wxColour background_color{ wxString{ m_config.option<ConfigOptionString>("background_color")->value } };
+    bool show_original = m_config.option<ConfigOptionBool>(kOriginalKey)->value;
+    wxColour background_color{ wxString{ m_config.option<ConfigOptionString>(kBackgroundColorKey)->value } };
 
     for (ColorEntry& col : m_pixel_colors) {
         col.reset();
@@ -1022,7 +1052,7 @@ void CreateMMUTiledCanvas::recompute_colors()
     }
 
     // collect colors to merge
-    bool use_spool = m_config.opt_bool("spool_colors");
+    bool use_spool = m_config.opt_bool(kSpoolColorsKey);
     std::vector<ColorEntry*> old_colors = m_used_colors;
     m_used_colors.clear();
     for (ColorEntry& col : m_pixel_colors) {
@@ -1031,10 +1061,10 @@ void CreateMMUTiledCanvas::recompute_colors()
         }
     }
 
-    const int color_algo = m_config.option("color_comp")->get_int();
-    bool use_near_color = m_config.option("near_color")->get_bool();
+    const int color_algo = m_config.option(kColorComponentKey)->get_int();
+    bool use_near_color = m_config.option(kNearColorKey)->get_bool();
     //int nb_extruders = dynamic_cast<TabPrinter*>(m_gui_app->get_tab(Preset::TYPE_PRINTER))->m_extruders_count;
-    int nb_extruders = m_config.option("extruders")->get_int();
+    int nb_extruders = m_config.option(kExtrudersKey)->get_int();
     // re-order and fusion
     if (use_spool) {
         //use only spools first
@@ -1141,7 +1171,7 @@ void CreateMMUTiledCanvas::load_config()
         def.tooltip = L("Number of pixels in x and y axis to include in the tile.");
         def.sidetext = L("px");
         def.min = 0;
-        def.set_default_value(new ConfigOptionPoint{ Vec2d{ 32,32 } });
+        def.set_default_value(std::make_unique<ConfigOptionPoint>(ConfigOptionPoint{ Vec2d{ 32,32 } }));
         m_config.config_def.options["size"] = def;
         m_config.set_key_value("size", def.default_value.get()->clone());
 
@@ -1150,17 +1180,17 @@ void CreateMMUTiledCanvas::load_config()
         def.tooltip = L("Size in mm on x and y axis for a pixel");
         def.sidetext = L("mm");
         def.min = 0;
-        def.set_default_value(new ConfigOptionPoint{ Vec2d{ 5,5 } });
+        def.set_default_value(std::make_unique<ConfigOptionPoint>(ConfigOptionPoint{ Vec2d{ 5,5 } }));
         m_config.config_def.options["size_px"] = def;
         m_config.set_key_value("size_px", def.default_value.get()->clone());
 
         def = ConfigOptionDef{"height", coFloat};
         def.label = L("height");
         def.tooltip = L("Height of the full object.");
-        def.set_default_value(new ConfigOptionFloat{ 1 });
+        def.set_default_value(std::make_unique<ConfigOptionFloat>(ConfigOptionFloat{ 1 }));
         def.sidetext = L("mm");
         def.min = 0;
-        def.width = 4;
+        def.width = kConfigFieldWidthChars;
         m_config.config_def.options["height"] = def;
         m_config.set_key_value("height", def.default_value.get()->clone());
 
@@ -1169,39 +1199,39 @@ void CreateMMUTiledCanvas::load_config()
         def.tooltip = L("First pixel position (top left corner) in the image.");
         def.sidetext = L("mm");
         def.min = 0;
-        def.set_default_value(new ConfigOptionPoint{ Vec2d{ 140,330 } });
+        def.set_default_value(std::make_unique<ConfigOptionPoint>(ConfigOptionPoint{ Vec2d{ 140,330 } }));
         m_config.config_def.options["offset"] = def;
         m_config.set_key_value("offset", def.default_value.get()->clone());
 
 
-        def = ConfigOptionDef{"separation_xy", coFloat};
+        def = ConfigOptionDef{kSeparationXyKey, coFloat};
         def.label = L("XY");
         def.tooltip = L("Number of mm between (pixel) tiles.");
         //def.sidetext = L("mm");
         def.min = 0;
-        def.width = 4;
-        def.set_default_value(new ConfigOptionFloat{ 1 });
-        m_config.config_def.options["separation_xy"] = def;
-        m_config.set_key_value("separation_xy", def.default_value.get()->clone());
+        def.width = kConfigFieldWidthChars;
+        def.set_default_value(std::make_unique<ConfigOptionFloat>(ConfigOptionFloat{ 1 }));
+        m_config.config_def.options[kSeparationXyKey] = def;
+        m_config.set_key_value(kSeparationXyKey, def.default_value.get()->clone());
 
-        def = ConfigOptionDef{"separation_z", coFloat};
+        def = ConfigOptionDef{kSeparationZKey, coFloat};
         def.label = L("Z");
         def.tooltip = L("Height of the separation. If higher than the height, then tiles won't be joined."
             "\nA zero value isn't supported yet. Please use at least one layer of separation.");
         def.sidetext = L("mm");
-        def.min = 0.01;
-        def.width = 4;
-        def.set_default_value(new ConfigOptionFloat{ 0.6 });
-        m_config.config_def.options["separation_z"] = def;
-        m_config.set_key_value("separation_z", def.default_value.get()->clone());
+        def.min = kMinSeparationZMm;
+        def.width = kConfigFieldWidthChars;
+        def.set_default_value(std::make_unique<ConfigOptionFloat>(ConfigOptionFloat{ 0.6 }));
+        m_config.config_def.options[kSeparationZKey] = def;
+        m_config.set_key_value(kSeparationZKey, def.default_value.get()->clone());
 
         def = ConfigOptionDef{"bezel", coFloat};
         def.label = L("Bezel");
         def.tooltip = L("Bevel for the bottom of the 'pillars'. Should be less than half of Pixel Size");
         def.sidetext = L("mm");
         def.min = 0.0;
-        def.width = 4;
-        def.set_default_value(new ConfigOptionFloat{ 0.0 });
+        def.width = kConfigFieldWidthChars;
+        def.set_default_value(std::make_unique<ConfigOptionFloat>(ConfigOptionFloat{ 0.0 }));
         m_config.config_def.options["bezel"] = def;
         m_config.set_key_value("bezel", def.default_value.get()->clone());
 
@@ -1210,8 +1240,8 @@ void CreateMMUTiledCanvas::load_config()
         def.tooltip = L("Border width over the mosaic plate.");
         def.sidetext = L("mm");
         def.min = 0.0;
-        def.width = 4;
-        def.set_default_value(new ConfigOptionFloat{ 0.0 });
+        def.width = kConfigFieldWidthChars;
+        def.set_default_value(std::make_unique<ConfigOptionFloat>(ConfigOptionFloat{ 0.0 }));
         m_config.config_def.options["border"] = def;
         m_config.set_key_value("border", def.default_value.get()->clone());
         
@@ -1222,32 +1252,32 @@ void CreateMMUTiledCanvas::load_config()
         //def.type = coFloat;
         //def.tooltip = L("If you want to have a 3D shaped tile, set this setting. It's the height diff at the center of the tile.");
         //def.sidetext = L("mm");
-        //def.set_default_value(new ConfigOptionFloat{ 0 });
+        //def.set_default_value(std::make_unique<ConfigOptionFloat>(ConfigOptionFloat{ 0 }));
         //m_config.config_def.options["bump"] = def;
         //m_config.set_key_value("bump", def.default_value.get()->clone());
 
-        def = ConfigOptionDef{"near_color", coBool};
+        def = ConfigOptionDef{kNearColorKey, coBool};
         def.label = L("Use nearest color");
         def.tooltip = L("If there is not enough extruders configured, use the one with the nearest color. It will use the nearest spool color if spool_colors is set.");
-        def.set_default_value(new ConfigOptionBool{ true });
-        m_config.config_def.options["near_color"] = def;
-        m_config.set_key_value("near_color", def.default_value.get()->clone());
+        def.set_default_value(std::make_unique<ConfigOptionBool>(ConfigOptionBool{ true }));
+        m_config.config_def.options[kNearColorKey] = def;
+        m_config.set_key_value(kNearColorKey, def.default_value.get()->clone());
 
-        def = ConfigOptionDef{"order_dark", coBool};
+        def = ConfigOptionDef{kOrderDarkKey, coBool};
         def.label = L("From dark to light");
         def.tooltip = L("If checked, it will order the extruder from the darker to the lighter, and the opposite if unchecked. Useful to optimise the purge volume needed when switching colors.");
-        def.set_default_value(new ConfigOptionBool{ false });
-        m_config.config_def.options["order_dark"] = def;
-        m_config.set_key_value("order_dark", def.default_value.get()->clone());
+        def.set_default_value(std::make_unique<ConfigOptionBool>(ConfigOptionBool{ false }));
+        m_config.config_def.options[kOrderDarkKey] = def;
+        m_config.set_key_value(kOrderDarkKey, def.default_value.get()->clone());
 
-        def = ConfigOptionDef{"spool_colors", coBool};
+        def = ConfigOptionDef{kSpoolColorsKey, coBool};
         def.label = L("Use real spool colors");
         def.tooltip = L("Uses colors from your spools, defined in the second tab.");
-        def.set_default_value(new ConfigOptionBool{ false });
-        m_config.config_def.options["spool_colors"] = def;
-        m_config.set_key_value("spool_colors", def.default_value.get()->clone());
+        def.set_default_value(std::make_unique<ConfigOptionBool>(ConfigOptionBool{ false }));
+        m_config.config_def.options[kSpoolColorsKey] = def;
+        m_config.set_key_value(kSpoolColorsKey, def.default_value.get()->clone());
 
-        def = ConfigOptionDef{"color_comp", coInt};
+        def = ConfigOptionDef{kColorComponentKey, coInt};
         def.label = L("Comparator");
         def.tooltip = L("Choose how to compare color, to choose what's merged");
         def.gui_type = ConfigOptionDef::GUIType::i_enum_open;
@@ -1256,41 +1286,41 @@ void CreateMMUTiledCanvas::load_config()
             { "1", "RGb" },
             { "2", "Hsv" }
         });
-        def.set_default_value(new ConfigOptionInt{ 0 });
-        m_config.config_def.options["color_comp"] = def;
-        m_config.set_key_value("color_comp", def.default_value.get()->clone());
+        def.set_default_value(std::make_unique<ConfigOptionInt>(ConfigOptionInt{ 0 }));
+        m_config.config_def.options[kColorComponentKey] = def;
+        m_config.set_key_value(kColorComponentKey, def.default_value.get()->clone());
 
 
-        def = ConfigOptionDef{"original", coBool};
+        def = ConfigOptionDef{kOriginalKey, coBool};
         def.label = L("Show original colors");
         def.tooltip = L("The preview shows what's going to be generated. Select this option to see the original file instead.");
-        def.set_default_value(new ConfigOptionBool{ false });
-        m_config.config_def.options["original"] = def;
-        m_config.set_key_value("original", def.default_value.get()->clone());
+        def.set_default_value(std::make_unique<ConfigOptionBool>(ConfigOptionBool{ false }));
+        m_config.config_def.options[kOriginalKey] = def;
+        m_config.set_key_value(kOriginalKey, def.default_value.get()->clone());
 
-        def = ConfigOptionDef{"extruders", coInt};
+        def = ConfigOptionDef{kExtrudersKey, coInt};
         def.label = L("Extruders");
         def.min = 1;
         def.tooltip = L("Shortcut to change the number of extruders quickly. It's not refreshed when the real setting changes, so be careful to don't be confused.");
-        def.set_default_value(new ConfigOptionInt((int)dynamic_cast<TabPrinter*>(this->m_gui_app->get_tab(Preset::TYPE_PRINTER))->m_extruders_count));
-        m_config.config_def.options["extruders"] = def;
-        m_config.set_key_value("extruders", def.default_value.get()->clone());
+        def.set_default_value(std::make_unique<ConfigOptionInt>(static_cast<int>(dynamic_cast<TabPrinter*>(this->m_gui_app->get_tab(Preset::TYPE_PRINTER))->m_extruders_count)));
+        m_config.config_def.options[kExtrudersKey] = def;
+        m_config.set_key_value(kExtrudersKey, def.default_value.get()->clone());
 
-        def = ConfigOptionDef{"available_colors", coStrings};
+        def = ConfigOptionDef{kAvailableColorsKey, coStrings};
         def.label = L("Available colors");
         def.tooltip = L("Colors available for printing (your spools colors)");
         def.gui_type = ConfigOptionDef::GUIType::color;
-        def.set_default_value(new ConfigOptionStrings{ "#0000FF" });
-        m_config.config_def.options["available_colors"] = def;
-        m_config.set_key_value("available_colors", def.default_value.get()->clone());
+        def.set_default_value(std::make_unique<ConfigOptionStrings>(ConfigOptionStrings{ "#0000FF" }));
+        m_config.config_def.options[kAvailableColorsKey] = def;
+        m_config.set_key_value(kAvailableColorsKey, def.default_value.get()->clone());
 
-        def = ConfigOptionDef{"background_color", coString};
+        def = ConfigOptionDef{kBackgroundColorKey, coString};
         def.label = L("Background color");
         def.tooltip = L("Color for pillars and base layers.");
         def.gui_type = ConfigOptionDef::GUIType::color;
-        def.set_default_value(new ConfigOptionString( "#FFFFFF" ));
-        m_config.config_def.options["background_color"] = def;
-        m_config.set_key_value("background_color", def.default_value.get()->clone());
+        def.set_default_value(std::make_unique<ConfigOptionString>( "#FFFFFF" ));
+        m_config.config_def.options[kBackgroundColorKey] = def;
+        m_config.set_key_value(kBackgroundColorKey, def.default_value.get()->clone());
     }
 
     boost::filesystem::path path_dir = Slic3r::data_dir();
@@ -1563,7 +1593,7 @@ void CreateMMUTiledCanvas::create_main_tab(wxPanel* tab)
             "png files (*.png)|*.png", wxFD_OPEN | wxFD_FILE_MUST_EXIST);
         if (openFileDialog.ShowModal() == wxID_CANCEL)
             return;
-        m_config.set_key_value("offset", new ConfigOptionPoint(Vec2d(0, 0)));
+        m_config.set_key_value("offset", std::make_unique<ConfigOptionPoint>(Vec2d(0, 0)));
 
         this->m_filename_ctrl->SetValue(openFileDialog.GetPath());
         this->get_canvas()->loadImage(openFileDialog.GetPath().ToStdString());
@@ -1574,14 +1604,14 @@ void CreateMMUTiledCanvas::create_main_tab(wxPanel* tab)
     wxGetApp().UpdateDarkUI(bt_rplace);
     horiSizer->Add(bt_rplace, 0, wxALIGN_CENTER_VERTICAL);
     bt_rplace->Bind(wxEVT_BUTTON, ([this](wxCommandEvent& e) {
-        GetRPlaceDialog* dialog = new GetRPlaceDialog(this, wxID_ANY, _L("Choose your r/place moment"));
-        int result = dialog->ShowModal();
+        GetRPlaceDialog dialog(this, wxID_ANY, _L("Choose your r/place moment"));
+        int result = dialog.ShowModal();
         if (result == wxID_OK) {
-            GetRPlaceDialog::last_timestamp = dialog->timestamp;
+            GetRPlaceDialog::last_timestamp = dialog.timestamp;
             boost::filesystem::path object_path(Slic3r::data_dir());
-            object_path = object_path / "temp" / (std::to_string(dialog->timestamp) + ".png");
+            object_path = object_path / "temp" / (std::to_string(dialog.timestamp) + ".png");
             if (!exists(object_path)) {
-                get_file_from_web("https://rplace.space/combined/" + std::to_string(dialog->timestamp) + ".png", object_path);
+                get_file_from_web("https://rplace.space/combined/" + std::to_string(dialog.timestamp) + ".png", object_path);
             }
 
             this->m_filename_ctrl->SetValue(object_path.string());
@@ -1632,9 +1662,9 @@ void CreateMMUTiledCanvas::create_main_tab(wxPanel* tab)
 
     line = { L("Gap"), "" };
 
-    line.append_option(group_size->create_option_from_def("separation_xy"));
+    line.append_option(group_size->create_option_from_def(kSeparationXyKey));
 
-    line.append_option(group_size->create_option_from_def("separation_z"));
+    line.append_option(group_size->create_option_from_def(kSeparationZKey));
 
     group_size->append_line(line);
 
@@ -1654,7 +1684,7 @@ void CreateMMUTiledCanvas::create_main_tab(wxPanel* tab)
     group_colors = std::make_shared<ConfigOptionsGroup>(tab, "Colors", &m_config);
     group_colors->m_on_change = [this](const OptionKeyIdx &opt_key_idx, bool enabled, const boost::any &value) {
         assert(enabled);
-    //    if ("extruders" == opt_key_idx.key) {
+    //    if (kExtrudersKey == opt_key_idx.key) {
     //        dynamic_cast<TabPrinter*>(this->m_gui_app->get_tab(Preset::TYPE_PRINTER))->extruders_count_changed(boost::any_cast<int>(value));
     //    }
         m_dirty = true;
@@ -1663,32 +1693,32 @@ void CreateMMUTiledCanvas::create_main_tab(wxPanel* tab)
     };
     group_colors->title_width = 15;
 
-    group_colors->append_single_option_line(group_colors->create_option_from_def("spool_colors"));
+    group_colors->append_single_option_line(group_colors->create_option_from_def(kSpoolColorsKey));
 
     //line = { L("Separation"), "" };
-    //line.append_option(group_colors->create_option_from_def("near_color"));
-    //line.append_option(group_colors->create_option_from_def("color_comp"));
+    //line.append_option(group_colors->create_option_from_def(kNearColorKey));
+    //line.append_option(group_colors->create_option_from_def(kColorComponentKey));
     //group_colors->append_line(line);
-    group_colors->append_single_option_line(group_colors->create_option_from_def("near_color"));
+    group_colors->append_single_option_line(group_colors->create_option_from_def(kNearColorKey));
 
-    group_colors->append_single_option_line(group_colors->create_option_from_def("color_comp"));
+    group_colors->append_single_option_line(group_colors->create_option_from_def(kColorComponentKey));
 
-    group_colors->append_single_option_line(group_colors->create_option_from_def("order_dark"));
+    group_colors->append_single_option_line(group_colors->create_option_from_def(kOrderDarkKey));
 
-    group_colors->append_single_option_line(group_colors->create_option_from_def("original"));
+    group_colors->append_single_option_line(group_colors->create_option_from_def(kOriginalKey));
 
-    group_colors->append_single_option_line(group_colors->create_option_from_def("extruders"));
+    group_colors->append_single_option_line(group_colors->create_option_from_def(kExtrudersKey));
 
-    group_colors->append_single_option_line(group_colors->create_option_from_def("background_color"));
+    group_colors->append_single_option_line(group_colors->create_option_from_def(kBackgroundColorKey));
 
 
-    //group_colors->append_single_option_line(group_colors->get_option("near_color"));
+    //group_colors->append_single_option_line(group_colors->get_option(kNearColorKey));
 
     //#TODO
     //def.label = L("Colors");
     //def.type = coPoint;
     //def.tooltip = L("number of colors.");
-    //def.set_default_value(new ConfigOptionPoint{ Vec2d{ 0,0 } });
+    //def.set_default_value(std::make_unique<ConfigOptionPoint>(ConfigOptionPoint{ Vec2d{ 0,0 } }));
 
 
     group_colors->activate([]() {}, wxALIGN_RIGHT);
@@ -1730,7 +1760,7 @@ public:
     static void save_all_colors() {
         std::vector<std::string> colors;
         for (ColorEntrySpool& ces : s_main_app->m_spools) colors.push_back(wxString::Format(wxT("#%02X%02X%02X"), ces.get_printed_color().Red(), ces.get_printed_color().Green(), ces.get_printed_color().Blue()).ToStdString());
-        s_main_app->m_config.set_key_value("available_colors", new ConfigOptionStrings(colors));
+        s_main_app->m_config.set_key_value(kAvailableColorsKey, std::make_unique<ConfigOptionStrings>(colors));
         s_main_app->save_config();
     }
 
@@ -1846,9 +1876,9 @@ public:
 
 int CreateMMUTiledCanvas::find_extruder(wxColour color) {
     //int nb_extruders = dynamic_cast<TabPrinter*>(this->m_gui_app->get_tab(Preset::TYPE_PRINTER))->m_extruders_count;
-    int nb_extruders = m_config.option<ConfigOptionInt>("extruders")->value;;
-    const int color_algo = m_config.option<ConfigOptionInt>("color_comp")->value;
-    bool use_near_color = m_config.option<ConfigOptionBool>("near_color")->value;
+    int nb_extruders = m_config.option<ConfigOptionInt>(kExtrudersKey)->value;;
+    const int color_algo = m_config.option<ConfigOptionInt>(kColorComponentKey)->value;
+    bool use_near_color = m_config.option<ConfigOptionBool>(kNearColorKey)->value;
     int idx_extruder = 0;
     for (int i = 0; i < int(m_used_colors.size()) && i < nb_extruders; i++) {
         if (m_used_colors[i]->get_printed_color() == color) {
@@ -1866,8 +1896,8 @@ void CreateMMUTiledCanvas::recreate_color_conversion()
     auto create_line = [this](ColorEntry* col_entry, int index) {
         wxBoxSizer* line = new wxBoxSizer(wxHORIZONTAL);
         wxStaticText* col_start = new wxStaticText(m_color_tab, wxID_ANY, "");
-        col_start->SetSize(80, 20);
-        col_start->SetMinSize(wxSize(80, 20));
+        col_start->SetSize(kSpinCtrlWidthPx, kSpinCtrlHeightPx);
+        col_start->SetMinSize(wxSize(kSpinCtrlWidthPx, kSpinCtrlHeightPx));
         col_start->SetBackgroundColour(col_entry->real_color);
         line->Add(col_start);
         //wxCheckBox* chk_auto = new wxCheckBox(tab, wxID_ANY, "Auto");
@@ -1978,8 +2008,8 @@ void CreateMMUTiledCanvas::create_color_tab(wxPanel* tab)
     color_sizer->Add(first_line, wxGBPosition(1, 1), wxGBSpan(1, 2), wxEXPAND | wxALL, 2);
 
     //row of available colors
-    //group_colors->append_single_option_line(group_colors->get_option("available_colors"));
-    ConfigOptionStrings* available_colors = m_config.option<ConfigOptionStrings>("available_colors");
+    //group_colors->append_single_option_line(group_colors->get_option(kAvailableColorsKey));
+    ConfigOptionStrings* available_colors = m_config.option<ConfigOptionStrings>(kAvailableColorsKey);
     for (int i = 0; i < int(available_colors->size()); i++) {
         MywxColourPickerCtrl::add_color_bt(available_colors->get_at(i), color_row_sizer);
     }
@@ -2069,7 +2099,7 @@ indexed_triangle_set its_make_pyramid_inverted(double xd, double yd, double zd, 
 
 void CreateMMUTiledCanvas::create_geometry(wxCommandEvent& event_args) {
 
-    static_cast<TabPrinter*>(this->m_gui_app->get_tab(Preset::TYPE_PRINTER))->extruders_count_changed(m_config.opt_int("extruders"));
+    static_cast<TabPrinter*>(this->m_gui_app->get_tab(Preset::TYPE_PRINTER))->extruders_count_changed(m_config.opt_int(kExtrudersKey));
 
     //create the base
     Plater* plat = this->m_main_frame->plater();
@@ -2089,9 +2119,9 @@ void CreateMMUTiledCanvas::create_geometry(wxCommandEvent& event_args) {
     Vec2d size_dbl = m_config.option<ConfigOptionPoint>("size")->value;
     wxSize size(std::min(int(size_dbl.x()), m_canvas->bmp.GetSize().x - offset.x), std::min(int(size_dbl.y()), m_canvas->bmp.GetSize().y - offset.y));
     Vec2d pixel_size = m_config.option<ConfigOptionPoint>("size_px")->value;
-    double separation = m_config.opt_float("separation_xy");
+    double separation = m_config.opt_float(kSeparationXyKey);
     double height = m_config.opt_float("height");
-    double separation_z = m_config.opt_float("separation_z");
+    double separation_z = m_config.opt_float(kSeparationZKey);
     double bezel = m_config.opt_float("bezel");
     double border = m_config.opt_float("border");
     //double first_layer_height = print_config->get_computed_value("first_layer_height");
@@ -2102,11 +2132,11 @@ void CreateMMUTiledCanvas::create_geometry(wxCommandEvent& event_args) {
     Vec2d total_size{ size.x * (pixel_size.x() + separation) - separation, size.y * (pixel_size.y() + separation) - separation };
 
     int nb_extruders = dynamic_cast<TabPrinter*>(this->m_gui_app->get_tab(Preset::TYPE_PRINTER))->m_extruders_count;
-    bool use_near_color = m_config.option<ConfigOptionBool>("near_color")->value;
-    const int color_algo = m_config.option<ConfigOptionInt>("color_comp")->value;
-    const std::string background_color = m_config.option<ConfigOptionString>("background_color")->value;
-    const bool order_dark = m_config.option<ConfigOptionBool>("order_dark")->value;
-    const bool use_spool_colors = m_config.option<ConfigOptionBool>("spool_colors")->value;
+    bool use_near_color = m_config.option<ConfigOptionBool>(kNearColorKey)->value;
+    const int color_algo = m_config.option<ConfigOptionInt>(kColorComponentKey)->value;
+    const std::string background_color = m_config.option<ConfigOptionString>(kBackgroundColorKey)->value;
+    const bool order_dark = m_config.option<ConfigOptionBool>(kOrderDarkKey)->value;
+    const bool use_spool_colors = m_config.option<ConfigOptionBool>(kSpoolColorsKey)->value;
 
     //sort used color by brightness, to begin dark and lighter and lighter.
     std::sort(m_used_colors.begin(), m_used_colors.end(), [order_dark, use_spool_colors](ColorEntry* ce1, ColorEntry* ce2) {
@@ -2132,7 +2162,7 @@ void CreateMMUTiledCanvas::create_geometry(wxCommandEvent& event_args) {
     TriangleMesh mesh(its_make_cube(total_size.x() + (border > 0 ? 2 * separation : 0), total_size.y() + (border > 0 ? 2 * separation : 0), height - separation_z));
     if (separation_z >= height) {
         //phony volume
-        mesh = TriangleMesh(its_make_cube(0.01, 0.01, 0.01));
+        mesh = TriangleMesh(its_make_cube(kPlaceholderCubeEdgeMm, kPlaceholderCubeEdgeMm, kPlaceholderCubeEdgeMm));
     }
     { //this->m_gui_app->obj_list()->load_mesh_object(mesh, _L("Base Tile"), false);
 #ifdef _DEBUG
@@ -2150,7 +2180,7 @@ void CreateMMUTiledCanvas::create_geometry(wxCommandEvent& event_args) {
         new_object->sort_volumes(wxGetApp().app_config->get("order_volumes") == "1");
         new_volume->name = new_object->name;
         // set a default extruder value
-        new_volume->config.set_key_value("extruder", new ConfigOptionInt(idx_extruder_base));
+        new_volume->config.set_key_value(kExtruderKey, std::make_unique<ConfigOptionInt>(idx_extruder_base));
         new_object->invalidate_bounding_box();
         //new_object->translate(-bb.center());
 
@@ -2169,25 +2199,25 @@ void CreateMMUTiledCanvas::create_geometry(wxCommandEvent& event_args) {
         ModelVolume* vol_N = model.objects[0]->add_volume(std::move(mesh_N), ModelVolumeType::MODEL_PART, false);
         vol_N->name = "border_N";
         vol_N->set_offset(Vec3d{ -(border + separation) , -(border + separation) , 0 });
-        vol_N->config.set_key_value("extruder", new ConfigOptionInt(idx_extruder_base));
+        vol_N->config.set_key_value(kExtruderKey, std::make_unique<ConfigOptionInt>(idx_extruder_base));
 
         TriangleMesh mesh_E(its_make_cube(border, total_size.x() + border + 2 * separation, height));
         ModelVolume* vol_E = model.objects[0]->add_volume(std::move(mesh_E), ModelVolumeType::MODEL_PART, false);
         vol_E->name = "border_E";
         vol_E->set_offset(Vec3d{ total_size.x() + (separation) , -(border + separation) , 0 });
-        vol_E->config.set_key_value("extruder", new ConfigOptionInt(idx_extruder_base));
+        vol_E->config.set_key_value(kExtruderKey, std::make_unique<ConfigOptionInt>(idx_extruder_base));
 
         TriangleMesh mesh_S(its_make_cube(total_size.x() + border + 2*separation, border, height));
         ModelVolume* vol_S = model.objects[0]->add_volume(std::move(mesh_S), ModelVolumeType::MODEL_PART, false);
         vol_S->name = "border_S";
         vol_S->set_offset(Vec3d{ -(separation) , total_size.y() + (separation) , 0});
-        vol_S->config.set_key_value("extruder", new ConfigOptionInt(idx_extruder_base));
+        vol_S->config.set_key_value(kExtruderKey, std::make_unique<ConfigOptionInt>(idx_extruder_base));
 
         TriangleMesh mesh_W(its_make_cube(border, total_size.x() + border + 2 * separation, height));
         ModelVolume* vol_W = model.objects[0]->add_volume(std::move(mesh_W), ModelVolumeType::MODEL_PART, false);
         vol_W->name = "border_W";
         vol_W->set_offset(Vec3d{ -(border + separation) , -(separation) , 0 });
-        vol_W->config.set_key_value("extruder", new ConfigOptionInt(idx_extruder_base));
+        vol_W->config.set_key_value(kExtruderKey, std::make_unique<ConfigOptionInt>(idx_extruder_base));
     }
 
     wxNativePixelData data(m_canvas->bmp);
@@ -2224,7 +2254,7 @@ void CreateMMUTiledCanvas::create_geometry(wxCommandEvent& event_args) {
                 ModelVolume* vol = model.objects[0]->add_volume(std::move(mesh), ModelVolumeType::MODEL_PART, false);
                 vol->name = "base_" + std::to_string(offset.x + x) + "_" + std::to_string(offset.y + y);
                 vol->set_offset(Vec3d{ x * (pixel_size.x() + separation), total_size.y() - y * (pixel_size.y() + separation) - pixel_size.y(), height - separation_z });
-                vol->config.set_key_value("extruder", new ConfigOptionInt(idx_extruder_base));
+                vol->config.set_key_value(kExtruderKey, std::make_unique<ConfigOptionInt>(idx_extruder_base));
             }
             //colored
             {
@@ -2232,7 +2262,7 @@ void CreateMMUTiledCanvas::create_geometry(wxCommandEvent& event_args) {
                 ModelVolume* vol = model.objects[0]->add_volume(std::move(mesh), ModelVolumeType::MODEL_PART, false);
                 vol->name = "tile_" + std::to_string(offset.x + x) + "_" + std::to_string(offset.y + y);
                 vol->set_offset(Vec3d{ x * (pixel_size.x() + separation), total_size.y() - y * (pixel_size.y() + separation) - pixel_size.y(), height - layer_height });
-                vol->config.set_key_value("extruder", new ConfigOptionInt(idx_extruder));
+                vol->config.set_key_value(kExtruderKey, std::make_unique<ConfigOptionInt>(idx_extruder));
             }
         }
         p = rowStart;

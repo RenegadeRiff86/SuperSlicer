@@ -87,16 +87,16 @@ void CalibrationRetractionDialog::remove_slowdown(wxCommandEvent& event_args) {
     DynamicPrintConfig new_filament_config = *filament_config; //make a copy
 
     const ConfigOptionFloats *fil_conf = filament_config->option<ConfigOptionFloats>("slowdown_below_layer_time");
-    ConfigOptionFloats *new_fil_conf = new ConfigOptionFloats(5);
-    new_fil_conf->set(*fil_conf);
-    new_fil_conf->set_at(0, 0);
-    new_filament_config.set_key_value("slowdown_below_layer_time", new_fil_conf); 
+    auto new_slowdown = std::make_unique<ConfigOptionFloats>(5);
+    new_slowdown->set(*fil_conf);
+    new_slowdown->set_at(0, 0);
+    new_filament_config.set_key_value("slowdown_below_layer_time", std::move(new_slowdown));
 
     fil_conf = filament_config->option<ConfigOptionFloats>("fan_below_layer_time");
-    new_fil_conf = new ConfigOptionFloats(60);
-    new_fil_conf->set(*fil_conf);
-    new_fil_conf->set_at(0, 0);
-    new_filament_config.set_key_value("fan_below_layer_time", new_fil_conf);
+    auto new_fan_time = std::make_unique<ConfigOptionFloats>(60);
+    new_fan_time->set(*fil_conf);
+    new_fan_time->set_at(0, 0);
+    new_filament_config.set_key_value("fan_below_layer_time", std::move(new_fan_time));
 
     this->gui_app->get_tab(Preset::TYPE_FFF_FILAMENT)->load_config(new_filament_config);
     this->main_frame->plater()->on_config_change(new_filament_config);
@@ -228,37 +228,39 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
         double perimeter_speed = full_print_config.get_computed_value("perimeter_speed");
         double external_perimeter_speed = full_print_config.get_computed_value("external_perimeter_speed");
         //brim to have some time to build up pressure in the nozzle
-        current_obj->config.set_key_value("brim_width", new ConfigOptionFloat(0));
-        current_obj->config.set_key_value("perimeters", new ConfigOptionInt(2));
-        current_obj->config.set_key_value("external_perimeters_first", new ConfigOptionBool(false));
-        current_obj->config.set_key_value("bottom_solid_layers", new ConfigOptionInt(0));
+        current_obj->config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(0));
+        current_obj->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(2));
+        current_obj->config.set_key_value("external_perimeters_first", std::make_unique<ConfigOptionBool>(false));
+        current_obj->config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(0));
         for(auto& volume : current_obj->volumes)
             if( volume->name == filament_temp_item_name[i] || volume->name.empty()) // if temperature patch or the main retraction patch (empty name because it's the initial volume)
-                volume->config.set_key_value("bottom_solid_layers", new ConfigOptionInt(2));
-        current_obj->config.set_key_value("top_solid_layers", new ConfigOptionInt(0));
-        current_obj->config.set_key_value("fill_density", new ConfigOptionPercent(0));
-        //current_obj->config.set_key_value("fill_pattern", new ConfigOptionEnum<InfillPattern>(ipRectilinear));
-        current_obj->config.set_key_value("only_one_perimeter_top", new ConfigOptionBool(false));
-        current_obj->config.set_key_value("overhangs_width_speed", (new ConfigOptionFloatOrPercent(0,false))->set_can_be_disabled(true));
-        current_obj->config.set_key_value("thin_walls", new ConfigOptionBool(true));
-        current_obj->config.set_key_value("thin_walls_min_width", new ConfigOptionFloatOrPercent(2,true));
-        current_obj->config.set_key_value("gap_fill_enabled", new ConfigOptionBool(false));
-        current_obj->config.set_key_value("first_layer_height", new ConfigOptionFloatOrPercent(nozzle_diameter / 2., false));
-        current_obj->config.set_key_value("layer_height", new ConfigOptionFloat(nozzle_diameter / 2.));
+                volume->config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(2));
+        current_obj->config.set_key_value("top_solid_layers", std::make_unique<ConfigOptionInt>(0));
+        current_obj->config.set_key_value("fill_density", std::make_unique<ConfigOptionPercent>(0));
+        //current_obj->config.set_key_value("fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipRectilinear));
+        current_obj->config.set_key_value("only_one_perimeter_top", std::make_unique<ConfigOptionBool>(false));
+        auto overhangs_width_speed = std::make_unique<ConfigOptionFloatOrPercent>(0, false);
+        overhangs_width_speed->set_can_be_disabled(true);
+        current_obj->config.set_key_value("overhangs_width_speed", std::move(overhangs_width_speed));
+        current_obj->config.set_key_value("thin_walls", std::make_unique<ConfigOptionBool>(true));
+        current_obj->config.set_key_value("thin_walls_min_width", std::make_unique<ConfigOptionFloatOrPercent>(2,true));
+        current_obj->config.set_key_value("gap_fill_enabled", std::make_unique<ConfigOptionBool>(false));
+        current_obj->config.set_key_value("first_layer_height", std::make_unique<ConfigOptionFloatOrPercent>(nozzle_diameter / 2., false));
+        current_obj->config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(nozzle_diameter / 2.));
         //temp
-        current_obj->config.set_key_value("print_temperature", new ConfigOptionInt(int(temp - temp_decr * i)));
-        current_obj->config.set_key_value("print_first_layer_temperature", new ConfigOptionInt(first_layer_temp));
+        current_obj->config.set_key_value("print_temperature", std::make_unique<ConfigOptionInt>(int(temp - temp_decr * i)));
+        current_obj->config.set_key_value("print_first_layer_temperature", std::make_unique<ConfigOptionInt>(first_layer_temp));
         //set retraction override
         
         const int mytemp = temp - temp_decr * i;
         const int extra_vol = (mytemp <= 285 && mytemp >= 180 && mytemp % 5 == 0) ? 2 : 1;
         for (size_t num_part = extra_vol; num_part < current_obj->volumes.size(); num_part++) {
-            current_obj->volumes[num_part]->config.set_key_value("print_retract_length", new ConfigOptionFloat(retraction_start + num_part * retraction_steps));
-            current_obj->volumes[num_part]->config.set_key_value("small_perimeter_speed", new ConfigOptionFloatOrPercent(external_perimeter_speed, false));
-            current_obj->volumes[num_part]->config.set_key_value("perimeter_speed", new ConfigOptionFloatOrPercent(std::min(external_perimeter_speed, perimeter_speed), false));
-            current_obj->volumes[num_part]->config.set_key_value("external_perimeter_speed", new ConfigOptionFloatOrPercent(external_perimeter_speed, false));
-            //current_obj->volumes[num_part + extra_vol]->config.set_key_value("small_perimeter_speed", new ConfigOptionFloatOrPercent(external_perimeter_speed, false));
-            //current_obj->volumes[num_part + extra_vol]->config.set_key_value("infill_speed", new ConfigOptionFloatOrPercent(std::min(print_config->option<ConfigOptionFloatOrPercent>("infill_speed")->value, 10.*scale)), false);
+            current_obj->volumes[num_part]->config.set_key_value("print_retract_length", std::make_unique<ConfigOptionFloat>(retraction_start + num_part * retraction_steps));
+            current_obj->volumes[num_part]->config.set_key_value("small_perimeter_speed", std::make_unique<ConfigOptionFloatOrPercent>(external_perimeter_speed, false));
+            current_obj->volumes[num_part]->config.set_key_value("perimeter_speed", std::make_unique<ConfigOptionFloatOrPercent>(std::min(external_perimeter_speed, perimeter_speed), false));
+            current_obj->volumes[num_part]->config.set_key_value("external_perimeter_speed", std::make_unique<ConfigOptionFloatOrPercent>(external_perimeter_speed, false));
+            //current_obj->volumes[num_part + extra_vol]->config.set_key_value("small_perimeter_speed", std::make_unique<ConfigOptionFloatOrPercent>(external_perimeter_speed, false));
+            //current_obj->volumes[num_part + extra_vol]->config.set_key_value("infill_speed", std::make_unique<ConfigOptionFloatOrPercent>(std::min(print_config->option<ConfigOptionFloatOrPercent>("infill_speed")->value, 10.*scale)), false);
             
         }
     }
@@ -266,10 +268,10 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
     /// --- main config, please modify object config when possible ---
     if (nb_items > 1) {
         DynamicPrintConfig new_print_config = *print_config; //make a copy
-        new_print_config.set_key_value("complete_objects", new ConfigOptionBool(true));
+        new_print_config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(true));
         //if skirt, use only one
         if (print_config->option<ConfigOptionInt>("skirts")->get_int() > 0 && print_config->option<ConfigOptionInt>("skirt_height")->get_int() > 0) {
-            new_print_config.set_key_value("complete_objects_one_skirt", new ConfigOptionBool(true));
+            new_print_config.set_key_value("complete_objects_one_skirt", std::make_unique<ConfigOptionBool>(true));
         }
         this->gui_app->get_tab(Preset::TYPE_FFF_PRINT)->load_config(new_print_config);
         this->gui_app->get_tab(Preset::TYPE_FFF_PRINT)->update_dirty();

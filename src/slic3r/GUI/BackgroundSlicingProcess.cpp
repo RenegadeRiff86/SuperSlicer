@@ -169,22 +169,24 @@ void BackgroundSlicingProcess::process_fff()
 	wxCommandEvent evt(m_event_slicing_completed_id);
 	// Post the Slicing Finished message for the G-code viewer to update.
 	// Passing the timestamp 
-	evt.SetInt((int)(m_fff_print->step_state_with_timestamp(PrintStep::psSlicingFinished).timestamp));
+	evt.SetInt(static_cast<int>(m_fff_print->step_state_with_timestamp(PrintStep::psSlicingFinished).timestamp));
 	wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, evt.Clone());
 	m_fff_print->export_gcode(m_temp_output_path, m_gcode_result, [this](const ThumbnailsParams& params) { return this->render_thumbnails(params); });
 	if (this->set_step_started(bspsGCodeFinalize)) {
 	    if (! m_export_path.empty()) {
-			wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, new wxCommandEvent(m_event_export_began_id));
+			wxCommandEvent export_began_event(m_event_export_began_id);
+			wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, export_began_event.Clone());
 			finalize_gcode();
 	    } else if (! m_upload_job.empty()) {
-			wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, new wxCommandEvent(m_event_export_began_id));
+			wxCommandEvent export_began_event(m_event_export_began_id);
+			wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, export_began_event.Clone());
 			prepare_upload();
 	    } else {
 			//m_print->set_status(100, _u8L("Slicing complete"));
 	    }
 		this->set_step_done(bspsGCodeFinalize);
 	}
-	evt.SetInt((int)(m_fff_print->step_state_with_timestamp(PrintStep::psGCodeExport).timestamp));
+	evt.SetInt(static_cast<int>(m_fff_print->step_state_with_timestamp(PrintStep::psGCodeExport).timestamp));
 	wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, evt.Clone());
 }
 
@@ -193,11 +195,12 @@ void BackgroundSlicingProcess::process_sla()
     assert(m_print == m_sla_print);
     m_print->process();
 	wxCommandEvent evt(m_event_slicing_completed_id);
-	evt.SetInt((int)(m_sla_print->step_state_with_timestamp(SLAPrintStep::slapsRasterize).timestamp));
+	evt.SetInt(static_cast<int>(m_sla_print->step_state_with_timestamp(SLAPrintStep::slapsRasterize).timestamp));
 	wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, evt.Clone());
     if (this->set_step_started(bspsGCodeFinalize)) {
         if (! m_export_path.empty()) {
-			wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, new wxCommandEvent(m_event_export_began_id));
+			wxCommandEvent export_began_event(m_event_export_began_id);
+			wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, export_began_event.Clone());
 
         	const std::string export_path = m_sla_print->print_statistics().finalize_output_path(m_export_path);
 
@@ -206,7 +209,8 @@ void BackgroundSlicingProcess::process_sla()
 			m_sla_print->export_print(export_path, thumbnails);
 
         } else if (! m_upload_job.empty()) {
-			wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, new wxCommandEvent(m_event_export_began_id));
+			wxCommandEvent export_began_event(m_event_export_began_id);
+			wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, export_began_event.Clone());
             prepare_upload();
         } else {
 			m_print->set_status(100, _u8L("Slicing complete"));
@@ -770,7 +774,7 @@ void BackgroundSlicingProcess::finalize_gcode()
 		break;
 	default:
 		throw Slic3r::ExportError(_u8L("Unknown error occured during exporting G-code."));
-		BOOST_LOG_TRIVIAL(error) << "Unexpected fail code(" << (int)copy_ret_val << ") durring copy_file() to " << export_path << ".";
+		BOOST_LOG_TRIVIAL(error) << "Unexpected fail code(" << static_cast<int>(copy_ret_val) << ") durring copy_file() to " << export_path << ".";
 		break;
 	}
 

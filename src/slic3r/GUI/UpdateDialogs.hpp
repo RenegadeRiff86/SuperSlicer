@@ -5,6 +5,7 @@
 #ifndef slic3r_UpdateDialogs_hpp_
 #define slic3r_UpdateDialogs_hpp_
 
+#include <memory>
 #include <set>
 #include <string>
 #include <unordered_map>

@@ -327,20 +327,20 @@ static std::string get_unique_id()
     }
     // Now convert the string to std::vector<unsigned char>.
     for (char* c = buf; *c != 0; ++c)
-        unique.emplace_back((unsigned char)(*c));
+        unique.emplace_back(static_cast<unsigned char>(*c));
 #else // Linux/BSD
     constexpr size_t max_len = 100;
     char cline[max_len] = "";
     FILE* fp = popen("cat /etc/machine-id", "r");
     if (fp != NULL) {
-        // Maybe the only way to silence -Wunused-result on gcc...
-        // cline is simply not modified on failure, who cares.
-        [[maybe_unused]]auto dummy = fgets(cline, max_len, fp);
+        // On failure fgets returns null and leaves cline untouched (still empty).
+        if (fgets(cline, max_len, fp) == nullptr)
+            cline[0] = '\0';
         pclose(fp);
     }
     // Now convert the string to std::vector<unsigned char>.
     for (char* c = cline; *c != 0; ++c)
-        unique.emplace_back((unsigned char)(*c));
+        unique.emplace_back(static_cast<unsigned char>(*c));
 #endif
 
     // In case that we did not manage to get the unique info, just return an empty
@@ -709,10 +709,10 @@ bool SendSystemInfoDialog::send_info(wxString& message)
         http.header("Content-Type", "application/json")
             .timeout_max(6) // seconds
             .set_post_body(data)
-            .on_complete([&result](std::string body, unsigned status) {
+            .on_complete([&result](const std::string& body, unsigned status) {
                 result = { Result::Success, _L("System info sent successfully. Thank you.") };
             })
-            .on_error([&result](std::string body, std::string error, unsigned status) {
+            .on_error([&result](const std::string& body, const std::string& error, unsigned status) {
                 result = { Result::Error, _L("Sending system info failed!") };
                 BOOST_LOG_TRIVIAL(error) << "Sending system info failed! STATUS: " << status;
             })

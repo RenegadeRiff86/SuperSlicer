@@ -178,7 +178,7 @@ std::string WxFontUtils::store_wxFont(const wxFont &font)
         // "IsFree(" << font.IsFree() << "), " << // on MacOs is no function is free
         "IsFixedWidth(" << font.IsFixedWidth() << "), " <<
         "IsUsingSizeInPixels(" << font.IsUsingSizeInPixels() << "), " <<
-        "Encoding(" << (int)font.GetEncoding() << "), " ;
+        "Encoding(" << static_cast<int>(font.GetEncoding()) << "), " ;
     return std::string(font_descriptor.c_str());
 }
 
@@ -268,7 +268,7 @@ wxFont WxFontUtils::create_wxFont(const EmbossStyle &style)
 void WxFontUtils::update_property(FontProp &font_prop, const wxFont &font)
 {
     wxString wx_face_name = font.GetFaceName();
-    std::string face_name((const char *) wx_face_name.ToUTF8());
+    std::string face_name(wx_face_name.ToUTF8().data());
     if (!face_name.empty()) font_prop.face_name = face_name;
 
     wxFontFamily wx_family = font.GetFamily();

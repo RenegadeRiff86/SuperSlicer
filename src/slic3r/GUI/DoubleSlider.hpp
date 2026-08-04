@@ -21,7 +21,26 @@ class wxMenu;
 
 namespace Slic3r {
 
-using namespace CustomGCode;
+using CustomGCode::ColorChange;
+using CustomGCode::Custom;
+using CustomGCode::Info;
+using CustomGCode::Item;
+using CustomGCode::Mode;
+using CustomGCode::MultiAsSingle;
+using CustomGCode::MultiAsSingleMode;
+using CustomGCode::MultiExtruder;
+using CustomGCode::MultiExtruderMode;
+using CustomGCode::PausePrint;
+using CustomGCode::SingleExtruder;
+using CustomGCode::SingleExtruderMode;
+using CustomGCode::Template;
+using CustomGCode::ToolChange;
+using CustomGCode::Type;
+using CustomGCode::Undef;
+using CustomGCode::check_mode_for_custom_gcode_per_print_z;
+using CustomGCode::custom_color_changes;
+using CustomGCode::custom_tool_changes;
+using CustomGCode::update_custom_gcode_per_print_z_from_config;
 class PrintObject;
 class Layer;
 

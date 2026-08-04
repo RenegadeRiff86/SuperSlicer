@@ -26,7 +26,7 @@ Slic3r::Polygon get_polygon_scale(std::vector<std::vector<float>> points) {
 SCENARIO("test auto generation") {
     GIVEN("triangle with top to fill") {
         //DynamicPrintConfig& config = Slic3r::DynamicPrintConfig::full_print_config();
-        //config.set_key_value("fill_density", new ConfigOptionPercent(0));
+        //config.set_key_value("fill_density", std::make_unique<ConfigOptionPercent>(0));
         //config.set_deserialize("nozzle_diameter", "0.4");
         //config.set_deserialize("layer_height", "0.3");
         //config.set_deserialize("infill_dense_algo", "50");

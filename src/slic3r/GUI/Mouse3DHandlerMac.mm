@@ -1,3 +1,5 @@
+#ifdef __APPLE__
+
 #include "Mouse3DController.hpp"
 
 #include <array>
@@ -169,7 +171,7 @@ static void DeviceEvent(uint32_t unused, uint32_t msg_type, void *msg_arg)
           // Actually we are getting values way over 1024. Max is probably 2048 now.
           Slic3r::GUI::Mouse3DController::DataPacketAxis packet;
           for (int i = 0; i < 6; ++ i)
-              packet[i] = (double)s->axis[i]/350.0;//wanted to divide by 500 but 350 is used at raw input so i used same value.
+              packet[i] = static_cast<double>(s->axis[i])/350.0;//wanted to divide by 500 but 350 is used at raw input so i used same value.
           mouse_3d_controller->handle_input(packet);
           break;
         }
@@ -223,3 +225,5 @@ void Mouse3DController::shutdown()
 }
 
 }}//namespace Slic3r::GUI
+
+#endif // __APPLE__

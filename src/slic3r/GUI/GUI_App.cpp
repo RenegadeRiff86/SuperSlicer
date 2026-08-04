@@ -14,7 +14,6 @@ class wxZipStreamLink;
 #endif
 
 #include "libslic3r/Technologies.hpp"
-#include "libslic3r/Thread.hpp"
 #include "GUI_App.hpp"
 #include "GUI_Init.hpp"
 #include "GUI_ObjectList.hpp"
@@ -85,7 +84,9 @@ class wxZipStreamLink;
 #include "../Utils/MacDarkMode.hpp"
 #endif
 #include "../Utils/AppUpdater.hpp"
+#ifdef _WIN32
 #include "../Utils/WinRegistry.hpp"
+#endif
 #include "slic3r/Config/Snapshot.hpp"
 #include "CalibrationBedDialog.hpp"
 #include "CalibrationBridgeDialog.hpp"
@@ -143,6 +144,12 @@ using namespace std::literals;
 namespace Slic3r {
 namespace GUI {
 
+namespace {
+constexpr char kOnSnapshotConfigKey[] = "on_snapshot";
+constexpr char kDarkColorModeConfigKey[] = "dark_color_mode";
+constexpr char kRestoreWindowPositionConfigKey[] = "restore_win_position";
+} // namespace
+
 wxDEFINE_EVENT(EVT_CONFIG_UPDATER_SHOW_DIALOG, wxCommandEvent);
 wxDEFINE_EVENT(EVT_WIZARD_SHOW_DIALOG, wxCommandEvent);
 
@@ -151,14 +158,14 @@ class MainFrame;
 class SplashScreen : public wxSplashScreen
 {
 public:
-    SplashScreen(const wxBitmap& bitmap, double scaling, long splashStyle, int milliseconds, wxPoint pos = wxDefaultPosition, wxString author = "")
+    SplashScreen(const wxBitmap& bitmap, long splashStyle, int milliseconds, wxPoint pos = wxDefaultPosition, wxString author = "")
         : wxSplashScreen(bitmap, splashStyle, milliseconds, static_cast<wxWindow*>(wxGetApp().mainframe), wxID_ANY, wxDefaultPosition, wxDefaultSize,
 #ifdef __APPLE__
             wxSIMPLE_BORDER | wxFRAME_NO_TASKBAR | wxSTAY_ON_TOP
 #else
             wxSIMPLE_BORDER | wxFRAME_NO_TASKBAR
 #endif // !__APPLE__
-        ), m_author(author), m_scale(scaling)
+        ), m_author(author)
     {
         wxASSERT(bitmap.IsOk());
 
@@ -351,7 +358,6 @@ private:
     wxBitmap    m_main_bitmap;
     wxFont      m_action_font;
     int         m_action_line_y_position;
-    const double m_scale;
     wxString    m_author;
 
     int get_margin() {
@@ -1308,7 +1314,7 @@ void GUI_App::init_app_config()
 
 
 	if (!app_config) {
-        app_config.reset(new AppConfig(is_editor() ? AppConfig::EAppMode::Editor : AppConfig::EAppMode::GCodeViewer));
+        app_config = std::make_unique<AppConfig>(is_editor() ? AppConfig::EAppMode::Editor : AppConfig::EAppMode::GCodeViewer);
 #ifdef _M_ARM64
         AppConfig::HardwareType hard_cpu = AppConfig::HardwareType::hCpuOther; // TODO for x86 if needed
         AppConfig::HardwareType hard_gpu = AppConfig::HardwareType::hGpuOther;
@@ -1443,7 +1449,7 @@ std::string GUI_App::check_older_app_config(Semver current_version, bool backup)
                 // Save snapshot ID before loading the alternate AppConfig, as loading the alternate AppConfig may fail.
                 snapshot_id = snapshot->id;
                 assert(! snapshot_id.empty());
-                app_config->set("on_snapshot", snapshot_id);
+                app_config->set(kOnSnapshotConfigKey, snapshot_id);
             } else
                 BOOST_LOG_TRIVIAL(error) << "Failed to take congiguration snapshot";
         }
@@ -1466,7 +1472,7 @@ std::string GUI_App::check_older_app_config(Semver current_version, bool backup)
             }
         }
         if (!snapshot_id.empty())
-            app_config->set("on_snapshot", snapshot_id);
+            app_config->set(kOnSnapshotConfigKey, snapshot_id);
         m_app_conf_exists = true;
         return older_data_dir_path;
     }
@@ -1486,7 +1492,7 @@ bool GUI_App::OnInit()
 
         this->init_app_config();
         //ImGuiWrapper need the app config to get the colors
-        m_imgui.reset(new ImGuiWrapper{});
+        m_imgui = std::make_unique<ImGuiWrapper>();
         // init app downloader after path to datadir is set
         m_app_updater = std::make_unique<AppUpdater>();
         if (this->get_app_mode() != GUI::GUI_App::EAppMode::GCodeViewer) {
@@ -1570,7 +1576,7 @@ bool GUI_App::on_init_inner()
     // If load_language() fails, the application closes.
     load_language(wxString(), true);
 #ifdef _MSW_DARK_MODE
-    bool init_dark_color_mode = app_config->get_bool("dark_color_mode");
+    bool init_dark_color_mode = app_config->get_bool(kDarkColorModeConfigKey);
     bool init_sys_menu_enabled = app_config->get_bool("sys_menu_enabled");
     NppDarkMode::InitDarkMode(init_dark_color_mode, init_sys_menu_enabled);
 #endif
@@ -1620,7 +1626,7 @@ bool GUI_App::on_init_inner()
 
 #ifdef _MSW_DARK_MODE
     // app_config can be updated in check_older_app_config(), so check if dark_color_mode and sys_menu_enabled was changed
-    if (bool new_dark_color_mode = app_config->get_bool("dark_color_mode");
+    if (bool new_dark_color_mode = app_config->get_bool(kDarkColorModeConfigKey);
         init_dark_color_mode != new_dark_color_mode) {
         NppDarkMode::SetDarkMode(new_dark_color_mode);
         init_ui_colours();
@@ -1688,7 +1694,7 @@ bool GUI_App::on_init_inner()
         // Now this position is equal to the mainframe position
         wxPoint splashscreen_pos = wxDefaultPosition;
         bool default_splashscreen_pos = true;
-        if (app_config->has("window_mainframe") && app_config->get_bool("restore_win_position")) {
+        if (app_config->has("window_mainframe") && app_config->get_bool(kRestoreWindowPositionConfigKey)) {
             std::optional<WindowMetrics> metrics = WindowMetrics::deserialize(app_config->get("window_mainframe"));
             default_splashscreen_pos = !metrics.has_value();
             if (!default_splashscreen_pos)
@@ -1697,7 +1703,7 @@ bool GUI_App::on_init_inner()
 
         if (!default_splashscreen_pos) {
             // workaround for crash related to the positioning of the window on secondary monitor
-            get_app_config()->set("restore_win_position", "crashed_at_splashscreen_pos");
+            get_app_config()->set(kRestoreWindowPositionConfigKey, "crashed_at_splashscreen_pos");
             get_app_config()->save();
         }
 
@@ -1705,11 +1711,11 @@ bool GUI_App::on_init_inner()
         if (!bmp.IsOk()) {
             bmp = SplashScreen::MakeBitmap(get_bmp_bundle(light_icon_name(), 600)->GetPreferredBitmapSizeAtScale(1.0), scrn_scaling);
         }
-        scrn = new SplashScreen(bmp, scrn_scaling, wxSPLASH_CENTRE_ON_SCREEN | wxSPLASH_TIMEOUT, 4000, splashscreen_pos, artist);
+        scrn = new SplashScreen(bmp, wxSPLASH_CENTRE_ON_SCREEN | wxSPLASH_TIMEOUT, 4000, splashscreen_pos, artist);
 
         if (!default_splashscreen_pos)
             // revert "restore_win_position" value if application wasn't crashed
-            get_app_config()->set("restore_win_position", "1");
+            get_app_config()->set(kRestoreWindowPositionConfigKey, "1");
 #ifndef __linux__
         wxYield();
 #endif
@@ -1717,7 +1723,7 @@ bool GUI_App::on_init_inner()
     }
 
     preset_bundle.reset(nullptr);
-    PresetBundle* new_preset_bundle = new PresetBundle();
+    auto new_preset_bundle = std::make_unique<PresetBundle>();
 
     // just checking for existence of Slic3r::data_dir is not enough : it may be an empty directory
     // supplied as argument to --datadir; in that case we should still run the wizard
@@ -1736,7 +1742,7 @@ bool GUI_App::on_init_inner()
             associate_stl_files();
 #endif // __WXMSW__
 
-        preset_updater.reset(new PresetUpdater(this));
+        preset_updater = std::make_unique<PresetUpdater>(this);
         Bind(EVT_SLIC3R_VERSION_ONLINE, [this](wxCommandEvent& evt) {
             this->on_version_read(evt);
         });
@@ -1757,7 +1763,7 @@ bool GUI_App::on_init_inner()
         Bind(EVT_SLIC3R_APP_DOWNLOAD_PROGRESS, [this](const wxCommandEvent& evt) {
             //lm:This does not force a render. The progress bar only updateswhen the mouse is moved.
             if (this->plater_ != nullptr)
-                this->plater_->get_notification_manager()->set_download_progress_percentage((float)std::stoi(into_u8(evt.GetString())) / 100.f );
+                this->plater_->get_notification_manager()->set_download_progress_percentage(static_cast<float>(std::stoi(into_u8(evt.GetString()))) / 100.f );
         });
         Bind(EVT_SLIC3R_APP_DOWNLOAD_NAME, [this](const wxCommandEvent& evt) {
             //lm:This does not force a render. The progress bar only updateswhen the mouse is moved.
@@ -1776,7 +1782,13 @@ bool GUI_App::on_init_inner()
             show_error(nullptr, evt.GetString());
         }); 
 
-        Bind(EVT_SLIC3R_APP_REPLACE_SUCCESS, [this](const wxCommandEvent& evt) {
+        Bind(EVT_SLIC3R_APP_REPLACE_SUCCESS,
+#ifdef _WIN32
+            [this]
+#else
+            []
+#endif
+            (const wxCommandEvent& evt) {
                 wxString title = wxString(SLIC3R_APP_NAME);
                 title += " - " + _L("upgrade to newer version");
                 // wxMessageDialog becasue we may not have the icons anymore.
@@ -1838,11 +1850,11 @@ bool GUI_App::on_init_inner()
             } else if (rr_arg == int(ConfigWizard::RunReason::RR_DATA_INCOMPAT)) {
                 reason = ConfigWizard::RunReason::RR_DATA_INCOMPAT;
             }
-            int rvbm_arg = args % 8;
+            const int rvbm_arg = args / 8;
             RunVendorBundleManage bypass_bundle_install = RunVendorBundleManage::RVBM_IF_EMPTY;
-            if (rr_arg == int(RunVendorBundleManage::RVBM_NEVER)) {
+            if (rvbm_arg == int(RunVendorBundleManage::RVBM_NEVER)) {
                 bypass_bundle_install = RunVendorBundleManage::RVBM_NEVER;
-            } else if (rr_arg == int(RunVendorBundleManage::RVBM_ALWAYS)) {
+            } else if (rvbm_arg == int(RunVendorBundleManage::RVBM_ALWAYS)) {
                 bypass_bundle_install = RunVendorBundleManage::RVBM_ALWAYS;
             }
 
@@ -1873,7 +1885,7 @@ bool GUI_App::on_init_inner()
     }
 
     //now that new_preset_bundle is initialized, we can publish it
-    preset_bundle.reset(new_preset_bundle);
+    preset_bundle = std::move(new_preset_bundle);
 
 #ifdef WIN32
 #if !wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3)
@@ -1905,7 +1917,7 @@ bool GUI_App::on_init_inner()
 
     plater_->init_notification_manager();
 
-    m_printhost_job_queue.reset(new PrintHostJobQueue(mainframe->printhost_queue_dlg()));
+    m_printhost_job_queue = std::make_unique<PrintHostJobQueue>(mainframe->printhost_queue_dlg());
 
     if (is_gcode_viewer()) {
         mainframe->update_layout();
@@ -1966,7 +1978,7 @@ bool GUI_App::on_init_inner()
 
     m_initialized = true;
 
-    if (const std::string& crash_reason = app_config->get("restore_win_position");
+    if (const std::string& crash_reason = app_config->get(kRestoreWindowPositionConfigKey);
         boost::starts_with(crash_reason,"crashed"))
     {
         wxString preferences_item = _L("Restore window position on start");
@@ -1990,9 +2002,9 @@ bool GUI_App::on_init_inner()
         
         auto answer = dialog.ShowModal();
         if (answer == wxID_YES)
-            app_config->set("restore_win_position", "0");
+            app_config->set(kRestoreWindowPositionConfigKey, "0");
         else if (answer == wxID_NO)
-            app_config->set("restore_win_position", "1");
+            app_config->set(kRestoreWindowPositionConfigKey, "1");
     }
 
     return true;
@@ -2020,8 +2032,8 @@ bool GUI_App::dark_mode()
     // proper dark mode was first introduced.
     return wxPlatformInfo::Get().CheckOSVersion(10, 14) && mac_dark_mode();
 #else
-    if (wxGetApp().app_config->has("dark_color_mode"))
-        return wxGetApp().app_config->get_bool("dark_color_mode");
+    if (wxGetApp().app_config->has(kDarkColorModeConfigKey))
+        return wxGetApp().app_config->get_bool(kDarkColorModeConfigKey);
     return check_dark_mode();
 #endif
 }
@@ -2725,7 +2737,7 @@ void GUI_App::recreate_GUI(const wxString& msg_name)
     old_main_frame->Destroy();
 
     dlg.Update(80, _L("Loading of current presets") + dots);
-    m_printhost_job_queue.reset(new PrintHostJobQueue(mainframe->printhost_queue_dlg()));
+    m_printhost_job_queue = std::make_unique<PrintHostJobQueue>(mainframe->printhost_queue_dlg());
     load_current_presets();
     mainframe->Show(true);
 
@@ -2755,7 +2767,7 @@ void GUI_App::keyboard_shortcuts()
     dlg.ShowModal();
 }
 
-void GUI_App::change_calibration_dialog(const wxDialog* have_to_destroy, wxDialog* new_one)
+void GUI_App::change_calibration_dialog(const wxDialog* have_to_destroy, std::unique_ptr<wxDialog> new_one)
 {
     if (have_to_destroy == nullptr) {
         wxDialog* to_destroy = nullptr;
@@ -2776,79 +2788,80 @@ void GUI_App::change_calibration_dialog(const wxDialog* have_to_destroy, wxDialo
         }
     }
     if (new_one != nullptr) {
+        wxDialog* dialog_to_show = new_one.get();
         {
             //hove to ensure that these command are "atomic"
             std::unique_lock<std::mutex> lock(not_modal_dialog_mutex);
             if (not_modal_dialog != nullptr)
                 not_modal_dialog->Destroy();
-            not_modal_dialog = new_one;
+            not_modal_dialog = new_one.release(); // The parent window now owns the dialog.
         }
-        new_one->Show();
+        dialog_to_show->Show();
     }
 }
 
 void GUI_App::html_dialog()
 {
-    change_calibration_dialog(nullptr, new HtmlDialog(this, mainframe,"Introduction to calibrations", "/calibration", "introduction.html"));
+    change_calibration_dialog(nullptr, std::make_unique<HtmlDialog>(this, mainframe,"Introduction to calibrations", "/calibration", "introduction.html"));
 }
 void GUI_App::bed_leveling_dialog()
 {
     change_calibration_dialog(nullptr,
-        new CalibrationBedDialog(this, mainframe, CalibrationBedDialog::Mode::BedLeveling));
+        std::make_unique<CalibrationBedDialog>(this, mainframe, CalibrationBedDialog::Mode::BedLeveling));
 }
 void GUI_App::z_offset_calibration_dialog()
 {
     change_calibration_dialog(nullptr,
-        new CalibrationBedDialog(this, mainframe, CalibrationBedDialog::Mode::ZOffsetGenerate));
+        std::make_unique<CalibrationBedDialog>(this, mainframe, CalibrationBedDialog::Mode::ZOffsetGenerate));
 }
 void GUI_App::z_offset_result_dialog()
 {
     change_calibration_dialog(nullptr,
-        new CalibrationBedDialog(this, mainframe, CalibrationBedDialog::Mode::ZOffsetResult));
+        std::make_unique<CalibrationBedDialog>(this, mainframe, CalibrationBedDialog::Mode::ZOffsetResult));
 }
 void GUI_App::flow_ratio_dialog()
 {
-    change_calibration_dialog(nullptr, new CalibrationFlowDialog(this, mainframe));
+    change_calibration_dialog(nullptr, std::make_unique<CalibrationFlowDialog>(this, mainframe));
 }
 void GUI_App::flow_speed_dialog()
 {
-    change_calibration_dialog(nullptr, new CalibrationFlowSpeedDialog(this, mainframe));
+    change_calibration_dialog(nullptr, std::make_unique<CalibrationFlowSpeedDialog>(this, mainframe));
 }
 void GUI_App::over_bridge_dialog()
 {
-    change_calibration_dialog(nullptr, new CalibrationOverBridgeDialog(this, mainframe));
+    change_calibration_dialog(nullptr, std::make_unique<CalibrationOverBridgeDialog>(this, mainframe));
 }
 void GUI_App::bridge_tuning_dialog()
 {
-    change_calibration_dialog(nullptr, new CalibrationBridgeDialog(this, mainframe));
+    change_calibration_dialog(nullptr, std::make_unique<CalibrationBridgeDialog>(this, mainframe));
 }
 void GUI_App::filament_temperature_dialog()
 {
-    change_calibration_dialog(nullptr, new CalibrationTempDialog(this, mainframe));
+    change_calibration_dialog(nullptr, std::make_unique<CalibrationTempDialog>(this, mainframe));
 }
 void GUI_App::calibration_cube_dialog()
 {
-    change_calibration_dialog(nullptr, new CalibrationCubeDialog(this, mainframe));
+    change_calibration_dialog(nullptr, std::make_unique<CalibrationCubeDialog>(this, mainframe));
 }
 void GUI_App::calibration_retraction_dialog()
 {
-    change_calibration_dialog(nullptr, new CalibrationRetractionDialog(this, mainframe));
+    change_calibration_dialog(nullptr, std::make_unique<CalibrationRetractionDialog>(this, mainframe));
 }
 void GUI_App::calibration_pressureadv_dialog()
 {
-    change_calibration_dialog(nullptr, new CalibrationPressureAdvDialog(this, mainframe));
+    change_calibration_dialog(nullptr, std::make_unique<CalibrationPressureAdvDialog>(this, mainframe));
 }
 void GUI_App::calibration_pressureadv_adaptive_dialog()
 {
-    change_calibration_dialog(nullptr, new CalibrationPressureAdvAdaptiveDialog(this, mainframe));
+    change_calibration_dialog(nullptr, std::make_unique<CalibrationPressureAdvAdaptiveDialog>(this, mainframe));
 }
 void GUI_App::calibration_pressureadv_adaptive_results_dialog()
 {
-    change_calibration_dialog(nullptr, new CalibrationPressureAdvAdaptiveDialog(this, mainframe, /*results_mode*/ true));
+    change_calibration_dialog(nullptr, std::make_unique<CalibrationPressureAdvAdaptiveDialog>(this, mainframe, /*results_mode*/ true));
 }
 void GUI_App::tiled_canvas_dialog()
 {
-    change_calibration_dialog(nullptr, new CreateMMUTiledCanvas(this, mainframe));
+    change_calibration_dialog(nullptr, std::make_unique<CreateMMUTiledCanvas>(this, mainframe));
 }
 
 // static method accepting a wxWindow object as first parameter
@@ -2865,13 +2878,6 @@ bool GUI_App::catch_error(std::function<void()> cb,
         return true;
     }
     return false;
-}
-
-// static method accepting a wxWindow object as first parameter
-static void fatal_error(wxWindow* parent)
-{
-    show_error(parent, "");
-    //     exit 1; // #ys_FIXME
 }
 
 #ifdef _WIN32
@@ -2905,7 +2911,7 @@ void GUI_App::force_menu_update() const
 void GUI_App::force_colors_update()
 {
 #ifdef _MSW_DARK_MODE
-    NppDarkMode::SetDarkMode(app_config->get_bool("dark_color_mode"));
+    NppDarkMode::SetDarkMode(app_config->get_bool(kDarkColorModeConfigKey));
     if (WXHWND wxHWND = wxToolTip::GetToolTipCtrl())
         NppDarkMode::SetDarkExplorerTheme((HWND)wxHWND);
     NppDarkMode::SetDarkTitleBar(mainframe->GetHWND());
@@ -2950,14 +2956,14 @@ void GUI_App::persist_window_geometry(wxTopLevelWindow *window, bool default_max
 {
     const std::string name = into_u8(window->GetName());
 
-    window->Bind(wxEVT_CLOSE_WINDOW, [=](wxCloseEvent &event) {
+    window->Bind(wxEVT_CLOSE_WINDOW, [this, window, name](wxCloseEvent &event) {
         window_pos_save(window, name);
         event.Skip();
     });
 
     window_pos_restore(window, name, default_maximized);
 
-    on_window_geometry(window, [=]() {
+    on_window_geometry(window, [this, window]() {
         window_pos_sanitize(window);
     });
 }
@@ -3514,17 +3520,17 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
                                 this->wait_dialog.reset();
                                 // call show_synch_window once this call is returned.
                                 // can't call it here as there is still things to celan up before
-                                wxCommandEvent* evt = new wxCommandEvent(EVT_CONFIG_UPDATER_SHOW_DIALOG);
-                                this->QueueEvent(evt);
+                                auto evt = std::make_unique<wxCommandEvent>(EVT_CONFIG_UPDATER_SHOW_DIALOG);
+                                this->QueueEvent(evt.release());
                             });
                         });
-                        this->wait_dialog.reset(new wxBusyInfo("Updating the presets, please wait"));
+                        this->wait_dialog = std::make_unique<wxBusyInfo>("Updating the presets, please wait");
                         return;
                     } else {
                         // the mutex lock makes us wait enough time.
                     }
                 }
-                this->wait_dialog.reset(new wxBusyInfo("Updating the presets, please wait"));
+                this->wait_dialog = std::make_unique<wxBusyInfo>("Updating the presets, please wait");
                 this->preset_updater->set_installed_vendors(preset_bundle.get());
                 this->preset_updater->reload_all_vendors();
                 this->preset_updater->sync_async([this](int update_count) {
@@ -3532,8 +3538,8 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
                     this->wait_dialog.reset();
                     // call show_synch_window once this call is returned.
                     // can't call it here as there is still things to celan up before
-                    wxCommandEvent* evt = new wxCommandEvent(EVT_CONFIG_UPDATER_SHOW_DIALOG);
-                    this->QueueEvent(evt);
+                    auto evt = std::make_unique<wxCommandEvent>(EVT_CONFIG_UPDATER_SHOW_DIALOG);
+                    this->QueueEvent(evt.release());
                 });
             }
 #endif
@@ -3563,14 +3569,14 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
                     if (const Config::Snapshot *snapshot = Config::take_config_snapshot_report_error(
                             *app_config, Config::Snapshot::SNAPSHOT_USER, dlg.GetValue().ToUTF8().data());
                         snapshot != nullptr)
-                        app_config->set("on_snapshot", snapshot->id);
+                        app_config->set(kOnSnapshotConfigKey, snapshot->id);
             }
             break;
         case ConfigMenuSnapshots:
             if (check_and_save_current_preset_changes(_L("Loading a configuration snapshot"), "", false)) {
                 std::string on_snapshot;
                 if (Config::SnapshotDB::singleton().is_on_snapshot(*app_config))
-                    on_snapshot = app_config->get("on_snapshot");
+                    on_snapshot = app_config->get(kOnSnapshotConfigKey);
                 ConfigSnapshotDialog dlg(Slic3r::GUI::Config::SnapshotDB::singleton(), on_snapshot);
                 dlg.ShowModal();
                 if (!dlg.snapshot_to_activate().empty()) {
@@ -3579,7 +3585,7 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
                                 GUI::format(_L("Continue to activate a configuration snapshot %1%?"), dlg.snapshot_to_activate())))
                         break;
                     try {
-                        app_config->set("on_snapshot", Config::SnapshotDB::singleton().restore_snapshot(dlg.snapshot_to_activate(), *app_config).id);
+                        app_config->set(kOnSnapshotConfigKey, Config::SnapshotDB::singleton().restore_snapshot(dlg.snapshot_to_activate(), *app_config).id);
                         // Enable substitutions, log both user and system substitutions. There should not be any substitutions performed when loading system
                         // presets because compatibility of profiles shall be verified using the min_slic3r_version keys in config index, but users
                         // are known to be creative and mess with the config files in various ways.
@@ -3932,19 +3938,18 @@ void GUI_App::load_current_presets(bool check_printer_presets_ /*= true*/)
         check_printer_presets();
 
     PrinterTechnology printer_technology = get_current_printer_technology();
-	this->plater()->set_printer_technology(printer_technology);
+    this->plater()->set_printer_technology(printer_technology);
     for (Tab *tab : tabs_list)
-		if (tab->supports_printer_technology(printer_technology) && tab->get_presets()) {
-			if (tab->type() == Preset::TYPE_PRINTER) {
-				static_cast<TabPrinter*>(tab)->update_pages();
-				// Mark the plater to update print bed by tab->load_current_preset() from Plater::on_config_change().
-				this->plater()->force_print_bed_update();
-			}
-            else if (tab->type() == Preset::TYPE_FFF_FILAMENT)
+        if (tab->supports_printer_technology(printer_technology) && tab->get_presets()) {
+            if (tab->type() == Preset::TYPE_PRINTER) {
+                static_cast<TabPrinter*>(tab)->update_pages();
+                // Mark the plater to update print bed by tab->load_current_preset() from Plater::on_config_change().
+                this->plater()->force_print_bed_update();
+            } else if (tab->type() == Preset::TYPE_FFF_FILAMENT)
                 // active extruder can be changed in a respect to the new loaded configurations, if some filament preset will be modified
                 static_cast<TabFilament*>(tab)->invalidate_active_extruder();
-			tab->load_current_preset();
-		}
+            tab->load_current_preset();
+        }
 }
 
 bool GUI_App::OnExceptionInMainLoop()
@@ -4057,7 +4062,10 @@ ObjectLayers* GUI_App::obj_layers() const
     return sidebar().obj_layers();
 }
 
-Plater* GUI_App::plater() // NOLINT(readability-make-member-function-const)
+// Non-const overload: returns a mutable Plater*. A const overload sits just below.
+// Do not mark this const — that would hand out a non-const pointer from a const
+// GUI_App (the clang-tidy suggestion is wrong for this dual-overload API).
+Plater* GUI_App::plater()
 {
     return plater_;
 }
@@ -4174,7 +4182,6 @@ bool GUI_App::run_wizard(ConfigWizard::RunReason reason, ConfigWizard::StartPage
 #endif
 #ifndef ALLOW_PRUSA_FIRST
     // if nothing installed, show the installation dialog first
-    bool is_synch = this->preset_updater->is_synch;
     if (bypass_bundle_install == RVBM_ALWAYS ||
         (bypass_bundle_install == RVBM_IF_EMPTY && this->preset_updater->count_installed() == 0)) {
         this->preset_updater->show_synch_window(
@@ -4379,19 +4386,19 @@ void GUI_App::window_pos_restore(wxTopLevelWindow* window, const std::string &na
 
     const wxRect& rect = metrics->get_rect();
 
-    if (app_config->get_bool("restore_win_position")) {
+    if (app_config->get_bool(kRestoreWindowPositionConfigKey)) {
         // workaround for crash related to the positioning of the window on secondary monitor
-        app_config->set("restore_win_position", (boost::format("crashed_at_%1%_pos") % name).str());
+        app_config->set(kRestoreWindowPositionConfigKey, (boost::format("crashed_at_%1%_pos") % name).str());
         app_config->save();
         window->SetPosition(rect.GetPosition());
 
         // workaround for crash related to the positioning of the window on secondary monitor
-        app_config->set("restore_win_position", (boost::format("crashed_at_%1%_size") % name).str());
+        app_config->set(kRestoreWindowPositionConfigKey, (boost::format("crashed_at_%1%_size") % name).str());
         app_config->save();
         window->SetSize(rect.GetSize());
 
         // revert "restore_win_position" value if application wasn't crashed
-        app_config->set("restore_win_position", "1");
+        app_config->set(kRestoreWindowPositionConfigKey, "1");
         app_config->save();
     }
     else

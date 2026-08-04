@@ -25,7 +25,7 @@ const char* WIFI_CONFIGFILE_NAME = "prusa_printer_settings.ini";
 WifiConfigDialog::WifiConfigDialog(wxWindow* parent, std::string& file_path, RemovableDriveManager* removable_manager, const wxString& preffered_drive)
     // TRN: This is the dialog title.
      : DPIDialog(parent, wxID_ANY, _L("Wi-Fi Configuration File Generator"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER, "wificonfig")
-     , m_wifi_scanner(new WifiScanner())
+     , m_wifi_scanner(std::make_unique<WifiScanner>())
      , out_file_path(file_path)
      , m_removable_manager(removable_manager)
 {
@@ -138,11 +138,7 @@ WifiConfigDialog::WifiConfigDialog(wxWindow* parent, std::string& file_path, Rem
     wxGetApp().UpdateDlgDarkUI(this);
 }
 
-WifiConfigDialog::~WifiConfigDialog()
-{
-    if (m_wifi_scanner)
-        delete m_wifi_scanner;
-}
+WifiConfigDialog::~WifiConfigDialog() = default;
 
 void WifiConfigDialog::on_combo(wxCommandEvent& e)
 {

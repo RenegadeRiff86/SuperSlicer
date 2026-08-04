@@ -97,7 +97,7 @@ static choice_ctrl* create_word_local_combo(wxWindow *parent)
     temp->Append(ObjectManipulation::coordinate_type_str(ECoordinatesType::World));
     temp->Append(ObjectManipulation::coordinate_type_str(ECoordinatesType::Instance));
     temp->Append(ObjectManipulation::coordinate_type_str(ECoordinatesType::Local));
-    temp->Select((int)ECoordinatesType::World);
+    temp->Select(static_cast<int>(ECoordinatesType::World));
 
     temp->SetToolTip(_L("Select coordinate space, in which the transformation will be performed."));
 	return temp;
@@ -1218,7 +1218,7 @@ void ObjectManipulation::set_coordinates_type(ECoordinatesType type)
         return;
 
     m_coordinates_type = type;
-    m_word_local_combo->SetSelection((int)m_coordinates_type);
+    m_word_local_combo->SetSelection(static_cast<int>(m_coordinates_type));
     this->UpdateAndShow(true);
     GLCanvas3D* canvas = wxGetApp().plater()->canvas3D();
     canvas->get_gizmos_manager().update_data();

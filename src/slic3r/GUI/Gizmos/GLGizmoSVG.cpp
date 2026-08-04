@@ -738,7 +738,7 @@ void draw(const ExPolygonsWithIds &shapes_with_ids, unsigned max_size)
         bb.merge(get_extents(shape.expoly));
 
     Point  bb_size    = bb.size();
-    double scale      = max_size / (double) std::max(bb_size.x(), bb_size.y());
+    double scale      = max_size / static_cast<double>(std::max(bb_size.x(), bb_size.y()));
     ImVec2 win_offset = ImGui::GetWindowPos();
     Point  offset(win_offset.x + actual_pos.x, win_offset.y + actual_pos.y);
     offset += bb_size / 2 * scale;
@@ -993,8 +993,8 @@ bool init_texture(Texture &texture, const ExPolygonsWithIds& shapes_with_ids, un
         glsafe(::glDeleteTextures(1, &texture.id));
     glsafe(::glGenTextures(1, &texture.id));
     glsafe(::glBindTexture(GL_TEXTURE_2D, texture.id));
-    glsafe(::glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) texture.width, (GLsizei) texture.height, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                          (const void *) data.data()));
+    glsafe(::glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>(texture.width), static_cast<GLsizei>(texture.height), 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                          data.data()));
 
     glsafe(::glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
     glsafe(::glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0));
@@ -1383,7 +1383,7 @@ void GLGizmoSVG::draw_preview(){
     //::draw(m_volume_shape.shapes_with_ids, m_gui_cfg->texture_max_size_px);
 
     if (m_texture.id != 0) {
-        ImTextureID id = (void *) static_cast<intptr_t>(m_texture.id);
+        ImTextureID id = reinterpret_cast<void*>(static_cast<intptr_t>(m_texture.id));
         ImVec2      s(m_texture.width, m_texture.height);
 
         std::optional<float> spacing;

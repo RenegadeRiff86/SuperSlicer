@@ -83,7 +83,9 @@ struct Interrupter
 {
     std::function<bool(int)> statusfn;
 
-    void start(const char* name = nullptr) { static_cast<void>(name); }
+    // OpenVDB's Interrupter API passes a stage name; our progress callback is
+    // percent-only, so the name is intentionally unused (omit the identifier).
+    void start(const char* /*name*/ = nullptr) {}
     void end() {}
 
     inline bool wasInterrupted(int percent = -1) const { return statusfn && statusfn(percent); }

@@ -123,9 +123,9 @@ typedef std::vector<ModelInstance*> ModelInstancePtrs;
     /* Copy a model, copy the IDs. The Print::apply() will call the TYPE::copy() method */ \
     /* to make a private copy for background processing. */ \
     static TYPE* new_copy(const TYPE &rhs)  { auto *ret = new TYPE(rhs); assert(ret->id() == rhs.id()); return ret; } \
-    static TYPE* new_copy(TYPE &&rhs)       { const auto rhs_id = rhs.id(); auto *ret = new TYPE(std::move(rhs)); assert(ret->id() == rhs_id); return ret; } \
+    static TYPE* new_copy(TYPE &&rhs)       { [[maybe_unused]] const auto rhs_id = rhs.id(); auto *ret = new TYPE(std::move(rhs)); assert(ret->id() == rhs_id); return ret; } \
     static TYPE  make_copy(const TYPE &rhs) { TYPE ret(rhs); assert(ret.id() == rhs.id()); return ret; } \
-    static TYPE  make_copy(TYPE &&rhs)      { const auto rhs_id = rhs.id(); TYPE ret(std::move(rhs)); assert(ret.id() == rhs_id); return ret; } \
+    static TYPE  make_copy(TYPE &&rhs)      { [[maybe_unused]] const auto rhs_id = rhs.id(); TYPE ret(std::move(rhs)); assert(ret.id() == rhs_id); return ret; } \
     TYPE&        assign_copy(const TYPE &rhs); \
     TYPE&        assign_copy(TYPE &&rhs); \
     /* Copy a TYPE, generate new IDs. The front end will use this call. */ \
@@ -563,9 +563,11 @@ private:
         assert(this->layer_height_profile.id() == rhs.layer_height_profile.id());
     }
     explicit ModelObject(ModelObject &&rhs) noexcept : ObjectBase(-1), config(-1), layer_height_profile(-1) {
+#ifndef NDEBUG
         const auto rhs_id = rhs.id();
         const auto rhs_config_id = rhs.config.id();
         const auto rhs_layer_height_profile_id = rhs.layer_height_profile.id();
+#endif
         Model *const rhs_model = rhs.m_model;
         assert(this->id().invalid()); 
         assert(this->config.id().invalid()); 
@@ -597,9 +599,11 @@ private:
         return *this;
     }
     ModelObject& operator=(ModelObject &&rhs) noexcept {
+#ifndef NDEBUG
         const auto rhs_id = rhs.id();
         const auto rhs_config_id = rhs.config.id();
         const auto rhs_layer_height_profile_id = rhs.layer_height_profile.id();
+#endif
         Model *const rhs_model = rhs.m_model;
         this->assign_copy(std::move(rhs));
         m_model = rhs_model;
@@ -1312,7 +1316,9 @@ public:
     /* (Omits copy and move(since C++11) constructors, resulting in zero - copy pass - by - value semantics). */
     Model(const Model &rhs) : ObjectBase(-1) { assert(this->id().invalid()); this->assign_copy(rhs); assert(this->id().valid()); assert(this->id() == rhs.id()); }
     explicit Model(Model &&rhs) noexcept : ObjectBase(-1) {
+#ifndef NDEBUG
         const auto rhs_id = rhs.id();
+#endif
         assert(this->id().invalid());
         this->assign_copy(std::move(rhs));
         assert(this->id().valid());
@@ -1320,7 +1326,9 @@ public:
     }
     Model& operator=(const Model &rhs) { this->assign_copy(rhs); assert(this->id().valid()); assert(this->id() == rhs.id()); return *this; }
     Model& operator=(Model &&rhs) noexcept {
+#ifndef NDEBUG
         const auto rhs_id = rhs.id();
+#endif
         this->assign_copy(std::move(rhs));
         assert(this->id().valid());
         assert(this->id() == rhs_id);

@@ -76,44 +76,47 @@ These recur; reference them by tag instead of restating.
 
 ## File (30)
 
+Swept 2026-08-01 with the armed-cancel method above: every item below was invoked and the dialog it
+raised was read back. Items marked `[~]` had their dialog confirmed but not their effect.
+
 ### Project
-- [ ] `file.new_project` - New Project
-- [ ] `file.open_project` - Open Project…
-- [ ] `file.save_project` - Save Project
-- [ ] `file.save_project_as` - Save Project as…
+- [x] `file.new_project` - New Project — correctly **disabled** on an empty plate; with objects loaded it prompts before discarding (modal `SuperSlicer`, Cancel available). Verified 2026-08-01.
+- [x] `file.open_project` - Open Project… — raises `Choose one file (3MF/AMF):` with the project wildcards (3mf/amf/zip.amf). Verified 2026-08-01.
+- [~] `file.save_project` - Save Project — raises `Save file as:` (3MF), i.e. identical to Save Project as, which is correct for a project that has never been saved. **Left to check: that it stops prompting once the project has a path** — that is the only thing distinguishing it from Save as.
+- [x] `file.save_project_as` - Save Project as… — raises `Save file as:` with the 3MF wildcards. Verified 2026-08-01. On an *empty* plate the same item raises a `Save project` modal instead of a file dialog.
 
 ### Import
 - [~] `file.import.import_stl_3mf_step_obj_amf` - Import STL/3MF/STEP/OBJ/AMF… — 2026-08-01: raises the right dialog (`Choose one or more files (STL/3MF/STEP/OBJ/AMF/SVG):`, open, multi-select) and two armed STL paths both loaded, reaching the normal `Multi-part object detected` prompt. Still to do: 3MF, STEP, OBJ, AMF, SVG — the label names them, so each needs its own load.
-- [ ] `file.import.import_stl_imperial_units` - Import STL (Imperial Units) (verify the 25.4 scale is applied)
-- [L] `file.import.import_sla_archive` - Import SLA Archive… — NEEDS-FILE
-- [ ] `file.import.import_zip_archive` - Import ZIP Archive…
-- [L] `file.import.import_hfp` - Import HFP… — NEEDS-FILE
-- [ ] `file.import.import_config` - Import Config…
-- [L] `file.import.import_prusa_config` - Import Prusa Config… — NEEDS-FILE
-- [ ] `file.import.import_config_from_project` - Import Config from Project…
-- [ ] `file.import.import_config_bundle` - Import Config Bundle…
-- [L] `file.import.import_prusa_config_bundle` - Import Prusa Config Bundle… — NEEDS-FILE
+- [x] `file.import.import_stl_imperial_units` - Import STL (Imperial Units) — **applies exactly 25.4**, verified 2026-08-01 on a purpose-built 4mm cube: 4.0 → 101.6 on all three axes, deviation from 25.4 is 0. Uses the same generic import dialog as the plain item, so the dialog alone cannot tell them apart. See the measurement trap below.
+- [L] `file.import.import_sla_archive` - Import SLA Archive… — NEEDS-FILE. Raises its own `Import SLA archive` modal rather than a plain file dialog, so it needs different handling than the rest.
+- [~] `file.import.import_zip_archive` - Import ZIP Archive… — raises `Choose ZIP file:` (*.zip). Dialog correct; an actual archive import is still to do.
+- [L] `file.import.import_hfp` - Import HFP… — NEEDS-FILE. Dialog confirmed: `Choose your modifier file (HFP):` (*.hfp).
+- [~] `file.import.import_config` - Import Config… — raises `Select configuration to load:` (*.ini, *.gcode, *.bgcode). Dialog correct; loading a config back is still to do.
+- [~] `file.import.import_prusa_config` - Import Prusa Config… — raises an **identical** dialog to Import Config, and that is correct by design: both are `MainFrame::load_config_file(bool from_prusa)` (`MainFrame.cpp:2311`), one dialog, with the flag passed to `PresetBundle::load_config_file`. The Prusa conversion itself is NEEDS-FILE.
+- [x] `file.import.import_config_from_project` - Import Config from Project… — raises `Choose one file (3MF/AMF):`, matching the label. Verified 2026-08-01.
+- [~] `file.import.import_config_bundle` - Import Config Bundle… — raises `Select configuration to load:` (*.ini). Dialog correct. Actually importing is **DESTRUCTIVE** (it writes presets into the user's config dir via `SaveImported`), so it needs an isolated datadir first.
+- [~] `file.import.import_prusa_config_bundle` - Import Prusa Config Bundle… — identical dialog to the item above, correct by design: both are `MainFrame::load_configbundle(file, bool from_prusa)` (`MainFrame.cpp:2391`), the flag adding `ConvertFromPrusa`. DESTRUCTIVE + NEEDS-FILE for the conversion itself.
 
 ### Export
-- [ ] `file.export.export_g_code` - Export G-code…
+- [!] `file.export.export_g_code` - Export G-code… — normally raises `Save G-code file as:` with a templated default name (`cube4mm_2m_0.20mm_200C_PLA_ENDER3.gcode`), both unsliced and sliced. **But it was observed silently dead**: in one session, on a valid single-object plate with the item reading enabled, invoking it produced no dialog, no slicing, no export and no error for 25s, and only came back after an explicit successful slice. See finding 9 — trigger not yet isolated.
 - [L] `file.export.send_g_code` - Send G-code… — NEEDS-NET
 - [L] `file.export.export_g_code_to_sd_card_flash_drive` - Export G-code to SD Card / Flash Drive… — NEEDS-HW
-- [ ] `file.export.export_plate` - Export Plate…
-- [ ] `file.export.export_toolpaths_as_obj` - Export Toolpaths as OBJ…
+- [x] `file.export.export_plate` - Export Plate… — raises `Export Platter:` offering STL/OBJ/3MF/AMF. Verified 2026-08-01. Wording drift, but the **menu is the outlier, not the dialog**: "platter" is this app's own vocabulary (82 uses, including `_L("Platter")` as a section heading in the shortcuts dialog and `Plater::export_platter()`), inherited from Slic3r. Renaming either way orphans translations, and "plate" is what every current slicer says, so which direction to migrate is a **product decision** - left open.
+- [x] `file.export.export_toolpaths_as_obj` - Export Toolpaths as OBJ… — correctly **disabled** until the plate has been sliced (an invoke is refused with "menu item is disabled"); toolpaths do not exist before that. Verified 2026-08-01.
 - [x] `file.export.export_config` - Export Config… — verified 2026-08-01: raises `Save configuration as:` with the INI wildcard and default name `config.ini`, and an armed path wrote a 662-line config containing the live preset values.
-- [ ] `file.export.export_config_bundle` - Export Config Bundle…
-- [ ] `file.export.export_config_bundle_with_physical_printers` - Export Config Bundle With Physical Printers… (confirm physical printers are actually included - that is the only difference from the plain bundle)
-- [ ] `file.export.export_to_prusa_config` - Export to Prusa Config… (round-trip it through PrusaSlicer if possible)
+- [x] `file.export.export_config_bundle` - Export Config Bundle… — raises `Save presets bundle as:` (*.ini) and wrote a 790-key bundle. Verified 2026-08-01.
+- [x] `file.export.export_config_bundle_with_physical_printers` - Export Config Bundle With Physical Printers… — **exactly what the label claims**, verified 2026-08-01 by diffing it against the plain bundle: 805 keys vs 790, the 15 extra all under `[physical_printer:FrankenPrinter]` (`preset_name`, `print_host`, `printhost_apikey`, …), **zero** other added, removed or changed keys.
+- [x] `file.export.export_to_prusa_config` - Export to Prusa Config… — genuinely converts, verified 2026-08-01 by diff: 345 keys vs the plain export's 661. It drops 319 SuperSlicer-only keys (`arc_fitting_*`, `avoid_travel_*`, …), adds 3 PrusaSlicer spellings (`elefant_foot_compensation`, `min_fan_speed`, `support_material_interface_pattern`) and changes 33 values. Round-tripping through a real PrusaSlicer is still worth doing.
 
 ### Convert
-- [ ] `file.convert.convert_ascii_g_code_to_binary` - Convert ASCII G-code to binary…
-- [ ] `file.convert.convert_binary_g_code_to_ascii` - Convert binary G-code to ASCII… (round-trip against the item above and diff)
+- [~] `file.convert.convert_ascii_g_code_to_binary` - Convert ASCII G-code to binary… — raises `Choose one file (GCODE/GCO/G/BGCODE/BGC/NGC):`. Dialog correct; the conversion itself is still to do.
+- [~] `file.convert.convert_binary_g_code_to_ascii` - Convert binary G-code to ASCII… — raises an **identical** dialog to the item above, which is reasonable (either direction picks any G-code file). Round-trip and diff still to do.
 
 ### Other
 - [L] `file.eject_sd_card_flash_drive` - Eject SD Card / Flash Drive… — NEEDS-HW
 - [ ] `file.re_slice_now` - (Re)Slice Now
-- [ ] `file.repair_stl_file` - Repair STL file… (see `superslicer_model_repair_linux_port` - hole filling is `#if 0` on Linux, so the label may overpromise)
-- [ ] `file.g_code_preview` - G-code Preview…
+- [~] `file.repair_stl_file` - Repair STL file… — raises `Select the STL file to repair:` (*.stl), matching the label. Whether it repairs is the open half: hole filling is `#if 0` on Linux (see `superslicer_model_repair_linux_port`), so the label may still overpromise.
+- [x] `file.g_code_preview` - G-code Preview… — raises `Open G-code file:` with the G-code wildcards, matching the label. Verified 2026-08-01.
 - [x] `file.quit` - Quit — verified 2026-07-31, exits cleanly and releases the automation port
 
 ## Edit (10)
@@ -366,11 +369,16 @@ Counted from the checkboxes on 2026-08-01. A few lines cover a group of sibling 
 
 | Part | Lines | `[x]` | `[!]` | `[~]` | `[L]` | Todo |
 |---|---|---|---|---|---|---|
-| 1 - Main menubar (101 items) | 91 | 26 | 3 | 7 | 12 | 43 |
+| 1 - Main menubar (101 items) | 91 | 37 | 4 | 16 | 10 | 24 |
 | 2 - Context menus | 32 | 0 | 0 | 0 | 1 | 31 |
 | 3 - G-code viewer menubar | 8 | 0 | 0 | 0 | 0 | 8 |
 | 4 - Preset combo dropdowns | 4 | 0 | 0 | 0 | 0 | 4 |
-| **All** | **135** | **26** | **3** | **7** | **13** | **86** |
+| **All** | **135** | **37** | **4** | **16** | **11** | **67** |
+
+The File menu went from 20 untouched lines to 1 in a single pass on 2026-08-01, once file dialogs
+became answerable. Two of its `[L]`s were downgraded to `[~]`: the Prusa import pair turned out to
+share one function with its sibling, so the dialog and dispatch are checkable here and only the
+conversion needs an external file.
 
 ## Findings so far
 
@@ -383,8 +391,12 @@ Counted from the checkboxes on 2026-08-01. A few lines cover a group of sibling 
 5. **Help > Report an Issue points at upstream's tracker** on a hard fork. **Open**, needs a product decision;
    the `github_url` app-config key already overrides it without a code change.
 6. **Automation ids are not unique** - unnamed controls fall back to their wx class name, so sibling buttons
-   collide and cannot be invoked individually, and there is no label-based fallback. This blocks parts of the
-   audit itself and should be fixed before Part 2 (context menus), which addresses many similar controls.
+   collide and cannot be invoked individually. **Half of this was a false alarm**: the underlying API is
+   ref-based and `/api/v1/ui/action` already takes a `ref` resolved from *any* element field, so
+   `elements(name="&Cancel")` disambiguates fine. Only the `gui_drive.py invoke` CLI lacked a way to pass it.
+   **Fixed 2026-08-01**: `invoke` gained `--label`, so `invoke button --label '&Cancel'` picks the right one.
+   The ids themselves are still not unique, which is worth fixing at the source eventually, but it no longer
+   blocks Part 2.
 7. **File dialogs could not be answered by automation at all** - the GTK chooser is not a wx widget tree, so
    no snapshot saw inside it and no invoke reached its buttons; roughly 18 `File >` items plus several
    context-menu items were untestable, and any run that reached one wedged the GUI thread. **Fixed**: every
@@ -396,6 +408,32 @@ Counted from the checkboxes on 2026-08-01. A few lines cover a group of sibling 
    (save) and `Import STL/3MF/STEP/OBJ/AMF` (open). This is most likely a stale "last used directory" in this
    machine's app config, which would be correct behaviour. **Unconfirmed** - reproduce against a clean data
    dir before treating it as a bug.
+9. **`File > Export > Export G-code` was observed silently dead.** On a valid plate holding one
+   small in-bounds cube, with the menu item reporting **enabled**, invoking it produced no dialog,
+   no slicing, no export and no error for 25s. It recovered only after an explicit successful
+   slice. A fresh session does *not* show this - there, the item raises `Save G-code file as:` on an
+   unsliced plate straight away. **Trigger not isolated.** Two hypotheses were tested against a
+   fresh session and BOTH failed to reproduce it: (a) an out-of-bounds object left on the plate,
+   (b) a slice forced while such an object was present. `Plater::export_gcode` has two silent
+   early-returns that fit the symptom - `p->process_completed_with_error` (`Plater.cpp:7249`) and
+   `UPDATE_BACKGROUND_PROCESS_INVALID` (`Plater.cpp:7279`) - and neither tells the user anything.
+   Whatever the trigger, an enabled menu item that does nothing and says nothing is a defect in its
+   own right. **Partly fixed 2026-08-01**: both silent returns now call `show_error` and name the
+   reason, and `Plater::send_gcode` had the identical silent return, so it was given the same
+   treatment. Verified by forcing an object off the bed and invoking Export G-code - previously
+   nothing at all happened, now the refusal is stated. The *trigger* of the original stuck state is
+   still unknown, so this makes the symptom self-explaining rather than curing it; if it recurs the
+   dialog will now say which of the two guards fired.
+   Left alone deliberately: `update_restart_background_process` returns early on a validation error
+   (`Plater.cpp:3743`) and so skips the `process_completed_with_error = false` reset ten lines below
+   (`:3759`). That is a plausible route to a stuck flag, but changing control flow in the slicing
+   path on a hunch is not worth the risk - it needs a debugger session, not a guess.
+10. **Measurement trap: a big model cannot verify a scale factor.** Checking Import STL (Imperial
+    Units) with the bunny gave a uniform 2.0625x, not 25.4x, which reads exactly like a bug. It is
+    not: 25.4x puts the bunny far outside the bed, the app offers to scale it down to fit, and the
+    fit factor lands on top of the conversion. The same check on a 4mm cube - small enough that
+    25.4x still fits - gives exactly 25.4 on all three axes. **Verify scale claims with a model
+    small enough that the result stays in bounds**, or the bed-fit silently rewrites the answer.
 
 Recount with:
 

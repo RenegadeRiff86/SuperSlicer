@@ -758,7 +758,7 @@ private:
 		// ProgressIndicator 
 		void set_range(int range) { m_range = range; }
 		void set_cancel_callback(CancelFn callback) { m_cancel_callback = callback; }
-		void set_progress(int pr) { set_percentage((float)pr / (float)m_range); }
+		void set_progress(int pr) { set_percentage(static_cast<float>(pr) / static_cast<float>(m_range)); }
 		void set_status_text(const char*); // utf8 char array
 		int  get_range() const { return m_range; }
 		// ProgressBarNotification

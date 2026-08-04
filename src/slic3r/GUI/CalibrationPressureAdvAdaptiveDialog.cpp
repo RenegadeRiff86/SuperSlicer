@@ -199,18 +199,19 @@ void CalibrationPressureAdvAdaptiveDialog::create_geometry(wxCommandEvent& event
 
     /// --- main config (modify per-object where possible) ---
     DynamicPrintConfig new_print_config = *print_config;
-    new_print_config.set_key_value("complete_objects", new ConfigOptionBool(false));
+    new_print_config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(false));
     // Wide brim around the whole grid; with the tight spacing the per-object brims merge into
     // one mat that holds the thin single-wall boxes down.
-    new_print_config.set_key_value("brim_width", new ConfigOptionFloat(6));
+    new_print_config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(6));
 
     DynamicPrintConfig new_printer_config = *printer_config;
 
     DynamicPrintConfig new_filament_config = *filament_config;
     // Print the whole grid at one fixed PA; disable adaptive PA so the static value is what's emitted.
-    new_filament_config.set_key_value("filament_adaptive_pressure_advance", new ConfigOptionBools({ false }));
-    new_filament_config.set_key_value("filament_pressure_advance",
-        (new ConfigOptionFloats({ double(test_pa) }))->set_can_be_disabled(false));
+    new_filament_config.set_key_value("filament_adaptive_pressure_advance", std::make_unique<ConfigOptionBools>(std::initializer_list<bool>{ false }));
+    auto test_pa_opt = std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{ double(test_pa) });
+    test_pa_opt->set_can_be_disabled(false);
+    new_filament_config.set_key_value("filament_pressure_advance", std::move(test_pa_opt));
     // Force a single uniform PA across the whole grid: disable every per-role PA override so all
     // roles fall back to filament_pressure_advance (= test_pa). Otherwise a preset's per-role values
     // (e.g. external_perimeter_pa, overhangs_pa, first_layer_pa) leak through and the cubes print at
@@ -221,7 +222,9 @@ void CalibrationPressureAdvAdaptiveDialog::create_geometry(wxCommandEvent& event
             "filament_bridge_pa", "filament_bridge_internal_pa", "filament_gap_fill_pa",
             "filament_thin_walls_pa", "filament_ironing_pa", "filament_brim_pa", "filament_travel_pa",
             "filament_support_material_pa", "filament_support_material_interface_pa" }) {
-        new_filament_config.set_key_value(pa_key, (new ConfigOptionFloats({ 0. }))->set_can_be_disabled(true));
+        auto role_pa_opt = std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{ 0. });
+        role_pa_opt->set_can_be_disabled(true);
+        new_filament_config.set_key_value(pa_key, std::move(role_pa_opt));
     }
 
     /// --- per-object config: one cube per (speed, acceleration) cell ---
@@ -232,31 +235,31 @@ void CalibrationPressureAdvAdaptiveDialog::create_geometry(wxCommandEvent& event
             const float  accel = axis_value(ja, nb_accel, min_accel, max_accel);
             ModelObject* o     = objs[idx];
 
-            o->config.set_key_value("layer_height", new ConfigOptionFloat(layer_height));
-            o->config.set_key_value("first_layer_height", new ConfigOptionFloatOrPercent(layer_height, false));
-            o->config.set_key_value("ironing", new ConfigOptionBool(false));
+            o->config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(layer_height));
+            o->config.set_key_value("first_layer_height", std::make_unique<ConfigOptionFloatOrPercent>(layer_height, false));
+            o->config.set_key_value("ironing", std::make_unique<ConfigOptionBool>(false));
             // Hollow wall test: perimeters only, no top/bottom skins, no infill, so pressure
             // advance shows up at the corners instead of being masked by solid fill.
-            o->config.set_key_value("perimeters", new ConfigOptionInt(2));
-            o->config.set_key_value("top_solid_layers", new ConfigOptionInt(0));
-            o->config.set_key_value("bottom_solid_layers", new ConfigOptionInt(0));
-            o->config.set_key_value("fill_density", new ConfigOptionPercent(0));
-            o->config.set_key_value("thin_walls", new ConfigOptionBool(false));
+            o->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(2));
+            o->config.set_key_value("top_solid_layers", std::make_unique<ConfigOptionInt>(0));
+            o->config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(0));
+            o->config.set_key_value("fill_density", std::make_unique<ConfigOptionPercent>(0));
+            o->config.set_key_value("thin_walls", std::make_unique<ConfigOptionBool>(false));
 
             // speed -> volumetric flow (one axis of the grid)
-            o->config.set_key_value("perimeter_speed", new ConfigOptionFloatOrPercent(speed, false));
-            o->config.set_key_value("external_perimeter_speed", new ConfigOptionFloatOrPercent(speed, false));
-            o->config.set_key_value("solid_infill_speed", new ConfigOptionFloatOrPercent(speed, false));
-            o->config.set_key_value("top_solid_infill_speed", new ConfigOptionFloatOrPercent(speed, false));
-            o->config.set_key_value("infill_speed", new ConfigOptionFloatOrPercent(speed, false));
+            o->config.set_key_value("perimeter_speed", std::make_unique<ConfigOptionFloatOrPercent>(speed, false));
+            o->config.set_key_value("external_perimeter_speed", std::make_unique<ConfigOptionFloatOrPercent>(speed, false));
+            o->config.set_key_value("solid_infill_speed", std::make_unique<ConfigOptionFloatOrPercent>(speed, false));
+            o->config.set_key_value("top_solid_infill_speed", std::make_unique<ConfigOptionFloatOrPercent>(speed, false));
+            o->config.set_key_value("infill_speed", std::make_unique<ConfigOptionFloatOrPercent>(speed, false));
 
             // acceleration (the other axis)
-            o->config.set_key_value("default_acceleration", new ConfigOptionFloatOrPercent(accel, false));
-            o->config.set_key_value("perimeter_acceleration", new ConfigOptionFloatOrPercent(accel, false));
-            o->config.set_key_value("external_perimeter_acceleration", new ConfigOptionFloatOrPercent(accel, false));
-            o->config.set_key_value("solid_infill_acceleration", new ConfigOptionFloatOrPercent(accel, false));
-            o->config.set_key_value("top_solid_infill_acceleration", new ConfigOptionFloatOrPercent(accel, false));
-            o->config.set_key_value("infill_acceleration", new ConfigOptionFloatOrPercent(accel, false));
+            o->config.set_key_value("default_acceleration", std::make_unique<ConfigOptionFloatOrPercent>(accel, false));
+            o->config.set_key_value("perimeter_acceleration", std::make_unique<ConfigOptionFloatOrPercent>(accel, false));
+            o->config.set_key_value("external_perimeter_acceleration", std::make_unique<ConfigOptionFloatOrPercent>(accel, false));
+            o->config.set_key_value("solid_infill_acceleration", std::make_unique<ConfigOptionFloatOrPercent>(accel, false));
+            o->config.set_key_value("top_solid_infill_acceleration", std::make_unique<ConfigOptionFloatOrPercent>(accel, false));
+            o->config.set_key_value("infill_acceleration", std::make_unique<ConfigOptionFloatOrPercent>(accel, false));
         }
     }
 
@@ -415,8 +418,8 @@ void CalibrationPressureAdvAdaptiveDialog::show_results_grid(wxCommandEvent& /*e
         }
         Tab* ftab = this->gui_app->get_tab(Preset::TYPE_FFF_FILAMENT);
         DynamicPrintConfig new_filament_config = *ftab->get_config();
-        new_filament_config.set_key_value("filament_adaptive_pressure_advance", new ConfigOptionBools({ true }));
-        new_filament_config.set_key_value("filament_adaptive_pressure_advance_model", new ConfigOptionStrings({ rows }));
+        new_filament_config.set_key_value("filament_adaptive_pressure_advance", std::make_unique<ConfigOptionBools>(std::initializer_list<bool>{ true }));
+        new_filament_config.set_key_value("filament_adaptive_pressure_advance_model", std::make_unique<ConfigOptionStrings>(std::initializer_list<std::string>{ rows }));
         ftab->load_config(new_filament_config);
         ftab->update_dirty();
         wxMessageBox(_L("Adaptive PA enabled and the model written to the current filament preset. "

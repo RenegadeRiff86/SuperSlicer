@@ -46,10 +46,10 @@ DropDown::DropDown(std::vector<wxString> &texts,
     , state_handler(this)
     , text_color(0x363636)
     , border_color(0xDBDBDB)
-    , selector_border_color(std::make_pair(0x00AE42, (int) StateColor::Hovered),
-        std::make_pair(*wxWHITE, (int) StateColor::Normal))
-    , selector_background_color(std::make_pair(0xEDFAF2, (int) StateColor::Checked),
-        std::make_pair(*wxWHITE, (int) StateColor::Normal))
+    , selector_border_color(std::make_pair(0x00AE42, static_cast<int>(StateColor::Hovered)),
+        std::make_pair(*wxWHITE, static_cast<int>(StateColor::Normal)))
+    , selector_background_color(std::make_pair(0xEDFAF2, static_cast<int>(StateColor::Checked)),
+        std::make_pair(*wxWHITE, static_cast<int>(StateColor::Normal)))
 {
 }
 
@@ -96,7 +96,7 @@ static gint gtk_popup_key_press (GtkWidget *widget, GdkEvent *gdk_event, wxPopup
         wxKeyEvent event( wxEVT_KEY_DOWN, win->GetId());
         event.m_keyCode = keyCode;
         event.SetEventObject( win );
-        (void)win->HandleWindowEvent( event );
+        win->HandleWindowEvent(event);
     }
 
     return TRUE;
@@ -138,13 +138,13 @@ void DropDown::Invalidate(bool clear)
         selection = hover_item = -1;
         offset = wxPoint();
     }
-    assert(selection < (int) texts.size());
+    assert(selection < static_cast<int>(texts.size()));
     need_sync = true;
 }
 
 void DropDown::SetSelection(int n)
 {
-    if (n >= (int) texts.size())
+    if (n >= static_cast<int>(texts.size()))
         n = -1;
     if (selection == n) return;
     selection = n;

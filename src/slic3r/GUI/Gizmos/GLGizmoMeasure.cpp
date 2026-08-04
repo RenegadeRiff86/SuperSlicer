@@ -586,7 +586,7 @@ void GLGizmoMeasure::on_render()
     update_if_needed();
 
     const Camera& camera = wxGetApp().plater()->get_camera();
-    const float inv_zoom = (float)camera.get_inv_zoom();
+    const float inv_zoom = static_cast<float>(camera.get_inv_zoom());
 
     Vec3f position_on_model;
     Vec3f normal_on_model;
@@ -759,7 +759,7 @@ void GLGizmoMeasure::on_render()
         return;
 
     shader->start_using();
-    shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 
     glsafe(::glClear(GL_DEPTH_BUFFER_BIT));
     glsafe(::glEnable(GL_DEPTH_TEST));
@@ -770,9 +770,9 @@ void GLGizmoMeasure::on_render()
 
     auto set_matrix_uniforms = [shader, &view_matrix](const Transform3d& model_matrix) {
         const Transform3d view_model_matrix = view_matrix * model_matrix;
-        shader->set_uniform("view_model_matrix", view_model_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_model_matrix);
         const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-        shader->set_uniform("view_normal_matrix", view_normal_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
     };
 
     auto set_emission_uniform = [shader](const ColorRGBA& color, bool hover) {
@@ -840,7 +840,7 @@ void GLGizmoMeasure::on_render()
                 // render edge
                 const Transform3d edge_matrix = Geometry::translation_transform(from) *
                     Eigen::Quaternion<double>::FromTwoVectors(Vec3d::UnitZ(), to - from) *
-                    Geometry::scale_transform({ (double)inv_zoom, (double)inv_zoom, (to - from).norm() });
+                    Geometry::scale_transform({ static_cast<double>(inv_zoom), static_cast<double>(inv_zoom), (to - from).norm() });
                 set_matrix_uniforms(edge_matrix);
                 set_emission_uniform(colors.front(), hover);
                 m_cylinder.model.set_color(colors.front());
@@ -1074,9 +1074,9 @@ void GLGizmoMeasure::update_if_needed()
             composite_mesh.merge(volume_mesh);
         }
 
-        m_measuring.reset(new Measure::Measuring(composite_mesh.its));
+        m_measuring = std::make_unique<Measure::Measuring>(composite_mesh.its);
         update_plane_models_cache(m_measuring->get_its());
-        m_raycaster.reset(new MeshRaycaster(std::make_shared<const TriangleMesh>(composite_mesh)));
+        m_raycaster = std::make_unique<MeshRaycaster>(std::make_shared<const TriangleMesh>(composite_mesh));
         m_volumes_cache = volumes_cache;
     };
 
@@ -1161,7 +1161,7 @@ void GLGizmoMeasure::render_dimensioning()
         const auto q12ss = Eigen::Quaternion<double>::FromTwoVectors(Vec3d::UnitX(), Vec3d(v12ss.x(), v12ss.y(), 0.0));
         const auto q21ss = Eigen::Quaternion<double>::FromTwoVectors(Vec3d::UnitX(), Vec3d(-v12ss.x(), -v12ss.y(), 0.0));
 
-        shader->set_uniform("projection_matrix", Transform3d::Identity());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, Transform3d::Identity());
 
         const Vec3d v1ss_3 = { v1ss.x(), v1ss.y(), 0.0 };
         const Vec3d v2ss_3 = { v2ss.x(), v2ss.y(), 0.0 };
@@ -1177,7 +1177,7 @@ void GLGizmoMeasure::render_dimensioning()
                 return;
 
             shader->start_using();
-            shader->set_uniform("projection_matrix", Transform3d::Identity());
+            shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, Transform3d::Identity());
             const std::array<int, 4>& viewport = camera.get_viewport();
             shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
             shader->set_uniform("width", 1.0f);
@@ -1188,7 +1188,7 @@ void GLGizmoMeasure::render_dimensioning()
             glsafe(::glLineWidth(2.0f));
 
         // stem
-        shader->set_uniform("view_model_matrix", overlap ?
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, overlap ?
             ss_to_ndc_matrix * Geometry::translation_transform(v1ss_3) * q12ss * Geometry::translation_transform(-2.0 * TRIANGLE_HEIGHT * Vec3d::UnitX()) * Geometry::scale_transform({ v12ss_len + 4.0 * TRIANGLE_HEIGHT, 1.0f, 1.0f }) :
             ss_to_ndc_matrix * Geometry::translation_transform(v1ss_3) * q12ss * Geometry::scale_transform({ v12ss_len, 1.0f, 1.0f }));
         m_dimensioning.line.set_color(ColorRGBA::WHITE());
@@ -1209,13 +1209,13 @@ void GLGizmoMeasure::render_dimensioning()
             glsafe(::glLineWidth(1.0f));
 
         // arrow 1
-        shader->set_uniform("view_model_matrix", overlap ?
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, overlap ?
             ss_to_ndc_matrix * Geometry::translation_transform(v1ss_3) * q12ss :
             ss_to_ndc_matrix * Geometry::translation_transform(v1ss_3) * q21ss);
         m_dimensioning.triangle.render();
 
         // arrow 2
-        shader->set_uniform("view_model_matrix", overlap ?
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, overlap ?
             ss_to_ndc_matrix * Geometry::translation_transform(v2ss_3) * q21ss :
             ss_to_ndc_matrix * Geometry::translation_transform(v2ss_3) * q12ss);
         m_dimensioning.triangle.render();
@@ -1407,8 +1407,8 @@ void GLGizmoMeasure::render_dimensioning()
 
                     const auto q = Eigen::Quaternion<double>::FromTwoVectors(Vec3d::UnitX(), Vec3d(pv_projss.x(), pv_projss.y(), 0.0));
 
-                    shader->set_uniform("projection_matrix", Transform3d::Identity());
-                    shader->set_uniform("view_model_matrix", ss_to_ndc_matrix * Geometry::translation_transform({ pss.x(), pss.y(), 0.0 }) * q *
+                    shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, Transform3d::Identity());
+                    shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, ss_to_ndc_matrix * Geometry::translation_transform({ pss.x(), pss.y(), 0.0 }) * q *
                         Geometry::scale_transform({ pv_projss_len, 1.0f, 1.0f }));
                     m_dimensioning.line.set_color(ColorRGBA::LIGHT_GRAY());
                     m_dimensioning.line.render();
@@ -1471,7 +1471,7 @@ void GLGizmoMeasure::render_dimensioning()
                 return;
 
             shader->start_using();
-            shader->set_uniform("projection_matrix", Transform3d::Identity());
+            shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, Transform3d::Identity());
             const std::array<int, 4>& viewport = camera.get_viewport();
             shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
             shader->set_uniform("width", 1.0f);
@@ -1482,8 +1482,8 @@ void GLGizmoMeasure::render_dimensioning()
           glsafe(::glLineWidth(2.0f));
 
         // arc
-        shader->set_uniform("projection_matrix", camera.get_projection_matrix());
-        shader->set_uniform("view_model_matrix", camera.get_view_matrix() * Geometry::translation_transform(center));
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix() * Geometry::translation_transform(center));
         m_dimensioning.arc.render();
 
 #if ENABLE_GL_CORE_PROFILE
@@ -1509,7 +1509,7 @@ void GLGizmoMeasure::render_dimensioning()
             const auto qx = Eigen::Quaternion<double>::FromTwoVectors(qz * Vec3d::UnitX(), direction_model);
             const Transform3d view_model_matrix = camera.get_view_matrix() * Geometry::translation_transform(position_model) *
                 qx * qz * Geometry::scale_transform(camera.get_inv_zoom());
-            shader->set_uniform("view_model_matrix", view_model_matrix);
+            shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_model_matrix);
             m_dimensioning.triangle.render();
         };
 
@@ -1523,7 +1523,7 @@ void GLGizmoMeasure::render_dimensioning()
         const Vec3d e11center = center - e1.first;
         const double e11center_len = e11center.norm();
         if (e11center_len > EPSILON && e11center.dot(e11e12) < 0.0) {
-            shader->set_uniform("view_model_matrix", camera.get_view_matrix() * Geometry::translation_transform(center) *
+            shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix() * Geometry::translation_transform(center) *
                 Eigen::Quaternion<double>::FromTwoVectors(Vec3d::UnitX(), Measure::edge_direction(e1.first, e1.second)) *
                 Geometry::scale_transform({ e11center_len, 1.0f, 1.0f }));
             m_dimensioning.line.set_color(ColorRGBA::LIGHT_GRAY());
@@ -1534,7 +1534,7 @@ void GLGizmoMeasure::render_dimensioning()
         const Vec3d e21center = center - e2.first;
         const double e21center_len = e21center.norm();
         if (e21center_len > EPSILON) {
-            shader->set_uniform("view_model_matrix", camera.get_view_matrix() * Geometry::translation_transform(center) *
+            shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix() * Geometry::translation_transform(center) *
                 Eigen::Quaternion<double>::FromTwoVectors(Vec3d::UnitX(), Measure::edge_direction(e2.first, e2.second)) *
                 Geometry::scale_transform({ (coplanar && radius > 0.0) ? e21center_len : draw_radius, 1.0f, 1.0f }));
             m_dimensioning.line.set_color(ColorRGBA::LIGHT_GRAY());

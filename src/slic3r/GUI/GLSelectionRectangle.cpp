@@ -64,8 +64,8 @@ namespace GUI {
             return;
 
         const Size cnv_size = canvas.get_canvas_size();
-        const float cnv_width = (float)cnv_size.get_width();
-        const float cnv_height = (float)cnv_size.get_height();
+        const float cnv_width = static_cast<float>(cnv_size.get_width());
+        const float cnv_height = static_cast<float>(cnv_size.get_height());
         if (cnv_width == 0.0f || cnv_height == 0.0f)
             return;
 
@@ -162,8 +162,8 @@ namespace GUI {
                 m_rectangle.init_from(std::move(init_data));
             }
 
-            shader->set_uniform("view_model_matrix", Transform3d::Identity());
-            shader->set_uniform("projection_matrix", Transform3d::Identity());
+            shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, Transform3d::Identity());
+            shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, Transform3d::Identity());
 #if ENABLE_OPENGL_ES
             shader->set_uniform("dash_size", 0.01f);
             shader->set_uniform("gap_size", 0.0075f);

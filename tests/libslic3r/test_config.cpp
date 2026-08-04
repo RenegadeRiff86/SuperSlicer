@@ -17,45 +17,45 @@ using namespace Slic3r::Test;
 TEST_CASE("Dynamic config serialization - tests ConfigBase", "[Config]"){
     DynamicPrintConfig config;
     INFO("Serialize float");
-    config.set_key_value("layer_height", new ConfigOptionFloat(0.3));
+    config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(0.3));
     CHECK(config.opt_serialize("layer_height") == "0.3");
 
     INFO("Serialize int");
-    config.set_key_value("perimeters", new ConfigOptionInt(2));
+    config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(2));
     CHECK(config.opt_serialize("perimeters") == "2");
 
     INFO("Serialize float or percent");
-    config.set_key_value("first_layer_height", new ConfigOptionFloatOrPercent(30, true));
+    config.set_key_value("first_layer_height", std::make_unique<ConfigOptionFloatOrPercent>(30, true));
     CHECK(config.opt_serialize("first_layer_height") == "30%");
 
     INFO("Serialize bool");
-    config.set_key_value("use_relative_e_distances", new ConfigOptionBool(true));
+    config.set_key_value("use_relative_e_distances", std::make_unique<ConfigOptionBool>(true));
     CHECK(config.opt_serialize("use_relative_e_distances") == "1");
 
     INFO("Serialize enum");
-    config.set_key_value("gcode_flavor", new ConfigOptionEnum<GCodeFlavor>(gcfTeacup));
+    config.set_key_value("gcode_flavor", std::make_unique<ConfigOptionEnum<GCodeFlavor>>(gcfTeacup));
     CHECK(config.opt_serialize("gcode_flavor") == "teacup");
 
     INFO("Serialize string");
-    config.set_key_value("extrusion_axis", new ConfigOptionString("A"));
+    config.set_key_value("extrusion_axis", std::make_unique<ConfigOptionString>("A"));
     CHECK(config.opt_serialize("extrusion_axis") == "A");
 
     INFO("Serialize string with newline");
-    config.set_key_value("notes", new ConfigOptionString("foo\nbar"));
+    config.set_key_value("notes", std::make_unique<ConfigOptionString>("foo\nbar"));
     CHECK(config.opt_serialize("notes") == "foo\\nbar");
     config.set_deserialize_strict("notes", "bar\\nbaz");
     INFO("Deserialize string with newline");
     CHECK(config.opt_string("notes") == "bar\nbaz");
 
     INFO("Serialize points");
-    config.set_key_value("extruder_offset", new ConfigOptionPoints({{10, 20}, {30, 45}}));
+    config.set_key_value("extruder_offset", std::make_unique<ConfigOptionPoints>(ConfigOptionPoints{{10, 20}, {30, 45}}));
     CHECK(config.opt_serialize("extruder_offset") == "10x20,30x45");
     INFO("Deserialize points");
     config.set_deserialize_strict("extruder_offset", "20x10");
     CHECK(config.option<ConfigOptionPoints>("extruder_offset")->values == std::vector{Vec2d{20, 10}});
 
     INFO("Serialize floats");
-    config.set_key_value("nozzle_diameter", new ConfigOptionFloats({0.2, 3}));
+    config.set_key_value("nozzle_diameter", std::make_unique<ConfigOptionFloats>(ConfigOptionFloats{0.2, 3}));
     CHECK(config.opt_serialize("nozzle_diameter") == "0.2,3");
     INFO("Deserialize floats");
     config.set_deserialize_strict("nozzle_diameter", "0.1,0.4");
@@ -65,14 +65,14 @@ TEST_CASE("Dynamic config serialization - tests ConfigBase", "[Config]"){
     CHECK_THAT(config.option<ConfigOptionFloats>("nozzle_diameter")->values, Catch::Matchers::Approx(std::vector{3.0}));
 
     INFO("Serialize ints");
-    config.set_key_value("temperature", new ConfigOptionInts({180, 210}));
+    config.set_key_value("temperature", std::make_unique<ConfigOptionInts>(ConfigOptionInts{180, 210}));
     CHECK(config.opt_serialize("temperature") == "180,210");
     INFO("Deserialize ints");
     config.set_deserialize_strict("temperature", "195,220");
     CHECK(config.option<ConfigOptionInts>("temperature")->values == std::vector{195,220});
 
     INFO("Serialize bools");
-    config.set_key_value("wipe", new ConfigOptionBools({true, false}));
+    config.set_key_value("wipe", std::make_unique<ConfigOptionBools>(ConfigOptionBools{true, false}));
     CHECK(config.opt_serialize("wipe") == "1,0");
     INFO("Deserialize bools");
     config.set_deserialize_strict("wipe", "0,1,1");
@@ -87,7 +87,7 @@ TEST_CASE("Dynamic config serialization - tests ConfigBase", "[Config]"){
     CHECK(config.option<ConfigOptionBools>("wipe")->values == std::vector<unsigned char>{true});
 
     INFO("Serialize strings");
-    config.set_key_value("post_process", new ConfigOptionStrings({"foo", "bar"}));
+    config.set_key_value("post_process", std::make_unique<ConfigOptionStrings>(ConfigOptionStrings{"foo", "bar"}));
     CHECK(config.opt_serialize("post_process") == "foo;bar");
     INFO("Deserialize strings");
     config.set_deserialize_strict("post_process", "bar;baz");
@@ -109,20 +109,20 @@ TEST_CASE("Config apply dynamic to static", "[Config]") {
     config.set_deserialize_strict("perimeters", "2");
 
     // This trick is taken directly from perl.
-    StaticPrintConfig* config2 = static_cast<GCodeConfig*>(new FullPrintConfig());
+    auto full_config = std::make_unique<FullPrintConfig>();
+    StaticPrintConfig* config2 = static_cast<GCodeConfig*>(full_config.get());
     config2->apply(config, true);
 
     CHECK(config2->opt_int("perimeters") == 2);
-    delete config2;
 }
 
 TEST_CASE("Config apply static to dynamic", "[Config]") {
     // This trick is taken directly from perl.
-    StaticPrintConfig* config = static_cast<GCodeConfig*>(new FullPrintConfig());
+    auto full_config = std::make_unique<FullPrintConfig>();
+    StaticPrintConfig* config = static_cast<GCodeConfig*>(full_config.get());
 
     DynamicPrintConfig config2;
     config2.apply(*config, true);
-    delete config;
 
     CHECK(
         config2.opt_int("perimeters") ==
@@ -134,7 +134,7 @@ TEST_CASE("Config apply static to dynamic", "[Config]") {
 TEST_CASE("Config apply dynamic to dynamic", "[Config]") {
 
     DynamicPrintConfig config;
-    config.set_key_value("extruder_offset", new ConfigOptionPoints({{0, 0}, {20, 0}, {0, 20}}));
+    config.set_key_value("extruder_offset", std::make_unique<ConfigOptionPoints>(ConfigOptionPoints{{0, 0}, {20, 0}, {0, 20}}));
     DynamicPrintConfig config2;
     config2.apply(config, true);
 
@@ -145,19 +145,19 @@ TEST_CASE("Config apply dynamic to dynamic", "[Config]") {
 }
 
 TEST_CASE("Get abs value on percent", "[Config]") {
-    StaticPrintConfig* config = static_cast<GCodeConfig*>(new FullPrintConfig());
+    auto full_config = std::make_unique<FullPrintConfig>();
+    StaticPrintConfig* config = static_cast<GCodeConfig*>(full_config.get());
 
     config->set_deserialize_strict("solid_infill_speed", "60");
     config->set_deserialize_strict("top_solid_infill_speed", "10%");
     CHECK(config->get_abs_value("top_solid_infill_speed") == 6);
-    delete config;
 }
 
 TEST_CASE("No interference between DynamicConfig objects", "[Config]") {
     DynamicPrintConfig config;
-    config.set_key_value("fill_pattern", new ConfigOptionString("line"));
+    config.set_key_value("fill_pattern", std::make_unique<ConfigOptionString>("line"));
     DynamicPrintConfig config2;
-    config2.set_key_value("fill_pattern", new ConfigOptionString("hilbertcurve"));
+    config2.set_key_value("fill_pattern", std::make_unique<ConfigOptionString>("hilbertcurve"));
     CHECK(config.opt_string("fill_pattern") == "line");
 }
 
@@ -185,7 +185,7 @@ TEST_CASE("Normalize fdm infill extruder", "[Config]") {
 TEST_CASE("Normalize fdm retract layer change", "[Config]") {
     DynamicPrintConfig config;
     config.set("spiral_vase", true, true);
-    config.set_key_value("retract_layer_change", new ConfigOptionBools({true, false}));
+    config.set_key_value("retract_layer_change", std::make_unique<ConfigOptionBools>(ConfigOptionBools{true, false}));
     config.normalize_fdm();
     CHECK(config.option<ConfigOptionBools>("retract_layer_change")->values == std::vector<unsigned char>{0, 0});
 }
@@ -240,7 +240,7 @@ TEST_CASE("Config serialization of multiple values", "[Config]"){
     };
 
     for (const SerializationTestData& data : test_data) {
-        config.set_key_value("filament_notes", new ConfigOptionStrings(data.values));
+        config.set_key_value("filament_notes", std::make_unique<ConfigOptionStrings>(data.values));
         CHECK(config.opt_serialize("filament_notes") == data.serialized);
 
         config.set_deserialize_strict("filament_notes", "");

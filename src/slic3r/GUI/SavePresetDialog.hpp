@@ -7,6 +7,8 @@
 
 //#include <wx/gdicmn.h>
 
+#include <memory>
+
 #include "libslic3r/Preset.hpp"
 #include "wxExtensions.hpp"
 #include "GUI_Utils.hpp"
@@ -73,7 +75,7 @@ public:
         void        update();
     };
 private:
-    std::vector<Item*>   m_items;
+    std::vector<std::unique_ptr<Item>> m_items;
 
     wxBoxSizer*         m_presets_sizer     {nullptr};
     wxStaticText*       m_label             {nullptr};

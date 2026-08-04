@@ -168,7 +168,7 @@ void Downloader::start_download(const std::string& full_url)
 void Downloader::on_progress(wxCommandEvent& event)
 {
 	size_t id = event.GetInt();
-	float percent = (float)std::stoi(boost::nowide::narrow(event.GetString())) / 100.f;
+	float percent = static_cast<float>(std::stoi(boost::nowide::narrow(event.GetString()))) / 100.f;
 	//BOOST_LOG_TRIVIAL(error) << "progress " << id << ": " << percent;
 	NotificationManager* ntf_mngr = wxGetApp().notification_manager();
 	BOOST_LOG_TRIVIAL(trace) << "Download "<< id << ": " << percent;

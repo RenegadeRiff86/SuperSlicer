@@ -244,7 +244,7 @@ void ExtruderSequenceDialog::apply_extruder_sequence()
         add_btn->SetToolTip(_(L("Add extruder to sequence")));
 
         add_btn->Bind(wxEVT_BUTTON, [this, extruder, extruder_selector](wxEvent&) {
-            size_t extr_cnt = (size_t)extruder_selector->GetCount();
+            size_t extr_cnt = static_cast<size_t>(extruder_selector->GetCount());
             size_t seq_extr_cnt = m_sequence.extruders.size();
             size_t extr_id = seq_extr_cnt - size_t(seq_extr_cnt / extr_cnt) * extr_cnt;
             m_sequence.add_extruder(extruder, std::min(extr_id, extr_cnt-1));

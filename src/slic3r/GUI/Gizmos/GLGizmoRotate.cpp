@@ -113,7 +113,7 @@ void GLGizmoRotate::on_dragging(const UpdateData &data)
 
     double theta = ::acos(std::clamp(new_dir.dot(orig_dir), -1.0, 1.0));
     if (cross2(orig_dir, new_dir) < 0.0)
-        theta = 2.0 * (double)PI - theta;
+        theta = 2.0 * static_cast<double>(PI) - theta;
 
     const double len = mouse_pos.norm();
 
@@ -145,7 +145,7 @@ void GLGizmoRotate::on_render()
     if (m_hover_id != 0 && !m_grabbers.front().dragging)
         init_data_from_selection(selection);
 
-    const double grabber_radius = (double)m_radius * (1.0 + (double)GrabberOffset);
+    const double grabber_radius = static_cast<double>(m_radius) * (1.0 + static_cast<double>(GrabberOffset));
     m_grabbers.front().center = Vec3d(::cos(m_angle) * grabber_radius, ::sin(m_angle) * grabber_radius, 0.0);
     m_grabbers.front().angles.z() = m_angle;
 
@@ -169,8 +169,8 @@ void GLGizmoRotate::on_render()
 
         const Camera& camera = wxGetApp().plater()->get_camera();
         const Transform3d view_model_matrix = camera.get_view_matrix() * m_grabbers.front().matrix;
-        shader->set_uniform("view_model_matrix", view_model_matrix);
-        shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_model_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
         const std::array<int, 4>& viewport = camera.get_viewport();
         shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));

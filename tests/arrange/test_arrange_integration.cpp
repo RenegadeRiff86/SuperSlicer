@@ -622,8 +622,8 @@ TEMPLATE_TEST_CASE("Bed needs to be completely filled with 1cm cubes",
     cfg.load_from_ini(basepath + "default_fff.ini",
                       ForwardCompatibilitySubstitutionRule::Enable);
     cfg.set_key_value("bed_shape",
-                      new ConfigOptionPoints(
-                          {{0., 0.}, {100., 0.}, {100., 100.}, {0, 100.}}));
+                      std::make_unique<ConfigOptionPoints>(
+                          std::vector<Vec2d>{{0., 0.}, {100., 0.}, {100., 100.}, {0, 100.}}));
 
     Model m;
 

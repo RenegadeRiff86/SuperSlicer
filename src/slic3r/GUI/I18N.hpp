@@ -60,24 +60,32 @@ namespace I18N {
 	inline std::string translate_utf8(const wxString     &s, const wxString     &plural, unsigned int n) { return translate(s, plural, n).ToUTF8().data(); }
 
 #if wxCHECK_VERSION(3, 1, 1)
-	#define _wxGetTranslation_ctx(S, CTX) wxGetTranslation((S), wxEmptyString, (CTX))
+	inline wxString translate(const char *s, const char* ctx)         { return wxGetTranslation(wxString(s, wxConvUTF8), wxEmptyString, ctx); }
+	inline wxString translate(const wchar_t *s, const char* ctx)      { return wxGetTranslation(s, wxEmptyString, ctx); }
+	inline wxString translate(const std::string &s, const char* ctx)  { return wxGetTranslation(wxString(s.c_str(), wxConvUTF8), wxEmptyString, ctx); }
+	inline wxString translate(const std::wstring &s, const char* ctx) { return wxGetTranslation(s.c_str(), wxEmptyString, ctx); }
+	inline wxString translate(const wxString &s, const char* ctx)     { return wxGetTranslation(s, wxEmptyString, ctx); }
+
+	inline std::string translate_utf8(const char *s, const char* ctx)         { return translate(s, ctx).ToUTF8().data(); }
+	inline std::string translate_utf8(const wchar_t *s, const char* ctx)      { return translate(s, ctx).ToUTF8().data(); }
+	inline std::string translate_utf8(const std::string &s, const char* ctx)  { return translate(s, ctx).ToUTF8().data(); }
+	inline std::string translate_utf8(const std::wstring &s, const char* ctx) { return translate(s, ctx).ToUTF8().data(); }
+	inline std::string translate_utf8(const wxString &s, const char* ctx)     { return translate(s, ctx).ToUTF8().data(); }
 #else
-	#define _wxGetTranslation_ctx(S, CTX) ((void)(CTX), wxGetTranslation((S)))
+	// Context-aware gettext needs wx 3.1.1+. Keep the ctx parameter so call sites
+	// stay portable; omit the name so the unused-parameter warning is not papered over.
+	inline wxString translate(const char *s, const char* /*ctx*/)         { return wxGetTranslation(wxString(s, wxConvUTF8)); }
+	inline wxString translate(const wchar_t *s, const char* /*ctx*/)      { return wxGetTranslation(s); }
+	inline wxString translate(const std::string &s, const char* /*ctx*/)  { return wxGetTranslation(wxString(s.c_str(), wxConvUTF8)); }
+	inline wxString translate(const std::wstring &s, const char* /*ctx*/) { return wxGetTranslation(s.c_str()); }
+	inline wxString translate(const wxString &s, const char* /*ctx*/)     { return wxGetTranslation(s); }
+
+	inline std::string translate_utf8(const char *s, const char* ctx)         { return translate(s, ctx).ToUTF8().data(); }
+	inline std::string translate_utf8(const wchar_t *s, const char* ctx)      { return translate(s, ctx).ToUTF8().data(); }
+	inline std::string translate_utf8(const std::string &s, const char* ctx)  { return translate(s, ctx).ToUTF8().data(); }
+	inline std::string translate_utf8(const std::wstring &s, const char* ctx) { return translate(s, ctx).ToUTF8().data(); }
+	inline std::string translate_utf8(const wxString &s, const char* ctx)     { return translate(s, ctx).ToUTF8().data(); }
 #endif
-
-	inline wxString translate(const char *s, const char* ctx)         { return _wxGetTranslation_ctx(wxString(s, wxConvUTF8), ctx); }
-	inline wxString translate(const wchar_t *s, const char* ctx)      { return _wxGetTranslation_ctx(s, ctx); }
-	inline wxString translate(const std::string &s, const char* ctx)  { return _wxGetTranslation_ctx(wxString(s.c_str(), wxConvUTF8), ctx); }
-	inline wxString translate(const std::wstring &s, const char* ctx) { return _wxGetTranslation_ctx(s.c_str(), ctx); }
-	inline wxString translate(const wxString &s, const char* ctx)     { return _wxGetTranslation_ctx(s, ctx); }
-
-	inline std::string translate_utf8(const char *s, const char* ctx)         { return _wxGetTranslation_ctx(wxString(s, wxConvUTF8), ctx).ToUTF8().data(); }
-	inline std::string translate_utf8(const wchar_t *s, const char* ctx)      { return _wxGetTranslation_ctx(s, ctx).ToUTF8().data(); }
-	inline std::string translate_utf8(const std::string &s, const char* ctx)  { return _wxGetTranslation_ctx(wxString(s.c_str(), wxConvUTF8), ctx).ToUTF8().data(); }
-	inline std::string translate_utf8(const std::wstring &s, const char* ctx) { return _wxGetTranslation_ctx(s.c_str(), ctx).ToUTF8().data(); }
-	inline std::string translate_utf8(const wxString &s, const char* ctx)     { return _wxGetTranslation_ctx(s, ctx).ToUTF8().data(); }
-
-#undef _wxGetTranslation_ctx
 } // namespace I18N
 
 // Return translated std::string as a wxString

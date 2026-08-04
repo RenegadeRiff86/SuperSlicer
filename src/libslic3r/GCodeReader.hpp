@@ -190,14 +190,14 @@ private:
     static bool         is_end_of_line(char c)          { return c == '\r' || c == '\n' || c == 0; }
     static bool         is_end_of_gcode_line(char c)    { return c == ';' || is_end_of_line(c); }
     static bool         is_end_of_word(char c)          { return is_whitespace(c) || is_end_of_gcode_line(c); }
-    static const char*  skip_whitespaces(const char *c) { 
-        for (; is_whitespace(*c); ++ c)
-            ; // silence -Wempty-body
+    static const char*  skip_whitespaces(const char *c) {
+        while (is_whitespace(*c))
+            ++c;
         return c;
     }
-    static const char*  skip_word(const char *c) { 
-        for (; ! is_end_of_word(*c); ++ c)
-            ; // silence -Wempty-body
+    static const char*  skip_word(const char *c) {
+        while (!is_end_of_word(*c))
+            ++c;
         return c;
     }
     static const char*  axis_pos(const char *raw_str, char axis);

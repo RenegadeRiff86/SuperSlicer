@@ -278,22 +278,6 @@ public:
 	~StaticLine() {}
 };
 
-// Generic message dialog, used intead of wxMessageDialog
-class MessageDialog : public MsgDialog
-{
-public:
-	// NOTE! Don't change a signature of contsrucor. It have to  be tha same as for wxMessageDialog
-    MessageDialog(wxWindow *parent,
-		            const wxString& message,
-		            const wxString& caption = wxEmptyString,
-		            long style = wxOK);
-    MessageDialog(MessageDialog &&)                 = delete;
-    MessageDialog(const MessageDialog &)            = delete;
-    MessageDialog &operator=(MessageDialog &&)      = delete;
-    MessageDialog &operator=(const MessageDialog &) = delete;
-    virtual ~MessageDialog()                            = default;
-};
-
 using RichMessageDialog = RichMessageDialogBase; 
 
 #else
@@ -310,20 +294,6 @@ public:
 		: wxStaticLine(parent, id, pos, size, style, name) {}
 	~StaticLine() {}
 };
-// just a wrapper to wxMessageBox to use the same code on all platforms
-class MessageDialog : public wxMessageDialog
-{
-public:
-	MessageDialog(wxWindow* parent,
-		const wxString& message,
-		const wxString& caption = wxEmptyString,
-		long style = wxOK)
-    : wxMessageDialog(parent, get_wraped_wxString(message), caption, style) {}
-	~MessageDialog() {}
-	
-	void SetButtonLabel(wxWindowID btn_id, const wxString& label, bool set_focus = false);
-};
-
 // just a wrapper to wxRichMessageBox to use the same code on all platforms
 class RichMessageDialog : public wxRichMessageDialog
 {
@@ -338,6 +308,28 @@ public:
 	~RichMessageDialog() {}
 };
 #endif
+
+// Generic message dialog, used instead of wxMessageDialog.
+// Deliberately NOT platform-conditional. wxGTK's wxMessageDialog is a NATIVE dialog whose buttons
+// are GTK widgets rather than wxWindows, so MsgDialog::SetButtonLabel's FindWindowById() found
+// nothing and every custom button label was silently dropped - Plater::reset_with_confirm() then
+// showed stock "Yes/No/Cancel" for labels it had set to "New Project"/"Erase all objects", leaving
+// "No" as the button that erases the plate. The custom widget is what Windows already used, and
+// WarningDialog/RichMessageDialogBase already use it on Linux, so this is also the consistent look.
+class MessageDialog : public MsgDialog
+{
+public:
+	// NOTE! Don't change a signature of contsrucor. It have to  be tha same as for wxMessageDialog
+    MessageDialog(wxWindow *parent,
+		            const wxString& message,
+		            const wxString& caption = wxEmptyString,
+		            long style = wxOK);
+    MessageDialog(MessageDialog &&)                 = delete;
+    MessageDialog(const MessageDialog &)            = delete;
+    MessageDialog &operator=(MessageDialog &&)      = delete;
+    MessageDialog &operator=(const MessageDialog &) = delete;
+    virtual ~MessageDialog()                            = default;
+};
 
 class HtmlCapableRichMessageDialog : public RichMessageDialogBase
 {

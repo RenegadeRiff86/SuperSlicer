@@ -36,6 +36,8 @@
 
 #include <wx/glcanvas.h>
 
+#include <memory>
+
 namespace Slic3r {
 namespace GUI {
 
@@ -66,7 +68,7 @@ GLGizmosManager::EType GLGizmosManager::get_gizmo_from_mouse(const Vec2d &mouse_
 {
     if (!m_enabled) return Undefined;
 
-    float cnv_h      = (float) m_parent.get_canvas_size().get_height();
+    float cnv_h      = static_cast<float>(m_parent.get_canvas_size().get_height());
     float height     = get_scaled_total_height();
     float icons_size = m_layout.scaled_icons_size();
     float border     = m_layout.scaled_border();
@@ -74,10 +76,10 @@ GLGizmosManager::EType GLGizmosManager::get_gizmo_from_mouse(const Vec2d &mouse_
     float top_y      = 0.5f * (cnv_h - height) + border;
 
     // is mouse horizontally in the area?
-    if ((border <= (float) mouse_pos(0) &&
+    if ((border <= static_cast<float>(mouse_pos(0)) &&
          ((float) mouse_pos(0) <= border + icons_size))) {
         // which icon is it on?
-        size_t from_top = (size_t) ((float) mouse_pos(1) - top_y) / stride_y;
+        size_t from_top = static_cast<size_t>(static_cast<float>(mouse_pos(1)) - top_y) / stride_y;
         // is it really on the icon or already past the border?
         if ((float) mouse_pos(1) <= top_y + from_top * stride_y + icons_size) {
             std::vector<size_t> selectable = get_selectable_idxs();
@@ -103,22 +105,22 @@ bool GLGizmosManager::init()
     }
 
     // Order of gizmos in the vector must match order in EType!
-    m_gizmos.emplace_back(new GLGizmoMove3D(m_parent, "move.svg", EType::Move)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
-    m_gizmos.emplace_back(new GLGizmoScale3D(m_parent, "scale.svg", EType::Scale)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
-    m_gizmos.emplace_back(new GLGizmoRotate3D(m_parent, "rotate.svg", EType::Rotate)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
-    m_gizmos.emplace_back(new GLGizmoFlatten(m_parent, "place.svg", EType::Flatten)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
-    m_gizmos.emplace_back(new GLGizmoCut3D(m_parent, "cut.svg", EType::Cut)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
-    m_gizmos.emplace_back(new GLGizmoHollow(m_parent, "hollow.svg", EType::Hollow)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
+    m_gizmos.emplace_back(std::make_unique<GLGizmoMove3D>(m_parent, "move.svg", EType::Move)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
+    m_gizmos.emplace_back(std::make_unique<GLGizmoScale3D>(m_parent, "scale.svg", EType::Scale)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
+    m_gizmos.emplace_back(std::make_unique<GLGizmoRotate3D>(m_parent, "rotate.svg", EType::Rotate)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
+    m_gizmos.emplace_back(std::make_unique<GLGizmoFlatten>(m_parent, "place.svg", EType::Flatten)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
+    m_gizmos.emplace_back(std::make_unique<GLGizmoCut3D>(m_parent, "cut.svg", EType::Cut)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
+    m_gizmos.emplace_back(std::make_unique<GLGizmoHollow>(m_parent, "hollow.svg", EType::Hollow)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
     m_gizmos.emplace_back(new GLGizmoEmboss(m_parent, "text_part.svg", EType::Emboss)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
-    m_gizmos.emplace_back(new GLGizmoSlaSupports(m_parent, "sla_supports.svg", EType::SlaSupports)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
-    m_gizmos.emplace_back(new GLGizmoFdmSupports(m_parent, "fdm_supports.svg", EType::FdmSupports)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
-    m_gizmos.emplace_back(new GLGizmoSeam(m_parent, "seam.svg", EType::Seam)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
-    m_gizmos.emplace_back(new GLGizmoMmuSegmentation(m_parent, "mmu_segmentation.svg", EType::MmuSegmentation)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
-    m_gizmos.emplace_back(new GLGizmoMeasure(m_parent, "measure.svg", EType::Measure)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
+    m_gizmos.emplace_back(std::make_unique<GLGizmoSlaSupports>(m_parent, "sla_supports.svg", EType::SlaSupports)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
+    m_gizmos.emplace_back(std::make_unique<GLGizmoFdmSupports>(m_parent, "fdm_supports.svg", EType::FdmSupports)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
+    m_gizmos.emplace_back(std::make_unique<GLGizmoSeam>(m_parent, "seam.svg", EType::Seam)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
+    m_gizmos.emplace_back(std::make_unique<GLGizmoMmuSegmentation>(m_parent, "mmu_segmentation.svg", EType::MmuSegmentation)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
+    m_gizmos.emplace_back(std::make_unique<GLGizmoMeasure>(m_parent, "measure.svg", EType::Measure)); assert(m_gizmos.back()->get_sprite_id() == m_gizmos.size() - 1);
     m_gizmos.emplace_back(new GLGizmoSVG(m_parent)); assert(EType::Svg == m_gizmos.size() - 1);
-    m_gizmos.emplace_back(new GLGizmoSimplify(m_parent)); assert(EType::Simplify == m_gizmos.size() - 1);
+    m_gizmos.emplace_back(std::make_unique<GLGizmoSimplify>(m_parent)); assert(EType::Simplify == m_gizmos.size() - 1);
 
-    m_common_gizmos_data.reset(new CommonGizmosDataPool(&m_parent));
+    m_common_gizmos_data = std::make_unique<CommonGizmosDataPool>(&m_parent);
 
     for (auto& gizmo : m_gizmos) {
         if (! gizmo->init()) {
@@ -374,7 +376,7 @@ bool GLGizmosManager::on_mouse_wheel(const wxMouseEvent &evt)
     bool processed = false;
 
     if (m_current == SlaSupports || m_current == Hollow || m_current == FdmSupports || m_current == Seam || m_current == MmuSegmentation) {
-        float rot = (float)evt.GetWheelRotation() / (float)evt.GetWheelDelta();
+        float rot = static_cast<float>(evt.GetWheelRotation()) / static_cast<float>(evt.GetWheelDelta());
         if (gizmo_event((rot > 0.f ? SLAGizmoEventType::MouseWheelUp : SLAGizmoEventType::MouseWheelDown), Vec2d::Zero(), evt.ShiftDown(), evt.AltDown(), evt.ControlDown()))
             processed = true;
     }
@@ -754,8 +756,8 @@ void GLGizmosManager::render_arrow(const GLCanvas3D& parent, EType highlighted_t
         return;
 
     const Size cnv_size = m_parent.get_canvas_size();
-    const float cnv_w = (float)cnv_size.get_width();
-    const float cnv_h = (float)cnv_size.get_height();
+    const float cnv_w = static_cast<float>(cnv_size.get_width());
+    const float cnv_h = static_cast<float>(cnv_size.get_height());
 
     if (cnv_w == 0 || cnv_h == 0)
         return;
@@ -802,8 +804,8 @@ void GLGizmosManager::do_render_overlay() const
         return;
 
     const Size cnv_size = m_parent.get_canvas_size();
-    const float cnv_w = (float)cnv_size.get_width();
-    const float cnv_h = (float)cnv_size.get_height();
+    const float cnv_w = static_cast<float>(cnv_size.get_width());
+    const float cnv_h = static_cast<float>(cnv_size.get_height());
 
     if (cnv_w == 0 || cnv_h == 0)
         return;
@@ -835,12 +837,12 @@ void GLGizmosManager::do_render_overlay() const
     if (icons_texture_id == 0 || tex_width <= 1 || tex_height <= 1)
         return;
 
-    const float du = (float)(tex_width - 1) / (6.0f * (float)tex_width); // 6 is the number of possible states if the icons
-    const float dv = (float)(tex_height - 1) / (float)(m_gizmos.size() * tex_height);
+    const float du = static_cast<float>(tex_width - 1) / (6.0f * static_cast<float>(tex_width)); // 6 is the number of possible states if the icons
+    const float dv = static_cast<float>(tex_height - 1) / static_cast<float>(m_gizmos.size() * tex_height);
 
     // tiles in the texture are spaced by 1 pixel
-    const float u_offset = 1.0f / (float)tex_width;
-    const float v_offset = 1.0f / (float)tex_height;
+    const float u_offset = 1.0f / static_cast<float>(tex_width);
+    const float v_offset = 1.0f / static_cast<float>(tex_height);
 
     float current_y = FLT_MAX;
     for (size_t idx : selectable_idxs) {
@@ -869,7 +871,7 @@ void GLGizmosManager::do_render_overlay() const
 
 float GLGizmosManager::get_scaled_total_height() const
 {
-    return m_layout.scale * (2.0f * m_layout.border + (float)get_selectable_idxs().size() * m_layout.stride_y() - m_layout.gap_y);
+    return m_layout.scale * (2.0f * m_layout.border + static_cast<float>(get_selectable_idxs().size()) * m_layout.stride_y() - m_layout.gap_y);
 }
 
 float GLGizmosManager::get_scaled_total_width() const
@@ -923,7 +925,7 @@ bool GLGizmosManager::generate_icons_texture()
     states.push_back(std::make_pair(0, false)); // HighlightedShown
     states.push_back(std::make_pair(2, false)); // HighlightedHidden
 
-    unsigned int sprite_size_px = (unsigned int)m_layout.scaled_icons_size();
+    unsigned int sprite_size_px = static_cast<unsigned int>(m_layout.scaled_icons_size());
 //    // force even size
 //    if (sprite_size_px % 2 != 0)
 //        sprite_size_px += 1;

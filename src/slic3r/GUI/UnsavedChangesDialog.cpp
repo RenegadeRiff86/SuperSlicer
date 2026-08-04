@@ -253,10 +253,11 @@ wxDataViewItem DiffModel::AddPreset(Preset::Type type, wxString preset_name, Pri
     make_string_bold(preset_name);
     make_string_bold(new_preset_name);
 
-    auto preset = new ModelNode(type, m_parent_win, preset_name, get_icon_name(type, pt), new_preset_name);
-    m_preset_nodes.emplace_back(preset);
+    auto owned_preset = std::make_unique<ModelNode>(type, m_parent_win, preset_name, get_icon_name(type, pt), new_preset_name);
+    ModelNode* preset = owned_preset.get();
+    m_preset_nodes.emplace_back(std::move(owned_preset));
 
-    wxDataViewItem child((void*)preset);
+    wxDataViewItem child(static_cast<void*>(preset));
     wxDataViewItem parent(nullptr);
 
     ItemAdded(parent, child);
@@ -267,8 +268,8 @@ ModelNode* DiffModel::AddOption(ModelNode* group_node, wxString option_name, wxS
 {
     group_node->Append(std::make_unique<ModelNode>(group_node, option_name, old_value, mod_value, new_value));
     ModelNode* option = group_node->GetChildren().back().get();
-    wxDataViewItem group_item = wxDataViewItem((void*)group_node);
-    ItemAdded(group_item, wxDataViewItem((void*)option));
+    wxDataViewItem group_item = wxDataViewItem(static_cast<void*>(group_node));
+    ItemAdded(group_item, wxDataViewItem(static_cast<void*>(option)));
 
     m_ctrl->Expand(group_item);
     return option;
@@ -278,7 +279,7 @@ ModelNode* DiffModel::AddOptionWithGroup(ModelNode* category_node, wxString grou
 {
     category_node->Append(std::make_unique<ModelNode>(category_node, group_name));
     ModelNode* group_node = category_node->GetChildren().back().get();
-    ItemAdded(wxDataViewItem((void*)category_node), wxDataViewItem((void*)group_node));
+    ItemAdded(wxDataViewItem(static_cast<void*>(category_node)), wxDataViewItem(static_cast<void*>(group_node)));
 
     return AddOption(group_node, option_name, old_value, mod_value, new_value);
 }
@@ -288,7 +289,7 @@ ModelNode* DiffModel::AddOptionWithGroupAndCategory(ModelNode* preset_node, wxSt
 {
     preset_node->Append(std::make_unique<ModelNode>(preset_node, category_name, category_icon_name));
     ModelNode* category_node = preset_node->GetChildren().back().get();
-    ItemAdded(wxDataViewItem((void*)preset_node), wxDataViewItem((void*)category_node));
+    ItemAdded(wxDataViewItem(static_cast<void*>(preset_node)), wxDataViewItem(static_cast<void*>(category_node)));
 
     return AddOptionWithGroup(category_node, group_name, option_name, old_value, mod_value, new_value);
 }
@@ -314,12 +315,12 @@ wxDataViewItem DiffModel::AddOption(Preset::Type type, wxString category_name, w
                 {
                     for (std::unique_ptr<ModelNode> &group : category->GetChildren())
                         if (group->text() == group_name)
-                            return wxDataViewItem((void*)AddOption(group.get(), option_name, old_value, mod_value, new_value));
+                            return wxDataViewItem(static_cast<void*>(AddOption(group.get(), option_name, old_value, mod_value, new_value)));
                     
-                    return wxDataViewItem((void*)AddOptionWithGroup(category.get(), group_name, option_name, old_value, mod_value, new_value));
+                    return wxDataViewItem(static_cast<void*>(AddOptionWithGroup(category.get(), group_name, option_name, old_value, mod_value, new_value)));
                 }
 
-            return wxDataViewItem((void*)AddOptionWithGroupAndCategory(preset.get(), category_name, group_name, option_name, old_value, mod_value, new_value, category_icon_name));
+            return wxDataViewItem(static_cast<void*>(AddOptionWithGroupAndCategory(preset.get(), category_name, group_name, option_name, old_value, mod_value, new_value, category_icon_name)));
         }
 
     return wxDataViewItem(nullptr);    
@@ -490,7 +491,7 @@ wxDataViewItem DiffModel::GetParent(const wxDataViewItem& item) const
     if (node->IsRoot())
         return wxDataViewItem(nullptr);
 
-    return wxDataViewItem((void*)node->GetParent());
+    return wxDataViewItem(static_cast<void*>(node->GetParent()));
 }
 
 bool DiffModel::IsContainer(const wxDataViewItem& item) const
@@ -505,11 +506,11 @@ bool DiffModel::IsContainer(const wxDataViewItem& item) const
 
 unsigned int DiffModel::GetChildren(const wxDataViewItem& parent, wxDataViewItemArray& array) const
 {
-    ModelNode* parent_node = (ModelNode*)parent.GetID();
+    ModelNode* parent_node = static_cast<ModelNode*>(parent.GetID());
 
     const ModelNodePtrArray& children = parent_node ? parent_node->GetChildren() : m_preset_nodes;
     for (const std::unique_ptr<ModelNode>& child : children)
-        array.Add(wxDataViewItem((void*)child.get()));
+        array.Add(wxDataViewItem(static_cast<void*>(child.get())));
 
     return array.Count();
 }
@@ -692,7 +693,7 @@ wxString DiffViewCtrl::get_short_string(wxString full_string)
     m_has_long_strings = true;
 
     int n_pos = full_string.Find("\n");
-    if (n_pos != wxNOT_FOUND && n_pos < (int)max_len)
+    if (n_pos != wxNOT_FOUND && n_pos < static_cast<int>(max_len))
         max_len = n_pos;
 
     full_string.Truncate(max_len);
@@ -1493,7 +1494,7 @@ FullCompareDialog::FullCompareDialog(const wxString& option_name, const wxString
             int pos = label.First(str);
             if (pos == wxNOT_FOUND)
                 continue;
-            text->SetStyle(pos, pos + (int)str.Len(), wxTextAttr(is_colored ? wxColour(orange) : wxNullColour, wxNullColour, this->GetFont().Bold()));
+            text->SetStyle(pos, pos + static_cast<int>(str.Len()), wxTextAttr(is_colored ? wxColour(orange) : wxNullColour, wxNullColour, this->GetFont().Bold()));
         }
 
         grid_sizer->Add(text, 1, wxALL | wxEXPAND, border);

@@ -585,15 +585,15 @@ wxDEFINE_EVENT(EVT_CONFIG_UPDATER_REDRAW, wxCommandEvent);
 wxDEFINE_EVENT(EVT_VENDOR_VERSION_LAUNCH, wxCommandEvent);
 
 void UpdateConfigDialog::request_rebuild_ui() {
-    wxCommandEvent *evt = new wxCommandEvent(EVT_CONFIG_UPDATER_REDRAW);
-    this->QueueEvent(evt);
+    auto evt = std::make_unique<wxCommandEvent>(EVT_CONFIG_UPDATER_REDRAW);
+    this->QueueEvent(evt.release());
 }
 
 void UpdateConfigDialog::request_show_error_msg(const std::string &error_msg) {
     if (!error_msg.empty()) {
-        wxCommandEvent *evt = new wxCommandEvent(EVT_CONFIG_UPDATER_ERROR_MSG);
+        auto evt = std::make_unique<wxCommandEvent>(EVT_CONFIG_UPDATER_ERROR_MSG);
         evt->SetString(error_msg);
-        this->QueueEvent(evt);
+        this->QueueEvent(evt.release());
     }
 }
 
@@ -621,9 +621,9 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
     } else {
         bt_version->Bind(wxEVT_BUTTON, ([this, vendor_id](wxCommandEvent &e) {
             m_data.download_logs(vendor_id, [this, vendor_id](bool ok) {
-                wxCommandEvent *evt = new wxCommandEvent(EVT_VENDOR_VERSION_LAUNCH);
+                auto evt = std::make_unique<wxCommandEvent>(EVT_VENDOR_VERSION_LAUNCH);
                 evt->SetString(vendor_id);
-                this->QueueEvent(evt);
+                this->QueueEvent(evt.release());
             });
         }));
     }
@@ -645,7 +645,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                    "\nA new version of the slicer may also come bundled with a new version of the profile."));
             versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
             bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
-                this->wait_dialog.reset(new wxBusyInfo(_L("Installing the local preset, please wait")));
+                this->wait_dialog = std::make_unique<wxBusyInfo>(_L("Installing the local preset, please wait"));
                 this->m_data.install_vendor(vendor_id, best_version, [this](std::string error_msg) {
                     // end of waiting dialog (yes, it has to be called without any exception)
                     this->wait_dialog.reset();
@@ -666,7 +666,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                                       "latest compatible version."));
             versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
             bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
-                                 this->wait_dialog.reset(new wxBusyInfo(_L("Upgrading the preset, please wait")));
+                                 this->wait_dialog = std::make_unique<wxBusyInfo>(_L("Upgrading the preset, please wait"));
                                  this->m_data.install_vendor(vendor_id, best_version,
                                                              [this](const std::string &error_msg) {
                                                                  // end of waiting dialog (yes, it has to be called
@@ -700,7 +700,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                                       "latest compatible version."));
             versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
             bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
-                this->wait_dialog.reset(new wxBusyInfo(_L("Upgrading the preset, please wait")));
+                this->wait_dialog = std::make_unique<wxBusyInfo>(_L("Upgrading the preset, please wait"));
                 this->m_data.install_vendor(vendor_id, best_version, [this](const std::string &error_msg) {
                     // end of waiting dialog (yes, it has to be called without any exception)
                     this->wait_dialog.reset();
@@ -725,7 +725,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
             bt_upgrade->SetToolTip(_L("Click this button to create a snapshot and install this vendor bundle available in the local repository."));
             versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
             bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
-                this->wait_dialog.reset(new wxBusyInfo(_L("Installing the preset, please wait")));
+                this->wait_dialog = std::make_unique<wxBusyInfo>(_L("Installing the preset, please wait"));
                 this->m_data.install_vendor(vendor_id, best_version, [this](const std::string &error_msg) {
                     // end of waiting dialog (yes, it has to be called without any exception)
                     this->wait_dialog.reset();
@@ -817,7 +817,7 @@ void UpdateConfigDialog::build_ui() {
     // button to synch
     wxButton* bt_synch = new wxButton(this, wxID_ANY, _L("Force check for updates"));
     bt_synch->Bind(wxEVT_BUTTON, ([this](wxCommandEvent &e) {
-        this->wait_dialog.reset(new wxBusyInfo(_L("Updating the presets, please wait")));
+        this->wait_dialog = std::make_unique<wxBusyInfo>(_L("Updating the presets, please wait"));
         this->m_data.reload_all_vendors();
         this->m_data.sync_async([this](int update_count) {
             // end of waiting dialog (yes, it has to be called without any exception)
@@ -950,7 +950,7 @@ void UpdateConfigDialog::build_ui() {
     wxButton *bt_uninstall_all = new wxButton(hscroll, wxID_ANY, _L("Uninstall all"));
     versions_sizer->Add(bt_uninstall_all, wxGBPosition(row_idx, 4), wxGBSpan(1, 1), wxEXPAND, 2);
     bt_install_all->Bind(wxEVT_BUTTON, ([this](wxCommandEvent &e) {
-        this->wait_dialog.reset(new wxBusyInfo(_L("Installing the presets, please wait")));
+        this->wait_dialog = std::make_unique<wxBusyInfo>(_L("Installing the presets, please wait"));
         this->m_data.install_all_vendors([this](const std::string &error_msg) {
             this->wait_dialog.reset();
             this->request_show_error_msg(error_msg);
@@ -958,7 +958,7 @@ void UpdateConfigDialog::build_ui() {
         });
     }));
     bt_upgrade_all->Bind(wxEVT_BUTTON, ([this](wxCommandEvent &e) {
-        this->wait_dialog.reset(new wxBusyInfo(_L("Updating the presets, please wait")));
+        this->wait_dialog = std::make_unique<wxBusyInfo>(_L("Updating the presets, please wait"));
         this->m_data.upgrade_all_installed_vendors([this](const std::string &error_msg) {
             this->wait_dialog.reset();
             this->request_show_error_msg(error_msg);
@@ -971,7 +971,7 @@ void UpdateConfigDialog::build_ui() {
                           "printers from the slicer. \nA snapshot will be made in case you want to revert."),
             _L("Uninstall vendor bundle"), wxICON_WARNING | wxOK |wxCANCEL);
         if (msg_dlg.ShowModal() == wxID_OK) {
-            this->wait_dialog.reset(new wxBusyInfo(_L("Uninstalling the presets, please wait")));
+            this->wait_dialog = std::make_unique<wxBusyInfo>(_L("Uninstalling the presets, please wait"));
             this->m_data.uninstall_all_vendors([this](bool ok) {
                 this->wait_dialog.reset();
                 this->request_rebuild_ui();
@@ -1060,8 +1060,8 @@ UpdateConfigDialog::UpdateConfigDialog(wxWindow *parent, PresetUpdater &data, co
         VendorSync *vendor = m_data.get_vendor(vendor_id);
         assert(vendor);
         if (vendor) {
-            ChooseVendorVersionDialog *choose_version = new ChooseVendorVersionDialog(this, m_data, *vendor);
-            choose_version->ShowModal();
+            ChooseVendorVersionDialog choose_version(this, m_data, *vendor);
+            choose_version.ShowModal();
             this->rebuild_ui();
         }
     });
@@ -1117,15 +1117,15 @@ wxDEFINE_EVENT(EVT_VENDOR_VERSION_ERROR_MSG, wxCommandEvent);
 wxDEFINE_EVENT(EVT_VENDOR_VERSION_REDRAW, wxCommandEvent);
 
 void ChooseVendorVersionDialog::request_rebuild_ui() {
-    wxCommandEvent *evt = new wxCommandEvent(EVT_VENDOR_VERSION_REDRAW);
-    this->QueueEvent(evt);
+    auto evt = std::make_unique<wxCommandEvent>(EVT_VENDOR_VERSION_REDRAW);
+    this->QueueEvent(evt.release());
 }
 
 void ChooseVendorVersionDialog::request_show_error_msg(const std::string &error_msg) {
     if (!error_msg.empty()) {
-        wxCommandEvent *evt = new wxCommandEvent(EVT_VENDOR_VERSION_ERROR_MSG);
+        auto evt = std::make_unique<wxCommandEvent>(EVT_VENDOR_VERSION_ERROR_MSG);
         evt->SetString(error_msg);
-        this->QueueEvent(evt);
+        this->QueueEvent(evt.release());
     }
 }
 
@@ -1266,7 +1266,7 @@ void ChooseVendorVersionDialog::add_version_in_list(wxWindow *parent,
     } else {
         wxButton *bt_version = new wxButton(parent, wxID_ANY, version.config_version.to_string());
         bt_version->Bind(wxEVT_BUTTON, ([this, &version](wxCommandEvent &e) {
-            this->wait_dialog.reset(new wxBusyInfo(_L("Installing the local preset. Please wait.")));
+            this->wait_dialog = std::make_unique<wxBusyInfo>(_L("Installing the local preset. Please wait."));
             // install_vendor can work with copies passed as parameter, no worry.
             this->m_data.install_vendor(m_vendor.profile.id, version, [this](std::string error_msg) {
                 this->wait_dialog.reset();

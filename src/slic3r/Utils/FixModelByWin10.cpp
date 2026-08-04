@@ -457,7 +457,7 @@ bool fix_model_by_repair_gui(ModelObject &model_object, int volume_idx, wxProgre
 	auto on_progress = [&mtx, &condition, &ivolume, &volumes, &progress](const char *msg, unsigned prcnt) {
 	    std::unique_lock<std::mutex> lock(mtx);
 		progress.message = msg;
-		progress.percent = (int)floor((float(prcnt) + float(ivolume) * 100.f) / float(volumes.size()));
+		progress.percent = static_cast<int>(floor((float(prcnt) + float(ivolume) * 100.f) / float(volumes.size())));
 		progress.updated = true;
 	    condition.notify_all();
 	};

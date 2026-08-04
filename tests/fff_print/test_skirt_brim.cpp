@@ -58,7 +58,7 @@ TEST_CASE("Skirt height is honored", "[Skirt]") {
             layers_with_skirt[self.z()] = 1;
         }
     });
-    REQUIRE(layers_with_skirt.size() == (size_t)config.opt_int("skirt_height"));
+    REQUIRE(layers_with_skirt.size() == static_cast<size_t>(c)onfig.opt_int("skirt_height"));
 }
 
 SCENARIO("Original Slic3r Skirt/Brim tests", "[SkirtBrim]") {

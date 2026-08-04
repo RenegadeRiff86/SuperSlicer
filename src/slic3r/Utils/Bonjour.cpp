@@ -721,7 +721,7 @@ void UdpSocket::receive_handler(SharedSession session, const boost::system::erro
 
 SharedSession LookupSocket::create_session() const
 { 
-	return std::shared_ptr< LookupSession >(new LookupSession(this, replyfn));
+	return std::make_shared<LookupSession>(this, replyfn);
 }
 
 
@@ -771,7 +771,7 @@ void LookupSession::handle_receive(const error_code& error, size_t bytes)
 
 SharedSession ResolveSocket::create_session() const 
 { 
-	return std::shared_ptr< ResolveSession > (new ResolveSession(this, replyfn));
+	return std::make_shared<ResolveSession>(this, replyfn);
 }
 
 
@@ -871,9 +871,9 @@ void Bonjour::priv::lookup_perform()
 {
 	service_dn = (boost::format("_%1%._%2%.local") % service % protocol).str();
 
-	std::shared_ptr< boost::asio::io_context > io_context(new boost::asio::io_context);
+	auto io_context = std::make_shared<boost::asio::io_context>();
 
-	std::vector<LookupSocket*> sockets;
+	std::vector<std::unique_ptr<LookupSocket>> sockets;
 
 	// resolve intefaces - from PR#6646
 	std::vector<boost::asio::ip::address> interfaces;
@@ -890,12 +890,12 @@ void Bonjour::priv::lookup_perform()
 		// create ipv4 socket for each interface
 		// each will send to querry to for both ipv4 and ipv6
 		for (const auto& intrfc : interfaces) 		
-			sockets.emplace_back(new LookupSocket(txt_keys, service, service_dn, protocol, replyfn, BonjourRequest::MCAST_IP4, intrfc, io_context));
+			sockets.emplace_back(std::make_unique<LookupSocket>(txt_keys, service, service_dn, protocol, replyfn, BonjourRequest::MCAST_IP4, intrfc, io_context));
 	} else {
 		BOOST_LOG_TRIVIAL(info) << "Failed to resolve ipv4 interfaces: " << ec.message();
 	}
 	if (sockets.empty())
-		sockets.emplace_back(new LookupSocket(txt_keys, service, service_dn, protocol, replyfn, BonjourRequest::MCAST_IP4, io_context));
+		sockets.emplace_back(std::make_unique<LookupSocket>(txt_keys, service, service_dn, protocol, replyfn, BonjourRequest::MCAST_IP4, io_context));
 	// ipv6 interfaces
 	interfaces.clear();
 	//udp::resolver::query query(host, PORT, boost::asio::ip::resolver_query_base::numeric_service);
@@ -910,16 +910,16 @@ void Bonjour::priv::lookup_perform()
 		// create ipv6 socket for each interface
 		// each will send to querry to for both ipv4 and ipv6
 		for (const auto& intrfc : interfaces)
-			sockets.emplace_back(new LookupSocket(txt_keys, service, service_dn, protocol, replyfn, BonjourRequest::MCAST_IP6, intrfc, io_context));
+			sockets.emplace_back(std::make_unique<LookupSocket>(txt_keys, service, service_dn, protocol, replyfn, BonjourRequest::MCAST_IP6, intrfc, io_context));
 		if (interfaces.empty())
-			sockets.emplace_back(new LookupSocket(txt_keys, service, service_dn, protocol, replyfn, BonjourRequest::MCAST_IP6, io_context));
+			sockets.emplace_back(std::make_unique<LookupSocket>(txt_keys, service, service_dn, protocol, replyfn, BonjourRequest::MCAST_IP6, io_context));
 	} else {
 		BOOST_LOG_TRIVIAL(info)<< "Failed to resolve ipv6 interfaces: " << ec.message();
 	}
 	
 	try {
 		// send first queries
-		for (auto * socket : sockets)
+		for (const auto& socket : sockets)
 			socket->send();
 
 		// timer settings
@@ -939,7 +939,7 @@ void Bonjour::priv::lookup_perform()
 				timer.expires_from_now(boost::posix_time::seconds(timeout));
 				timer.async_wait(timer_handler);
 				// trigger another round of queries
-				for (auto * socket : sockets)
+				for (const auto& socket : sockets)
 					socket->send();
 			}
 		};
@@ -966,8 +966,8 @@ void Bonjour::priv::resolve_perform()
 			rpls.push_back(reply);
 	};
 
-	std::shared_ptr< boost::asio::io_context > io_context(new boost::asio::io_context);
-	std::vector<ResolveSocket*> sockets;
+	auto io_context = std::make_shared<boost::asio::io_context>();
+	std::vector<std::unique_ptr<ResolveSocket>> sockets;
 
 	// resolve interfaces - from PR#6646
 	std::vector<boost::asio::ip::address> interfaces;
@@ -984,12 +984,12 @@ void Bonjour::priv::resolve_perform()
 		// create ipv4 socket for each interface
 		// each will send to querry to for both ipv4 and ipv6
 		for (const auto& intrfc : interfaces)
-			sockets.emplace_back(new ResolveSocket(hostname, reply_callback, BonjourRequest::MCAST_IP4, intrfc, io_context));
+			sockets.emplace_back(std::make_unique<ResolveSocket>(hostname, reply_callback, BonjourRequest::MCAST_IP4, intrfc, io_context));
 	} else {
 		BOOST_LOG_TRIVIAL(info) << "Failed to resolve ipv4 interfaces: " << ec.message();
 	}
 	if (sockets.empty())
-		sockets.emplace_back(new ResolveSocket(hostname, reply_callback, BonjourRequest::MCAST_IP4, io_context));
+		sockets.emplace_back(std::make_unique<ResolveSocket>(hostname, reply_callback, BonjourRequest::MCAST_IP4, io_context));
 
 	// ipv6 interfaces
 	interfaces.clear();
@@ -1003,16 +1003,16 @@ void Bonjour::priv::resolve_perform()
 		// create ipv6 socket for each interface
 		// each will send to querry to for both ipv4 and ipv6
 		for (const auto& intrfc : interfaces) 
-			sockets.emplace_back(new ResolveSocket(hostname, reply_callback, BonjourRequest::MCAST_IP6, intrfc, io_context));
+			sockets.emplace_back(std::make_unique<ResolveSocket>(hostname, reply_callback, BonjourRequest::MCAST_IP6, intrfc, io_context));
 		if (interfaces.empty())
-			sockets.emplace_back(new ResolveSocket(hostname, reply_callback, BonjourRequest::MCAST_IP6, io_context));
+			sockets.emplace_back(std::make_unique<ResolveSocket>(hostname, reply_callback, BonjourRequest::MCAST_IP6, io_context));
 	} else {
 		BOOST_LOG_TRIVIAL(info) << "Failed to resolve ipv6 interfaces: " << ec.message();
 	}
 
 	try {
 		// send first queries
-		for (auto * socket : sockets)
+		for (const auto& socket : sockets)
 			socket->send();
 
 		// timer settings
@@ -1033,7 +1033,7 @@ void Bonjour::priv::resolve_perform()
 				timer.expires_from_now(boost::posix_time::seconds(timeout));
 				timer.async_wait(timer_handler);
 				// trigger another round of queries
-				for (auto * socket : sockets)
+				for (const auto& socket : sockets)
 					socket->send();
 			}
 		};
@@ -1110,7 +1110,7 @@ std::ostream& operator<<(std::ostream &os, const BonjourReply &reply)
 
 
 Bonjour::Bonjour(std::string service)
-	: p(new priv(std::move(service)))
+	: p(std::make_unique<priv>(std::move(service)))
 {}
 
 Bonjour::Bonjour(Bonjour &&other) : p(std::move(other.p)) {}

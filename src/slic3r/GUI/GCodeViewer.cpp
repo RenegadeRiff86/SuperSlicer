@@ -223,10 +223,10 @@ void GCodeViewer::COG::render()
         model_matrix = model_matrix * Geometry::scale_transform(inv_zoom);
     }
     const Transform3d& view_matrix = camera.get_view_matrix();
-    shader->set_uniform("view_model_matrix", view_matrix * model_matrix);
-    shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
+    shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
     const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-    shader->set_uniform("view_normal_matrix", view_normal_matrix);
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
     m_model.render();
 
     shader->stop_using();
@@ -241,31 +241,26 @@ void GCodeViewer::COG::render()
     //ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     //ImGui::SetNextWindowBgAlpha(0.25f);
     //imgui.begin(std::string("COG"), ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove);
-    //imgui.text_colored(ImGuiWrapper::get_COL_LIGHT(), _u8L("Center of mass") + ":");
-    //ImGui::SameLine();
-    //char buf[1024];
-    //const Vec3d position = cog();
-    //sprintf(buf, "X: %.3f, Y: %.3f, Z: %.3f", position.x(), position.y(), position.z());
-    //imgui.text(std::string(buf));
-
-    //// force extra frame to automatically update window size
-    //const float width = ImGui::GetWindowWidth();
-    //const size_t length = strlen(buf);
-    //if (width != last_window_width || length != last_text_length) {
-    //    last_window_width = width;
-    //    last_text_length = length;
-    //    imgui.set_requires_extra_frame();
-    //}
-
-    //imgui.end();
-    //ImGui::PopStyleVar();
 }
+
+// Scratch buffer for the short numeric labels the legend formats with sprintf (a percentage,
+// a height in mm, an estimate) - all far shorter than this, so the formatting cannot overrun.
+static constexpr size_t LabelBufferSize = 64;
+
+// Each toolpath segment contributes this many vertices to the vertex buffer: the caps and the
+// stem are indexed off a fixed 8-vertex block, so the v_offsets arrays, the triangle appenders
+// and the per-segment vbuffer advance all have to use the same number.
+static constexpr size_t VerticesPerSegment = 8;
+
+// Segment count used to draw the round marker geometry (the arrow, the option diamonds and the
+// legend's colour dots) - enough to look smooth at the sizes these are drawn.
+static constexpr unsigned int RoundModelResolution = 16;
 
 namespace quick_pow10
 {
     const int pow10[10] = {
-        1, 10, 100, 1000, 10000, 
-        100000, 1000000, 10000000, 100000000, 1000000000
+        1, 10, 100, 1000, 10000,          // 10^0 .. 10^4
+        100000, 1000000, 10000000, 100000000, 1000000000 // 10^5 .. 10^9, the last that fits in int32
     };
 }
 
@@ -316,7 +311,7 @@ void GCodeViewer::Extrusions::Range::update_from(const float f_value){
     // from c++20: we can use (std::bit_width(index) - 1) to do the lo2 on an int
     float log2_val = value <= 1 ? 1 : log2(float(value));
     assert(log2_val > 0);
-    uint8_t idx = std::min(19, std::max(0, int(log2_val-1)));
+    uint8_t idx = std::min(int(OutlierBucketCount) - 1, std::max(0, int(log2_val-1)));
     counts[idx]++;
     mins[idx] = std::min(mins[idx], value);
     maxs[idx] = std::max(maxs[idx], value);
@@ -339,15 +334,15 @@ void GCodeViewer::Extrusions::Range::set_whole_print_mode(bool is_whole_print)
 bool GCodeViewer::Extrusions::Range::has_outliers() const
 {
     bool   has_outliers = false;
-    size_t min_count    = this->m_ratio_outlier * total_count / 20;
-    for (size_t idx = 0; idx < 19; ++idx) {
+    size_t min_count    = this->m_ratio_outlier * total_count / OutlierBucketCount;
+    for (size_t idx = 0; idx < OutlierBucketCount - 1; ++idx) {
         if (counts[idx] > 0) {
             has_outliers = counts[idx] <= min_count;
             break;
         }
     }
     if (!has_outliers)
-        for (size_t idx = 19; idx > 0; --idx) {
+        for (size_t idx = OutlierBucketCount - 1; idx > 0; --idx) {
             if (counts[idx] > 0) {
                 has_outliers = counts[idx] <= min_count;
                 break;
@@ -359,15 +354,15 @@ bool GCodeViewer::Extrusions::Range::has_outliers() const
 bool GCodeViewer::Extrusions::Range::can_have_outliers(float ratio) const
 {
     bool   has_outliers = false;
-    size_t min_count    = ratio * total_count / 20;
-    for (size_t idx = 0; idx < 19; ++idx) {
+    size_t min_count    = ratio * total_count / OutlierBucketCount;
+    for (size_t idx = 0; idx < OutlierBucketCount - 1; ++idx) {
         if (counts[idx] > 0) {
             has_outliers = counts[idx] <= min_count;
             break;
         }
     }
     if (!has_outliers)
-        for (size_t idx = 19; idx > 0; --idx) {
+        for (size_t idx = OutlierBucketCount - 1; idx > 0; --idx) {
             if (counts[idx] > 0) {
                 has_outliers = counts[idx] <= min_count;
                 break;
@@ -387,7 +382,7 @@ void GCodeViewer::Extrusions::Range::reset()
     //m_user_min = 0; //keep it, as a saved thing for the session
     //m_user_max = 0;
     total_count = 0;
-    for (size_t idx = 0; idx < 20; idx++) {
+    for (size_t idx = 0; idx < OutlierBucketCount; idx++) {
         counts[idx] = 0;
         maxs[idx]   = INT_MIN;
         mins[idx]   = INT_MAX;
@@ -401,8 +396,8 @@ int32_t GCodeViewer::Extrusions::Range::get_current_max() const
 {
     int32_t current_max = m_max;
     if (this->m_ratio_outlier > 0 && has_outliers()) {
-        size_t min_count = this->m_ratio_outlier * total_count / 20;
-        for (size_t idx = 19; idx < 20; --idx) {
+        size_t min_count = this->m_ratio_outlier * total_count / OutlierBucketCount;
+        for (size_t idx = OutlierBucketCount - 1; idx < OutlierBucketCount; --idx) {
             if (counts[idx] > min_count) {
                 current_max = maxs[idx];
                 break;
@@ -420,8 +415,8 @@ int32_t GCodeViewer::Extrusions::Range::get_current_min() const
 {
     int32_t current_min = m_min;
     if (this->m_ratio_outlier > 0 && has_outliers()) {
-        size_t min_count = this->m_ratio_outlier * total_count / 20;
-        for (size_t idx = 0; idx < 20; ++idx) {
+        size_t min_count = this->m_ratio_outlier * total_count / OutlierBucketCount;
+        for (size_t idx = 0; idx < OutlierBucketCount; ++idx) {
             if (counts[idx] > min_count) {
                 current_min = mins[idx];
                 break;
@@ -821,7 +816,7 @@ void GCodeViewer::SequentialRangeCap::reset() {
 
 void GCodeViewer::SequentialView::Marker::init()
 {
-    m_model.init_from(stilized_arrow(16, 2.0f, 4.0f, 1.0f, 8.0f));
+    m_model.init_from(stilized_arrow(RoundModelResolution, 2.0f, 4.0f, 1.0f, 8.0f));
     m_model.set_color({ 1.0f, 1.0f, 1.0f, 0.5f });
 }
 
@@ -849,10 +844,10 @@ void GCodeViewer::SequentialView::Marker::render()
     const Camera& camera = wxGetApp().plater()->get_camera();
     const Transform3d& view_matrix = camera.get_view_matrix();
     const Transform3d model_matrix = m_world_transform.cast<double>();
-    shader->set_uniform("view_model_matrix", view_matrix * model_matrix);
-    shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
+    shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
     const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-    shader->set_uniform("view_normal_matrix", view_normal_matrix);
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
 
     m_model.render();
 
@@ -938,7 +933,7 @@ void GCodeViewer::SequentialView::GCodeWindow::render(float top, float bottom, s
                 const size_t len = lines_ends[id - 1] - begin;
                 std::string gline(len, '\0');
                 fseek(file, begin, SEEK_SET);
-                const size_t rsize = fread((void*)gline.data(), 1, len, file);
+                const size_t rsize = fread(gline.data(), 1, len, file);
                 if (ferror(file) || rsize != len) {
                     m_lines_cache.clear();
                     break;
@@ -997,7 +992,7 @@ void GCodeViewer::SequentialView::GCodeWindow::render(float top, float bottom, s
                     for (size_t i = 0; i < first_block_id; ++i) {
                         skip_block(*file.f, file_header, block_header);
                         res = read_next_block_header(*file.f, file_header, block_header, nullptr, 0);
-                        if (res != EResult::Success || block_header.type != (uint16_t)EBlockType::GCode) {
+                        if (res != EResult::Success || block_header.type != static_cast<uint16_t>(EBlockType::GCode)) {
                             m_lines_cache.clear();
                             return;
                         }
@@ -1030,7 +1025,7 @@ void GCodeViewer::SequentialView::GCodeWindow::render(float top, float bottom, s
                             break;
 
                         res = read_next_block_header(*file.f, file_header, block_header, nullptr, 0);
-                        if (res != EResult::Success || block_header.type != (uint16_t)EBlockType::GCode) {
+                        if (res != EResult::Success || block_header.type != static_cast<uint16_t>(EBlockType::GCode)) {
                             m_lines_cache.clear();
                             return;
                         }
@@ -1357,7 +1352,7 @@ void GCodeViewer::init()
             if (wxGetApp().is_gl_version_greater_or_equal_to(3, 3)) {
                 buffer.render_primitive_type = TBuffer::ERenderPrimitiveType::InstancedModel;
                 buffer.shader = "gouraud_light_instanced";
-                buffer.model.model.init_from(diamond(16));
+                buffer.model.model.init_from(diamond(RoundModelResolution));
                 buffer.model.color = option_color(type);
                 buffer.model.instances.format = InstanceVBuffer::EFormat::InstancedModel;
             }
@@ -1366,7 +1361,7 @@ void GCodeViewer::init()
                 buffer.render_primitive_type = TBuffer::ERenderPrimitiveType::BatchedModel;
                 buffer.vertices.format = VBuffer::EFormat::PositionNormal3;
                 buffer.shader = "gouraud_light";
-                buffer.model.data = diamond(16);
+                buffer.model.data = diamond(RoundModelResolution);
                 buffer.model.color = option_color(type);
                 buffer.model.instances.format = InstanceVBuffer::EFormat::BatchedModel;
 #if !DISABLE_GCODEVIEWER_INSTANCED_MODELS
@@ -2100,8 +2095,8 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
                 store_triangle(indices, id, id, id);
                 store_triangle(indices, id, id, id);
             };
-            auto convert_vertices_offset = [](size_t vbuffer_size, const std::array<int, 8>& v_offsets) {
-                std::array<IBufferType, 8> ret = {
+            auto convert_vertices_offset = [](size_t vbuffer_size, const std::array<int, VerticesPerSegment>& v_offsets) {
+                std::array<IBufferType, VerticesPerSegment> ret = {
                     static_cast<IBufferType>(static_cast<int>(vbuffer_size) + v_offsets[0]),
                     static_cast<IBufferType>(static_cast<int>(vbuffer_size) + v_offsets[1]),
                     static_cast<IBufferType>(static_cast<int>(vbuffer_size) + v_offsets[2]),
@@ -2113,11 +2108,11 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
                 };
                 return ret;
             };
-            auto append_starting_cap_triangles = [&](IndexBuffer& indices, const std::array<IBufferType, 8>& v_offsets) {
+            auto append_starting_cap_triangles = [&](IndexBuffer& indices, const std::array<IBufferType, VerticesPerSegment>& v_offsets) {
                 store_triangle(indices, v_offsets[0], v_offsets[2], v_offsets[1]);
                 store_triangle(indices, v_offsets[0], v_offsets[3], v_offsets[2]);
             };
-            auto append_stem_triangles = [&](IndexBuffer& indices, const std::array<IBufferType, 8>& v_offsets) {
+            auto append_stem_triangles = [&](IndexBuffer& indices, const std::array<IBufferType, VerticesPerSegment>& v_offsets) {
                 store_triangle(indices, v_offsets[0], v_offsets[1], v_offsets[4]);
                 store_triangle(indices, v_offsets[1], v_offsets[5], v_offsets[4]);
                 store_triangle(indices, v_offsets[1], v_offsets[2], v_offsets[5]);
@@ -2127,7 +2122,7 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
                 store_triangle(indices, v_offsets[3], v_offsets[0], v_offsets[7]);
                 store_triangle(indices, v_offsets[0], v_offsets[4], v_offsets[7]);
             };
-            auto append_ending_cap_triangles = [&](IndexBuffer& indices, const std::array<IBufferType, 8>& v_offsets) {
+            auto append_ending_cap_triangles = [&](IndexBuffer& indices, const std::array<IBufferType, VerticesPerSegment>& v_offsets) {
                 store_triangle(indices, v_offsets[4], v_offsets[6], v_offsets[7]);
                 store_triangle(indices, v_offsets[4], v_offsets[5], v_offsets[6]);
             };
@@ -2144,8 +2139,8 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
             const Vec3f up = right.cross(dir);
             const float sq_length = (curr.position - prev.position).squaredNorm();
 
-            const std::array<IBufferType, 8> first_seg_v_offsets = convert_vertices_offset(vbuffer_size, { 0, 1, 2, 3, 4, 5, 6, 7 });
-            const std::array<IBufferType, 8> non_first_seg_v_offsets = convert_vertices_offset(vbuffer_size, { -4, 0, -2, 1, 2, 3, 4, 5 });
+            const std::array<IBufferType, VerticesPerSegment> first_seg_v_offsets = convert_vertices_offset(vbuffer_size, { 0, 1, 2, 3, 4, 5, 6, 7 });
+            const std::array<IBufferType, VerticesPerSegment> non_first_seg_v_offsets = convert_vertices_offset(vbuffer_size, { -4, 0, -2, 1, 2, 3, 4, 5 });
             const bool is_first_segment = (last_path.vertices_count() == 1);
             if (is_first_segment || vbuffer_size == 0) {
                 // 1st segment or restart into a new vertex buffer
@@ -2159,7 +2154,7 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result)
                 // stem triangles
                 append_stem_triangles(indices, first_seg_v_offsets);
 
-                vbuffer_size += 8;
+                vbuffer_size += VerticesPerSegment;
             }
             else {
                 // any other segment
@@ -2992,7 +2987,7 @@ void GCodeViewer::load_shells(const Print& print)
             continue;
 
         std::vector<int> instance_ids(model_obj->instances.size());
-        for (int i = 0; i < (int)model_obj->instances.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(model_obj->instances.size()); ++i) {
             instance_ids[i] = i;
         }
 
@@ -3026,7 +3021,7 @@ void GCodeViewer::load_shells(const Print& print)
 
     // removes volumes which are completely below bed
     int i = 0;
-    while (i < (int)m_shells.volumes.volumes.size()) {
+    while (i < static_cast<int>(m_shells.volumes.volumes.size())) {
         const std::unique_ptr<GLVolume> &v = m_shells.volumes.volumes[i];
         if (v->transformed_bounding_box().max.z() < SINKING_MIN_Z_THRESHOLD + EPSILON) {
             //delete v;
@@ -3737,10 +3732,10 @@ void GCodeViewer::render_toolpaths()
 
 #if ENABLE_OPENGL_ES
             for (size_t i = 0; i < path.sizes.size(); ++i) {
-                glsafe(::glDrawElements(GL_LINES, (GLsizei)path.sizes[i], GL_UNSIGNED_SHORT, (const void*)path.offsets[i]));
+                glsafe(::glDrawElements(GL_LINES, static_cast<GLsizei>(path.sizes[i]), GL_UNSIGNED_SHORT, reinterpret_cast<const void*>(path.offsets[i])));
             }
 #else
-            glsafe(::glMultiDrawElements(GL_LINES, (const GLsizei*)path.sizes.data(), GL_UNSIGNED_SHORT, (const void* const*)path.offsets.data(), (GLsizei)path.sizes.size()));
+            glsafe(::glMultiDrawElements(GL_LINES, reinterpret_cast<const GLsizei*>(path.sizes.data()), GL_UNSIGNED_SHORT, reinterpret_cast<const void* const*>(path.offsets.data()), static_cast<GLsizei>(path.sizes.size())));
 #endif // ENABLE_OPENGL_ES
 #if ENABLE_GCODE_VIEWER_STATISTICS
             ++m_statistics.gl_multi_lines_calls_count;
@@ -3761,10 +3756,10 @@ void GCodeViewer::render_toolpaths()
             shader.set_uniform(uniform_color, path.color);
 #if ENABLE_OPENGL_ES
             for (size_t i = 0; i < path.sizes.size(); ++i) {
-                glsafe(::glDrawElements(GL_TRIANGLES, (GLsizei)path.sizes[i], GL_UNSIGNED_SHORT, (const void*)path.offsets[i]));
+                glsafe(::glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(path.sizes[i]), GL_UNSIGNED_SHORT, reinterpret_cast<const void*>(path.offsets[i])));
             }
 #else
-            glsafe(::glMultiDrawElements(GL_TRIANGLES, (const GLsizei*)path.sizes.data(), GL_UNSIGNED_SHORT, (const void* const*)path.offsets.data(), (GLsizei)path.sizes.size()));
+            glsafe(::glMultiDrawElements(GL_TRIANGLES, reinterpret_cast<const GLsizei*>(path.sizes.data()), GL_UNSIGNED_SHORT, reinterpret_cast<const void* const*>(path.offsets.data()), static_cast<GLsizei>(path.sizes.size())));
 #endif // ENABLE_OPENGL_ES
 #if ENABLE_GCODE_VIEWER_STATISTICS
             ++m_statistics.gl_multi_triangles_calls_count;
@@ -3781,7 +3776,7 @@ void GCodeViewer::render_toolpaths()
             if (range.vbo == 0 && range.count > 0) {
                 glsafe(::glGenBuffers(1, &range.vbo));
                 glsafe(::glBindBuffer(GL_ARRAY_BUFFER, range.vbo));
-                glsafe(::glBufferData(GL_ARRAY_BUFFER, range.count * buffer.model.instances.instance_size_bytes(), (const void*)&buffer.model.instances.buffer[range.offset * buffer.model.instances.instance_size_floats()], GL_STATIC_DRAW));
+                glsafe(::glBufferData(GL_ARRAY_BUFFER, range.count * buffer.model.instances.instance_size_bytes(), &buffer.model.instances.buffer[range.offset * buffer.model.instances.instance_size_floats()], GL_STATIC_DRAW));
                 glsafe(::glBindBuffer(GL_ARRAY_BUFFER, 0));
             }
 
@@ -3820,13 +3815,13 @@ void GCodeViewer::render_toolpaths()
 #endif // ENABLE_GL_CORE_PROFILE
             glsafe(::glBindBuffer(GL_ARRAY_BUFFER, i_buffer.vbo));
             if (position_id != -1) {
-                glsafe(::glVertexAttribPointer(position_id, buffer.vertices.position_size_floats(), GL_FLOAT, GL_FALSE, buffer.vertices.vertex_size_bytes(), (const void*)buffer.vertices.position_offset_bytes()));
+                glsafe(::glVertexAttribPointer(position_id, buffer.vertices.position_size_floats(), GL_FLOAT, GL_FALSE, buffer.vertices.vertex_size_bytes(), reinterpret_cast<const void*>(buffer.vertices.position_offset_bytes())));
                 glsafe(::glEnableVertexAttribArray(position_id));
             }
             const bool has_normals = buffer.vertices.normal_size_floats() > 0;
             if (has_normals) {
                 if (normal_id != -1) {
-                    glsafe(::glVertexAttribPointer(normal_id, buffer.vertices.normal_size_floats(), GL_FLOAT, GL_FALSE, buffer.vertices.vertex_size_bytes(), (const void*)buffer.vertices.normal_offset_bytes()));
+                    glsafe(::glVertexAttribPointer(normal_id, buffer.vertices.normal_size_floats(), GL_FLOAT, GL_FALSE, buffer.vertices.vertex_size_bytes(), reinterpret_cast<const void*>(buffer.vertices.normal_offset_bytes())));
                     glsafe(::glEnableVertexAttribArray(normal_id));
                 }
             }
@@ -3842,7 +3837,7 @@ void GCodeViewer::render_toolpaths()
                     const Range render_range = { std::max(range_range.first, buffer_range.first), std::min(range_range.last, buffer_range.last) };
                     const size_t count = static_cast<size_t>(render_range.last - render_range.first) * indices_per_instance;
                     if (count > 0) {
-                        glsafe(::glDrawElements(GL_TRIANGLES, (GLsizei)count, GL_UNSIGNED_SHORT, (const void*)offset_bytes));
+                        glsafe(::glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(count), GL_UNSIGNED_SHORT, reinterpret_cast<const void*>(offset_bytes)));
 #if ENABLE_GCODE_VIEWER_STATISTICS
                         ++m_statistics.gl_batched_models_calls_count;
 #endif // ENABLE_GCODE_VIEWER_STATISTICS
@@ -3884,9 +3879,9 @@ void GCodeViewer::render_toolpaths()
 
         shader->start_using();
 
-        shader->set_uniform("view_model_matrix", camera.get_view_matrix());
-        shader->set_uniform("projection_matrix", camera.get_projection_matrix());
-        shader->set_uniform("view_normal_matrix", (Matrix3d)Matrix3d::Identity());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, (Matrix3d)Matrix3d::Identity());
 
         if (buffer.render_primitive_type == TBuffer::ERenderPrimitiveType::InstancedModel) {
             shader->set_uniform("emission_factor", 0.25f);
@@ -3924,13 +3919,13 @@ void GCodeViewer::render_toolpaths()
 #endif // ENABLE_GL_CORE_PROFILE
                 glsafe(::glBindBuffer(GL_ARRAY_BUFFER, i_buffer.vbo));
                 if (position_id != -1) {
-                    glsafe(::glVertexAttribPointer(position_id, buffer.vertices.position_size_floats(), GL_FLOAT, GL_FALSE, buffer.vertices.vertex_size_bytes(), (const void*)buffer.vertices.position_offset_bytes()));
+                    glsafe(::glVertexAttribPointer(position_id, buffer.vertices.position_size_floats(), GL_FLOAT, GL_FALSE, buffer.vertices.vertex_size_bytes(), reinterpret_cast<const void*>(buffer.vertices.position_offset_bytes())));
                     glsafe(::glEnableVertexAttribArray(position_id));
                 }
                 const bool has_normals = buffer.vertices.normal_size_floats() > 0;
                 if (has_normals) {
                     if (normal_id != -1) {
-                        glsafe(::glVertexAttribPointer(normal_id, buffer.vertices.normal_size_floats(), GL_FLOAT, GL_FALSE, buffer.vertices.vertex_size_bytes(), (const void*)buffer.vertices.normal_offset_bytes()));
+                        glsafe(::glVertexAttribPointer(normal_id, buffer.vertices.normal_size_floats(), GL_FLOAT, GL_FALSE, buffer.vertices.vertex_size_bytes(), reinterpret_cast<const void*>(buffer.vertices.normal_offset_bytes())));
                         glsafe(::glEnableVertexAttribArray(normal_id));
                     }
                 }
@@ -3992,9 +3987,9 @@ void GCodeViewer::render_toolpaths()
 
         shader->start_using();
 
-        shader->set_uniform("view_model_matrix", camera.get_view_matrix());
-        shader->set_uniform("projection_matrix", camera.get_projection_matrix());
-        shader->set_uniform("view_normal_matrix", (Matrix3d)Matrix3d::Identity());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, (Matrix3d)Matrix3d::Identity());
 
         const int position_id = shader->get_attrib_location("v_position");
         const int normal_id   = shader->get_attrib_location("v_normal");
@@ -4005,13 +4000,13 @@ void GCodeViewer::render_toolpaths()
 #endif // ENABLE_GL_CORE_PROFILE
         glsafe(::glBindBuffer(GL_ARRAY_BUFFER, cap.vbo));
         if (position_id != -1) {
-            glsafe(::glVertexAttribPointer(position_id, buffer->vertices.position_size_floats(), GL_FLOAT, GL_FALSE, buffer->vertices.vertex_size_bytes(), (const void*)buffer->vertices.position_offset_bytes()));
+            glsafe(::glVertexAttribPointer(position_id, buffer->vertices.position_size_floats(), GL_FLOAT, GL_FALSE, buffer->vertices.vertex_size_bytes(), reinterpret_cast<const void*>(buffer->vertices.position_offset_bytes())));
             glsafe(::glEnableVertexAttribArray(position_id));
         }
         const bool has_normals = buffer->vertices.normal_size_floats() > 0;
         if (has_normals) {
             if (normal_id != -1) {
-                glsafe(::glVertexAttribPointer(normal_id, buffer->vertices.normal_size_floats(), GL_FLOAT, GL_FALSE, buffer->vertices.vertex_size_bytes(), (const void*)buffer->vertices.normal_offset_bytes()));
+                glsafe(::glVertexAttribPointer(normal_id, buffer->vertices.normal_size_floats(), GL_FLOAT, GL_FALSE, buffer->vertices.vertex_size_bytes(), reinterpret_cast<const void*>(buffer->vertices.normal_offset_bytes())));
                 glsafe(::glEnableVertexAttribArray(normal_id));
             }
         }
@@ -4141,7 +4136,7 @@ void GCodeViewer::render_legend(float& legend_height)
         }
         case EItemType::Circle: {
             ImVec2 center(0.5f * (pos.x + pos.x + icon_size), 0.5f * (pos.y + pos.y + icon_size));
-            draw_list->AddCircleFilled(center, 0.5f * icon_size, ImGuiWrapper::to_ImU32(color), 16);
+            draw_list->AddCircleFilled(center, 0.5f * icon_size, ImGuiWrapper::to_ImU32(color), RoundModelResolution);
             break;
         }
         case EItemType::Hexagon: {
@@ -4194,7 +4189,7 @@ void GCodeViewer::render_legend(float& legend_height)
                     ImGui::GetColorU32(ImGuiWrapper::get_COL_LIGHT()));
                 ImGui::Dummy({ percent_bar_size, icon_size });
                 ImGui::SameLine();
-                char buf[64];
+                char buf[LabelBufferSize];
                 ::sprintf(buf, "%.1f%%", 100.0f * percent);
                 ImGui::TextUnformatted((percent > 0.0f) ? buf : "");
                 ImGui::SameLine(offsets[2]);
@@ -4217,7 +4212,7 @@ void GCodeViewer::render_legend(float& legend_height)
                     ImGui::GetColorU32(ImGuiWrapper::get_COL_LIGHT()));
                 ImGui::Dummy({ percent_bar_size, icon_size });
                 ImGui::SameLine();
-                char buf[64];
+                char buf[LabelBufferSize];
                 ::sprintf(buf, "%.1f%%", 100.0f * percent);
                 ImGui::TextUnformatted((percent > 0.0f) ? buf : "");
             }
@@ -4294,21 +4289,21 @@ void GCodeViewer::render_legend(float& legend_height)
     };
 
     auto upto_label = [](double z) {
-        char buf[64];
+        char buf[LabelBufferSize];
         ::sprintf(buf, "%.2f", z);
         return _u8L("up to") + " " + std::string(buf) + " " + _u8L("mm");
     };
 
     auto above_label = [](double z) {
-        char buf[64];
+        char buf[LabelBufferSize];
         ::sprintf(buf, "%.2f", z);
         return _u8L("above") + " " + std::string(buf) + " " + _u8L("mm");
     };
 
     auto fromto_label = [](double z1, double z2) {
-        char buf1[64];
+        char buf1[LabelBufferSize];
         ::sprintf(buf1, "%.2f", z1);
-        char buf2[64];
+        char buf2[LabelBufferSize];
         ::sprintf(buf2, "%.2f", z2);
         return _u8L("from") + " " + std::string(buf1) + " " + _u8L("to") + " " + std::string(buf2) + " " + _u8L("mm");
     };
@@ -4354,7 +4349,7 @@ void GCodeViewer::render_legend(float& legend_height)
 
         std::string longest_percentage_string;
         for (double item : percents) {
-            char buffer[64];
+            char buffer[LabelBufferSize];
             ::sprintf(buffer, "%.2f %%", item);
             if (::strlen(buffer) > longest_percentage_string.length())
                 longest_percentage_string = buffer;
@@ -4807,7 +4802,7 @@ void GCodeViewer::render_legend(float& legend_height)
             ImGui::SameLine(offsets[1]);
             imgui.text(short_time_ui(get_time_dhms(times.first)));
             if (used_filament.first > 0.0f) {
-                char buffer[64];
+                char buffer[LabelBufferSize];
                 ImGui::SameLine(offsets[2]);
                 ::sprintf(buffer, imperial_units ? "%.2f in" : "%.2f m", used_filament.first);
                 imgui.text(buffer);
@@ -4837,7 +4832,7 @@ void GCodeViewer::render_legend(float& legend_height)
             std::string longest_used_filament_string;
             for (const PartialTime& item : partial_times) {
                 if (item.used_filament.first > 0.0f) {
-                    char buffer[64];
+                    char buffer[LabelBufferSize];
                     ::sprintf(buffer, imperial_units ? "%.2f in" : "%.2f m", item.used_filament.first);
                     if (::strlen(buffer) > longest_used_filament_string.length())
                         longest_used_filament_string = buffer;

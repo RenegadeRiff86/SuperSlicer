@@ -276,7 +276,7 @@ void init_print(Print& print, std::initializer_list<TestMesh> meshes, Slic3r::Mo
     //auto tests_gcode {(v == "" ? ""s : std::string(v))};
 
     //if (tests_gcode != ""s)
-    //    config->set_key_value("gcode_comments", new ConfigOptionBool(true));
+    //    config->set_key_value("gcode_comments", std::make_unique<ConfigOptionBool>(true));
 
     //print.apply_config_perl_tests_only(*config);
     for (const TestMesh& t : meshes) {
@@ -313,7 +313,7 @@ void init_print(Print& print, std::vector<TriangleMesh> meshes, Slic3r::Model& m
     //std::string tests_gcode {(v == "" ? "" : v)};
 
     //if (tests_gcode != ""s)
-        //config->set_key_value("gcode_comments", new ConfigOptionBool(true));
+        //config->set_key_value("gcode_comments", std::make_unique<ConfigOptionBool>(true));
 
     for (TriangleMesh& t : meshes) {
         //if(!t.repaired())

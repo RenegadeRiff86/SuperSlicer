@@ -37,6 +37,72 @@
 namespace Slic3r {
 namespace GUI {
 
+namespace {
+// Vertex-layout float counts (EVertexLayout packing).
+constexpr size_t FloatsPerVec2 = 2;
+constexpr size_t FloatsPerVec3 = 3;
+constexpr size_t FloatsPerVec4 = 4;
+constexpr size_t LayoutFloatsP2T2 = 4;    // position2 + tex2
+constexpr size_t LayoutFloatsP3T2 = 5;    // position3 + tex2
+constexpr size_t LayoutFloatsP3N3 = 6;    // position3 + normal3
+constexpr size_t LayoutFloatsP3N3T2 = 8;  // position3 + normal3 + tex2
+constexpr size_t LayoutFloatsP3N3E3 = 9;  // position3 + normal3 + extra3
+// Triangle index packing.
+constexpr size_t VerticesPerTriangle = 3;
+constexpr size_t EndpointsPerLine = 2;
+constexpr unsigned int kPairStride = 2;   // two verts per sector edge
+constexpr unsigned int kCorner2 = 2;
+constexpr unsigned int kCorner3 = 3;
+constexpr unsigned int kCorner4 = 4;
+constexpr unsigned int kCorner5 = 5;
+constexpr unsigned int kCorner6 = 6;
+constexpr unsigned int kCorner7 = 7;
+constexpr unsigned int kCorner8 = 8;
+constexpr unsigned int kCorner9 = 9;
+constexpr unsigned int kCorner10 = 10;
+constexpr unsigned int kCorner11 = 11;
+constexpr unsigned int kCorner12 = 12;
+constexpr unsigned int kCorner13 = 13;
+constexpr unsigned int kPoles = 2;        // sphere/cylinder end caps
+constexpr unsigned int kTipStemVertexBase = 26; // first stem-band vertex after tip mesh
+constexpr unsigned int kTipStemVertexBaseAlt = 30;
+constexpr unsigned int kStemBandA = 27;
+constexpr unsigned int kStemBandB = 28;
+constexpr unsigned int kStemBandC = 29;
+constexpr unsigned int kStemBandD = 30;
+constexpr unsigned int kInstanceFloats = 5; // offset3 + scale2
+constexpr unsigned int kQuadSides = 4;
+constexpr unsigned int kArrowSideBands = 6;
+
+
+// Half for midpoints / centering.
+constexpr float kHalfF = 0.5f;
+// Statistics UI indent (px).
+constexpr float kStatsIndentPx = 10.0f;
+// Minimum angular resolution for stilized arrow rings.
+constexpr unsigned int kMinArrowResolution = 4;
+constexpr unsigned int ArrowVertexRings = 6; // tip/cap/stem rings in stilized_arrow
+constexpr unsigned int ArrowRingTipCapOuter = 1;
+constexpr unsigned int ArrowRingTipCapInner = 2;
+constexpr unsigned int ArrowRingStemBottom = 3;
+constexpr unsigned int ArrowRingStemTop = 4;
+constexpr unsigned int ArrowRingStemCap = 5;
+
+constexpr unsigned int CircularArrowSideFaces = 4;
+constexpr unsigned int CircularArrowVertexBands = 8;
+constexpr int OpenGLMajor3 = 3; // OpenGL 3.x feature gate used throughout this file
+constexpr int MemoryDisplayDecimals = 3;
+constexpr unsigned int kMinCircularResolution = 2;
+constexpr size_t InstanceOffsetFloats = 3; // xyz instance offset
+constexpr size_t InstanceScaleFloats = 2;  // xy instance scale
+
+// Packed P3N3 component offsets (position xyz at 0/1/2).
+constexpr size_t PackedPosZ = 2;
+constexpr size_t PackedNormalX = 3;
+constexpr size_t PackedNormalY = 4;
+constexpr size_t PackedNormalZ = 5;
+} // namespace
+
 #if ENABLE_SMOOTH_NORMALS
 static void smooth_normals_corner(const TriangleMesh& mesh, std::vector<stl_normal>& normals)
 {
@@ -46,19 +112,19 @@ static void smooth_normals_corner(const TriangleMesh& mesh, std::vector<stl_norm
     std::vector<Vec3f> face_normals = its_face_normals(mesh.its);
 
     Eigen::MatrixXd vertices = MapMatrixXfUnaligned(mesh.its.vertices.front().data(),
-        Eigen::Index(mesh.its.vertices.size()), 3).cast<double>();
+        Eigen::Index(mesh.its.vertices.size()), int(FloatsPerVec3)).cast<double>();
     Eigen::MatrixXi indices = MapMatrixXiUnaligned(mesh.its.indices.front().data(),
-        Eigen::Index(mesh.its.indices.size()), 3);
+        Eigen::Index(mesh.its.indices.size()), int(VerticesPerTriangle));
     Eigen::MatrixXd in_normals = MapMatrixXfUnaligned(face_normals.front().data(),
-        Eigen::Index(face_normals.size()), 3).cast<double>();
+        Eigen::Index(face_normals.size()), int(FloatsPerVec3)).cast<double>();
     Eigen::MatrixXd out_normals;
 
     igl::per_corner_normals(vertices, indices, in_normals, 1.0, out_normals);
 
     normals = std::vector<stl_normal>(mesh.its.vertices.size());
     for (size_t i = 0; i < mesh.its.indices.size(); ++i) {
-        for (size_t j = 0; j < 3; ++j) {
-            normals[mesh.its.indices[i][j]] = out_normals.row(i * 3 + j).cast<float>();
+        for (size_t j = 0; j < VerticesPerTriangle; ++j) {
+            normals[mesh.its.indices[i][j]] = out_normals.row(i * VerticesPerTriangle + j).cast<float>();
         }
     }
 }
@@ -91,8 +157,8 @@ void GLModel::Geometry::add_vertex(const Vec3f& position)
 void GLModel::Geometry::add_vertex(const Vec3f& position, const Vec2f& tex_coord)
 {
     assert(format.vertex_layout == EVertexLayout::P3T2);
-    vertices.insert(vertices.end(), position.data(), position.data() + 3);
-    vertices.insert(vertices.end(), tex_coord.data(), tex_coord.data() + 2);
+    vertices.insert(vertices.end(), position.data(), position.data() + FloatsPerVec3);
+    vertices.insert(vertices.end(), tex_coord.data(), tex_coord.data() + FloatsPerVec2);
 }
 
 void GLModel::Geometry::add_vertex(const Vec3f& position, const Vec3f& normal, const Vec2f& tex_coord)
@@ -147,7 +213,7 @@ void GLModel::Geometry::add_line(unsigned int id1, unsigned int id2)
 Vec2f GLModel::Geometry::extract_position_2(size_t id) const
 {
     const size_t p_stride = position_stride_floats(format);
-    if (p_stride != 2) {
+    if (p_stride != FloatsPerVec2) {
         assert(false);
         return { FLT_MAX, FLT_MAX };
     }
@@ -164,7 +230,7 @@ Vec2f GLModel::Geometry::extract_position_2(size_t id) const
 Vec3f GLModel::Geometry::extract_position_3(size_t id) const
 {
     const size_t p_stride = position_stride_floats(format);
-    if (p_stride != 3) {
+    if (p_stride != FloatsPerVec3) {
         assert(false);
         return { FLT_MAX, FLT_MAX, FLT_MAX };
     }
@@ -175,13 +241,13 @@ Vec3f GLModel::Geometry::extract_position_3(size_t id) const
     }
 
     const float* start = &vertices[id * vertex_stride_floats(format) + position_offset_floats(format)];
-    return { *(start + 0), *(start + 1), *(start + 2) };
+    return { *(start + 0), *(start + 1), *(start + PackedPosZ) };
 }
 
 Vec3f GLModel::Geometry::extract_normal_3(size_t id) const
 {
     const size_t n_stride = normal_stride_floats(format);
-    if (n_stride != 3) {
+    if (n_stride != FloatsPerVec3) {
         assert(false);
         return { FLT_MAX, FLT_MAX, FLT_MAX };
     }
@@ -192,13 +258,13 @@ Vec3f GLModel::Geometry::extract_normal_3(size_t id) const
     }
 
     const float* start = &vertices[id * vertex_stride_floats(format) + normal_offset_floats(format)];
-    return { *(start + 0), *(start + 1), *(start + 2) };
+    return { *(start + 0), *(start + 1), *(start + PackedPosZ) };
 }
 
 Vec2f GLModel::Geometry::extract_tex_coord_2(size_t id) const
 {
     const size_t t_stride = tex_coord_stride_floats(format);
-    if (t_stride != 2) {
+    if (t_stride != FloatsPerVec2) {
         assert(false);
         return { FLT_MAX, FLT_MAX };
     }
@@ -220,10 +286,10 @@ void GLModel::Geometry::set_vertex(size_t id, const Vec3f& position, const Vec3f
         float* start = &vertices[id * vertex_stride_floats(format)];
         *(start + 0) = position.x();
         *(start + 1) = position.y();
-        *(start + 2) = position.z();
-        *(start + 3) = normal.x();
-        *(start + 4) = normal.y();
-        *(start + 5) = normal.z();
+        *(start + PackedPosZ) = position.z();
+        *(start + PackedNormalX) = normal.x();
+        *(start + PackedNormalY) = normal.y();
+        *(start + PackedNormalZ) = normal.z();
     }
 }
 
@@ -261,10 +327,10 @@ indexed_triangle_set GLModel::Geometry::get_as_indexed_triangle_set() const
     for (size_t i = 0; i < vertices_count(); ++i) {
         its.vertices.emplace_back(extract_position_3(i));
     }
-    its.indices.reserve(indices_count() / 3);
-    for (size_t i = 0; i < indices_count() / 3; ++i) {
-        const size_t tri_id = i * 3;
-        its.indices.emplace_back(extract_index(tri_id), extract_index(tri_id + 1), extract_index(tri_id + 2));
+    its.indices.reserve(indices_count() / VerticesPerTriangle);
+    for (size_t i = 0; i < indices_count() / VerticesPerTriangle; ++i) {
+        const size_t tri_id = i * VerticesPerTriangle;
+        its.indices.emplace_back(extract_index(tri_id), extract_index(tri_id + 1), extract_index(tri_id + PackedPosZ));
     }
     return its;
 }
@@ -273,16 +339,16 @@ size_t GLModel::Geometry::vertex_stride_floats(const Format& format)
 {
     switch (format.vertex_layout)
     {
-    case EVertexLayout::P2:     { return 2; }
-    case EVertexLayout::P2T2:   { return 4; }
-    case EVertexLayout::P3:     { return 3; }
-    case EVertexLayout::P3T2:   { return 5; }
-    case EVertexLayout::P3N3:   { return 6; }
-    case EVertexLayout::P3N3T2: { return 8; }
+    case EVertexLayout::P2:     { return FloatsPerVec2; }
+    case EVertexLayout::P2T2:   { return LayoutFloatsP2T2; }
+    case EVertexLayout::P3:     { return FloatsPerVec3; }
+    case EVertexLayout::P3T2:   { return LayoutFloatsP3T2; }
+    case EVertexLayout::P3N3:   { return LayoutFloatsP3N3; }
+    case EVertexLayout::P3N3T2: { return LayoutFloatsP3N3T2; }
 #if ENABLE_OPENGL_ES
-    case EVertexLayout::P3N3E3: { return 9; }
+    case EVertexLayout::P3N3E3: { return LayoutFloatsP3N3E3; }
 #endif // ENABLE_OPENGL_ES
-    case EVertexLayout::P4:     { return 4; }
+    case EVertexLayout::P4:     { return FloatsPerVec4; }
     default:                    { assert(false); return 0; }
     };
 }
@@ -292,17 +358,17 @@ size_t GLModel::Geometry::position_stride_floats(const Format& format)
     switch (format.vertex_layout)
     {
     case EVertexLayout::P2:
-    case EVertexLayout::P2T2:   { return 2; }
+    case EVertexLayout::P2T2:   { return FloatsPerVec2; }
     case EVertexLayout::P3:
     case EVertexLayout::P3T2:
     case EVertexLayout::P3N3:
 #if ENABLE_OPENGL_ES
     case EVertexLayout::P3N3T2:
-    case EVertexLayout::P3N3E3: { return 3; }
+    case EVertexLayout::P3N3E3: { return FloatsPerVec3; }
 #else
-    case EVertexLayout::P3N3T2: { return 3; }
+    case EVertexLayout::P3N3T2: { return FloatsPerVec3; }
 #endif // ENABLE_OPENGL_ES
-    case EVertexLayout::P4:     { return 4; }
+    case EVertexLayout::P4:     { return FloatsPerVec4; }
     default:                    { assert(false); return 0; }
     };
 }
@@ -332,9 +398,9 @@ size_t GLModel::Geometry::normal_stride_floats(const Format& format)
     case EVertexLayout::P3N3:
 #if ENABLE_OPENGL_ES
     case EVertexLayout::P3N3T2:
-    case EVertexLayout::P3N3E3: { return 3; }
+    case EVertexLayout::P3N3E3: { return FloatsPerVec3; }
 #else
-    case EVertexLayout::P3N3T2: { return 3; }
+    case EVertexLayout::P3N3T2: { return FloatsPerVec3; }
 #endif // ENABLE_OPENGL_ES
     default:                    { assert(false); return 0; }
     };
@@ -347,9 +413,9 @@ size_t GLModel::Geometry::normal_offset_floats(const Format& format)
     case EVertexLayout::P3N3:
 #if ENABLE_OPENGL_ES
     case EVertexLayout::P3N3T2:
-    case EVertexLayout::P3N3E3: { return 3; }
+    case EVertexLayout::P3N3E3: { return FloatsPerVec3; }
 #else
-    case EVertexLayout::P3N3T2: { return 3; }
+    case EVertexLayout::P3N3T2: { return FloatsPerVec3; }
 #endif // ENABLE_OPENGL_ES
     default:                    { assert(false); return 0; }
     };
@@ -361,7 +427,7 @@ size_t GLModel::Geometry::tex_coord_stride_floats(const Format& format)
     {
     case EVertexLayout::P2T2:
     case EVertexLayout::P3T2:
-    case EVertexLayout::P3N3T2: { return 2; }
+    case EVertexLayout::P3N3T2: { return FloatsPerVec2; }
     default:                    { assert(false); return 0; }
     };
 }
@@ -370,9 +436,9 @@ size_t GLModel::Geometry::tex_coord_offset_floats(const Format& format)
 {
     switch (format.vertex_layout)
     {
-    case EVertexLayout::P2T2:   { return 2; }
-    case EVertexLayout::P3T2:   { return 3; }
-    case EVertexLayout::P3N3T2: { return 6; }
+    case EVertexLayout::P2T2:   { return FloatsPerVec2; }
+    case EVertexLayout::P3T2:   { return FloatsPerVec3; }
+    case EVertexLayout::P3N3T2: { return LayoutFloatsP3N3; }
     default:                    { assert(false); return 0; }
     };
 }
@@ -382,7 +448,7 @@ size_t GLModel::Geometry::extra_stride_floats(const Format& format)
 {
     switch (format.vertex_layout)
     {
-    case EVertexLayout::P3N3E3: { return 3; }
+    case EVertexLayout::P3N3E3: { return FloatsPerVec3; }
     default:                    { assert(false); return 0; }
     };
 }
@@ -391,7 +457,7 @@ size_t GLModel::Geometry::extra_offset_floats(const Format& format)
 {
     switch (format.vertex_layout)
     {
-    case EVertexLayout::P3N3E3: { return 6; }
+    case EVertexLayout::P3N3E3: { return LayoutFloatsP3N3; }
     default:                    { assert(false); return 0; }
     };
 }
@@ -504,9 +570,9 @@ void GLModel::init_from(Geometry&& data)
     // update bounding box
     for (size_t i = 0; i < vertices_count(); ++i) {
         const size_t position_stride = Geometry::position_stride_floats(data.format);
-        if (position_stride == 3)
+        if (position_stride == FloatsPerVec3)
             m_bounding_box.merge(m_render_data.geometry.extract_position_3(i).cast<double>());
-        else if (position_stride == 2) {
+        else if (position_stride == FloatsPerVec2) {
             const Vec2f position = m_render_data.geometry.extract_position_2(i);
             m_bounding_box.merge(Vec3f(position.x(), position.y(), 0.0f).cast<double>());
         }
@@ -534,8 +600,8 @@ void GLModel::init_from(const TriangleMesh& mesh, bool smooth_normals)
         const indexed_triangle_set& its = mesh.its;
         Geometry& data = m_render_data.geometry;
         data.format = { Geometry::EPrimitiveType::Triangles, Geometry::EVertexLayout::P3N3 };
-        data.reserve_vertices(3 * its.indices.size());
-        data.reserve_indices(3 * its.indices.size());
+        data.reserve_vertices(VerticesPerTriangle * its.indices.size());
+        data.reserve_indices(VerticesPerTriangle * its.indices.size());
 
         // vertices
         for (size_t i = 0; i < its.vertices.size(); ++i) {
@@ -545,7 +611,7 @@ void GLModel::init_from(const TriangleMesh& mesh, bool smooth_normals)
         // indices
         for (size_t i = 0; i < its.indices.size(); ++i) {
             const stl_triangle_vertex_indices& idx = its.indices[i];
-            data.add_triangle((unsigned int)idx(0), (unsigned int)idx(1), (unsigned int)idx(2));
+            data.add_triangle(static_cast<unsigned int>(idx(0)), static_cast<unsigned int>(idx(1)), static_cast<unsigned int>(idx(PackedPosZ)));
         }
 
         // update bounding box
@@ -578,20 +644,20 @@ void GLModel::init_from(const indexed_triangle_set& its)
 
     Geometry& data = m_render_data.geometry;
     data.format = { Geometry::EPrimitiveType::Triangles, Geometry::EVertexLayout::P3N3 };
-    data.reserve_vertices(3 * its.indices.size());
-    data.reserve_indices(3 * its.indices.size());
+    data.reserve_vertices(VerticesPerTriangle * its.indices.size());
+    data.reserve_indices(VerticesPerTriangle * its.indices.size());
 
     // vertices + indices
     unsigned int vertices_counter = 0;
     for (uint32_t i = 0; i < its.indices.size(); ++i) {
         const stl_triangle_vertex_indices face = its.indices[i];
-        const stl_vertex                  vertex[3] = { its.vertices[face[0]], its.vertices[face[1]], its.vertices[face[2]] };
+        const stl_vertex                  vertex[VerticesPerTriangle] = { its.vertices[face[0]], its.vertices[face[1]], its.vertices[face[PackedPosZ]] };
         const stl_vertex                  n = face_normal_normalized(vertex);
-        for (size_t j = 0; j < 3; ++j) {
+        for (size_t j = 0; j < VerticesPerTriangle; ++j) {
             data.add_vertex(vertex[j], n);
         }
-        vertices_counter += 3;
-        data.add_triangle(vertices_counter - 3, vertices_counter - 2, vertices_counter - 1);
+        vertices_counter += VerticesPerTriangle;
+        data.add_triangle(vertices_counter - VerticesPerTriangle, vertices_counter - EndpointsPerLine, vertices_counter - 1);
     }
 
     // update bounding box
@@ -612,8 +678,8 @@ void GLModel::init_from(const Polygon& polygon, float z)
     data.format = { Geometry::EPrimitiveType::Lines, Geometry::EVertexLayout::P3 };
 
     const size_t segments_count = polygon.points.size();
-    data.reserve_vertices(2 * segments_count);
-    data.reserve_indices(2 * segments_count);
+    data.reserve_vertices(EndpointsPerLine * segments_count);
+    data.reserve_indices(EndpointsPerLine * segments_count);
 
     // vertices + indices
     unsigned int vertices_counter = 0;
@@ -622,8 +688,8 @@ void GLModel::init_from(const Polygon& polygon, float z)
         const Point& p1 = (i == segments_count - 1) ? polygon.points.front() : polygon.points[i + 1];
         data.add_vertex(Vec3f(unscale<float>(p0.x()), unscale<float>(p0.y()), z));
         data.add_vertex(Vec3f(unscale<float>(p1.x()), unscale<float>(p1.y()), z));
-        vertices_counter += 2;
-        data.add_line(vertices_counter - 2, vertices_counter - 1);
+        vertices_counter += EndpointsPerLine;
+        data.add_line(vertices_counter - EndpointsPerLine, vertices_counter - 1);
     }
 
     // update bounding box
@@ -653,8 +719,8 @@ void GLModel::init_from(const Polygons& polygons, float z)
         segments_count += polygon.points.size();
     }
 
-    data.reserve_vertices(2 * segments_count);
-    data.reserve_indices(2 * segments_count);
+    data.reserve_vertices(EndpointsPerLine * segments_count);
+    data.reserve_indices(EndpointsPerLine * segments_count);
 
     // vertices + indices
     unsigned int vertices_counter = 0;
@@ -664,8 +730,8 @@ void GLModel::init_from(const Polygons& polygons, float z)
             const Point& p1 = (i == poly.points.size() - 1) ? poly.points.front() : poly.points[i + 1];
             data.add_vertex(Vec3f(unscale<float>(p0.x()), unscale<float>(p0.y()), z));
             data.add_vertex(Vec3f(unscale<float>(p1.x()), unscale<float>(p1.y()), z));
-            vertices_counter += 2;
-            data.add_line(vertices_counter - 2, vertices_counter - 1);
+            vertices_counter += EndpointsPerLine;
+            data.add_line(vertices_counter - EndpointsPerLine, vertices_counter - 1);
         }
     }
 
@@ -793,7 +859,7 @@ void GLModel::render(const std::pair<size_t, size_t>& range)
 #endif // ENABLE_OPENGL_ES
 
 #if ENABLE_GL_CORE_PROFILE
-    if (OpenGLManager::get_gl_info().is_version_greater_or_equal_to(3, 0))
+    if (OpenGLManager::get_gl_info().is_version_greater_or_equal_to(OpenGLMajor3, 0))
         glsafe(::glBindVertexArray(m_render_data.vao_id));
     // the following binding is needed to set the vertex attributes
 #endif // ENABLE_GL_CORE_PROFILE
@@ -809,21 +875,21 @@ void GLModel::render(const std::pair<size_t, size_t>& range)
     if (position) {
         position_id = shader->get_attrib_location("v_position");
         if (position_id != -1) {
-            glsafe(::glVertexAttribPointer(position_id, Geometry::position_stride_floats(data.format), GL_FLOAT, GL_FALSE, vertex_stride_bytes, (const void*)Geometry::position_offset_bytes(data.format)));
+            glsafe(::glVertexAttribPointer(position_id, Geometry::position_stride_floats(data.format), GL_FLOAT, GL_FALSE, vertex_stride_bytes, reinterpret_cast<const void*>(Geometry::position_offset_bytes(data.format))));
             glsafe(::glEnableVertexAttribArray(position_id));
         }
     }
     if (normal) {
         normal_id = shader->get_attrib_location("v_normal");
         if (normal_id != -1) {
-            glsafe(::glVertexAttribPointer(normal_id, Geometry::normal_stride_floats(data.format), GL_FLOAT, GL_FALSE, vertex_stride_bytes, (const void*)Geometry::normal_offset_bytes(data.format)));
+            glsafe(::glVertexAttribPointer(normal_id, Geometry::normal_stride_floats(data.format), GL_FLOAT, GL_FALSE, vertex_stride_bytes, reinterpret_cast<const void*>(Geometry::normal_offset_bytes(data.format))));
             glsafe(::glEnableVertexAttribArray(normal_id));
         }
     }
     if (tex_coord) {
         tex_coord_id = shader->get_attrib_location("v_tex_coord");
         if (tex_coord_id != -1) {
-            glsafe(::glVertexAttribPointer(tex_coord_id, Geometry::tex_coord_stride_floats(data.format), GL_FLOAT, GL_FALSE, vertex_stride_bytes, (const void*)Geometry::tex_coord_offset_bytes(data.format)));
+            glsafe(::glVertexAttribPointer(tex_coord_id, Geometry::tex_coord_stride_floats(data.format), GL_FLOAT, GL_FALSE, vertex_stride_bytes, reinterpret_cast<const void*>(Geometry::tex_coord_offset_bytes(data.format))));
             glsafe(::glEnableVertexAttribArray(tex_coord_id));
         }
     }
@@ -831,7 +897,7 @@ void GLModel::render(const std::pair<size_t, size_t>& range)
     if (extra) {
         extra_id = shader->get_attrib_location("v_extra");
         if (extra_id != -1) {
-            glsafe(::glVertexAttribPointer(extra_id, Geometry::extra_stride_floats(data.format), GL_FLOAT, GL_FALSE, vertex_stride_bytes, (const void*)Geometry::extra_offset_bytes(data.format)));
+            glsafe(::glVertexAttribPointer(extra_id, Geometry::extra_stride_floats(data.format), GL_FLOAT, GL_FALSE, vertex_stride_bytes, reinterpret_cast<const void*>(Geometry::extra_offset_bytes(data.format))));
             glsafe(::glEnableVertexAttribArray(extra_id));
         }
     }
@@ -840,10 +906,10 @@ void GLModel::render(const std::pair<size_t, size_t>& range)
     shader->set_uniform("uniform_color", data.color);
 
 #if ENABLE_GL_CORE_PROFILE
-    if (!OpenGLManager::get_gl_info().is_version_greater_or_equal_to(3, 0))
+    if (!OpenGLManager::get_gl_info().is_version_greater_or_equal_to(OpenGLMajor3, 0))
 #endif // ENABLE_GL_CORE_PROFILE
         glsafe(::glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_render_data.ibo_id));
-    glsafe(::glDrawElements(mode, range.second - range.first, index_type, (const void*)(range.first * Geometry::index_stride_bytes(data))));
+    glsafe(::glDrawElements(mode, range.second - range.first, index_type, reinterpret_cast<const void*>(range.first * Geometry::index_stride_bytes(data))));
 #if !ENABLE_GL_CORE_PROFILE
     glsafe(::glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
 #endif // !ENABLE_GL_CORE_PROFILE
@@ -861,7 +927,7 @@ void GLModel::render(const std::pair<size_t, size_t>& range)
 
     glsafe(::glBindBuffer(GL_ARRAY_BUFFER, 0));
 #if ENABLE_GL_CORE_PROFILE
-    if (OpenGLManager::get_gl_info().is_version_greater_or_equal_to(3, 0))
+    if (OpenGLManager::get_gl_info().is_version_greater_or_equal_to(OpenGLMajor3, 0))
         glsafe(::glBindVertexArray(0));
 #endif // ENABLE_GL_CORE_PROFILE
 
@@ -897,17 +963,17 @@ void GLModel::render_instanced(unsigned int instances_vbo, unsigned int instance
     }
 
 #if ENABLE_GL_CORE_PROFILE
-    if (OpenGLManager::get_gl_info().is_version_greater_or_equal_to(3, 0))
+    if (OpenGLManager::get_gl_info().is_version_greater_or_equal_to(OpenGLMajor3, 0))
         glsafe(::glBindVertexArray(m_render_data.vao_id));
 #endif // ENABLE_GL_CORE_PROFILE
 
     glsafe(::glBindBuffer(GL_ARRAY_BUFFER, instances_vbo));
-    const size_t instance_stride = 5 * sizeof(float);
-    glsafe(::glVertexAttribPointer(offset_id, 3, GL_FLOAT, GL_FALSE, instance_stride, (const void*)0));
+    const size_t instance_stride = kInstanceFloats * sizeof(float);
+    glsafe(::glVertexAttribPointer(offset_id, InstanceOffsetFloats, GL_FLOAT, GL_FALSE, instance_stride, nullptr));
     glsafe(::glEnableVertexAttribArray(offset_id));
     glsafe(::glVertexAttribDivisor(offset_id, 1));
 
-    glsafe(::glVertexAttribPointer(scales_id, 2, GL_FLOAT, GL_FALSE, instance_stride, (const void*)(3 * sizeof(float))));
+    glsafe(::glVertexAttribPointer(scales_id, InstanceScaleFloats, GL_FLOAT, GL_FALSE, instance_stride, reinterpret_cast<const void*>(InstanceOffsetFloats * sizeof(float))));
     glsafe(::glEnableVertexAttribArray(scales_id));
     glsafe(::glVertexAttribDivisor(scales_id, 1));
 
@@ -926,12 +992,12 @@ void GLModel::render_instanced(unsigned int instances_vbo, unsigned int instance
     glsafe(::glBindBuffer(GL_ARRAY_BUFFER, m_render_data.vbo_id));
 
     if (position) {
-        glsafe(::glVertexAttribPointer(position_id, Geometry::position_stride_floats(data.format), GL_FLOAT, GL_FALSE, vertex_stride_bytes, (const void*)Geometry::position_offset_bytes(data.format)));
+        glsafe(::glVertexAttribPointer(position_id, Geometry::position_stride_floats(data.format), GL_FLOAT, GL_FALSE, vertex_stride_bytes, reinterpret_cast<const void*>(Geometry::position_offset_bytes(data.format))));
         glsafe(::glEnableVertexAttribArray(position_id));
     }
 
     if (normal) {
-        glsafe(::glVertexAttribPointer(normal_id, Geometry::normal_stride_floats(data.format), GL_FLOAT, GL_FALSE, vertex_stride_bytes, (const void*)Geometry::normal_offset_bytes(data.format)));
+        glsafe(::glVertexAttribPointer(normal_id, Geometry::normal_stride_floats(data.format), GL_FLOAT, GL_FALSE, vertex_stride_bytes, reinterpret_cast<const void*>(Geometry::normal_offset_bytes(data.format))));
         glsafe(::glEnableVertexAttribArray(normal_id));
     }
 
@@ -940,7 +1006,7 @@ void GLModel::render_instanced(unsigned int instances_vbo, unsigned int instance
 #if !ENABLE_GL_CORE_PROFILE
     glsafe(::glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_render_data.ibo_id));
 #endif // !ENABLE_GL_CORE_PROFILE
-    glsafe(::glDrawElementsInstanced(mode, indices_count(), index_type, (const void*)0, instances_count));
+    glsafe(::glDrawElementsInstanced(mode, indices_count(), index_type, nullptr, instances_count));
 #if !ENABLE_GL_CORE_PROFILE
     glsafe(::glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
 #endif // !ENABLE_GL_CORE_PROFILE
@@ -955,7 +1021,7 @@ void GLModel::render_instanced(unsigned int instances_vbo, unsigned int instance
 
     glsafe(::glBindBuffer(GL_ARRAY_BUFFER, 0));
 #if ENABLE_GL_CORE_PROFILE
-    if (OpenGLManager::get_gl_info().is_version_greater_or_equal_to(3, 0))
+    if (OpenGLManager::get_gl_info().is_version_greater_or_equal_to(OpenGLMajor3, 0))
         glsafe(::glBindVertexArray(0));
 #endif // ENABLE_GL_CORE_PROFILE
 
@@ -978,7 +1044,7 @@ bool GLModel::send_to_gpu()
     }
 
 #if ENABLE_GL_CORE_PROFILE
-    if (OpenGLManager::get_gl_info().is_version_greater_or_equal_to(3, 0)) {
+    if (OpenGLManager::get_gl_info().is_version_greater_or_equal_to(OpenGLMajor3, 0)) {
         glsafe(::glGenVertexArrays(1, &m_render_data.vao_id));
         glsafe(::glBindVertexArray(m_render_data.vao_id));
     }
@@ -1004,7 +1070,7 @@ bool GLModel::send_to_gpu()
         // convert indices to unsigned char to save gpu memory
         std::vector<unsigned char> reduced_indices(indices_count);
         for (size_t i = 0; i < indices_count; ++i) {
-            reduced_indices[i] = (unsigned char)data.indices[i];
+            reduced_indices[i] = static_cast<unsigned char>(data.indices[i]);
         }
         data.index_type = Geometry::EIndexType::UBYTE;
         glsafe(::glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_count * sizeof(unsigned char), reduced_indices.data(), GL_STATIC_DRAW));
@@ -1013,7 +1079,7 @@ bool GLModel::send_to_gpu()
         // convert indices to unsigned short to save gpu memory
         std::vector<unsigned short> reduced_indices(indices_count);
         for (size_t i = 0; i < data.indices.size(); ++i) {
-            reduced_indices[i] = (unsigned short)data.indices[i];
+            reduced_indices[i] = static_cast<unsigned short>(data.indices[i]);
         }
         data.index_type = Geometry::EIndexType::USHORT;
         glsafe(::glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_count * sizeof(unsigned short), reduced_indices.data(), GL_STATIC_DRAW));
@@ -1024,7 +1090,7 @@ bool GLModel::send_to_gpu()
     }
 
 #if ENABLE_GL_CORE_PROFILE
-    if (!OpenGLManager::get_gl_info().is_version_greater_or_equal_to(3, 0))
+    if (!OpenGLManager::get_gl_info().is_version_greater_or_equal_to(OpenGLMajor3, 0))
 #endif // ENABLE_GL_CORE_PROFILE
         glsafe(::glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
 
@@ -1036,7 +1102,7 @@ bool GLModel::send_to_gpu()
     data.indices = std::vector<unsigned int>();
 
 #if ENABLE_GL_CORE_PROFILE
-    if (OpenGLManager::get_gl_info().is_version_greater_or_equal_to(3, 0))
+    if (OpenGLManager::get_gl_info().is_version_greater_or_equal_to(OpenGLMajor3, 0))
         glsafe(::glBindVertexArray(0));
 #endif // ENABLE_GL_CORE_PROFILE
 
@@ -1052,7 +1118,7 @@ void GLModel::render_statistics()
     auto add_memory = [&imgui](const std::string& label, int64_t memory) {
         auto format_string = [memory](const std::string& units, float value) {
             return std::to_string(memory) + " bytes (" +
-                Slic3r::float_to_string_decimal_point(float(memory) * value, 3)
+                Slic3r::float_to_string_decimal_point(float(memory) * value, MemoryDisplayDecimals)
                 + " " + units + ")";
         };
 
@@ -1078,7 +1144,7 @@ void GLModel::render_statistics()
         imgui.text(std::to_string(counter));
     };
 
-    imgui.set_next_window_pos(0.5f * wxGetApp().plater()->get_current_canvas3D()->get_canvas_size().get_width(), 0.0f, ImGuiCond_Once, 0.5f, 0.0f);
+    imgui.set_next_window_pos(kHalfF * wxGetApp().plater()->get_current_canvas3D()->get_canvas_size().get_width(), 0.0f, ImGuiCond_Once, kHalfF, 0.0f);
     ImGui::SetNextWindowSizeConstraints({ 300.0f, 100.0f }, { 600.0f, 900.0f });
     imgui.begin(std::string("GLModel Statistics"), ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize);
     ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
@@ -1087,7 +1153,7 @@ void GLModel::render_statistics()
     add_counter(std::string("Render instanced calls:"), s_statistics.render_instanced_calls);
 
     if (ImGui::CollapsingHeader("GPU memory")) {
-        ImGui::Indent(10.0f);
+        ImGui::Indent(kStatsIndentPx);
         if (ImGui::CollapsingHeader("Vertices")) {
             add_memory(std::string("Current:"), s_statistics.gpu_memory.vertices.current);
             add_memory(std::string("Max:"), s_statistics.gpu_memory.vertices.max);
@@ -1096,7 +1162,7 @@ void GLModel::render_statistics()
             add_memory(std::string("Current:"), s_statistics.gpu_memory.indices.current);
             add_memory(std::string("Max:"), s_statistics.gpu_memory.indices.max);
         }
-        ImGui::Unindent(10.0f);
+        ImGui::Unindent(kStatsIndentPx);
     }
 
     imgui.end();
@@ -1108,13 +1174,13 @@ inline bool all_vertices_inside(const GLModel::Geometry& geometry, Fn fn)
 {
     const size_t position_stride_floats = geometry.position_stride_floats(geometry.format);
     const size_t position_offset_floats = geometry.position_offset_floats(geometry.format);
-    assert(position_stride_floats == 3);
-    if (geometry.vertices.empty() || position_stride_floats != 3)
+    assert(position_stride_floats == FloatsPerVec3);
+    if (geometry.vertices.empty() || position_stride_floats != FloatsPerVec3)
         return false;
 
     for (auto it = geometry.vertices.begin(); it != geometry.vertices.end(); ) {
         it += position_offset_floats;
-        if (!fn({ *it, *(it + 1), *(it + 2) }))
+        if (!fn({ *it, *(it + 1), *(it + PackedPosZ) }))
             return false;
         it += (geometry.vertex_stride_floats(geometry.format) - position_offset_floats - position_stride_floats);
     }
@@ -1160,12 +1226,12 @@ bool contains(const BuildVolume& volume, const GLModel& model, bool ignore_botto
 
 GLModel::Geometry stilized_arrow(unsigned int resolution, float tip_radius, float tip_height, float stem_radius, float stem_height)
 {
-    resolution = std::max<unsigned int>(4, resolution);
+    resolution = std::max<unsigned int>(kMinArrowResolution, resolution);
 
     GLModel::Geometry data;
     data.format = { GLModel::Geometry::EPrimitiveType::Triangles, GLModel::Geometry::EVertexLayout::P3N3 };
-    data.reserve_vertices(6 * resolution + 2);
-    data.reserve_indices(6 * resolution * 3);
+    data.reserve_vertices(ArrowVertexRings * resolution + EndpointsPerLine);
+    data.reserve_indices(ArrowVertexRings * resolution * VerticesPerTriangle);
 
     const float angle_step = 2.0f * float(PI) / float(resolution);
     std::vector<float> cosines(resolution);
@@ -1187,7 +1253,7 @@ GLModel::Geometry stilized_arrow(unsigned int resolution, float tip_radius, floa
 
     // tip triangles
     for (unsigned int i = 0; i < resolution; ++i) {
-        const unsigned int v3 = (i < resolution - 1) ? i + 2 : 1;
+        const unsigned int v3 = (i < resolution - 1) ? i + kPairStride : 1;
         data.add_triangle(0, i + 1, v3);
     }
 
@@ -1203,10 +1269,10 @@ GLModel::Geometry stilized_arrow(unsigned int resolution, float tip_radius, floa
 
     // tip cap triangles
     for (unsigned int i = 0; i < resolution; ++i) {
-        const unsigned int v2 = (i < resolution - 1) ? i + resolution + 2 : resolution + 1;
-        const unsigned int v3 = (i < resolution - 1) ? i + 2 * resolution + 2 : 2 * resolution + 1;
+        const unsigned int v2 = (i < resolution - 1) ? i + resolution + kPairStride : resolution + 1;
+        const unsigned int v3 = (i < resolution - 1) ? i + ArrowRingTipCapInner * resolution + kPairStride : ArrowRingTipCapInner * resolution + 1;
         data.add_triangle(i + resolution + 1, v3, v2);
-        data.add_triangle(i + resolution + 1, i + 2 * resolution + 1, v3);
+        data.add_triangle(i + resolution + 1, i + ArrowRingTipCapInner * resolution + 1, v3);
     }
 
     // stem bottom vertices
@@ -1221,10 +1287,10 @@ GLModel::Geometry stilized_arrow(unsigned int resolution, float tip_radius, floa
 
     // stem triangles
     for (unsigned int i = 0; i < resolution; ++i) {
-        const unsigned int v2 = (i < resolution - 1) ? i + 3 * resolution + 2 : 3 * resolution + 1;
-        const unsigned int v3 = (i < resolution - 1) ? i + 4 * resolution + 2 : 4 * resolution + 1;
-        data.add_triangle(i + 3 * resolution + 1, v3, v2);
-        data.add_triangle(i + 3 * resolution + 1, i + 4 * resolution + 1, v3);
+        const unsigned int v2 = (i < resolution - 1) ? i + ArrowRingStemBottom * resolution + kPairStride : ArrowRingStemBottom * resolution + 1;
+        const unsigned int v3 = (i < resolution - 1) ? i + ArrowRingStemTop * resolution + kPairStride : ArrowRingStemTop * resolution + 1;
+        data.add_triangle(i + ArrowRingStemBottom * resolution + 1, v3, v2);
+        data.add_triangle(i + ArrowRingStemBottom * resolution + 1, i + ArrowRingStemTop * resolution + 1, v3);
     }
 
     // stem cap vertices
@@ -1235,8 +1301,8 @@ GLModel::Geometry stilized_arrow(unsigned int resolution, float tip_radius, floa
 
     // stem cap triangles
     for (unsigned int i = 0; i < resolution; ++i) {
-        const unsigned int v3 = (i < resolution - 1) ? i + 5 * resolution + 3 : 5 * resolution + 2;
-        data.add_triangle(5 * resolution + 1, v3, i + 5 * resolution + 2);
+        const unsigned int v3 = (i < resolution - 1) ? i + ArrowRingStemCap * resolution + kCorner3 : ArrowRingStemCap * resolution + kPairStride;
+        data.add_triangle(ArrowRingStemCap * resolution + 1, v3, i + ArrowRingStemCap * resolution + kPoles);
     }
 
     return data;
@@ -1244,20 +1310,20 @@ GLModel::Geometry stilized_arrow(unsigned int resolution, float tip_radius, floa
 
 GLModel::Geometry circular_arrow(unsigned int resolution, float radius, float tip_height, float tip_width, float stem_width, float thickness)
 {
-    resolution = std::max<unsigned int>(2, resolution);
+    resolution = std::max<unsigned int>(kMinCircularResolution, resolution);
 
     GLModel::Geometry data;
     data.format = { GLModel::Geometry::EPrimitiveType::Triangles, GLModel::Geometry::EVertexLayout::P3N3 };
-    data.reserve_vertices(8 * (resolution + 1) + 30);
-    data.reserve_indices((8 * resolution + 16) * 3);
+    data.reserve_vertices(CircularArrowVertexBands * (resolution + 1) + 30);
+    data.reserve_indices((CircularArrowVertexBands * resolution + 16) * VerticesPerTriangle);
 
-    const float half_thickness = 0.5f * thickness;
-    const float half_stem_width = 0.5f * stem_width;
-    const float half_tip_width = 0.5f * tip_width;
+    const float half_thickness = kHalfF * thickness;
+    const float half_stem_width = kHalfF * stem_width;
+    const float half_tip_width = kHalfF * tip_width;
 
     const float outer_radius = radius + half_stem_width;
     const float inner_radius = radius - half_stem_width;
-    const float step_angle = 0.5f * float(PI) / float(resolution);
+    const float step_angle = kHalfF * float(PI) / float(resolution);
 
     // tip
     // top face vertices
@@ -1268,9 +1334,9 @@ GLModel::Geometry circular_arrow(unsigned int resolution, float radius, float ti
     data.add_vertex(Vec3f(0.0f, inner_radius, half_thickness), (Vec3f)Vec3f::UnitZ());
 
     // top face triangles
-    data.add_triangle(0, 1, 2);
-    data.add_triangle(0, 2, 4);
-    data.add_triangle(4, 2, 3);
+    data.add_triangle(0, 1, kCorner2);
+    data.add_triangle(0, kCorner2, kCorner4);
+    data.add_triangle(kCorner4, kCorner2, kCorner3);
 
     // bottom face vertices
     data.add_vertex(Vec3f(0.0f, outer_radius, -half_thickness), (Vec3f)(-Vec3f::UnitZ()));
@@ -1280,9 +1346,9 @@ GLModel::Geometry circular_arrow(unsigned int resolution, float radius, float ti
     data.add_vertex(Vec3f(0.0f, inner_radius, -half_thickness), (Vec3f)(-Vec3f::UnitZ()));
 
     // bottom face triangles
-    data.add_triangle(5, 7, 6);
-    data.add_triangle(5, 9, 7);
-    data.add_triangle(9, 8, 7);
+    data.add_triangle(kCorner5, kCorner7, kCorner6);
+    data.add_triangle(kCorner5, kCorner9, kCorner7);
+    data.add_triangle(kCorner9, kCorner8, kCorner7);
 
     // side faces vertices
     data.add_vertex(Vec3f(0.0f, outer_radius, -half_thickness), (Vec3f)Vec3f::UnitX());
@@ -1310,10 +1376,10 @@ GLModel::Geometry circular_arrow(unsigned int resolution, float radius, float ti
     data.add_vertex(Vec3f(0.0f, inner_radius, half_thickness), (Vec3f)Vec3f::UnitX());
 
     // side face triangles
-    for (unsigned int i = 0; i < 4; ++i) {
-        const unsigned int ii = i * 4;
-        data.add_triangle(10 + ii, 11 + ii, 13 + ii);
-        data.add_triangle(10 + ii, 13 + ii, 12 + ii);
+    for (unsigned int i = 0; i < CircularArrowSideFaces; ++i) {
+        const unsigned int ii = i * CircularArrowSideFaces;
+        data.add_triangle(kCorner10 + ii, kCorner11 + ii, kCorner13 + ii);
+        data.add_triangle(kCorner10 + ii, kCorner13 + ii, kCorner12 + ii);
     }
 
     // stem
@@ -1330,8 +1396,8 @@ GLModel::Geometry circular_arrow(unsigned int resolution, float radius, float ti
 
     // top face triangles
     for (unsigned int i = 0; i < resolution; ++i) {
-        data.add_triangle(26 + i, 27 + i, 27 + resolution + i);
-        data.add_triangle(27 + i, 28 + resolution + i, 27 + resolution + i);
+        data.add_triangle(26 + i, kStemBandA + i, kStemBandA + resolution + i);
+        data.add_triangle(kStemBandA + i, kStemBandB + resolution + i, kStemBandA + resolution + i);
     }
 
     // bottom face vertices
@@ -1347,8 +1413,8 @@ GLModel::Geometry circular_arrow(unsigned int resolution, float radius, float ti
 
     // bottom face triangles
     for (unsigned int i = 0; i < resolution; ++i) {
-        data.add_triangle(28 + 2 * resolution + i, 29 + 3 * resolution + i, 29 + 2 * resolution + i);
-        data.add_triangle(29 + 2 * resolution + i, 29 + 3 * resolution + i, 30 + 3 * resolution + i);
+        data.add_triangle(kStemBandB + ArrowRingTipCapInner * resolution + i, kStemBandC + ArrowRingStemBottom * resolution + i, kStemBandC + ArrowRingTipCapInner * resolution + i);
+        data.add_triangle(kStemBandC + ArrowRingTipCapInner * resolution + i, kStemBandC + ArrowRingStemBottom * resolution + i, kStemBandD + ArrowRingStemBottom * resolution + i);
     }
 
     // side faces vertices and triangles
@@ -1366,11 +1432,11 @@ GLModel::Geometry circular_arrow(unsigned int resolution, float radius, float ti
         data.add_vertex(Vec3f(inner_radius * s, inner_radius * c, half_thickness), Vec3f(-s, -c, 0.0f));
     }
 
-    unsigned int first_id = 26 + 4 * (resolution + 1);
+    unsigned int first_id = kTipStemVertexBase + CircularArrowSideFaces * (resolution + 1);
     for (unsigned int i = 0; i < resolution; ++i) {
         const unsigned int ii = first_id + i;
-        data.add_triangle(ii, ii + 1, ii + resolution + 2);
-        data.add_triangle(ii, ii + resolution + 2, ii + resolution + 1);
+        data.add_triangle(ii, ii + 1, ii + resolution + kPoles);
+        data.add_triangle(ii, ii + resolution + kPairStride, ii + resolution + 1);
     }
 
     data.add_vertex(Vec3f(inner_radius, 0.0f, -half_thickness), (Vec3f)(-Vec3f::UnitY()));
@@ -1378,9 +1444,9 @@ GLModel::Geometry circular_arrow(unsigned int resolution, float radius, float ti
     data.add_vertex(Vec3f(inner_radius, 0.0f, half_thickness), (Vec3f)(-Vec3f::UnitY()));
     data.add_vertex(Vec3f(outer_radius, 0.0f, half_thickness), (Vec3f)(-Vec3f::UnitY()));
 
-    first_id = 26 + 6 * (resolution + 1);
-    data.add_triangle(first_id, first_id + 1, first_id + 3);
-    data.add_triangle(first_id, first_id + 3, first_id + 2);
+    first_id = kTipStemVertexBase + kArrowSideBands * (resolution + 1);
+    data.add_triangle(first_id, first_id + 1, first_id + kCorner3);
+    data.add_triangle(first_id, first_id + kCorner3, first_id + kCorner2);
 
     for (int i = resolution; i >= 0; --i) {
         const float angle = float(i) * step_angle;
@@ -1396,11 +1462,11 @@ GLModel::Geometry circular_arrow(unsigned int resolution, float radius, float ti
         data.add_vertex(Vec3f(outer_radius * s, outer_radius * c, +half_thickness), Vec3f(s, c, 0.0f));
     }
 
-    first_id = 30 + 6 * (resolution + 1);
+    first_id = kTipStemVertexBaseAlt + kArrowSideBands * (resolution + 1);
     for (unsigned int i = 0; i < resolution; ++i) {
         const unsigned int ii = first_id + i;
-        data.add_triangle(ii, ii + 1, ii + resolution + 2);
-        data.add_triangle(ii, ii + resolution + 2, ii + resolution + 1);
+        data.add_triangle(ii, ii + 1, ii + resolution + kPoles);
+        data.add_triangle(ii, ii + resolution + kPairStride, ii + resolution + 1);
     }
 
     return data;
@@ -1413,9 +1479,9 @@ GLModel::Geometry straight_arrow(float tip_width, float tip_height, float stem_w
     data.reserve_vertices(42);
     data.reserve_indices(72);
 
-    const float half_thickness = 0.5f * thickness;
-    const float half_stem_width = 0.5f * stem_width;
-    const float half_tip_width = 0.5f * tip_width;
+    const float half_thickness = kHalfF * thickness;
+    const float half_stem_width = kHalfF * stem_width;
+    const float half_tip_width = kHalfF * tip_width;
     const float total_height = tip_height + stem_height;
 
     // top face vertices
@@ -1428,11 +1494,11 @@ GLModel::Geometry straight_arrow(float tip_width, float tip_height, float stem_w
     data.add_vertex(Vec3f(-half_stem_width, 0.0f, half_thickness), (Vec3f)Vec3f::UnitZ());
 
     // top face triangles
-    data.add_triangle(0, 1, 6);
-    data.add_triangle(6, 1, 5);
-    data.add_triangle(4, 5, 3);
-    data.add_triangle(5, 1, 3);
-    data.add_triangle(1, 2, 3);
+    data.add_triangle(0, 1, kCorner6);
+    data.add_triangle(kCorner6, 1, kCorner5);
+    data.add_triangle(kCorner4, kCorner5, kCorner3);
+    data.add_triangle(kCorner5, 1, kCorner3);
+    data.add_triangle(1, kCorner2, kCorner3);
 
     // bottom face vertices
     data.add_vertex(Vec3f(half_stem_width, 0.0f, -half_thickness), (Vec3f)(-Vec3f::UnitZ()));
@@ -1444,11 +1510,11 @@ GLModel::Geometry straight_arrow(float tip_width, float tip_height, float stem_w
     data.add_vertex(Vec3f(-half_stem_width, 0.0f, -half_thickness), (Vec3f)(-Vec3f::UnitZ()));
 
     // bottom face triangles
-    data.add_triangle(7, 13, 8);
-    data.add_triangle(13, 12, 8);
-    data.add_triangle(12, 11, 10);
-    data.add_triangle(8, 12, 10);
-    data.add_triangle(9, 8, 10);
+    data.add_triangle(kCorner7, kCorner13, kCorner8);
+    data.add_triangle(kCorner13, kCorner12, kCorner8);
+    data.add_triangle(kCorner12, kCorner11, kCorner10);
+    data.add_triangle(kCorner8, kCorner12, kCorner10);
+    data.add_triangle(kCorner9, kCorner8, kCorner10);
 
     // side faces vertices
     data.add_vertex(Vec3f(half_stem_width, 0.0f, -half_thickness), (Vec3f)Vec3f::UnitX());
@@ -1492,7 +1558,7 @@ GLModel::Geometry straight_arrow(float tip_width, float tip_height, float stem_w
 
     // side face triangles
     for (unsigned int i = 0; i < 7; ++i) {
-        const unsigned int ii = i * 4;
+        const unsigned int ii = i * CircularArrowSideFaces;
         data.add_triangle(14 + ii, 15 + ii, 17 + ii);
         data.add_triangle(14 + ii, 17 + ii, 16 + ii);
     }
@@ -1502,19 +1568,19 @@ GLModel::Geometry straight_arrow(float tip_width, float tip_height, float stem_w
 
 GLModel::Geometry diamond(unsigned int resolution)
 {
-    resolution = std::max<unsigned int>(4, resolution);
+    resolution = std::max<unsigned int>(kMinArrowResolution, resolution);
 
     GLModel::Geometry data;
     data.format = { GLModel::Geometry::EPrimitiveType::Triangles, GLModel::Geometry::EVertexLayout::P3N3 };
-    data.reserve_vertices(resolution + 2);
-    data.reserve_indices((2 * (resolution + 1)) * 3);
+    data.reserve_vertices(resolution + kPoles);
+    data.reserve_indices((kPairStride * (resolution + 1)) * VerticesPerTriangle);
 
     const float step = 2.0f * float(PI) / float(resolution);
 
     // vertices
     for (unsigned int i = 0; i < resolution; ++i) {
         const float ii = float(i) * step;
-        const Vec3f p = { 0.5f * ::cos(ii), 0.5f * ::sin(ii), 0.0f };
+        const Vec3f p = { kHalfF * ::cos(ii), kHalfF * ::sin(ii), 0.0f };
         data.add_vertex(p, (Vec3f)p.normalized());
     }
     Vec3f p = { 0.0f, 0.0f, 0.5f };
@@ -1540,7 +1606,7 @@ GLModel::Geometry diamond(unsigned int resolution)
 
 GLModel::Geometry smooth_sphere(unsigned int resolution, float radius)
 {
-    resolution = std::max<unsigned int>(4, resolution);
+    resolution = std::max<unsigned int>(kMinArrowResolution, resolution);
 
     const unsigned int sectorCount = resolution;
     const unsigned int stackCount  = resolution;
@@ -1550,8 +1616,8 @@ GLModel::Geometry smooth_sphere(unsigned int resolution, float radius)
 
     GLModel::Geometry data;
     data.format = { GLModel::Geometry::EPrimitiveType::Triangles, GLModel::Geometry::EVertexLayout::P3N3 };
-    data.reserve_vertices((stackCount - 1) * sectorCount + 2);
-    data.reserve_indices((2 * (stackCount - 1) * sectorCount) * 3);
+    data.reserve_vertices((stackCount - 1) * sectorCount + kPairStride);
+    data.reserve_indices((kPairStride * (stackCount - 1) * sectorCount) * VerticesPerTriangle);
 
     // vertices
     for (unsigned int i = 0; i <= stackCount; ++i) {
@@ -1603,15 +1669,15 @@ GLModel::Geometry smooth_sphere(unsigned int resolution, float radius)
 
 GLModel::Geometry smooth_cylinder(unsigned int resolution, float radius, float height)
 {
-    resolution = std::max<unsigned int>(4, resolution);
+    resolution = std::max<unsigned int>(kMinArrowResolution, resolution);
 
     const unsigned int sectorCount = resolution;
     const float sectorStep = 2.0f * float(M_PI) / float(sectorCount);
 
     GLModel::Geometry data;
     data.format = { GLModel::Geometry::EPrimitiveType::Triangles, GLModel::Geometry::EVertexLayout::P3N3 };
-    data.reserve_vertices(sectorCount * 4 + 2);
-    data.reserve_indices(sectorCount * 4 * 3);
+    data.reserve_vertices(sectorCount * kQuadSides + kPairStride);
+    data.reserve_indices(sectorCount * CircularArrowSideFaces * VerticesPerTriangle);
 
     auto generate_vertices_on_circle = [sectorCount, sectorStep](float radius) {
         std::vector<Vec3f> ret;
@@ -1637,8 +1703,8 @@ GLModel::Geometry smooth_cylinder(unsigned int resolution, float radius, float h
 
     // stem triangles
     for (unsigned int i = 0; i < sectorCount; ++i) {
-        unsigned int v1 = i * 2;
-        unsigned int v2 = (i < sectorCount - 1) ? v1 + 2 : 0;
+        unsigned int v1 = i * kPairStride;
+        unsigned int v2 = (i < sectorCount - 1) ? v1 + kPairStride : 0;
         unsigned int v3 = v2 + 1;
         unsigned int v4 = v1 + 1;
         data.add_triangle(v1, v2, v3);
@@ -1657,7 +1723,7 @@ GLModel::Geometry smooth_cylinder(unsigned int resolution, float radius, float h
 
     // bottom cap triangles
     for (unsigned int i = 0; i < sectorCount; ++i) {
-        data.add_triangle(cap_center_id, (i < sectorCount - 1) ? cap_center_id + i + 2 : cap_center_id + 1, cap_center_id + i + 1);
+        data.add_triangle(cap_center_id, (i < sectorCount - 1) ? cap_center_id + i + kPairStride : cap_center_id + 1, cap_center_id + i + 1);
     }
 
     // top cap vertices
@@ -1672,7 +1738,7 @@ GLModel::Geometry smooth_cylinder(unsigned int resolution, float radius, float h
 
     // top cap triangles
     for (unsigned int i = 0; i < sectorCount; ++i) {
-        data.add_triangle(cap_center_id, cap_center_id + i + 1, (i < sectorCount - 1) ? cap_center_id + i + 2 : cap_center_id + 1);
+        data.add_triangle(cap_center_id, cap_center_id + i + 1, (i < sectorCount - 1) ? cap_center_id + i + kPairStride : cap_center_id + 1);
     }
 
     return data;
@@ -1680,15 +1746,15 @@ GLModel::Geometry smooth_cylinder(unsigned int resolution, float radius, float h
 
 GLModel::Geometry smooth_torus(unsigned int primary_resolution, unsigned int secondary_resolution, float radius, float thickness)
 {
-    const unsigned int torus_sector_count = std::max<unsigned int>(4, primary_resolution);
+    const unsigned int torus_sector_count = std::max<unsigned int>(kMinArrowResolution, primary_resolution);
     const float torus_sector_step = 2.0f * float(M_PI) / float(torus_sector_count);
-    const unsigned int section_sector_count = std::max<unsigned int>(4, secondary_resolution);
+    const unsigned int section_sector_count = std::max<unsigned int>(kMinArrowResolution, secondary_resolution);
     const float section_sector_step = 2.0f * float(M_PI) / float(section_sector_count);
 
     GLModel::Geometry data;
     data.format = { GLModel::Geometry::EPrimitiveType::Triangles, GLModel::Geometry::EVertexLayout::P3N3 };
     data.reserve_vertices(torus_sector_count * section_sector_count);
-    data.reserve_indices(torus_sector_count * section_sector_count * 2 * 3);
+    data.reserve_indices(torus_sector_count * section_sector_count * EndpointsPerLine * VerticesPerTriangle);
 
     // vertices
     for (unsigned int i = 0; i < torus_sector_count; ++i) {

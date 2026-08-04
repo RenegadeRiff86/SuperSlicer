@@ -401,10 +401,7 @@ struct Materials
 struct PageCustom: ConfigWizardPage
 {
     PageCustom(ConfigWizard *parent);
-    ~PageCustom() {
-        if (profile_name_editor) 
-            delete profile_name_editor;
-    }
+    ~PageCustom() = default;
 
     bool        custom_wanted()         const { return cb_custom->GetValue(); }
     bool        is_valid_profile_name() const { return profile_name_editor->is_valid();}
@@ -414,7 +411,7 @@ private:
     static const char* default_profile_name;
 
     wxCheckBox              *cb_custom {nullptr};
-    SavePresetDialog::Item  *profile_name_editor {nullptr};
+    std::unique_ptr<SavePresetDialog::Item> profile_name_editor;
 
 };
 

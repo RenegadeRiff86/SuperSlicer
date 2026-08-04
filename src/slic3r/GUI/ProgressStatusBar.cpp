@@ -34,7 +34,7 @@ ProgressStatusBar::ProgressStatusBar(wxWindow *parent, int id)
                                   _(L("Cancel")),
                                   wxDefaultPosition,
                                   wxDefaultSize)}
-    , m_timer{new wxTimer(self)}
+    , m_timer{std::make_unique<wxTimer>(self)}
 {
     update_dark_ui();
     m_prog->Hide();

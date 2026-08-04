@@ -306,12 +306,7 @@ SavePresetDialog::SavePresetDialog(wxWindow* parent, Preset::Type type, const wx
 {
     build(std::vector<Preset::Type>{type});
 }
-SavePresetDialog::~SavePresetDialog()
-{
-    for (auto  item : m_items) {
-        delete item;
-    }
-}
+SavePresetDialog::~SavePresetDialog() = default;
 
 void SavePresetDialog::build(std::vector<Preset::Type> types, std::string suffix, bool template_filament)
 {
@@ -369,7 +364,7 @@ void SavePresetDialog::build(std::vector<Preset::Type> types, std::string suffix
 
 void SavePresetDialog::AddItem(Preset::Type type, const std::string& suffix, bool is_for_multiple_save)
 {
-    m_items.emplace_back(new Item{type, suffix, m_presets_sizer, this, is_for_multiple_save});
+    m_items.emplace_back(std::make_unique<Item>(type, suffix, m_presets_sizer, this, is_for_multiple_save));
 }
 
 std::string SavePresetDialog::get_name()
@@ -379,7 +374,7 @@ std::string SavePresetDialog::get_name()
 
 std::string SavePresetDialog::get_name(Preset::Type type)
 {
-    for (const Item* item : m_items)
+    for (const auto& item : m_items)
         if (item->type() == type)
             return item->preset_name();
     return "";
@@ -396,7 +391,7 @@ bool SavePresetDialog::get_template_filament_checkbox()
 
 bool SavePresetDialog::enable_ok_btn() const
 {
-    for (const Item* item : m_items)
+    for (const auto& item : m_items)
         if (!item->is_valid())
             return false;
 
@@ -476,7 +471,7 @@ void SavePresetDialog::on_dpi_changed(const wxRect& suggested_rect)
 
     msw_buttons_rescale(this, em, { wxID_OK, wxID_CANCEL });
 
-    for (Item* item : m_items)
+    for (const auto& item : m_items)
         item->update_valid_bmp();
 
     //const wxSize& size = wxSize(45 * em, 35 * em);
@@ -516,7 +511,7 @@ void SavePresetDialog::update_physical_printers(const std::string& preset_name)
 
 void SavePresetDialog::accept()
 {
-    for (Item* item : m_items) {
+    for (const auto& item : m_items) {
         item->accept();
         if (item->type() == Preset::TYPE_PRINTER)
             update_physical_printers(item->preset_name());

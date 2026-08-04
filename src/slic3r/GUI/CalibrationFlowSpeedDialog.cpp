@@ -30,21 +30,43 @@ static wxSize get_screen_size(wxWindow* window)
 namespace Slic3r {
 namespace GUI {
 
+namespace {
+// Dialog layout (em units / spacing).
+constexpr int kFieldWidthEm = 6;
+constexpr int kButtonWidthEm = 18;
+constexpr int kLabelWidthEm = 15;
+constexpr int kShortLabelWidthEm = 8;
+constexpr int kUnitWidthEm = 4;
+constexpr int kRowSpacerPx = 20;
+// ComboBox item counts and default selections.
+constexpr int kGramChoiceCount = 5;
+constexpr int kGramDefaultSelection = 2; // "1" g
+constexpr int kStepsChoiceCount = 8;
+constexpr int kStepsDefaultSelection = 4; // "5" patches
+constexpr int kMinOverlapDefaultSelection = 6; // "60"%
+// Speed / flow math.
+constexpr float kSpeedHeadroomFactor = 10.f;
+constexpr float kPercentScale = 100.f;
+constexpr float kDensityGPerCm3ToGPerMm3 = 1000.f;
+constexpr int kMaxSizeIterations = 100;
+constexpr int kDecimalPlaces = 4;
+} // namespace
+
 void CalibrationFlowSpeedDialog::create_buttons(wxStdDialogButtonSizer* buttons){
-    const wxSize size(6 * em_unit(), wxDefaultCoord);
-    const wxSize bt_size(18 * em_unit(), wxDefaultCoord);
+    const wxSize size(kFieldWidthEm * em_unit(), wxDefaultCoord);
+    const wxSize bt_size(kButtonWidthEm * em_unit(), wxDefaultCoord);
 
     wxString choices_gram[] = { "0.2","0.5","1","2","5","10" };
-    //cmb_gram = new wxComboBox(this, wxID_ANY, wxString{ "1" }, wxDefaultPosition, wxDefaultSize, 5, choices_gram);
-    cmb_gram = new ComboBox(this, wxID_ANY, wxString{"1"}, wxDefaultPosition, size, 5, choices_gram);
+    //cmb_gram = new wxComboBox(this, wxID_ANY, wxString{ "1" }, wxDefaultPosition, wxDefaultSize, kGramChoiceCount, choices_gram);
+    cmb_gram = new ComboBox(this, wxID_ANY, wxString{"1"}, wxDefaultPosition, size, kGramChoiceCount, choices_gram);
     cmb_gram->SetToolTip(_L("Choose the size of the patch to print (in gramme). A bigger weight allow to have more precision but it takes longer to print"));
-    cmb_gram->SetSelection(2);
+    cmb_gram->SetSelection(kGramDefaultSelection);
     
     wxString choices_nb[] = { "1","2","3","4","5","6","7","8" };
-    //cmb_nb_steps = new wxComboBox(this, wxID_ANY, wxString{ "4" }, wxDefaultPosition, wxDefaultSize, 8, choices_nb);
-    cmb_nb_steps = new ComboBox(this, wxID_ANY, wxString{"4"}, wxDefaultPosition, size, 8, choices_nb);
+    //cmb_nb_steps = new wxComboBox(this, wxID_ANY, wxString{ "4" }, wxDefaultPosition, wxDefaultSize, kStepsChoiceCount, choices_nb);
+    cmb_nb_steps = new ComboBox(this, wxID_ANY, wxString{"4"}, wxDefaultPosition, size, kStepsChoiceCount, choices_nb);
     cmb_nb_steps->SetToolTip(_L("Select the number of patches."));
-    cmb_nb_steps->SetSelection(4);
+    cmb_nb_steps->SetSelection(kStepsDefaultSelection);
 
     // check max speed (constrained by filament max volumetric flow)
 
@@ -57,21 +79,21 @@ void CalibrationFlowSpeedDialog::create_buttons(wxStdDialogButtonSizer* buttons)
 
     // compute max speed
     if (max_vol_flow == 0 && max_speed == 0)
-        max_speed = curr_speed * 10;
+        max_speed = curr_speed * kSpeedHeadroomFactor;
     if (max_vol_flow > 0) {
         float layer_height = print_config->option("layer_height")->get_float();
         float nz = printer_config->option("nozzle_diameter")->get_float(0);
         layer_height = std::max(layer_height, float(print_config->get_abs_value("first_layer_height", nz)));
         float filament_max_overlap = filament_config->option("filament_max_overlap")->get_float();
         Flow  flow                 = Flow::new_from_config(FlowRole::frSolidInfill, *print_config, nz, layer_height,
-                                          filament_max_overlap / 100.f, false);
+                                          filament_max_overlap / kPercentScale, false);
         float current_flow = flow.mm3_per_mm();
         if (max_speed > 0) {
             max_speed = std::min(max_speed, curr_speed * max_vol_flow / current_flow);
         } else {
             max_speed = curr_speed * max_vol_flow / current_flow;
         }
-        max_speed = std::min(max_speed, curr_speed * 10);
+        max_speed = std::min(max_speed, curr_speed * kSpeedHeadroomFactor);
         if (printer_config->option<ConfigOptionEnum<MachineLimitsUsage>>("machine_limits_usage")->value != MachineLimitsUsage::Ignore) {
             float max_feedarete_x = printer_config->option("machine_max_feedrate_x")->get_float(0);
             max_speed             = std::min(max_speed, max_feedarete_x);
@@ -80,29 +102,29 @@ void CalibrationFlowSpeedDialog::create_buttons(wxStdDialogButtonSizer* buttons)
 
     float min_speed = std::max(filament_config->option("min_print_speed")->get_float(0), 0.);
     if (min_speed <= 0)
-        min_speed = curr_speed / 10;
-    txt_min_speed = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(min_speed, 4)), wxDefaultPosition, size);
+        min_speed = curr_speed / kSpeedHeadroomFactor;
+    txt_min_speed = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(min_speed, kDecimalPlaces)), wxDefaultPosition, size);
     txt_min_speed->SetToolTip(_L("Speed of the first patch."));
 
-    txt_max_speed = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(max_speed, 4)), wxDefaultPosition, size);
+    txt_max_speed = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(max_speed, kDecimalPlaces)), wxDefaultPosition, size);
     txt_max_speed->SetToolTip(_L("Speed of the first patch."));
 
-    txt_min_flow = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(0.9, 4)), wxDefaultPosition, size);
+    txt_min_flow = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(0.9, kDecimalPlaces)), wxDefaultPosition, size);
     txt_min_flow->SetToolTip(_L("Minimum extrusion multiplier."));
 
-    txt_max_flow = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(1.3, 4)), wxDefaultPosition, size);
+    txt_max_flow = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(1.3, kDecimalPlaces)), wxDefaultPosition, size);
     txt_max_flow->SetToolTip(_L("Maximum extrusion multiplier."));
 
     wxString choices_min_overlap[] = { "0","10","20","30","40","50","60","70","80","90"};
-    //cmb_min_overlap = new wxComboBox(this, wxID_ANY, wxString{ "4" }, wxDefaultPosition, wxDefaultSize, 8, choices_min_overlap);
-    cmb_min_overlap = new ComboBox(this, wxID_ANY, wxString{ "4" }, wxDefaultPosition, size, 8, choices_min_overlap);
+    //cmb_min_overlap = new wxComboBox(this, wxID_ANY, wxString{ "4" }, wxDefaultPosition, wxDefaultSize, kStepsChoiceCount, choices_min_overlap);
+    cmb_min_overlap = new ComboBox(this, wxID_ANY, wxString{ "4" }, wxDefaultPosition, size, kStepsChoiceCount, choices_min_overlap);
     cmb_min_overlap->SetToolTip(_L("Minimum overlap (0%: llnes don't touch (bad but easy to print)"
         " ; 100%: no empty spaces (almost impossible, the filament isn't liquid enough)."));
-    cmb_min_overlap->SetSelection(6);
+    cmb_min_overlap->SetSelection(kMinOverlapDefaultSelection);
     
     wxString choices_max_overlap[] = { "100","90","80","70","60","50","30", "10"};
-    //cmb_max_overlap = new wxComboBox(this, wxID_ANY, wxString{ "4" }, wxDefaultPosition, wxDefaultSize, 8, choices_max_overlap);
-    cmb_max_overlap = new ComboBox(this, wxID_ANY, wxString{ "4" }, wxDefaultPosition, size, 8, choices_max_overlap);
+    //cmb_max_overlap = new wxComboBox(this, wxID_ANY, wxString{ "4" }, wxDefaultPosition, wxDefaultSize, kStepsChoiceCount, choices_max_overlap);
+    cmb_max_overlap = new ComboBox(this, wxID_ANY, wxString{ "4" }, wxDefaultPosition, size, kStepsChoiceCount, choices_max_overlap);
     cmb_max_overlap->SetToolTip(_L("Maximum overlap (0%: llnes don't touch (bad but easy to print)"
         " ; 100%: no empty spaces (almost impossible, the filament isn't liquid enough)."));
     cmb_max_overlap->SetSelection(0);
@@ -113,46 +135,46 @@ void CalibrationFlowSpeedDialog::create_buttons(wxStdDialogButtonSizer* buttons)
     wxBoxSizer* hsizer_flow =new wxBoxSizer(wxHORIZONTAL);
     wxBoxSizer* hsizer_speed =new wxBoxSizer(wxHORIZONTAL);
 
-    hsizer_common->Add(new wxStaticText(this, wxID_ANY, _L("Patch weight:"), wxDefaultPosition, {15 * em_unit(), -1}, wxALIGN_RIGHT));
+    hsizer_common->Add(new wxStaticText(this, wxID_ANY, _L("Patch weight:"), wxDefaultPosition, {kLabelWidthEm * em_unit(), -1}, wxALIGN_RIGHT));
     hsizer_common->Add(cmb_gram);
-    hsizer_common->Add(new wxStaticText(this, wxID_ANY, wxString(" ") + _L("g"), wxDefaultPosition, {4 * em_unit(), -1}, wxALIGN_LEFT));
-    hsizer_common->AddSpacer(20);
-    hsizer_common->Add(new wxStaticText(this, wxID_ANY, _L("steps:"), wxDefaultPosition, {8 * em_unit(), -1}, wxALIGN_RIGHT));
+    hsizer_common->Add(new wxStaticText(this, wxID_ANY, wxString(" ") + _L("g"), wxDefaultPosition, {kUnitWidthEm * em_unit(), -1}, wxALIGN_LEFT));
+    hsizer_common->AddSpacer(kRowSpacerPx);
+    hsizer_common->Add(new wxStaticText(this, wxID_ANY, _L("steps:"), wxDefaultPosition, {kShortLabelWidthEm * em_unit(), -1}, wxALIGN_RIGHT));
     hsizer_common->Add(cmb_nb_steps);
-    //hsizer_common->AddSpacer(20);
+    //hsizer_common->AddSpacer(kRowSpacerPx);
     
-    hsizer_flow->Add(new wxStaticText(this, wxID_ANY, _L("Extrusion multiplier:") + wxString(" ") + _L("min:"), wxDefaultPosition, {15 * em_unit(), -1}, wxALIGN_RIGHT));
+    hsizer_flow->Add(new wxStaticText(this, wxID_ANY, _L("Extrusion multiplier:") + wxString(" ") + _L("min:"), wxDefaultPosition, {kLabelWidthEm * em_unit(), -1}, wxALIGN_RIGHT));
     hsizer_flow->Add(txt_min_flow);
-    hsizer_flow->Add(new wxStaticText(this, wxID_ANY, wxString(" "), wxDefaultPosition, {4 * em_unit(), -1}, wxALIGN_LEFT));
-    hsizer_flow->AddSpacer(20);
-    hsizer_flow->Add(new wxStaticText(this, wxID_ANY, _L("max:"), wxDefaultPosition, {8 * em_unit(), -1}, wxALIGN_RIGHT));
+    hsizer_flow->Add(new wxStaticText(this, wxID_ANY, wxString(" "), wxDefaultPosition, {kUnitWidthEm * em_unit(), -1}, wxALIGN_LEFT));
+    hsizer_flow->AddSpacer(kRowSpacerPx);
+    hsizer_flow->Add(new wxStaticText(this, wxID_ANY, _L("max:"), wxDefaultPosition, {kShortLabelWidthEm * em_unit(), -1}, wxALIGN_RIGHT));
     hsizer_flow->Add(txt_max_flow);
-    hsizer_flow->Add(new wxStaticText(this, wxID_ANY, wxString(" "), wxDefaultPosition, {4 * em_unit(), -1}, wxALIGN_LEFT));
-    hsizer_flow->AddSpacer(20);
+    hsizer_flow->Add(new wxStaticText(this, wxID_ANY, wxString(" "), wxDefaultPosition, {kUnitWidthEm * em_unit(), -1}, wxALIGN_LEFT));
+    hsizer_flow->AddSpacer(kRowSpacerPx);
     wxButton* bt_flow = new wxButton(this, wxID_FILE2, _L("Generate for multiple flows"), wxDefaultPosition, bt_size);
     bt_flow->Bind(wxEVT_BUTTON, &CalibrationFlowSpeedDialog::create_flow, this);
     hsizer_flow->Add(bt_flow);
 
-    hsizer_overlap->Add(new wxStaticText(this, wxID_ANY, _L("min overlap:"), wxDefaultPosition, {15 * em_unit(), -1}, wxALIGN_RIGHT));
+    hsizer_overlap->Add(new wxStaticText(this, wxID_ANY, _L("min overlap:"), wxDefaultPosition, {kLabelWidthEm * em_unit(), -1}, wxALIGN_RIGHT));
     hsizer_overlap->Add(cmb_min_overlap);
-    hsizer_overlap->Add(new wxStaticText(this, wxID_ANY, wxString(" ") + _L("%"), wxDefaultPosition, {4 * em_unit(), -1}, wxALIGN_LEFT));
-    hsizer_overlap->AddSpacer(20);
-    hsizer_overlap->Add(new wxStaticText(this, wxID_ANY, _L("max overlap:"), wxDefaultPosition, {8 * em_unit(), -1}, wxALIGN_RIGHT));
+    hsizer_overlap->Add(new wxStaticText(this, wxID_ANY, wxString(" ") + _L("%"), wxDefaultPosition, {kUnitWidthEm * em_unit(), -1}, wxALIGN_LEFT));
+    hsizer_overlap->AddSpacer(kRowSpacerPx);
+    hsizer_overlap->Add(new wxStaticText(this, wxID_ANY, _L("max overlap:"), wxDefaultPosition, {kShortLabelWidthEm * em_unit(), -1}, wxALIGN_RIGHT));
     hsizer_overlap->Add(cmb_max_overlap);
-    hsizer_overlap->Add(new wxStaticText(this, wxID_ANY, wxString(" ") + _L("%"), wxDefaultPosition, {4 * em_unit(), -1}, wxALIGN_LEFT));
-    hsizer_overlap->AddSpacer(20);
+    hsizer_overlap->Add(new wxStaticText(this, wxID_ANY, wxString(" ") + _L("%"), wxDefaultPosition, {kUnitWidthEm * em_unit(), -1}, wxALIGN_LEFT));
+    hsizer_overlap->AddSpacer(kRowSpacerPx);
     wxButton* bt_overlap = new wxButton(this, wxID_FILE3, _L("Generate for multiple overlaps"), wxDefaultPosition, bt_size); 
     bt_overlap->Bind(wxEVT_BUTTON, &CalibrationFlowSpeedDialog::create_overlap, this);
     hsizer_overlap->Add(bt_overlap);
 
-    hsizer_speed->Add(new wxStaticText(this, wxID_ANY, _L("min speed:"), wxDefaultPosition, {15 * em_unit(), -1}, wxALIGN_RIGHT));
+    hsizer_speed->Add(new wxStaticText(this, wxID_ANY, _L("min speed:"), wxDefaultPosition, {kLabelWidthEm * em_unit(), -1}, wxALIGN_RIGHT));
     hsizer_speed->Add(txt_min_speed);
-    hsizer_speed->Add(new wxStaticText(this, wxID_ANY, wxString(" ") + _L("mm/s"), wxDefaultPosition, {4 * em_unit(), -1}, wxALIGN_LEFT));
-    hsizer_speed->AddSpacer(20);
-    hsizer_speed->Add(new wxStaticText(this, wxID_ANY, _L("max speed:"), wxDefaultPosition, {8 * em_unit(), -1}, wxALIGN_RIGHT));
+    hsizer_speed->Add(new wxStaticText(this, wxID_ANY, wxString(" ") + _L("mm/s"), wxDefaultPosition, {kUnitWidthEm * em_unit(), -1}, wxALIGN_LEFT));
+    hsizer_speed->AddSpacer(kRowSpacerPx);
+    hsizer_speed->Add(new wxStaticText(this, wxID_ANY, _L("max speed:"), wxDefaultPosition, {kShortLabelWidthEm * em_unit(), -1}, wxALIGN_RIGHT));
     hsizer_speed->Add(txt_max_speed);
-    hsizer_speed->Add(new wxStaticText(this, wxID_ANY, wxString(" ") + _L("mm/s"), wxDefaultPosition, {4 * em_unit(), -1}, wxALIGN_LEFT));
-    hsizer_speed->AddSpacer(20);
+    hsizer_speed->Add(new wxStaticText(this, wxID_ANY, wxString(" ") + _L("mm/s"), wxDefaultPosition, {kUnitWidthEm * em_unit(), -1}, wxALIGN_LEFT));
+    hsizer_speed->AddSpacer(kRowSpacerPx);
     wxButton* bt_speed = new wxButton(this, wxID_FILE1, _L("Generate for multiple speeds"), wxDefaultPosition, bt_size);
     bt_speed->Bind(wxEVT_BUTTON, &CalibrationFlowSpeedDialog::create_speed, this);
     hsizer_speed->Add(bt_speed);
@@ -180,7 +202,7 @@ std::tuple<float, float, Flow> CalibrationFlowSpeedDialog::get_cube_size(float o
     if (density<=0)
         density = 1.25;
     // g/cm3 to g/mm3
-    density = density / 1000.f;
+    density = density / kDensityGPerCm3ToGPerMm3;
 
     std::string str = cmb_gram->GetValue().ToStdString();
     float weight = parse_float_all_locale(str);
@@ -196,12 +218,12 @@ std::tuple<float, float, Flow> CalibrationFlowSpeedDialog::get_cube_size(float o
     //compute flow
     Flow flow;
     float mult_size_for_overlap = 1;
-    if (overlap < 100) {
-        //Flow flow = Flow::new_from_config(FlowRole::frSolidInfill, *print_config, nz, layer_height, filament_max_overlap / 100.f, false);
+    if (overlap < kPercentScale) {
+        //Flow flow = Flow::new_from_config(FlowRole::frSolidInfill, *print_config, nz, layer_height, filament_max_overlap / kPercentScale, false);
         flow = Flow::Flow::new_from_config_width(FlowRole::frSolidInfill, 
             *print_config->option<ConfigOptionFloatOrPercent>("solid_infill_extrusion_width"),
             *print_config->option<ConfigOptionFloatOrPercent>("solid_infill_extrusion_spacing"),
-            nz, layer_height, overlap / 100.f);
+            nz, layer_height, overlap / kPercentScale);
         float width = flow.width();
         Flow flow_full = Flow::new_from_width(width, nz, layer_height, 1);
         //same width, -> flow has higher spacing, same flow
@@ -210,11 +232,11 @@ std::tuple<float, float, Flow> CalibrationFlowSpeedDialog::get_cube_size(float o
         mult_size_for_overlap = std::sqrt(flow.spacing() / flow_full.spacing());
     } else {
         float filament_max_overlap = filament_config->option("filament_max_overlap")->get_float();
-        flow = Flow::new_from_config(FlowRole::frSolidInfill, *print_config, nz, layer_height, filament_max_overlap / 100.f, false);
+        flow = Flow::new_from_config(FlowRole::frSolidInfill, *print_config, nz, layer_height, filament_max_overlap / kPercentScale, false);
     }
 
     //compute square size
-    for(size_t max_iter = 0; max_iter < 100; max_iter++) {
+    for(size_t max_iter = 0; max_iter < kMaxSizeIterations; max_iter++) {
         // get cube size
         // x*y*z*density = weight
         // x*y = weight / (z*density)
@@ -358,7 +380,7 @@ void CalibrationFlowSpeedDialog::create_geometry(
                 name += std::string("_") + std::to_string(int(speed));
             } else if (min_flow < max_flow && nb_steps > 1) {
                 const float flow   = min_flow + i * (max_flow - min_flow) / (nb_steps - 1);
-                name += std::string("_") + std::to_string(int(flow * 100 + EPSILON));
+                name += std::string("_") + std::to_string(int(flow * kPercentScale + EPSILON));
             }
         }
         // create object
@@ -369,10 +391,10 @@ void CalibrationFlowSpeedDialog::create_geometry(
 
     /// --- main config, please modify object config when possible ---
     DynamicPrintConfig new_print_config = *print_config; //make a copy
-    new_print_config.set_key_value("complete_objects", new ConfigOptionBool(true));
+    new_print_config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(true));
     //if skirt, use only one
     //if (print_config->option<ConfigOptionInt>("skirts")->get_int() > 0 && print_config->option<ConfigOptionInt>("skirt_height")->get_int() > 0) {
-    //    new_print_config.set_key_value("complete_objects_one_skirt", new ConfigOptionBool(true));
+    //    new_print_config.set_key_value("complete_objects_one_skirt", std::make_unique<ConfigOptionBool>(true));
     //}
 
     // same for printer config
@@ -394,52 +416,52 @@ void CalibrationFlowSpeedDialog::create_geometry(
 
         if (min_flow < max_flow) {
             if (nb_steps == 1) {
-                objs[i]->config.set_key_value("print_extrusion_multiplier", 
-                    new ConfigOptionPercent(100 * (min_flow + max_flow) / (2 * extrusion_mult)));
+                objs[i]->config.set_key_value("print_extrusion_multiplier",
+                    std::make_unique<ConfigOptionPercent>(kPercentScale * (min_flow + max_flow) / (2 * extrusion_mult)));
             } else {
-                objs[i]->config.set_key_value("print_extrusion_multiplier", 
-                    new ConfigOptionPercent(100 * (min_flow + i * (max_flow - min_flow) / (nb_steps - 1)) / extrusion_mult));
+                objs[i]->config.set_key_value("print_extrusion_multiplier",
+                    std::make_unique<ConfigOptionPercent>(kPercentScale * (min_flow + i * (max_flow - min_flow) / (nb_steps - 1)) / extrusion_mult));
             }
         }
 
         float overlap = max_overlap;
         if (nb_steps > 1 && min_overlap < max_overlap)
             overlap = min_overlap + i * (max_overlap - min_overlap) / (nb_steps - 1);
-        objs[i]->config.set_key_value("perimeter_overlap", new ConfigOptionPercent(overlap));
-        objs[i]->config.set_key_value("external_perimeter_overlap", new ConfigOptionPercent(overlap));
-        objs[i]->config.set_key_value("solid_infill_overlap", new ConfigOptionPercent(overlap));
-        objs[i]->config.set_key_value("top_solid_infill_overlap", new ConfigOptionPercent(overlap));
+        objs[i]->config.set_key_value("perimeter_overlap", std::make_unique<ConfigOptionPercent>(overlap));
+        objs[i]->config.set_key_value("external_perimeter_overlap", std::make_unique<ConfigOptionPercent>(overlap));
+        objs[i]->config.set_key_value("solid_infill_overlap", std::make_unique<ConfigOptionPercent>(overlap));
+        objs[i]->config.set_key_value("top_solid_infill_overlap", std::make_unique<ConfigOptionPercent>(overlap));
 
         Flow flow = objs_flow[i];
-        objs[i]->config.set_key_value("solid_infill_extrusion_width", new ConfigOptionFloatOrPercent(flow.width(), false));
-        objs[i]->config.set_key_value("top_infill_extrusion_width", new ConfigOptionFloatOrPercent(flow.width(), false));
-        objs[i]->config.set_key_value("perimeter_extrusion_width", new ConfigOptionFloatOrPercent(flow.width(), false));
-        objs[i]->config.set_key_value("external_perimeter_extrusion_width", new ConfigOptionFloatOrPercent(flow.width(), false));
+        objs[i]->config.set_key_value("solid_infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(flow.width(), false));
+        objs[i]->config.set_key_value("top_infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(flow.width(), false));
+        objs[i]->config.set_key_value("perimeter_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(flow.width(), false));
+        objs[i]->config.set_key_value("external_perimeter_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(flow.width(), false));
         // keep first_layer_extrusion_width, it doesn't change the weight.
-        //objs[i]->config.set_key_value("first_layer_extrusion_width", new ConfigOptionFloatOrPercent(flow.width(), false));
+        //objs[i]->config.set_key_value("first_layer_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(flow.width(), false));
 
-        objs[i]->config.set_key_value("first_layer_size_compensation", new ConfigOptionFloat(0));
+        objs[i]->config.set_key_value("first_layer_size_compensation", std::make_unique<ConfigOptionFloat>(0));
 
         // no brim (but a skirt for primming)
-        objs[i]->config.set_key_value("brim_ears", new ConfigOptionBool(false));
-        objs[i]->config.set_key_value("brim_width", new ConfigOptionFloat(0));
+        objs[i]->config.set_key_value("brim_ears", std::make_unique<ConfigOptionBool>(false));
+        objs[i]->config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(0));
 
-        objs[i]->config.set_key_value("enforce_full_fill_volume", new ConfigOptionBool(true));
-        objs[i]->config.set_key_value("solid_infill_every_layers", new ConfigOptionInt(1));
-        objs[i]->config.set_key_value("layer_height", new ConfigOptionFloat(layer_height));
-        objs[i]->config.set_key_value("first_layer_height", new ConfigOptionFloatOrPercent(layer_height, false));
-        objs[i]->config.set_key_value("solid_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipRectilinear));
-        objs[i]->config.set_key_value("top_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipRectilinear));
-        objs[i]->config.set_key_value("perimeter_generator", new ConfigOptionEnum<PerimeterGeneratorType>(PerimeterGeneratorType::Classic));
+        objs[i]->config.set_key_value("enforce_full_fill_volume", std::make_unique<ConfigOptionBool>(true));
+        objs[i]->config.set_key_value("solid_infill_every_layers", std::make_unique<ConfigOptionInt>(1));
+        objs[i]->config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(layer_height));
+        objs[i]->config.set_key_value("first_layer_height", std::make_unique<ConfigOptionFloatOrPercent>(layer_height, false));
+        objs[i]->config.set_key_value("solid_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipRectilinear));
+        objs[i]->config.set_key_value("top_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipRectilinear));
+        objs[i]->config.set_key_value("perimeter_generator", std::make_unique<ConfigOptionEnum<PerimeterGeneratorType>>(PerimeterGeneratorType::Classic));
         //disable ironing post-process
-        objs[i]->config.set_key_value("ironing", new ConfigOptionBool(false));
+        objs[i]->config.set_key_value("ironing", std::make_unique<ConfigOptionBool>(false));
         //set speed
         if (nb_steps > 1 && min_speed < max_speed) {
             float speed = float(min_speed + i * double(max_speed - min_speed) / (nb_steps - 1));
-            objs[i]->config.set_key_value("perimeter_speed", new ConfigOptionFloatOrPercent(speed, false));
-            objs[i]->config.set_key_value("external_perimeter_speed", new ConfigOptionFloatOrPercent(speed, false));
-            objs[i]->config.set_key_value("solid_infill_speed", new ConfigOptionFloatOrPercent(speed, false));
-            objs[i]->config.set_key_value("top_solid_infill_speed", new ConfigOptionFloatOrPercent(speed, false));
+            objs[i]->config.set_key_value("perimeter_speed", std::make_unique<ConfigOptionFloatOrPercent>(speed, false));
+            objs[i]->config.set_key_value("external_perimeter_speed", std::make_unique<ConfigOptionFloatOrPercent>(speed, false));
+            objs[i]->config.set_key_value("solid_infill_speed", std::make_unique<ConfigOptionFloatOrPercent>(speed, false));
+            objs[i]->config.set_key_value("top_solid_infill_speed", std::make_unique<ConfigOptionFloatOrPercent>(speed, false));
         }
         // keep first_layer_speed.
     }

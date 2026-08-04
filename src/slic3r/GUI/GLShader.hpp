@@ -18,6 +18,12 @@
 
 namespace Slic3r {
 
+namespace GLShaderUniforms {
+inline constexpr char ViewModelMatrix[]  = "view_model_matrix";
+inline constexpr char ProjectionMatrix[] = "projection_matrix";
+inline constexpr char ViewNormalMatrix[] = "view_normal_matrix";
+} // namespace GLShaderUniforms
+
 class ColorRGB;
 class ColorRGBA;
 

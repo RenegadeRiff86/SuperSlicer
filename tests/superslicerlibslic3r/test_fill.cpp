@@ -109,7 +109,7 @@ TEST_CASE("Fill: Pattern Path Length") {
                 REQUIRE(paths.size() >= 1);
                 REQUIRE(paths.size() <= 3);
                 // paths don't cross hole
-                REQUIRE(diff_pl(paths, offset(e, (float)(+SCALED_EPSILON * 10))).size() == 0);
+                REQUIRE(diff_pl(paths, offset(e, static_cast<float>(+SCALED_EPSILON * 10))).size() == 0);
             }
         }
     }
@@ -216,30 +216,30 @@ TEST_CASE("Fill area: check if periemter give the good values")
         TriangleMesh sample_mesh = make_cube(5, 5, 0.2);
         double volume = (5 * 5 * 0.2);
         DynamicPrintConfig &config = Slic3r::DynamicPrintConfig::full_print_config();
-        config.set_key_value("perimeters", new ConfigOptionInt(1));
-        config.set_key_value("top_solid_layers", new ConfigOptionInt(1));
-        config.set_key_value("bottom_solid_layers", new ConfigOptionInt(1));
+        config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(1));
+        config.set_key_value("top_solid_layers", std::make_unique<ConfigOptionInt>(1));
+        config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(1));
 
-        config.set_key_value("enforce_full_fill_volume", new ConfigOptionBool(false));
-        config.set_key_value("infill_overlap", new ConfigOptionFloatOrPercent(0.1, false));
+        config.set_key_value("enforce_full_fill_volume", std::make_unique<ConfigOptionBool>(false));
+        config.set_key_value("infill_overlap", std::make_unique<ConfigOptionFloatOrPercent>(0.1, false));
 
-        config.set_key_value("skirts", new ConfigOptionInt(0));
+        config.set_key_value("skirts", std::make_unique<ConfigOptionInt>(0));
 
-        config.set_key_value("layer_height", new ConfigOptionFloat(0.2)); // get a known number of layers
-        config.set_key_value("first_layer_height", new ConfigOptionFloatOrPercent(0.2, false));
+        config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(0.2)); // get a known number of layers
+        config.set_key_value("first_layer_height", std::make_unique<ConfigOptionFloatOrPercent>(0.2, false));
 
-        config.set_key_value("extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("infill_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("perimeter_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("first_layer_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("external_perimeter_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("solid_infill_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("top_infill_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
+        config.set_key_value("extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("perimeter_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("first_layer_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("external_perimeter_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("solid_infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("top_infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
         SECTION("no overlap")
         {
-            config.set_key_value("infill_overlap", new ConfigOptionFloatOrPercent(0, false));
-            config.set_key_value("external_perimeter_overlap", new ConfigOptionPercent(0));
-            config.set_key_value("solid_infill_overlap", new ConfigOptionPercent(0));
+            config.set_key_value("infill_overlap", std::make_unique<ConfigOptionFloatOrPercent>(0, false));
+            config.set_key_value("external_perimeter_overlap", std::make_unique<ConfigOptionPercent>(0));
+            config.set_key_value("solid_infill_overlap", std::make_unique<ConfigOptionPercent>(0));
             Print print{};
             Slic3r::Test::init_print(print, { sample_mesh }, model, &config);
             print.process();
@@ -251,10 +251,10 @@ TEST_CASE("Fill area: check if periemter give the good values")
         }
         SECTION("only encroachment (0.2mm)")
         {
-            config.set_key_value("infill_overlap", new ConfigOptionFloatOrPercent(0.2, false));
-            config.set_key_value("external_perimeter_overlap", new ConfigOptionPercent(0));
-            config.set_key_value("perimeter_overlap", new ConfigOptionPercent(100));
-            config.set_key_value("solid_infill_overlap", new ConfigOptionPercent(0));
+            config.set_key_value("infill_overlap", std::make_unique<ConfigOptionFloatOrPercent>(0.2, false));
+            config.set_key_value("external_perimeter_overlap", std::make_unique<ConfigOptionPercent>(0));
+            config.set_key_value("perimeter_overlap", std::make_unique<ConfigOptionPercent>(100));
+            config.set_key_value("solid_infill_overlap", std::make_unique<ConfigOptionPercent>(0));
             Print print{};
             Slic3r::Test::init_print(print, { sample_mesh }, model, &config);
             print.process();
@@ -273,10 +273,10 @@ TEST_CASE("Fill area: check if periemter give the good values")
         {
             // % over (perimeter_spacing + solid_fill_spacing)/2, but no periemter overlap 
             // (note: here it's the external perimeter, as we have only one perimeter)
-            config.set_key_value("infill_overlap", new ConfigOptionFloatOrPercent(40, true)); // 40% -> 0.2 value
-            config.set_key_value("external_perimeter_overlap", new ConfigOptionPercent(0));
-            config.set_key_value("perimeter_overlap", new ConfigOptionPercent(100));
-            config.set_key_value("solid_infill_overlap", new ConfigOptionPercent(0));
+            config.set_key_value("infill_overlap", std::make_unique<ConfigOptionFloatOrPercent>(40, true)); // 40% -> 0.2 value
+            config.set_key_value("external_perimeter_overlap", std::make_unique<ConfigOptionPercent>(0));
+            config.set_key_value("perimeter_overlap", std::make_unique<ConfigOptionPercent>(100));
+            config.set_key_value("solid_infill_overlap", std::make_unique<ConfigOptionPercent>(0));
             Print print{};
             Slic3r::Test::init_print(print, { sample_mesh }, model, &config);
             print.process();
@@ -293,10 +293,10 @@ TEST_CASE("Fill area: check if periemter give the good values")
         }
         SECTION("only overlap")
         {
-            config.set_key_value("infill_overlap", new ConfigOptionFloatOrPercent(0, false));
-            config.set_key_value("external_perimeter_overlap", new ConfigOptionPercent(100));
-            config.set_key_value("perimeter_overlap", new ConfigOptionPercent(100));
-            config.set_key_value("solid_infill_overlap", new ConfigOptionPercent(100));
+            config.set_key_value("infill_overlap", std::make_unique<ConfigOptionFloatOrPercent>(0, false));
+            config.set_key_value("external_perimeter_overlap", std::make_unique<ConfigOptionPercent>(100));
+            config.set_key_value("perimeter_overlap", std::make_unique<ConfigOptionPercent>(100));
+            config.set_key_value("solid_infill_overlap", std::make_unique<ConfigOptionPercent>(100));
             Print print{};
             Slic3r::Test::init_print(print, { sample_mesh }, model, &config);
             print.process();
@@ -310,10 +310,10 @@ TEST_CASE("Fill area: check if periemter give the good values")
         }
         SECTION("both")
         {
-            config.set_key_value("infill_overlap", new ConfigOptionFloatOrPercent(0.1, false));
-            config.set_key_value("external_perimeter_overlap", new ConfigOptionPercent(100));
-            config.set_key_value("perimeter_overlap", new ConfigOptionPercent(100));
-            config.set_key_value("solid_infill_overlap", new ConfigOptionPercent(100));
+            config.set_key_value("infill_overlap", std::make_unique<ConfigOptionFloatOrPercent>(0.1, false));
+            config.set_key_value("external_perimeter_overlap", std::make_unique<ConfigOptionPercent>(100));
+            config.set_key_value("perimeter_overlap", std::make_unique<ConfigOptionPercent>(100));
+            config.set_key_value("solid_infill_overlap", std::make_unique<ConfigOptionPercent>(100));
             Print print{};
             Slic3r::Test::init_print(print, { sample_mesh }, model, &config);
             print.process();
@@ -336,34 +336,34 @@ void test_all(DynamicPrintConfig &config, double& extrusion_width){
     
             SECTION("45°"){
                 config.set_deserialize("fill_angle", "45");
-                config.set_key_value("first_layer_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
+                config.set_key_value("first_layer_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
                 extrusion_width = 0.5;
                 //test all solid fills
-                SECTION("rectilinear") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipRectilinear)); }
-                SECTION("rectilinear with gap fill") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipRectilinearWGapFill)); }
-                SECTION("ipMonotonic") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipMonotonic)); }
-                SECTION("ipMonotonicWGapFill") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipMonotonicWGapFill)); }
-                SECTION("ipConcentric") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipConcentric)); }
-                SECTION("ipConcentricGapFill") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipConcentricGapFill)); }
-                SECTION("ipHilbertCurve") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipHilbertCurve)); }
-                SECTION("ipArchimedeanChords") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipArchimedeanChords)); }
-                SECTION("ipOctagramSpiral") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipOctagramSpiral)); }
-                SECTION("ipSmooth") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipSmooth)); }
+                SECTION("rectilinear") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipRectilinear)); }
+                SECTION("rectilinear with gap fill") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipRectilinearWGapFill)); }
+                SECTION("ipMonotonic") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipMonotonic)); }
+                SECTION("ipMonotonicWGapFill") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipMonotonicWGapFill)); }
+                SECTION("ipConcentric") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipConcentric)); }
+                SECTION("ipConcentricGapFill") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipConcentricGapFill)); }
+                SECTION("ipHilbertCurve") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipHilbertCurve)); }
+                SECTION("ipArchimedeanChords") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipArchimedeanChords)); }
+                SECTION("ipOctagramSpiral") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipOctagramSpiral)); }
+                SECTION("ipSmooth") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipSmooth)); }
             }
             SECTION("0° with bad spacing") {
                 config.set_deserialize("fill_angle", "0");
-                config.set_key_value("first_layer_extrusion_width", new ConfigOptionFloatOrPercent(0.415, false));
+                config.set_key_value("first_layer_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.415, false));
                 extrusion_width = 0.415;
-                SECTION("rectilinear") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipRectilinear)); }
-                SECTION("rectilinear with gap fill") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipRectilinearWGapFill)); }
-                SECTION("ipMonotonic") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipMonotonic)); }
-                SECTION("ipMonotonicWGapFill") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipMonotonicWGapFill)); }
-                SECTION("ipConcentric") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipConcentric)); }
-                SECTION("ipConcentricGapFill") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipConcentricGapFill)); }
-                SECTION("ipHilbertCurve") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipHilbertCurve)); }
-                SECTION("ipArchimedeanChords") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipArchimedeanChords)); }
-                SECTION("ipOctagramSpiral") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipOctagramSpiral)); }
-                SECTION("ipSmooth") { config.set_key_value("bottom_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipSmooth)); }
+                SECTION("rectilinear") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipRectilinear)); }
+                SECTION("rectilinear with gap fill") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipRectilinearWGapFill)); }
+                SECTION("ipMonotonic") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipMonotonic)); }
+                SECTION("ipMonotonicWGapFill") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipMonotonicWGapFill)); }
+                SECTION("ipConcentric") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipConcentric)); }
+                SECTION("ipConcentricGapFill") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipConcentricGapFill)); }
+                SECTION("ipHilbertCurve") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipHilbertCurve)); }
+                SECTION("ipArchimedeanChords") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipArchimedeanChords)); }
+                SECTION("ipOctagramSpiral") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipOctagramSpiral)); }
+                SECTION("ipSmooth") { config.set_key_value("bottom_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipSmooth)); }
             }
 }
 
@@ -379,41 +379,41 @@ TEST_CASE("Fill: extrude gcode and check it")
         //sample_mesh.repair();
 
         DynamicPrintConfig &config = Slic3r::DynamicPrintConfig::full_print_config();
-        config.set_key_value("perimeters", new ConfigOptionInt(1));
-        config.set_key_value("top_solid_layers", new ConfigOptionInt(1));
-        config.set_key_value("bottom_solid_layers", new ConfigOptionInt(1));
+        config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(1));
+        config.set_key_value("top_solid_layers", std::make_unique<ConfigOptionInt>(1));
+        config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(1));
 
-        config.set_key_value("infill_overlap", new ConfigOptionFloatOrPercent(0.1, false));
-        config.set_key_value("external_perimeter_overlap", new ConfigOptionPercent(100));
-        config.set_key_value("perimeter_overlap", new ConfigOptionPercent(100));
-        config.set_key_value("solid_infill_overlap", new ConfigOptionPercent(100));
+        config.set_key_value("infill_overlap", std::make_unique<ConfigOptionFloatOrPercent>(0.1, false));
+        config.set_key_value("external_perimeter_overlap", std::make_unique<ConfigOptionPercent>(100));
+        config.set_key_value("perimeter_overlap", std::make_unique<ConfigOptionPercent>(100));
+        config.set_key_value("solid_infill_overlap", std::make_unique<ConfigOptionPercent>(100));
 
-        config.set_key_value("extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("infill_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("perimeter_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("first_layer_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("external_perimeter_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("solid_infill_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("top_infill_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
+        config.set_key_value("extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("perimeter_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("first_layer_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("external_perimeter_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("solid_infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("top_infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
         double extrusion_width = 0.5;
         config.set_deserialize("only_one_perimeter_top", "0");
         
         SECTION("classic"){
-                config.set_key_value("perimeter_generator", new ConfigOptionEnum<PerimeterGeneratorType>(PerimeterGeneratorType::Classic));
+                config.set_key_value("perimeter_generator", std::make_unique<ConfigOptionEnum<PerimeterGeneratorType>>(PerimeterGeneratorType::Classic));
                 test_all(config, extrusion_width);
         }
         SECTION("arachne"){
-                config.set_key_value("perimeter_generator", new ConfigOptionEnum<PerimeterGeneratorType>(PerimeterGeneratorType::Arachne));
+                config.set_key_value("perimeter_generator", std::make_unique<ConfigOptionEnum<PerimeterGeneratorType>>(PerimeterGeneratorType::Arachne));
                 test_all(config, extrusion_width);
         }
 
 
-        config.set_key_value("enforce_full_fill_volume", new ConfigOptionBool(true));
-        config.set_key_value("skirts", new ConfigOptionInt(0));
+        config.set_key_value("enforce_full_fill_volume", std::make_unique<ConfigOptionBool>(true));
+        config.set_key_value("skirts", std::make_unique<ConfigOptionInt>(0));
         //simplier than auto opt = new ConfigOptionFloatsOrPercents{FloatOrPercent{0, false}}; opt.set_is_extruder_size(true);
         config.set_deserialize("seam_gap", "0");
-        config.set_key_value("layer_height", new ConfigOptionFloat(0.2)); // get a known number of layers
-        config.set_key_value("first_layer_height", new ConfigOptionFloatOrPercent(0.2, false));
+        config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(0.2)); // get a known number of layers
+        config.set_key_value("first_layer_height", std::make_unique<ConfigOptionFloatOrPercent>(0.2, false));
         auto event_counter{ 0U };
         std::string stage;
         Print print{};
@@ -525,28 +525,28 @@ TEST_CASE("Fill: extrude gcode and check it")
         const double volume = (PI * 25 * 0.2);
 
         DynamicPrintConfig &config = Slic3r::DynamicPrintConfig::full_print_config();
-        config.set_key_value("perimeters", new ConfigOptionInt(1));
-        config.set_key_value("top_solid_layers", new ConfigOptionInt(1));
-        config.set_key_value("bottom_solid_layers", new ConfigOptionInt(1));
+        config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(1));
+        config.set_key_value("top_solid_layers", std::make_unique<ConfigOptionInt>(1));
+        config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(1));
 
-        config.set_key_value("enforce_full_fill_volume", new ConfigOptionBool(true));
-        config.set_key_value("infill_overlap", new ConfigOptionFloatOrPercent(0.1, true));
-        config.set_key_value("perimeter_overlap", new ConfigOptionPercent(100));
-        config.set_key_value("external_perimeter_overlap", new ConfigOptionPercent(100));
+        config.set_key_value("enforce_full_fill_volume", std::make_unique<ConfigOptionBool>(true));
+        config.set_key_value("infill_overlap", std::make_unique<ConfigOptionFloatOrPercent>(0.1, true));
+        config.set_key_value("perimeter_overlap", std::make_unique<ConfigOptionPercent>(100));
+        config.set_key_value("external_perimeter_overlap", std::make_unique<ConfigOptionPercent>(100));
         config.set_deserialize("external_perimeter_cut_corners", "0");
 
-        config.set_key_value("skirts", new ConfigOptionInt(0));
+        config.set_key_value("skirts", std::make_unique<ConfigOptionInt>(0));
 
-        config.set_key_value("layer_height", new ConfigOptionFloat(0.2)); // get a known number of layers
-        config.set_key_value("first_layer_height", new ConfigOptionFloatOrPercent(0.2, false));
+        config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(0.2)); // get a known number of layers
+        config.set_key_value("first_layer_height", std::make_unique<ConfigOptionFloatOrPercent>(0.2, false));
 
-        config.set_key_value("extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("infill_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("perimeter_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("first_layer_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("external_perimeter_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("solid_infill_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("top_infill_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
+        config.set_key_value("extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("perimeter_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("first_layer_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("external_perimeter_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("solid_infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("top_infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
         auto event_counter{ 0U };
         std::string stage;
         Print print{};

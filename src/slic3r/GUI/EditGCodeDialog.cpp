@@ -464,7 +464,7 @@ wxDataViewItem ParamsModel::AppendGroup(const wxString&    group_name,
     m_group_nodes.emplace_back(std::make_unique<ParamsNode>(group_name, icon_name));
 
     wxDataViewItem parent(nullptr);
-    wxDataViewItem child((void*)m_group_nodes.back().get());
+    wxDataViewItem child(static_cast<void*>(m_group_nodes.back().get()));
 
     ItemAdded(parent, child);
     m_ctrl->Expand(parent);
@@ -480,7 +480,7 @@ wxDataViewItem ParamsModel::AppendSubGroup(wxDataViewItem       parent,
         return wxDataViewItem(0);
 
     parent_node->Append(std::make_unique<ParamsNode>(parent_node, sub_group_name, icon_name));
-    const wxDataViewItem  sub_group_item((void*)parent_node->GetChildren().back().get());
+    const wxDataViewItem  sub_group_item(static_cast<void*>(parent_node->GetChildren().back().get()));
 
     ItemAdded(parent, sub_group_item);
     return sub_group_item;
@@ -496,7 +496,7 @@ wxDataViewItem ParamsModel::AppendParam(wxDataViewItem      parent,
     
     parent_node->Append(std::make_unique<ParamsNode>(parent_node, param_type, param_key));
         
-    const wxDataViewItem  child_item((void*)parent_node->GetChildren().back().get());
+    const wxDataViewItem  child_item(static_cast<void*>(parent_node->GetChildren().back().get()));
 
     ItemAdded(parent, child_item);
     return child_item;
@@ -618,7 +618,7 @@ wxDataViewItem ParamsModel::GetParent(const wxDataViewItem&item) const
     if (node->IsGroupNode())
         return wxDataViewItem(nullptr);
 
-    return wxDataViewItem((void*)node->GetParent());
+    return wxDataViewItem(static_cast<void*>(node->GetParent()));
 }
 
 bool ParamsModel::IsContainer(const wxDataViewItem& item) const
@@ -633,16 +633,16 @@ bool ParamsModel::IsContainer(const wxDataViewItem& item) const
 
 unsigned int ParamsModel::GetChildren(const wxDataViewItem& parent, wxDataViewItemArray& array) const
 {
-    ParamsNode* parent_node = (ParamsNode*)parent.GetID();
+    ParamsNode* parent_node = static_cast<ParamsNode*>(parent.GetID());
 
     if (parent_node == nullptr) {
         for (const auto& group : m_group_nodes)
-            array.Add(wxDataViewItem((void*)group.get()));
+            array.Add(wxDataViewItem(static_cast<void*>(group.get())));
     }
     else  {
         const ParamsNodePtrArray& children = parent_node->GetChildren();
         for (const std::unique_ptr<ParamsNode>& child : children)
-            array.Add(wxDataViewItem((void*)child.get()));
+            array.Add(wxDataViewItem(static_cast<void*>(child.get())));
     }
 
     return array.Count();

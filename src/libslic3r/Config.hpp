@@ -1211,9 +1211,9 @@ public:
         return ss.str();
     }
     
-    bool deserialize(const std::string &str, bool append = false) override
+    bool deserialize(const std::string &str, bool /*append*/ = false) override
     {
-        UNUSED(append);
+
         if (!str.empty() && str.front() == '!') {
             this->set_enabled(false);
         } else {
@@ -1341,9 +1341,9 @@ public:
         return ss.str();
     }
     
-    bool deserialize(const std::string &str, bool append = false) override
+    bool deserialize(const std::string &str, bool /*append*/ = false) override
     {
-        UNUSED(append);
+
         if (!str.empty() && str.front() == '!') {
             this->set_enabled(false);
             assert(this->can_be_disabled());
@@ -1461,9 +1461,9 @@ public:
         return escape_string_cstyle(this->value); 
     }
 
-    bool deserialize(const std::string &str, bool append = false) override
+    bool deserialize(const std::string &str, bool /*append*/ = false) override
     {
-        UNUSED(append);
+
         if (str.size() > 1 && str.front() == '!' && str[1] == ':') {
             this->set_enabled(false);
         } else {
@@ -1576,9 +1576,9 @@ public:
         return s;
     }
     
-    bool deserialize(const std::string &str, bool append = false) override
+    bool deserialize(const std::string &str, bool /*append*/ = false) override
     {
-        UNUSED(append);
+
         if (!str.empty() && str.front() == '!') {
             this->set_enabled(false);
             assert(this->can_be_disabled());
@@ -1637,7 +1637,7 @@ public:
     }
 
     // The float's deserialize function shall ignore the trailing optional %.
-    // bool deserialize(const std::string &str, bool append = false) override;
+    // bool deserialize(const std::string &str, bool /*append*/ = false) override;
 
 private:
     friend class cereal::access;
@@ -1712,9 +1712,9 @@ public:
         return s;
     }
     
-    bool deserialize(const std::string &str, bool append = false) override
+    bool deserialize(const std::string &str, bool /*append*/ = false) override
     {
-        UNUSED(append);
+
         if (!str.empty() && str.front() == '!') {
             this->set_enabled(false);
             assert(this->can_be_disabled());
@@ -1850,9 +1850,9 @@ public:
         return ss.str();
     }
     
-    bool deserialize(const std::string &str, bool append = false) override
+    bool deserialize(const std::string &str, bool /*append*/ = false) override
     {
-        UNUSED(append);
+
         if (!str.empty() && str.front() == '!') {
             this->set_enabled(false);
         } else {
@@ -2018,7 +2018,7 @@ public:
     
     bool deserialize(const std::string &str_raw, bool append = false) override
     {
-        UNUSED(append);
+
         if (!str_raw.empty() && str_raw.front() == '!') {
             this->set_enabled(false);
         } else {
@@ -2058,9 +2058,9 @@ public:
         return ss.str();
     }
 
-    bool deserialize(const std::string &str, bool append = false) override
+    bool deserialize(const std::string &str, bool /*append*/ = false) override
     {
-        UNUSED(append);
+
         GraphData data;
         bool enabled = true;
         if (!str.empty() && str.front() == '!') {
@@ -2201,9 +2201,9 @@ public:
         return std::string(this->is_enabled() ? "" : "!") + std::string(this->value ? "1" : "0");
     }
     
-    bool deserialize(const std::string &str, bool append = false) override
+    bool deserialize(const std::string &str, bool /*append*/ = false) override
     {
-        UNUSED(append);
+
         if (str.empty())
             return false;
         if (str.front() == '!') {
@@ -2388,9 +2388,9 @@ public:
         return std::string(this->is_enabled() ? "" : "!") + names[static_cast<int>(this->value)];
     }
 
-    bool deserialize(const std::string &str, bool append = false) override
+    bool deserialize(const std::string &str, bool /*append*/ = false) override
     {
-        UNUSED(append);
+
         if (!str.empty() && str.front() == '!') {
             this->set_enabled(false);
         } else {
@@ -2476,9 +2476,9 @@ public:
         return prefix;
     }
 
-    bool deserialize(const std::string &str, bool append = false) override
+    bool deserialize(const std::string &str, bool /*append*/ = false) override
     {
-        UNUSED(append);
+
         auto it = this->keys_map->find(str);
         if (it == this->keys_map->end())
             return false;

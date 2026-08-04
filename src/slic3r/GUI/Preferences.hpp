@@ -138,7 +138,7 @@ protected:
 								const t_config_option_key& opt_key,
 								const std::string& label,
 								const std::string& tooltip,
-								ConfigOption* def_val,
+								std::unique_ptr<ConfigOption> def_val,
 								std::initializer_list<std::pair<std::string_view, std::string_view>> enum_values,
 								ConfigOptionMode mode = ConfigOptionMode::comNone);
 

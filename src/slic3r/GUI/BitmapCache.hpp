@@ -7,6 +7,7 @@
 #define SLIC3R_GUI_BITMAP_CACHE_HPP
 
 #include <map>
+#include <memory>
 #include <vector>
 
 #include <wx/wxprec.h>
@@ -29,9 +30,9 @@ public:
 	void 			clear();
 	double			scale() { return m_scale; }
 
-	wxBitmapBundle* 	  find_bndl(const std::string &name)		{ auto it = m_bndl_map.find(name); return (it == m_bndl_map.end()) ? nullptr : it->second; }
+	wxBitmapBundle* 	  find_bndl(const std::string &name)		{ auto it = m_bndl_map.find(name); return (it == m_bndl_map.end()) ? nullptr : it->second.get(); }
 	const wxBitmapBundle* find_bndl(const std::string &name) const	{ return const_cast<BitmapCache*>(this)->find_bndl(name); }
-	wxBitmap* 		find(const std::string &name) 		{ auto it = m_map.find(name); return (it == m_map.end()) ? nullptr : it->second; }
+	wxBitmap* 		find(const std::string &name) 		{ auto it = m_map.find(name); return (it == m_map.end()) ? nullptr : it->second.get(); }
 	const wxBitmap* find(const std::string &name) const { return const_cast<BitmapCache*>(this)->find(name); }
 
 	wxBitmapBundle*			insert_bndl(const std::string& bitmap_key, const char* data, size_t width, size_t height);
@@ -64,8 +65,8 @@ public:
 	wxBitmapBundle* mkclear_bndl(size_t width, size_t height) { return 	mksolid_bndl(width, height); }
 
 private:
-    std::map<std::string, wxBitmap*>	m_map;
-    std::map<std::string, wxBitmapBundle*>	m_bndl_map;
+    std::map<std::string, std::unique_ptr<wxBitmap>>	m_map;
+    std::map<std::string, std::unique_ptr<wxBitmapBundle>>	m_bndl_map;
     double	m_gs	= 0.2;	// value, used for image.ConvertToGreyscale(m_gs, m_gs, m_gs)
 	double	m_scale = 1.0;	// value, used for correct scaling of SVG icons on Retina display
 };

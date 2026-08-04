@@ -123,7 +123,7 @@ TEST_CASE("Read glyph C shape from font, stb library calls ONLY", "[Emboss]") {
     REQUIRE(font_offset >= 0);
     stbtt_fontinfo font_info;
     REQUIRE(stbtt_InitFont(&font_info, buffer.data(), font_offset) != 0);    
-    int unicode_letter = (int) letter;
+    int unicode_letter = static_cast<int>(letter);
     int glyph_index = stbtt_FindGlyphIndex(&font_info, unicode_letter);
     REQUIRE(glyph_index != 0);
     stbtt_vertex *vertices;
@@ -761,10 +761,10 @@ namespace Slic3r::MeshBoolean::cgal2 {
             for (const Point& p2 : polygon.points) {
                 auto p = projection.create_front_back(p2);
                 auto vi = result.add_vertex(typename CGALMesh::Point{ p.first.x(), p.first.y(), p.first.z() });
-                assert((size_t)vi == indices.size() + num_vertices_old);
+                assert(static_cast<size_t>(vi) == indices.size() + num_vertices_old);
                 indices.emplace_back(vi);
                 vi = result.add_vertex(typename CGALMesh::Point{ p.second.x(), p.second.y(), p.second.z() });
-                assert((size_t)vi == indices.size() + num_vertices_old);
+                assert(static_cast<size_t>(vi) == indices.size() + num_vertices_old);
                 indices.emplace_back(vi);
             }
             int32_t contour_index = 0;
@@ -889,12 +889,6 @@ TEST_CASE("Emboss extrude cut", "[Emboss-Cut]")
     its_translate(cube2, Vec3f(100, -40, 40));
     its_merge(cube, std::move(cube2));
 
-    //cube = its_make_sphere(350., 1.);
-    //for (auto &face : cube2.indices)
-    //    for (int i = 0; i < 3; ++ i)
-    //        face(i) += int(cube.vertices.size());
-    //append(cube.vertices, cube2.vertices);
-    //append(cube.indices, cube2.indices);
 
     using MyMesh = Slic3r::MeshBoolean::cgal2::CGALMesh;
     

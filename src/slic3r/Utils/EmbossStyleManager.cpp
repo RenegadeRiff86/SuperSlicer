@@ -433,7 +433,7 @@ float StyleManager::get_imgui_font_size(const FontProp &prop, const FontFile &fi
     const FontFile::Info& info = get_font_info(file, prop);
     // coeficient for convert line height to font size
     float c1 = (info.ascent - info.descent + info.linegap) /
-               (float) info.unit_per_em;
+               static_cast<float>(info.unit_per_em);
 
     // The point size is defined as 1/72 of the Anglo-Saxon inch (25.4 mm):
     // It is approximately 0.0139 inch or 352.8 um.
@@ -470,7 +470,7 @@ ImFont *StyleManager::create_imgui_font(const std::string &text, double scale)
     // TODO: start using merge mode
     //font_config.MergeMode = true;
     int unit_per_em = get_font_info(font_file, font_prop).unit_per_em;
-    float coef = font_size / (double) unit_per_em;
+    float coef = font_size / static_cast<double>(unit_per_em);
     if (font_prop.char_gap.has_value())
         font_config.GlyphExtraSpacing.x = coef * (*font_prop.char_gap);    
     if (font_prop.line_gap.has_value())
@@ -480,7 +480,7 @@ ImFont *StyleManager::create_imgui_font(const std::string &text, double scale)
 
     const std::vector<unsigned char> &buffer = *font_file.data;
     ImFont * font = m_style_cache.atlas.AddFontFromMemoryTTF(
-        (void *) buffer.data(), buffer.size(), font_size, &font_config, m_style_cache.ranges.Data);
+        const_cast<unsigned char*>(buffer.data()), buffer.size(), font_size, &font_config, m_style_cache.ranges.Data);
 
     unsigned char *pixels;
     int            width, height;

@@ -220,8 +220,8 @@ void OptionsGroup::show_field(const t_config_option_key& opt_key, bool show/* = 
     wxSizerItem* win_item = m_grid_sizer->GetItem(win, true);
     if (!win_item) return;
 
-    const size_t cols = (size_t)m_grid_sizer->GetCols();
-    const size_t rows = (size_t)m_grid_sizer->GetEffectiveRowsCount();
+    const size_t cols = static_cast<size_t>(m_grid_sizer->GetCols());
+    const size_t rows = static_cast<size_t>(m_grid_sizer->GetEffectiveRowsCount());
 
     auto show_row = [this, show, cols, win_item](wxSizerItem* item, size_t row_shift) {
         // check if item contanes required win
@@ -833,7 +833,7 @@ bool ConfigOptionsGroup::update_visibility(ConfigOptionMode mode)
     }
 
     size_t opt_mode_size = m_options_mode.size();
-    if ((size_t)m_grid_sizer->GetEffectiveRowsCount() != opt_mode_size &&
+    if (static_cast<size_t>(m_grid_sizer->GetEffectiveRowsCount()) != opt_mode_size &&
         opt_mode_size == 1 && m_options_mode[0].size() == 1 && m_options_mode[0].begin()->second.size() == 1)
         return get_invisible_idx(m_options_mode[0], mode).empty();
 
@@ -841,7 +841,7 @@ bool ConfigOptionsGroup::update_visibility(ConfigOptionMode mode)
 
     int idx_item = 0;
     size_t hidden_row_cnt = 0;
-    const size_t cols = (size_t)m_grid_sizer->GetCols();
+    const size_t cols = static_cast<size_t>(m_grid_sizer->GetCols());
     assert(opt_mode_size == m_line_sizer.size());
     for (size_t i = 0; i < opt_mode_size; i++) {
         if ((m_options_mode[i].size() == 1 

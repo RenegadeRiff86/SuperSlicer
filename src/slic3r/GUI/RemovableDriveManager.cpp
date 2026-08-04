@@ -6,6 +6,8 @@
 #include "libslic3r/Platform.hpp"
 #include <libslic3r/libslic3r.h>
 
+#include <memory>
+
 #include <boost/nowide/convert.hpp>
 #include <boost/log/trivial.hpp>
 
@@ -292,9 +294,11 @@ bool is_card_reader(HDEVINFO h_dev_info, SP_DEVINFO_DATA& spdd)
 	// Fill USB request packet to get iConfiguration value.
 
 	int								buffer_size = sizeof(USB_DESCRIPTOR_REQUEST) + sizeof(USB_CONFIGURATION_DESCRIPTOR);
-	BYTE*							buffer = new BYTE[buffer_size];
-	USB_DESCRIPTOR_REQUEST*			request_packet = (USB_DESCRIPTOR_REQUEST*)buffer;
-	USB_CONFIGURATION_DESCRIPTOR*	configuration_descriptor = (USB_CONFIGURATION_DESCRIPTOR*)((BYTE*)buffer + sizeof(USB_DESCRIPTOR_REQUEST));
+	// Owns the packet for the whole function: every failure path below returns early,
+	// and the raw new here was never matched by a delete[].
+	std::vector<BYTE>				buffer(buffer_size);
+	USB_DESCRIPTOR_REQUEST*			request_packet = (USB_DESCRIPTOR_REQUEST*)buffer.data();
+	USB_CONFIGURATION_DESCRIPTOR*	configuration_descriptor = (USB_CONFIGURATION_DESCRIPTOR*)(buffer.data() + sizeof(USB_DESCRIPTOR_REQUEST));
 	DWORD							bytes_returned = 0;
 	// Fill information in packet.
 	request_packet->SetupPacket.bmRequest = 0x80;
@@ -303,7 +307,7 @@ bool is_card_reader(HDEVINFO h_dev_info, SP_DEVINFO_DATA& spdd)
 	request_packet->SetupPacket.wValue = (USB_CONFIGURATION_DESCRIPTOR_TYPE << 8 | 0 /*Since only 1 device descriptor => index : 0*/);
 	request_packet->SetupPacket.wLength = sizeof(USB_CONFIGURATION_DESCRIPTOR);
 	// Issue ioctl.
-	if (DeviceIoControl(handle, IOCTL_USB_GET_DESCRIPTOR_FROM_NODE_CONNECTION, buffer, buffer_size, buffer, buffer_size, &bytes_returned, nullptr) == 0) {
+	if (DeviceIoControl(handle, IOCTL_USB_GET_DESCRIPTOR_FROM_NODE_CONNECTION, buffer.data(), buffer_size, buffer.data(), buffer_size, &bytes_returned, nullptr) == 0) {
 		BOOST_LOG_TRIVIAL(warning) << "is_card_reader failed: Couldn't get Configuration Descriptor.";
 		return false;
 	}
@@ -402,7 +406,7 @@ DEVINST get_dev_inst_by_device_number(long device_number, UINT drive_type, WCHAR
 			continue;
 		}
 		//compare
-		if (device_number != (long)sdn.DeviceNumber) {
+		if (device_number != static_cast<long>(sdn.DeviceNumber)) {
 			continue;
 		}
 
@@ -851,7 +855,7 @@ void RemovableDriveManager::eject_drive()
 	std::string correct_path(m_last_save_path);
 #if __APPLE__
 	// On Apple, run the eject asynchronously on a worker thread, see the discussion at GH issue #4844.
-	m_eject_thread = new boost::thread([this, correct_path, drive_data]()
+	m_eject_thread = std::make_unique<boost::thread>([this, correct_path, drive_data]()
 #endif
 	{
 		//std::cout<<"Ejecting "<<(*it).name<<" from "<< correct_path<<"\n";
@@ -1050,10 +1054,10 @@ void RemovableDriveManager::update()
 			for (const DriveData& data : new_drives) { 
 				if (data.path.empty())
 					continue;
-				wxCommandEvent* evt = new wxCommandEvent(EVT_REMOVABLE_DRIVE_ADDED);
+				auto evt = std::make_unique<wxCommandEvent>(EVT_REMOVABLE_DRIVE_ADDED);
 				evt->SetString(boost::nowide::widen(data.path));
-				evt->SetInt((int)m_first_update);
-				m_callback_evt_handler->QueueEvent(evt);
+				evt->SetInt(static_cast<int>(m_first_update));
+				m_callback_evt_handler->QueueEvent(evt.release());
 			}
 			
 		}
@@ -1107,8 +1111,7 @@ void RemovableDriveManager::eject_thread_finish()
 {
 	if (m_eject_thread) {
 		m_eject_thread->join();
-		delete m_eject_thread;
-		m_eject_thread = nullptr;
+		m_eject_thread.reset();
 	}
 }
 #endif // __APPLE__

@@ -478,7 +478,7 @@ bool GLGizmoEmboss::init_create(ModelVolumeType volume_type)
 {
     // check valid volume type
     if (!check(volume_type)){    
-        BOOST_LOG_TRIVIAL(error) << "Can't create embossed volume with this type: " << (int) volume_type;
+        BOOST_LOG_TRIVIAL(error) << "Can't create embossed volume with this type: " << static_cast<int>(volume_type);
         return false;
     }
 
@@ -1470,7 +1470,7 @@ void GLGizmoEmboss::draw_window()
 #endif // SHOW_CONTAIN_3MF_FIX
 #ifdef SHOW_ICONS_TEXTURE    
     auto &t = m_icons_texture;
-    ImGui::Image((void *) t.get_id(), ImVec2(t.get_width(), t.get_height()));
+    ImGui::Image(reinterpret_cast<void*>(static_cast<intptr_t>(t.get_id())), ImVec2(t.get_width(), t.get_height()));
 #endif //SHOW_ICONS_TEXTURE
 #ifdef SHOW_IMGUI_ATLAS
     const auto &atlas = m_style_manager.get_atlas();
@@ -2677,7 +2677,7 @@ void GLGizmoEmboss::draw_advanced()
     const FontFile::Info &font_info = get_font_info(*ff.font_file, font_prop);
 #ifdef SHOW_FONT_FILE_PROPERTY
     ImGui::SameLine();
-    int cache_size = ff.has_value()? (int)ff.cache->size() : 0;
+    int cache_size = ff.has_value()? static_cast<int>(ff.cache->size()) : 0;
     std::string ff_property = 
         "ascent=" + std::to_string(font_info.ascent) +
         ", descent=" + std::to_string(font_info.descent) +
@@ -3640,7 +3640,7 @@ void draw_font_preview(FaceName &face, const std::string& text, Facenames &faces
     }
 
     ImGui::SameLine(cfg.face_name_texture_offset_x);
-    ImTextureID tex_id = (void *) (intptr_t) faces.texture_id;
+    ImTextureID tex_id = reinterpret_cast<void*>(static_cast<intptr_t>(faces.texture_id));
     ImGui::Image(tex_id, size, uv0, uv1);
 }
 

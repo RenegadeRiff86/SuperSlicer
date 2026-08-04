@@ -172,8 +172,17 @@ OctoPrint::OctoPrint(DynamicPrintConfig *config) :
 {}
 
 
-constexpr char OctoprintName[] = "OctoPrint";
-const char *   OctoPrint::get_name() const { return OctoprintName; }
+constexpr char OctoprintName[]           = "OctoPrint";
+constexpr char OctoprintApiVersionPath[] = "api/version";
+constexpr char OctoprintGetVersionLog[]  = "%1%: Get version at: %2%";
+constexpr char OctoprintGotVersionLog[]  = "%1%: Got version: %2%";
+
+static wxString mismatched_print_host_type_message()
+{
+    return _L("Mismatched type of print host: %s");
+}
+
+const char * OctoPrint::get_name() const { return OctoprintName; }
 
 #ifdef WIN32
 bool OctoPrint::test_with_resolved_ip(wxString &msg) const
@@ -183,10 +192,10 @@ bool OctoPrint::test_with_resolved_ip(wxString &msg) const
     const char* name = get_name();
     bool res = true;
     // Msg contains ip string.
-    auto url = substitute_host(make_url("api/version"), GUI::into_u8(msg));
+    auto url = substitute_host(make_url(OctoprintApiVersionPath), GUI::into_u8(msg));
     msg.Clear();
 
-    BOOST_LOG_TRIVIAL(info) << boost::format("%1%: Get version at: %2%") % name % url;
+    BOOST_LOG_TRIVIAL(info) << boost::format(OctoprintGetVersionLog) % name % url;
 
     std::string host = get_host_from_url(m_host);
     auto http = Http::get(url);//std::move(url));
@@ -199,13 +208,13 @@ bool OctoPrint::test_with_resolved_ip(wxString &msg) const
     http.header("Host", host);
     set_auth(http);
     http
-        .on_error([&](std::string body, std::string error, unsigned status) {
+        .on_error([&](const std::string& body, const std::string& error, unsigned status) {
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error getting version at %2% : %3%, HTTP %4%, body: `%5%`") % name % url % error % status % body;
             res = false;
             msg = format_error(body, error, status);
         })
-        .on_complete([&, this](std::string body, unsigned) {
-            BOOST_LOG_TRIVIAL(info) << boost::format("%1%: Got version: %2%") % name % body;
+        .on_complete([&, this](const std::string& body, unsigned) {
+            BOOST_LOG_TRIVIAL(info) << boost::format(OctoprintGotVersionLog) % name % body;
 
             try {
                 std::stringstream ss(body);
@@ -220,7 +229,7 @@ bool OctoPrint::test_with_resolved_ip(wxString &msg) const
                 const std::optional<std::string> text = to_std_opt_str(ptree.get_optional<std::string>("text"));
                 res = validate_version_text(text);
                 if (!res) {
-                    msg = GUI::format_wxstr(_L("Mismatched type of print host: %s"), (text ? *text : name));
+                    msg = GUI::format_wxstr(mismatched_print_host_type_message(), (text ? *text : name));
                 }
             }
             catch (const std::exception&) {
@@ -242,21 +251,21 @@ bool OctoPrint::test(wxString& msg) const
     const char *name = get_name();
 
     bool res = true;
-    auto url = make_url("api/version");
+    auto url = make_url(OctoprintApiVersionPath);
 
-    BOOST_LOG_TRIVIAL(info) << boost::format("%1%: Get version at: %2%") % name % url;
+    BOOST_LOG_TRIVIAL(info) << boost::format(OctoprintGetVersionLog) % name % url;
     // Here we do not have to add custom "Host" header - the url contains host filled by user and libCurl will set the header by itself.
     auto http = Http::get(std::move(url));
     set_auth(http);
     BOOST_LOG_TRIVIAL(info) << "auth set";
-    http.on_error([&](std::string body, std::string error, unsigned status) {
+    http.on_error([&](const std::string& body, const std::string& error, unsigned status) {
             BOOST_LOG_TRIVIAL(info) << "Error with '"<< body<<"'";
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error getting version: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
             res = false;
             msg = format_error(body, error, status);
         })
-        .on_complete([&, this](std::string body, unsigned) {
-            BOOST_LOG_TRIVIAL(info) << boost::format("%1%: Got version: %2%") % name % body;
+        .on_complete([&, this](const std::string& body, unsigned) {
+            BOOST_LOG_TRIVIAL(info) << boost::format(OctoprintGotVersionLog) % name % body;
 
             try {
                 std::stringstream ss(body);
@@ -277,7 +286,7 @@ bool OctoPrint::test(wxString& msg) const
                 res = validate_version_text(text);
                 BOOST_LOG_TRIVIAL(info) << "version validated=" << res;
                 if (! res) {
-                    msg = GUI::format_wxstr(_L("Mismatched type of print host: %s"), (text ? *text : name));
+                    msg = GUI::format_wxstr(mismatched_print_host_type_message(), (text ? *text : name));
                 }
             }
             catch (const std::exception &e) {
@@ -416,10 +425,10 @@ bool OctoPrint::upload_inner_with_resolved_ip(PrintHostUpload upload_data, Progr
     http.header("Host", host);
     set_auth(http);
     set_http_send(http, upload_data);
-    http.on_complete([&](std::string body, unsigned status) {
+    http.on_complete([&](const std::string& body, unsigned status) {
             BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: File uploaded: HTTP %2%: %3%") % name % status % body;
         })
-        .on_error([&](std::string body, std::string error, unsigned status) {
+        .on_error([&](const std::string& body, const std::string& error, unsigned status) {
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error uploading file to %2%: %3%, HTTP %4%, body: `%5%`") % name % url % error % status % body;
             error_fn(format_error(body, error, status));
             result = false;
@@ -502,10 +511,10 @@ bool OctoPrint::upload_inner_with_host(PrintHostUpload upload_data, ProgressFn p
 #endif // _WIN32
     set_auth(http);
     set_http_send(http, upload_data);
-    http.on_complete([&](std::string body, unsigned status) {
+    http.on_complete([&](const std::string& body, unsigned status) {
             BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: File uploaded: HTTP %2%: %3%") % name % status % body;
         })
-        .on_error([&](std::string body, std::string error, unsigned status) {
+        .on_error([&](const std::string& body, const std::string& error, unsigned status) {
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error uploading file: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
             error_fn(format_error(body, error, status));
             res = false;
@@ -537,7 +546,7 @@ void OctoPrint::set_http_send(Http& http, const PrintHostUpload& upload_data) co
 
 bool OctoPrint::validate_version_text(const std::optional<std::string> &version_text) const
 {
-    return version_text ? boost::starts_with(*version_text, "OctoPrint") : true;
+    return version_text ? boost::starts_with(*version_text, OctoprintName) : true;
 }
 
 void OctoPrint::set_auth(Http &http) const
@@ -646,7 +655,7 @@ wxString PrusaLink::get_test_failed_msg(wxString& msg) const
 
 bool PrusaLink::validate_version_text(const std::optional<std::string>& version_text) const
 {
-    return version_text ? (boost::starts_with(*version_text, "PrusaLink") || boost::starts_with(*version_text, "OctoPrint")) : false;
+    return version_text ? (boost::starts_with(*version_text, "PrusaLink") || boost::starts_with(*version_text, OctoprintName)) : false;
 }
 
 void PrusaLink::set_auth(Http& http) const
@@ -704,19 +713,19 @@ bool PrusaLink::test(wxString& msg) const
     const char* name = get_name();
 
     bool res = true;
-    auto url = make_url("api/version");
+    auto url = make_url(OctoprintApiVersionPath);
 
-    BOOST_LOG_TRIVIAL(info) << boost::format("%1%: Get version at: %2%") % name % url;
+    BOOST_LOG_TRIVIAL(info) << boost::format(OctoprintGetVersionLog) % name % url;
 
     auto http = Http::get(std::move(url));
     set_auth(http);
-    http.on_error([&](std::string body, std::string error, unsigned status) {
+    http.on_error([&](const std::string& body, const std::string& error, unsigned status) {
         BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error getting version: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
         res = false;
         msg = format_error(body, error, status);
         })
-        .on_complete([&, this](std::string body, unsigned) {
-            BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: Got version: %2%") % name % body;
+        .on_complete([&, this](const std::string& body, unsigned) {
+            BOOST_LOG_TRIVIAL(debug) << boost::format(OctoprintGotVersionLog) % name % body;
 
             try {
                 std::stringstream ss(body);
@@ -731,7 +740,7 @@ bool PrusaLink::test(wxString& msg) const
                 const std::optional<std::string> text = to_std_opt_str(ptree.get_optional<std::string>("text"));
                 res = validate_version_text(text);
                 if (!res) {
-                    msg = GUI::format_wxstr(_L("Mismatched type of print host: %s"), (text ? *text : "OctoPrint"));
+                    msg = GUI::format_wxstr(mismatched_print_host_type_message(), (text ? *text : OctoprintName));
                 }
             }
             catch (const std::exception&) {
@@ -776,7 +785,7 @@ bool PrusaLink::get_storage(wxArrayString& storage_path, wxArrayString& storage_
     auto http = Http::get(std::move(url));
     set_auth(http);
     http.header("Accept-Language", lang);
-    http.on_error([&](std::string body, std::string error, unsigned status) {
+    http.on_error([&](const std::string& body, const std::string& error, unsigned status) {
         BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error getting storage: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
         error_msg = L"\n\n" + boost::nowide::widen(error);
         res = false;
@@ -788,7 +797,7 @@ bool PrusaLink::get_storage(wxArrayString& storage_path, wxArrayString& storage_
             res = true;
        
     })
-    .on_complete([&](std::string body, unsigned) {
+    .on_complete([&](const std::string& body, unsigned) {
         BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: Got storage: %2%") % name % body;
         try
         {
@@ -867,19 +876,19 @@ bool PrusaLink::test_with_method_check(wxString& msg, bool& use_put) const
     const char* name = get_name();
 
     bool res = true;
-    auto url = make_url("api/version");
+    auto url = make_url(OctoprintApiVersionPath);
 
-    BOOST_LOG_TRIVIAL(info) << boost::format("%1%: Get version at: %2%") % name % url;
+    BOOST_LOG_TRIVIAL(info) << boost::format(OctoprintGetVersionLog) % name % url;
     // Here we do not have to add custom "Host" header - the url contains host filled by user and libCurl will set the header by itself.
     auto http = Http::get(std::move(url));
     set_auth(http);
-    http.on_error([&](std::string body, std::string error, unsigned status) {
+    http.on_error([&](const std::string& body, const std::string& error, unsigned status) {
         BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error getting version: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
         res = false;
         msg = format_error(body, error, status);
     })
-    .on_complete([&, this](std::string body, unsigned) {
-        BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: Got version: %2%") % name % body;
+    .on_complete([&, this](const std::string& body, unsigned) {
+        BOOST_LOG_TRIVIAL(debug) << boost::format(OctoprintGotVersionLog) % name % body;
 
         try {
             std::stringstream ss(body);
@@ -894,7 +903,7 @@ bool PrusaLink::test_with_method_check(wxString& msg, bool& use_put) const
             const std::optional<std::string> text = to_std_opt_str(ptree.get_optional<std::string>("text"));
             res = validate_version_text(text);
             if (!res) {
-                msg = GUI::format_wxstr(_L("Mismatched type of print host: %s"), (text ? *text : "OctoPrint"));
+                msg = GUI::format_wxstr(mismatched_print_host_type_message(), (text ? *text : OctoprintName));
                 use_put = false;
                 return;
             }
@@ -938,10 +947,10 @@ bool PrusaLink::test_with_resolved_ip_and_method_check(wxString& msg, bool& use_
     const char* name = get_name();
     bool res = true;
     // Msg contains ip string.
-    auto url = substitute_host(make_url("api/version"), GUI::into_u8(msg));
+    auto url = substitute_host(make_url(OctoprintApiVersionPath), GUI::into_u8(msg));
     msg.Clear();
 
-    BOOST_LOG_TRIVIAL(info) << boost::format("%1%: Get version at: %2%") % name % url;
+    BOOST_LOG_TRIVIAL(info) << boost::format(OctoprintGetVersionLog) % name % url;
 
     std::string host = get_host_from_url(m_host);
     auto http = Http::get(url);//std::move(url));
@@ -954,13 +963,13 @@ bool PrusaLink::test_with_resolved_ip_and_method_check(wxString& msg, bool& use_
     http.header("Host", host);
     set_auth(http);
     http
-        .on_error([&](std::string body, std::string error, unsigned status) {
+        .on_error([&](const std::string& body, const std::string& error, unsigned status) {
         BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error getting version at %2% : %3%, HTTP %4%, body: `%5%`") % name % url % error % status % body;
         res = false;
         msg = format_error(body, error, status);
             })
-        .on_complete([&, this](std::string body, unsigned) {
-            BOOST_LOG_TRIVIAL(info) << boost::format("%1%: Got version: %2%") % name % body;
+        .on_complete([&, this](const std::string& body, unsigned) {
+            BOOST_LOG_TRIVIAL(info) << boost::format(OctoprintGotVersionLog) % name % body;
 
             try {
                 std::stringstream ss(body);
@@ -975,7 +984,7 @@ bool PrusaLink::test_with_resolved_ip_and_method_check(wxString& msg, bool& use_
                 const std::optional<std::string> text = to_std_opt_str(ptree.get_optional<std::string>("text"));
                 res = validate_version_text(text);
                 if (!res) {
-                    msg = GUI::format_wxstr(_L("Mismatched type of print host: %s"), (text ? *text : "OctoPrint"));
+                    msg = GUI::format_wxstr(mismatched_print_host_type_message(), (text ? *text : OctoprintName));
                     use_put = false;
                     return;
                 }
@@ -1122,13 +1131,13 @@ bool PrusaLink::put_inner(PrintHostUpload upload_data, std::string url, const st
     http.set_put_body(upload_data.source_path)
         .header("Content-Type", "text/x.gcode")
         .header("Overwrite", "?1")
-        .on_complete([&](std::string body, unsigned status) {
+        .on_complete([&](const std::string& body, unsigned status) {
             wxString widebody = wxString::FromUTF8(body);
             BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: File uploaded: HTTP %2%: %3%") % name % status % widebody;
             std::string message = m_show_after_message ? (boost::format("%1%") % widebody).str() : std::string();
             info_fn(L"complete", message);
         })
-        .on_error([&](std::string body, std::string error, unsigned status) {
+        .on_error([&](const std::string& body, const std::string& error, unsigned status) {
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error uploading file: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
             error_fn(format_error(body, error, status));
             res = false;
@@ -1169,7 +1178,7 @@ bool PrusaLink::post_inner(PrintHostUpload upload_data, std::string url, const s
     set_http_post_header_args(http, upload_data.post_action);
     http.form_add("path", upload_parent_path.string())      // XXX: slashes on windows ???
         .form_add_file("file", upload_data.source_path.string(), upload_filename.string())
-        .on_complete([&](std::string body, unsigned status) {
+        .on_complete([&](const std::string& body, unsigned status) {
             if (m_show_after_message) {
                 // PrusaConnect message
                 wxString widebody = wxString::FromUTF8(body);
@@ -1187,7 +1196,7 @@ bool PrusaLink::post_inner(PrintHostUpload upload_data, std::string url, const s
            
            
         })
-        .on_error([&](std::string body, std::string error, unsigned status) {
+        .on_error([&](const std::string& body, const std::string& error, unsigned status) {
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error uploading file: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
             error_fn(format_error(body, error, status));
             res = false;

@@ -14,11 +14,11 @@ namespace Slic3r {
 namespace GUI {
 
 static const ColorRGBA DISABLED_COLOR = ColorRGBA::DARK_GRAY();
-static const int VOLUME_RAYCASTERS_BASE_ID = (int)SceneRaycaster::EIdBase::Gizmo;
+static const int VOLUME_RAYCASTERS_BASE_ID = static_cast<int>(SceneRaycaster::EIdBase::Gizmo);
 
 GLGizmoSlaBase::GLGizmoSlaBase(GLCanvas3D& parent, const std::string& icon_filename, unsigned int sprite_id, SLAPrintObjectStep min_step)
 : GLGizmoBase(parent, icon_filename, sprite_id)
-, m_min_sla_print_object_step((int)min_step)
+, m_min_sla_print_object_step(static_cast<int>(min_step))
 {}
 
 void GLGizmoSlaBase::reslice_until_step(SLAPrintObjectStep step, bool postpone_error_messages)
@@ -166,14 +166,14 @@ void GLGizmoSlaBase::register_volume_raycasters_for_picking()
     for (size_t i = 0; i < m_volumes.volumes.size(); ++i) {
         const GLVolume* v = m_volumes.volumes[i].get();
         if (!v->is_sla_pad() && !v->is_sla_support())
-            m_volume_raycasters.emplace_back(m_parent.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, VOLUME_RAYCASTERS_BASE_ID + (int)i, *v->mesh_raycaster, v->world_matrix()));
+            m_volume_raycasters.emplace_back(m_parent.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, VOLUME_RAYCASTERS_BASE_ID + static_cast<int>(i), *v->mesh_raycaster, v->world_matrix()));
     }
 }
 
 void GLGizmoSlaBase::unregister_volume_raycasters_for_picking()
 {
     for (size_t i = 0; i < m_volume_raycasters.size(); ++i) {
-        m_parent.remove_raycasters_for_picking(SceneRaycaster::EType::Gizmo, VOLUME_RAYCASTERS_BASE_ID + (int)i);
+        m_parent.remove_raycasters_for_picking(SceneRaycaster::EType::Gizmo, VOLUME_RAYCASTERS_BASE_ID + static_cast<int>(i));
     }
     m_volume_raycasters.clear();
 }

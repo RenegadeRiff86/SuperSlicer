@@ -47,12 +47,12 @@ bool MPMDv2::test(wxString &msg) const
     BOOST_LOG_TRIVIAL(info) << boost::format("%1%: Get version at: %2%") % name % url;
 
     auto http = Http::get(std::move(url));
-    http.on_error([&](std::string body, std::string error, unsigned status) {
+    http.on_error([&](const std::string& body, const std::string& error, unsigned status) {
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error getting version: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
             res = false;
             msg = format_error(body, error, status);
         })
-        .on_complete([&, this](std::string body, unsigned) {
+        .on_complete([&, this](const std::string& body, unsigned) {
             BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: Got version: %2%") % name % body;
 
             try {
@@ -110,10 +110,10 @@ bool MPMDv2::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, ErrorFn
     http.form_add("path", upload_parent_path.string())
         .form_add_file("file", upload_data.source_path.string(), upload_filename.string())
         .form_add("print", upload_data.post_action == PrintHostPostUploadAction::StartPrint ? "true" : "false")
-        .on_complete([&](std::string body, unsigned status) {
+        .on_complete([&](const std::string& body, unsigned status) {
             BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: File uploaded: HTTP %2%: %3%") % name % status % body;
         })
-        .on_error([&](std::string body, std::string error, unsigned status) {
+        .on_error([&](const std::string& body, const std::string& error, unsigned status) {
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error uploading file: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
             error_fn(format_error(body, error, status));
             res = false;

@@ -82,23 +82,23 @@ void GLGizmoBase::Grabber::render(float size, const ColorRGBA& render_color)
     s_cone.model.set_color(render_color);
 
     const Camera& camera = wxGetApp().plater()->get_camera();
-    shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
     const Transform3d& view_matrix = camera.get_view_matrix();
     const Matrix3d view_matrix_no_offset = view_matrix.matrix().block(0, 0, 3, 3);
     std::vector<Transform3d> elements_matrices(GRABBER_ELEMENTS_MAX_COUNT, Transform3d::Identity());
     elements_matrices[0] = matrix * Geometry::translation_transform(center) * Geometry::rotation_transform(angles) * Geometry::scale_transform(2.0 * half_size);
     Transform3d view_model_matrix = view_matrix * elements_matrices[0];
 
-    shader->set_uniform("view_model_matrix", view_model_matrix);
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_model_matrix);
     Matrix3d view_normal_matrix = view_matrix_no_offset * elements_matrices[0].matrix().block(0, 0, 3, 3).inverse().transpose();
-    shader->set_uniform("view_normal_matrix", view_normal_matrix);
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
     s_cube.model.render();
 
     auto render_extension = [&view_matrix, &view_matrix_no_offset, shader](const Transform3d& matrix) {
         const Transform3d view_model_matrix = view_matrix * matrix;
-        shader->set_uniform("view_model_matrix", view_model_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_model_matrix);
         const Matrix3d view_normal_matrix = view_matrix_no_offset * matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-        shader->set_uniform("view_normal_matrix", view_normal_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         s_cone.model.render();
     };
 
@@ -174,7 +174,7 @@ void GLGizmoBase::set_hover_id(int id)
     assert(!m_dragging);
 
     // allow empty grabbers when not using grabbers but use hover_id - flatten, rotate
-//    if (!m_grabbers.empty() && id >= (int) m_grabbers.size())
+//    if (!m_grabbers.empty() && id >= static_cast<int>(m_grabbers.size()))
 //        return;
     
     m_hover_id = id;
@@ -204,7 +204,7 @@ void GLGizmoBase::unregister_grabbers_for_picking()
 
 void GLGizmoBase::render_grabbers(const BoundingBoxf3& box) const
 {
-    render_grabbers((float)((box.size().x() + box.size().y() + box.size().z()) / 3.0));
+    render_grabbers(static_cast<float>((box.size().x() + box.size().y() + box.size().z()) / 3.0));
 }
 
 void GLGizmoBase::render_grabbers(float size) const
@@ -222,7 +222,7 @@ void GLGizmoBase::render_grabbers(size_t first, size_t last, float size, bool fo
     glsafe(::glDisable(GL_CULL_FACE));
     for (size_t i = first; i <= last; ++i) {
         if (m_grabbers[i].enabled)
-            m_grabbers[i].render(force_hover ? true : m_hover_id == (int)i, size);
+            m_grabbers[i].render(force_hover ? true : m_hover_id == static_cast<int>(i), size);
     }
     glsafe(::glEnable(GL_CULL_FACE));
     shader->stop_using();

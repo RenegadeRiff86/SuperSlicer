@@ -19,7 +19,7 @@ SCENARIO("PrintObject: Perimeter generation") {
         DynamicPrintConfig &config = Slic3r::DynamicPrintConfig::full_print_config();
         TestMesh m = TestMesh::cube_20x20x20;
         Model model{};
-        config.set_key_value("fill_density", new ConfigOptionPercent(0));
+        config.set_key_value("fill_density", std::make_unique<ConfigOptionPercent>(0));
         config.set_deserialize("nozzle_diameter", "0.4");
         config.set_deserialize("layer_height", "0.3");
 
@@ -57,10 +57,10 @@ SCENARIO("Print: Skirt generation") {
         DynamicPrintConfig &config = Slic3r::DynamicPrintConfig::full_print_config();
         TestMesh m = TestMesh::cube_20x20x20;
         Slic3r::Model model{};
-        config.set_key_value("skirt_height", new ConfigOptionInt(1));
-        config.set_key_value("skirt_distance", new ConfigOptionFloat(1));
+        config.set_key_value("skirt_height", std::make_unique<ConfigOptionInt>(1));
+        config.set_key_value("skirt_distance", std::make_unique<ConfigOptionFloat>(1));
         WHEN("Skirts is set to 2 loops")  {
-            config.set_key_value("skirts", new ConfigOptionInt(2));
+            config.set_key_value("skirts", std::make_unique<ConfigOptionInt>(2));
             Print print{};
             Slic3r::Test::init_print(print, { m }, model, &config);
             print.process();
@@ -74,7 +74,7 @@ SCENARIO("Print: Skirt generation") {
 
 void test_is_solid_infill(Print &p, size_t obj_id, size_t layer_id, bool check = true ) {
     const PrintObject& obj { *(p.objects().at(obj_id)) };
-    const Layer& layer { *(obj.get_layer((int)layer_id)) };
+    const Layer& layer { *(obj.get_layer(static_cast<int>(layer_id))) };
 
     // iterate over all of the regions in the layer
     for (const LayerRegion* reg : layer.regions()) {
@@ -89,12 +89,12 @@ SCENARIO("Print: Changing number of solid surfaces does not cause all surfaces t
     GIVEN("sliced 20mm cube and config with top_solid_surfaces = 2 and bottom_solid_surfaces = 1") {
         DynamicPrintConfig &config = Slic3r::DynamicPrintConfig::full_print_config();
         TestMesh m { TestMesh::cube_20x20x20 };
-        config.set_key_value("top_solid_layers", new ConfigOptionInt(2));
-        config.set_key_value("bottom_solid_layers", new ConfigOptionInt(1));
-        config.set_key_value("layer_height", new ConfigOptionFloat(0.5)); // get a known number of layers
-        config.set_key_value("first_layer_height", new ConfigOptionFloatOrPercent(0.5, false));
-        config.set_key_value("nozzle_diameter", new ConfigOptionFloats({1})); // has to be large enough for 0.5 layer height, the min/max lh depends on it
-        config.set_key_value("enforce_full_fill_volume", new ConfigOptionBool(true)); 
+        config.set_key_value("top_solid_layers", std::make_unique<ConfigOptionInt>(2));
+        config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(1));
+        config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(0.5)); // get a known number of layers
+        config.set_key_value("first_layer_height", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
+        config.set_key_value("nozzle_diameter", std::make_unique<ConfigOptionFloats>(ConfigOptionFloats{1})); // has to be large enough for 0.5 layer height, the min/max lh depends on it
+        config.set_key_value("enforce_full_fill_volume", std::make_unique<ConfigOptionBool>(true)); 
         Slic3r::Model model;
         auto event_counter {0U};
         std::string stage;
@@ -142,9 +142,9 @@ SCENARIO("Print: Brim generation") {
         DynamicPrintConfig &config = Slic3r::DynamicPrintConfig::full_print_config();
         TestMesh m{ TestMesh::cube_20x20x20 };
         Slic3r::Model model{};
-        config.set_key_value("first_layer_extrusion_width", new ConfigOptionFloatOrPercent(1, false));
+        config.set_key_value("first_layer_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(1, false));
         WHEN("Brim is set to 3mm")  {
-            config.set_key_value("brim_width", new ConfigOptionFloat(3));
+            config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(3));
             Print print{};
             Slic3r::Test::init_print(print, { m }, model, &config);
             print.process();
@@ -160,7 +160,7 @@ SCENARIO("Print: Brim generation") {
             }
         }
         WHEN("Brim is set to 6mm") {
-            config.set_key_value("brim_width", new ConfigOptionFloat(6));
+            config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(6));
             Print print{};
             Slic3r::Test::init_print(print, { m }, model, &config);
             print.process();
@@ -169,8 +169,8 @@ SCENARIO("Print: Brim generation") {
             }
         }
         WHEN("Brim is set to 6mm with 1mm offset") {
-            config.set_key_value("brim_width", new ConfigOptionFloat(6));
-            config.set_key_value("brim_offset", new ConfigOptionFloat(1));
+            config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(6));
+            config.set_key_value("brim_offset", std::make_unique<ConfigOptionFloat>(1));
             Print print{};
             Slic3r::Test::init_print(print, { m }, model, &config);
             print.process();
@@ -179,8 +179,8 @@ SCENARIO("Print: Brim generation") {
             }
         }
         WHEN("Brim without first layer compensation") {
-            config.set_key_value("brim_width", new ConfigOptionFloat(1));
-            config.set_key_value("brim_offset", new ConfigOptionFloat(0));
+            config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(1));
+            config.set_key_value("brim_offset", std::make_unique<ConfigOptionFloat>(0));
             Print print{};
             Slic3r::Test::init_print(print, { m }, model, &config);
             print.process();
@@ -193,9 +193,9 @@ SCENARIO("Print: Brim generation") {
             }
         }
         WHEN("Brim with 1mm first layer compensation") {
-            config.set_key_value("brim_width", new ConfigOptionFloat(1));
-            config.set_key_value("brim_offset", new ConfigOptionFloat(0));
-            config.set_key_value("first_layer_size_compensation", new ConfigOptionFloat(-0.5));
+            config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(1));
+            config.set_key_value("brim_offset", std::make_unique<ConfigOptionFloat>(0));
+            config.set_key_value("first_layer_size_compensation", std::make_unique<ConfigOptionFloat>(-0.5));
             Print print{};
             Slic3r::Test::init_print(print, { m }, model, &config);
             print.process();
@@ -208,8 +208,8 @@ SCENARIO("Print: Brim generation") {
             }
         }
         WHEN("Brim is set to 6mm, extrusion width 0.5mm")  {
-            config.set_key_value("brim_width", new ConfigOptionFloat(6));
-            config.set_key_value("first_layer_extrusion_width", new ConfigOptionFloatOrPercent(0.5, false));
+            config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(6));
+            config.set_key_value("first_layer_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.5, false));
             Print print{};
             Slic3r::Test::init_print(print, { m }, model, &config);
             print.process();
@@ -221,8 +221,8 @@ SCENARIO("Print: Brim generation") {
             }
         }
         WHEN("Brim ears activated, 3mm") {
-            config.set_key_value("brim_width", new ConfigOptionFloat(3));
-            config.set_key_value("brim_ears", new ConfigOptionBool(true));
+            config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(3));
+            config.set_key_value("brim_ears", std::make_unique<ConfigOptionBool>(true));
             Print print{};
             Slic3r::Test::init_print(print, { m }, model, &config);
             print.process();
@@ -246,11 +246,11 @@ SCENARIO("Print: perimeter generation : cube with hole, just enough space for tw
 {
     DynamicPrintConfig &config = Slic3r::DynamicPrintConfig::full_print_config();
     Slic3r::Model       model{};
-    config.set_key_value("first_layer_extrusion_width", new ConfigOptionFloatOrPercent(0.42, false));
+    config.set_key_value("first_layer_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.42, false));
     config.set_deserialize("nozzle_diameter", "0.4");
     config.set_deserialize("layer_height", "0.2");
     config.set_deserialize("first_layer_height", "0.2");
-    config.set_key_value("only_one_perimeter_top", new ConfigOptionBool(false));
+    config.set_key_value("only_one_perimeter_top", std::make_unique<ConfigOptionBool>(false));
 
     auto facets = std::vector<Vec3i32>{Vec3i32(1, 4, 3),    Vec3i32(4, 1, 2),    Vec3i32(16, 12, 14),
                                        Vec3i32(16, 10, 12), Vec3i32(10, 4, 6),   Vec3i32(4, 10, 16),
@@ -337,11 +337,11 @@ struct GetAll : ExtrusionVisitorRecursive
 SCENARIO("Print: perimeter generation : cube with hole in center") {
     DynamicPrintConfig& config = Slic3r::DynamicPrintConfig::full_print_config();
     Slic3r::Model model{};
-    config.set_key_value("first_layer_extrusion_width", new ConfigOptionFloatOrPercent(0.42, false));
+    config.set_key_value("first_layer_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.42, false));
     config.set_deserialize("nozzle_diameter", "0.4");
     config.set_deserialize("layer_height", "0.2");
     config.set_deserialize("first_layer_height", "0.2");
-    config.set_key_value("only_one_perimeter_top", new ConfigOptionBool(false));
+    config.set_key_value("only_one_perimeter_top", std::make_unique<ConfigOptionBool>(false));
 
     std::vector<Vec3f>   v{{-10, 10, -0.1},   {-10, -10, -0.1},   {-10, 10, 0.1},    {-10, -10, 0.1},
                          {10, -10, -0.1},   {10, -10, 0.1},     {-2.5, 2.5, 0.1},  {-2.5, -2.5, 0.1},

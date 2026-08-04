@@ -7,7 +7,6 @@
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/GUI/GUI_ObjectManipulation.hpp"
 #include "slic3r/GUI/Plater.hpp"
-#include "libslic3r/Model.hpp"
 
 #include <GL/glew.h>
 
@@ -16,6 +15,15 @@
 namespace Slic3r {
 namespace GUI {
 
+namespace {
+
+constexpr char kDashedThickLinesShaderName[] = "dashed_thick_lines";
+constexpr char kViewModelMatrixUniform[]     = "view_model_matrix";
+constexpr char kProjectionMatrixUniform[]    = "projection_matrix";
+constexpr char kViewportSizeUniform[]        = "viewport_size";
+constexpr char kGapSizeUniform[]             = "gap_size";
+
+} // namespace
 
 const double GLGizmoScale3D::Offset = 5.0;
 
@@ -61,7 +69,7 @@ std::string GLGizmoScale3D::get_tooltip() const
 static int constraint_id(int grabber_id)
 {
   static const std::vector<int> id_map = { 1, 0, 3, 2, 5, 4, 8, 9, 6, 7 };
-  return (0 <= grabber_id && grabber_id < (int)id_map.size()) ? id_map[grabber_id] : -1;
+  return (0 <= grabber_id && grabber_id < static_cast<int>(id_map.size())) ? id_map[grabber_id] : -1;
 }
 
 bool GLGizmoScale3D::on_mouse(const wxMouseEvent &mouse_event)
@@ -170,25 +178,25 @@ void GLGizmoScale3D::on_render()
         glsafe(::glLineWidth((m_hover_id != -1) ? bigger : min));
     }
 
-    const float grabber_mean_size = (float)((m_bounding_box.size().x() + m_bounding_box.size().y() + m_bounding_box.size().z()) / 3.0);
+    const float grabber_mean_size = static_cast<float>((m_bounding_box.size().x() + m_bounding_box.size().y() + m_bounding_box.size().z()) / 3.0);
 
     if (m_hover_id == -1) {
         // draw connections
 #if ENABLE_GL_CORE_PROFILE
-        GLShaderProgram* shader = OpenGLManager::get_gl_info().is_core_profile() ? wxGetApp().get_shader("dashed_thick_lines") : wxGetApp().get_shader("flat");
+        GLShaderProgram* shader = OpenGLManager::get_gl_info().is_core_profile() ? wxGetApp().get_shader(kDashedThickLinesShaderName) : wxGetApp().get_shader("flat");
 #else
         GLShaderProgram* shader = wxGetApp().get_shader("flat");
 #endif // ENABLE_GL_CORE_PROFILE
         if (shader != nullptr) {
             shader->start_using();
             const Camera& camera = wxGetApp().plater()->get_camera();
-            shader->set_uniform("view_model_matrix", camera.get_view_matrix() * m_grabbers_transform);
-            shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+            shader->set_uniform(kViewModelMatrixUniform, camera.get_view_matrix() * m_grabbers_transform);
+            shader->set_uniform(kProjectionMatrixUniform, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
             const std::array<int, 4>& viewport = camera.get_viewport();
-            shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+            shader->set_uniform(kViewportSizeUniform, Vec2d(double(viewport[2]), double(viewport[3])));
             shader->set_uniform("width", 0.25f);
-            shader->set_uniform("gap_size", 0.0f);
+            shader->set_uniform(kGapSizeUniform, 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
             if (m_grabbers[0].enabled && m_grabbers[1].enabled)
                 render_grabbers_connection(0, 1, m_grabbers[0].color);
@@ -209,20 +217,20 @@ void GLGizmoScale3D::on_render()
     else if ((m_hover_id == 0 || m_hover_id == 1) && m_grabbers[0].enabled && m_grabbers[1].enabled) {
         // draw connections
 #if ENABLE_GL_CORE_PROFILE
-        GLShaderProgram* shader = OpenGLManager::get_gl_info().is_core_profile() ? wxGetApp().get_shader("dashed_thick_lines") : wxGetApp().get_shader("flat");
+        GLShaderProgram* shader = OpenGLManager::get_gl_info().is_core_profile() ? wxGetApp().get_shader(kDashedThickLinesShaderName) : wxGetApp().get_shader("flat");
 #else
         GLShaderProgram* shader = wxGetApp().get_shader("flat");
 #endif // ENABLE_GL_CORE_PROFILE
         if (shader != nullptr) {
             shader->start_using();
             const Camera& camera = wxGetApp().plater()->get_camera();
-            shader->set_uniform("view_model_matrix", camera.get_view_matrix() * m_grabbers_transform);
-            shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+            shader->set_uniform(kViewModelMatrixUniform, camera.get_view_matrix() * m_grabbers_transform);
+            shader->set_uniform(kProjectionMatrixUniform, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
             const std::array<int, 4>& viewport = camera.get_viewport();
-            shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+            shader->set_uniform(kViewportSizeUniform, Vec2d(double(viewport[2]), double(viewport[3])));
             shader->set_uniform("width", 0.25f);
-            shader->set_uniform("gap_size", 0.0f);
+            shader->set_uniform(kGapSizeUniform, 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
             render_grabbers_connection(0, 1, m_grabbers[0].color);
             shader->stop_using();
@@ -240,20 +248,20 @@ void GLGizmoScale3D::on_render()
     else if ((m_hover_id == 2 || m_hover_id == 3) && m_grabbers[2].enabled && m_grabbers[3].enabled) {
         // draw connections
 #if ENABLE_GL_CORE_PROFILE
-        GLShaderProgram* shader = OpenGLManager::get_gl_info().is_core_profile() ? wxGetApp().get_shader("dashed_thick_lines") : wxGetApp().get_shader("flat");
+        GLShaderProgram* shader = OpenGLManager::get_gl_info().is_core_profile() ? wxGetApp().get_shader(kDashedThickLinesShaderName) : wxGetApp().get_shader("flat");
 #else
         GLShaderProgram* shader = wxGetApp().get_shader("flat");
 #endif // ENABLE_GL_CORE_PROFILE
         if (shader != nullptr) {
             shader->start_using();
             const Camera& camera = wxGetApp().plater()->get_camera();
-            shader->set_uniform("view_model_matrix", camera.get_view_matrix() * m_grabbers_transform);
-            shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+            shader->set_uniform(kViewModelMatrixUniform, camera.get_view_matrix() * m_grabbers_transform);
+            shader->set_uniform(kProjectionMatrixUniform, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
             const std::array<int, 4>& viewport = camera.get_viewport();
-            shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+            shader->set_uniform(kViewportSizeUniform, Vec2d(double(viewport[2]), double(viewport[3])));
             shader->set_uniform("width", 0.25f);
-            shader->set_uniform("gap_size", 0.0f);
+            shader->set_uniform(kGapSizeUniform, 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
             render_grabbers_connection(2, 3, m_grabbers[2].color);
             shader->stop_using();
@@ -271,20 +279,20 @@ void GLGizmoScale3D::on_render()
     else if ((m_hover_id == 4 || m_hover_id == 5) && m_grabbers[4].enabled && m_grabbers[5].enabled) {
         // draw connections
 #if ENABLE_GL_CORE_PROFILE
-        GLShaderProgram* shader = OpenGLManager::get_gl_info().is_core_profile() ? wxGetApp().get_shader("dashed_thick_lines") : wxGetApp().get_shader("flat");
+        GLShaderProgram* shader = OpenGLManager::get_gl_info().is_core_profile() ? wxGetApp().get_shader(kDashedThickLinesShaderName) : wxGetApp().get_shader("flat");
 #else
         GLShaderProgram* shader = wxGetApp().get_shader("flat");
 #endif // ENABLE_GL_CORE_PROFILE
         if (shader != nullptr) {
             shader->start_using();
             const Camera& camera = wxGetApp().plater()->get_camera();
-            shader->set_uniform("view_model_matrix", camera.get_view_matrix() * m_grabbers_transform);
-            shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+            shader->set_uniform(kViewModelMatrixUniform, camera.get_view_matrix() * m_grabbers_transform);
+            shader->set_uniform(kProjectionMatrixUniform, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
             const std::array<int, 4>& viewport = camera.get_viewport();
-            shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+            shader->set_uniform(kViewportSizeUniform, Vec2d(double(viewport[2]), double(viewport[3])));
             shader->set_uniform("width", 0.25f);
-            shader->set_uniform("gap_size", 0.0f);
+            shader->set_uniform(kGapSizeUniform, 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
             render_grabbers_connection(4, 5, m_grabbers[4].color);
             shader->stop_using();
@@ -302,20 +310,20 @@ void GLGizmoScale3D::on_render()
     else if (m_hover_id >= 6) {
         // draw connections
 #if ENABLE_GL_CORE_PROFILE
-        GLShaderProgram* shader = OpenGLManager::get_gl_info().is_core_profile() ? wxGetApp().get_shader("dashed_thick_lines") : wxGetApp().get_shader("flat");
+        GLShaderProgram* shader = OpenGLManager::get_gl_info().is_core_profile() ? wxGetApp().get_shader(kDashedThickLinesShaderName) : wxGetApp().get_shader("flat");
 #else
         GLShaderProgram* shader = wxGetApp().get_shader("flat");
 #endif // ENABLE_GL_CORE_PROFILE
         if (shader != nullptr) {
             shader->start_using();
             const Camera& camera = wxGetApp().plater()->get_camera();
-            shader->set_uniform("view_model_matrix", camera.get_view_matrix() * m_grabbers_transform);
-            shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+            shader->set_uniform(kViewModelMatrixUniform, camera.get_view_matrix() * m_grabbers_transform);
+            shader->set_uniform(kProjectionMatrixUniform, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
             const std::array<int, 4>& viewport = camera.get_viewport();
-            shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+            shader->set_uniform(kViewportSizeUniform, Vec2d(double(viewport[2]), double(viewport[3])));
             shader->set_uniform("width", 0.25f);
-            shader->set_uniform("gap_size", 0.0f);
+            shader->set_uniform(kGapSizeUniform, 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
             render_grabbers_connection(6, 7, m_drag_color);
             render_grabbers_connection(7, 8, m_drag_color);
@@ -427,7 +435,7 @@ double GLGizmoScale3D::calc_ratio(const UpdateData& data) const
     }
 
     if (wxGetKeyState(WXK_SHIFT))
-        ratio = m_snap_step * (double)std::round(ratio / m_snap_step);
+        ratio = m_snap_step * static_cast<double>(std::round(ratio / m_snap_step));
 
     return ratio;
 }

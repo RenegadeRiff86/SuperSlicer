@@ -21,24 +21,27 @@
 
 using namespace Slic3r;
 
+// These hand the entity to ExtrusionEntityCollection::entities, which is an owning
+// vector<ExtrusionEntity*> and frees its members itself, so the raw pointer is the
+// required return type. Building it in a unique_ptr keeps the setup below exception-safe.
 ExtrusionPath* createEP(std::initializer_list<Point> vec) {
-    ExtrusionPath *ep = new ExtrusionPath{ ExtrusionRole::erNone };
+    auto ep = std::make_unique<ExtrusionPath>(ExtrusionRole::erNone);
     ep->polyline = vec;
-    return ep;
+    return ep.release();
 }
 ExtrusionEntityCollection* createEC(std::initializer_list<ExtrusionEntity*> vec, bool no_sort = false) {
-    ExtrusionEntityCollection *ec = new ExtrusionEntityCollection{};
+    auto ec = std::make_unique<ExtrusionEntityCollection>();
     ec->set_can_sort_reverse(!no_sort, !no_sort);
     ec->entities = vec;
-    return ec;
+    return ec.release();
 }
 ExtrusionLoop* createEL(std::vector<std::initializer_list<Point>> vec) {
-    ExtrusionLoop *el = new ExtrusionLoop{};
+    auto el = std::make_unique<ExtrusionLoop>();
     for (std::initializer_list<Point> &path : vec) {
         el->paths.emplace_back(ExtrusionRole::erNone);
         el->paths.back().polyline = path;
     }
-    return el;
+    return el.release();
 }
 
 TEST_CASE("shortest path, benchy") {

@@ -388,7 +388,7 @@ void WifiScanner::fill_wifi_map(Slic3r::WifiSsidPskMap& wifi_map, std::string& c
                 wlan_intf_opcode_current_connection, NULL,
                 &connectInfoSize, (PVOID*)&pConnectInfo, &opCode) == ERROR_SUCCESS && pConnectInfo && pConnectInfo->wlanAssociationAttributes.dot11Ssid.uSSIDLength)
             {
-                connected_ssid = std::string((const char*)pConnectInfo->wlanAssociationAttributes.dot11Ssid.ucSSID,
+                connected_ssid = std::string(reinterpret_cast<const char*>(pConnectInfo->wlanAssociationAttributes.dot11Ssid.ucSSID),
                     pConnectInfo->wlanAssociationAttributes.dot11Ssid.uSSIDLength);
                 wlanFreeMemoryFunc(pConnectInfo);
             }

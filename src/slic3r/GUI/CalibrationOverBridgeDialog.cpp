@@ -13,7 +13,6 @@
 #include <wx/display.h>
 #include <wx/file.h>
 #include <wx/wupdlock.h>
-#include "wxExtensions.hpp"
 
 #if ENABLE_SCROLLABLE
 static wxSize get_screen_size(wxWindow* window)
@@ -26,6 +25,12 @@ static wxSize get_screen_size(wxWindow* window)
 
 namespace Slic3r {
 namespace GUI {
+
+namespace {
+constexpr char kCalibrationResourceDirectory[] = "calibration";
+constexpr char kOverBridgeResourceDirectory[] = "over-bridge_tuning";
+constexpr char kOverBridgeTestFilename[] = "over-bridge_flow_ratio_test.amf";
+} // namespace
 
 void CalibrationOverBridgeDialog::create_buttons(wxStdDialogButtonSizer* buttons){
     wxButton* bt1 = new wxButton(this, wxID_FILE1, _L("'Above the Bridges' flow calibration"));
@@ -64,12 +69,12 @@ void CalibrationOverBridgeDialog::create_geometry(bool over_bridge) {
     }
 
     std::vector<size_t> objs_idx = plat->load_files(std::vector<std::string>{
-            (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "over-bridge_tuning" / "over-bridge_flow_ratio_test.amf").string(),
-            (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "over-bridge_tuning" / "over-bridge_flow_ratio_test.amf").string(),
-            (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "over-bridge_tuning" / "over-bridge_flow_ratio_test.amf").string(),
-            (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "over-bridge_tuning" / "over-bridge_flow_ratio_test.amf").string(),
-            (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "over-bridge_tuning" / "over-bridge_flow_ratio_test.amf").string(),
-            (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "over-bridge_tuning" / "over-bridge_flow_ratio_test.amf").string()},
+            (boost::filesystem::path(Slic3r::resources_dir()) / kCalibrationResourceDirectory / kOverBridgeResourceDirectory / kOverBridgeTestFilename).string(),
+            (boost::filesystem::path(Slic3r::resources_dir()) / kCalibrationResourceDirectory / kOverBridgeResourceDirectory / kOverBridgeTestFilename).string(),
+            (boost::filesystem::path(Slic3r::resources_dir()) / kCalibrationResourceDirectory / kOverBridgeResourceDirectory / kOverBridgeTestFilename).string(),
+            (boost::filesystem::path(Slic3r::resources_dir()) / kCalibrationResourceDirectory / kOverBridgeResourceDirectory / kOverBridgeTestFilename).string(),
+            (boost::filesystem::path(Slic3r::resources_dir()) / kCalibrationResourceDirectory / kOverBridgeResourceDirectory / kOverBridgeTestFilename).string(),
+            (boost::filesystem::path(Slic3r::resources_dir()) / kCalibrationResourceDirectory / kOverBridgeResourceDirectory / kOverBridgeTestFilename).string()},
         LoadFileOption::LoadModel | LoadFileOption::DontUpdateDirs);
 
     assert(objs_idx.size() == 6);
@@ -104,44 +109,45 @@ void CalibrationOverBridgeDialog::create_geometry(bool over_bridge) {
     const ConfigOptionFloatOrPercent* first_layer_height = print_config->option<ConfigOptionFloatOrPercent>("first_layer_height");
     float patch_zscale = (first_layer_height->get_abs_value(nozzle_diameter) + nozzle_diameter / 2) / 0.4;
     float zshift =  0.8 * (1 - xyz_scale);
+    const boost::filesystem::path bridge_flow_dir =
+        boost::filesystem::path(Slic3r::resources_dir()) / kCalibrationResourceDirectory / "bridge_flow";
     for (size_t i = 0; i < 6; i++) {
-        model.objects[objs_idx[i]]->rotate(PI / 2, { 0,0,1 });
-        add_part(model.objects[objs_idx[i]], (boost::filesystem::path(Slic3r::resources_dir()) /"calibration" / "bridge_flow" / ("f"+std::to_string(100 + i * 5)+".amf")).string(), Vec3d{ 0, 10 * xyz_scale ,zshift }, Vec3d{ 1, 1, patch_zscale });
-            translate_from_rotation(i, Vec3d{ 0, 10 * xyz_scale ,zshift });
+        model.objects[objs_idx[i]]->rotate(PI / 2, { 0, 0, 1 });
+        add_part(model.objects[objs_idx[i]],
+                 (bridge_flow_dir / ("f" + std::to_string(100 + i * 5) + ".amf")).string(),
+                 Vec3d{ 0, 10 * xyz_scale, zshift }, Vec3d{ 1, 1, patch_zscale });
+        translate_from_rotation(i, Vec3d{ 0, 10 * xyz_scale, zshift });
     }
 
     /// --- translate ---;
     bool has_to_arrange = true;
-    const float brim_width = print_config->option<ConfigOptionFloat>("brim_width")->get_float();
-    const float skirt_width = print_config->option("skirts")->get_int() == 0 ? 0 : print_config->option("skirt_distance")->get_float() + print_config->option("skirts")->get_int() * nozzle_diameter * 2;
-
     /// --- main config, please modify object config when possible ---
     DynamicPrintConfig new_print_config = *print_config; //make a copy
-    new_print_config.set_key_value("complete_objects", new ConfigOptionBool(true));
+    new_print_config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(true));
     //if skirt, use only one
     if (print_config->option<ConfigOptionInt>("skirts")->get_int() > 0 && print_config->option<ConfigOptionInt>("skirt_height")->get_int() > 0) {
-        new_print_config.set_key_value("complete_objects_one_skirt", new ConfigOptionBool(true));
+        new_print_config.set_key_value("complete_objects_one_skirt", std::make_unique<ConfigOptionBool>(true));
     }
 
     /// --- custom config ---
     for (size_t i = 0; i < 6; i++) {
-        model.objects[objs_idx[i]]->config.set_key_value("perimeters", new ConfigOptionInt(2));
-        model.objects[objs_idx[i]]->config.set_key_value("bottom_solid_layers", new ConfigOptionInt(1)); // at least the first, to prevent adhesion issues.
-        model.objects[objs_idx[i]]->config.set_key_value("top_solid_layers", new ConfigOptionInt(3));
-        model.objects[objs_idx[i]]->config.set_key_value("fill_density", new ConfigOptionPercent(5.5));
-        model.objects[objs_idx[i]]->config.set_key_value("fill_pattern", new ConfigOptionEnum<InfillPattern>(ipRectilinear));
-        model.objects[objs_idx[i]]->config.set_key_value("infill_dense", new ConfigOptionBool(false));
-        model.objects[objs_idx[i]]->config.set_key_value("ironing", new ConfigOptionBool(false));
+        model.objects[objs_idx[i]]->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(2));
+        model.objects[objs_idx[i]]->config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(1)); // at least the first, to prevent adhesion issues.
+        model.objects[objs_idx[i]]->config.set_key_value("top_solid_layers", std::make_unique<ConfigOptionInt>(3));
+        model.objects[objs_idx[i]]->config.set_key_value("fill_density", std::make_unique<ConfigOptionPercent>(5.5));
+        model.objects[objs_idx[i]]->config.set_key_value("fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipRectilinear));
+        model.objects[objs_idx[i]]->config.set_key_value("infill_dense", std::make_unique<ConfigOptionBool>(false));
+        model.objects[objs_idx[i]]->config.set_key_value("ironing", std::make_unique<ConfigOptionBool>(false));
         //calibration setting. Use 100 & 5 step as it's the numbers printed on the samples
         if (over_bridge) {
-            model.objects[objs_idx[i]]->config.set_key_value("over_bridge_flow_ratio", new ConfigOptionPercent(/*print_config->option<ConfigOptionPercent>("over_bridge_flow_ratio")->get_abs_value(100)*/100 + i * 5));
+            model.objects[objs_idx[i]]->config.set_key_value("over_bridge_flow_ratio", std::make_unique<ConfigOptionPercent>(/*print_config->option<ConfigOptionPercent>("over_bridge_flow_ratio")->get_abs_value(100)*/100 + i * 5));
         } else {
-            model.objects[objs_idx[i]]->config.set_key_value("fill_top_flow_ratio", new ConfigOptionPercent(/*print_config->option<ConfigOptionPercent>("fill_top_flow_ratio")->get_abs_value(100)*/100 + i * 5));
+            model.objects[objs_idx[i]]->config.set_key_value("fill_top_flow_ratio", std::make_unique<ConfigOptionPercent>(/*print_config->option<ConfigOptionPercent>("fill_top_flow_ratio")->get_abs_value(100)*/100 + i * 5));
         }
-        model.objects[objs_idx[i]]->config.set_key_value("layer_height", new ConfigOptionFloat(nozzle_diameter / 2));
-        model.objects[objs_idx[i]]->config.set_key_value("external_infill_margin", new ConfigOptionFloatOrPercent(400,true));
-        model.objects[objs_idx[i]]->config.set_key_value("top_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipSmooth));
-        model.objects[objs_idx[i]]->config.set_key_value("fill_angle", new ConfigOptionFloat(45));
+        model.objects[objs_idx[i]]->config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(nozzle_diameter / 2));
+        model.objects[objs_idx[i]]->config.set_key_value("external_infill_margin", std::make_unique<ConfigOptionFloatOrPercent>(400,true));
+        model.objects[objs_idx[i]]->config.set_key_value("top_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipSmooth));
+        model.objects[objs_idx[i]]->config.set_key_value("fill_angle", std::make_unique<ConfigOptionFloat>(45));
     }
 
     //update plater

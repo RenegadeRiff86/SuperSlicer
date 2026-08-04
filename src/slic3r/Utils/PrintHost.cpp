@@ -9,8 +9,6 @@
 ///|/
 #include "PrintHost.hpp"
 
-#include <optional>
-#include <vector>
 #include <thread>
 #include <exception>
 #include <boost/log/trivial.hpp>
@@ -36,7 +34,6 @@
 #include "slic3r/GUI/I18N.hpp"
 
 namespace fs = boost::filesystem;
-using std::optional;
 using Slic3r::GUI::PrintHostQueueDialog;
 
 namespace Slic3r {
@@ -57,7 +54,7 @@ wxString PrintHost::get_test_failed_msg(wxString& msg) const
         % std::string(msg.ToUTF8())).str());
 }
 
-PrintHost* PrintHost::get_print_host(DynamicPrintConfig *config)
+std::unique_ptr<PrintHost> PrintHost::get_print_host(DynamicPrintConfig *config)
 {
     PrinterTechnology tech = ptFFF;
 
@@ -73,22 +70,22 @@ PrintHost* PrintHost::get_print_host(DynamicPrintConfig *config)
         const auto host_type = opt != nullptr ? opt->value : htOctoPrint;
 
         switch (host_type) {
-            case htOctoPrint: return new OctoPrint(config);
-            case htDuet:      return new Duet(config);
-            case htFlashAir:  return new FlashAir(config);
-            case htAstroBox:  return new AstroBox(config);
-            case htRepetier:  return new Repetier(config);
-            case htKlipper:   return new Klipper(config);
-            case htMPMDv2:    return new MPMDv2(config);
-            case htPrusaLink: return new PrusaLink(config);
-            case htPrusaConnect: return new PrusaConnect(config);
-            case htMKS:       return new MKS(config);
-            case htMoonraker: return new Moonraker(config);
-            case htMiniDeltaLCD: return new MiniDeltaLCD(config);
+            case htOctoPrint: return std::make_unique<OctoPrint>(config);
+            case htDuet:      return std::make_unique<Duet>(config);
+            case htFlashAir:  return std::make_unique<FlashAir>(config);
+            case htAstroBox:  return std::make_unique<AstroBox>(config);
+            case htRepetier:  return std::make_unique<Repetier>(config);
+            case htKlipper:   return std::make_unique<Klipper>(config);
+            case htMPMDv2:    return std::make_unique<MPMDv2>(config);
+            case htPrusaLink: return std::make_unique<PrusaLink>(config);
+            case htPrusaConnect: return std::make_unique<PrusaConnect>(config);
+            case htMKS:       return std::make_unique<MKS>(config);
+            case htMoonraker: return std::make_unique<Moonraker>(config);
+            case htMiniDeltaLCD: return std::make_unique<MiniDeltaLCD>(config);
             default:          return nullptr;
         }
     } else {
-        return new SL1Host(config);
+        return std::make_unique<SL1Host>(config);
     }
 }
 
@@ -138,7 +135,7 @@ struct PrintHostJobQueue::priv
 };
 
 PrintHostJobQueue::PrintHostJobQueue(PrintHostQueueDialog *queue_dialog)
-    : p(new priv(this))
+    : p(std::make_shared<priv>(this))
 {
     p->queue_dialog = queue_dialog;
 }
@@ -150,26 +147,26 @@ PrintHostJobQueue::~PrintHostJobQueue()
 
 void PrintHostJobQueue::priv::emit_progress(int progress)
 {
-    auto evt = new PrintHostQueueDialog::Event(GUI::EVT_PRINTHOST_PROGRESS, queue_dialog->GetId(), job_id, progress);
-    wxQueueEvent(queue_dialog, evt);
+    auto event = std::make_unique<PrintHostQueueDialog::Event>(GUI::EVT_PRINTHOST_PROGRESS, queue_dialog->GetId(), job_id, progress);
+    wxQueueEvent(queue_dialog, event.release());
 }
 
 void PrintHostJobQueue::priv::emit_error(wxString error)
 {
-    auto evt = new PrintHostQueueDialog::Event(GUI::EVT_PRINTHOST_ERROR, queue_dialog->GetId(), job_id, std::move(error));
-    wxQueueEvent(queue_dialog, evt);
+    auto event = std::make_unique<PrintHostQueueDialog::Event>(GUI::EVT_PRINTHOST_ERROR, queue_dialog->GetId(), job_id, std::move(error));
+    wxQueueEvent(queue_dialog, event.release());
 }
 
 void PrintHostJobQueue::priv::emit_info(wxString tag, wxString status)
 {
-    auto evt = new PrintHostQueueDialog::Event(GUI::EVT_PRINTHOST_INFO, queue_dialog->GetId(), job_id, std::move(tag), std::move(status));
-    wxQueueEvent(queue_dialog, evt);
+    auto event = std::make_unique<PrintHostQueueDialog::Event>(GUI::EVT_PRINTHOST_INFO, queue_dialog->GetId(), job_id, std::move(tag), std::move(status));
+    wxQueueEvent(queue_dialog, event.release());
 }
 
 void PrintHostJobQueue::priv::emit_cancel(size_t id)
 {
-    auto evt = new PrintHostQueueDialog::Event(GUI::EVT_PRINTHOST_CANCEL, queue_dialog->GetId(), id);
-    wxQueueEvent(queue_dialog, evt);
+    auto event = std::make_unique<PrintHostQueueDialog::Event>(GUI::EVT_PRINTHOST_CANCEL, queue_dialog->GetId(), id);
+    wxQueueEvent(queue_dialog, event.release());
 }
 
 void PrintHostJobQueue::priv::start_bg_thread()

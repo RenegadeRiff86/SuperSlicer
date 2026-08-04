@@ -26,6 +26,8 @@
 
 #include <GL/glew.h>
 
+#include <memory>
+
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/log/trivial.hpp>
 
@@ -66,7 +68,7 @@ bool Selection::Clipboard::is_sla_compliant() const
 
 Selection::Clipboard::Clipboard()
 {
-    m_model.reset(new Model);
+    m_model = std::make_unique<Model>();
 }
 
 void Selection::Clipboard::reset()
@@ -86,7 +88,7 @@ ModelObject* Selection::Clipboard::add_object()
 
 ModelObject* Selection::Clipboard::get_object(unsigned int id)
 {
-    return (id < (unsigned int)m_model->objects.size()) ? m_model->objects[id] : nullptr;
+    return (id < static_cast<unsigned int>(m_model->objects.size())) ? m_model->objects[id] : nullptr;
 }
 
 const ModelObjectPtrs& Selection::Clipboard::get_objects() const
@@ -137,7 +139,7 @@ void Selection::set_model(Model* model)
 
 void Selection::add(unsigned int volume_idx, bool as_single_selection, bool check_for_already_contained)
 {
-    if (!m_valid || (unsigned int)m_volumes->volumes.size() <= volume_idx)
+    if (!m_valid || static_cast<unsigned int>(m_volumes->volumes.size()) <= volume_idx)
         return;
 
     const GLVolume* volume = (m_volumes->volumes)[volume_idx].get();
@@ -196,7 +198,7 @@ void Selection::add(unsigned int volume_idx, bool as_single_selection, bool chec
 
 void Selection::remove(unsigned int volume_idx)
 {
-    if (!m_valid || (unsigned int)m_volumes->volumes.size() <= volume_idx)
+    if (!m_valid || static_cast<unsigned int>(m_volumes->volumes.size()) <= volume_idx)
         return;
 
     if (!contains_volume(volume_idx))
@@ -325,9 +327,9 @@ void Selection::remove_volume(unsigned int object_idx, unsigned int volume_idx)
     if (!m_valid)
         return;
 
-    for (unsigned int i = 0; i < (unsigned int)m_volumes->volumes.size(); ++i) {
+    for (unsigned int i = 0; i < static_cast<unsigned int>(m_volumes->volumes.size()); ++i) {
         GLVolume* v = (m_volumes->volumes)[i].get();
-        if (v->object_idx() == (int)object_idx && v->volume_idx() == (int)volume_idx)
+        if (v->object_idx() == static_cast<int>(object_idx) && v->volume_idx() == static_cast<int>(volume_idx))
             do_remove_volume(i);
     }
 
@@ -350,7 +352,7 @@ void Selection::add_volumes(EMode mode, const std::vector<unsigned int>& volume_
 
     m_mode = mode;
     for (unsigned int i : volume_idxs) {
-        if (i < (unsigned int)m_volumes->volumes.size())
+        if (i < static_cast<unsigned int>(m_volumes->volumes.size()))
             do_add_volume(i);
     }
 
@@ -365,7 +367,7 @@ void Selection::remove_volumes(EMode mode, const std::vector<unsigned int>& volu
 
     m_mode = mode;
     for (unsigned int i : volume_idxs) {
-        if (i < (unsigned int)m_volumes->volumes.size())
+        if (i < static_cast<unsigned int>(m_volumes->volumes.size()))
             do_remove_volume(i);
     }
 
@@ -379,12 +381,12 @@ void Selection::add_all()
         return;
 
     unsigned int count = 0;
-    for (unsigned int i = 0; i < (unsigned int)m_volumes->volumes.size(); ++i) {
+    for (unsigned int i = 0; i < static_cast<unsigned int>(m_volumes->volumes.size()); ++i) {
         if (!(m_volumes->volumes)[i].get()->is_wipe_tower)
             ++count;
     }
 
-    if ((unsigned int)m_list.size() == count)
+    if (static_cast<unsigned int>(m_list.size()) == count)
         return;
     
     wxGetApp().plater()->take_snapshot(_(L("Selection-Add All")), UndoRedo::SnapshotType::Selection);
@@ -392,7 +394,7 @@ void Selection::add_all()
     m_mode = Instance;
     clear();
 
-    for (unsigned int i = 0; i < (unsigned int)m_volumes->volumes.size(); ++i) {
+    for (unsigned int i = 0; i < static_cast<unsigned int>(m_volumes->volumes.size()); ++i) {
         if (!(m_volumes->volumes)[i].get()->is_wipe_tower)
             do_add_volume(i);
     }
@@ -428,7 +430,7 @@ void Selection::set_deserialized(EMode mode, const std::vector<std::pair<size_t,
     for (unsigned int i : m_list)
         (m_volumes->volumes)[i].get()->selected = false;
     m_list.clear();
-    for (unsigned int i = 0; i < (unsigned int)m_volumes->volumes.size(); ++ i)
+    for (unsigned int i = 0; i < static_cast<unsigned int>(m_volumes->volumes.size()); ++ i)
 		if (std::binary_search(volumes_and_instances.begin(), volumes_and_instances.end(), (m_volumes->volumes)[i].get()->geometry_id))
 			do_add_volume(i);
     update_type();
@@ -475,7 +477,7 @@ void Selection::instances_changed(const std::vector<size_t> &instance_ids_select
 
     const PrinterTechnology pt = wxGetApp().plater()->printer_technology();
 
-    for (unsigned int volume_idx = 0; volume_idx < (unsigned int)m_volumes->volumes.size(); ++ volume_idx) {
+    for (unsigned int volume_idx = 0; volume_idx < static_cast<unsigned int>(m_volumes->volumes.size()); ++ volume_idx) {
         const GLVolume *volume = (m_volumes->volumes)[volume_idx].get();
         if (pt == ptSLA && volume->is_modifier &&
             m_model->objects[volume->object_idx()]->volumes[volume->volume_idx()]->is_modifier())
@@ -497,7 +499,7 @@ void Selection::volumes_changed(const std::vector<size_t> &map_volume_old_to_new
     IndicesList list_new;
     for (unsigned int idx : m_list)
         if (map_volume_old_to_new[idx] != size_t(-1)) {
-            unsigned int new_idx = (unsigned int)map_volume_old_to_new[idx];
+            unsigned int new_idx = static_cast<unsigned int>(map_volume_old_to_new[idx]);
             (m_volumes->volumes)[new_idx].get()->selected = true;
             list_new.insert(new_idx);
         }
@@ -516,7 +518,7 @@ bool Selection::is_any_connector() const
         for (size_t vol_idx = 0; vol_idx < obj_volumes.size(); vol_idx++)
             if (obj_volumes[vol_idx]->is_cut_connector())
                 for (const std::unique_ptr<GLVolume> &v  : m_volumes->volumes)
-                    if (v->object_idx() == obj_idx && v->volume_idx() == (int)vol_idx && v->selected)
+                    if (v->object_idx() == obj_idx && v->volume_idx() == static_cast<int>(vol_idx) && v->selected)
                         return true;
     }
     return false;
@@ -540,7 +542,7 @@ bool Selection::is_single_full_instance() const
         return false;
 
     int object_idx = m_valid ? get_object_idx() : -1;
-    if (object_idx < 0 || (int)m_model->objects.size() <= object_idx)
+    if (object_idx < 0 || static_cast<int>(m_model->objects.size()) <= object_idx)
         return false;
 
     int instance_idx = (m_volumes->volumes)[*m_list.begin()].get()->instance_idx();
@@ -637,7 +639,7 @@ bool Selection::matches(const std::vector<unsigned int>& volume_idxs) const
             return false;
     }
 
-    return count == (unsigned int)m_list.size();
+    return count == static_cast<unsigned int>(m_list.size());
 }
 
 int Selection::get_object_idx() const
@@ -664,12 +666,12 @@ const Selection::InstanceIdxsList& Selection::get_instance_idxs() const
 
 const GLVolume* Selection::get_volume(unsigned int volume_idx) const
 {
-    return (m_valid && (volume_idx < (unsigned int)m_volumes->volumes.size())) ? (m_volumes->volumes)[volume_idx].get() : nullptr;
+    return (m_valid && (volume_idx < static_cast<unsigned int>(m_volumes->volumes.size()))) ? (m_volumes->volumes)[volume_idx].get() : nullptr;
 }
 
 GLVolume* Selection::get_volume(unsigned int volume_idx)
 {
-    return (m_valid && (volume_idx < (unsigned int)m_volumes->volumes.size())) ? (m_volumes->volumes)[volume_idx].get() : nullptr;
+    return (m_valid && (volume_idx < static_cast<unsigned int>(m_volumes->volumes.size()))) ? (m_volumes->volumes)[volume_idx].get() : nullptr;
 }
 
 const BoundingBoxf3& Selection::get_bounding_box() const
@@ -1426,7 +1428,7 @@ void Selection::translate(unsigned int object_idx, unsigned int instance_idx, co
 
     for (unsigned int i : m_list) {
         GLVolume& v = *(m_volumes->volumes)[i].get();
-        if (v.object_idx() == (int)object_idx && v.instance_idx() == (int)instance_idx)
+        if (v.object_idx() == static_cast<int>(object_idx) && v.instance_idx() == static_cast<int>(instance_idx))
             v.set_instance_transformation(Geometry::translation_transform(displacement) * v.get_instance_transformation().get_matrix());
     }
 
@@ -1443,7 +1445,7 @@ void Selection::translate(unsigned int object_idx, unsigned int instance_idx, co
         const int object_idx = (m_volumes->volumes)[i].get()->object_idx();
 
         // Process unselected volumes of the object.
-        for (unsigned int j = 0; j < (unsigned int)m_volumes->volumes.size(); ++j) {
+        for (unsigned int j = 0; j < static_cast<unsigned int>(m_volumes->volumes.size()); ++j) {
             if (done.size() == m_volumes->volumes.size())
                 break;
 
@@ -1451,7 +1453,7 @@ void Selection::translate(unsigned int object_idx, unsigned int instance_idx, co
                 continue;
 
             GLVolume& v = *(m_volumes->volumes)[j].get();
-            if (v.object_idx() != object_idx || v.instance_idx() != (int)instance_idx)
+            if (v.object_idx() != object_idx || v.instance_idx() != static_cast<int>(instance_idx))
                 continue;
 
             v.set_instance_transformation(Geometry::translation_transform(displacement) * v.get_instance_transformation().get_matrix());
@@ -1586,7 +1588,7 @@ void Selection::erase()
         for (const ItemForDelete& i : items_set) {
             if (i.type == ItemType::itVolume) {
                 const int vol_in_obj_cnt = volumes_in_obj.find(i.obj_idx) == volumes_in_obj.end() ? 0 : volumes_in_obj.at(i.obj_idx);
-                if (vol_in_obj_cnt == (int)m_model->objects[i.obj_idx]->volumes.size()) {
+                if (vol_in_obj_cnt == static_cast<int>(m_model->objects[i.obj_idx]->volumes.size())) {
                     if (i.sub_obj_idx == vol_in_obj_cnt - 1)
                         items.emplace_back(ItemType::itObject, i.obj_idx, 0);
                     continue;
@@ -1651,8 +1653,8 @@ void Selection::render_center(bool gizmo_is_dragging)
     const Camera& camera = wxGetApp().plater()->get_camera();
     Transform3d view_model_matrix = camera.get_view_matrix() * Geometry::assemble_transform(center);
 
-    shader->set_uniform("view_model_matrix", view_model_matrix);
-    shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_model_matrix);
+    shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
     m_vbo_sphere.set_color(ColorRGBA::WHITE());
 
     m_vbo_sphere.render();
@@ -1763,7 +1765,7 @@ void Selection::copy_to_clipboard()
             const GLVolume* volume = (m_volumes->volumes)[i].get();
             if (volume->object_idx() == object.first && volume->instance_idx() == *object.second.begin()) {
                 int volume_idx = volume->volume_idx();
-                if (0 <= volume_idx && volume_idx < (int)src_object->volumes.size()) {
+                if (0 <= volume_idx && volume_idx < static_cast<int>(src_object->volumes.size())) {
                     ModelVolume* src_volume = src_object->volumes[volume_idx];
                     ModelVolume* dst_volume = dst_object->add_volume(*src_volume);
                     dst_volume->set_new_unique_id();
@@ -1807,9 +1809,9 @@ std::vector<unsigned int> Selection::get_volume_idxs_from_object(unsigned int ob
 
     const PrinterTechnology pt = wxGetApp().plater()->printer_technology();
 
-    for (unsigned int i = 0; i < (unsigned int)m_volumes->volumes.size(); ++i) {
+    for (unsigned int i = 0; i < static_cast<unsigned int>(m_volumes->volumes.size()); ++i) {
         const GLVolume* v = (m_volumes->volumes)[i].get();
-        if (v->object_idx() == (int)object_idx) {
+        if (v->object_idx() == static_cast<int>(object_idx)) {
             if (pt == ptSLA && v->is_modifier &&
                 m_model->objects[object_idx]->volumes[v->volume_idx()]->is_modifier())
                 continue;
@@ -1823,9 +1825,9 @@ std::vector<unsigned int> Selection::get_volume_idxs_from_object(unsigned int ob
 std::vector<unsigned int> Selection::get_volume_idxs_from_instance(unsigned int object_idx, unsigned int instance_idx) const
 {
     std::vector<unsigned int> idxs;
-    for (unsigned int i = 0; i < (unsigned int)m_volumes->volumes.size(); ++i) {
+    for (unsigned int i = 0; i < static_cast<unsigned int>(m_volumes->volumes.size()); ++i) {
         const GLVolume* v = (m_volumes->volumes)[i].get();
-        if (v->object_idx() == (int)object_idx && v->instance_idx() == (int)instance_idx)
+        if (v->object_idx() == static_cast<int>(object_idx) && v->instance_idx() == static_cast<int>(instance_idx))
             idxs.push_back(i);
     }
     return idxs;
@@ -1835,10 +1837,10 @@ std::vector<unsigned int> Selection::get_volume_idxs_from_volume(unsigned int ob
 {
     std::vector<unsigned int> idxs;
 
-    for (unsigned int i = 0; i < (unsigned int)m_volumes->volumes.size(); ++i) {
+    for (unsigned int i = 0; i < static_cast<unsigned int>(m_volumes->volumes.size()); ++i) {
         const GLVolume* v = (m_volumes->volumes)[i].get();
-        if (v->object_idx() == (int)object_idx && v->volume_idx() == (int)volume_idx) {
-            if ((int)instance_idx != -1 && v->instance_idx() == (int)instance_idx)
+        if (v->object_idx() == static_cast<int>(object_idx) && v->volume_idx() == static_cast<int>(volume_idx)) {
+            if (static_cast<int>(instance_idx) != -1 && v->instance_idx() == static_cast<int>(instance_idx))
                 idxs.push_back(i);
         }
     }
@@ -1919,8 +1921,8 @@ void Selection::update_type()
             }
             else {
                 const ModelObject* model_object = m_model->objects[first->object_idx()];
-                unsigned int volumes_count = (unsigned int)model_object->volumes.size();
-                unsigned int instances_count = (unsigned int)model_object->instances.size();
+                unsigned int volumes_count = static_cast<unsigned int>(model_object->volumes.size());
+                unsigned int instances_count = static_cast<unsigned int>(model_object->instances.size());
                 if (volumes_count * instances_count == 1) {
                     m_type = SingleFullObject;
                     // ensures the correct mode is selected
@@ -1948,17 +1950,17 @@ void Selection::update_type()
             if (m_cache.content.size() == 1) // single object
             {
                 const ModelObject* model_object = m_model->objects[m_cache.content.begin()->first];
-                unsigned int model_volumes_count = (unsigned int)model_object->volumes.size();
+                unsigned int model_volumes_count = static_cast<unsigned int>(model_object->volumes.size());
 
-                unsigned int instances_count = (unsigned int)model_object->instances.size();
-                unsigned int selected_instances_count = (unsigned int)m_cache.content.begin()->second.size();
-                if (model_volumes_count * instances_count + sla_volumes_count == (unsigned int)m_list.size()) {
+                unsigned int instances_count = static_cast<unsigned int>(model_object->instances.size());
+                unsigned int selected_instances_count = static_cast<unsigned int>(m_cache.content.begin()->second.size());
+                if (model_volumes_count * instances_count + sla_volumes_count == static_cast<unsigned int>(m_list.size())) {
                     m_type = SingleFullObject;
                     // ensures the correct mode is selected
                     m_mode = Instance;
                 }
                 else if (selected_instances_count == 1) {
-                    if (model_volumes_count + sla_volumes_count == (unsigned int)m_list.size()) {
+                    if (model_volumes_count + sla_volumes_count == static_cast<unsigned int>(m_list.size())) {
                         m_type = SingleFullInstance;
                         // ensures the correct mode is selected
                         m_mode = Instance;
@@ -1972,13 +1974,13 @@ void Selection::update_type()
 
                         if (modifiers_count == 0)
                             m_type = MultipleVolume;
-                        else if (modifiers_count == (unsigned int)m_list.size())
+                        else if (modifiers_count == static_cast<unsigned int>(m_list.size()))
                             m_type = MultipleModifier;
 
                         requires_disable = true;
                     }
                 }
-                else if (selected_instances_count > 1 && selected_instances_count * model_volumes_count + sla_volumes_count == (unsigned int)m_list.size()) {
+                else if (selected_instances_count > 1 && selected_instances_count * model_volumes_count + sla_volumes_count == static_cast<unsigned int>(m_list.size())) {
                     m_type = MultipleFullInstance;
                     // ensures the correct mode is selected
                     m_mode = Instance;
@@ -1988,11 +1990,11 @@ void Selection::update_type()
                 unsigned int sels_cntr = 0;
                 for (ObjectIdxsToInstanceIdxsMap::iterator it = m_cache.content.begin(); it != m_cache.content.end(); ++it) {
                     const ModelObject* model_object = m_model->objects[it->first];
-                    unsigned int volumes_count = (unsigned int)model_object->volumes.size();
-                    unsigned int instances_count = (unsigned int)model_object->instances.size();
+                    unsigned int volumes_count = static_cast<unsigned int>(model_object->volumes.size());
+                    unsigned int instances_count = static_cast<unsigned int>(model_object->instances.size());
                     sels_cntr += volumes_count * instances_count;
                 }
-                if (sels_cntr + sla_volumes_count == (unsigned int)m_list.size()) {
+                if (sels_cntr + sla_volumes_count == static_cast<unsigned int>(m_list.size())) {
                     m_type = MultipleFullObject;
                     // ensures the correct mode is selected
                     m_mode = Instance;
@@ -2096,7 +2098,7 @@ void Selection::set_caches()
 {
     m_cache.volumes_data.clear();
     m_cache.sinking_volumes.clear();
-    for (unsigned int i = 0; i < (unsigned int)m_volumes->volumes.size(); ++i) {
+    for (unsigned int i = 0; i < static_cast<unsigned int>(m_volumes->volumes.size()); ++i) {
         const GLVolume& v = *(m_volumes->volumes)[i].get();
         m_cache.volumes_data.emplace(i, VolumeCache(v.get_volume_transformation(), v.get_instance_transformation()));
         if (v.is_sinking())
@@ -2119,7 +2121,7 @@ void Selection::do_add_volumes(const std::vector<unsigned int>& volume_idxs)
 {
     for (unsigned int i : volume_idxs)
     {
-        if (i < (unsigned int)m_volumes->volumes.size())
+        if (i < static_cast<unsigned int>(m_volumes->volumes.size()))
             do_add_volume(i);
     }
 }
@@ -2137,18 +2139,18 @@ void Selection::do_remove_volume(unsigned int volume_idx)
 
 void Selection::do_remove_instance(unsigned int object_idx, unsigned int instance_idx)
 {
-    for (unsigned int i = 0; i < (unsigned int)m_volumes->volumes.size(); ++i) {
+    for (unsigned int i = 0; i < static_cast<unsigned int>(m_volumes->volumes.size()); ++i) {
         GLVolume* v = (m_volumes->volumes)[i].get();
-        if (v->object_idx() == (int)object_idx && v->instance_idx() == (int)instance_idx)
+        if (v->object_idx() == static_cast<int>(object_idx) && v->instance_idx() == static_cast<int>(instance_idx))
             do_remove_volume(i);
     }
 }
 
 void Selection::do_remove_object(unsigned int object_idx)
 {
-    for (unsigned int i = 0; i < (unsigned int)m_volumes->volumes.size(); ++i) {
+    for (unsigned int i = 0; i < static_cast<unsigned int>(m_volumes->volumes.size()); ++i) {
         GLVolume* v = (m_volumes->volumes)[i].get();
-        if (v->object_idx() == (int)object_idx)
+        if (v->object_idx() == static_cast<int>(object_idx))
             do_remove_volume(i);
     }
 }
@@ -2166,7 +2168,7 @@ void Selection::render_synchronized_volumes()
         const GLVolume& volume = *(m_volumes->volumes)[i].get();
         int object_idx = volume.object_idx();
         int volume_idx = volume.volume_idx();
-        for (unsigned int j = 0; j < (unsigned int)m_volumes->volumes.size(); ++j) {
+        for (unsigned int j = 0; j < static_cast<unsigned int>(m_volumes->volumes.size()); ++j) {
             if (i == j)
                 continue;
 
@@ -2288,8 +2290,8 @@ void Selection::render_bounding_box(const BoundingBoxf3& box, const Transform3d&
 
     shader->start_using();
     const Camera& camera = wxGetApp().plater()->get_camera();
-    shader->set_uniform("view_model_matrix", camera.get_view_matrix() * trafo);
-    shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix() * trafo);
+    shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
     const std::array<int, 4>& viewport = camera.get_viewport();
     shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
@@ -2310,27 +2312,27 @@ void Selection::render_sidebar_position_hints(const std::string& sidebar_field, 
 {
     const Camera& camera = wxGetApp().plater()->get_camera();
     const Transform3d& view_matrix = camera.get_view_matrix();
-    shader.set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader.set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 
     if (boost::ends_with(sidebar_field, "x")) {
         const Transform3d model_matrix = matrix * Geometry::rotation_transform(-0.5 * PI * Vec3d::UnitZ());
-        shader.set_uniform("view_model_matrix", view_matrix * model_matrix);
+        shader.set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
         const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-        shader.set_uniform("view_normal_matrix", view_normal_matrix);
+        shader.set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         m_arrow.set_color(get_color(X));
         m_arrow.render();
     }
     else if (boost::ends_with(sidebar_field, "y")) {
-        shader.set_uniform("view_model_matrix", view_matrix * matrix);
-        shader.set_uniform("view_normal_matrix", (Matrix3d)Matrix3d::Identity());
+        shader.set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * matrix);
+        shader.set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, (Matrix3d)Matrix3d::Identity());
         m_arrow.set_color(get_color(Y));
         m_arrow.render();
     }
     else if (boost::ends_with(sidebar_field, "z")) {
         const Transform3d model_matrix = matrix * Geometry::rotation_transform(0.5 * PI * Vec3d::UnitX());
-        shader.set_uniform("view_model_matrix", view_matrix * model_matrix);
+        shader.set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
         const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-        shader.set_uniform("view_normal_matrix", view_normal_matrix);
+        shader.set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         m_arrow.set_color(get_color(Z));
         m_arrow.render();
     }
@@ -2339,20 +2341,20 @@ void Selection::render_sidebar_position_hints(const std::string& sidebar_field, 
 void Selection::render_sidebar_rotation_hints(const std::string& sidebar_field, GLShaderProgram& shader, const Transform3d& matrix)
 {
     auto render_sidebar_rotation_hint = [this](GLShaderProgram& shader, const Transform3d& view_matrix, const Transform3d& model_matrix) {
-        shader.set_uniform("view_model_matrix", view_matrix * model_matrix);
+        shader.set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
         Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-        shader.set_uniform("view_normal_matrix", view_normal_matrix);
+        shader.set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         m_curved_arrow.render();
         const Transform3d matrix = model_matrix * Geometry::rotation_transform(PI * Vec3d::UnitZ());
-        shader.set_uniform("view_model_matrix", view_matrix * matrix);
+        shader.set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * matrix);
         view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-        shader.set_uniform("view_normal_matrix", view_normal_matrix);
+        shader.set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         m_curved_arrow.render();
     };
 
     const Camera& camera = wxGetApp().plater()->get_camera();
     const Transform3d& view_matrix = camera.get_view_matrix();
-    shader.set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader.set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 
     if (boost::ends_with(sidebar_field, "x")) {
         m_curved_arrow.set_color(get_color(X));
@@ -2375,21 +2377,21 @@ void Selection::render_sidebar_scale_hints(const std::string& sidebar_field, GLS
     auto render_sidebar_scale_hint = [this, uniform_scale](Axis axis, GLShaderProgram& shader, const Transform3d& view_matrix, const Transform3d& model_matrix) {
         m_arrow.set_color(uniform_scale ? UNIFORM_SCALE_COLOR : get_color(axis));
         Transform3d matrix = model_matrix * Geometry::translation_transform(5.0 * Vec3d::UnitY());
-        shader.set_uniform("view_model_matrix", view_matrix * matrix);
+        shader.set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * matrix);
         Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-        shader.set_uniform("view_normal_matrix", view_normal_matrix);
+        shader.set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         m_arrow.render();
 
         matrix = model_matrix * Geometry::translation_transform(-5.0 * Vec3d::UnitY()) * Geometry::rotation_transform(PI * Vec3d::UnitZ());
-        shader.set_uniform("view_model_matrix", view_matrix * matrix);
+        shader.set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * matrix);
         view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-        shader.set_uniform("view_normal_matrix", view_normal_matrix);
+        shader.set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         m_arrow.render();
     };
 
     const Camera& camera = wxGetApp().plater()->get_camera();
     const Transform3d& view_matrix = camera.get_view_matrix();
-    shader.set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader.set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 
     if (boost::ends_with(sidebar_field, "x") || uniform_scale)
       render_sidebar_scale_hint(X, shader, view_matrix, matrix * Geometry::rotation_transform(-0.5 * PI * Vec3d::UnitZ()));
@@ -2490,8 +2492,8 @@ void Selection::render_sidebar_layers_hints(const std::string& sidebar_field, GL
     }
 
     const Camera& camera = wxGetApp().plater()->get_camera();
-    shader.set_uniform("view_model_matrix", camera.get_view_matrix());
-    shader.set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader.set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix());
+    shader.set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 
     m_planes.models[0].set_color((camera_on_top && type == 1) || (!camera_on_top && type == 2) ? SOLID_PLANE_COLOR : TRANSPARENT_PLANE_COLOR);
     m_planes.models[0].render();
@@ -2653,7 +2655,7 @@ static void verify_instances_rotation_synchronized(const Model &model, const GLV
 {
     for (int idx_object = 0; idx_object < int(model.objects.size()); ++idx_object) {
         int idx_volume_first = -1;
-        for (int i = 0; i < (int)volumes.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(volumes.size()); ++i) {
             if (volumes[i]->object_idx() == idx_object) {
                 idx_volume_first = i;
                 break;
@@ -2663,7 +2665,7 @@ static void verify_instances_rotation_synchronized(const Model &model, const GLV
         if (idx_volume_first == -1)
             continue;
         const Vec3d &rotation0 = volumes[idx_volume_first]->get_instance_rotation();
-        for (int i = idx_volume_first + 1; i < (int)volumes.size(); ++i)
+        for (int i = idx_volume_first + 1; i < static_cast<int>(volumes.size()); ++i)
             if (volumes[i]->object_idx() == idx_object) {
                 const Vec3d &rotation = volumes[i]->get_instance_rotation();
                 assert(is_rotation_xy_synchronized(rotation, rotation0));
@@ -2701,7 +2703,7 @@ static void verify_instances_rotation_synchronized(const Model &model, const GLV
 {
     for (int idx_object = 0; idx_object < int(model.objects.size()); ++idx_object) {
         int idx_volume_first = -1;
-        for (int i = 0; i < (int)volumes.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(volumes.size()); ++i) {
             if (volumes[i]->object_idx() == idx_object) {
                 idx_volume_first = i;
                 break;
@@ -2711,7 +2713,7 @@ static void verify_instances_rotation_synchronized(const Model &model, const GLV
         if (idx_volume_first == -1)
             continue;
         const Transform3d::ConstLinearPart& rotation0 = volumes[idx_volume_first]->get_instance_transformation().get_matrix().linear();
-        for (int i = idx_volume_first + 1; i < (int)volumes.size(); ++i)
+        for (int i = idx_volume_first + 1; i < static_cast<int>(volumes.size()); ++i)
             if (volumes[i]->object_idx() == idx_object && volumes[i]->volume_idx() >= 0) {
                 const Transform3d::ConstLinearPart& rotation = volumes[i]->get_instance_transformation().get_matrix().linear();
                 assert(is_rotation_xy_synchronized(rotation, rotation0));
@@ -2740,7 +2742,7 @@ void Selection::synchronize_unselected_instances(SyncRotationType sync_rotation_
 //        bool               mirrored = curr_inst_trafo_i.linear().determinant() * old_inst_trafo_i.linear().determinant() < 0;
 
         // Process unselected instances.
-        for (unsigned int j = 0; j < (unsigned int)m_volumes->volumes.size(); ++j) {
+        for (unsigned int j = 0; j < static_cast<unsigned int>(m_volumes->volumes.size()); ++j) {
             if (done.size() == m_volumes->volumes.size())
                 break;
             if (done.find(j) != done.end())
@@ -2782,7 +2784,7 @@ void Selection::synchronize_unselected_volumes()
         const Geometry::Transformation& trafo = volume->get_volume_transformation();
 
         // Process unselected volumes.
-        for (unsigned int j = 0; j < (unsigned int)m_volumes->volumes.size(); ++j) {
+        for (unsigned int j = 0; j < static_cast<unsigned int>(m_volumes->volumes.size()); ++j) {
             if (j == i)
                 continue;
 
@@ -2872,19 +2874,19 @@ bool Selection::is_from_fully_selected_instance(unsigned int volume_idx) const
         bool operator () (unsigned int i) { return (volumes.volumes[i]->volume_idx() >= 0) && (volumes.volumes[i]->object_idx() == obj_idx) && (volumes.volumes[i]->instance_idx() == inst_idx); }
     };
 
-    if ((unsigned int)m_volumes->volumes.size() <= volume_idx)
+    if (static_cast<unsigned int>(m_volumes->volumes.size()) <= volume_idx)
         return false;
 
     GLVolume* volume = (m_volumes->volumes)[volume_idx].get();
     int object_idx = volume->object_idx();
-    if ((int)m_model->objects.size() <= object_idx)
+    if (static_cast<int>(m_model->objects.size()) <= object_idx)
         return false;
 
-    unsigned int count = (unsigned int)std::count_if(m_list.begin(), m_list.end(), SameInstance(object_idx, volume->instance_idx(), *m_volumes));
+    unsigned int count = static_cast<unsigned int>(std::count_if(m_list.begin(), m_list.end(), SameInstance(object_idx, volume->instance_idx(), *m_volumes)));
 
     PrinterTechnology pt = wxGetApp().plater()->printer_technology();
     const ModelVolumePtrs& volumes = m_model->objects[object_idx]->volumes;
-    const unsigned int vol_cnt = (unsigned int)std::count_if(volumes.begin(), volumes.end(), [pt](const ModelVolume* volume) { return pt == ptFFF || !volume->is_modifier(); });
+    const unsigned int vol_cnt = static_cast<unsigned int>(std::count_if(volumes.begin(), volumes.end(), [pt](const ModelVolume* volume) { return pt == ptFFF || !volume->is_modifier(); }));
 
     return count == vol_cnt;
 }
@@ -2896,13 +2898,13 @@ void Selection::paste_volumes_from_clipboard()
 #endif /* _DEBUG */
 
     int dst_obj_idx = get_object_idx();
-    if ((dst_obj_idx < 0) || ((int)m_model->objects.size() <= dst_obj_idx))
+    if ((dst_obj_idx < 0) || (static_cast<int>(m_model->objects.size()) <= dst_obj_idx))
         return;
 
     ModelObject* dst_object = m_model->objects[dst_obj_idx];
 
     int dst_inst_idx = get_instance_idx();
-    if ((dst_inst_idx < 0) || ((int)dst_object->instances.size() <= dst_inst_idx))
+    if ((dst_inst_idx < 0) || (static_cast<int>(dst_object->instances.size()) <= dst_inst_idx))
         return;
 
     ModelObject* src_object = m_clipboard.get_object(0);

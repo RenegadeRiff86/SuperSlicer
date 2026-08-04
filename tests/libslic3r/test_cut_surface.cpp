@@ -126,11 +126,11 @@ TEST_CASE("CutSurface in 3mf", "[Emboss]")
     ConfigSubstitutionContext ctxt{ForwardCompatibilitySubstitutionRule::Disable};
     CHECK(load_3mf(path_to_3mf.c_str(), config, ctxt, &model, false));
     CHECK(object_id >= 0);
-    CHECK((size_t)object_id < model.objects.size());
+    CHECK(static_cast<size_t>(object_id) < model.objects.size());
     ModelObject* mo = model.objects[object_id];
     CHECK(mo != nullptr);
     CHECK(text_volume_id >= 0);
-    CHECK((size_t)text_volume_id < mo->volumes.size());
+    CHECK(static_cast<size_t>(text_volume_id) < mo->volumes.size());
     ModelVolume *mv_text = mo->volumes[text_volume_id];
     CHECK(mv_text != nullptr);
     CHECK(mv_text->text_configuration.has_value());

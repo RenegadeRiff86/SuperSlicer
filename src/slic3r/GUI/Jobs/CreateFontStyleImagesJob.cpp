@@ -82,10 +82,10 @@ void CreateFontStyleImagesJob::process(Ctl &ctl)
     for (StyleManager::StyleImage &image : m_images) {
         const Point &o = image.offset;
         const ImVec2 &s = image.tex_size;
-        image.uv0 = ImVec2(o.x() / (double) m_width, 
-                           o.y() / (double) m_height);
-        image.uv1 = ImVec2((o.x() + s.x) / (double) m_width,
-                           (o.y() + s.y) / (double) m_height);
+        image.uv0 = ImVec2(o.x() / static_cast<double>(m_width), 
+                           o.y() / static_cast<double>(m_height));
+        image.uv1 = ImVec2((o.x() + s.x) / static_cast<double>(m_width),
+                           (o.y() + s.y) / static_cast<double>(m_height));
     }
 
     // Set up result
@@ -108,9 +108,9 @@ void CreateFontStyleImagesJob::process(Ctl &ctl)
             // bigger value create darker image
             unsigned char gray_level = 5;
             size_t size {static_cast<size_t>(w*h)};
-            assert((offset.x() + width) <= (size_t)w);
-            assert((offset.y() + height) <= (size_t)h);
-            const unsigned char *ptr2 = (const unsigned char *) ptr;
+            assert((offset.x() + width) <= static_cast<size_t>(w));
+            assert((offset.y() + height) <= static_cast<size_t>(h));
+            const unsigned char *ptr2 = static_cast<const unsigned char*>(ptr);
             for (size_t x = 0; x < width; ++x)
                 for (size_t y = 0; y < height; ++y) { 
                     size_t index = (offset.y() + y)*w + offset.x() + x;
@@ -137,10 +137,10 @@ void CreateFontStyleImagesJob::finalize(bool canceled, std::exception_ptr &)
     glsafe(::glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
     GLint w = m_width, h = m_height;
     glsafe(::glTexImage2D(target, level, GL_RGBA, w, h, border, format, type,
-                          (const void *) m_pixels.data()));
+                          m_pixels.data()));
 
     // set up texture id
-    void *texture_id = (void *) (intptr_t) tex_id;        
+    void *texture_id = reinterpret_cast<void*>(static_cast<intptr_t>(tex_id));        
     for (StyleManager::StyleImage &image : m_images)
         image.texture_id = texture_id;
         

@@ -378,7 +378,7 @@ ModelMaterial* Model::add_material(t_model_material_id material_id, const ModelM
 {
     assert(! material_id.empty());
 
-    std::unique_ptr<ModelMaterial> material_owner{new ModelMaterial(other)};
+    std::unique_ptr<ModelMaterial> material_owner{new ModelMaterial(other)}; // Private copy constructor: std::make_unique cannot access it.
     material_owner->set_model(this);
     ModelMaterial *material = material_owner.get();
 

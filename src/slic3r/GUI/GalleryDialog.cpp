@@ -5,6 +5,7 @@
 #include "GalleryDialog.hpp"
 
 #include <cstddef>
+#include <memory>
 #include <vector>
 #include <string>
 
@@ -138,7 +139,8 @@ GalleryDialog::GalleryDialog(wxWindow* parent) :
     wxGetApp().UpdateDlgDarkUI(this);
     this->CenterOnScreen();
 
-    this->SetDropTarget(new GalleryDropTarget(this));
+    auto drop_target = std::make_unique<GalleryDropTarget>(this);
+    this->SetDropTarget(drop_target.release()); // wxWindow owns and deletes its drop target.
 }
 
 GalleryDialog::~GalleryDialog()
@@ -201,21 +203,21 @@ static void add_lock(wxImage& image, wxWindow* parent_win)
     if (!lock_image.IsOk() || lock_image.GetWidth() == 0 || lock_image.GetHeight() == 0)
         return;
 
-    auto lock_px_data = (uint8_t*)lock_image.GetData();
-    auto lock_a_data = (uint8_t*)lock_image.GetAlpha();
+    auto lock_px_data = lock_image.GetData();
+    auto lock_a_data = lock_image.GetAlpha();
     int lock_width  = lock_image.GetWidth();
     int lock_height = lock_image.GetHeight();
     
-    auto px_data = (uint8_t*)image.GetData();
-    auto a_data = (uint8_t*)image.GetAlpha();
+    auto px_data = image.GetData();
+    auto a_data = image.GetAlpha();
 
     int width = image.GetWidth();
     int height = image.GetHeight();
 
     size_t beg_x = width - lock_width;
     size_t beg_y = height - lock_height;
-    for (size_t x = 0; x < (size_t)lock_width; ++x) {
-        for (size_t y = 0; y < (size_t)lock_height; ++y) {
+    for (size_t x = 0; x < static_cast<size_t>(lock_width); ++x) {
+        for (size_t y = 0; y < static_cast<size_t>(lock_height); ++y) {
             const size_t lock_idx = (x + y * lock_width);
             if (lock_a_data && lock_a_data[lock_idx] == 0)
                 continue;
@@ -318,9 +320,9 @@ static void generate_thumbnail_from_model(const std::string& filename)
     for (unsigned int r = 0; r < thumbnail_data.height; ++r) {
         unsigned int rr = (thumbnail_data.height - 1 - r) * thumbnail_data.width;
         for (unsigned int c = 0; c < thumbnail_data.width; ++c) {
-            unsigned char* px = (unsigned char*)thumbnail_data.pixels.data() + 4 * (rr + c);
-            image.SetRGB((int)c, (int)r, px[0], px[1], px[2]);
-            image.SetAlpha((int)c, (int)r, px[3]);
+            unsigned char* px = thumbnail_data.pixels.data() + 4 * (rr + c);
+            image.SetRGB(static_cast<int>(c), static_cast<int>(r), px[0], px[1], px[2]);
+            image.SetAlpha(static_cast<int>(c), static_cast<int>(r), px[3]);
         }
     }
 
@@ -370,7 +372,7 @@ void GalleryDialog::load_label_icon_list()
     m_image_list = new wxImageList(IMG_PX_CNT, IMG_PX_CNT);
     int px_cnt = IMG_PX_CNT * mac_max_scaling_factor();
 #else
-    int px_cnt = (int)(em_unit() * IMG_PX_CNT * 0.1f + 0.5f);
+    int px_cnt = static_cast<int>(em_unit() * IMG_PX_CNT * 0.1f + 0.5f);
     m_image_list = new wxImageList(px_cnt, px_cnt);
 #endif
 

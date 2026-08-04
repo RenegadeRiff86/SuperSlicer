@@ -244,7 +244,7 @@ public:
 	bool is_immutable() const override { return true; }
 	bool is_optional() const override { return m_optional; }
 	// If it is an immutable object, return its pointer. There is a map assigning a temporary ObjectID to the immutable object pointer.
-    const void* immutable_object_ptr() const override { return (const void*)m_shared_object.get(); }
+    const void* immutable_object_ptr() const override { return m_shared_object.get(); }
 
 	// Estimated size in memory, to be used to drop least recently used snapshots.
 	size_t memsize() const override {
@@ -381,7 +381,7 @@ public:
 
 	~MutableHistoryInterval() {
 		if (m_data != nullptr && -- m_data->refcnt == 0)
-			delete[] (char*)m_data;
+			delete[] reinterpret_cast<char*>(m_data);
 	}
 
 	const Interval& interval() const { return m_interval; }
@@ -613,7 +613,7 @@ public:
 //protected:
 	template<typename T> ObjectID save_mutable_object(const T &object);
 	template<typename T> ObjectID save_immutable_object(std::shared_ptr<const T> &object, bool optional);
-	template<typename T> T* load_mutable_object(const Slic3r::ObjectID id);
+	template<typename T> std::unique_ptr<T> load_mutable_object(const Slic3r::ObjectID id);
 	template<typename T> std::shared_ptr<const T> load_immutable_object(const Slic3r::ObjectID id, bool optional);
 	template<typename T> void load_mutable_object(const Slic3r::ObjectID id, T &target);
 
@@ -657,7 +657,7 @@ public:
 
 private:
 	template<typename T> ObjectID 	immutable_object_id(const std::shared_ptr<const T> &ptr) { 
-		return this->immutable_object_id_impl((const void*)ptr.get());
+		return this->immutable_object_id_impl(ptr.get());
 	}
 	ObjectID     					immutable_object_id_impl(const void *ptr) {
 		auto it = m_shared_ptr_to_object_id.find(ptr);
@@ -735,7 +735,8 @@ namespace cereal
 		Slic3r::UndoRedo::StackImpl& stack = cereal::get_user_data<Slic3r::UndoRedo::StackImpl>(ar);
 		size_t id;
 		ar(id);
-		ptr = stack.load_mutable_object<T>(Slic3r::ObjectID(id));
+		// The archived member is a raw owning pointer, so ownership is handed over here.
+		ptr = stack.load_mutable_object<T>(Slic3r::ObjectID(id)).release();
 	}
 
 	// Store ObjectBase derived class onto the Undo / Redo stack as a separate object,
@@ -752,7 +753,7 @@ namespace cereal
 		Slic3r::UndoRedo::StackImpl& stack = cereal::get_user_data<Slic3r::UndoRedo::StackImpl>(ar);
 		size_t id;
 		ar(id);
-		ptr.reset(stack.load_mutable_object<T>(Slic3r::ObjectID(id)));
+		ptr = stack.load_mutable_object<T>(Slic3r::ObjectID(id));
 	}
 
 	// Store ObjectBase derived class onto the Undo / Redo stack as a separate object,
@@ -816,7 +817,7 @@ template<typename T> std::shared_ptr<const T>& 	ImmutableObjectHistory<T>::share
 		{
 			Slic3r::UndoRedo::InputArchive archive(stack, iss);
 			typedef typename std::remove_const<T>::type Type;
-			std::unique_ptr<Type> mesh(new Type());
+			auto mesh = std::make_unique<Type>();
 			archive(*mesh.get());
 			m_shared_object = std::move(mesh);
 		}
@@ -829,7 +830,7 @@ template<typename T> ObjectID StackImpl::save_mutable_object(const T &object)
 	// First find or allocate a history stack for the ObjectID of this object instance.
 	auto it_object_history = m_objects.find(object.id());
 	if (it_object_history == m_objects.end())
-		it_object_history = m_objects.insert(it_object_history, std::make_pair(object.id(), std::unique_ptr<MutableObjectHistory<T>>(new MutableObjectHistory<T>())));
+		it_object_history = m_objects.insert(it_object_history, std::make_pair(object.id(), std::make_unique<MutableObjectHistory<T>>()));
 	auto *object_history = static_cast<MutableObjectHistory<T>*>(it_object_history->second.get());
 	bool  needs_to_save  = true;
 	{
@@ -858,7 +859,7 @@ template<typename T> ObjectID StackImpl::save_immutable_object(std::shared_ptr<c
 	// and find or allocate a history stack for the ObjectID associated to this shared_ptr.
 	auto it_object_history = m_objects.find(object_id);
 	if (it_object_history == m_objects.end())
-		it_object_history = m_objects.emplace_hint(it_object_history, object_id, std::unique_ptr<ImmutableObjectHistory<T>>(new ImmutableObjectHistory<T>(object, optional)));
+		it_object_history = m_objects.emplace_hint(it_object_history, object_id, std::make_unique<ImmutableObjectHistory<T>>(object, optional));
 	else
 		assert(it_object_history->second.get()->is_optional() == optional);
 	// Then save the interval.
@@ -866,9 +867,13 @@ template<typename T> ObjectID StackImpl::save_immutable_object(std::shared_ptr<c
 	return object_id;
 }
 
-template<typename T> T* StackImpl::load_mutable_object(const Slic3r::ObjectID id)
+template<typename T> std::unique_ptr<T> StackImpl::load_mutable_object(const Slic3r::ObjectID id)
 {
-	T *target = new T();
+	// Not std::make_unique: T is instantiated with types whose default constructor is
+	// private to StackImpl by friendship (ModelObject, for one), and make_unique
+	// constructs from inside namespace std, which is not a friend. Wrapping the
+	// allocation here still keeps ownership in the returned unique_ptr.
+	std::unique_ptr<T> target(new T());
 	this->load_mutable_object<T>(id, *target);
 	return target;
 }
@@ -1244,7 +1249,7 @@ bool StackImpl::project_modified() const
 }
 
 // Wrappers of the private implementation.
-Stack::Stack() : pimpl(new StackImpl()) {}
+Stack::Stack() : pimpl(std::make_unique<StackImpl>()) {}
 Stack::~Stack() {}
 void Stack::clear() { pimpl->clear(); }
 bool Stack::empty() const { return pimpl->empty(); }

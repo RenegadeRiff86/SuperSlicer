@@ -38,6 +38,7 @@
 
 namespace Slic3r {
 
+using namespace CustomGCode;
 using GUI::from_u8;
 using GUI::into_u8;
 using GUI::format_wxstr;
@@ -598,11 +599,11 @@ void Control::render()
 
 bool Control::is_wipe_tower_layer(int tick) const
 {
-    if (!m_is_wipe_tower || tick >= (int)m_values.size())
+    if (!m_is_wipe_tower || tick >= static_cast<int>(m_values.size()))
         return false;
-    if (tick == 0 || (tick == (int)m_values.size() - 1 && m_values[tick] > m_values[tick - 1]))
+    if (tick == 0 || (tick == static_cast<int>(m_values.size()) - 1 && m_values[tick] > m_values[tick - 1]))
         return false;
-    if ((int)m_values.size() > tick + 1 && (m_values[tick - 1] == m_values[tick + 1] && m_values[tick] < m_values[tick + 1]) ||
+    if (static_cast<int>(m_values.size()) > tick + 1 && (m_values[tick - 1] == m_values[tick + 1] && m_values[tick] < m_values[tick + 1]) ||
         (tick > 0 && m_values[tick] < m_values[tick - 1]) ) // if there is just one wiping on the layer 
         return true;
 
@@ -812,24 +813,6 @@ wxString Control::get_label(int tick, LabelType label_type/* = ltHeightWithLayer
     // As a result, each layer with tool changes is splited for min 3 parts: first tool, wiping, second tool ...
     // So, vertical slider have to respect to this case.
     // see https://github.com/prusa3d/PrusaSlicer/issues/6232.
-    // m_values contains data for all layer's parts,
-    // but m_layers_values contains just unique Z values.
-    // Use this function for correct conversion slider position to number of printed layer
-    //auto get_layer_number = [this](int value, LabelType label_type) -> size_t {
-    //    if (label_type == ltEstimatedTime && m_layers_times.empty())
-    //        return size_t(-1);
-    //    assert((is_wipe_tower_layer(value) ? std::max<int>(value - 1, 0) : value) < m_values.size());
-    //    double layer_print_z = m_values[is_wipe_tower_layer(value) ? std::max<int>(value - 1, 0) : value];
-    //    auto it = std::lower_bound(m_layers_values.begin(), m_layers_values.end(), layer_print_z - epsilon());
-    //    if (it == m_layers_values.end()) {
-    //        it = std::lower_bound(m_values.begin(), m_values.end(), layer_print_z - epsilon());
-    //        if (it == m_values.end())
-    //            return size_t(-1);
-    //        return size_t(value);
-    //    }
-    //    size_t res = size_t(it - m_layers_values.begin());
-    //    return res;
-    //};
 
     {
         if (label_type == ltEstimatedTime) {
@@ -1212,8 +1195,8 @@ void Control::Ruler::update(const std::vector<double>& values, double scroll_ste
         return;
     }
 
-    int pixels_per_long_step = lround((double)(m_DPI) * 5.0/25.4);
-    int pixels_per_small_step = lround((double)(m_DPI) * 1/25.4);
+    int pixels_per_long_step = lround(static_cast<double>(m_DPI) * 5.0/25.4);
+    int pixels_per_small_step = lround(static_cast<double>(m_DPI) * 1/25.4);
 
     //compute max number of visible steps
     if (pixels_per_long_step <= scroll_step) {
@@ -1294,7 +1277,7 @@ void Control::draw_ruler(wxDC& dc)
             }
             int prev_y_pos = -1;
             wxCoord label_height = dc.GetMultiLineTextExtent("0").y - 2;
-            int values_size = (int)m_values.size();
+            int values_size = static_cast<int>(m_values.size());
             assert(m_values.size() > m_max_tick);
             //iterate on all layer z values
             while (tick <= m_max_tick) {
