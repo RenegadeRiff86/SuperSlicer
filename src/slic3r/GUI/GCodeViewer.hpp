@@ -24,6 +24,12 @@ class TriangleMesh;
 
 namespace GUI {
 
+// One cap at each end - of a path's index range, and of the shown sequential range.
+static constexpr size_t CapsAtBothEnds = 2;
+
+// A layer range is held as its first and last layer.
+static constexpr size_t LayerRangeBounds = 2;
+
 class GCodeViewer
 {
 
@@ -329,6 +335,9 @@ class GCodeViewer
             void reset_print_min_max() { m_print_max = INT_MIN; m_print_min = INT_MAX; clear_cache(); }
             //float step_size() const;
             ColorRGBA get_color_at(float value) const;
+            // The colour a range shows when it has collapsed to a single value: the middle of the
+            // palette, so it reads as neither end of the scale.
+            static const ColorRGBA& single_value_color();
             size_t count_discrete() const;
             bool set_user_max(float val); // return true if value has changed
             bool set_user_min(float val); // return true if value has changed
@@ -898,7 +907,7 @@ private:
     std::vector<ColorRGBA> m_tool_colors;
     std::vector<ColorRGBA> m_filament_colors;
     Layers m_layers;
-    std::array<unsigned int, 2> m_layers_z_range;
+    std::array<unsigned int, LayerRangeBounds> m_layers_z_range;
     std::vector<GCodeExtrusionRole> m_roles;
     size_t m_extruders_count;
     std::vector<unsigned char> m_extruder_ids;
@@ -928,7 +937,7 @@ private:
     Statistics m_statistics;
 #endif // ENABLE_GCODE_VIEWER_STATISTICS
     GCodeProcessorResult::SettingsIds m_settings_ids;
-    std::array<SequentialRangeCap, 2> m_sequential_range_caps;
+    std::array<SequentialRangeCap, CapsAtBothEnds> m_sequential_range_caps;
     std::array<std::vector<float>, static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Count)> m_layers_times;
 
     std::vector<CustomGCode::Item> m_custom_gcode_per_print_z;
@@ -999,7 +1008,13 @@ public:
     void set_toolpath_role_visibility_flags(unsigned int flags) { m_extrusions.role_visibility_flags = flags; }
     unsigned int get_options_visibility_flags() const;
     void set_options_visibility_from_flags(unsigned int flags);
-    void set_layers_z_range(const std::array<unsigned int, 2>& layers_z_range);
+    // set_options_visibility_from_flags() only records the new flags: the toolpaths keep
+    // rendering as they were until the render paths are rebuilt. This applies a flag change
+    // the way the legend's toggle buttons do, refresh included, so a caller that is not the
+    // legend - the automation API, whose requests cannot reach an ImGui widget - gets the
+    // same result on screen.
+    void apply_options_visibility_flags(unsigned int flags);
+    void set_layers_z_range(const std::array<unsigned int, LayerRangeBounds>& layers_z_range);
 
     bool is_legend_enabled() const { return m_legend_enabled; }
     void enable_legend(bool enable) { m_legend_enabled = enable; }
