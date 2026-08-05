@@ -22,7 +22,12 @@ from typing import Any, Iterable
 
 DEFAULT_PORT = 43127
 TOKEN_VARIABLE = "SUPERSLICER_AUTOMATION_TOKEN"
-DEFAULT_EXECUTABLE = Path("build-linux-x86_64-release/bin/superslicer")
+# Anchored to the checkout rather than the working directory: a relative default silently
+# picks a different binary - or none - depending on where the caller happened to stand.
+# build-linux-current-release is a symlink to this same tree, so a process listing shows
+# the resolved path and not whichever name was asked for.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_EXECUTABLE = REPO_ROOT / "build-linux-x86_64-release" / "bin" / "superslicer"
 
 
 class AutomationError(RuntimeError):
@@ -199,6 +204,27 @@ class ApiClient:
     def select_view(self, view: str) -> dict[str, Any]:
         return self.rest("POST", "/api/v1/workflows/select_view", {"view": view})
 
+    def set_preview(self, **fields: Any) -> dict[str, Any]:
+        """Set preview slider ranges and/or move-type visibility, and report the visibility
+        of every option afterwards. Pass options={"wipe": True} to switch a move type on:
+        the legend that owns those toggles is drawn by ImGui and has no element to click,
+        and a move type that is off is not in the frame at all - so a screenshot comparison
+        over one that was never enabled compares two pictures of nothing."""
+        return self.rest("POST", "/api/v1/workflows/set_preview", fields)
+
+    def preview_options(self) -> dict[str, bool]:
+        return self.set_preview()["options"]
+
+    def quit(self, force: bool = True) -> dict[str, Any]:
+        """Ask the slicer to exit. Invoking the File > Quit menu item does not: it calls
+        Close(false), which any unsaved-project or print-host prompt is free to veto, and
+        nothing in an unattended run answers those."""
+        try:
+            return self.rest("POST", "/api/v1/workflows/quit", {"force": force})
+        except (ConnectionError, OSError) as error:
+            # The window can go before the reply is flushed; that is still a successful quit.
+            return {"closing": True, "force": force, "detail": str(error)}
+
     def export_gcode(
         self, path: Path | str, overwrite: bool = True, timeout_ms: int = 300000
     ) -> dict[str, Any]:
@@ -217,6 +243,18 @@ class ApiClient:
 
     def arrange(self) -> dict[str, Any]:
         return self.rest("POST", "/api/v1/workflows/arrange", {})
+
+    def orient(self, timeout: float = 300.0) -> dict[str, Any]:
+        """Rotate objects to their optimal print orientation and wait for the job to end.
+        The endpoint returns as soon as the job is queued, so a caller that slices straight
+        afterwards would slice the old pose."""
+        started = self.rest("POST", "/api/v1/workflows/orient", {})
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if not self.status()["job_running"]:
+                return started
+            time.sleep(0.1)
+        raise AutomationError(f"orient did not finish within {timeout:g}s")
 
     # -- file dialogs ------------------------------------------------------
 
@@ -342,6 +380,7 @@ def probe_status(
     client: ApiClient,
     slicer_process: subprocess.Popen | None,
     require_gui: bool,
+    expect_executable: Path | str | None = None,
 ) -> dict[str, Any] | None:
     """One status poll. Returns the status block once the server is up, is the one
     we launched, and is ready; None while it is still coming up."""
@@ -349,6 +388,22 @@ def probe_status(
     if status != 200 or not response.get("ok"):
         return None
     reported = response["result"]
+    # Attaching skips the pid check below - there is no process of ours to compare against -
+    # so this is the only thing standing between a caller and an hour of measuring a build
+    # it did not mean to test.
+    if expect_executable is not None:
+        running = reported.get("executable")
+        if running is None:
+            raise AutomationError(
+                "this slicer does not report its executable path, so it cannot be checked "
+                "against the one requested; it predates the field. Rebuild it, or drop "
+                "--executable to accept whatever owns the port."
+            )
+        if Path(running).resolve() != Path(expect_executable).resolve():
+            raise AutomationError(
+                f"port {client.port} is owned by {running}, not the requested "
+                f"{Path(expect_executable).resolve()}. Stop that instance or use --port."
+            )
     # An older slicer still holding the port answers on it, and its replies look
     # perfectly healthy - so the run silently drives the previous binary. Refuse
     # rather than report another process's state as if it were ours.
@@ -368,6 +423,7 @@ def wait_ready(
     slicer_process: subprocess.Popen | None = None,
     timeout: float = 60.0,
     require_gui: bool = True,
+    expect_executable: Path | str | None = None,
 ) -> dict[str, Any]:
     deadline = time.monotonic() + timeout
     last_error: Exception | None = None
@@ -377,7 +433,7 @@ def wait_ready(
                 f"SuperSlicer exited during startup with code {slicer_process.returncode}"
             )
         try:
-            reported = probe_status(client, slicer_process, require_gui)
+            reported = probe_status(client, slicer_process, require_gui, expect_executable)
         except (ConnectionError, OSError, json.JSONDecodeError) as error:
             last_error = error
             reported = None
@@ -385,6 +441,33 @@ def wait_ready(
             return reported
         time.sleep(0.1)
     raise AutomationError(f"automation API did not become ready: {last_error}")
+
+
+def wait_closed(client: ApiClient, timeout: float = 30.0) -> bool:
+    """Poll until the API stops answering. Quitting is asynchronous - the reply comes back
+    before the window is gone - so this is what tells a script the port is free again."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            client.request("GET", "/api/v1/status")
+        except (ConnectionError, OSError):
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def wait_process_gone(pid: int, timeout: float = 30.0) -> bool:
+    """The socket closes while the process is still tearing down, and it is the process that
+    matters: a slicer that never exits is what fills the machine with instances holding the
+    port until the next launch fails."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return True
+        time.sleep(0.1)
+    return False
 
 
 def terminate(slicer_process: subprocess.Popen | None) -> None:

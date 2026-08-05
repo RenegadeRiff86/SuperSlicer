@@ -9,11 +9,13 @@
 
 #include "../DoubleSlider.hpp"
 #include "../GLCanvas3D.hpp"
+#include "../Jobs/Worker.hpp"
 #include "../Widgets/ComboBox.hpp"
 #include "../Widgets/SpinInput.hpp"
 #include "../Widgets/TextInput.hpp"
 #include "../GUI_App.hpp"
 #include "../GUI_ObjectManipulation.hpp"
+#include "../GUI_Preview.hpp"
 #include "../MainFrame.hpp"
 #include "../Plater.hpp"
 #include "libslic3r/GCode/ThumbnailData.hpp"
@@ -41,6 +43,7 @@
 #include <wx/utils.h>
 #include <wx/slider.h>
 #include <wx/spinctrl.h>
+#include <wx/stdpaths.h>
 #include <wx/textctrl.h>
 #include <wx/tglbtn.h>
 #include <wx/toplevel.h>
@@ -696,8 +699,10 @@ private:
             { "export_gcode", "superslicer_export_gcode" },
             { "new_project", "superslicer_new_project" },
             { "arrange", "superslicer_arrange" },
+            { "orient", "superslicer_orient" },
             { "arm_file_dialog", "superslicer_arm_file_dialog" },
-            { "file_dialog_status", "superslicer_file_dialog_status" }
+            { "file_dialog_status", "superslicer_file_dialog_status" },
+            { "quit", "superslicer_quit" }
         };
         const auto found = tools.find(operation);
         return found == tools.end() ? std::string() : found->second;
@@ -721,8 +726,10 @@ private:
             "superslicer_export_gcode",
             "superslicer_new_project",
             "superslicer_arrange",
+            "superslicer_orient",
             TOOL_ARM_FILE_DIALOG,
-            TOOL_FILE_DIALOG_STATUS
+            TOOL_FILE_DIALOG_STATUS,
+            "superslicer_quit"
         };
         return std::find(names.begin(), names.end(), name) != names.end();
     }
@@ -766,8 +773,10 @@ private:
             tool("superslicer_export_gcode", "Export G-code to an explicit path with overwrite protection."),
             tool("superslicer_new_project", "Reset the plater to a new empty project."),
             tool("superslicer_arrange", "Arrange objects on the bed through the normal plater handler."),
+            tool("superslicer_orient", "Rotate objects to their optimal print orientation. Runs on the UI job worker: poll status.job_running."),
             tool("superslicer_arm_file_dialog", "Queue the answer for the next file dialog, so an action that opens one can run unattended. Arm before triggering it."),
-            tool("superslicer_file_dialog_status", "Report the file dialog the app raised most recently: title, wildcard, save or open, and the paths returned.")
+            tool("superslicer_file_dialog_status", "Report the file dialog the app raised most recently: title, wildcard, save or open, and the paths returned."),
+            tool("superslicer_quit", "Close the main window and exit. Forced by default, because every prompt on the way out is skipped only when the close cannot be vetoed.")
         });
     }
 
@@ -920,10 +929,14 @@ private:
             return gui_new_project(arguments, request_id);
         if (tool == "superslicer_arrange")
             return gui_arrange(request_id);
+        if (tool == "superslicer_orient")
+            return gui_orient(request_id);
         if (tool == TOOL_ARM_FILE_DIALOG)
             return gui_arm_file_dialog(arguments, request_id);
         if (tool == TOOL_FILE_DIALOG_STATUS)
             return gui_file_dialog_status(request_id);
+        if (tool == "superslicer_quit")
+            return gui_quit(arguments, request_id);
         if (tool == "__operation_status")
             return gui_operation_status(arguments, request_id);
         if (tool == "__wayland_target")
@@ -936,6 +949,10 @@ private:
         Plater* plater = m_app.plater();
         json status = {
             { "pid", ::getpid() },
+            // Which binary is answering. A slicer left over from an earlier run holds the port
+            // and replies to every request as if it were the one under test, so a caller that
+            // attaches rather than launches has nothing else to check the build against.
+            { "executable", wxStandardPaths::Get().GetExecutablePath().ToUTF8().data() },
             { "api_enabled", m_running.load() },
             { "port", m_port },
             { "bind_address", "127.0.0.1" },
@@ -944,6 +961,9 @@ private:
             { "slicing", plater != nullptr && plater->is_background_process_running() },
             { "exporting", plater != nullptr && plater->is_export_gcode_scheduled() },
             { "preview_loaded", plater != nullptr && plater->is_preview_loaded() },
+            // Arrange, orient and the gizmo jobs run on the UI worker and return before the
+            // model has moved, so this is what a script waits on.
+            { "job_running", plater != nullptr && !plater->get_ui_job_worker().is_idle() },
             { "last_network_error", m_last_network_error }
         };
         return success(std::move(status), request_id);

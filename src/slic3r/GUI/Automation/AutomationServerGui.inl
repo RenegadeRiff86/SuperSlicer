@@ -941,6 +941,35 @@
         return success({ { "view", view } }, request_id);
     }
 
+    // The preview's move-type toggles (travel, wipe, retractions, ...) live in the legend,
+    // which ImGui draws straight onto the canvas: it owns no wx window, so it appears in no
+    // snapshot and no click can reach it. Naming the options here is the only way a script
+    // can turn one on - and a move type that is off contributes nothing to the frame, so a
+    // visual check of, say, wipe moves measures an empty scene until it is switched on.
+    static const std::vector<std::pair<const char*, Preview::OptionType>>& preview_options()
+    {
+        static const std::vector<std::pair<const char*, Preview::OptionType>> options = {
+            { "travel", Preview::OptionType::Travel },
+            { "wipe", Preview::OptionType::Wipe },
+            { "retractions", Preview::OptionType::Retractions },
+            { "unretractions", Preview::OptionType::Unretractions },
+            { "seams", Preview::OptionType::Seams },
+            { "tool_changes", Preview::OptionType::ToolChanges },
+            { "color_changes", Preview::OptionType::ColorChanges },
+            { "pause_prints", Preview::OptionType::PausePrints },
+            { "custom_gcodes", Preview::OptionType::CustomGCodes },
+            { "center_of_gravity", Preview::OptionType::CenterOfGravity },
+            { "shells", Preview::OptionType::Shells },
+            { "tool_marker", Preview::OptionType::ToolMarker }
+        };
+        return options;
+    }
+
+    static unsigned int preview_option_bit(Preview::OptionType option)
+    {
+        return 1u << static_cast<unsigned int>(option);
+    }
+
     json gui_set_preview(const json& arguments, const std::string& request_id)
     {
         if (m_app.plater() == nullptr || !m_app.plater()->is_preview_loaded())
@@ -967,7 +996,49 @@
         if (arguments.contains("zoom") && m_app.plater()->get_current_canvas3D() != nullptr)
             m_app.plater()->get_current_canvas3D()->zoom_to_bed();
 
-        return success({ { "updated", true } }, request_id);
+        // The flags belong to the preview's own canvas, and get_current_canvas3D() hands back
+        // whichever panel is on screen, so ask for the preview before touching them.
+        if (!m_app.plater()->is_preview_shown())
+            return arguments.contains("options")
+                ? failure(ERROR_OPERATION_FAILED, "preview options need the preview panel; select_view preview first", request_id)
+                : success({ { "updated", true } }, request_id);
+
+        GLCanvas3D* canvas = m_app.plater()->get_current_canvas3D();
+        if (canvas == nullptr)
+            return failure(ERROR_OPERATION_FAILED, "preview canvas is not ready", request_id);
+
+        if (arguments.contains("options")) {
+            const json& requested = arguments["options"];
+            if (!requested.is_object())
+                return failure(ERROR_OPERATION_FAILED, "options must be an object of name to true/false", request_id);
+
+            unsigned int flags = canvas->get_gcode_options_visibility_flags();
+            for (const auto& [name, value] : requested.items()) {
+                const std::string wanted = lower_ascii(name);
+                const auto& known = preview_options();
+                const auto found = std::find_if(known.begin(), known.end(),
+                    [&wanted](const auto& option) { return wanted == option.first; });
+                if (found == known.end())
+                    return failure(ERROR_OPERATION_FAILED, "unknown preview option '" + name + "'", request_id);
+                if (!value.is_boolean())
+                    return failure(ERROR_OPERATION_FAILED, "preview option '" + name + "' must be true or false", request_id);
+
+                const unsigned int bit = preview_option_bit(found->second);
+                flags = value.get<bool>() ? (flags | bit) : (flags & ~bit);
+            }
+            canvas->apply_gcode_options_visibility_flags(flags);
+        }
+
+        // Always report every option, so one call both sets and reads back what is drawn.
+        const unsigned int current_flags = canvas->get_gcode_options_visibility_flags();
+        json options_state = json::object();
+        for (const auto& [name, option] : preview_options())
+            options_state[name] = (current_flags & preview_option_bit(option)) != 0;
+
+        return success({
+            { "updated", true },
+            { "options", std::move(options_state) }
+        }, request_id);
     }
 
     json gui_set_transform(const json& arguments, const std::string& request_id)
@@ -1049,6 +1120,25 @@
         }, request_id);
     }
 
+    json gui_quit(const json& arguments, const std::string& request_id)
+    {
+        if (m_app.mainframe == nullptr)
+            return failure(ERROR_OPERATION_FAILED, "main frame is not ready", request_id);
+
+        // Every prompt on the way out - unsaved project, print host queue, an open gizmo -
+        // is guarded by wxCloseEvent::CanVeto(), so only a forced close leaves without one.
+        // The File > Quit menu item calls Close(false), which is why invoking that item from
+        // a script reports success and leaves the process running behind a dialog nobody
+        // answers. Closing after the reply keeps the response from racing the shutdown.
+        const bool force = arguments.value("force", true);
+        GUI_App* app = &m_app;
+        m_app.CallAfter([app, force]() {
+            if (app->mainframe != nullptr)
+                app->mainframe->Close(force);
+        });
+        return success({ { "closing", true }, { "force", force } }, request_id);
+    }
+
     json gui_new_project(const json& arguments, const std::string& request_id)
     {
         if (!m_app.is_editor() || m_app.plater() == nullptr)
@@ -1076,6 +1166,26 @@
         m_app.plater()->arrange();
         return success({
             { "arranged", true },
+            { "object_count", static_cast<int>(m_app.model().objects.size()) }
+        }, request_id);
+    }
+
+    json gui_orient(const std::string& request_id)
+    {
+        if (!m_app.is_editor() || m_app.plater() == nullptr)
+            return failure(ERROR_OPERATION_FAILED, "orient requires editor mode", request_id);
+        if (m_app.model().objects.empty())
+            return failure(ERROR_OPERATION_FAILED, "no model is loaded", request_id);
+        // orient() quietly does nothing while another UI job holds the worker, so say so
+        // rather than report success over a rotation that never happened.
+        if (!m_app.plater()->get_ui_job_worker().is_idle())
+            return failure(ERROR_OPERATION_FAILED, "another job is running; wait for it to finish", request_id);
+
+        m_app.plater()->orient();
+        // The job runs on the worker, so this returns before the model has moved. Poll
+        // status until job_running goes false.
+        return success({
+            { "orienting", true },
             { "object_count", static_cast<int>(m_app.model().objects.size()) }
         }, request_id);
     }

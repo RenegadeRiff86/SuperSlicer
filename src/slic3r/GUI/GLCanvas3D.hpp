@@ -877,11 +877,12 @@ public:
     std::vector<double> get_volumes_print_zs(bool active_only) const;
     unsigned int get_gcode_options_visibility_flags() const { return m_gcode_viewer.get_options_visibility_flags(); }
     void set_gcode_options_visibility_from_flags(unsigned int flags);
+    void apply_gcode_options_visibility_flags(unsigned int flags);
     unsigned int get_toolpath_role_visibility_flags() const { return m_gcode_viewer.get_toolpath_role_visibility_flags(); }
     void set_toolpath_role_visibility_flags(unsigned int flags);
     void set_toolpath_view_type(GCodeViewer::EViewType type);
     void set_volumes_z_range(const std::array<double, 2>& range);
-    void set_toolpaths_z_range(const std::array<unsigned int, 2>& range);
+    void set_toolpaths_z_range(const std::array<unsigned int, LayerRangeBounds>& range);
     std::vector<CustomGCode::Item>& get_custom_gcode_per_print_z() { return m_gcode_viewer.get_custom_gcode_per_print_z(); }
     size_t get_gcode_extruders_count() { return m_gcode_viewer.get_extruders_count(); }
 

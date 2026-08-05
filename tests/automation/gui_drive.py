@@ -11,6 +11,19 @@ Typical session - start the slicer once, then attach for each step:
     ./tests/automation/gui_drive.py --attach set superslicer.option.perimeters 4
     ./tests/automation/gui_drive.py --attach menu superslicer.menu.calibration... --wait-modal
 
+Comparing what the canvas draws before and after a change. The preview hides most move
+types by default, so switch the one under test on first - a capture of a move type that
+is not drawn holds nothing to compare, and the diff comes back clean whatever the change
+did:
+
+    ./tests/automation/gui_drive.py --attach load model.stl
+    ./tests/automation/gui_drive.py --attach slice
+    ./tests/automation/gui_drive.py --attach view preview
+    ./tests/automation/gui_drive.py --attach preview-options wipe=true
+    ./tests/automation/gui_drive.py --attach screenshot before.png --ref superslicer.canvas.preview
+    # rebuild, relaunch, repeat the steps above, then:
+    ./tests/automation/gui_drive.py --attach screenshot --ref superslicer.canvas.preview --compare before.png
+
 Every command prints plain lines rather than JSON so the output is readable in a
 terminal and greppable in a script.
 """
@@ -32,6 +45,8 @@ from automation_client import (  # noqa: E402  (path set up above)
     AutomationError,
     launch,
     terminate,
+    wait_closed,
+    wait_process_gone,
     wait_ready,
 )
 
@@ -137,13 +152,95 @@ def command_toggle(client: ApiClient, args: argparse.Namespace) -> None:
     print(client.toggle(automation_id))
 
 
-def command_screenshot(client: ApiClient, args: argparse.Namespace) -> None:
+def command_screenshot(client: ApiClient, args: argparse.Namespace) -> int:
     ref = None
     if args.ref is not None:
         ref = client.element(automation_id=args.ref)["ref"]
     png = client.screenshot(ref)
-    Path(args.path).write_bytes(png)
-    print(f"{args.path} ({len(png)} bytes)")
+    if args.path is not None:
+        Path(args.path).write_bytes(png)
+        print(f"{args.path} ({len(png)} bytes)")
+    if args.compare is None:
+        return 0
+    region = parse_region(args.region) if args.region else None
+    report, identical = compare_png(Path(args.compare).read_bytes(), png, region)
+    print(report)
+    return 0 if identical else 1
+
+
+def parse_region(text: str) -> tuple[int, int, int, int]:
+    values = text.split(",")
+    if len(values) != 4:
+        raise AutomationError(f"--region wants x,y,width,height; got {text!r}")
+    try:
+        x, y, width, height = (int(value) for value in values)
+    except ValueError:
+        raise AutomationError(f"--region wants four integers; got {text!r}") from None
+    if width <= 0 or height <= 0:
+        raise AutomationError(f"--region width and height must be positive; got {text!r}")
+    return x, y, width, height
+
+
+def compare_png(
+    baseline: bytes, captured: bytes, region: tuple[int, int, int, int] | None = None
+) -> tuple[str, bool]:
+    """Compare two captures of the same view. The toolpath rendering is bit-deterministic
+    even across separate processes, so two runs of an unchanged build return identical bytes
+    - which makes a byte comparison a sound first test, and a free one. Only a real
+    difference is worth the pixel arithmetic.
+
+    The canvas capture also holds whatever the notification manager is drawing in its bottom
+    right corner, and that is not deterministic: it fades on its own clock. Pass a region to
+    compare the scene alone rather than chasing a toast that has nothing to do with the
+    change under test."""
+    if baseline == captured:
+        return f"identical ({len(captured)} bytes)", True
+    try:
+        import io
+
+        import numpy
+        from PIL import Image
+    except ImportError:
+        return (
+            f"differs: {len(baseline)} vs {len(captured)} bytes "
+            "(install numpy and pillow to see which pixels)",
+            False,
+        )
+
+    before = numpy.asarray(Image.open(io.BytesIO(baseline)).convert("RGB"), dtype=numpy.int16)
+    after = numpy.asarray(Image.open(io.BytesIO(captured)).convert("RGB"), dtype=numpy.int16)
+    if before.shape != after.shape:
+        return f"differs: {before.shape} vs {after.shape}", False
+
+    left, top = 0, 0
+    if region is not None:
+        left, top, width, height = region
+        whole = captured_shape(after)
+        before = before[top:top + height, left:left + width]
+        after = after[top:top + height, left:left + width]
+        if before.size == 0:
+            return f"region {region} lies outside the {whole} capture", False
+
+    delta = numpy.abs(after - before)
+    changed = delta.any(axis=2)
+    count = int(changed.sum())
+    if count == 0:
+        return f"identical inside region {region}", True
+
+    # Reported in whole-image coordinates even when a region was compared, so the numbers
+    # can be fed straight back in as the next --region.
+    rows, columns = numpy.nonzero(changed)
+    return (
+        f"differs: {count} of {changed.size} pixels "
+        f"({100.0 * count / changed.size:.4f}%), max channel delta {int(delta.max())}, "
+        f"bounds x {left + columns.min()}-{left + columns.max()} "
+        f"y {top + rows.min()}-{top + rows.max()}",
+        False,
+    )
+
+
+def captured_shape(image) -> str:
+    return f"{image.shape[1]}x{image.shape[0]}"
 
 
 def command_load(client: ApiClient, args: argparse.Namespace) -> None:
@@ -158,6 +255,31 @@ def command_view(client: ApiClient, args: argparse.Namespace) -> None:
     print(client.select_view(args.view))
 
 
+def command_preview_options(client: ApiClient, args: argparse.Namespace) -> None:
+    requested: dict[str, bool] = {}
+    for assignment in args.option or ():
+        name, separator, text = assignment.partition("=")
+        value = parse_value(text) if separator else None
+        if not isinstance(value, bool):
+            raise AutomationError(f"expected name=true or name=false, got {assignment!r}")
+        requested[name] = value
+    for name, visible in sorted(client.set_preview(options=requested)["options"].items()):
+        print(f"{'on ' if visible else 'off'} {name}")
+
+
+def command_quit(client: ApiClient, args: argparse.Namespace) -> int:
+    pid = client.status()["pid"]
+    print(client.quit())
+    if not wait_closed(client, args.timeout):
+        print(f"still answering on port {client.port} after {args.timeout:g}s")
+        return 1
+    if not wait_process_gone(pid, args.timeout):
+        print(f"port {client.port} is free but pid {pid} is still alive")
+        return 1
+    print(f"closed: port {client.port} free, pid {pid} gone")
+    return 0
+
+
 def command_export(client: ApiClient, args: argparse.Namespace) -> None:
     print(client.export_gcode(args.path))
 
@@ -168,6 +290,10 @@ def command_new_project(client: ApiClient, args: argparse.Namespace) -> None:
 
 def command_arrange(client: ApiClient, args: argparse.Namespace) -> None:
     print(client.arrange())
+
+
+def command_orient(client: ApiClient, args: argparse.Namespace) -> None:
+    print(client.orient())
 
 
 def command_arm_file_dialog(client: ApiClient, args: argparse.Namespace) -> None:
@@ -251,21 +377,38 @@ def parse_value(text: str):
         return text
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+def add_global_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument(
         "--attach",
         action="store_true",
         help="talk to a slicer that is already running (needs the token in the environment)",
     )
-    parser.add_argument("--executable", type=Path, default=DEFAULT_EXECUTABLE)
+    parser.add_argument(
+        "--executable",
+        type=Path,
+        default=None,
+        help=f"binary to launch (default {DEFAULT_EXECUTABLE}); with --attach it is checked "
+             "against the one already on the port instead of launching anything",
+    )
+    parser.add_argument(
+        "--slicer-arg",
+        action="append",
+        metavar="ARG",
+        help="extra argument for the launched slicer; repeat it, and write it as "
+             "--slicer-arg=--load --slicer-arg=config.ini so argparse keeps the dashes",
+    )
     parser.add_argument(
         "--keep-open",
         action="store_true",
         help="leave a launched slicer running after this command (implied by launch)",
     )
     parser.add_argument("--timeout", type=float, default=30.0)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    add_global_options(parser)
 
     commands = parser.add_subparsers(dest="command", required=True)
 
@@ -320,11 +463,7 @@ def build_parser() -> argparse.ArgumentParser:
     toggle_parser.add_argument("automation_id")
     toggle_parser.set_defaults(handler=command_toggle)
 
-    screenshot_parser = commands.add_parser("screenshot", help="capture a PNG")
-    screenshot_parser.add_argument("path")
-    screenshot_parser.add_argument("--ref", help="automation_id of the element to capture")
-    screenshot_parser.set_defaults(handler=command_screenshot)
-
+    add_capture_commands(commands)
     add_workflow_commands(commands)
     add_file_dialog_commands(commands)
 
@@ -343,6 +482,29 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def add_capture_commands(commands) -> None:
+    screenshot_parser = commands.add_parser("screenshot", help="capture a PNG")
+    screenshot_parser.add_argument("path", nargs="?", help="where to write the capture")
+    screenshot_parser.add_argument("--ref", help="automation_id of the element to capture")
+    screenshot_parser.add_argument(
+        "--compare",
+        metavar="BASELINE",
+        help="diff the capture against this PNG and exit 1 if they differ",
+    )
+    screenshot_parser.add_argument(
+        "--region",
+        metavar="X,Y,WIDTH,HEIGHT",
+        help="compare only this rectangle; use it to leave out the bottom right corner, "
+             "where notification toasts fade on their own clock and differ run to run",
+    )
+    screenshot_parser.set_defaults(handler=command_screenshot)
+
+    quit_parser = commands.add_parser(
+        "quit", help="exit the slicer and wait for the port to go quiet"
+    )
+    quit_parser.set_defaults(handler=command_quit, keep_open=True)
+
+
 def add_workflow_commands(commands) -> None:
     load_parser = commands.add_parser("load", help="load a model")
     load_parser.add_argument("model")
@@ -355,6 +517,19 @@ def add_workflow_commands(commands) -> None:
     view_parser.add_argument("view", choices=("3d", "preview"))
     view_parser.set_defaults(handler=command_view)
 
+    preview_options_parser = commands.add_parser(
+        "preview-options",
+        help="show or set which move types the preview draws (travel, wipe, ...)",
+    )
+    preview_options_parser.add_argument(
+        "option",
+        nargs="*",
+        metavar="NAME=VALUE",
+        help="e.g. wipe=true; with no arguments it just reports every option. These are the "
+             "legend's toggles, which ImGui draws with no clickable element behind them",
+    )
+    preview_options_parser.set_defaults(handler=command_preview_options)
+
     export_parser = commands.add_parser("export", help="export G-code and wait")
     export_parser.add_argument("path")
     export_parser.set_defaults(handler=command_export)
@@ -365,6 +540,12 @@ def add_workflow_commands(commands) -> None:
 
     arrange_parser = commands.add_parser("arrange", help="arrange objects on the bed")
     arrange_parser.set_defaults(handler=command_arrange)
+
+    orient_parser = commands.add_parser(
+        "orient",
+        help="rotate objects to their best print orientation and wait for the job to finish",
+    )
+    orient_parser.set_defaults(handler=command_orient)
 
 
 def add_file_dialog_commands(commands) -> None:
@@ -414,17 +595,27 @@ def add_wait_flags(parser: argparse.ArgumentParser) -> None:
 def main() -> int:
     args = build_parser().parse_args()
     slicer_process = None
+    # An --executable given while attaching is a claim about what should already be on the
+    # port, and wait_ready refuses to talk to anything else. Launching has no one to check
+    # against yet, so there it is simply which binary to start.
+    expect_executable = args.executable if args.attach else None
     if args.attach:
         client = ApiClient(args.port)
     else:
         # Honour a token already in the environment so a scripted session can
         # launch once and attach for every step afterwards.
-        slicer_process, client = launch(args.executable, args.port, os.environ.get(TOKEN_VARIABLE))
+        slicer_process, client = launch(
+            args.executable or DEFAULT_EXECUTABLE,
+            args.port,
+            os.environ.get(TOKEN_VARIABLE),
+            args.slicer_arg or (),
+        )
         print(f"{TOKEN_VARIABLE}={client.token}", file=sys.stderr)
     try:
-        wait_ready(client, slicer_process, timeout=args.timeout)
-        args.handler(client, args)
-        return 0
+        wait_ready(
+            client, slicer_process, timeout=args.timeout, expect_executable=expect_executable
+        )
+        return args.handler(client, args) or 0
     finally:
         if not args.keep_open:
             terminate(slicer_process)

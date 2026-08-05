@@ -47,3 +47,9 @@ releases/
 # so ignore the output without touching the models.
 resources/shapes/*.gcode
 *.gcode.tmp
+# The CLI writes next to the working directory, which for a --slice run from the
+# checkout is the repository root.
+/*.gcode
+
+# Byte-code from running tests/automation/gui_drive.py out of the tree.
+__pycache__/

@@ -2369,6 +2369,11 @@ void GLCanvas3D::set_gcode_options_visibility_from_flags(unsigned int flags)
     m_gcode_viewer.set_options_visibility_from_flags(flags);
 }
 
+void GLCanvas3D::apply_gcode_options_visibility_flags(unsigned int flags)
+{
+    m_gcode_viewer.apply_options_visibility_flags(flags);
+}
+
 void GLCanvas3D::set_toolpath_role_visibility_flags(unsigned int flags)
 {
     m_gcode_viewer.set_toolpath_role_visibility_flags(flags);
@@ -2384,7 +2389,7 @@ void GLCanvas3D::set_volumes_z_range(const std::array<double, 2>& range)
     m_volumes.set_range(range[0] - 1e-6, range[1] + 1e-6);
 }
 
-void GLCanvas3D::set_toolpaths_z_range(const std::array<unsigned int, 2>& range)
+void GLCanvas3D::set_toolpaths_z_range(const std::array<unsigned int, LayerRangeBounds>& range)
 {
     if (m_gcode_viewer.has_data())
         m_gcode_viewer.set_layers_z_range(range);
@@ -3119,7 +3124,7 @@ void GLCanvas3D::on_char(wxKeyEvent& evt)
 
 #ifdef SHOW_IMGUI_DEMO_WINDOW
     static int cur = 0;
-    if (get_logging_level() >= 3 && wxString("demo")[cur] == evt.GetUnicodeKey()) ++cur; else cur = 0;
+    if (get_logging_level() >= LogLevelInfo && wxString("demo")[cur] == evt.GetUnicodeKey()) ++cur; else cur = 0;
     if (cur == 4) { show_imgui_demo_window = !show_imgui_demo_window; cur = 0;}
 #endif // SHOW_IMGUI_DEMO_WINDOW
 
@@ -3441,7 +3446,7 @@ void GLCanvas3D::on_key(wxKeyEvent& evt)
     else {
         if (!m_gizmos.on_key(evt)) {
             if (evt.GetEventType() == wxEVT_KEY_UP) {
-                if (get_logging_level() >= 3 && evt.ShiftDown() && evt.ControlDown() && keyCode == WXK_SPACE) {
+                if (get_logging_level() >= LogLevelInfo && evt.ShiftDown() && evt.ControlDown() && keyCode == WXK_SPACE) {
                     wxGetApp().plater()->toggle_render_statistic_dialog();
                     m_dirty = true;
                 }
