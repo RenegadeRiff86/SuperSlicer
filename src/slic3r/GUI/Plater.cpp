@@ -174,6 +174,17 @@ static constexpr int ToolbarBackgroundBorderPx = 16;
 // Side of the square bed the plater falls back to when no printer profile supplies one.
 static constexpr double FallbackBedSideMm = 200.0;
 
+// SLA material is accumulated in mm3 and shown in millilitres; filament length is
+// accumulated in mm and shown in metres.
+static constexpr double MmCubedPerMl = 1000.0;
+static constexpr double MmPerM       = 1000.0;
+
+// How long the "export ongoing" notice waits before it is worth showing at all.
+static constexpr int ExportOngoingNoticeDelayMs = 1000;
+
+// Upper bound of the "set number of copies" prompt.
+static constexpr int MaxObjectCopies = 1000;
+
 namespace Slic3r {
 namespace GUI {
 
@@ -1474,10 +1485,10 @@ void Sidebar::update_sliced_info_sizer()
                 new_label += format_wxstr("\n    - %s\n    - %s", _L_PLURAL("object", "objects", p->plater->model().objects.size()), _L("supports and pad"));
 
             wxString info_text = is_supports ?
-                wxString::Format("%.2f \n%.2f \n%.2f", (ps.objects_used_material + ps.support_used_material) / 1000,
-                                                       ps.objects_used_material / 1000,
-                                                       ps.support_used_material / 1000) :
-                wxString::Format("%.2f", (ps.objects_used_material + ps.support_used_material) / 1000);
+                wxString::Format("%.2f \n%.2f \n%.2f", (ps.objects_used_material + ps.support_used_material) / MmCubedPerMl,
+                                                       ps.objects_used_material / MmCubedPerMl,
+                                                       ps.support_used_material / MmCubedPerMl) :
+                wxString::Format("%.2f", (ps.objects_used_material + ps.support_used_material) / MmCubedPerMl);
             p->sliced_info->SetTextAndShow(siMateril_unit, info_text, new_label);
 
             wxString str_total_cost = "N/A";
@@ -1488,7 +1499,7 @@ void Sidebar::update_sliced_info_sizer()
             {
                 double material_cost = cfg->option("bottle_cost")->get_float() / 
                                        cfg->option("bottle_volume")->get_float();
-                str_total_cost = wxString::Format("%.3f", material_cost*(ps.objects_used_material + ps.support_used_material) / 1000);                
+                str_total_cost = wxString::Format("%.3f", material_cost*(ps.objects_used_material + ps.support_used_material) / MmCubedPerMl);                
             }
             p->sliced_info->SetTextAndShow(siCost, str_total_cost, "Cost");
 
@@ -1509,7 +1520,7 @@ void Sidebar::update_sliced_info_sizer()
             const bool is_wipe_tower = ps.total_wipe_tower_filament > 0;
 
             bool imperial_units = wxGetApp().app_config->get_bool("use_inches");
-            double koef = imperial_units ? ObjectManipulation::in_to_mm : 1000.0;
+            double koef = imperial_units ? ObjectManipulation::in_to_mm : MmPerM;
 
             wxString new_label = imperial_units ? _L("Used Filament (in)") : _L("Used Filament (m)");
             if (is_wipe_tower)
@@ -1540,7 +1551,7 @@ void Sidebar::update_sliced_info_sizer()
                                 items_printed++;
                                 new_label += "\n    - " + format_wxstr(_L("Color %1% at extruder %2%"), items_printed , (filament_id + 1));
                                 total_length += entry.second;
-                                info_text += wxString::Format("\n%.2f (%.2f)", entry.second / 1000, total_length / 1000);
+                                info_text += wxString::Format("\n%.2f (%.2f)", entry.second / MmPerM, total_length / MmPerM);
                             }
                         }
                         //print total for this extruder
@@ -1551,7 +1562,7 @@ void Sidebar::update_sliced_info_sizer()
                         } 
                         else {
                             new_label += "\n    - " + format_wxstr(_L("Color %1% at extruder %2%"), (items_printed+1), (filament_id + 1));
-                            info_text += wxString::Format("\n%.2f (%.2f)", (filament_vol - total_length) * mm3_to_m, filament_vol * mm3_to_m);
+                            info_text += wxString::Format("\n%.2f (%.2f)", (filament_vol - total_length * crosssection) * mm3_to_m, filament_vol * mm3_to_m);
                         }
                     }
                 }
@@ -1584,8 +1595,13 @@ void Sidebar::update_sliced_info_sizer()
                             double crosssection = filament_preset->config.opt_float("filament_diameter", filament_id);
                             crosssection *= crosssection;
                             crosssection *= 0.25 * PI;
-                            double m_to_g = filament_density / (crosssection * 1000);
                             double mm3_to_g = filament_density *0.001;
+                            // color_extruderid_to_used_filament holds a LENGTH in mm (Print.hpp),
+                            // so a length becomes a volume by multiplying by the cross section -
+                            // the cross section belongs in the numerator. It was in the
+                            // denominator, which made every per-colour weight low by a factor of
+                            // crosssection squared: 5.8x for 1.75 mm filament, 41x for 2.85 mm.
+                            double mm_to_g = crosssection * mm3_to_g;
                             int items_printed = 0;
                             double total_length = 0;
                             //for (int i = 0; i < ps.color_extruderid_to_used_filament.size(); i++) {
@@ -1601,9 +1617,9 @@ void Sidebar::update_sliced_info_sizer()
                                     items_printed++;
                                     new_label += "\n    - " + format_wxstr(_L("Color %1% at extruder %2%"), items_printed, (filament_id + 1));
                                     total_length += entry.second;
-                                    info_text += wxString::Format("\n%.2f", entry.second * m_to_g);
+                                    info_text += wxString::Format("\n%.2f", entry.second * mm_to_g);
                                     if (spool_weight != 0.0)
-                                        info_text += wxString::Format(" (%.2f)", entry.second * m_to_g + spool_weight);
+                                        info_text += wxString::Format(" (%.2f)", entry.second * mm_to_g + spool_weight);
                                 }
                             }
                             //print total for this extruder
@@ -1615,9 +1631,9 @@ void Sidebar::update_sliced_info_sizer()
                                     info_text += wxString::Format(" (%.2f)", filament_vol * mm3_to_g + spool_weight);
                             } else {
                                 new_label += "\n    - " + format_wxstr(_L("Color %1% at extruder %2%"), (items_printed + 1), (filament_id + 1));
-                                info_text += wxString::Format("\n%.2f", (filament_vol - total_length) * mm3_to_g);
+                                info_text += wxString::Format("\n%.2f", (filament_vol - total_length * crosssection) * mm3_to_g);
                                 if (spool_weight != 0.0)
-                                    info_text += wxString::Format(" (%.2f)", (filament_vol - total_length) * mm3_to_g + spool_weight);
+                                    info_text += wxString::Format(" (%.2f)", (filament_vol - total_length * crosssection) * mm3_to_g + spool_weight);
                             }
                         }
                     }
@@ -3893,7 +3909,7 @@ void Plater::priv::export_gcode(fs::path output_path, bool output_path_on_remova
     show_warning_dialog = true;
     if (! output_path.empty()) {
         background_process.schedule_export(output_path.string(), output_path_on_removable_media);
-        notification_manager->push_delayed_notification(NotificationType::ExportOngoing, []() {return true; }, 1000, 0);
+        notification_manager->push_delayed_notification(NotificationType::ExportOngoing, []() {return true; }, ExportOngoingNoticeDelayMs, 0);
     } else {
         background_process.schedule_upload(std::move(upload_job));
     }
@@ -7043,7 +7059,7 @@ void Plater::set_number_of_copies()
 
     const size_t init_cnt = obj_idxs.size() == 1 ? p->model.objects[*obj_idxs.begin()]->instances.size() : 1;
     const int num = GetNumberFromUser( " ", _L("Enter the number of copies:"),
-                                    _L("Copies of the selected object"), init_cnt, 0, 1000, this );
+                                    _L("Copies of the selected object"), init_cnt, 0, MaxObjectCopies, this );
     if (num < 0)
         return;
     TakeSnapshot snapshot(this, wxString::Format(_L("Set numbers of copies to %d"), num));
