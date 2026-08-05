@@ -160,6 +160,20 @@ using Slic3r::GUI::format_wxstr;
 
 static const std::pair<unsigned int, unsigned int> THUMBNAIL_SIZE_3MF = { 256, 256 };
 
+// Gap either side of a small bitmap button, as a fraction of the font's em - the sidebar
+// scales with the font rather than with pixels.
+static constexpr double ButtonGapEm = 0.3;
+
+// Icon edge for the sidebar's scalable bitmap buttons. macOS asks for the smaller one.
+static constexpr int ScalableButtonIconPx    = 32;
+static constexpr int ScalableButtonIconPxMac = 16;
+
+// Inset of the nine-slice border in toolbar_background.png, in texture pixels.
+static constexpr int ToolbarBackgroundBorderPx = 16;
+
+// Side of the square bed the plater falls back to when no printer profile supplies one.
+static constexpr double FallbackBedSideMm = 200.0;
+
 namespace Slic3r {
 namespace GUI {
 
@@ -436,7 +450,7 @@ void FreqChangedParams::init()
         auto sizer = new wxBoxSizer(wxHORIZONTAL);
         auto btn = new ScalableButton(parent, wxID_ANY, "mirroring_transparent", wxEmptyString,
             wxDefaultSize, wxDefaultPosition, wxBU_EXACTFIT | wxNO_BORDER | wxTRANSPARENT_WINDOW);
-        sizer->Add(btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT, int(0.3 * wxGetApp().em_unit()));
+        sizer->Add(btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT, int(ButtonGapEm * wxGetApp().em_unit()));
         m_empty_buttons.push_back(btn);
         return sizer;
     };
@@ -517,7 +531,7 @@ void FreqChangedParams::init()
                     auto btn = new ScalableButton(parent, wxID_ANY, "mirroring_transparent", wxEmptyString,
                                                   wxDefaultSize, wxDefaultPosition,
                                                   wxBU_EXACTFIT | wxNO_BORDER | wxTRANSPARENT_WINDOW);
-                    sizer->Add(btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT, int(0.3 * wxGetApp().em_unit()));
+                    sizer->Add(btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT, int(ButtonGapEm * wxGetApp().em_unit()));
                     m_empty_buttons.push_back(btn);
 
                     return sizer;
@@ -820,7 +834,7 @@ Sidebar::Sidebar(Plater *parent)
         combo_and_btn_sizer->Add(*combo, 1, wxEXPAND);
         if ((*combo)->edit_btn)
             combo_and_btn_sizer->Add((*combo)->edit_btn, 0, wxALIGN_CENTER_VERTICAL|wxLEFT|wxRIGHT, 
-                                    int(0.3*wxGetApp().em_unit()));
+                                    int(ButtonGapEm * wxGetApp().em_unit()));
 
         auto *sizer_presets = this->p->sizer_presets;
         // Hide controls, which will be shown/hidden in respect to the printer technology
@@ -903,9 +917,9 @@ Sidebar::Sidebar(Plater *parent)
     auto init_scalable_btn = [this](ScalableButton** btn, const std::string& icon_name, wxString tooltip = wxEmptyString)
     {
 #ifdef __APPLE__
-        int bmp_px_cnt = 16;
+        int bmp_px_cnt = ScalableButtonIconPxMac;
 #else
-        int bmp_px_cnt = 32;
+        int bmp_px_cnt = ScalableButtonIconPx;
 #endif //__APPLE__
         ScalableBitmap bmp = ScalableBitmap(this, icon_name, bmp_px_cnt);
         *btn = new ScalableButton(this, wxID_ANY, bmp, "", wxBU_EXACTFIT);
@@ -1039,7 +1053,7 @@ void Sidebar::init_filament_combo(PlaterPresetComboBox** combo, const int extr_i
     combo_and_btn_sizer->Add(*combo, 1, wxEXPAND);
     assert((*combo)->edit_btn);
     combo_and_btn_sizer->Add((*combo)->edit_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT,
-                            int(0.3*wxGetApp().em_unit()));
+                            int(ButtonGapEm * wxGetApp().em_unit()));
 
     this->p->sizer_filaments->Add(combo_and_btn_sizer, 1, wxEXPAND |
 #ifdef __WXGTK3__
@@ -5065,10 +5079,10 @@ bool Plater::priv::init_view_toolbar()
 
     BackgroundTexture::Metadata background_data;
     background_data.filename = "toolbar_background.png";
-    background_data.left = 16;
-    background_data.top = 16;
-    background_data.right = 16;
-    background_data.bottom = 16;
+    background_data.left = ToolbarBackgroundBorderPx;
+    background_data.top = ToolbarBackgroundBorderPx;
+    background_data.right = ToolbarBackgroundBorderPx;
+    background_data.bottom = ToolbarBackgroundBorderPx;
 
     if (!view_toolbar.init(background_data))
         return false;
@@ -5112,10 +5126,10 @@ bool Plater::priv::init_collapse_toolbar()
 
     BackgroundTexture::Metadata background_data;
     background_data.filename = "toolbar_background.png";
-    background_data.left = 16;
-    background_data.top = 16;
-    background_data.right = 16;
-    background_data.bottom = 16;
+    background_data.left = ToolbarBackgroundBorderPx;
+    background_data.top = ToolbarBackgroundBorderPx;
+    background_data.right = ToolbarBackgroundBorderPx;
+    background_data.bottom = ToolbarBackgroundBorderPx;
 
     if (!collapse_toolbar.init(background_data))
         return false;
@@ -8510,7 +8524,8 @@ void Plater::set_bed_shape(const Pointfs& shape, const double max_print_height, 
 
 void Plater::set_default_bed_shape() const
 {
-    set_bed_shape({ { 0.0, 0.0 }, { 200.0, 0.0 }, { 200.0, 200.0 }, { 0.0, 200.0 } }, 0.0, {}, {}, true);
+    set_bed_shape({ { 0.0, 0.0 }, { FallbackBedSideMm, 0.0 }, { FallbackBedSideMm, FallbackBedSideMm },
+                    { 0.0, FallbackBedSideMm } }, 0.0, {}, {}, true);
 }
 
 void Plater::force_filament_colors_update()
