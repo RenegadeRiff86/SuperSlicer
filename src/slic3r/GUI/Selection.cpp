@@ -11,6 +11,7 @@
 #include "GUI.hpp"
 #include "GUI_ObjectManipulation.hpp"
 #include "GUI_ObjectList.hpp"
+#include "GUI_ObjectLayers.hpp"
 #include "Camera.hpp"
 #include "Plater.hpp"
 #include "MsgDialog.hpp"
@@ -59,6 +60,34 @@ enum QuadCorner : unsigned int
     QuadTopRight,
     QuadTopLeft,
 };
+
+// The sidebar hints are modelled pointing along one axis and rotated a quarter turn onto the
+// others.
+static constexpr double QuarterTurn = 0.5 * PI;
+
+// The XYZ axes drawn at the centre of the selection, in the axes model's own units.
+static constexpr float SelectionAxesStemRadius = 0.5f;
+static constexpr float SelectionAxesStemLength = 20.0f;
+static constexpr float SelectionAxesTipRadius  = 1.5f;
+static constexpr float SelectionAxesTipLength  = 5.0f;
+
+// The sidebar hint arrows - straight for move and scale, curved for rotation - are drawn to one
+// set of dimensions, which is why the same number turns up as a width on one and a height on the
+// other. See straight_arrow() and circular_arrow() in GLModel.hpp for what each one measures.
+static constexpr float HintArrowTipWidth     = 10.0f;
+static constexpr float HintArrowTipHeight    = 5.0f;
+static constexpr float HintArrowStemWidth    = 5.0f;
+static constexpr float HintArrowStemHeight   = 10.0f;
+static constexpr float HintArrowThickness    = 1.0f;
+static constexpr float CurvedHintArrowRadius = 10.0f;
+static constexpr unsigned int CurvedHintArrowResolution = 16;
+
+// Outline width of the selection bounding box, in pixels before m_scale_factor.
+static constexpr float SelectionBoxLineWidth = 2.0f;
+
+// How near zero a rotation axis component has to be for the axis to count as one of the
+// coordinate axes.
+static constexpr double AxisAlignedTolerance = 1e-8;
 
 namespace Slic3r {
 namespace GUI {
@@ -127,10 +156,10 @@ Selection::Selection()
     , m_scale_factor(1.0f)
 {
     this->set_bounding_boxes_dirty();
-    m_axes.set_stem_radius(0.5f);
-    m_axes.set_stem_length(20.0f);
-    m_axes.set_tip_radius(1.5f);
-    m_axes.set_tip_length(5.0f);
+    m_axes.set_stem_radius(SelectionAxesStemRadius);
+    m_axes.set_stem_length(SelectionAxesStemLength);
+    m_axes.set_tip_radius(SelectionAxesTipRadius);
+    m_axes.set_tip_length(SelectionAxesTipLength);
 }
 
 
@@ -143,8 +172,11 @@ void Selection::set_volumes(GLVolumeCollection &volumes)
 // Init shall be called from the OpenGL render function, so that the OpenGL context is initialized!
 bool Selection::init()
 {
-    m_arrow.init_from(straight_arrow(10.0f, 5.0f, 5.0f, 10.0f, 1.0f));
-    m_curved_arrow.init_from(circular_arrow(16, 10.0f, 5.0f, 10.0f, 5.0f, 1.0f));
+    m_arrow.init_from(straight_arrow(HintArrowTipWidth, HintArrowTipHeight, HintArrowStemWidth,
+                                     HintArrowStemHeight, HintArrowThickness));
+    m_curved_arrow.init_from(circular_arrow(CurvedHintArrowResolution, CurvedHintArrowRadius,
+                                            HintArrowTipHeight, HintArrowTipWidth,
+                                            HintArrowStemWidth, HintArrowThickness));
 #if ENABLE_RENDER_SELECTION_CENTER
     m_vbo_sphere.init_from(its_make_sphere(0.75, PI / 12.0));
 #endif // ENABLE_RENDER_SELECTION_CENTER
@@ -967,7 +999,7 @@ const std::pair<Vec3d, double> Selection::get_bounding_sphere() const
 
             Min_sphere ms(points.begin(), points.end());
             const float* center_x = ms.center_cartesian_begin();
-            (*sphere)->first = { *center_x, *(center_x + 1), *(center_x + 2) };
+            (*sphere)->first = { *(center_x + X), *(center_x + Y), *(center_x + Z) };
             (*sphere)->second = ms.radius();
         }
     }
@@ -1122,7 +1154,7 @@ void Selection::rotate(const Vec3d& rotation, TransformationType transformation_
         int rot_axis_max = 0;
         rotation.cwiseAbs().maxCoeff(&rot_axis_max);
         const SyncRotationType type = (transformation_type.instance() && requires_general_synchronization) ||
-                                      (!transformation_type.instance() && rot_axis_max != 2) ||
+                                      (!transformation_type.instance() && rot_axis_max != Z) ||
                                       rotation.isApprox(Vec3d::Zero()) ?
             SyncRotationType::GENERAL : SyncRotationType::NONE;
         synchronize_unselected_instances(type);
@@ -2298,7 +2330,7 @@ void Selection::render_bounding_box(const BoundingBoxf3& box, const Transform3d&
     glsafe(::glEnable(GL_DEPTH_TEST));
 
     if (OpenGLManager::get_gl_info().get_max_line_width() > 1) {
-        glsafe(::glLineWidth(2.0f * m_scale_factor));
+        glsafe(::glLineWidth(SelectionBoxLineWidth * m_scale_factor));
     }
 #if ENABLE_GL_CORE_PROFILE
 
@@ -2336,7 +2368,7 @@ void Selection::render_sidebar_position_hints(const std::string& sidebar_field, 
     shader.set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 
     if (boost::ends_with(sidebar_field, "x")) {
-        const Transform3d model_matrix = matrix * Geometry::rotation_transform(-0.5 * PI * Vec3d::UnitZ());
+        const Transform3d model_matrix = matrix * Geometry::rotation_transform(-QuarterTurn * Vec3d::UnitZ());
         shader.set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
         const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize) * model_matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize).inverse().transpose();
         shader.set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
@@ -2350,7 +2382,7 @@ void Selection::render_sidebar_position_hints(const std::string& sidebar_field, 
         m_arrow.render();
     }
     else if (boost::ends_with(sidebar_field, "z")) {
-        const Transform3d model_matrix = matrix * Geometry::rotation_transform(0.5 * PI * Vec3d::UnitX());
+        const Transform3d model_matrix = matrix * Geometry::rotation_transform(QuarterTurn * Vec3d::UnitX());
         shader.set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
         const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize) * model_matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize).inverse().transpose();
         shader.set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
@@ -2379,11 +2411,11 @@ void Selection::render_sidebar_rotation_hints(const std::string& sidebar_field, 
 
     if (boost::ends_with(sidebar_field, "x")) {
         m_curved_arrow.set_color(get_color(X));
-        render_sidebar_rotation_hint(shader, view_matrix, matrix * Geometry::rotation_transform(0.5 * PI * Vec3d::UnitY()));
+        render_sidebar_rotation_hint(shader, view_matrix, matrix * Geometry::rotation_transform(QuarterTurn * Vec3d::UnitY()));
     }
     else if (boost::ends_with(sidebar_field, "y")) {
         m_curved_arrow.set_color(get_color(Y));
-        render_sidebar_rotation_hint(shader, view_matrix, matrix * Geometry::rotation_transform(-0.5 * PI * Vec3d::UnitX()));
+        render_sidebar_rotation_hint(shader, view_matrix, matrix * Geometry::rotation_transform(-QuarterTurn * Vec3d::UnitX()));
     }
     else if (boost::ends_with(sidebar_field, "z")) {
         m_curved_arrow.set_color(get_color(Z));
@@ -2415,13 +2447,13 @@ void Selection::render_sidebar_scale_hints(const std::string& sidebar_field, GLS
     shader.set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 
     if (boost::ends_with(sidebar_field, "x") || uniform_scale)
-      render_sidebar_scale_hint(X, shader, view_matrix, matrix * Geometry::rotation_transform(-0.5 * PI * Vec3d::UnitZ()));
+      render_sidebar_scale_hint(X, shader, view_matrix, matrix * Geometry::rotation_transform(-QuarterTurn * Vec3d::UnitZ()));
 
     if (boost::ends_with(sidebar_field, "y") || uniform_scale)
         render_sidebar_scale_hint(Y, shader, view_matrix, matrix);
 
     if (boost::ends_with(sidebar_field, "z") || uniform_scale)
-      render_sidebar_scale_hint(Z, shader, view_matrix, matrix * Geometry::rotation_transform(0.5 * PI * Vec3d::UnitX()));
+      render_sidebar_scale_hint(Z, shader, view_matrix, matrix * Geometry::rotation_transform(QuarterTurn * Vec3d::UnitX()));
 }
 
 void Selection::render_sidebar_layers_hints(const std::string& sidebar_field, GLShaderProgram& shader)
@@ -2516,9 +2548,11 @@ void Selection::render_sidebar_layers_hints(const std::string& sidebar_field, GL
     shader.set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix());
     shader.set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 
-    m_planes.models[0].set_color((camera_on_top && type == 1) || (!camera_on_top && type == 2) ? SOLID_PLANE_COLOR : TRANSPARENT_PLANE_COLOR);
+    // models[0] is drawn at z1 and models[1] at z2, and which of those is the range's bottom
+    // depends on where the camera is; the solid plane is the boundary the sidebar is editing.
+    m_planes.models[0].set_color((camera_on_top && type == etMinZ) || (!camera_on_top && type == etMaxZ) ? SOLID_PLANE_COLOR : TRANSPARENT_PLANE_COLOR);
     m_planes.models[0].render();
-    m_planes.models[1].set_color((camera_on_top && type == 2) || (!camera_on_top && type == 1) ? SOLID_PLANE_COLOR : TRANSPARENT_PLANE_COLOR);
+    m_planes.models[1].set_color((camera_on_top && type == etMaxZ) || (!camera_on_top && type == etMinZ) ? SOLID_PLANE_COLOR : TRANSPARENT_PLANE_COLOR);
     m_planes.models[1].render();
 
     glsafe(::glEnable(GL_CULL_FACE));
@@ -2663,12 +2697,12 @@ static bool is_rotation_xy_synchronized(const Vec3d &rot_xyz_from, const Vec3d &
     const Eigen::AngleAxisd angle_axis(Geometry::rotation_xyz_diff(rot_xyz_from, rot_xyz_to));
     const Vec3d  axis = angle_axis.axis();
     const double angle = angle_axis.angle();
-    if (std::abs(angle) < 1e-8)
+    if (std::abs(angle) < AxisAlignedTolerance)
         return true;
-    assert(std::abs(axis.x()) < 1e-8);
-    assert(std::abs(axis.y()) < 1e-8);
-    assert(std::abs(std::abs(axis.z()) - 1.) < 1e-8);
-    return std::abs(axis.x()) < 1e-8 && std::abs(axis.y()) < 1e-8 && std::abs(std::abs(axis.z()) - 1.) < 1e-8;
+    assert(std::abs(axis.x()) < AxisAlignedTolerance);
+    assert(std::abs(axis.y()) < AxisAlignedTolerance);
+    assert(std::abs(std::abs(axis.z()) - 1.) < AxisAlignedTolerance);
+    return std::abs(axis.x()) < AxisAlignedTolerance && std::abs(axis.y()) < AxisAlignedTolerance && std::abs(std::abs(axis.z()) - 1.) < AxisAlignedTolerance;
 }
 
 #if 0
@@ -2700,19 +2734,19 @@ static bool is_rotation_xy_synchronized(const Transform3d::ConstLinearPart &traf
     auto rot = trafo_to * trafo_from.inverse();
     static constexpr const double eps = EPSILON;
     return 
-           // Looks like a rotation around Z: block(0..1, 0..1) + no change of Z component.
-           is_approx(rot(0, 0),   rot(1, 1), eps) &&
-           is_approx(rot(0, 1), - rot(1, 0), eps) &&
-           is_approx(rot(2, 2),          1., eps) &&
+           // Looks like a rotation around Z: block(X..Y, X..Y) + no change of Z component.
+           is_approx(rot(X, X),   rot(Y, Y), eps) &&
+           is_approx(rot(X, Y), - rot(Y, X), eps) &&
+           is_approx(rot(Z, Z),          1., eps) &&
            // Rest should be zeros.
-           is_approx(rot(0, 2),          0., eps) &&
-           is_approx(rot(1, 2),          0., eps) &&
-           is_approx(rot(2, 0),          0., eps) &&
-           is_approx(rot(2, 1),          0., eps) &&
+           is_approx(rot(X, Z),          0., eps) &&
+           is_approx(rot(Y, Z),          0., eps) &&
+           is_approx(rot(Z, X),          0., eps) &&
+           is_approx(rot(Z, Y),          0., eps) &&
            // Determinant equals 1
            is_approx(rot.determinant(),  1., eps) &&
            // and finally the rotated X and Y axes shall be perpendicular.
-           is_approx(rot(0, 0) * rot(0, 1) + rot(1, 0) * rot(1, 1), 0., eps);
+           is_approx(rot(X, X) * rot(X, Y) + rot(Y, X) * rot(Y, Y), 0., eps);
 }
 
 static bool is_rotation_xy_synchronized(const Transform3d& trafo_from, const Transform3d& trafo_to)
@@ -2969,7 +3003,7 @@ void Selection::paste_volumes_from_clipboard()
         {
             for (ModelVolume* v : volumes)
             {
-                v->set_offset((v->get_offset() - total_bb.center()) + dst_matrix.inverse() * (Vec3d(dst_instance_bb.max(0), dst_instance_bb.min(1), dst_instance_bb.min(2)) + 0.5 * total_bb.size() - dst_instance->get_transformation().get_offset()));
+                v->set_offset((v->get_offset() - total_bb.center()) + dst_matrix.inverse() * (Vec3d(dst_instance_bb.max(X), dst_instance_bb.min(Y), dst_instance_bb.min(Z)) + 0.5 * total_bb.size() - dst_instance->get_transformation().get_offset()));
             }
         }
 
