@@ -28,6 +28,15 @@ namespace Slic3r {
 inline std::optional<std::size_t> thread_count;
 extern void set_logging_level(unsigned int level);
 extern unsigned get_logging_level();
+// The verbosity levels set_logging_level() takes and get_logging_level() reports, so a call site
+// asking "is this severity being logged?" names the level instead of spelling out its number.
+// level_to_boost() in Utils.cpp maps these onto the boost::log::trivial severities.
+static constexpr unsigned LogLevelFatal   = 0;
+static constexpr unsigned LogLevelError   = 1;
+static constexpr unsigned LogLevelWarning = 2;
+static constexpr unsigned LogLevelInfo    = 3;
+static constexpr unsigned LogLevelDebug   = 4;
+static constexpr unsigned LogLevelTrace   = 5;
 // Format memory allocated, separate thousands by comma.
 extern std::string format_memsize_MB(size_t n);
 // Return string to be added to the boost::log output to inform about the current process memory allocation.

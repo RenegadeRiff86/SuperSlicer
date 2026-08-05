@@ -39,6 +39,27 @@ static const Slic3r::ColorRGBA UNIFORM_SCALE_COLOR     = Slic3r::ColorRGBA::ORAN
 static const Slic3r::ColorRGBA SOLID_PLANE_COLOR       = Slic3r::ColorRGBA::ORANGE();
 static const Slic3r::ColorRGBA TRANSPARENT_PLANE_COLOR = { 0.8f, 0.8f, 0.8f, 0.5f };
 
+// Side of the rotation/scale sub-block of a 4x4 transform - the part left once the translation
+// column and the homogeneous row are dropped.
+// NOTE: this names the size only. Do NOT "simplify" matrix().block(0, 0, LinearBlockSize,
+// LinearBlockSize) to Transform3d::linear(): linear() is the FIXED-size block<3,3>(0,0) overload
+// and Eigen takes a different code path for it, so the two do not agree bit for bit (measured at
+// ~1.7e-10 relative on the equivalent GCodeViewer call). These sites use the dynamic-size form.
+static constexpr int LinearBlockSize = 3;
+
+// The whole 4x4 transform: that linear block, plus a translation column and the homogeneous row.
+static constexpr int HomogeneousMatrixSize = LinearBlockSize + 1;
+
+// A plane is drawn as a quad - its four corners in order - split into two triangles that share the
+// bottom-left/top-right diagonal.
+enum QuadCorner : unsigned int
+{
+    QuadBottomLeft = 0,
+    QuadBottomRight,
+    QuadTopRight,
+    QuadTopLeft,
+};
+
 namespace Slic3r {
 namespace GUI {
 
@@ -846,7 +867,7 @@ std::pair<BoundingBoxf3, Transform3d> Selection::get_bounding_box_in_reference_s
         assert(mesh != nullptr);
         for (const stl_vertex& v : mesh->its.vertices) {
             const Vec3d world_v = vol_world_rafo * v.cast<double>();
-            for (int i = 0; i < 3; ++i) {
+            for (int i = X; i <= Z; ++i) {
                 const double i_comp = world_v.dot(axes[i]);
                 min(i) = std::min(min(i), i_comp);
                 max(i) = std::max(max(i), i_comp);
@@ -867,7 +888,7 @@ std::pair<BoundingBoxf3, Transform3d> Selection::get_bounding_box_in_reference_s
         const GLVolume& vol = *get_volume(*m_list.begin());
         const Transform3d vol_world_trafo = vol.world_matrix();
         Vec3d world_zero = vol_world_trafo * Vec3d::Zero();
-        for (size_t i = 0; i < 3; i++){
+        for (int i = X; i <= Z; i++){
             // move center to local volume zero
             center[i] = world_zero.dot(axes[i]);
             // extend half size to bigger distance from center
@@ -904,14 +925,14 @@ BoundingBoxf Selection::get_screen_space_bounding_box()
         const Matrix4d projection_view_matrix = camera.get_projection_matrix().matrix() * camera.get_view_matrix().matrix();
         const std::array<int, 4>& viewport = camera.get_viewport();
 
-        const double half_w = 0.5 * double(viewport[2]);
-        const double h = double(viewport[3]);
+        const double half_w = 0.5 * double(viewport[ViewportWidth]);
+        const double h = double(viewport[ViewportHeight]);
         const double half_h = 0.5 * h;
         for (const Vec3d& v : vertices) {
             const Vec3d world = box_trafo * v;
             const Vec4d clip = projection_view_matrix * Vec4d(world.x(), world.y(), world.z(), 1.0);
             const Vec3d ndc = Vec3d(clip.x(), clip.y(), clip.z()) / clip.w();
-            const Vec2d ss = Vec2d(half_w * ndc.x() + double(viewport[0]) + half_w, h - (half_h * ndc.y() + double(viewport[1]) + half_h));
+            const Vec2d ss = Vec2d(half_w * ndc.x() + double(viewport[ViewportX]) + half_w, h - (half_h * ndc.y() + double(viewport[ViewportY]) + half_h));
             ss_box.merge(ss);
         }
     }
@@ -1128,7 +1149,7 @@ void Selection::flattening_rotate(const Vec3d& normal)
         GLVolume& v = *(m_volumes->volumes)[i].get();
         // Normal transformed from the object coordinate space to the world coordinate space.
         const Geometry::Transformation& old_inst_trafo = v.get_instance_transformation();
-        const Vec3d tnormal = old_inst_trafo.get_matrix().matrix().block(0, 0, 3, 3).inverse().transpose() * normal;
+        const Vec3d tnormal = old_inst_trafo.get_matrix().matrix().block(0, 0, LinearBlockSize, LinearBlockSize).inverse().transpose() * normal;
         // Additional rotation to align tnormal with the down vector in the world coordinate space.
         const Transform3d rotation_matrix = Transform3d(Eigen::Quaterniond().setFromTwoVectors(tnormal, -Vec3d::UnitZ()));
         v.set_instance_transformation(old_inst_trafo.get_offset_matrix() * rotation_matrix * old_inst_trafo.get_matrix_no_offset());
@@ -2294,7 +2315,7 @@ void Selection::render_bounding_box(const BoundingBoxf3& box, const Transform3d&
     shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
     const std::array<int, 4>& viewport = camera.get_viewport();
-    shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+    shader->set_uniform("viewport_size", Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
     shader->set_uniform("width", 1.5f);
     shader->set_uniform("gap_size", 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
@@ -2317,7 +2338,7 @@ void Selection::render_sidebar_position_hints(const std::string& sidebar_field, 
     if (boost::ends_with(sidebar_field, "x")) {
         const Transform3d model_matrix = matrix * Geometry::rotation_transform(-0.5 * PI * Vec3d::UnitZ());
         shader.set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
-        const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
+        const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize) * model_matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize).inverse().transpose();
         shader.set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         m_arrow.set_color(get_color(X));
         m_arrow.render();
@@ -2331,7 +2352,7 @@ void Selection::render_sidebar_position_hints(const std::string& sidebar_field, 
     else if (boost::ends_with(sidebar_field, "z")) {
         const Transform3d model_matrix = matrix * Geometry::rotation_transform(0.5 * PI * Vec3d::UnitX());
         shader.set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
-        const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
+        const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize) * model_matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize).inverse().transpose();
         shader.set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         m_arrow.set_color(get_color(Z));
         m_arrow.render();
@@ -2342,12 +2363,12 @@ void Selection::render_sidebar_rotation_hints(const std::string& sidebar_field, 
 {
     auto render_sidebar_rotation_hint = [this](GLShaderProgram& shader, const Transform3d& view_matrix, const Transform3d& model_matrix) {
         shader.set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
-        Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
+        Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize) * model_matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize).inverse().transpose();
         shader.set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         m_curved_arrow.render();
         const Transform3d matrix = model_matrix * Geometry::rotation_transform(PI * Vec3d::UnitZ());
         shader.set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * matrix);
-        view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
+        view_normal_matrix = view_matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize) * matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize).inverse().transpose();
         shader.set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         m_curved_arrow.render();
     };
@@ -2378,13 +2399,13 @@ void Selection::render_sidebar_scale_hints(const std::string& sidebar_field, GLS
         m_arrow.set_color(uniform_scale ? UNIFORM_SCALE_COLOR : get_color(axis));
         Transform3d matrix = model_matrix * Geometry::translation_transform(5.0 * Vec3d::UnitY());
         shader.set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * matrix);
-        Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
+        Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize) * matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize).inverse().transpose();
         shader.set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         m_arrow.render();
 
         matrix = model_matrix * Geometry::translation_transform(-5.0 * Vec3d::UnitY()) * Geometry::rotation_transform(PI * Vec3d::UnitZ());
         shader.set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * matrix);
-        view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
+        view_normal_matrix = view_matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize) * matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize).inverse().transpose();
         shader.set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         m_arrow.render();
     };
@@ -2463,8 +2484,8 @@ void Selection::render_sidebar_layers_hints(const std::string& sidebar_field, GL
         init_data.add_vertex(Vec3f(p1.x(), p2.y(), z1));
 
         // indices
-        init_data.add_triangle(0, 1, 2);
-        init_data.add_triangle(2, 3, 0);
+        init_data.add_triangle(QuadBottomLeft, QuadBottomRight, QuadTopRight);
+        init_data.add_triangle(QuadTopRight,   QuadTopLeft,     QuadBottomLeft);
 
         m_planes.models[0].init_from(std::move(init_data));
     }
@@ -2485,8 +2506,8 @@ void Selection::render_sidebar_layers_hints(const std::string& sidebar_field, GL
         init_data.add_vertex(Vec3f(p1.x(), p2.y(), z2));
 
         // indices
-        init_data.add_triangle(0, 1, 2);
-        init_data.add_triangle(2, 3, 0);
+        init_data.add_triangle(QuadBottomLeft, QuadBottomRight, QuadTopRight);
+        init_data.add_triangle(QuadTopRight,   QuadTopLeft,     QuadBottomLeft);
 
         m_planes.models[1].init_from(std::move(init_data));
     }
@@ -2569,7 +2590,7 @@ void Selection::render_debug_window() const
         static unsigned int counter = 0;
         ++counter;
         if (ImGui::CollapsingHeader(name.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
-            add_matrix("Full", m, 4);
+            add_matrix("Full", m, HomogeneousMatrixSize);
 
             if (method == 0 || method == 1) {
                 Matrix3d rotation;
@@ -2580,19 +2601,19 @@ void Selection::render_debug_window() const
                     m.computeScalingRotation(&scale, &rotation);
 
                 ImGui::SameLine();
-                add_matrix("Rotation component", Transform3d(rotation), 3);
+                add_matrix("Rotation component", Transform3d(rotation), LinearBlockSize);
                 ImGui::SameLine();
-                add_matrix("Scale component", Transform3d(scale), 3);
+                add_matrix("Scale component", Transform3d(scale), LinearBlockSize);
             }
             else {
                 const Geometry::TransformationSVD svd(m);
 
                 ImGui::SameLine();
-                add_matrix("U", Transform3d(svd.u), 3);
+                add_matrix("U", Transform3d(svd.u), LinearBlockSize);
                 ImGui::SameLine();
-                add_matrix("S", Transform3d(svd.s), 3);
+                add_matrix("S", Transform3d(svd.s), LinearBlockSize);
                 ImGui::SameLine();
-                add_matrix("V", Transform3d(svd.v), 3);
+                add_matrix("V", Transform3d(svd.v), LinearBlockSize);
                 ImGui::Dummy(ImVec2(0.0f, 0.0f));
                 float spacing = 0.0f;
                 if (svd.rotation) {

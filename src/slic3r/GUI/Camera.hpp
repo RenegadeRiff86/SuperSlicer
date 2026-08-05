@@ -13,6 +13,17 @@
 namespace Slic3r {
 namespace GUI {
 
+// A GL viewport is reported as x, y, width, height - the layout of Camera::get_viewport(), and of
+// everything that reads it.
+enum GLViewportComponent : size_t
+{
+    ViewportX = 0,
+    ViewportY,
+    ViewportWidth,
+    ViewportHeight,
+};
+static constexpr size_t GLViewportComponents = ViewportHeight + 1;
+
 struct Camera
 {
     static const double DefaultDistance;
@@ -43,7 +54,7 @@ private:
     double m_distance{ DefaultDistance };
     double m_gui_scale{ 1.0 };
 
-    std::array<int, 4> m_viewport;
+    std::array<int, GLViewportComponents> m_viewport;
     Transform3d m_view_matrix{ Transform3d::Identity() };
     // We are calculating the rotation part of the m_view_matrix from m_view_rotation.
     Eigen::Quaterniond m_view_rotation{ 1.0, 0.0, 0.0, 0.0 };
@@ -81,7 +92,7 @@ public:
 
     void select_view(const std::string& direction);
 
-    const std::array<int, 4>& get_viewport() const { return m_viewport; }
+    const std::array<int, GLViewportComponents>& get_viewport() const { return m_viewport; }
     const Transform3d& get_view_matrix() const { return m_view_matrix; }
     const Transform3d& get_projection_matrix() const { return m_projection_matrix; }
 

@@ -52,7 +52,7 @@ void glAssertRecentCallImpl(const char* file_name, unsigned int line, const char
 {
 #if defined(NDEBUG)
     // In release mode, only show OpenGL errors if sufficiently high loglevel.
-    if (Slic3r::get_logging_level() < 5)
+    if (Slic3r::get_logging_level() < LogLevelTrace)
         return;
 #endif // NDEBUG
 
@@ -102,6 +102,16 @@ static constexpr int VerticesPerTriangle = 3;
 
 // Line primitives are emitted as vertex pairs, one per edge.
 static constexpr int VerticesPerLine = 2;
+
+// A width or a depth is measured across the whole span, so a margin added at one edge is also
+// added at the opposite one, and stepping from an edge back to the centre covers half the span.
+// Growing a span and centring inside it are the same fact seen from two directions - a span has
+// two sides - so both use this one constant.
+static constexpr float BothSides = 2.f;
+
+// Non-manifold edges are drawn thicker than an ordinary line so they read as a defect marker
+// rather than as part of the model's own wireframe.
+static constexpr float NonManifoldEdgeLineWidth = 2.0f;
 
 void GLVolume::SinkingContours::update()
 {
@@ -160,7 +170,7 @@ void GLVolume::NonManifoldEdges::render()
     update();
 
     if (GUI::OpenGLManager::get_gl_info().get_max_line_width() > 1) {
-        glsafe(::glLineWidth(2.0f));
+        glsafe(::glLineWidth(NonManifoldEdgeLineWidth));
     }
 
     GLShaderProgram* shader = GUI::wxGetApp().get_current_shader();
@@ -533,8 +543,8 @@ int GLVolumeCollection::load_wipe_tower_preview(
     float offset = 0.3f;
     pos_x -= offset;
     pos_y -= offset;
-    width += 2.f * offset;
-    depth += 2.f * offset;
+    width += BothSides * offset;
+    depth += BothSides * offset;
     brim_width += offset;
 
     static const float brim_height = 0.2f;
@@ -589,13 +599,13 @@ int GLVolumeCollection::load_wipe_tower_preview(
     else {
         for (size_t i=1; i<z_and_depth_pairs.size(); ++i) {
             TriangleMesh m = make_cube(width, z_and_depth_pairs[i-1].second, z_and_depth_pairs[i].first-z_and_depth_pairs[i-1].first);
-            m.translate(0.f, -z_and_depth_pairs[i-1].second/2.f + z_and_depth_pairs[0].second/2.f, z_and_depth_pairs[i-1].first);
+            m.translate(0.f, -z_and_depth_pairs[i-1].second/BothSides + z_and_depth_pairs[0].second/BothSides, z_and_depth_pairs[i-1].first);
             mesh.merge(m);
         }
     }
 
     // We'll make another mesh to show the brim (fixed layer height):
-    TriangleMesh brim_mesh = make_cube(width + 2.f * brim_width, depth + 2.f * brim_width, 0.2f);
+    TriangleMesh brim_mesh = make_cube(width + BothSides * brim_width, depth + BothSides * brim_width, 0.2f);
     brim_mesh.translate(-brim_width, -brim_width, 0.f);
     mesh.merge(brim_mesh);
 
@@ -609,7 +619,7 @@ int GLVolumeCollection::load_wipe_tower_preview(
         disk_mesh.scale(Vec3f(1. / scale_x, 1., 1.)); // Now it matches the base, which may be elliptic.
         disk_mesh.scale(Vec3f(1.f + scale_x*brim_width/R, 1.f + brim_width/R, 1.f)); // Scale so the brim is not deformed.
         cone_mesh.merge(disk_mesh);
-        cone_mesh.translate(width / 2., depth / 2., 0.);
+        cone_mesh.translate(width / BothSides, depth / BothSides, 0.);
         mesh.merge(cone_mesh);
     }
 
