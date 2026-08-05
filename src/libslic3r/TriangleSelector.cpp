@@ -250,8 +250,7 @@ void TriangleSelector::select_patch(int facet_start, std::unique_ptr<Cursor> &&c
         m_old_cursor_radius_sqr = m_cursor->radius_sqr;
     }
 
-    const float highlight_angle_limit = cos(Geometry::deg2rad(highlight_by_angle_deg));
-    Vec3f       vec_down              = (trafo_no_translate.inverse() * -Vec3d::UnitZ()).normalized().cast<float>();
+    const OverhangTest overhang_test(trafo_no_translate, highlight_by_angle_deg);
 
     // Now start with the facet the pointer points to and check all adjacent facets.
     std::vector<int> facets_to_check;
@@ -265,7 +264,7 @@ void TriangleSelector::select_patch(int facet_start, std::unique_ptr<Cursor> &&c
     while (facet_idx < int(facets_to_check.size())) {
         int          facet        = facets_to_check[facet_idx];
         const Vec3f &facet_normal = m_face_normals[m_triangles[facet].source_triangle];
-        if (!visited[facet] && (highlight_by_angle_deg == 0.f || vec_down.dot(facet_normal) >= highlight_angle_limit)) {
+        if (!visited[facet] && (highlight_by_angle_deg == 0.f || overhang_test.is_overhang(facet_normal))) {
             if (select_triangle(facet, new_state, triangle_splitting)) {
                 // add neighboring facets to list to be processed later
                 for (int neighbor_idx : m_neighbors[facet])
@@ -303,9 +302,8 @@ void TriangleSelector::seed_fill_select_triangles(const Vec3f &hit, int facet_st
     std::queue<int>   facet_queue;
     facet_queue.push(facet_start);
 
-    const double facet_angle_limit     = cos(Geometry::deg2rad(seed_fill_angle)) - EPSILON;
-    const float  highlight_angle_limit = cos(Geometry::deg2rad(highlight_by_angle_deg));
-    Vec3f        vec_down              = (trafo_no_translate.inverse() * -Vec3d::UnitZ()).normalized().cast<float>();
+    const double facet_angle_limit = cos(Geometry::deg2rad(seed_fill_angle)) - EPSILON;
+    const OverhangTest overhang_test(trafo_no_translate, highlight_by_angle_deg);
 
     // Depth-first traversal of neighbors of the face hit by the ray thrown from the mouse cursor.
     while (!facet_queue.empty()) {
@@ -313,7 +311,7 @@ void TriangleSelector::seed_fill_select_triangles(const Vec3f &hit, int facet_st
         facet_queue.pop();
 
         const Vec3f &facet_normal = m_face_normals[m_triangles[current_facet].source_triangle];
-        if (!visited[current_facet] && (highlight_by_angle_deg == 0.f || vec_down.dot(facet_normal) >= highlight_angle_limit)) {
+        if (!visited[current_facet] && (highlight_by_angle_deg == 0.f || overhang_test.is_overhang(facet_normal))) {
             if (m_triangles[current_facet].is_split()) {
                 for (int split_triangle_idx = 0; split_triangle_idx <= m_triangles[current_facet].number_of_split_sides(); ++split_triangle_idx) {
                     assert(split_triangle_idx < int(m_triangles[current_facet].children.size()));

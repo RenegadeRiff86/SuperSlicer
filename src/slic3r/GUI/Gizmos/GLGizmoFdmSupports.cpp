@@ -351,7 +351,6 @@ void GLGizmoFdmSupports::on_render_input_window(float x, float y, float bottom_l
 
 void GLGizmoFdmSupports::select_facets_by_angle(float threshold_deg, bool block)
 {
-    float threshold = (float(M_PI)/180.f)*threshold_deg;
     const Selection& selection = m_parent.get_selection();
     const ModelObject* mo = m_c->selection_info()->model_object();
     const ModelInstance* mi = mo->instances[selection.get_instance_idx()];
@@ -364,16 +363,17 @@ void GLGizmoFdmSupports::select_facets_by_angle(float threshold_deg, bool block)
         ++mesh_id;
 
         const Transform3d trafo_matrix = mi->get_matrix_no_offset() * mv->get_matrix_no_offset();
-        Vec3f down  = (trafo_matrix.inverse() * (-Vec3d::UnitZ())).cast<float>().normalized();
-        Vec3f limit = (trafo_matrix.inverse() * Vec3d(std::sin(threshold), 0, -std::cos(threshold))).cast<float>().normalized();
+        // Shared with the brush's "on overhangs only" filter, so the slider means the same
+        // thing in both. The old test compared object-space normals against an object-space
+        // "down", which measures the angle in the object's frame - on anything scaled
+        // non-uniformly that is not the angle the print sees, and it did not even agree with
+        // the brush, which applied cos(threshold) to that same object-space dot product.
+        const OverhangTest overhang_test(trafo_matrix, threshold_deg);
 
-        float dot_limit = limit.dot(down);
-
-        // Now calculate dot product of vert_direction and facets' normals.
         int idx = 0;
         const indexed_triangle_set &its = mv->mesh().its;
         for (const stl_triangle_vertex_indices &face : its.indices) {
-            if (its_face_normal(its, face).dot(down) > dot_limit) {
+            if (overhang_test.is_overhang(its_face_normal(its, face))) {
                 m_triangle_selectors[mesh_id]->set_facet(idx, block ? EnforcerBlockerType::BLOCKER : EnforcerBlockerType::ENFORCER);
                 m_triangle_selectors.back()->request_update_render_data();
             }
