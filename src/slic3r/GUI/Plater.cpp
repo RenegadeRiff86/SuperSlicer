@@ -185,6 +185,33 @@ static constexpr int ExportOngoingNoticeDelayMs = 1000;
 // Upper bound of the "set number of copies" prompt.
 static constexpr int MaxObjectCopies = 1000;
 
+// Layout of the two "what should I do with this file?" dialogs, in pixels.
+static constexpr int DialogMargin      = 10;  // around the dialog's content
+static constexpr int DialogItemSpacing = 5;   // between stacked controls
+
+// The sidebar's info grids: a label column and a value column, repeated.
+static constexpr int InfoGridVGap = 5;
+static constexpr int InfoGridHGap = 15;
+static constexpr int InfoIconGap  = 10;  // before the "not accurate for multipart" icon
+
+// The preset chooser's grid, and how far the sidebar scrolls per step. A larger scroll rate
+// leaves an empty block at the bottom once every info box is shown - see the call site.
+static constexpr int PresetGridRows   = 10;
+static constexpr int SidebarScrollRate = 5;
+
+// A tool name longer than this is elided in the extruder combo's label.
+static constexpr size_t ToolNameMaxLength       = 10;
+static constexpr size_t ToolNameTruncatedLength = 7;
+
+// How many times the bed an object may cover before it is scaled down on load. Past the larger
+// ratio the mesh itself is rescaled, because clipper coordinates would overflow; below it only
+// the instance's scaling factor changes.
+static constexpr double MeshRescaleBedRatio     = 10000.;
+static constexpr double InstanceRescaleBedRatio = 5.;
+
+// Gap between the checkboxes of the export options panel.
+static constexpr int ExportOptionSpacing = 10;
+
 namespace Slic3r {
 namespace GUI {
 
@@ -271,7 +298,7 @@ ObjectInfo::ObjectInfo(wxWindow *parent) :
     GetStaticBox()->SetFont(wxGetApp().bold_font());
     wxGetApp().UpdateDarkUI(GetStaticBox());
 
-    auto *grid_sizer = new wxFlexGridSizer(4, 5, 15);
+    auto *grid_sizer = new wxFlexGridSizer(4, InfoGridVGap, InfoGridHGap);
     grid_sizer->SetFlexibleDirection(wxHORIZONTAL);
 
     auto init_info_label = [parent, grid_sizer](wxStaticText **info_label, wxString text_label, wxSizer* sizer_with_icon=nullptr) {
@@ -295,7 +322,7 @@ ObjectInfo::ObjectInfo(wxWindow *parent) :
     info_icon->SetToolTip(_L("For a multipart object, this value isn't accurate.\n"
                              "It doesn't take account of intersections and negative volumes."));
     auto* volume_info_sizer = new wxBoxSizer(wxHORIZONTAL);
-    volume_info_sizer->Add(info_icon, 0, wxLEFT, 10);
+    volume_info_sizer->Add(info_icon, 0, wxLEFT, InfoIconGap);
     label_volume = init_info_label(&info_volume, _L("Volume"), volume_info_sizer);
 
     init_info_label(&info_facets, _L("Facets"));
@@ -360,7 +387,7 @@ SlicedInfo::SlicedInfo(wxWindow *parent) :
     GetStaticBox()->SetFont(wxGetApp().bold_font());
     wxGetApp().UpdateDarkUI(GetStaticBox());
 
-    auto *grid_sizer = new wxFlexGridSizer(2, 5, 15);
+    auto *grid_sizer = new wxFlexGridSizer(2, InfoGridVGap, InfoGridHGap);
     grid_sizer->SetFlexibleDirection(wxVERTICAL);
 
     info_vec.reserve(siCount);
@@ -794,7 +821,7 @@ Sidebar::Sidebar(Plater *parent)
     // but this cause the bad layout of the sidebar, when all infoboxes appear.
     // As a result we can see the empty block at the bottom of the sidebar
     // But if we set this value to 5, layout will be better
-    p->scrolled->SetScrollRate(0, 5);
+    p->scrolled->SetScrollRate(0, SidebarScrollRate);
 
 #ifndef __APPLE__
 #ifdef _WIN32
@@ -813,7 +840,7 @@ Sidebar::Sidebar(Plater *parent)
     p->mode_sizer = new ModeSizer(p->scrolled, int(0.5 * wxGetApp().em_unit()), 5);
 
     // The preset chooser
-    p->sizer_presets = new wxFlexGridSizer(10, 1, 1, 2);
+    p->sizer_presets = new wxFlexGridSizer(PresetGridRows, 1, 1, 2);
     p->sizer_presets->AddGrowableCol(0, 1);
     p->sizer_presets->SetFlexibleDirection(wxBOTH);
 
@@ -832,8 +859,8 @@ Sidebar::Sidebar(Plater *parent)
 
     p->sizer_filaments = new wxBoxSizer(wxVERTICAL);
 
-    // Half-em sizer margins used for sidebar spacing (was the former BP1002 "5" literal).
-    const int margin_5 = int(0.5 * wxGetApp().em_unit());
+    // Sidebar rows are spaced by half the font's em, so the layout tracks the font size.
+    const int sidebar_margin = int(0.5 * wxGetApp().em_unit());
 
     auto init_combo = [this](PlaterPresetComboBox **combo, wxString label, Preset::Type preset_type) {
         // do not print these labels. if you re-enabled these, don't forget to *2 the size in show_preset_comboboxes()
@@ -882,7 +909,7 @@ Sidebar::Sidebar(Plater *parent)
 #ifdef __WXGTK3__
         | wxRIGHT
 #endif // __WXGTK3__
-        , wxOSX ? 1 : margin_5);
+        , wxOSX ? 1 : sidebar_margin);
 
     // Object List
     p->object_list = new ObjectList(p->scrolled);
@@ -892,17 +919,17 @@ Sidebar::Sidebar(Plater *parent)
     p->object_manipulation = std::make_unique<ObjectManipulation>(p->scrolled);
     p->object_manipulation->Hide();
     p->object_manipulation->set_changed_callback([this]() { this->show_info_sizer(); });
-    p->sizer_params->Add(p->object_manipulation->get_sizer(), 0, wxEXPAND | wxTOP, margin_5);
+    p->sizer_params->Add(p->object_manipulation->get_sizer(), 0, wxEXPAND | wxTOP, sidebar_margin);
 
     // Frequently Object Settings
     p->object_settings = std::make_unique<ObjectSettings>(p->scrolled);
     p->object_settings->Hide();
-    p->sizer_params->Add(p->object_settings->get_sizer(), 0, wxEXPAND | wxTOP, margin_5);
+    p->sizer_params->Add(p->object_settings->get_sizer(), 0, wxEXPAND | wxTOP, sidebar_margin);
 
     // Object Layers
     p->object_layers = std::make_unique<ObjectLayers>(p->scrolled);
     p->object_layers->Hide();
-    p->sizer_params->Add(p->object_layers->get_sizer(), 0, wxEXPAND | wxTOP, margin_5);
+    p->sizer_params->Add(p->object_layers->get_sizer(), 0, wxEXPAND | wxTOP, sidebar_margin);
 
     // Info boxes
     p->object_info = new ObjectInfo(p->scrolled);
@@ -915,11 +942,11 @@ Sidebar::Sidebar(Plater *parent)
     int size_margin = wxGTK3 ? wxLEFT | wxRIGHT : wxLEFT;
 
     is_msw ?
-        scrolled_sizer->Add(p->presets_panel, 0, wxEXPAND | size_margin, margin_5) :
-        scrolled_sizer->Add(p->sizer_presets, 0, wxEXPAND | size_margin, margin_5);
-    scrolled_sizer->Add(p->sizer_params, 1, wxEXPAND | size_margin, margin_5);
-    scrolled_sizer->Add(p->object_info, 0, wxEXPAND | wxTOP | size_margin, margin_5);
-    scrolled_sizer->Add(p->sliced_info, 0, wxEXPAND | wxTOP | size_margin, margin_5);
+        scrolled_sizer->Add(p->presets_panel, 0, wxEXPAND | size_margin, sidebar_margin) :
+        scrolled_sizer->Add(p->sizer_presets, 0, wxEXPAND | size_margin, sidebar_margin);
+    scrolled_sizer->Add(p->sizer_params, 1, wxEXPAND | size_margin, sidebar_margin);
+    scrolled_sizer->Add(p->object_info, 0, wxEXPAND | wxTOP | size_margin, sidebar_margin);
+    scrolled_sizer->Add(p->sliced_info, 0, wxEXPAND | wxTOP | size_margin, sidebar_margin);
 
     // Buttons underneath the scrolled area
 
@@ -987,17 +1014,17 @@ Sidebar::Sidebar(Plater *parent)
 
     auto* complect_btns_sizer = new wxBoxSizer(wxHORIZONTAL);
     complect_btns_sizer->Add(p->btn_export_gcode, 1, wxEXPAND);
-    complect_btns_sizer->Add(p->btn_send_gcode, 0, wxLEFT, margin_5);
-	complect_btns_sizer->Add(p->btn_export_gcode_removable, 0, wxLEFT, margin_5);
+    complect_btns_sizer->Add(p->btn_send_gcode, 0, wxLEFT, sidebar_margin);
+	complect_btns_sizer->Add(p->btn_export_gcode_removable, 0, wxLEFT, sidebar_margin);
 //    complect_btns_sizer->Add(p->btn_eject_device);
 	
 
-    btns_sizer->Add(p->btn_reslice, 1, wxEXPAND | wxTOP | wxBOTTOM, margin_5);
-    btns_sizer->Add(complect_btns_sizer, 1, wxEXPAND | wxTOP | wxBOTTOM, margin_5);
+    btns_sizer->Add(p->btn_reslice, 1, wxEXPAND | wxTOP | wxBOTTOM, sidebar_margin);
+    btns_sizer->Add(complect_btns_sizer, 1, wxEXPAND | wxTOP | wxBOTTOM, sidebar_margin);
 
     auto *sizer = new wxBoxSizer(wxVERTICAL);
     sizer->Add(p->scrolled, 1, wxEXPAND);
-    sizer->Add(btns_sizer, 0, wxEXPAND | wxLEFT, margin_5);
+    sizer->Add(btns_sizer, 0, wxEXPAND | wxLEFT, sidebar_margin);
     SetSizer(sizer);
 
     // Events
@@ -1113,8 +1140,8 @@ void Sidebar::update_all_preset_comboboxes()
             assert(opt);
             if (opt && cb->label) {
                 std::string tool_name = opt->get_at(extr_idx);
-                if (tool_name.size() > 10) {
-                    tool_name = tool_name.substr(0, 7) + std::string("... ");
+                if (tool_name.size() > ToolNameMaxLength) {
+                    tool_name = tool_name.substr(0, ToolNameTruncatedLength) + std::string("... ");
                 }
                 cb->label->SetLabel(tool_name.empty() ? "" : (tool_name + std::string(": ")));
             }
@@ -3181,7 +3208,7 @@ std::vector<size_t> Plater::priv::load_model_objects(const ModelObjectPtrs& mode
             const Vec3d size = object->instance_bounding_box(i).size();
             const Vec3d ratio = size.cwiseQuotient(bed_size);
             const double max_ratio = std::max(ratio(0), ratio(1));
-            if (max_ratio > 10000) {
+            if (max_ratio > MeshRescaleBedRatio) {
                 // the size of the object is too big -> this could lead to overflow when moving to clipper coordinates,
                 // so scale down the mesh
                 object->scale_mesh_after_creation(1. / max_ratio);
@@ -3190,7 +3217,7 @@ std::vector<size_t> Plater::priv::load_model_objects(const ModelObjectPtrs& mode
                 scaled_down = true;
                 break;
             }
-            else if (max_ratio > 5) {
+            else if (max_ratio > InstanceRescaleBedRatio) {
                 instance->set_scaling_factor(instance->get_scaling_factor() / max_ratio);
                 scaled_down = true;
             }
@@ -6274,10 +6301,10 @@ LoadProjectsDialog::LoadProjectsDialog(const std::vector<fs::path>& paths)
     bool instances_allowed = !wxGetApp().app_config->get_bool("single_instance");
     if (contains_projects)
         main_sizer->Add(new wxStaticText(this, wxID_ANY,
-            get_wraped_wxString(_L("There are several files being loaded, including Project files.") + "\n" + _L("Select an action to apply to all files."))), 0, wxEXPAND | wxALL, 10);
+            get_wraped_wxString(_L("There are several files being loaded, including Project files.") + "\n" + _L("Select an action to apply to all files."))), 0, wxEXPAND | wxALL, DialogMargin);
     else 
         main_sizer->Add(new wxStaticText(this, wxID_ANY,
-            get_wraped_wxString(_L("There are several files being loaded.") + "\n" + _L("Select an action to apply to all files."))), 0, wxEXPAND | wxALL, 10);
+            get_wraped_wxString(_L("There are several files being loaded.") + "\n" + _L("Select an action to apply to all files."))), 0, wxEXPAND | wxALL, DialogMargin);
 
     wxStaticBox* action_stb = new wxStaticBox(this, wxID_ANY, _L("Action"));
     if (!wxOSX) action_stb->SetBackgroundStyle(wxBG_STYLE_PAINT);
@@ -6309,7 +6336,7 @@ LoadProjectsDialog::LoadProjectsDialog(const std::vector<fs::path>& paths)
             m_combo_config->Enable(false);
         }
         });
-    stb_sizer->Add(btn, 0, wxEXPAND | wxTOP, 5);
+    stb_sizer->Add(btn, 0, wxEXPAND | wxTOP, DialogItemSpacing);
     id++;
     // all new window
     if (instances_allowed) {
@@ -6322,7 +6349,7 @@ LoadProjectsDialog::LoadProjectsDialog(const std::vector<fs::path>& paths)
                 m_combo_config->Enable(false);
             }
             });
-        stb_sizer->Add(btn, 0, wxEXPAND | wxTOP, 5);
+        stb_sizer->Add(btn, 0, wxEXPAND | wxTOP, DialogItemSpacing);
     }
     id++; // IMPORTANT TO ALWAYS UP THE ID EVEN IF OPTION IS NOT ADDED!
     if (contains_projects) {
@@ -6334,8 +6361,8 @@ LoadProjectsDialog::LoadProjectsDialog(const std::vector<fs::path>& paths)
             m_combo_project->Enable(true);
             m_combo_config->Enable(false);
         });
-        stb_sizer->Add(btn, 0, wxEXPAND | wxTOP, 5);
-        stb_sizer->Add(m_combo_project, 0, wxEXPAND | wxTOP, 5);
+        stb_sizer->Add(btn, 0, wxEXPAND | wxTOP, DialogItemSpacing);
+        stb_sizer->Add(m_combo_project, 0, wxEXPAND | wxTOP, DialogItemSpacing);
         // one config
         id++;
         btn = new wxRadioButton(this, wxID_ANY, _L("Select only one file to load the configuration."), wxDefaultPosition, wxDefaultSize, id == 0 ? wxRB_GROUP : 0);
@@ -6346,15 +6373,15 @@ LoadProjectsDialog::LoadProjectsDialog(const std::vector<fs::path>& paths)
                 m_combo_project->Enable(false);
             m_combo_config->Enable(true);
             });
-        stb_sizer->Add(btn, 0, wxEXPAND | wxTOP, 5);
-        stb_sizer->Add(m_combo_config, 0, wxEXPAND | wxTOP, 5);
+        stb_sizer->Add(btn, 0, wxEXPAND | wxTOP, DialogItemSpacing);
+        stb_sizer->Add(m_combo_config, 0, wxEXPAND | wxTOP, DialogItemSpacing);
     }
 
 
-    main_sizer->Add(stb_sizer, 1, wxEXPAND | wxRIGHT | wxLEFT, 10);
+    main_sizer->Add(stb_sizer, 1, wxEXPAND | wxRIGHT | wxLEFT, DialogMargin);
     wxBoxSizer* bottom_sizer = new wxBoxSizer(wxHORIZONTAL);
     bottom_sizer->Add(CreateStdDialogButtonSizer(wxOK | wxCANCEL), 0, wxEXPAND | wxLEFT, 5);
-    main_sizer->Add(bottom_sizer, 0, wxEXPAND | wxALL, 10);
+    main_sizer->Add(bottom_sizer, 0, wxEXPAND | wxALL, DialogMargin);
     SetSizer(main_sizer);
     main_sizer->SetSizeHints(this);
 
@@ -6671,7 +6698,7 @@ ProjectDropDialog::ProjectDropDialog(const std::string& filename)
         choices.Add(format_wxstr(_L("Start new %1% instance"), SLIC3R_APP_NAME));
 
     main_sizer->Add(new wxStaticText(this, wxID_ANY,
-        get_wraped_wxString(_L("Select an action to apply to the file") + ": " + from_u8(filename))), 0, wxEXPAND | wxALL, 10);
+        get_wraped_wxString(_L("Select an action to apply to the file") + ": " + from_u8(filename))), 0, wxEXPAND | wxALL, DialogMargin);
 
     m_action = std::clamp(std::stoi(wxGetApp().app_config->get("drop_project_action")),
         static_cast<int>(LoadType::OpenProject), single_instance_only? static_cast<int>(LoadType::LoadConfig) : static_cast<int>(LoadType::OpenWindow)) - 1;
@@ -6686,10 +6713,10 @@ ProjectDropDialog::ProjectDropDialog(const std::string& filename)
         wxRadioButton* btn = new wxRadioButton(this, wxID_ANY, label, wxDefaultPosition, wxDefaultSize, id == 0 ? wxRB_GROUP : 0);
         btn->SetValue(id == m_action);
         btn->Bind(wxEVT_RADIOBUTTON, [this, id](wxCommandEvent&) { m_action = id; });
-        stb_sizer->Add(btn, 0, wxEXPAND | wxTOP, 5);
+        stb_sizer->Add(btn, 0, wxEXPAND | wxTOP, DialogItemSpacing);
         id++;
     }
-    main_sizer->Add(stb_sizer, 1, wxEXPAND | wxRIGHT | wxLEFT, 10);
+    main_sizer->Add(stb_sizer, 1, wxEXPAND | wxRIGHT | wxLEFT, DialogMargin);
 
     wxBoxSizer* bottom_sizer = new wxBoxSizer(wxHORIZONTAL);
     ::CheckBox* check = new ::CheckBox(this, _L("Don't show again"));
@@ -6697,9 +6724,9 @@ ProjectDropDialog::ProjectDropDialog(const std::string& filename)
         wxGetApp().app_config->set("show_drop_project_dialog", evt.IsChecked() ? "0" : "1");
         });
 
-    bottom_sizer->Add(check, 0, wxEXPAND | wxRIGHT, 5);
+    bottom_sizer->Add(check, 0, wxEXPAND | wxRIGHT, DialogItemSpacing);
     bottom_sizer->Add(CreateStdDialogButtonSizer(wxOK | wxCANCEL), 0, wxEXPAND | wxLEFT, 5);
-    main_sizer->Add(bottom_sizer, 0, wxEXPAND | wxALL, 10);
+    main_sizer->Add(bottom_sizer, 0, wxEXPAND | wxALL, DialogMargin);
 
     SetSizer(main_sizer);
     main_sizer->SetSizeHints(this);
@@ -7565,13 +7592,13 @@ OptionForExportPlatter::OptionForExportPlatter(wxWindow* parent)
 
     wxBoxSizer* sizerTop = new wxBoxSizer(wxHORIZONTAL);
     sizerTop->Add(m_with_supports, wxSizerFlags().Centre().Border());
-    sizerTop->AddSpacer(10);
+    sizerTop->AddSpacer(ExportOptionSpacing);
     sizerTop->Add(m_sel_only, wxSizerFlags().Centre().Border());
-    sizerTop->AddSpacer(10);
+    sizerTop->AddSpacer(ExportOptionSpacing);
     sizerTop->Add(m_bake_tranformation, wxSizerFlags().Centre().Border());
     wxBoxSizer* sizerBot = new wxBoxSizer(wxHORIZONTAL);
     sizerBot->Add(m_with_config, wxSizerFlags().Centre().Border());
-    sizerBot->AddSpacer(10);
+    sizerBot->AddSpacer(ExportOptionSpacing);
     sizerBot->Add(m_with_modifiers, wxSizerFlags().Centre().Border());
     wxBoxSizer* sizerMain = new wxBoxSizer(wxVERTICAL);
     sizerMain->Add(sizerTop, wxSizerFlags().Left());
