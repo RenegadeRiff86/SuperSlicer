@@ -1036,11 +1036,11 @@ void FanMover::_handle_delayed_kickstart(const GCodeReader::GCodeLine& line, int
     _remove_slow_fan(fan_baseline, kickstart);
     // print me
     if (!m_buffer.empty() && (m_buffer_time_size - m_buffer.front().time * 0.1) > nb_seconds_delay) {
+        // Emit kickstart via the fan buffer (writer is not used; this path is multi-thread safe).
         _print_in_middle_G1(m_buffer.front(), m_buffer_time_size - nb_seconds_delay, _set_fan(fan_speed, "kickstart fan"));
-        //m_writer.set_fan(FAN_PERCENT_MAX, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
         remove_from_buffer(m_buffer.begin());
     } else {
-        _append_fan_command(_set_fan(fan_speed, "kickstart fan"), fan_speed);//m_writer.set_fan(FAN_PERCENT_MAX, true)); //FIXME extruder id (or use the gcode writer, but then you have to disable the multi-thread thing
+        _append_fan_command(_set_fan(fan_speed, "kickstart fan"), fan_speed);
     }
     m_front_buffer_fan_speed = fan_speed;
     //write it in the queue if possible

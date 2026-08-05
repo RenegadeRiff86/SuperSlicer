@@ -5244,22 +5244,29 @@ void GCodeProcessor::set_travel_acceleration(PrintEstimatedStatistics::ETimeMode
 
 float GCodeProcessor::get_filament_load_time(size_t extruder_id)
 {
+    // Prefer configured per-filament load times when the tool is loaded.
+    if (!m_time_processor.filament_load_times.empty() && !m_time_processor.extruder_unloaded) {
+        return (extruder_id < m_time_processor.filament_load_times.size())
+            ? m_time_processor.filament_load_times[extruder_id]
+            : m_time_processor.filament_load_times.front();
+    }
+    // Prusa XL default when config did not provide filament_load_time values.
     if (m_is_XL_printer)
-        return 4.5f; // FIXME: hardcoded XL filament load time; should come from filament_load_times
-    return (m_time_processor.filament_load_times.empty() || m_time_processor.extruder_unloaded) ?
-        0.0f :
-        ((extruder_id < m_time_processor.filament_load_times.size()) ?
-            m_time_processor.filament_load_times[extruder_id] : m_time_processor.filament_load_times.front());
+        return 4.5f;
+    return 0.0f;
 }
 
 float GCodeProcessor::get_filament_unload_time(size_t extruder_id)
 {
+    if (!m_time_processor.filament_unload_times.empty() && !m_time_processor.extruder_unloaded) {
+        return (extruder_id < m_time_processor.filament_unload_times.size())
+            ? m_time_processor.filament_unload_times[extruder_id]
+            : m_time_processor.filament_unload_times.front();
+    }
+    // XL unload is instantaneous in firmware estimates when unload times are unset.
     if (m_is_XL_printer)
-        return 0.f; // FIXME: hardcoded XL filament unload time; should come from filament_unload_times
-    return (m_time_processor.filament_unload_times.empty() || m_time_processor.extruder_unloaded) ?
-        0.0f :
-        ((extruder_id < m_time_processor.filament_unload_times.size()) ?
-            m_time_processor.filament_unload_times[extruder_id] : m_time_processor.filament_unload_times.front());
+        return 0.f;
+    return 0.0f;
 }
 
 void GCodeProcessor::process_custom_gcode_time(CustomGCode::Type code)
@@ -5271,8 +5278,8 @@ void GCodeProcessor::process_custom_gcode_time(CustomGCode::Type code)
 
         TimeMachine::CustomGCodeTime& gcode_time = machine.gcode_time;
         gcode_time.needed = true;
-        //FIXME this simulates st_synchronize! is it correct?
-        // The estimated time may be longer than the real print time.
+        // Custom G-code pauses/toolchanges wait for the motion planner (st_synchronize semantics).
+        // Estimates can slightly exceed wall-clock when the planner already drained.
         machine.simulate_st_synchronize_call(m_result.moves);
         if (gcode_time.cache != 0.0f) {
             gcode_time.times.push_back({ code, gcode_time.cache });

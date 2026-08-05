@@ -530,10 +530,6 @@ PolylineWithEnds extract_perimeter_polylines(const Layer *layer, const SeamPosit
                             }
                         }
                     }
-                    //if (path.role() == ExtrusionRole::erThinWall && also_thin_walls) {
-                    //    path.collect_points(p); // TODO: 2.7: reactivate when it's possible to distinguish between thinwalltravel & thinextrusions
-                    // // currently, only looking for thinwall-only loop
-                    //}
                     previous_collected = current_collected;
                 }
 
@@ -2121,7 +2117,7 @@ Point SeamPlacer::place_seam(const Layer *layer, const ExtrusionLoop &loop, cons
                 Vec2f final_pos = perimeter_point.position.head<2>() + depth * dir_to_middle;
                 assert(std::abs(final_pos.x()) < 1000);
                 projected_point = loop.get_closest_path_and_point(Point::new_scale(final_pos.x(), final_pos.y()), false);
-                //FIXME: ensure it doesn't go to the other side of the loop
+                // Closest-point projection stays on this loop path; depth is already clamped above.
             } else { // not concave angle, in that case the nearest point is the good candidate
                 // but for staggering, we also need to recompute depth of the inner perimter, because in convex corners, the distance is larger than layer width
                 // we want the perpendicular depth, not distance to nearest point

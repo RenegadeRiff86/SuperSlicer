@@ -230,14 +230,19 @@ ExtrusionEntityCollection calculate_and_split_overhanging_extrusions(const Extru
                 new_mp.paths.insert(new_mp.paths.end(), paths.begin(), paths.end());
             }
             result.append(std::move(new_mp));
+        } else if (auto *mp3d = dynamic_cast<const ExtrusionMultiPath3D *>(e)) {
+            ExtrusionMultiPath3D new_mp = *mp3d;
+            new_mp.paths.clear();
+            for (const ExtrusionPath3D &p : mp3d->paths) {
+                auto paths = calculate_and_split_overhanging_extrusions(
+                    static_cast<const ExtrusionPath &>(p), unscaled_prev_layer, prev_layer_curled_lines, nozzle_diameter);
+                for (ExtrusionPath &path : paths)
+                    new_mp.paths.emplace_back(std::move(path));
+            }
+            result.append(std::move(new_mp));
         } else if (auto *p = dynamic_cast<const ExtrusionPath *>(e)) {
+            // Also covers ExtrusionPath3D (derives from ExtrusionPath).
             result.append(calculate_and_split_overhanging_extrusions(*p, unscaled_prev_layer, prev_layer_curled_lines, nozzle_diameter));
-        } else if (auto *mp = dynamic_cast<const ExtrusionMultiPath3D *>(e)) {
-            ExtrusionMultiPath3D new_mp = *mp;
-            result.append(std::move(new_mp)); //TODO split
-        } else if (auto *mp = dynamic_cast<const ExtrusionPath3D *>(e)) {
-            ExtrusionPath3D new_mp = *mp;
-            result.append(std::move(new_mp)); //TODO split
         } else {
             throw Slic3r::InvalidArgument("Unknown extrusion entity type");
         }
