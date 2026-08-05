@@ -1062,6 +1062,14 @@
                     request_id);
         }
 
+        // The sidebar's lock is on by default, so a script asking for one axis silently gets
+        // all three. Anything testing non-uniform scale has to be able to turn it off.
+        if (arguments.contains("uniform_scaling")) {
+            if (!arguments["uniform_scaling"].is_boolean())
+                return failure(ERROR_OPERATION_FAILED, "uniform_scaling must be true or false", request_id);
+            manipulation->set_uniform_scaling(arguments["uniform_scaling"].get<bool>());
+        }
+
         bool changed = false;
         static constexpr const char* AXES[] = { "x", "y", "z" };
         for (const char* kind : { "position", "rotation", "scale" }) {
@@ -1091,12 +1099,15 @@
             }
         }
 
-        if (!changed)
+        if (!changed && !arguments.contains("uniform_scaling"))
             return failure(
                 ERROR_OPERATION_FAILED,
                 "position, rotation, or scale values are required",
                 request_id);
-        return success({ { "updated", true } }, request_id);
+        return success({
+            { "updated", true },
+            { "uniform_scaling", manipulation->get_uniform_scaling() }
+        }, request_id);
     }
 
     json gui_export_gcode(const json& arguments, const std::string& request_id)
@@ -1117,6 +1128,54 @@
             { FIELD_OPERATION_ID, operation_id },
             { "path", path },
             { "state", "running" }
+        }, request_id);
+    }
+
+    // Paint support enforcers or blockers on every downward-facing facet, the way the
+    // "Enforce/Block supports by angle" buttons do, and report how many facets ended up in each
+    // state. The gizmo's whole panel is ImGui-drawn - no window, no element, nothing to click -
+    // so a test has no other way to exercise the angle threshold or to see what it selected.
+    json gui_paint_supports_by_angle(const json& arguments, const std::string& request_id)
+    {
+        if (!m_app.is_editor() || m_app.plater() == nullptr)
+            return failure(ERROR_OPERATION_FAILED, "painting supports requires editor mode", request_id);
+        if (m_app.model().objects.empty())
+            return failure(ERROR_OPERATION_FAILED, "no model is loaded", request_id);
+        if (!arguments.contains("threshold_deg") || !arguments["threshold_deg"].is_number())
+            return failure(ERROR_OPERATION_FAILED, "threshold_deg is required and must be numeric", request_id);
+
+        // The gizmos live on the 3D editor canvas, and opening one needs a selection.
+        m_app.plater()->select_view_3D("3D");
+        GLCanvas3D* canvas = m_app.plater()->canvas3D();
+        if (canvas == nullptr)
+            return failure(ERROR_OPERATION_FAILED, "3D canvas is not ready", request_id);
+        if (canvas->get_selection().is_empty())
+            m_app.plater()->select_all();
+
+        GLGizmosManager& gizmos = canvas->get_gizmos_manager();
+        if (gizmos.get_current_type() != GLGizmosManager::EType::FdmSupports &&
+            !gizmos.open_gizmo(GLGizmosManager::EType::FdmSupports, false))
+            return failure(ERROR_OPERATION_FAILED, "the paint-on supports gizmo refused to open", request_id);
+
+        auto* gizmo = dynamic_cast<GLGizmoFdmSupports*>(gizmos.get_gizmo(GLGizmosManager::EType::FdmSupports));
+        if (gizmo == nullptr)
+            return failure(ERROR_OPERATION_FAILED, "the paint-on supports gizmo is not available", request_id);
+
+        const double threshold_deg = arguments["threshold_deg"].get<double>();
+        const bool   block         = arguments.value("block", false);
+        gizmo->select_facets_by_angle(float(threshold_deg), block);
+
+        const auto to_json = [](const std::vector<int>& counts) {
+            json out = json::array();
+            for (int count : counts)
+                out.push_back(count);
+            return out;
+        };
+        return success({
+            { "threshold_deg", threshold_deg },
+            { "block", block },
+            { "enforcers", to_json(gizmo->facet_counts(EnforcerBlockerType::ENFORCER)) },
+            { "blockers", to_json(gizmo->facet_counts(EnforcerBlockerType::BLOCKER)) }
         }, request_id);
     }
 

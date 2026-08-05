@@ -215,6 +215,16 @@ class ApiClient:
     def preview_options(self) -> dict[str, bool]:
         return self.set_preview()["options"]
 
+    def paint_supports_by_angle(self, threshold_deg: float, block: bool = False) -> dict[str, Any]:
+        """Paint support enforcers (or blockers) on every facet within threshold_deg of straight
+        down, and report the facet count per volume. The gizmo's panel is ImGui-drawn and has no
+        element to click, so this is the only way to exercise the angle threshold."""
+        return self.rest(
+            "POST",
+            "/api/v1/workflows/paint_supports_by_angle",
+            {"threshold_deg": threshold_deg, "block": block},
+        )
+
     def quit(self, force: bool = True) -> dict[str, Any]:
         """Ask the slicer to exit. Invoking the File > Quit menu item does not: it calls
         Close(false), which any unsaved-project or print-host prompt is free to veto, and

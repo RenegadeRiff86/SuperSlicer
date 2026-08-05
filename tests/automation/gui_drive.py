@@ -296,6 +296,14 @@ def command_orient(client: ApiClient, args: argparse.Namespace) -> None:
     print(client.orient())
 
 
+def command_paint_supports(client: ApiClient, args: argparse.Namespace) -> None:
+    painted = client.paint_supports_by_angle(args.threshold_deg, args.block)
+    kind = "blockers" if args.block else "enforcers"
+    for volume, count in enumerate(painted[kind]):
+        print(f"volume {volume}: {count} {kind}")
+    print(f"{sum(painted[kind])} {kind} at {painted['threshold_deg']:g} deg")
+
+
 def command_arm_file_dialog(client: ApiClient, args: argparse.Namespace) -> None:
     if args.clear:
         print(client.clear_file_dialogs())
@@ -546,6 +554,16 @@ def add_workflow_commands(commands) -> None:
         help="rotate objects to their best print orientation and wait for the job to finish",
     )
     orient_parser.set_defaults(handler=command_orient)
+
+    paint_parser = commands.add_parser(
+        "paint-supports",
+        help="paint support enforcers on facets within an angle of straight down, and count them",
+    )
+    paint_parser.add_argument("threshold_deg", type=float)
+    paint_parser.add_argument(
+        "--block", action="store_true", help="paint blockers instead of enforcers"
+    )
+    paint_parser.set_defaults(handler=command_paint_supports)
 
 
 def add_file_dialog_commands(commands) -> None:

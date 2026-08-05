@@ -388,6 +388,15 @@ void GLGizmoFdmSupports::select_facets_by_angle(float threshold_deg, bool block)
     m_parent.set_as_dirty();
 }
 
+std::vector<int> GLGizmoFdmSupports::facet_counts(EnforcerBlockerType state) const
+{
+    std::vector<int> counts;
+    counts.reserve(m_triangle_selectors.size());
+    for (const std::unique_ptr<TriangleSelectorGUI> &selector : m_triangle_selectors)
+        counts.emplace_back(int(selector->get_facets(state).indices.size()));
+    return counts;
+}
+
 void GLGizmoFdmSupports::data_changed(bool is_serializing)
 {
     GLGizmoPainterBase::data_changed(is_serializing);

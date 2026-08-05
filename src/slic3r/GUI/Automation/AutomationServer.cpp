@@ -16,6 +16,8 @@
 #include "../GUI_App.hpp"
 #include "../GUI_ObjectManipulation.hpp"
 #include "../GUI_Preview.hpp"
+#include "../Gizmos/GLGizmoFdmSupports.hpp"
+#include "../Gizmos/GLGizmosManager.hpp"
 #include "../MainFrame.hpp"
 #include "../Plater.hpp"
 #include "libslic3r/GCode/ThumbnailData.hpp"
@@ -700,6 +702,7 @@ private:
             { "new_project", "superslicer_new_project" },
             { "arrange", "superslicer_arrange" },
             { "orient", "superslicer_orient" },
+            { "paint_supports_by_angle", "superslicer_paint_supports_by_angle" },
             { "arm_file_dialog", "superslicer_arm_file_dialog" },
             { "file_dialog_status", "superslicer_file_dialog_status" },
             { "quit", "superslicer_quit" }
@@ -727,6 +730,7 @@ private:
             "superslicer_new_project",
             "superslicer_arrange",
             "superslicer_orient",
+            "superslicer_paint_supports_by_angle",
             TOOL_ARM_FILE_DIALOG,
             TOOL_FILE_DIALOG_STATUS,
             "superslicer_quit"
@@ -774,6 +778,7 @@ private:
             tool("superslicer_new_project", "Reset the plater to a new empty project."),
             tool("superslicer_arrange", "Arrange objects on the bed through the normal plater handler."),
             tool("superslicer_orient", "Rotate objects to their optimal print orientation. Runs on the UI job worker: poll status.job_running."),
+            tool("superslicer_paint_supports_by_angle", "Paint support enforcers or blockers on facets steeper than an angle, and report how many facets each volume ended up with."),
             tool("superslicer_arm_file_dialog", "Queue the answer for the next file dialog, so an action that opens one can run unattended. Arm before triggering it."),
             tool("superslicer_file_dialog_status", "Report the file dialog the app raised most recently: title, wildcard, save or open, and the paths returned."),
             tool("superslicer_quit", "Close the main window and exit. Forced by default, because every prompt on the way out is skipped only when the close cannot be vetoed.")
@@ -931,6 +936,8 @@ private:
             return gui_arrange(request_id);
         if (tool == "superslicer_orient")
             return gui_orient(request_id);
+        if (tool == "superslicer_paint_supports_by_angle")
+            return gui_paint_supports_by_angle(arguments, request_id);
         if (tool == TOOL_ARM_FILE_DIALOG)
             return gui_arm_file_dialog(arguments, request_id);
         if (tool == TOOL_FILE_DIALOG_STATUS)
