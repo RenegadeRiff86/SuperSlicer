@@ -178,6 +178,7 @@ static constexpr double FallbackBedSideMm = 200.0;
 // accumulated in mm and shown in metres.
 static constexpr double MmCubedPerMl = 1000.0;
 static constexpr double MmPerM       = 1000.0;
+static constexpr double MPerMm       = 1. / MmPerM;
 
 // How long the "export ongoing" notice waits before it is worth showing at all.
 static constexpr int ExportOngoingNoticeDelayMs = 1000;
@@ -189,19 +190,50 @@ static constexpr int MaxObjectCopies = 1000;
 static constexpr int DialogMargin      = 10;  // around the dialog's content
 static constexpr int DialogItemSpacing = 5;   // between stacked controls
 
+// Sidebar rows are spaced by half the font's em, so the layout tracks the font size.
+static constexpr double SidebarMarginEm = 0.5;
+
 // The sidebar's info grids: a label column and a value column, repeated.
 static constexpr int InfoGridVGap = 5;
 static constexpr int InfoGridHGap = 15;
 static constexpr int InfoIconGap  = 10;  // before the "not accurate for multipart" icon
 
+// ObjectInfo lays out two label/value pairs per row, SlicedInfo one.
+static constexpr int ObjectInfoGridCols = 4;
+static constexpr int SlicedInfoGridCols = 2;
+
+// The "not manifold" warning row, which sits under the object info grid.
+static constexpr int ManifoldRowTopGap  = 4;
+static constexpr int ManifoldRowItemGap = 2;
+
 // The preset chooser's grid, and how far the sidebar scrolls per step. A larger scroll rate
 // leaves an empty block at the bottom once every info box is shown - see the call site.
-static constexpr int PresetGridRows   = 10;
+static constexpr int PresetGridRows    = 10;
+static constexpr int PresetGridHGap    = 2;
 static constexpr int SidebarScrollRate = 5;
 
-// A tool name longer than this is elided in the extruder combo's label.
+// sizer_presets holds the preset combos in a fixed order: the FFF rows (print settings,
+// filaments), then the SLA rows (print settings, material), then the printer row, which stays
+// visible for both. show_preset_comboboxes() shows one technology's block and hides the other.
+static constexpr size_t FffPresetComboFirst = 0;
+static constexpr size_t FffPresetComboCount = 2;
+static constexpr size_t SlaPresetComboFirst = FffPresetComboFirst + FffPresetComboCount;
+static constexpr size_t SlaPresetComboCount = 2;
+
+// Extra height for the "Slice now" / "Export G-code" buttons outside Windows, where the label
+// would otherwise sit flush against the bitmap.
+static constexpr int ButtonHeightPaddingPx = 4;
+
+// The "..." that stands in for the elided tail of a name.
+static constexpr size_t EllipsisLength = 3;
+
+// A tool name longer than this is elided in the extruder combo's label. Where the sidebar width
+// is known the budget is derived from it instead, down to a floor of a few characters.
 static constexpr size_t ToolNameMaxLength       = 10;
-static constexpr size_t ToolNameTruncatedLength = 7;
+static constexpr size_t ToolNameTruncatedLength = ToolNameMaxLength - EllipsisLength;
+static constexpr int    ToolNameMinLength        = 4;
+static constexpr int    SidebarPxPerToolNameChar = 4;
+static constexpr int    ToolNameLabelGap         = 4;  // between the label and its combo
 
 // How many times the bed an object may cover before it is scaled down on load. Past the larger
 // ratio the mesh itself is rescaled, because clipper coordinates would overflow; below it only
@@ -212,10 +244,38 @@ static constexpr double InstanceRescaleBedRatio = 5.;
 // Gap between the checkboxes of the export options panel.
 static constexpr int ExportOptionSpacing = 10;
 
+// A volume is a length cubed - used when the object info readouts are converted to imperial.
+static constexpr int VolumeExponent = 3;
+
+// ".svg", ".zip", ".3mf": a dot plus three characters.
+static constexpr size_t DotExtensionLength = 4;
+
+// Progress is reported as a whole percentage, and the load-file dialog is ranged over it.
+static constexpr int   ProgressPercentMax  = 100;
+static constexpr float ProgressPercentMaxF = float(ProgressPercentMax);
+
+// The oversize ratios above are measured against a bed inset by 1 mm on every side.
+static constexpr double BedFitInsetMm = 2.0;
+
+// Choices offered by the "what should I do with this project file?" dialog.
+static constexpr size_t ProjectDropChoiceCount = 4;
+
+// Splitting a volume can yield several CSG parts, so reserve ahead of the split.
+static constexpr size_t CsgPartsPerVolume = 2;
+
 namespace Slic3r {
 namespace GUI {
 
 namespace {
+// Cross-section of a round filament, in mm2. The sidebar's "used filament" readouts need this to
+// turn the extruded length the backend reports into a volume; both the metres and the grams
+// readout must use the same one, or the two disagree - see the comment in update_sliced_info().
+double filament_crosssection_mm2(double diameter_mm)
+{
+    const double radius_mm = 0.5 * diameter_mm;
+    return PI * radius_mm * radius_mm;
+}
+
 constexpr char kObjectsAlwaysExpertKey[]               = "objects_always_expert";
 constexpr char kWipeTowerRotationAngleKey[]            = "wipe_tower_rotation_angle";
 constexpr char kWipeTowerXKey[]                        = "wipe_tower_x";
@@ -298,7 +358,7 @@ ObjectInfo::ObjectInfo(wxWindow *parent) :
     GetStaticBox()->SetFont(wxGetApp().bold_font());
     wxGetApp().UpdateDarkUI(GetStaticBox());
 
-    auto *grid_sizer = new wxFlexGridSizer(4, InfoGridVGap, InfoGridHGap);
+    auto *grid_sizer = new wxFlexGridSizer(ObjectInfoGridCols, InfoGridVGap, InfoGridHGap);
     grid_sizer->SetFlexibleDirection(wxHORIZONTAL);
 
     auto init_info_label = [parent, grid_sizer](wxStaticText **info_label, wxString text_label, wxSizer* sizer_with_icon=nullptr) {
@@ -333,9 +393,9 @@ ObjectInfo::ObjectInfo(wxWindow *parent) :
     info_manifold->SetFont(wxGetApp().small_font());
     manifold_warning_icon = new wxStaticBitmap(parent, wxID_ANY, *get_bmp_bundle(m_warning_icon_name));
     auto *sizer_manifold = new wxBoxSizer(wxHORIZONTAL);
-    sizer_manifold->Add(manifold_warning_icon, 0, wxLEFT, 2);
-    sizer_manifold->Add(info_manifold, 0, wxLEFT, 2);
-    Add(sizer_manifold, 0, wxEXPAND | wxTOP, 4);
+    sizer_manifold->Add(manifold_warning_icon, 0, wxLEFT, ManifoldRowItemGap);
+    sizer_manifold->Add(info_manifold, 0, wxLEFT, ManifoldRowItemGap);
+    Add(sizer_manifold, 0, wxEXPAND | wxTOP, ManifoldRowTopGap);
 
     sla_hidden_items = { label_volume, info_volume, /*label_materials, info_materials*/ };
 
@@ -387,7 +447,7 @@ SlicedInfo::SlicedInfo(wxWindow *parent) :
     GetStaticBox()->SetFont(wxGetApp().bold_font());
     wxGetApp().UpdateDarkUI(GetStaticBox());
 
-    auto *grid_sizer = new wxFlexGridSizer(2, InfoGridVGap, InfoGridHGap);
+    auto *grid_sizer = new wxFlexGridSizer(SlicedInfoGridCols, InfoGridVGap, InfoGridHGap);
     grid_sizer->SetFlexibleDirection(wxVERTICAL);
 
     info_vec.reserve(siCount);
@@ -726,10 +786,10 @@ void Sidebar::priv::show_preset_comboboxes()
 {
     PrinterTechnology tech = wxGetApp().get_current_printer_technology();
 
-    for (size_t i = 0; i < 2; ++i)
+    for (size_t i = FffPresetComboFirst; i < FffPresetComboFirst + FffPresetComboCount; ++i)
         sizer_presets->Show(i, tech == ptFFF);
 
-    for (size_t i = 2; i < 4; ++i) {
+    for (size_t i = SlaPresetComboFirst; i < SlaPresetComboFirst + SlaPresetComboCount; ++i) {
         if (sizer_presets->IsShown(i) ^ (tech == ptSLA))
             sizer_presets->Show(i, tech == ptSLA);
     }
@@ -837,10 +897,10 @@ Sidebar::Sidebar(Plater *parent)
     p->scrolled->SetSizer(scrolled_sizer);
 
     // Sizer with buttons for mode changing
-    p->mode_sizer = new ModeSizer(p->scrolled, int(0.5 * wxGetApp().em_unit()), 5);
+    p->mode_sizer = new ModeSizer(p->scrolled, int(SidebarMarginEm * wxGetApp().em_unit()), 5);
 
     // The preset chooser
-    p->sizer_presets = new wxFlexGridSizer(PresetGridRows, 1, 1, 2);
+    p->sizer_presets = new wxFlexGridSizer(PresetGridRows, 1, 1, PresetGridHGap);
     p->sizer_presets->AddGrowableCol(0, 1);
     p->sizer_presets->SetFlexibleDirection(wxBOTH);
 
@@ -859,8 +919,7 @@ Sidebar::Sidebar(Plater *parent)
 
     p->sizer_filaments = new wxBoxSizer(wxVERTICAL);
 
-    // Sidebar rows are spaced by half the font's em, so the layout tracks the font size.
-    const int sidebar_margin = int(0.5 * wxGetApp().em_unit());
+    const int sidebar_margin = int(SidebarMarginEm * wxGetApp().em_unit());
 
     auto init_combo = [this](PlaterPresetComboBox **combo, wxString label, Preset::Type preset_type) {
         // do not print these labels. if you re-enabled these, don't forget to *2 the size in show_preset_comboboxes()
@@ -882,7 +941,7 @@ Sidebar::Sidebar(Plater *parent)
             combo_and_btn_sizer->ShowItems(preset_type == Preset::TYPE_PRINTER);
 #ifdef __WXGTK3__
             // GTK3 needs a bit of right margin so the combo does not sit under the scrollbar.
-            sizer_presets->Add(combo_and_btn_sizer, 0, wxEXPAND | wxRIGHT, int(0.5 * wxGetApp().em_unit()));
+            sizer_presets->Add(combo_and_btn_sizer, 0, wxEXPAND | wxRIGHT, int(SidebarMarginEm * wxGetApp().em_unit()));
 #else
             sizer_presets->Add(combo_and_btn_sizer, 0, wxEXPAND | wxBOTTOM, 1);
 #endif // __WXGTK3__
@@ -990,7 +1049,7 @@ Sidebar::Sidebar(Plater *parent)
 #ifdef _WIN32
     const int scaled_height = p->btn_export_gcode_removable->GetBitmapHeight();
 #else
-    const int scaled_height = p->btn_export_gcode_removable->GetBitmapHeight() + 4;
+    const int scaled_height = p->btn_export_gcode_removable->GetBitmapHeight() + ButtonHeightPaddingPx;
 #endif
     auto init_btn = [this](wxButton **btn, wxString label, const int button_height) {
         *btn = new wxButton(this, wxID_ANY, label, wxDefaultPosition,
@@ -1073,10 +1132,10 @@ void Sidebar::init_filament_combo(PlaterPresetComboBox** combo, const int extr_i
         std::string tool_name = opt ? opt->get_at(extr_idx) : "";
         if (!tool_name.empty()) {
             int size_panel = get_app_config()->get_int("side_panel_width");
-            size_t max_letters = size_t(std::max(4, size_panel / 4));
+            size_t max_letters = size_t(std::max(ToolNameMinLength, size_panel / SidebarPxPerToolNameChar));
             if (tool_name.size() > max_letters) {
                 if (max_letters > 6) {
-                    tool_name = tool_name.substr(0, max_letters - 3) + std::string("... ");
+                    tool_name = tool_name.substr(0, max_letters - EllipsisLength) + std::string("... ");
                 } else {
                     tool_name = tool_name.substr(0, max_letters);
                 }
@@ -1085,7 +1144,7 @@ void Sidebar::init_filament_combo(PlaterPresetComboBox** combo, const int extr_i
                                                tool_name.empty() ? "" : (tool_name + std::string(": ")));
             (*combo)->label->SetFont(wxGetApp().small_font());
             (*combo)->label->SetToolTip(tool_name); // doesn't work in msw because static text doesn't get mouse event
-            combo_and_btn_sizer->Add((*combo)->label, 0, wxALIGN_LEFT | wxEXPAND | wxRIGHT, 4);
+            combo_and_btn_sizer->Add((*combo)->label, 0, wxALIGN_LEFT | wxEXPAND | wxRIGHT, ToolNameLabelGap);
         }
     }
     combo_and_btn_sizer->Add(*combo, 1, wxEXPAND);
@@ -1205,7 +1264,7 @@ void Sidebar::change_top_border_for_mode_sizer(bool increase_border)
 {
     if (p->mode_sizer) {
         p->mode_sizer->set_items_flag(increase_border ? wxTOP : 0);
-        p->mode_sizer->set_items_border(increase_border ? int(0.5 * wxGetApp().em_unit()) : 0);
+        p->mode_sizer->set_items_border(increase_border ? int(SidebarMarginEm * wxGetApp().em_unit()) : 0);
     }
 }
 
@@ -1243,7 +1302,7 @@ void Sidebar::msw_rescale()
 #ifdef _WIN32
     const int scaled_height = p->btn_export_gcode_removable->GetBitmapHeight();
 #else
-    const int scaled_height = p->btn_export_gcode_removable->GetBitmapHeight() + 4;
+    const int scaled_height = p->btn_export_gcode_removable->GetBitmapHeight() + ButtonHeightPaddingPx;
 #endif
     p->btn_export_gcode->SetMinSize(wxSize(-1, scaled_height));
     p->btn_reslice     ->SetMinSize(wxSize(-1, scaled_height));
@@ -1468,16 +1527,17 @@ void Sidebar::show_info_sizer()
     }
 
     Vec3d size = vol ? vol->mesh().transformed_bounding_box(t).size() : model_object->instance_bounding_box(inst_idx).size();
-    p->object_info->info_size->SetLabel(wxString::Format("%.2f x %.2f x %.2f", size(0)*koef, size(1)*koef, size(2)*koef));
+    p->object_info->info_size->SetLabel(wxString::Format("%.2f x %.2f x %.2f", size(X)*koef, size(Y)*koef, size(Z)*koef));
 //    p->object_info->info_materials->SetLabel(wxString::Format("%d", static_cast<int>(model_object->materials_count())));
 
     const TriangleMeshStats& stats = vol ? vol->mesh().stats() : model_object->get_object_stl_stats();
 
     double volume_val = stats.volume;
     if (vol)
-        volume_val *= std::fabs(t.matrix().block(0, 0, 3, 3).determinant());
+        // The linear part is exactly the 3x3 the volume scales by; the translation does not matter.
+        volume_val *= std::fabs(t.linear().determinant());
 
-    p->object_info->info_volume->SetLabel(wxString::Format("%.2f", volume_val * pow(koef,3)));
+    p->object_info->info_volume->SetLabel(wxString::Format("%.2f", volume_val * pow(koef, VolumeExponent)));
     p->object_info->info_facets->SetLabel(format_wxstr(_L_PLURAL("%1% (%2$d shell)", "%1% (%2$d shells)", stats.number_of_parts),
                                                        static_cast<int>(model_object->facets_count()), stats.number_of_parts));
 
@@ -1569,9 +1629,9 @@ void Sidebar::update_sliced_info_sizer()
                     double total_length = 0;
                     const Preset* filament_preset = filaments.find_preset(filament_presets[filament_id].get_selected_preset_name(), false);
                     if (filament_preset) {
-                        double crosssection = 0.5 * filament_preset->config.opt_float("filament_diameter", filament_id);
-                        crosssection *= crosssection * PI;
-                        double mm3_to_m = 0.001 / crosssection;
+                        const double crosssection = filament_crosssection_mm2(
+                            filament_preset->config.opt_float("filament_diameter", filament_id));
+                        const double mm3_to_m = MPerMm / crosssection;
                         // print each color change for this extruder
                         for (auto entry : ps.color_extruderid_to_used_filament) {
                             if (filament_id == entry.first) {
@@ -1596,7 +1656,7 @@ void Sidebar::update_sliced_info_sizer()
             }
             p->sliced_info->SetTextAndShow(siFilament_m, info_text, new_label);
 
-            koef = imperial_units ? pow(ObjectManipulation::mm_to_in, 3) : 1.0f;
+            koef = imperial_units ? pow(ObjectManipulation::mm_to_in, VolumeExponent) : 1.0f;
             new_label = imperial_units ? _L("Used Filament (in³)") : _L("Used Filament (mm³)");
             info_text = wxString::Format("%.2f", imperial_units ? ps.total_extruded_volume * koef : ps.total_extruded_volume);
             p->sliced_info->SetTextAndShow(siFilament_mm3,  info_text,      new_label);
@@ -1619,10 +1679,9 @@ void Sidebar::update_sliced_info_sizer()
                         if (const Preset* filament_preset = extruders_filaments[filament_id].get_selected_preset()) {
                             double spool_weight = filament_preset->config.opt_float("filament_spool_weight", 0);
                             double filament_density = filament_preset->config.opt_float("filament_density", filament_id);
-                            double crosssection = filament_preset->config.opt_float("filament_diameter", filament_id);
-                            crosssection *= crosssection;
-                            crosssection *= 0.25 * PI;
-                            double mm3_to_g = filament_density *0.001;
+                            const double crosssection = filament_crosssection_mm2(
+                                filament_preset->config.opt_float("filament_diameter", filament_id));
+                            double mm3_to_g = filament_density * MPerMm;
                             // color_extruderid_to_used_filament holds a LENGTH in mm (Print.hpp),
                             // so a length becomes a volume by multiplying by the cross section -
                             // the cross section belongs in the numerator. It was in the
@@ -1908,7 +1967,7 @@ bool PlaterDropTarget::OnDropFiles(wxCoord x, wxCoord y, const wxArrayString &fi
     // When only one .svg file is dropped on scene
     if (filenames.size() == 1) {
         const wxString &filename = filenames.Last();
-        const wxString  file_extension = filename.substr(filename.length() - 4);
+        const wxString  file_extension = filename.substr(filename.length() - DotExtensionLength);
         if (file_extension.CmpNoCase(".svg") == 0) {
             const wxPoint offset = m_plater.GetPosition();
             Vec2d mouse_position(x - offset.x, y - offset.y);
@@ -2790,10 +2849,10 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
             dialog->Destroy();
     };
     std::unique_ptr<wxProgressDialog, decltype(destroy_progress_dialog)> progress_dlg(
-        std::make_unique<wxProgressDialog>(loading, "", 100, find_toplevel_parent(q), wxPD_APP_MODAL | wxPD_AUTO_HIDE).release(),
+        std::make_unique<wxProgressDialog>(loading, "", ProgressPercentMax, find_toplevel_parent(q), wxPD_APP_MODAL | wxPD_AUTO_HIDE).release(),
         destroy_progress_dialog);
 #else
-    wxProgressDialog progress_dlg_stack(loading, "", 100, find_toplevel_parent(q), wxPD_APP_MODAL | wxPD_AUTO_HIDE);
+    wxProgressDialog progress_dlg_stack(loading, "", ProgressPercentMax, find_toplevel_parent(q), wxPD_APP_MODAL | wxPD_AUTO_HIDE);
     wxProgressDialog* progress_dlg = &progress_dlg_stack;    
 #endif
     
@@ -2827,7 +2886,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
         in_temp = (path.parent_path() == temp_path);
         const auto filename = path.filename();
         if (progress_dlg) {
-            progress_dlg->Update(static_cast<int>(100.0f * static_cast<float>(i) / static_cast<float>(input_files.size())), _L("Loading file") + ": " + from_path(filename));
+            progress_dlg->Update(static_cast<int>(ProgressPercentMaxF * static_cast<float>(i) / static_cast<float>(input_files.size())), _L("Loading file") + ": " + from_path(filename));
             progress_dlg->Fit();
         }
 
@@ -3169,7 +3228,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
 
 std::vector<size_t> Plater::priv::load_model_objects(const ModelObjectPtrs& model_objects, bool allow_negative_z, bool call_selection_changed /*= true*/)
 {
-    const Vec3d bed_size = Slic3r::to_3d(this->bed.build_volume().bounding_volume2d().size(), 1.0) - 2.0 * Vec3d::Ones();
+    const Vec3d bed_size = Slic3r::to_3d(this->bed.build_volume().bounding_volume2d().size(), 1.0) - BedFitInsetMm * Vec3d::Ones();
 
 #ifndef AUTOPLACEMENT_ON_LOAD
     // bool need_arrange = false;
@@ -3197,7 +3256,7 @@ std::vector<size_t> Plater::priv::load_model_objects(const ModelObjectPtrs& mode
              // add a default instance and center object around origin
             object->center_around_origin();  // also aligns object to Z = 0
             ModelInstance* instance = object->add_instance();
-            instance->set_offset(Slic3r::to_3d(this->bed.build_volume().bed_center(), -object->origin_translation(2)));
+            instance->set_offset(Slic3r::to_3d(this->bed.build_volume().bed_center(), -object->origin_translation(Z)));
 #endif /* AUTOPLACEMENT_ON_LOAD */
         }
 
@@ -4579,20 +4638,20 @@ void Plater::priv::on_slicing_update(SlicingStatusEvent &evt)
             }
 
             if (evt.status.args.empty()) {
-                notification_manager->set_slicing_progress_percentage(evt.status.main_text.empty() ? "" : Slic3r::GUI::I18N::translate_utf8(evt.status.main_text), evt.status.percent / 100.f,
+                notification_manager->set_slicing_progress_percentage(evt.status.main_text.empty() ? "" : Slic3r::GUI::I18N::translate_utf8(evt.status.main_text), evt.status.percent / ProgressPercentMaxF,
                   0 == (evt.status.flags & PrintBase::SlicingStatus::FlagBits::SECONDARY_STATE));
             } else {
                 auto formatter = boost::format(Slic3r::GUI::I18N::translate_utf8(evt.status.main_text));
                 for (std::string& arg : evt.status.args)
                     formatter = formatter % Slic3r::GUI::I18N::translate_utf8(arg);
-                notification_manager->set_slicing_progress_percentage(formatter.str(), evt.status.percent / 100.f, 0 == (evt.status.flags & PrintBase::SlicingStatus::FlagBits::SECONDARY_STATE));
+                notification_manager->set_slicing_progress_percentage(formatter.str(), evt.status.percent / ProgressPercentMaxF, 0 == (evt.status.flags & PrintBase::SlicingStatus::FlagBits::SECONDARY_STATE));
             }
         }
     }
 
     // Check template filaments and add warning
     // This is more convinient to do here than in slicing backend, so it happens on "Slicing complete".
-    if (evt.status.percent >= 100 && this->printer_technology == ptFFF) {
+    if (evt.status.percent >= ProgressPercentMax && this->printer_technology == ptFFF) {
         size_t templ_cnt = 0;
         const auto& preset_bundle = wxGetApp().preset_bundle;
         std::string names;
@@ -6423,7 +6482,7 @@ bool Plater::preview_zip_archive(const boost::filesystem::path& archive_path)
         if (dlg.ShowModal() == wxID_OK)
         {      
             std::string archive_path_string = archive_path.string();
-            archive_path_string = archive_path_string.substr(0, archive_path_string.size() - 4);
+            archive_path_string = archive_path_string.substr(0, archive_path_string.size() - DotExtensionLength);
             fs::path archive_dir(wxStandardPaths::Get().GetTempDir().utf8_str().data());
            
             for (auto& path_w_size : selected_paths) {
@@ -6690,7 +6749,7 @@ ProjectDropDialog::ProjectDropDialog(const std::string& filename)
     bool single_instance_only = wxGetApp().app_config->get_bool("single_instance");
     wxBoxSizer* main_sizer = new wxBoxSizer(wxVERTICAL);
     wxArrayString choices;
-    choices.reserve(4);
+    choices.reserve(ProjectDropChoiceCount);
     choices.Add(_L("Open as project"));
     choices.Add(_L("Import 3D models only"));
     choices.Add(_L("Import config only"));
@@ -7508,6 +7567,16 @@ bool Plater::export_gcode_to_path(const fs::path& output_path, bool overwrite, s
     }
 }
 
+// Filter order of the "Export Platter" file dialog. Plater::export_platter() builds the wildcard
+// as STL | OBJ | 3MF | AMF, and both that function and OptionForExportPlatter::OnUpdateLabelUI()
+// read the selection back with GetFilterIndex(); they must agree on this order.
+enum ExportPlatterFilter {
+    epfStl = 0,
+    epfObj,
+    epf3mf,
+    epfAmf,
+};
+
 bool OptionForExportPlatter_can_select = true;
 bool OptionForExportPlatter_can_support = true;
 // panel with custom controls for file dialog
@@ -7529,21 +7598,17 @@ private:
 
 
         const int filter = dialog->GetCurrentlySelectedFilterIndex();
-        //0:stl
-        //1:obj
-        //2:3mf
-        //3:amf
-        m_with_modifiers->Enable(filter > 1);
+        m_with_modifiers->Enable(filter >= epf3mf);
         if (m_with_config->IsEnabled()) {
             saved_with_config = m_with_config->GetValue();
             saved_m_bake_tranformation = m_bake_tranformation->GetValue();
-            if (filter != 2) {
+            if (filter != epf3mf) {
                 saved_with_config = false;
                 saved_m_bake_tranformation = true;
                 m_with_config->Enable(false);
                 m_bake_tranformation->Enable(false);
             }
-        } else if(filter == 2) {
+        } else if(filter == epf3mf) {
             m_with_config->SetValue(saved_with_config);
             m_bake_tranformation->SetValue(saved_m_bake_tranformation);
             m_with_config->Enable(true);
@@ -7652,9 +7717,10 @@ void Plater::export_platter()
     wxGetApp().app_config->update_last_output_dir(path.parent_path().string());
     std::string path_u8 = into_u8(out_path);
 
-    if (dlg.GetFilterIndex() == 0) {
+    const int filter_index = dlg.GetFilterIndex();
+    if (filter_index == epfStl || filter_index == epfObj) {
         this->export_stl_obj(path_u8, extra_options->with_support(), extra_options->only_selection());
-    } else if (dlg.GetFilterIndex() > 0) {
+    } else if (filter_index == epf3mf || filter_index == epfAmf) {
         //export 3mf
         wxBusyCursor wait;
 
@@ -7696,7 +7762,7 @@ void Plater::export_platter()
             }
         }
         DynamicPrintConfig full_config = wxGetApp().preset_bundle->full_config_secure();
-        if (dlg.GetFilterIndex() == 1) {
+        if (filter_index == epf3mf) {
 
             //thumbnail
             ThumbnailData thumbnail_data;
@@ -7729,7 +7795,7 @@ void Plater::export_platter()
             );
             if (!ret)
                 show_error(this, GUI::format_wxstr("%1%: %2%", _L("Unable to save file"), path_u8));
-        } else if (dlg.GetFilterIndex() == 2) {
+        } else if (filter_index == epfAmf) {
             //store amf
             const bool ret = Slic3r::store_amf(path_u8,
                 &model_to_save,
@@ -7761,7 +7827,7 @@ void Plater::export_stl_obj(std::string path_u8, bool extended, bool selection_o
         TriangleMesh mesh;
 
         std::vector<csg::CSGPart> csgmesh;
-        csgmesh.reserve(2 * mo.volumes.size());
+        csgmesh.reserve(CsgPartsPerVolume * mo.volumes.size());
         csg::model_to_csgmesh(mo, Transform3d::Identity(), std::back_inserter(csgmesh),
                               csg::mpartsPositive | csg::mpartsNegative | csg::mpartsDoSplits);
 
