@@ -34,6 +34,14 @@ static constexpr float FADING_OUT_DURATION = 2.0f;
 static constexpr int   FADING_OUT_TIMEOUT = 100;
 // Full scale of one colour channel once packed into eight bits.
 static constexpr float CHANNEL_VALUE_MAX = 255.f;
+// How long the notifications built below stay on screen, in seconds. This is NOT the level's
+// standard duration: get_standard_duration() gives ProgressBarNotificationLevel 2 seconds, and the
+// progress notifications ask for this instead, deliberately outliving it. Swapping this for that
+// call would look like a tidy-up and would shorten them to a fifth.
+static constexpr int   NOTIFICATION_SECONDS = 10;
+// A two-row notification - text above, progress bar or percentage below - puts its rows this far
+// above and below the vertical centre, so they end up a third of the window height apart.
+static constexpr float ROW_OFFSET_DIVISOR = 6.f;
 // Progress is carried as a 0..1 fraction and shown to the user as a percentage.
 static constexpr float PERCENT_PER_UNIT = 100.f;
 
@@ -949,7 +957,7 @@ void NotificationManager::ProgressBarNotification::render_text(ImGuiWrapper& img
 			return;
 		//one line text, one line bar
 		ImGui::SetCursorPosX(m_left_indentation);
-		ImGui::SetCursorPosY(/*win_size_y / 2 - win_size_y / 6 -*/ m_line_height / 4);
+		ImGui::SetCursorPosY(/*win_size_y / 2 - win_size_y / ROW_OFFSET_DIVISOR -*/ m_line_height / 4);
 		imgui.text(m_text1.substr(0, m_endlines[0]).c_str());
 		if (m_has_cancel_button)
 			render_cancel_button(imgui, win_size_x, win_size_y, win_pos_x, win_pos_y);
@@ -973,7 +981,7 @@ void NotificationManager::ProgressBarNotification::render_bar(ImGuiWrapper& imgu
 		stream << std::fixed << std::setprecision(2) << static_cast<int>(percent * PERCENT_PER_UNIT) << "%";
 		text = stream.str();
 		ImGui::SetCursorPosX(m_left_indentation);
-		ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / 6 + y_indentation - m_line_height / 2);
+		ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / ROW_OFFSET_DIVISOR + y_indentation - m_line_height / 2);
 		imgui.text(text.c_str());
 	}
 }
@@ -1042,7 +1050,7 @@ void NotificationManager::ProgressBarWithCancelNotification::render_bar(ImGuiWra
 		text = stream.str();
 	}
 	ImGui::SetCursorPosX(m_left_indentation);
-	ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / 6 - (m_multiline ? 0 : m_line_height / 4));
+	ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / ROW_OFFSET_DIVISOR - (m_multiline ? 0 : m_line_height / 4));
 	imgui.text(text.c_str());
 }
 
@@ -1164,7 +1172,7 @@ void NotificationManager::URLDownloadNotification::render_bar(ImGuiWrapper& imgu
 		text = stream.str();
 	}
 	ImGui::SetCursorPosX(m_left_indentation);
-	ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / 6 - (m_multiline ? 0 : m_line_height / 4));
+	ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / ROW_OFFSET_DIVISOR - (m_multiline ? 0 : m_line_height / 4));
 	imgui.text(shorten_to_line(text, true).c_str());
 }
 
@@ -1330,7 +1338,7 @@ void NotificationManager::PrintHostUploadNotification::render_text(ImGuiWrapper&
 				return;
 			//one line text, one line bar
 			ImGui::SetCursorPosX(m_left_indentation);
-			ImGui::SetCursorPosY(/*win_size_y / 2 - win_size_y / 6 -*/ m_line_height / 4);
+			ImGui::SetCursorPosY(/*win_size_y / 2 - win_size_y / ROW_OFFSET_DIVISOR -*/ m_line_height / 4);
 			imgui.text(m_text1.substr(0, m_endlines[0]).c_str());
 			if (m_has_cancel_button)
 				render_cancel_button(imgui, win_size_x, win_size_y, win_pos_x, win_pos_y);
@@ -1351,23 +1359,23 @@ void NotificationManager::PrintHostUploadNotification::render_bar(ImGuiWrapper& 
 		stream << std::fixed << std::setprecision(2) << static_cast<int>(m_percentage * PERCENT_PER_UNIT) << "% - " << uploaded << " of " << m_file_size << "MB uploaded";
 		text = stream.str();
 		ImGui::SetCursorPosX(m_left_indentation);
-		ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / 6 - (m_multiline ? 0 : m_line_height / 4));
+		ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / ROW_OFFSET_DIVISOR - (m_multiline ? 0 : m_line_height / 4));
 		break;
 	}
 	case Slic3r::GUI::NotificationManager::PrintHostUploadNotification::UploadJobState::PB_RESOLVING:
 		text = _u8L("RESOLVING ADDRESS");
 		ImGui::SetCursorPosX(m_left_indentation);
-		ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / 6 - (m_multiline ? m_line_height / 4 : m_line_height / 2));
+		ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / ROW_OFFSET_DIVISOR - (m_multiline ? m_line_height / 4 : m_line_height / 2));
 		break;
 	case Slic3r::GUI::NotificationManager::PrintHostUploadNotification::UploadJobState::PB_ERROR:
 		text = _u8L("ERROR");
 		ImGui::SetCursorPosX(m_left_indentation);
-		ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / 6 - (m_multiline ? m_line_height / 4 : m_line_height / 2));
+		ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / ROW_OFFSET_DIVISOR - (m_multiline ? m_line_height / 4 : m_line_height / 2));
 		break;
 	case Slic3r::GUI::NotificationManager::PrintHostUploadNotification::UploadJobState::PB_CANCELLED:
 		text = _u8L("CANCELED");
 		ImGui::SetCursorPosX(m_left_indentation);
-		ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / 6 - (m_multiline ? m_line_height / 4 : m_line_height / 2));
+		ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / ROW_OFFSET_DIVISOR - (m_multiline ? m_line_height / 4 : m_line_height / 2));
 		break;
 	case Slic3r::GUI::NotificationManager::PrintHostUploadNotification::UploadJobState::PB_COMPLETED:
 	case Slic3r::GUI::NotificationManager::PrintHostUploadNotification::UploadJobState::PB_COMPLETED_WITH_WARNING:
@@ -1771,11 +1779,11 @@ void NotificationManager::SlicingProgressNotification::render_text(ImGuiWrapper&
 		float cursor_y = win_size.y / 2 - text_size.y / 2;
 		if (m_sidebar_collapsed && m_has_print_info) {
 			x_offset = 20;
-			cursor_y = win_size.y / 2 + win_size.y / 6 - text_size.y / 2;
+			cursor_y = win_size.y / 2 + win_size.y / ROW_OFFSET_DIVISOR - text_size.y / 2;
 			ImGui::SetCursorPosX(x_offset);
 			ImGui::SetCursorPosY(cursor_y);
 			imgui.text(m_print_info.c_str());
-			cursor_y = win_size.y / 2 - win_size.y / 6 - text_size.y / 2;
+			cursor_y = win_size.y / 2 - win_size.y / ROW_OFFSET_DIVISOR - text_size.y / 2;
 		}
 		ImGui::SetCursorPosX(x_offset);
 		ImGui::SetCursorPosY(cursor_y);
@@ -1940,7 +1948,7 @@ void NotificationManager::push_notification(const NotificationType type, const s
 }
 void NotificationManager::push_notification(const std::string& text, int timestamp)
 {
-	push_notification_data({ NotificationType::CustomNotification, NotificationLevel::RegularNotificationLevel, 10, text }, timestamp);
+	push_notification_data({ NotificationType::CustomNotification, NotificationLevel::RegularNotificationLevel, NOTIFICATION_SECONDS, text }, timestamp);
 }
 
 void NotificationManager::push_notification(NotificationType type,
@@ -2073,7 +2081,7 @@ void NotificationManager::close_slicing_error_notification(const std::string& te
 }
 void  NotificationManager::push_simplify_suggestion_notification(const std::string& text, ObjectID object_id, const std::string& hypertext/* = ""*/, std::function<bool(wxEvtHandler*)> callback/* = std::function<bool(wxEvtHandler*)>()*/)
 {
-	NotificationData data{ NotificationType::SimplifySuggestion, NotificationLevel::PrintInfoNotificationLevel, 10,  text, hypertext, callback };
+	NotificationData data{ NotificationType::SimplifySuggestion, NotificationLevel::PrintInfoNotificationLevel, NOTIFICATION_SECONDS,  text, hypertext, callback };
 	auto notification = std::make_unique<NotificationManager::ObjectIDNotification>(data, m_id_provider, m_evt_handler);
 	notification->object_id = object_id;
 	push_notification_data(std::move(notification), 0);
@@ -2157,7 +2165,7 @@ void  NotificationManager::push_upload_job_notification(int id, float filesize, 
 	std::string correct_filename(filename);
 	std::replace(correct_filename.begin(), correct_filename.end(), '\\', '/');
 	std::string text = correct_filename + " -> " + host;
-	NotificationData data{ NotificationType::PrintHostUpload, NotificationLevel::ProgressBarNotificationLevel, 10, text };
+	NotificationData data{ NotificationType::PrintHostUpload, NotificationLevel::ProgressBarNotificationLevel, NOTIFICATION_SECONDS, text };
 	push_notification_data(std::make_unique<NotificationManager::PrintHostUploadNotification>(data, m_id_provider, m_evt_handler, 0, id, filesize, filename, host), 0);
 }
 void NotificationManager::set_upload_job_notification_percentage(int id, const std::string& filename, const std::string& host, float percentage)
@@ -2279,7 +2287,7 @@ void NotificationManager::push_download_progress_notification(const std::string&
 	// If already exists, change text and reset progress
 	for (std::unique_ptr<PopNotification>& notification : m_pop_notifications) {
 		if (notification->get_type() == NotificationType::AppDownload) {
-			notification->update({ NotificationType::AppDownload, NotificationLevel::ProgressBarNotificationLevel, 10, text });
+			notification->update({ NotificationType::AppDownload, NotificationLevel::ProgressBarNotificationLevel, NOTIFICATION_SECONDS, text });
 			auto* pbwcn = dynamic_cast<ProgressBarWithCancelNotification*>(notification.get());
 			pbwcn->set_percentage(0.0f);
 			pbwcn->set_cancel_callback(cancel_callback);
@@ -2287,7 +2295,7 @@ void NotificationManager::push_download_progress_notification(const std::string&
 		}
 	}
 	// push new one
-	NotificationData data{ NotificationType::AppDownload, NotificationLevel::ProgressBarNotificationLevel, 10, text };
+	NotificationData data{ NotificationType::AppDownload, NotificationLevel::ProgressBarNotificationLevel, NOTIFICATION_SECONDS, text };
 	push_notification_data(std::make_unique<NotificationManager::ProgressBarWithCancelNotification>(data, m_id_provider, m_evt_handler, cancel_callback), 0);
 }
 void NotificationManager::set_download_progress_percentage(float percentage)
@@ -2312,7 +2320,7 @@ void NotificationManager::set_download_progress_text(const std::string &updated_
             auto percentage = pbwcn->get_percentage();
             if (!updated_text.empty()) {
                 pbwcn->update(NotificationData{NotificationType::AppDownload,
-                                               NotificationLevel::ProgressBarNotificationLevel, 10, updated_text});
+                                               NotificationLevel::ProgressBarNotificationLevel, NOTIFICATION_SECONDS, updated_text});
             }
             pbwcn->set_percentage(percentage);
             wxGetApp().plater()->get_current_canvas3D()->schedule_extra_frame(0);
@@ -2633,7 +2641,7 @@ void NotificationManager::push_updated_item_info_notification(InfoItemType type)
 		}
 	}
 
-	NotificationData data{ NotificationType::UpdatedItemsInfo, NotificationLevel::PrintInfoNotificationLevel, 10, "" };
+	NotificationData data{ NotificationType::UpdatedItemsInfo, NotificationLevel::PrintInfoNotificationLevel, NOTIFICATION_SECONDS, "" };
 	auto notification = std::make_unique<NotificationManager::UpdatedItemsInfoNotification>(data, m_id_provider, m_evt_handler, type);
 	if (push_notification_data(std::move(notification), 0)) {
 		(dynamic_cast<UpdatedItemsInfoNotification*>(m_pop_notifications.back().get()))->add_type(type);
