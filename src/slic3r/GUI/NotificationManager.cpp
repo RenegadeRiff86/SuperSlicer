@@ -32,6 +32,10 @@ static constexpr float SPACE_RIGHT_PANEL = 10.0f;
 static constexpr float FADING_OUT_DURATION = 2.0f;
 // Time in Miliseconds after next render when fading out is requested
 static constexpr int   FADING_OUT_TIMEOUT = 100;
+// Full scale of one colour channel once packed into eight bits.
+static constexpr float CHANNEL_VALUE_MAX = 255.f;
+// Progress is carried as a 0..1 fraction and shown to the user as a percentage.
+static constexpr float PERCENT_PER_UNIT = 100.f;
 
 namespace Slic3r {
 namespace GUI {
@@ -59,6 +63,19 @@ namespace {
 			ImGui::PushStyleColor(idx, ImVec4(col.x, col.y, col.z, col.w * current_fade_opacity));
 		else
 			ImGui::PushStyleColor(idx, col);
+	}
+
+	// Every colour here is an ImVec4 of 0..1 channels, but the draw list wants a packed 32-bit value.
+	// The conversion is the same three casts every time - it was written out at four call sites, with
+	// twelve copies of the 255 between them. Alpha stays a separate argument because the callers do
+	// not agree on it: the hypertext underline scales the colour's own alpha by the fade, while the
+	// progress bar uses the fade alone and ignores whatever alpha the colour carries.
+	ImU32 to_im_col32(const ImVec4& col, float alpha)
+	{
+		return IM_COL32(static_cast<int>(col.x * CHANNEL_VALUE_MAX),
+		                static_cast<int>(col.y * CHANNEL_VALUE_MAX),
+		                static_cast<int>(col.z * CHANNEL_VALUE_MAX),
+		                alpha);
 	}
 
 	void open_folder(const std::string& path)
@@ -270,8 +287,8 @@ void NotificationManager::PopNotification::count_spaces()
 		float picture_width = ImGui::CalcTextSize(text.c_str()).x;
 		m_left_indentation = picture_width + m_line_height / 2;
 	}
-	m_window_width_offset = m_left_indentation + m_line_height * 3.f;
-	m_window_width = m_line_height * 25;
+	m_window_width_offset = m_left_indentation + m_line_height * ButtonGutterLines;
+	m_window_width = m_line_height * WindowWidthLines;
 }
  
 void NotificationManager::PopNotification::count_lines()
@@ -550,48 +567,72 @@ void NotificationManager::PopNotification::render_hypertext(ImGuiWrapper& imgui,
 	lineEnd.y -= 2;
 	ImVec2 lineStart = lineEnd;
 	lineStart.x = ImGui::GetItemRectMin().x;
-	ImGui::GetWindowDrawList()->AddLine(lineStart, lineEnd, IM_COL32(static_cast<int>(blue_color_vec.x * 255), static_cast<int>(blue_color_vec.y * 255), static_cast<int>(blue_color_vec.z * 255),
-  static_cast<int>(blue_color_vec.w * 255.f * (m_state == EState::FadingOut ? m_current_fade_opacity : 1.f))));
+	ImGui::GetWindowDrawList()->AddLine(lineStart, lineEnd, to_im_col32(blue_color_vec,
+		static_cast<int>(blue_color_vec.w * CHANNEL_VALUE_MAX * (m_state == EState::FadingOut ? m_current_fade_opacity : 1.f))));
 
 }
 
-void NotificationManager::PopNotification::render_close_button(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
+bool NotificationManager::PopNotification::is_close_slot_hovered(const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y) const
 {
-	ImVec2 win_size(win_size_x, win_size_y);
-	ImVec2 win_pos(win_pos_x, win_pos_y); 
+	return ImGui::IsMouseHoveringRect(ImVec2(win_pos_x - win_size_x / HoverBandWindowDivisor, win_pos_y),
+	                                  ImVec2(win_pos_x, win_pos_y + win_size_y - minimize_band_height()),
+	                                  true);
+}
+
+bool NotificationManager::PopNotification::is_action_slot_hovered(const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y) const
+{
+	return ImGui::IsMouseHoveringRect(ImVec2(win_pos_x - m_line_height * ActionSlot.glyph_x, win_pos_y),
+	                                  ImVec2(win_pos_x - m_line_height * ActionSlotHoverRight, win_pos_y + win_size_y),
+	                                  true);
+}
+
+void NotificationManager::PopNotification::push_button_style_colors()
+{
 	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.0f, .0f, .0f, .0f));
 	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.0f, .0f, .0f, .0f));
 	push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
 	push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
 	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
+}
 
+void NotificationManager::PopNotification::pop_button_style_colors()
+{
+	ImGui::PopStyleColor(ButtonStyleColorCount);
+}
+
+void NotificationManager::PopNotification::render_slot_button(ImGuiWrapper& imgui, const ButtonSlot& slot, const wxString& glyph, const std::string& glyph_utf8, const float win_size_x, const float win_size_y, const std::function<void()>& on_click)
+{
+	ImVec2 button_pic_size = ImGui::CalcTextSize(glyph_utf8.c_str());
+	ImVec2 button_size(button_pic_size.x * ButtonGlyphScale, button_pic_size.y * ButtonGlyphScale);
+	ImGui::SetCursorPosX(win_size_x - m_line_height * slot.glyph_x);
+	ImGui::SetCursorPosY(win_size_y / 2 - button_size.y);
+	if (imgui.button(glyph, button_size.x, button_size.y))
+	{
+		on_click();
+	}
+
+	//invisible large button
+	ImGui::SetCursorPosX(win_size_x - m_line_height * slot.hitbox_x);
+	ImGui::SetCursorPosY(0);
+	if (imgui.button(slot.hitbox_label, m_line_height * slot.hitbox_width, slot.clears_minimize ? win_size_y - minimize_band_height() : win_size_y))
+	{
+		on_click();
+	}
+}
+
+void NotificationManager::PopNotification::render_close_button(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
+{
+	push_button_style_colors();
 
 	std::string button_text;
 	button_text = ImGui::CloseNotifButton;
 	
-	if (ImGui::IsMouseHoveringRect(ImVec2(win_pos.x - win_size.x / 10.f, win_pos.y),
-		                           ImVec2(win_pos.x, win_pos.y + win_size.y - ( m_minimize_b_visible ? 2 * m_line_height : 0)),
-		                           true))
+	if (is_close_slot_hovered(win_size_x, win_size_y, win_pos_x, win_pos_y))
 	{
 		button_text = ImGui::CloseNotifHoverButton;
 	}
-	ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
-	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.75f);
-	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
-	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
-	{
-		close();
-	}
-
-	//invisible large button
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.35f);
-	ImGui::SetCursorPosY(0);
-	if (imgui.button(" ", m_line_height * 2.125, win_size.y - ( m_minimize_b_visible ? 2 * m_line_height : 0)))
-	{
-		close();
-	}
-	ImGui::PopStyleColor(5);
+	render_slot_button(imgui, CloseSlot, button_text.c_str(), button_text, win_size_x, win_size_y, [this]() { close(); });
+	pop_button_style_colors();
 }
 
 void NotificationManager::PopNotification::render_left_sign(ImGuiWrapper& imgui)
@@ -622,14 +663,14 @@ void NotificationManager::PopNotification::render_minimize_button(ImGuiWrapper& 
 	//button - if part if treggered
 	std::string button_text;
 	button_text = ImGui::MinimalizeButton;
-	if (ImGui::IsMouseHoveringRect(ImVec2(win_pos_x - m_window_width / 10.f, win_pos_y + m_window_height - 2 * m_line_height + 1),
+	if (ImGui::IsMouseHoveringRect(ImVec2(win_pos_x - m_window_width / HoverBandWindowDivisor, win_pos_y + m_window_height - MinimizeBandLines * m_line_height + 1),
 		ImVec2(win_pos_x, win_pos_y + m_window_height),
 		true)) 
 	{
 		button_text = ImGui::MinimalizeHoverButton;
 	}
 	ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
-	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
+	ImVec2 button_size(button_pic_size.x * ButtonGlyphScale, button_pic_size.y * ButtonGlyphScale);
 	ImGui::SetCursorPosX(m_window_width - m_line_height * 1.8f);
 	ImGui::SetCursorPosY(m_window_height - button_size.y - 5);
 	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
@@ -637,7 +678,7 @@ void NotificationManager::PopNotification::render_minimize_button(ImGuiWrapper& 
 		m_multiline = false;
 	}
 	
-	ImGui::PopStyleColor(5);
+	ImGui::PopStyleColor(ButtonStyleColorCount);
 	m_minimize_b_visible = true;
 }
 
@@ -753,8 +794,8 @@ void NotificationManager::ExportFinishedNotification::count_spaces()
 	}
 	// Reserve the standard close-button gutter plus another close-sized slot
 	// when the removable-drive eject action is shown.
-	m_window_width_offset = m_left_indentation + m_line_height * (m_to_removable ? 6.f : 3.f);
-	m_window_width = m_line_height * 25;
+	m_window_width_offset = m_left_indentation + m_line_height * (m_to_removable ? 2 * ButtonGutterLines : ButtonGutterLines);
+	m_window_width = m_line_height * WindowWidthLines;
 }
 
 void NotificationManager::ExportFinishedNotification::render_text(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
@@ -799,20 +840,12 @@ void NotificationManager::ExportFinishedNotification::render_close_button(ImGuiW
 
 void NotificationManager::ExportFinishedNotification::render_eject_button(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
 {
-	ImVec2 win_size(win_size_x, win_size_y);
-	ImVec2 win_pos(win_pos_x, win_pos_y);
-	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.0f, .0f, .0f, .0f));
-	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.0f, .0f, .0f, .0f));
-	push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
+	push_button_style_colors();
 
 	std::string button_text;
 	button_text = ImGui::EjectButton;
 	
-    if (ImGui::IsMouseHoveringRect(ImVec2(win_pos.x - m_line_height * 5.f, win_pos.y),
-		ImVec2(win_pos.x - m_line_height * 2.5f, win_pos.y + win_size.y),
-		true))
+	if (is_action_slot_hovered(win_size_x, win_size_y, win_pos_x, win_pos_y))
 	{
 		
 		button_text = ImGui::EjectHoverButton;
@@ -839,29 +872,13 @@ void NotificationManager::ExportFinishedNotification::render_eject_button(ImGuiW
 		m_hover_time = 0;
 		m_hover_once = false;
 	}
-	ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
-	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 5.0f);
-	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
-	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
-	{
+	render_slot_button(imgui, ActionSlot, button_text.c_str(), button_text, win_size_x, win_size_y, [this]() {
 		assert(m_evt_handler != nullptr);
 		if (m_evt_handler != nullptr)
 			wxPostEvent(m_evt_handler, EjectDriveNotificationClickedEvent(EVT_EJECT_DRIVE_NOTIFICAION_CLICKED));
 		on_eject_click();
-	}
-
-	//invisible large button
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 4.625f);
-	ImGui::SetCursorPosY(0);
-	if (imgui.button("  ", m_line_height * 2.f, win_size.y))
-	{
-		assert(m_evt_handler != nullptr);
-		if (m_evt_handler != nullptr)
-			wxPostEvent(m_evt_handler, EjectDriveNotificationClickedEvent(EVT_EJECT_DRIVE_NOTIFICAION_CLICKED));
-		on_eject_click();
-	}
-	ImGui::PopStyleColor(5);
+	});
+	pop_button_style_colors();
 }
 
 bool NotificationManager::ExportFinishedNotification::update_state(bool paused, const int64_t delta)
@@ -948,12 +965,12 @@ void NotificationManager::ProgressBarNotification::render_bar(ImGuiWrapper& imgu
 	ImVec2 lineEnd = ImVec2(win_pos_x - m_window_width_offset, win_pos_y + win_size_y / 2 + y_indentation);
 	ImVec2 lineStart = ImVec2(win_pos_x - win_size_x + m_left_indentation, win_pos_y + win_size_y / 2 + y_indentation);
 	ImVec2 midPoint = ImVec2(lineStart.x + (lineEnd.x - lineStart.x) * percent, lineStart.y);
-	ImGui::GetWindowDrawList()->AddLine(lineStart, lineEnd, IM_COL32(static_cast<int>(gray_color.x * 255), static_cast<int>(gray_color.y * 255), static_cast<int>(gray_color.z * 255), (m_current_fade_opacity * 255.f)), m_line_height * 0.2f);
-	ImGui::GetWindowDrawList()->AddLine(lineStart, midPoint, IM_COL32(static_cast<int>(orange_color.x * 255), static_cast<int>(orange_color.y * 255), static_cast<int>(orange_color.z * 255), (m_current_fade_opacity * 255.f)), m_line_height * 0.2f);
+	ImGui::GetWindowDrawList()->AddLine(lineStart, lineEnd, to_im_col32(gray_color, m_current_fade_opacity * CHANNEL_VALUE_MAX), m_line_height * 0.2f);
+	ImGui::GetWindowDrawList()->AddLine(lineStart, midPoint, to_im_col32(orange_color, m_current_fade_opacity * CHANNEL_VALUE_MAX), m_line_height * 0.2f);
 	if (render) {
 		std::string text;
 		std::stringstream stream;
-		stream << std::fixed << std::setprecision(2) << static_cast<int>(percent * 100) << "%";
+		stream << std::fixed << std::setprecision(2) << static_cast<int>(percent * PERCENT_PER_UNIT) << "%";
 		text = stream.str();
 		ImGui::SetCursorPosX(m_left_indentation);
 		ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / 6 + y_indentation - m_line_height / 2);
@@ -976,82 +993,32 @@ void NotificationManager::ProgressBarWithCancelNotification::render_close_button
 }
 void NotificationManager::ProgressBarWithCancelNotification::render_close_button_inner(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
 {
-	ImVec2 win_size(win_size_x, win_size_y);
-	ImVec2 win_pos(win_pos_x, win_pos_y);
-	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.0f, .0f, .0f, .0f));
-	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.0f, .0f, .0f, .0f));
-	push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
-
+	push_button_style_colors();
 
 	std::string button_text;
 	button_text = ImGui::CloseNotifButton;
 
-	if (ImGui::IsMouseHoveringRect(ImVec2(win_pos.x - win_size.x / 10.f, win_pos.y),
-		ImVec2(win_pos.x, win_pos.y + win_size.y - (m_minimize_b_visible ? 2 * m_line_height : 0)),
-		true))
+	if (is_close_slot_hovered(win_size_x, win_size_y, win_pos_x, win_pos_y))
 	{
 		button_text = ImGui::CloseNotifHoverButton;
 	}
-	ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
-	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.75f);
-	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
-	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
-	{
-		close();
-	}
-
-	//invisible large button
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.35f);
-	ImGui::SetCursorPosY(0);
-	if (imgui.button(" ", m_line_height * 2.125, win_size.y - (m_minimize_b_visible ? 2 * m_line_height : 0)))
-	{
-		close();
-	}
-	ImGui::PopStyleColor(5);
-
+	render_slot_button(imgui, CloseSlot, button_text.c_str(), button_text, win_size_x, win_size_y, [this]() { close(); });
+	pop_button_style_colors();
 }
 
 void NotificationManager::ProgressBarWithCancelNotification::render_cancel_button_inner(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
 {
-	ImVec2 win_size(win_size_x, win_size_y);
-	ImVec2 win_pos(win_pos_x, win_pos_y);
-	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.0f, .0f, .0f, .0f));
-	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.0f, .0f, .0f, .0f));
-	push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
-
+	push_button_style_colors();
 
 	std::string button_text;
 	button_text = ImGui::CancelButton;
 
-	if (ImGui::IsMouseHoveringRect(ImVec2(win_pos.x - win_size.x / 10.f, win_pos.y),
-		ImVec2(win_pos.x, win_pos.y + win_size.y - (m_minimize_b_visible ? 2 * m_line_height : 0)),
-		true))
+	if (is_close_slot_hovered(win_size_x, win_size_y, win_pos_x, win_pos_y))
 	{
 		button_text = ImGui::CancelHoverButton;
 	}
-	ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
-	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.75f);
-	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
-	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
-	{
-		on_cancel_button();
-	}
-
-	//invisible large button
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.35f);
-	ImGui::SetCursorPosY(0);
-	if (imgui.button(" ", m_line_height * 2.125, win_size.y - (m_minimize_b_visible ? 2 * m_line_height : 0)))
-	{
-		on_cancel_button();
-	}
-	ImGui::PopStyleColor(5);
-
+	render_slot_button(imgui, CloseSlot, button_text.c_str(), button_text, win_size_x, win_size_y, [this]() { on_cancel_button(); });
+	pop_button_style_colors();
 }
 
 void NotificationManager::ProgressBarWithCancelNotification::on_cancel_button()
@@ -1071,7 +1038,7 @@ void NotificationManager::ProgressBarWithCancelNotification::render_bar(ImGuiWra
 		text = _u8L("ERROR");
 	} else {
 		std::stringstream stream;
-		stream << std::fixed << std::setprecision(2) << static_cast<int>(m_percentage * 100) << "%";
+		stream << std::fixed << std::setprecision(2) << static_cast<int>(m_percentage * PERCENT_PER_UNIT) << "%";
 		text = stream.str();
 	}
 	ImGui::SetCursorPosX(m_left_indentation);
@@ -1092,42 +1059,17 @@ void NotificationManager::URLDownloadNotification::render_close_button(ImGuiWrap
 }
 void NotificationManager::URLDownloadNotification::render_close_button_inner(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
 {
-	ImVec2 win_size(win_size_x, win_size_y);
-	ImVec2 win_pos(win_pos_x, win_pos_y);
-	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.0f, .0f, .0f, .0f));
-	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.0f, .0f, .0f, .0f));
-	push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
-
+	push_button_style_colors();
 
 	std::string button_text;
 	button_text = ImGui::CloseNotifButton;
 
-	if (ImGui::IsMouseHoveringRect(ImVec2(win_pos.x - win_size.x / 10.f, win_pos.y),
-		ImVec2(win_pos.x, win_pos.y + win_size.y - (m_minimize_b_visible ? 2 * m_line_height : 0)),
-		true))
+	if (is_close_slot_hovered(win_size_x, win_size_y, win_pos_x, win_pos_y))
 	{
 		button_text = ImGui::CloseNotifHoverButton;
 	}
-	ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
-	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.75f);
-	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
-	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
-	{
-		close();
-	}
-
-	//invisible large button
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.35f);
-	ImGui::SetCursorPosY(0);
-	if (imgui.button(" ", m_line_height * 2.125, win_size.y - (m_minimize_b_visible ? 2 * m_line_height : 0)))
-	{
-		close();
-	}
-	ImGui::PopStyleColor(5);
-
+	render_slot_button(imgui, CloseSlot, button_text.c_str(), button_text, win_size_x, win_size_y, [this]() { close(); });
+	pop_button_style_colors();
 }
 
 void NotificationManager::URLDownloadNotification::render_pause_cancel_buttons_inner(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
@@ -1138,120 +1080,52 @@ void NotificationManager::URLDownloadNotification::render_pause_cancel_buttons_i
 }
 void NotificationManager::URLDownloadNotification::render_pause_button_inner(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
 {
-	ImVec2 win_size(win_size_x, win_size_y);
-	ImVec2 win_pos(win_pos_x, win_pos_y);
-	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.0f, .0f, .0f, .0f));
-	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.0f, .0f, .0f, .0f));
-	push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
+	push_button_style_colors();
 
 	std::wstring button_text;
 	button_text = (m_download_paused ? ImGui::PlayButton : ImGui::PauseButton);
 	
-	if (ImGui::IsMouseHoveringRect(ImVec2(win_pos.x - m_line_height * 5.f, win_pos.y),
-		ImVec2(win_pos.x - m_line_height * 2.5f, win_pos.y + win_size.y),
-		true))
+	if (is_action_slot_hovered(win_size_x, win_size_y, win_pos_x, win_pos_y))
 	{
 		button_text = (m_download_paused ? ImGui::PlayHoverButton : ImGui::PauseHoverButton);
 	}
 	
-	ImVec2 button_pic_size = ImGui::CalcTextSize(boost::nowide::narrow(button_text).c_str());
-	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 5.0f);
-	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
-	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
-	{
-		trigger_user_action_callback(m_download_paused ? DownloaderUserAction::DownloadUserContinued : DownloaderUserAction::DownloadUserPaused);
-	}
-
-	//invisible large button
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 4.625f);
-	ImGui::SetCursorPosY(0);
-	if (imgui.button("  ", m_line_height * 2.f, win_size.y))
-	{
-		trigger_user_action_callback(m_download_paused ? DownloaderUserAction::DownloadUserContinued : DownloaderUserAction::DownloadUserPaused);
-	}
-	ImGui::PopStyleColor(5);
+	render_slot_button(imgui, ActionSlot, button_text.c_str(), boost::nowide::narrow(button_text), win_size_x, win_size_y,
+		[this]() { trigger_user_action_callback(m_download_paused ? DownloaderUserAction::DownloadUserContinued : DownloaderUserAction::DownloadUserPaused); });
+	pop_button_style_colors();
 }
 
 void NotificationManager::URLDownloadNotification::render_open_button_inner(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
 {
-	ImVec2 win_size(win_size_x, win_size_y);
-	ImVec2 win_pos(win_pos_x, win_pos_y);
-	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.0f, .0f, .0f, .0f));
-	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.0f, .0f, .0f, .0f));
-	push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
+	push_button_style_colors();
 
 	std::wstring button_text;
 	button_text = ImGui::OpenButton;
 
-	if (ImGui::IsMouseHoveringRect(ImVec2(win_pos.x - m_line_height * 5.f, win_pos.y),
-		ImVec2(win_pos.x - m_line_height * 2.5f, win_pos.y + win_size.y),
-		true))
+	if (is_action_slot_hovered(win_size_x, win_size_y, win_pos_x, win_pos_y))
 	{
 		button_text = ImGui::OpenHoverButton;
 	}
 
-	ImVec2 button_pic_size = ImGui::CalcTextSize(boost::nowide::narrow(button_text).c_str());
-	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 5.0f);
-	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
-	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
-	{
-		trigger_user_action_callback(DownloaderUserAction::DownloadUserOpenedFolder);
-	}
-
-	//invisible large button
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 4.625f);
-	ImGui::SetCursorPosY(0);
-	if (imgui.button("  ", m_line_height * 2.f, win_size.y))
-	{
-		trigger_user_action_callback(DownloaderUserAction::DownloadUserOpenedFolder);
-	}
-	ImGui::PopStyleColor(5);
+	render_slot_button(imgui, ActionSlot, button_text.c_str(), boost::nowide::narrow(button_text), win_size_x, win_size_y,
+		[this]() { trigger_user_action_callback(DownloaderUserAction::DownloadUserOpenedFolder); });
+	pop_button_style_colors();
 }
 
 void NotificationManager::URLDownloadNotification::render_cancel_button_inner(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
 {
-	ImVec2 win_size(win_size_x, win_size_y);
-	ImVec2 win_pos(win_pos_x, win_pos_y);
-	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.0f, .0f, .0f, .0f));
-	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.0f, .0f, .0f, .0f));
-	push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
-
+	push_button_style_colors();
 
 	std::string button_text;
 	button_text = ImGui::CancelButton;
 
-	if (ImGui::IsMouseHoveringRect(ImVec2(win_pos.x - win_size.x / 10.f, win_pos.y),
-		ImVec2(win_pos.x, win_pos.y + win_size.y - (m_minimize_b_visible ? 2 * m_line_height : 0)),
-		true))
+	if (is_close_slot_hovered(win_size_x, win_size_y, win_pos_x, win_pos_y))
 	{
 		button_text = ImGui::CancelHoverButton;
 	}
-	ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
-	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.75f);
-	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
-	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
-	{
-		trigger_user_action_callback(DownloaderUserAction::DownloadUserCanceled);
-	}
-
-	//invisible large button
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.35f);
-	ImGui::SetCursorPosY(0);
-	if (imgui.button(" ", m_line_height * 2.125, win_size.y - (m_minimize_b_visible ? 2 * m_line_height : 0)))
-	{
-		trigger_user_action_callback(DownloaderUserAction::DownloadUserCanceled);
-	}
-	ImGui::PopStyleColor(5);
-
+	render_slot_button(imgui, CloseSlot, button_text.c_str(), button_text, win_size_x, win_size_y,
+		[this]() { trigger_user_action_callback(DownloaderUserAction::DownloadUserCanceled); });
+	pop_button_style_colors();
 }
 
 void NotificationManager::URLDownloadNotification::trigger_user_action_callback(DownloaderUserAction action)
@@ -1286,7 +1160,7 @@ void NotificationManager::URLDownloadNotification::render_bar(ImGuiWrapper& imgu
 		text = _u8L("COMPLETED");
 	} else {
 		std::stringstream stream;
-		stream << std::fixed << std::setprecision(2) << static_cast<int>(m_percentage * 100) << "%";
+		stream << std::fixed << std::setprecision(2) << static_cast<int>(m_percentage * PERCENT_PER_UNIT) << "%";
 		text = stream.str();
 	}
 	ImGui::SetCursorPosX(m_left_indentation);
@@ -1297,7 +1171,7 @@ void NotificationManager::URLDownloadNotification::render_bar(ImGuiWrapper& imgu
 void NotificationManager::URLDownloadNotification::count_spaces()
 {
 	ProgressBarNotification::count_spaces();
-	m_window_width_offset = m_line_height * 6; 
+	m_window_width_offset = m_line_height * (2 * ButtonGutterLines); 
 }
 
 //------PrintHostUploadNotification----------------
@@ -1331,8 +1205,8 @@ void NotificationManager::PrintHostUploadNotification::count_spaces()
 		float picture_width = ImGui::CalcTextSize(text.c_str()).x;
 		m_left_indentation = picture_width + m_line_height / 2;
 	}
-	m_window_width_offset = m_line_height * 6;
-	m_window_width = m_line_height * 25;
+	m_window_width_offset = m_line_height * (2 * ButtonGutterLines);
+	m_window_width = m_line_height * WindowWidthLines;
 }
 bool NotificationManager::PrintHostUploadNotification::push_background_color()
 {
@@ -1474,7 +1348,7 @@ void NotificationManager::PrintHostUploadNotification::render_bar(ImGuiWrapper& 
 		ProgressBarNotification::render_bar(imgui, win_size_x, win_size_y, win_pos_x, win_pos_y);
 		float uploaded = m_file_size * m_percentage;
 		std::stringstream stream;
-		stream << std::fixed << std::setprecision(2) << static_cast<int>(m_percentage * 100) << "% - " << uploaded << " of " << m_file_size << "MB uploaded";
+		stream << std::fixed << std::setprecision(2) << static_cast<int>(m_percentage * PERCENT_PER_UNIT) << "% - " << uploaded << " of " << m_file_size << "MB uploaded";
 		text = stream.str();
 		ImGui::SetCursorPosX(m_left_indentation);
 		ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / 6 - (m_multiline ? 0 : m_line_height / 4));
@@ -1531,21 +1405,12 @@ void NotificationManager::PrintHostUploadNotification::render_close_button(ImGui
 
 void NotificationManager::PrintHostUploadNotification::render_cancel_button(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
 {
-	ImVec2 win_size(win_size_x, win_size_y);
-	ImVec2 win_pos(win_pos_x, win_pos_y);
-	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.0f, .0f, .0f, .0f));
-	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.0f, .0f, .0f, .0f));
-	push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
-
+	push_button_style_colors();
 
 	std::string button_text;
 	button_text = ImGui::CancelButton;
 
-	if (ImGui::IsMouseHoveringRect(ImVec2(win_pos.x - win_size.x / 10.f, win_pos.y),
-		ImVec2(win_pos.x, win_pos.y + win_size.y - (m_minimize_b_visible ? 2 * m_line_height : 0)),
-		true))
+	if (is_close_slot_hovered(win_size_x, win_size_y, win_pos_x, win_pos_y))
 	{
 		button_text = ImGui::CancelHoverButton;
 		// tooltip
@@ -1560,23 +1425,9 @@ void NotificationManager::PrintHostUploadNotification::render_cancel_button(ImGu
 		if (m_hover_time == 0)
 			m_hover_time = time_now;
 	}
-	ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
-	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.75f);
-	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
-	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
-	{
-		wxGetApp().printhost_job_queue().cancel(m_job_id - 1);
-	}
-
-	//invisible large button
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.35f);
-	ImGui::SetCursorPosY(0);
-	if (imgui.button(" ", m_line_height * 2.125, win_size.y - (m_minimize_b_visible ? 2 * m_line_height : 0)))
-	{
-		wxGetApp().printhost_job_queue().cancel(m_job_id - 1);
-	}
-	ImGui::PopStyleColor(5);
+	render_slot_button(imgui, CloseSlot, button_text.c_str(), button_text, win_size_x, win_size_y,
+		[this]() { wxGetApp().printhost_job_queue().cancel(m_job_id - 1); });
+	pop_button_style_colors();
 
 	// bellow is version where both close and stop button are rendered next to each other
 
@@ -1642,8 +1493,8 @@ void NotificationManager::UpdatedItemsInfoNotification::count_spaces()
 	float picture_width = ImGui::CalcTextSize(text.c_str()).x;
 	m_left_indentation = picture_width + m_line_height / 2;
 
-	m_window_width_offset = m_left_indentation + m_line_height * 3.f;
-	m_window_width = m_line_height * 25;
+	m_window_width_offset = m_left_indentation + m_line_height * ButtonGutterLines;
+	m_window_width = m_line_height * WindowWidthLines;
 }
 void NotificationManager::UpdatedItemsInfoNotification::add_type(InfoItemType type)
 {
@@ -1950,45 +1801,17 @@ void  NotificationManager::SlicingProgressNotification::render_hypertext(ImGuiWr
 }
 void NotificationManager::SlicingProgressNotification::render_cancel_button(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
 {
-	ImVec2 win_size(win_size_x, win_size_y);
-	ImVec2 win_pos(win_pos_x, win_pos_y);
-	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.0f, .0f, .0f, .0f));
-	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.0f, .0f, .0f, .0f));
-	push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
-
+	push_button_style_colors();
 
 	std::string button_text;
 	button_text = ImGui::CancelButton;
 
-	if (ImGui::IsMouseHoveringRect(ImVec2(win_pos.x - win_size.x / 10.f, win_pos.y),
-		ImVec2(win_pos.x, win_pos.y + win_size.y - (m_minimize_b_visible ? 2 * m_line_height : 0)),
-		true))
+	if (is_close_slot_hovered(win_size_x, win_size_y, win_pos_x, win_pos_y))
 	{
 		button_text = ImGui::CancelHoverButton;
 	}
-	ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
-	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.75f);
-	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
-	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
-	{
-		on_cancel_button();
-	}
-
-	//invisible large button
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.35f);
-	ImGui::SetCursorPosY(0);
-	if (imgui.button(" ", m_line_height * 2.125, win_size.y - (m_minimize_b_visible ? 2 * m_line_height : 0)))
-	{
-		on_cancel_button();
-	}
-	ImGui::PopStyleColor();
-	ImGui::PopStyleColor();
-	ImGui::PopStyleColor();
-	ImGui::PopStyleColor();
-	ImGui::PopStyleColor();
+	render_slot_button(imgui, CloseSlot, button_text.c_str(), button_text, win_size_x, win_size_y, [this]() { on_cancel_button(); });
+	pop_button_style_colors();
 }
 
 void NotificationManager::SlicingProgressNotification::render_close_button(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
@@ -2072,41 +1895,17 @@ bool NotificationManager::ProgressIndicatorNotification::update_state(bool pause
 
 void NotificationManager::ProgressIndicatorNotification::render_cancel_button(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
 {
-	ImVec2 win_size(win_size_x, win_size_y);
-	ImVec2 win_pos(win_pos_x, win_pos_y);
-	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.0f, .0f, .0f, .0f));
-	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.0f, .0f, .0f, .0f));
-	push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
-	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
-
+	push_button_style_colors();
 
 	std::string button_text;
 	button_text = ImGui::CancelButton;
 
-	if (ImGui::IsMouseHoveringRect(ImVec2(win_pos.x - win_size.x / 10.f, win_pos.y),
-		ImVec2(win_pos.x, win_pos.y + win_size.y - (m_minimize_b_visible ? 2 * m_line_height : 0)),
-		true))
+	if (is_close_slot_hovered(win_size_x, win_size_y, win_pos_x, win_pos_y))
 	{
 		button_text = ImGui::CancelHoverButton;
 	}
-	ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
-	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.75f);
-	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
-	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
-	{
-		on_cancel_button();
-	}
-
-	//invisible large button
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.35f);
-	ImGui::SetCursorPosY(0);
-	if (imgui.button(" ", m_line_height * 2.125, win_size.y - (m_minimize_b_visible ? 2 * m_line_height : 0)))
-	{
-		on_cancel_button();
-	}
-	ImGui::PopStyleColor(5);
+	render_slot_button(imgui, CloseSlot, button_text.c_str(), button_text, win_size_x, win_size_y, [this]() { on_cancel_button(); });
+	pop_button_style_colors();
 }
 void NotificationManager::ProgressIndicatorNotification::render_close_button(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
 {

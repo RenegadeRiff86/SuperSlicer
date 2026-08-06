@@ -393,6 +393,67 @@ private:
 		// used this function instead of reading directly m_data.duration. Some notifications might need to return changing value.
 		virtual int  get_duration() { return m_data.duration; }
 
+		// Geometry of one icon-button slot on the notification's right edge, in multiples of the text
+		// line height measured back from the window's right edge. Every one of these buttons is drawn
+		// twice - the visible glyph, and an invisible button behind it that widens the click target to
+		// the whole slot - and a third rectangle decides whether the plain or the highlighted glyph is
+		// drawn. All three have to agree or the icon lights up somewhere the click does not land, so
+		// they are described here once instead of being spelled out again in every override.
+		struct ButtonSlot
+		{
+			float       glyph_x;          // left edge of the visible glyph
+			float       hitbox_x;         // left edge of the invisible click target
+			float       hitbox_width;
+			bool        clears_minimize;  // click target stops above the minimize button instead of running full height
+			const char* hitbox_label;     // blank label - ImGui derives a button's identity from it, so the slots must differ
+		};
+		// Rightmost slot: the close button, or the cancel button that replaces it while work runs.
+		static constexpr ButtonSlot CloseSlot  { 2.75f, 2.35f,  2.125f, true,  " "  };
+		// One slot further left, drawn beside it: eject, pause/play, open folder. It runs the full
+		// height of the window because no minimize button can appear under it.
+		static constexpr ButtonSlot ActionSlot { 5.0f,  4.625f, 2.f,    false, "  " };
+		// Right edge of the action slot's hover band. The two hover bands are adjacent, not stacked.
+		static constexpr float ActionSlotHoverRight = 2.5f;
+		// A hover band written as a fraction of the window width rather than in line heights - used by
+		// the close slot and by the minimize button. See is_close_slot_hovered().
+		static constexpr float HoverBandWindowDivisor = 10.f;
+		// The glyph is drawn a little larger than the text it was measured from.
+		static constexpr float ButtonGlyphScale = 1.25f;
+		// Style colours pushed as a set before any notification button is drawn. PopStyleColor takes a
+		// count, so it has to agree with what push_button_style_colors() pushed - hence one constant.
+		static constexpr int   ButtonStyleColorCount = 5;
+		// Height of the band at the bottom of the window taken by the minimize button.
+		static constexpr float MinimizeBandLines = 2.f;
+		// A notification window is this many text lines wide.
+		static constexpr float WindowWidthLines = 25.f;
+		// Width reserved to the right of the text for one icon-button slot. A notification that shows an
+		// action button beside the close button reserves two of these.
+		static constexpr float ButtonGutterLines = 3.f;
+
+		// What the minimize button occupies at the bottom of the window right now, or zero when it is
+		// not shown. Anything that must not overlap it subtracts this from the window height.
+		float minimize_band_height() const { return m_minimize_b_visible ? MinimizeBandLines * m_line_height : 0.f; }
+		// Is the mouse over the close slot? This band is written as a fraction of the window width
+		// rather than in line heights: at the default 25-line width that is the same 2.5 line heights
+		// the action slot uses, but the two diverge for any notification that sets another width.
+		// Kept as found - unifying them would move a hover boundary.
+		bool is_close_slot_hovered(const float win_size_x, const float win_size_y,
+		                           const float win_pos_x , const float win_pos_y) const;
+		bool is_action_slot_hovered(const float win_size_x, const float win_size_y,
+		                            const float win_pos_x , const float win_pos_y) const;
+		// Draw one slot's pair of buttons: the visible glyph, then the invisible full-slot click target
+		// behind it. Both fire the same action - that pairing, each with its own copy of the geometry,
+		// was written out at eleven call sites. `glyph` is what ImGui draws; `glyph_utf8` is the same
+		// text as bytes, because the size is measured through ImGui's UTF-8 text metrics while the
+		// button itself takes a wxString.
+		void render_slot_button(ImGuiWrapper& imgui, const ButtonSlot& slot,
+		                        const wxString& glyph, const std::string& glyph_utf8,
+		                        const float win_size_x, const float win_size_y,
+		                        const std::function<void()>& on_click);
+		// The style colours every notification button is drawn with, pushed and popped as a set.
+		void push_button_style_colors();
+		void pop_button_style_colors();
+
 		const NotificationData m_data;
 		// For reusing ImGUI windows.
 		NotificationIDProvider &m_id_provider;
