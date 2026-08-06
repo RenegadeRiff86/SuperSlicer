@@ -3170,7 +3170,11 @@ static void drop_non_gracious_areas(
 
 // Wipe tower footprint in object space (union over instances). Supports run before the real
 // wipe tower is generated, so this uses the config-based estimate from wipe_tower_data().
-// Same local-corner convention as ConflictChecker::getFakeExtrusionPathsFromWipeTower.
+// Local frame: tower body is [0,width] x [0,depth] mm; brim expands all four sides.
+// Then rotate about the origin and translate to wipe_tower position (same order as
+// ConflictChecker::getFakeExtrusionPathsFromWipeTower). Note: ConflictChecker's first-layer
+// corners use unscaled brim on minCorner and only +brim on max — that is not the full
+// brimmed rect; we intentionally use the correct [-brim, w+brim] x [-brim, d+brim] box.
 static Polygons estimated_wipe_tower_polygons_in_object_space(const PrintObject &print_object)
 {
     const Print *print = print_object.print();
