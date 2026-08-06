@@ -28,7 +28,7 @@ void CoordAxes::render(const Transform3d& trafo, float emission_factor)
         const Transform3d matrix = view_matrix * transform;
         shader.set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, matrix);
         shader.set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
-        shader.set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, (Matrix3d)(view_matrix.matrix().block(0, 0, 3, 3) * transform.matrix().block(0, 0, 3, 3).inverse().transpose()));
+        shader.set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, Geometry::view_normal_matrix(view_matrix, transform));
         m_arrow.render();
     };
 

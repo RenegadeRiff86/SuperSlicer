@@ -245,7 +245,7 @@ void GLGizmoSlaSupports::render_points(const Selection& selection)
                 Geometry::rotation_transform({ double(PI), 0.0, 0.0 }) * Geometry::scale_transform({ CONE_RADIUS, CONE_RADIUS, CONE_HEIGHT });
 
             shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
-            const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
+            const Matrix3d view_normal_matrix = Geometry::view_normal_matrix(view_matrix, model_matrix);
             shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
             m_cone.model.render();
         }
@@ -253,7 +253,7 @@ void GLGizmoSlaSupports::render_points(const Selection& selection)
         const double radius = static_cast<double>(support_point.head_front_radius) * RenderPointScale;
         const Transform3d model_matrix = transformation.get_matrix() * support_matrix * Geometry::scale_transform(radius);
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
-        const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
+        const Matrix3d view_normal_matrix = Geometry::view_normal_matrix(view_matrix, model_matrix);
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         m_sphere.model.render();
 

@@ -90,14 +90,14 @@ void GLGizmoBase::Grabber::render(float size, const ColorRGBA& render_color)
     Transform3d view_model_matrix = view_matrix * elements_matrices[0];
 
     shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_model_matrix);
-    Matrix3d view_normal_matrix = view_matrix_no_offset * elements_matrices[0].matrix().block(0, 0, 3, 3).inverse().transpose();
+    Matrix3d view_normal_matrix = view_matrix_no_offset * Geometry::normal_matrix(elements_matrices[0]);
     shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
     s_cube.model.render();
 
     auto render_extension = [&view_matrix, &view_matrix_no_offset, shader](const Transform3d& matrix) {
         const Transform3d view_model_matrix = view_matrix * matrix;
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_model_matrix);
-        const Matrix3d view_normal_matrix = view_matrix_no_offset * matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
+        const Matrix3d view_normal_matrix = view_matrix_no_offset * Geometry::normal_matrix(matrix);
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         s_cone.model.render();
     };

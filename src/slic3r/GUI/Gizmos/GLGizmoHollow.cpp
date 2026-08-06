@@ -181,7 +181,7 @@ void GLGizmoHollow::render_points(const Selection& selection)
         const Transform3d model_matrix = trafo * hole_matrix * Transform3d(aa.toRotationMatrix()) *
             Geometry::translation_transform(-drain_hole.height * Vec3d::UnitZ()) * Geometry::scale_transform(Vec3d(drain_hole.radius, drain_hole.radius, drain_hole.height + sla::HoleStickOutLength));
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
-        const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
+        const Matrix3d view_normal_matrix = Geometry::view_normal_matrix(view_matrix, model_matrix);
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         m_cylinder.model.render();
 

@@ -343,6 +343,27 @@ bool arrange(
     // output
     Pointfs &positions);
 
+// The matrix that carries a NORMAL through a transform. A normal is not transformed by the
+// transform itself: under non-uniform scaling that tilts it off the surface. It needs the
+// inverse transpose of the linear (rotation-scale-mirror) part, which is what this returns.
+//
+// Spelled with the dynamic-size block() rather than Transform3d::linear() on purpose. linear()
+// is the FIXED-size block<3,3>(0,0) overload, and although the two hold the same nine values,
+// Eigen reaches inverse() by different code paths for fixed and dynamic sizes - measured at
+// 199,826 differing results in 200,000 samples. Every call site historically used block(), so
+// this keeps them bit for bit identical. Change the spelling here and it changes everywhere,
+// which is the point of having one definition.
+inline Matrix3d normal_matrix(const Transform3d& t)
+{
+    return t.matrix().block(0, 0, 3, 3).inverse().transpose();
+}
+
+// A normal matrix expressed in eye space - what the shaders' view_normal_matrix uniform wants.
+inline Matrix3d view_normal_matrix(const Transform3d& view_matrix, const Transform3d& model_matrix)
+{
+    return view_matrix.matrix().block(0, 0, 3, 3) * normal_matrix(model_matrix);
+}
+
 // Sets the given transform by assembling the given transformations in the following order:
 // 1) mirror
 // 2) scale

@@ -771,7 +771,7 @@ void GLGizmoMeasure::on_render()
     auto set_matrix_uniforms = [shader, &view_matrix](const Transform3d& model_matrix) {
         const Transform3d view_model_matrix = view_matrix * model_matrix;
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_model_matrix);
-        const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
+        const Matrix3d view_normal_matrix = Geometry::view_normal_matrix(view_matrix, model_matrix);
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
     };
 

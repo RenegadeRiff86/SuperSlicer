@@ -639,7 +639,7 @@ void Bed3D::render_model(const Transform3d& view_matrix, const Transform3d& proj
             const Transform3d model_matrix = Geometry::translation_transform(m_model_offset);
             shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
             shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, projection_matrix);
-            const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
+            const Matrix3d view_normal_matrix = Geometry::view_normal_matrix(view_matrix, model_matrix);
             shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
             m_model.model.render();
             shader->stop_using();

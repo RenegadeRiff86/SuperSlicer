@@ -229,7 +229,7 @@ void GLGizmoFlatten::update_planes()
     }
 
     // Let's prepare transformation of the normal vector from mesh to instance coordinates.
-    const Matrix3d normal_matrix = inst_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
+    const Matrix3d normal_matrix = Geometry::normal_matrix(inst_matrix);
 
     // Now we'll go through all the polygons, transform the points into xy plane to process them:
     for (unsigned int polygon_id=0; polygon_id < m_planes.size(); ++polygon_id) {

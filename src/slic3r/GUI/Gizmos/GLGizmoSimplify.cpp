@@ -749,7 +749,7 @@ void GLGizmoSimplify::on_render()
         const Transform3d view_model_matrix = view_matrix * trafo_matrix;
         gouraud_shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_model_matrix);
         gouraud_shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
-        const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * trafo_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
+        const Matrix3d view_normal_matrix = Geometry::view_normal_matrix(view_matrix, trafo_matrix);
         gouraud_shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         glmodel.render();
         gouraud_shader->stop_using();

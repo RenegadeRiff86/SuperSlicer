@@ -709,7 +709,7 @@ void GLCanvas3D::LayersEditing::render_volumes(const GLCanvas3D& canvas, const G
         const Transform3d& view_matrix = camera.get_view_matrix();
         const Transform3d model_matrix = glvolume->world_matrix();
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
-        const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
+        const Matrix3d view_normal_matrix = Geometry::view_normal_matrix(view_matrix, model_matrix);
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
 
         glvolume->render();
@@ -5485,7 +5485,7 @@ void GLCanvas3D::_render_thumbnail_internal(ThumbnailData& thumbnail_data, const
         const Transform3d model_matrix = vol->world_matrix();
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
         shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, projection_matrix);
-        const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
+        const Matrix3d view_normal_matrix = Geometry::view_normal_matrix(view_matrix, model_matrix);
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
 
         if (is_left_handed)
@@ -6670,8 +6670,7 @@ void GLCanvas3D::_render_bed_axes()
             shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, matrix);
             shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
             shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix,
-                               (Matrix3d) (view_matrix.matrix().block(0, 0, 3, 3) *
-                                           transform.matrix().block(0, 0, 3, 3).inverse().transpose()));
+                                Geometry::view_normal_matrix(view_matrix, transform));
             m_z_axle.render();
         }
         shader->stop_using();

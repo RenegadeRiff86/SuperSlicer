@@ -201,12 +201,6 @@ void GCodeViewer::TBuffer::add_path(const GCodeProcessorResult::MoveVertex& move
         move.volumetric_rate(), move.mm3_per_mm, move.extruder_id, move.cp_color_id, move.object_id, { { endpoint, endpoint } }, move.move_time });
 }
 
-// The top-left 3x3 of a 4x4 transform is its rotation/scale part, which is what a normal matrix
-// is built from. Deliberately still spelled as an explicit block rather than Transform3d::linear():
-// Eigen's fixed-size path rounds differently from this dynamic-size one (measured at up to 1.7e-10
-// relative difference), and shipped rendering behaviour is not something a naming pass may change.
-static constexpr int LinearBlockSize = 3;
-
 void GCodeViewer::COG::render()
 {
     if (!m_visible)
@@ -231,7 +225,7 @@ void GCodeViewer::COG::render()
     const Transform3d& view_matrix = camera.get_view_matrix();
     shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
     shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
-    const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize) * model_matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize).inverse().transpose();
+    const Matrix3d view_normal_matrix = Geometry::view_normal_matrix(view_matrix, model_matrix);
     shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
     m_model.render();
 
@@ -1075,7 +1069,7 @@ void GCodeViewer::SequentialView::Marker::render()
     const Transform3d model_matrix = m_world_transform.cast<double>();
     shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
     shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
-    const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize) * model_matrix.matrix().block(0, 0, LinearBlockSize, LinearBlockSize).inverse().transpose();
+    const Matrix3d view_normal_matrix = Geometry::view_normal_matrix(view_matrix, model_matrix);
     shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
 
     m_model.render();

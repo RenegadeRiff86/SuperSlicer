@@ -203,7 +203,7 @@ void GLGizmoMmuSegmentation::render_triangles(const Selection &selection) const
         const Transform3d& view_matrix = camera.get_view_matrix();
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * trafo_matrix);
         shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
-        const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * trafo_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
+        const Matrix3d view_normal_matrix = Geometry::view_normal_matrix(view_matrix, trafo_matrix);
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
 
         shader->set_uniform("volume_world_matrix", trafo_matrix);
