@@ -228,10 +228,10 @@ public:
         return Vec3d(clip.x(), clip.y(), clip.z()) / clip.w();
     }
 
-    static Vec2d ndc_to_ss(const Vec3d& ndc, const std::array<int, 4>& viewport) {
-        const double half_w = 0.5 * double(viewport[2]);
-        const double half_h = 0.5 * double(viewport[3]);
-        return { half_w * ndc.x() + double(viewport[0]) + half_w, half_h * ndc.y() + double(viewport[1]) + half_h };
+    static Vec2d ndc_to_ss(const Vec3d& ndc, const std::array<int, GLViewportComponents>& viewport) {
+        const double half_w = 0.5 * double(viewport[ViewportWidth]);
+        const double half_h = 0.5 * double(viewport[ViewportHeight]);
+        return { half_w * ndc.x() + double(viewport[ViewportX]) + half_w, half_h * ndc.y() + double(viewport[ViewportY]) + half_h };
     };
 
     static Vec4d model_to_clip(const Vec3d& model, const Transform3d& world_matrix, const Matrix4d& projection_view_matrix) {
@@ -242,33 +242,33 @@ public:
         return clip_to_ndc(world_to_clip(model_to_world(model, world_matrix), projection_view_matrix));
     }
 
-    static Vec2d model_to_ss(const Vec3d& model, const Transform3d& world_matrix, const Matrix4d& projection_view_matrix, const std::array<int, 4>& viewport) {
+    static Vec2d model_to_ss(const Vec3d& model, const Transform3d& world_matrix, const Matrix4d& projection_view_matrix, const std::array<int, GLViewportComponents>& viewport) {
         return ndc_to_ss(clip_to_ndc(world_to_clip(model_to_world(model, world_matrix), projection_view_matrix)), viewport);
     }
 
-    static Vec2d world_to_ss(const Vec3d& world, const Matrix4d& projection_view_matrix, const std::array<int, 4>& viewport) {
+    static Vec2d world_to_ss(const Vec3d& world, const Matrix4d& projection_view_matrix, const std::array<int, GLViewportComponents>& viewport) {
         return ndc_to_ss(clip_to_ndc(world_to_clip(world, projection_view_matrix)), viewport);
     }
 
-    static const Matrix4d& ndc_to_ss_matrix(const std::array<int, 4>& viewport) {
+    static const Matrix4d& ndc_to_ss_matrix(const std::array<int, GLViewportComponents>& viewport) {
         update(viewport);
         return s_cache.ndc_to_ss_matrix;
     }
 
-    static const Transform3d ndc_to_ss_matrix_inverse(const std::array<int, 4>& viewport) {
+    static const Transform3d ndc_to_ss_matrix_inverse(const std::array<int, GLViewportComponents>& viewport) {
         update(viewport);
         return s_cache.ndc_to_ss_matrix_inverse;
     }
 
 private:
-    static void update(const std::array<int, 4>& viewport) {
+    static void update(const std::array<int, GLViewportComponents>& viewport) {
         if (s_cache.viewport == viewport)
             return;
 
-        const double half_w = 0.5 * double(viewport[2]);
-        const double half_h = 0.5 * double(viewport[3]);
-        s_cache.ndc_to_ss_matrix << half_w, 0.0, 0.0, double(viewport[0]) + half_w,
-            0.0, half_h, 0.0, double(viewport[1]) + half_h,
+        const double half_w = 0.5 * double(viewport[ViewportWidth]);
+        const double half_h = 0.5 * double(viewport[ViewportHeight]);
+        s_cache.ndc_to_ss_matrix << half_w, 0.0, 0.0, double(viewport[ViewportX]) + half_w,
+            0.0, half_h, 0.0, double(viewport[ViewportY]) + half_h,
             0.0, 0.0, 1.0, 0.0,
             0.0, 0.0, 0.0, 1.0;
 
@@ -1144,7 +1144,7 @@ void GLGizmoMeasure::render_dimensioning()
 
         const Camera& camera = wxGetApp().plater()->get_camera();
         const Matrix4d projection_view_matrix = camera.get_projection_matrix().matrix() * camera.get_view_matrix().matrix();
-        const std::array<int, 4>& viewport = camera.get_viewport();
+        const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
 
         // screen coordinates
         const Vec2d v1ss = TransformHelper::world_to_ss(v1, projection_view_matrix, viewport);
@@ -1178,8 +1178,8 @@ void GLGizmoMeasure::render_dimensioning()
 
             shader->start_using();
             shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, Transform3d::Identity());
-            const std::array<int, 4>& viewport = camera.get_viewport();
-            shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+            const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
+            shader->set_uniform("viewport_size", Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
             shader->set_uniform("width", 1.0f);
             shader->set_uniform("gap_size", 0.0f);
         }
@@ -1228,7 +1228,7 @@ void GLGizmoMeasure::render_dimensioning()
         static double edit_value = 0.0;
 
         const Vec2d label_position = 0.5 * (v1ss + v2ss);
-        m_imgui->set_next_window_pos(label_position.x(), viewport[3] - label_position.y(), ImGuiCond_Always, 0.0f, 1.0f);
+        m_imgui->set_next_window_pos(label_position.x(), viewport[ViewportHeight] - label_position.y(), ImGuiCond_Always, 0.0f, 1.0f);
         m_imgui->set_next_window_bg_alpha(0.0f);
 
         if (!m_editing_distance) {
@@ -1395,7 +1395,7 @@ void GLGizmoMeasure::render_dimensioning()
         if (on_e1_side || on_e2_side) {
             const Camera& camera = wxGetApp().plater()->get_camera();
             const Matrix4d projection_view_matrix = camera.get_projection_matrix().matrix() * camera.get_view_matrix().matrix();
-            const std::array<int, 4>& viewport = camera.get_viewport();
+            const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
             const Transform3d ss_to_ndc_matrix = TransformHelper::ndc_to_ss_matrix_inverse(viewport);
 
             const Vec2d v_projss = TransformHelper::world_to_ss(v_proj, projection_view_matrix, viewport);
@@ -1472,8 +1472,8 @@ void GLGizmoMeasure::render_dimensioning()
 
             shader->start_using();
             shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, Transform3d::Identity());
-            const std::array<int, 4>& viewport = camera.get_viewport();
-            shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+            const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
+            shader->set_uniform("viewport_size", Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
             shader->set_uniform("width", 1.0f);
             shader->set_uniform("gap_size", 0.0f);
         }
@@ -1546,11 +1546,11 @@ void GLGizmoMeasure::render_dimensioning()
         const Vec3d label_position_world = Geometry::translation_transform(center) * (draw_radius * (Eigen::Quaternion<double>(Eigen::AngleAxisd(step * 0.5 * double(resolution), normal)) * e1_unit));
 
         // label screen coordinates
-        const std::array<int, 4>& viewport = camera.get_viewport();
+        const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
         const Vec2d label_position_ss = TransformHelper::world_to_ss(label_position_world,
             camera.get_projection_matrix().matrix() * camera.get_view_matrix().matrix(), viewport);
 
-        m_imgui->set_next_window_pos(label_position_ss.x(), viewport[3] - label_position_ss.y(), ImGuiCond_Always, 0.0f, 1.0f);
+        m_imgui->set_next_window_pos(label_position_ss.x(), viewport[ViewportHeight] - label_position_ss.y(), ImGuiCond_Always, 0.0f, 1.0f);
         m_imgui->set_next_window_bg_alpha(0.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
         m_imgui->begin(wxString("##angle"), ImGuiWindowFlags_NoMouseInputs | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove);

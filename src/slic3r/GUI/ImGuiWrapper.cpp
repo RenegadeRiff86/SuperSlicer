@@ -35,6 +35,7 @@
 #include "libslic3r/Color.hpp"
 
 #include "3DScene.hpp"
+#include "Camera.hpp"   // GLViewportComponent - the x/y/width/height layout of a GL viewport
 #include "GUI.hpp"
 #include "GUI_App.hpp"
 #include "I18N.hpp"
@@ -2166,7 +2167,7 @@ void ImGuiWrapper::render_draw_data(ImDrawData *draw_data)
     if (last_enable_depth_test) glsafe(::glEnable(GL_DEPTH_TEST)); else glsafe(::glDisable(GL_DEPTH_TEST));
     if (last_enable_stencil_test) glsafe(::glEnable(GL_STENCIL_TEST)); else glsafe(::glDisable(GL_STENCIL_TEST));
     if (last_enable_scissor_test) glsafe(::glEnable(GL_SCISSOR_TEST)); else glsafe(::glDisable(GL_SCISSOR_TEST));
-    glsafe(::glViewport(last_viewport[0], last_viewport[1], (GLsizei)last_viewport[2], (GLsizei)last_viewport[3]));
+    glsafe(::glViewport(last_viewport[ViewportX], last_viewport[ViewportY], (GLsizei)last_viewport[ViewportWidth], (GLsizei)last_viewport[ViewportHeight]));
     glsafe(::glScissor(last_scissor_box[0], last_scissor_box[1], (GLsizei)last_scissor_box[2], (GLsizei)last_scissor_box[3]));
 #else
     // Restore modified state
@@ -2175,7 +2176,7 @@ void ImGuiWrapper::render_draw_data(ImDrawData *draw_data)
     glsafe(::glPopAttrib());
     glsafe(::glPolygonMode(GL_FRONT, (GLenum)last_polygon_mode[0]);
     glsafe(::glPolygonMode(GL_BACK, (GLenum)last_polygon_mode[1])));
-    glsafe(::glViewport(last_viewport[0], last_viewport[1], (GLsizei)last_viewport[2], (GLsizei)last_viewport[3]));
+    glsafe(::glViewport(last_viewport[ViewportX], last_viewport[ViewportY], (GLsizei)last_viewport[ViewportWidth], (GLsizei)last_viewport[ViewportHeight]));
     glsafe(::glScissor(last_scissor_box[0], last_scissor_box[1], (GLsizei)last_scissor_box[2], (GLsizei)last_scissor_box[3]));
 #endif // ENABLE_GL_CORE_PROFILE || ENABLE_OPENGL_ES
 

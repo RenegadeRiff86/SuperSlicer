@@ -193,8 +193,8 @@ void GLGizmoScale3D::on_render()
             shader->set_uniform(kViewModelMatrixUniform, camera.get_view_matrix() * m_grabbers_transform);
             shader->set_uniform(kProjectionMatrixUniform, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
-            const std::array<int, 4>& viewport = camera.get_viewport();
-            shader->set_uniform(kViewportSizeUniform, Vec2d(double(viewport[2]), double(viewport[3])));
+            const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
+            shader->set_uniform(kViewportSizeUniform, Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
             shader->set_uniform("width", 0.25f);
             shader->set_uniform(kGapSizeUniform, 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
@@ -227,8 +227,8 @@ void GLGizmoScale3D::on_render()
             shader->set_uniform(kViewModelMatrixUniform, camera.get_view_matrix() * m_grabbers_transform);
             shader->set_uniform(kProjectionMatrixUniform, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
-            const std::array<int, 4>& viewport = camera.get_viewport();
-            shader->set_uniform(kViewportSizeUniform, Vec2d(double(viewport[2]), double(viewport[3])));
+            const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
+            shader->set_uniform(kViewportSizeUniform, Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
             shader->set_uniform("width", 0.25f);
             shader->set_uniform(kGapSizeUniform, 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
@@ -258,8 +258,8 @@ void GLGizmoScale3D::on_render()
             shader->set_uniform(kViewModelMatrixUniform, camera.get_view_matrix() * m_grabbers_transform);
             shader->set_uniform(kProjectionMatrixUniform, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
-            const std::array<int, 4>& viewport = camera.get_viewport();
-            shader->set_uniform(kViewportSizeUniform, Vec2d(double(viewport[2]), double(viewport[3])));
+            const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
+            shader->set_uniform(kViewportSizeUniform, Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
             shader->set_uniform("width", 0.25f);
             shader->set_uniform(kGapSizeUniform, 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
@@ -289,8 +289,8 @@ void GLGizmoScale3D::on_render()
             shader->set_uniform(kViewModelMatrixUniform, camera.get_view_matrix() * m_grabbers_transform);
             shader->set_uniform(kProjectionMatrixUniform, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
-            const std::array<int, 4>& viewport = camera.get_viewport();
-            shader->set_uniform(kViewportSizeUniform, Vec2d(double(viewport[2]), double(viewport[3])));
+            const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
+            shader->set_uniform(kViewportSizeUniform, Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
             shader->set_uniform("width", 0.25f);
             shader->set_uniform(kGapSizeUniform, 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
@@ -320,8 +320,8 @@ void GLGizmoScale3D::on_render()
             shader->set_uniform(kViewModelMatrixUniform, camera.get_view_matrix() * m_grabbers_transform);
             shader->set_uniform(kProjectionMatrixUniform, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
-            const std::array<int, 4>& viewport = camera.get_viewport();
-            shader->set_uniform(kViewportSizeUniform, Vec2d(double(viewport[2]), double(viewport[3])));
+            const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
+            shader->set_uniform(kViewportSizeUniform, Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
             shader->set_uniform("width", 0.25f);
             shader->set_uniform(kGapSizeUniform, 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE

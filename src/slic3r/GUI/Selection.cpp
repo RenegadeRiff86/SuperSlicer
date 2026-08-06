@@ -953,7 +953,7 @@ BoundingBoxf Selection::get_screen_space_bounding_box()
 
         const Camera& camera = wxGetApp().plater()->get_camera();
         const Matrix4d projection_view_matrix = camera.get_projection_matrix().matrix() * camera.get_view_matrix().matrix();
-        const std::array<int, 4>& viewport = camera.get_viewport();
+        const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
 
         const double half_w = 0.5 * double(viewport[ViewportWidth]);
         const double h = double(viewport[ViewportHeight]);
@@ -2344,7 +2344,7 @@ void Selection::render_bounding_box(const BoundingBoxf3& box, const Transform3d&
     shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix() * trafo);
     shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
-    const std::array<int, 4>& viewport = camera.get_viewport();
+    const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
     shader->set_uniform("viewport_size", Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
     shader->set_uniform("width", 1.5f);
     shader->set_uniform("gap_size", 0.0f);

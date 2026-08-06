@@ -30,7 +30,7 @@ Points CameraUtils::project(const Camera &            camera,
 
     Points result;
     result.reserve(points.size());
-    int window_height = viewport[3];
+    int window_height = viewport[ViewportHeight];
 
     // convert to points --> loss precision
     for (int i = 0; i < projections.rows(); ++i) {

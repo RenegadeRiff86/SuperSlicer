@@ -649,8 +649,8 @@ void GLCanvas3D::LayersEditing::render_profile(const GLCanvas3D& canvas)
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, Transform3d::Identity());
         shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, Transform3d::Identity());
 #if ENABLE_GL_CORE_PROFILE
-        const std::array<int, 4>& viewport = wxGetApp().plater()->get_camera().get_viewport();
-        shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+        const std::array<int, GLViewportComponents>& viewport = wxGetApp().plater()->get_camera().get_viewport();
+        shader->set_uniform("viewport_size", Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
         shader->set_uniform("width", 0.25f);
         shader->set_uniform("gap_size", 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
@@ -857,7 +857,7 @@ void GLCanvas3D::Labels::render(const std::vector<const ModelInstance*>& sorted_
 
     Transform3d world_to_eye = camera.get_view_matrix();
     Transform3d world_to_screen = camera.get_projection_matrix() * world_to_eye;
-    const std::array<int, 4>& viewport = camera.get_viewport();
+    const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
 
     struct Owner
     {
@@ -937,14 +937,14 @@ void GLCanvas3D::Labels::render(const std::vector<const ModelInstance*>& sorted_
         float x = 0.0f;
         float y = 0.0f;
         if (camera.get_type() == Camera::EType::Perspective) {
-            x = (0.5f + 0.001f * 0.5f * static_cast<float>(screen_box_center(0))) * viewport[2];
-            y = (0.5f - 0.001f * 0.5f * static_cast<float>(screen_box_center(1))) * viewport[3];
+            x = (0.5f + 0.001f * 0.5f * static_cast<float>(screen_box_center(0))) * viewport[ViewportWidth];
+            y = (0.5f - 0.001f * 0.5f * static_cast<float>(screen_box_center(1))) * viewport[ViewportHeight];
         } else {
-            x = (0.5f + 0.5f * static_cast<float>(screen_box_center(0))) * viewport[2];
-            y = (0.5f - 0.5f * static_cast<float>(screen_box_center(1))) * viewport[3];
+            x = (0.5f + 0.5f * static_cast<float>(screen_box_center(0))) * viewport[ViewportWidth];
+            y = (0.5f - 0.5f * static_cast<float>(screen_box_center(1))) * viewport[ViewportHeight];
         }
 
-        if (x < 0.0f || viewport[2] < x || y < 0.0f || viewport[3] < y)
+        if (x < 0.0f || viewport[ViewportWidth] < x || y < 0.0f || viewport[ViewportHeight] < y)
             continue;
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, owner.selected ? 3.0f : 1.5f);
@@ -1161,8 +1161,8 @@ void GLCanvas3D::SequentialPrintClearance::render()
 
         shader->start_using();
         shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
-        const std::array<int, 4>& viewport = camera.get_viewport();
-        shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+        const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
+        shader->set_uniform("viewport_size", Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
         shader->set_uniform("width", 1.0f);
         shader->set_uniform("gap_size", 0.0f);
     }
@@ -6458,19 +6458,19 @@ void GLCanvas3D::_rectangular_selection_picking_pass()
         const Camera* camera = &main_camera;
         if (use_framebuffer) {
             // setup a camera which covers only the selection rectangle
-            const std::array<int, 4>& viewport = camera->get_viewport();
+            const std::array<int, GLViewportComponents>& viewport = camera->get_viewport();
             const double near_left   = camera->get_near_left();
             const double near_bottom = camera->get_near_bottom();
             const double near_width  = camera->get_near_width();
             const double near_height = camera->get_near_height();
 
-            const double ratio_x = near_width / double(viewport[2]);
-            const double ratio_y = near_height / double(viewport[3]);
+            const double ratio_x = near_width / double(viewport[ViewportWidth]);
+            const double ratio_y = near_height / double(viewport[ViewportHeight]);
 
             const double rect_near_left   = near_left + double(m_rectangle_selection.get_left()) * ratio_x;
-            const double rect_near_bottom = near_bottom + (double(viewport[3]) - double(m_rectangle_selection.get_bottom())) * ratio_y;
+            const double rect_near_bottom = near_bottom + (double(viewport[ViewportHeight]) - double(m_rectangle_selection.get_bottom())) * ratio_y;
             double rect_near_right = near_left + double(m_rectangle_selection.get_right()) * ratio_x;
-            double rect_near_top   = near_bottom + (double(viewport[3]) - double(m_rectangle_selection.get_top())) * ratio_y;
+            double rect_near_top   = near_bottom + (double(viewport[ViewportHeight]) - double(m_rectangle_selection.get_top())) * ratio_y;
 
             if (rect_near_left == rect_near_right)
                 rect_near_right = rect_near_left + ratio_x;
@@ -7117,8 +7117,8 @@ void GLCanvas3D::_render_camera_target()
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix() * Geometry::translation_transform(m_camera_target.target));
         shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
-        const std::array<int, 4>& viewport = camera.get_viewport();
-        shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+        const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
+        shader->set_uniform("viewport_size", Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
         shader->set_uniform("width", 0.5f);
         shader->set_uniform("gap_size", 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
@@ -7379,7 +7379,7 @@ Vec3d GLCanvas3D::_mouse_to_3d(const Point& mouse_pos, float* z)
         const Camera& camera = wxGetApp().plater()->get_camera();
         const Vec4i32 viewport(camera.get_viewport().data());
         Vec3d out;
-        igl::unproject(Vec3d(mouse_pos.x(), viewport[3] - mouse_pos.y(), *z), camera.get_view_matrix().matrix(), camera.get_projection_matrix().matrix(), viewport, out);
+        igl::unproject(Vec3d(mouse_pos.x(), viewport[ViewportHeight] - mouse_pos.y(), *z), camera.get_view_matrix().matrix(), camera.get_projection_matrix().matrix(), viewport, out);
         return out;
     }
 }

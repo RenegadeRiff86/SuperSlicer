@@ -169,8 +169,8 @@ namespace GUI {
             shader->set_uniform("gap_size", 0.0075f);
 #elif ENABLE_GL_CORE_PROFILE
             if (core_profile) {
-            const std::array<int, 4>& viewport = wxGetApp().plater()->get_camera().get_viewport();
-            shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+            const std::array<int, GLViewportComponents>& viewport = wxGetApp().plater()->get_camera().get_viewport();
+            shader->set_uniform("viewport_size", Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
             shader->set_uniform("width", 0.25f);
             shader->set_uniform("dash_size", 0.01f);
             shader->set_uniform("gap_size", 0.0075f);

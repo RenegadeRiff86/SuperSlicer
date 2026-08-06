@@ -181,8 +181,8 @@ void GLVolume::NonManifoldEdges::render()
     shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix() * m_parent.world_matrix());
     shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
-    const std::array<int, 4>& viewport = camera.get_viewport();
-    shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3]))); // GL viewport is x, y, width, height
+    const std::array<int, GUI::GLViewportComponents>& viewport = camera.get_viewport();
+    shader->set_uniform("viewport_size", Vec2d(double(viewport[GUI::ViewportWidth]), double(viewport[GUI::ViewportHeight])));
     shader->set_uniform("width", 0.5f);
     shader->set_uniform("gap_size", 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE

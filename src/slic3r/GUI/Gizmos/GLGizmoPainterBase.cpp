@@ -243,8 +243,8 @@ void GLGizmoPainterBase::render_cursor_circle()
 #endif // ENABLE_GL_CORE_PROFILE || ENABLE_OPENGL_ES
         shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, Transform3d::Identity());
 #if ENABLE_GL_CORE_PROFILE
-        const std::array<int, 4>& viewport = wxGetApp().plater()->get_camera().get_viewport();
-        shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+        const std::array<int, GLViewportComponents>& viewport = wxGetApp().plater()->get_camera().get_viewport();
+        shader->set_uniform("viewport_size", Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
         shader->set_uniform("width", 0.25f);
         shader->set_uniform("gap_size", 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE

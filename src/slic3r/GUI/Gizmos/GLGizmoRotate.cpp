@@ -172,8 +172,8 @@ void GLGizmoRotate::on_render()
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_model_matrix);
         shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
-        const std::array<int, 4>& viewport = camera.get_viewport();
-        shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+        const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
+        shader->set_uniform("viewport_size", Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
         shader->set_uniform("width", 0.25f);
         shader->set_uniform("gap_size", 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE

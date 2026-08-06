@@ -184,7 +184,7 @@ void Camera::set_viewport(int x, int y, unsigned int w, unsigned int h)
 
 void Camera::apply_viewport() const
 {
-    glsafe(::glViewport(m_viewport[0], m_viewport[1], m_viewport[2], m_viewport[3]));
+    glsafe(::glViewport(m_viewport[ViewportX], m_viewport[ViewportY], m_viewport[ViewportWidth], m_viewport[ViewportHeight]));
 }
 
 void Camera::apply_projection(const BoundingBoxf3& box, double near_z, double far_z)
@@ -200,8 +200,8 @@ void Camera::apply_projection(const BoundingBoxf3& box, double near_z, double fa
     if (far_z > 0.0)
         m_frustrum_zs.second = std::max(m_frustrum_zs.second, far_z);
 
-    w = 0.5 * static_cast<double>(m_viewport[2]);
-    h = 0.5 * static_cast<double>(m_viewport[3]);
+    w = 0.5 * static_cast<double>(m_viewport[ViewportWidth]);
+    h = 0.5 * static_cast<double>(m_viewport[ViewportHeight]);
 
     const double inv_zoom = get_inv_zoom();
     w *= inv_zoom;
@@ -461,7 +461,7 @@ double Camera::calc_zoom_to_bounding_box_factor(const BoundingBoxf3& box, double
     dx *= margin_factor;
     dy *= margin_factor;
 
-    return std::min(static_cast<double>(m_viewport[2]) / dx, static_cast<double>(m_viewport[3]) / dy);
+    return std::min(static_cast<double>(m_viewport[ViewportWidth]) / dx, static_cast<double>(m_viewport[ViewportHeight]) / dy);
 }
 
 double Camera::calc_zoom_to_volumes_factor(const std::vector<GLVolume*>& volumes, Vec3d& center, double margin_factor) const
@@ -519,7 +519,7 @@ double Camera::calc_zoom_to_volumes_factor(const std::vector<GLVolume*>& volumes
     if (dx <= 0.0 || dy <= 0.0)
         return -1.0f;
 
-    return std::min(static_cast<double>(m_viewport[2]) / dx, static_cast<double>(m_viewport[3]) / dy);
+    return std::min(static_cast<double>(m_viewport[ViewportWidth]) / dx, static_cast<double>(m_viewport[ViewportHeight]) / dy);
 }
 
 void Camera::set_distance(double distance)
