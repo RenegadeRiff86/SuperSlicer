@@ -3168,6 +3168,40 @@ static void drop_non_gracious_areas(
             append(support_layer_storage[pair.first], std::move(pair.second));
 }
 
+// Wipe tower footprint in object space (union over instances). Supports run before the real
+// wipe tower is generated, so this uses the config-based estimate from wipe_tower_data().
+// Same local-corner convention as ConflictChecker::getFakeExtrusionPathsFromWipeTower.
+static Polygons estimated_wipe_tower_polygons_in_object_space(const PrintObject &print_object)
+{
+    const Print *print = print_object.print();
+    if (print == nullptr || ! print->has_wipe_tower())
+        return {};
+    const WipeTowerData &wtd = print->wipe_tower_data();
+    if (wtd.width <= 0.f || wtd.depth <= 0.f)
+        return {};
+
+    const coord_t brim = scale_t(wtd.brim_width);
+    const coord_t w    = scale_t(wtd.width);
+    const coord_t d    = scale_t(wtd.depth);
+    Polygon tower{
+        Point{ -brim, -brim },
+        Point{  w + brim, -brim },
+        Point{  w + brim,  d + brim },
+        Point{ -brim,      d + brim }
+    };
+    tower.rotate(Geometry::deg2rad(wtd.rotation_angle));
+    tower.translate(Point{ scale_t(wtd.position.x()), scale_t(wtd.position.y()) });
+
+    Polygons out;
+    out.reserve(print_object.instances().size());
+    for (const PrintInstance &inst : print_object.instances()) {
+        Polygon p = tower;
+        p.translate(-inst.shift);
+        out.emplace_back(std::move(p));
+    }
+    return union_(out);
+}
+
 /*!
  * \brief Generates Support Floor, ensures Support Roof can not cut of branches, and saves the branches as support to storage
  *
@@ -3195,6 +3229,8 @@ static void finalize_interface_and_support_areas(
     assert(std::all_of(intermediate_layers.begin(), intermediate_layers.end(), [](auto* p) { return p == nullptr; }));
 
     InterfacePreference interface_pref = config.interface_preference; // InterfacePreference::InterfaceAreaOverwritesSupport;
+    // Precompute once: dense support floors must not form under the wipe tower.
+    const Polygons wipe_tower_object_space = estimated_wipe_tower_polygons_in_object_space(print_object);
 
 #ifdef SLIC3R_TREESUPPORTS_PROGRESS
     double progress_total = TREE_PROGRESS_PRECALC_AVO + TREE_PROGRESS_PRECALC_COLL + TREE_PROGRESS_GENERATE_NODES + TREE_PROGRESS_AREA_CALC + TREE_PROGRESS_GENERATE_BRANCH_AREAS + TREE_PROGRESS_SMOOTH_BRANCH_AREAS;
@@ -3285,13 +3321,14 @@ static void finalize_interface_and_support_areas(
                 while (layers_below <= config.support_bottom_layers) {
                     // one sample at 0 layers below, another at config.support_bottom_layers. In-between samples at config.performance_interface_skip_layers distance from each other.
                     const size_t sample_layer = static_cast<size_t>(std::max(0, (static_cast<int>(layer_idx) - static_cast<int>(layers_below)) - static_cast<int>(config.z_distance_bottom_layers)));
-                    //FIXME subtract the wipe tower 
                     append(floor_layer, intersection(layer_outset, overhangs[sample_layer]));
                     if (layers_below < config.support_bottom_layers)
                         layers_below = std::min(layers_below + 1, config.support_bottom_layers);
                     else
                         break;
                 }
+                if (! wipe_tower_object_space.empty() && ! floor_layer.empty())
+                    floor_layer = diff(floor_layer, wipe_tower_object_space);
                 if (! floor_layer.empty()) {
                     if (support_bottom == nullptr)
                         support_bottom = &layer_allocate(layer_storage, SupporLayerType::BottomContact, print_object.slicing_parameters(), config, layer_idx);
