@@ -59,6 +59,15 @@ int FileDialog::ShowModal()
         // Answering instead of showing also skips wx's extension fixup and its
         // overwrite prompt. That is deliberate: the armed path is used exactly as
         // given, so a test gets the file it named rather than one wx adjusted.
+        //
+        // The extra control is not optional in the same way. wx builds it inside
+        // ShowModal(), so answering without showing would leave GetExtraControl()
+        // null - and callers read their options straight off it without checking
+        // (Plater::export_platter() does, and dereferencing null crashed the app).
+        // Build it here so an intercepted dialog hands back the same panel, holding
+        // its defaults, that a real one would.
+        if (HasExtraControlCreator() && GetExtraControl() == nullptr)
+            CreateExtraControl();
         m_response         = std::move(*response);
         m_intercepted      = true;
         record.intercepted = true;

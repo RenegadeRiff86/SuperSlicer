@@ -33,6 +33,8 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import time
+import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -53,6 +55,12 @@ from automation_client import (  # noqa: E402  (path set up above)
 MENU_PREFIX = "superslicer.menu."
 OPTION_PREFIX = "superslicer.option."
 TAB_PREFIX = "superslicer.tab."
+
+# "Export plate as ..." picks its format from the file dialog's FILTER INDEX, not from the file
+# name, so driving it means arming the index. This order is the wildcard Plater::export_platter()
+# builds, and it must stay in step with ExportPlatterFilter in Plater.cpp.
+EXPORT_PLATE_MENU = "file.export.export_plate"
+EXPORT_PLATE_FILTERS = {"stl": 0, "obj": 1, "3mf": 2, "amf": 3}
 
 
 def describe(element: dict) -> str:
@@ -282,6 +290,93 @@ def command_quit(client: ApiClient, args: argparse.Namespace) -> int:
 
 def command_export(client: ApiClient, args: argparse.Namespace) -> None:
     print(client.export_gcode(args.path))
+
+
+def sniff_mesh_format(path: Path) -> str:
+    """Name the format a file actually holds, from its bytes rather than its extension.
+
+    Plate export chooses the format by filter index, so a mismatch there writes a perfectly
+    well-formed file of the wrong format under the right name. Only the content catches that.
+    """
+    size = path.stat().st_size
+    with path.open("rb") as handle:
+        head = handle.read(512)
+
+    if head[:4] == b"PK\x03\x04":
+        # 3MF and AMF are both zip containers; only the entries tell them apart.
+        with zipfile.ZipFile(path) as archive:
+            names = archive.namelist()
+        if any(name.endswith("3dmodel.model") for name in names):
+            return "3mf"
+        if any(name.lower().endswith(".amf") for name in names):
+            return "amf"
+        return "zip:" + ",".join(names[:3])
+
+    # Test the binary layout before the "solid" prefix: a binary STL's 80-byte header is free
+    # text and writers do put the word "solid" in it, which is the classic misdetection.
+    if size >= 84 and size == 84 + 50 * int.from_bytes(head[80:84], "little"):
+        return "stl-binary"
+
+    text = head.decode("ascii", "replace")
+    if text.lstrip().lower().startswith("solid"):
+        return "stl-ascii"
+    if any(line.startswith(("v ", "vn ", "f ", "o ", "mtllib ")) for line in text.splitlines()):
+        return "obj"
+    return "unknown"
+
+
+def command_export_plate(client: ApiClient, args: argparse.Namespace) -> int:
+    """Drive File > Export > Export plate as STL/OBJ/3MF/AMF and report what was written.
+
+    The answer has to be armed before the menu item runs, because ShowModal() blocks the very
+    thread that would answer it. store_amf() also rewrites the name to '.zip.amf', so the file
+    that appears is not always the one asked for - hence the search for what actually changed.
+    """
+    requested = Path(args.path).expanduser().resolve()
+    # Compare against a stamp taken first, so a stale file left by an earlier run is not
+    # mistaken for this one's output. Nothing is deleted; the export overwrites in place.
+    candidates = [requested, requested.with_name(requested.stem + ".zip.amf")]
+    before = {path: (path.stat().st_mtime_ns, path.stat().st_size) if path.exists() else None
+              for path in candidates}
+
+    client.clear_file_dialogs()
+    client.arm_file_dialog(
+        answer="ok", paths=[requested], filter_index=EXPORT_PLATE_FILTERS[args.format]
+    )
+    client.invoke(MENU_PREFIX + EXPORT_PLATE_MENU)
+    settle(client, args)
+
+    # Invoking a menu item only queues the command, so the export is still running when the
+    # call returns. Wait on the file itself - and then on its size holding still, since a
+    # half-written archive sniffs as garbage rather than as the format it will end up being.
+    def stamp(path: Path) -> tuple[int, int] | None:
+        return (path.stat().st_mtime_ns, path.stat().st_size) if path.exists() else None
+
+    deadline = time.monotonic() + args.timeout
+    written: list[Path] = []
+    while time.monotonic() < deadline:
+        changed = [path for path in candidates if stamp(path) != before[path]]
+        if changed:
+            settled = {path: stamp(path) for path in changed}
+            time.sleep(0.1)
+            if all(stamp(path) == settled[path] for path in changed):
+                written = changed
+                break
+        else:
+            time.sleep(0.1)
+
+    if not written:
+        print(f"asked for {args.format}: nothing was written to {requested}")
+        return 1
+    matched = True
+    for path in written:
+        found = sniff_mesh_format(path)
+        # "stl-ascii" and "stl-binary" are both stl; the rest of the names have no variants.
+        ok = found.split("-")[0] == args.format
+        matched = matched and ok
+        print(f"asked for {args.format}: wrote {found} ({path.stat().st_size} bytes)"
+              f" to {path}  [{'ok' if ok else 'MISMATCH'}]")
+    return 0 if matched else 1
 
 
 def command_new_project(client: ApiClient, args: argparse.Namespace) -> None:
@@ -541,6 +636,18 @@ def add_workflow_commands(commands) -> None:
     export_parser = commands.add_parser("export", help="export G-code and wait")
     export_parser.add_argument("path")
     export_parser.set_defaults(handler=command_export)
+
+    export_plate_parser = commands.add_parser(
+        "export-plate",
+        help="export the plate as a mesh and report the format actually written",
+    )
+    export_plate_parser.add_argument("path")
+    export_plate_parser.add_argument(
+        "--format", choices=tuple(EXPORT_PLATE_FILTERS), required=True,
+        help="which file dialog filter to pick; the format follows the filter, not the name",
+    )
+    add_wait_flags(export_plate_parser)
+    export_plate_parser.set_defaults(handler=command_export_plate)
 
     new_project_parser = commands.add_parser("new-project", help="reset to an empty project")
     new_project_parser.add_argument("name", nargs="?", default="")
