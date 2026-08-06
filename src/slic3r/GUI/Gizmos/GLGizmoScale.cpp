@@ -23,6 +23,9 @@ constexpr char kProjectionMatrixUniform[]    = "projection_matrix";
 constexpr char kViewportSizeUniform[]        = "viewport_size";
 constexpr char kGapSizeUniform[]             = "gap_size";
 
+// Decimal places shown for a scale percentage in the gizmo's tooltip.
+constexpr int kScaleTooltipPrecision = 4;
+
 } // namespace
 
 const double GLGizmoScale3D::Offset = 5.0;
@@ -35,40 +38,49 @@ GLGizmoScale3D::GLGizmoScale3D(GLCanvas3D& parent, const std::string& icon_filen
     , m_drag_color(DEFAULT_DRAG_COLOR)
     , m_highlight_color(DEFAULT_HIGHLIGHT_COLOR)
 {
-    m_grabber_connections[0].grabber_indices = { 0, 1 };
-    m_grabber_connections[1].grabber_indices = { 2, 3 };
-    m_grabber_connections[2].grabber_indices = { 4, 5 };
-    m_grabber_connections[3].grabber_indices = { 6, 7 };
-    m_grabber_connections[4].grabber_indices = { 7, 8 }; 
-    m_grabber_connections[5].grabber_indices = { 8, 9 };
-    m_grabber_connections[6].grabber_indices = { 9, 6 };
+    m_grabber_connections[ConnectionXAxis].grabber_indices      = { GrabberXMin, GrabberXMax };
+    m_grabber_connections[ConnectionYAxis].grabber_indices      = { GrabberYMin, GrabberYMax };
+    m_grabber_connections[ConnectionZAxis].grabber_indices      = { GrabberZMin, GrabberZMax };
+    // The square's sides, each joining the next pair of corners round the loop.
+    m_grabber_connections[ConnectionSquareYMin].grabber_indices = { GrabberCornerXMinYMin, GrabberCornerXMaxYMin };
+    m_grabber_connections[ConnectionSquareXMax].grabber_indices = { GrabberCornerXMaxYMin, GrabberCornerXMaxYMax };
+    m_grabber_connections[ConnectionSquareYMax].grabber_indices = { GrabberCornerXMaxYMax, GrabberCornerXMinYMax };
+    m_grabber_connections[ConnectionSquareXMin].grabber_indices = { GrabberCornerXMinYMax, GrabberCornerXMinYMin };
 }
 
 std::string GLGizmoScale3D::get_tooltip() const
 {
     const Vec3d scale = 100.0 * m_scale;
 
-    if (m_hover_id == 0 || m_hover_id == 1 || m_grabbers[0].dragging || m_grabbers[1].dragging)
-        return "X: " + format(scale.x(), 4) + "%";
-    else if (m_hover_id == 2 || m_hover_id == 3 || m_grabbers[2].dragging || m_grabbers[3].dragging)
-        return "Y: " + format(scale.y(), 4) + "%";
-    else if (m_hover_id == 4 || m_hover_id == 5 || m_grabbers[4].dragging || m_grabbers[5].dragging)
-        return "Z: " + format(scale.z(), 4) + "%";
-    else if (m_hover_id == 6 || m_hover_id == 7 || m_hover_id == 8 || m_hover_id == 9 || 
-        m_grabbers[6].dragging || m_grabbers[7].dragging || m_grabbers[8].dragging || m_grabbers[9].dragging)
+    if (m_hover_id == GrabberXMin || m_hover_id == GrabberXMax || m_grabbers[GrabberXMin].dragging || m_grabbers[GrabberXMax].dragging)
+        return "X: " + format(scale.x(), kScaleTooltipPrecision) + "%";
+    else if (m_hover_id == GrabberYMin || m_hover_id == GrabberYMax || m_grabbers[GrabberYMin].dragging || m_grabbers[GrabberYMax].dragging)
+        return "Y: " + format(scale.y(), kScaleTooltipPrecision) + "%";
+    else if (m_hover_id == GrabberZMin || m_hover_id == GrabberZMax || m_grabbers[GrabberZMin].dragging || m_grabbers[GrabberZMax].dragging)
+        return "Z: " + format(scale.z(), kScaleTooltipPrecision) + "%";
+    else if (m_hover_id >= GrabberFirstUniform ||
+        m_grabbers[GrabberCornerXMinYMin].dragging || m_grabbers[GrabberCornerXMaxYMin].dragging ||
+        m_grabbers[GrabberCornerXMaxYMax].dragging || m_grabbers[GrabberCornerXMinYMax].dragging)
     {
-        std::string tooltip = "X: " + format(scale.x(), 4) + "%\n";
-        tooltip += "Y: " + format(scale.y(), 4) + "%\n";
-        tooltip += "Z: " + format(scale.z(), 4) + "%";
+        std::string tooltip = "X: " + format(scale.x(), kScaleTooltipPrecision) + "%\n";
+        tooltip += "Y: " + format(scale.y(), kScaleTooltipPrecision) + "%\n";
+        tooltip += "Z: " + format(scale.z(), kScaleTooltipPrecision) + "%";
         return tooltip;
     }
     else
         return "";
 }
 
+// The grabber a constrained (Ctrl) drag holds still: the one opposite the one being dragged. For
+// an axis pair that is its partner; for a corner it is the diagonal, not either neighbour.
 static int constraint_id(int grabber_id)
 {
-  static const std::vector<int> id_map = { 1, 0, 3, 2, 5, 4, 8, 9, 6, 7 };
+  static const std::vector<int> id_map = {
+      GLGizmoScale3D::GrabberXMax,           GLGizmoScale3D::GrabberXMin,
+      GLGizmoScale3D::GrabberYMax,           GLGizmoScale3D::GrabberYMin,
+      GLGizmoScale3D::GrabberZMax,           GLGizmoScale3D::GrabberZMin,
+      GLGizmoScale3D::GrabberCornerXMaxYMax, GLGizmoScale3D::GrabberCornerXMinYMax,
+      GLGizmoScale3D::GrabberCornerXMinYMin, GLGizmoScale3D::GrabberCornerXMaxYMin };
   return (0 <= grabber_id && grabber_id < static_cast<int>(id_map.size())) ? id_map[grabber_id] : -1;
 }
 
@@ -107,7 +119,7 @@ bool GLGizmoScale3D::on_mouse(const wxMouseEvent &mouse_event)
 
 void GLGizmoScale3D::enable_ununiversal_scale(bool enable)
 {
-    for (unsigned int i = 0; i < 6; ++i)
+    for (int i = 0; i < GrabberFirstUniform; ++i)
         m_grabbers[i].enabled = enable;
 }
 
@@ -117,7 +129,7 @@ void GLGizmoScale3D::data_changed(bool is_serializing) {
 
 bool GLGizmoScale3D::on_init()
 {
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < GrabberCount; ++i) {
         m_grabbers.push_back(Grabber());
     }
 
@@ -155,13 +167,13 @@ void GLGizmoScale3D::on_stop_dragging()
 
 void GLGizmoScale3D::on_dragging(const UpdateData& data)
 {
-    if (m_hover_id == 0 || m_hover_id == 1)
+    if (m_hover_id == GrabberXMin || m_hover_id == GrabberXMax)
         do_scale_along_axis(X, data);
-    else if (m_hover_id == 2 || m_hover_id == 3)
+    else if (m_hover_id == GrabberYMin || m_hover_id == GrabberYMax)
         do_scale_along_axis(Y, data);
-    else if (m_hover_id == 4 || m_hover_id == 5)
+    else if (m_hover_id == GrabberZMin || m_hover_id == GrabberZMax)
         do_scale_along_axis(Z, data);
-    else if (m_hover_id >= 6)
+    else if (m_hover_id >= GrabberFirstUniform)
         do_scale_uniform(data);
 }
 
@@ -198,23 +210,23 @@ void GLGizmoScale3D::on_render()
             shader->set_uniform("width", 0.25f);
             shader->set_uniform(kGapSizeUniform, 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
-            if (m_grabbers[0].enabled && m_grabbers[1].enabled)
-                render_grabbers_connection(0, 1, m_grabbers[0].color);
-            if (m_grabbers[2].enabled && m_grabbers[3].enabled)
-                render_grabbers_connection(2, 3, m_grabbers[2].color);
-            if (m_grabbers[4].enabled && m_grabbers[5].enabled)
-                render_grabbers_connection(4, 5, m_grabbers[4].color);
-            render_grabbers_connection(6, 7, m_base_color);
-            render_grabbers_connection(7, 8, m_base_color);
-            render_grabbers_connection(8, 9, m_base_color);
-            render_grabbers_connection(9, 6, m_base_color);
+            if (m_grabbers[GrabberXMin].enabled && m_grabbers[GrabberXMax].enabled)
+                render_grabbers_connection(GrabberXMin, GrabberXMax, m_grabbers[GrabberXMin].color);
+            if (m_grabbers[GrabberYMin].enabled && m_grabbers[GrabberYMax].enabled)
+                render_grabbers_connection(GrabberYMin, GrabberYMax, m_grabbers[GrabberYMin].color);
+            if (m_grabbers[GrabberZMin].enabled && m_grabbers[GrabberZMax].enabled)
+                render_grabbers_connection(GrabberZMin, GrabberZMax, m_grabbers[GrabberZMin].color);
+            render_grabbers_connection(GrabberCornerXMinYMin, GrabberCornerXMaxYMin, m_base_color);
+            render_grabbers_connection(GrabberCornerXMaxYMin, GrabberCornerXMaxYMax, m_base_color);
+            render_grabbers_connection(GrabberCornerXMaxYMax, GrabberCornerXMinYMax, m_base_color);
+            render_grabbers_connection(GrabberCornerXMinYMax, GrabberCornerXMinYMin, m_base_color);
             shader->stop_using();
         }
 
         // draw grabbers
         render_grabbers(grabber_mean_size);
     }
-    else if ((m_hover_id == 0 || m_hover_id == 1) && m_grabbers[0].enabled && m_grabbers[1].enabled) {
+    else if ((m_hover_id == GrabberXMin || m_hover_id == GrabberXMax) && m_grabbers[GrabberXMin].enabled && m_grabbers[GrabberXMax].enabled) {
         // draw connections
 #if ENABLE_GL_CORE_PROFILE
         GLShaderProgram* shader = OpenGLManager::get_gl_info().is_core_profile() ? wxGetApp().get_shader(kDashedThickLinesShaderName) : wxGetApp().get_shader("flat");
@@ -232,7 +244,7 @@ void GLGizmoScale3D::on_render()
             shader->set_uniform("width", 0.25f);
             shader->set_uniform(kGapSizeUniform, 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
-            render_grabbers_connection(0, 1, m_grabbers[0].color);
+            render_grabbers_connection(GrabberXMin, GrabberXMax, m_grabbers[GrabberXMin].color);
             shader->stop_using();
         }
 
@@ -241,11 +253,11 @@ void GLGizmoScale3D::on_render()
         if (shader != nullptr) {
             shader->start_using();
             shader->set_uniform("emission_factor", 0.1f);
-            render_grabbers(0, 1, grabber_mean_size, true);
+            render_grabbers(GrabberXMin, GrabberXMax, grabber_mean_size, true);
             shader->stop_using();
         }
     }
-    else if ((m_hover_id == 2 || m_hover_id == 3) && m_grabbers[2].enabled && m_grabbers[3].enabled) {
+    else if ((m_hover_id == GrabberYMin || m_hover_id == GrabberYMax) && m_grabbers[GrabberYMin].enabled && m_grabbers[GrabberYMax].enabled) {
         // draw connections
 #if ENABLE_GL_CORE_PROFILE
         GLShaderProgram* shader = OpenGLManager::get_gl_info().is_core_profile() ? wxGetApp().get_shader(kDashedThickLinesShaderName) : wxGetApp().get_shader("flat");
@@ -263,7 +275,7 @@ void GLGizmoScale3D::on_render()
             shader->set_uniform("width", 0.25f);
             shader->set_uniform(kGapSizeUniform, 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
-            render_grabbers_connection(2, 3, m_grabbers[2].color);
+            render_grabbers_connection(GrabberYMin, GrabberYMax, m_grabbers[GrabberYMin].color);
             shader->stop_using();
         }
 
@@ -272,11 +284,11 @@ void GLGizmoScale3D::on_render()
         if (shader != nullptr) {
             shader->start_using();
             shader->set_uniform("emission_factor", 0.1f);
-            render_grabbers(2, 3, grabber_mean_size, true);
+            render_grabbers(GrabberYMin, GrabberYMax, grabber_mean_size, true);
             shader->stop_using();
         }
     }
-    else if ((m_hover_id == 4 || m_hover_id == 5) && m_grabbers[4].enabled && m_grabbers[5].enabled) {
+    else if ((m_hover_id == GrabberZMin || m_hover_id == GrabberZMax) && m_grabbers[GrabberZMin].enabled && m_grabbers[GrabberZMax].enabled) {
         // draw connections
 #if ENABLE_GL_CORE_PROFILE
         GLShaderProgram* shader = OpenGLManager::get_gl_info().is_core_profile() ? wxGetApp().get_shader(kDashedThickLinesShaderName) : wxGetApp().get_shader("flat");
@@ -294,7 +306,7 @@ void GLGizmoScale3D::on_render()
             shader->set_uniform("width", 0.25f);
             shader->set_uniform(kGapSizeUniform, 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
-            render_grabbers_connection(4, 5, m_grabbers[4].color);
+            render_grabbers_connection(GrabberZMin, GrabberZMax, m_grabbers[GrabberZMin].color);
             shader->stop_using();
         }
 
@@ -303,11 +315,11 @@ void GLGizmoScale3D::on_render()
         if (shader != nullptr) {
             shader->start_using();
             shader->set_uniform("emission_factor", 0.1f);
-            render_grabbers(4, 5, grabber_mean_size, true);
+            render_grabbers(GrabberZMin, GrabberZMax, grabber_mean_size, true);
             shader->stop_using();
         }
     }
-    else if (m_hover_id >= 6) {
+    else if (m_hover_id >= GrabberFirstUniform) {
         // draw connections
 #if ENABLE_GL_CORE_PROFILE
         GLShaderProgram* shader = OpenGLManager::get_gl_info().is_core_profile() ? wxGetApp().get_shader(kDashedThickLinesShaderName) : wxGetApp().get_shader("flat");
@@ -325,10 +337,10 @@ void GLGizmoScale3D::on_render()
             shader->set_uniform("width", 0.25f);
             shader->set_uniform(kGapSizeUniform, 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
-            render_grabbers_connection(6, 7, m_drag_color);
-            render_grabbers_connection(7, 8, m_drag_color);
-            render_grabbers_connection(8, 9, m_drag_color);
-            render_grabbers_connection(9, 6, m_drag_color);
+            render_grabbers_connection(GrabberCornerXMinYMin, GrabberCornerXMaxYMin, m_drag_color);
+            render_grabbers_connection(GrabberCornerXMaxYMin, GrabberCornerXMaxYMax, m_drag_color);
+            render_grabbers_connection(GrabberCornerXMaxYMax, GrabberCornerXMinYMax, m_drag_color);
+            render_grabbers_connection(GrabberCornerXMinYMax, GrabberCornerXMinYMin, m_drag_color);
             shader->stop_using();
         }
 
@@ -337,7 +349,7 @@ void GLGizmoScale3D::on_render()
         if (shader != nullptr) {
             shader->start_using();
             shader->set_uniform("emission_factor", 0.1f);
-            render_grabbers(6, 9, grabber_mean_size, true);
+            render_grabbers(GrabberFirstUniform, GrabberCount - 1, grabber_mean_size, true);
             shader->stop_using();
         }
     }
@@ -452,35 +464,38 @@ void GLGizmoScale3D::update_render_data()
     const Vec3d box_half_size = 0.5 * m_bounding_box.size();
     bool use_constrain = wxGetKeyState(WXK_CONTROL);
 
+    // Each grabber shows the constrained colour when the grabber OPPOSITE it is hovered, because
+    // that is the one a Ctrl-drag will hold still - the same pairing constraint_id() encodes.
+
     // x axis
-    m_grabbers[0].center = { -(box_half_size.x() + Offset), 0.0, 0.0 };
-    m_grabbers[0].color = (use_constrain && m_hover_id == 1) ? CONSTRAINED_COLOR : AXES_COLOR[0];
-    m_grabbers[1].center = { box_half_size.x() + Offset, 0.0, 0.0 };
-    m_grabbers[1].color = (use_constrain && m_hover_id == 0) ? CONSTRAINED_COLOR : AXES_COLOR[0];
+    m_grabbers[GrabberXMin].center = { -(box_half_size.x() + Offset), 0.0, 0.0 };
+    m_grabbers[GrabberXMin].color = (use_constrain && m_hover_id == GrabberXMax) ? CONSTRAINED_COLOR : AXES_COLOR[X];
+    m_grabbers[GrabberXMax].center = { box_half_size.x() + Offset, 0.0, 0.0 };
+    m_grabbers[GrabberXMax].color = (use_constrain && m_hover_id == GrabberXMin) ? CONSTRAINED_COLOR : AXES_COLOR[X];
 
     // y axis
-    m_grabbers[2].center = { 0.0, -(box_half_size.y() + Offset), 0.0 };
-    m_grabbers[2].color = (use_constrain && m_hover_id == 3) ? CONSTRAINED_COLOR : AXES_COLOR[1];
-    m_grabbers[3].center = { 0.0, box_half_size.y() + Offset, 0.0 };
-    m_grabbers[3].color = (use_constrain && m_hover_id == 2) ? CONSTRAINED_COLOR : AXES_COLOR[1];
+    m_grabbers[GrabberYMin].center = { 0.0, -(box_half_size.y() + Offset), 0.0 };
+    m_grabbers[GrabberYMin].color = (use_constrain && m_hover_id == GrabberYMax) ? CONSTRAINED_COLOR : AXES_COLOR[Y];
+    m_grabbers[GrabberYMax].center = { 0.0, box_half_size.y() + Offset, 0.0 };
+    m_grabbers[GrabberYMax].color = (use_constrain && m_hover_id == GrabberYMin) ? CONSTRAINED_COLOR : AXES_COLOR[Y];
 
     // z axis
-    m_grabbers[4].center = { 0.0, 0.0, -(box_half_size.z() + Offset) };
-    m_grabbers[4].color = (use_constrain && m_hover_id == 5) ? CONSTRAINED_COLOR : AXES_COLOR[2];
-    m_grabbers[5].center = { 0.0, 0.0, box_half_size.z() + Offset };
-    m_grabbers[5].color = (use_constrain && m_hover_id == 4) ? CONSTRAINED_COLOR : AXES_COLOR[2];
+    m_grabbers[GrabberZMin].center = { 0.0, 0.0, -(box_half_size.z() + Offset) };
+    m_grabbers[GrabberZMin].color = (use_constrain && m_hover_id == GrabberZMax) ? CONSTRAINED_COLOR : AXES_COLOR[Z];
+    m_grabbers[GrabberZMax].center = { 0.0, 0.0, box_half_size.z() + Offset };
+    m_grabbers[GrabberZMax].color = (use_constrain && m_hover_id == GrabberZMin) ? CONSTRAINED_COLOR : AXES_COLOR[Z];
 
-    // uniform
-    m_grabbers[6].center = { -(box_half_size.x() + Offset), -(box_half_size.y() + Offset), 0.0 };
-    m_grabbers[6].color = (use_constrain && m_hover_id == 8) ? CONSTRAINED_COLOR : m_highlight_color;
-    m_grabbers[7].center = { box_half_size.x() + Offset, -(box_half_size.y() + Offset), 0.0 };
-    m_grabbers[7].color = (use_constrain && m_hover_id == 9) ? CONSTRAINED_COLOR : m_highlight_color;
-    m_grabbers[8].center = { box_half_size.x() + Offset, box_half_size.y() + Offset, 0.0 };
-    m_grabbers[8].color = (use_constrain && m_hover_id == 6) ? CONSTRAINED_COLOR : m_highlight_color;
-    m_grabbers[9].center = { -(box_half_size.x() + Offset), box_half_size.y() + Offset, 0.0 };
-    m_grabbers[9].color = (use_constrain && m_hover_id == 7) ? CONSTRAINED_COLOR : m_highlight_color;
+    // uniform - the corners pair with the diagonal, not the neighbour
+    m_grabbers[GrabberCornerXMinYMin].center = { -(box_half_size.x() + Offset), -(box_half_size.y() + Offset), 0.0 };
+    m_grabbers[GrabberCornerXMinYMin].color = (use_constrain && m_hover_id == GrabberCornerXMaxYMax) ? CONSTRAINED_COLOR : m_highlight_color;
+    m_grabbers[GrabberCornerXMaxYMin].center = { box_half_size.x() + Offset, -(box_half_size.y() + Offset), 0.0 };
+    m_grabbers[GrabberCornerXMaxYMin].color = (use_constrain && m_hover_id == GrabberCornerXMinYMax) ? CONSTRAINED_COLOR : m_highlight_color;
+    m_grabbers[GrabberCornerXMaxYMax].center = { box_half_size.x() + Offset, box_half_size.y() + Offset, 0.0 };
+    m_grabbers[GrabberCornerXMaxYMax].color = (use_constrain && m_hover_id == GrabberCornerXMinYMin) ? CONSTRAINED_COLOR : m_highlight_color;
+    m_grabbers[GrabberCornerXMinYMax].center = { -(box_half_size.x() + Offset), box_half_size.y() + Offset, 0.0 };
+    m_grabbers[GrabberCornerXMinYMax].color = (use_constrain && m_hover_id == GrabberCornerXMaxYMin) ? CONSTRAINED_COLOR : m_highlight_color;
 
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < GrabberCount; ++i) {
         m_grabbers[i].matrix = m_grabbers_transform;
     }
 }

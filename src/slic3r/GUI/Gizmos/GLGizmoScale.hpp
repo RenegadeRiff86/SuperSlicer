@@ -16,6 +16,46 @@ class GLGizmoScale3D : public GLGizmoBase
 {
     static const double Offset;
 
+public:
+    // The gizmo's ten grabbers. These are the values m_hover_id takes, so they are part of the
+    // gizmo's interface, not an implementation detail. This order is load-bearing, not a convenience: the four uniform
+    // grabbers run anticlockwise around the square they form, so consecutive ones are the square's
+    // sides, and constraint_id() pairs every grabber with the one opposite it - which for a corner
+    // means the diagonal, two steps around, not a neighbour. Renumbering these silently changes
+    // both which lines get drawn and which grabber a constrained drag holds still.
+    enum GrabberId : int
+    {
+        GrabberXMin = 0,
+        GrabberXMax,
+        GrabberYMin,
+        GrabberYMax,
+        GrabberZMin,
+        GrabberZMax,
+        // Uniform scale: corners of a square in the gizmo's XY plane, anticlockwise from -x -y.
+        GrabberCornerXMinYMin,
+        GrabberCornerXMaxYMin,
+        GrabberCornerXMaxYMax,
+        GrabberCornerXMinYMax,
+        GrabberCount
+    };
+    // Grabbers below this scale one axis; this one and above scale all three together.
+    static constexpr int GrabberFirstUniform = GrabberCornerXMinYMin;
+
+    // The lines drawn between grabbers: one along each axis, then the four sides of the square.
+    enum ConnectionId : int
+    {
+        ConnectionXAxis = 0,
+        ConnectionYAxis,
+        ConnectionZAxis,
+        ConnectionSquareYMin,
+        ConnectionSquareXMax,
+        ConnectionSquareYMax,
+        ConnectionSquareXMin,
+        ConnectionCount
+    };
+
+private:
+
     struct StartingData
     {
         bool ctrl_down{ false };
@@ -42,7 +82,7 @@ class GLGizmoScale3D : public GLGizmoBase
         Vec3d old_v1{ Vec3d::Zero() };
         Vec3d old_v2{ Vec3d::Zero() };
     };
-    std::array<GrabberConnection, 7> m_grabber_connections;
+    std::array<GrabberConnection, ConnectionCount> m_grabber_connections;
 
     ColorRGBA m_base_color;
     ColorRGBA m_drag_color;
