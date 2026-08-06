@@ -24,6 +24,7 @@
 #include "OrcaTreeSupport.hpp"
 #include "I18N.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <fstream>
@@ -4250,8 +4251,11 @@ void organic_draw_branches(
         std::vector<Polygons> slices = slice_mesh(partial_mesh, slice_z, mesh_slicing_params, throw_on_cancel);
         bottom_contacts.clear();
         // Possible optimization: parallelize this loop.
+        // Honour min XY distance when any node on this branch requested it (Z-overrides-XY mode).
+        const bool min_xy = std::any_of(branch.path.begin(), branch.path.end(),
+            [](const SupportElement *e) { return e->state.use_min_xy_dist; });
         for (LayerIndex i = 0; i < LayerIndex(slices.size()); ++i) {
-            slices[i] = diff_clipped(slices[i], volumes.getCollision(0, layer_begin + i, true)); // FIXME parent_uses_min || draw_area.element->state.use_min_xy_dist);
+            slices[i] = diff_clipped(slices[i], volumes.getCollision(0, layer_begin + i, min_xy));
             slices[i] = intersection(slices[i], Polygons{ volumes.m_bed_area });
         }
         const size_t num_empty = prepare_branch_root_slices(

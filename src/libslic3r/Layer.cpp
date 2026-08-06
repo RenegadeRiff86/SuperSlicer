@@ -27,9 +27,9 @@ namespace Slic3r {
 Layer::~Layer()
 {
     this->lower_layer = this->upper_layer = nullptr;
-    for (LayerRegion *region : m_regions) {
-        std::unique_ptr<LayerRegion> region_owner{region};
-    }
+    // add_region() releases ownership into raw pointers; reclaim and free here.
+    for (LayerRegion *region : m_regions)
+        delete region;
     m_regions.clear();
 }
 

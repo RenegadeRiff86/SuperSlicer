@@ -213,8 +213,10 @@ TreeSupportSettings::TreeSupportSettings(const TreeSupportMeshGroupSettings &mes
 bool g_showed_critical_error = false;
 bool g_showed_performance_warning = false;
 
+// Diagnostic helper for tree-support generation faults. The MessageBox path is for local
+// debugging builds (TREE_SUPPORT_SHOW_ERRORS_WIN32); release logs via printf only.
 void tree_supports_show_error(std::string_view message, bool critical)
-{ // todo Remove!  ONLY FOR PUBLIC BETA!!
+{
     printf("Error: %s, critical: %d\n", message.data(), int(critical));
 #ifdef TREE_SUPPORT_SHOW_ERRORS_WIN32
     static bool showed_critical = false;

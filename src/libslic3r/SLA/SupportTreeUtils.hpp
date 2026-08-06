@@ -869,8 +869,9 @@ inline bool is_outside_support_cone(const Vec3f &supp,
            D.squaredNorm() * std::cos(angle) * std::abs(std::cos(angle));
 }
 
-inline // TODO: should be in a cpp
-std::optional<Vec3f> find_merge_pt(const Vec3f &A,
+// Kept header-inline: only used from other SLA header helpers; a .cpp would
+// add a TU for a small pure function without reducing include cost elsewhere.
+inline std::optional<Vec3f> find_merge_pt(const Vec3f &A,
                                    const Vec3f &B,
                                    float        critical_angle)
 {
@@ -891,7 +892,8 @@ std::optional<Vec3f> find_merge_pt(const Vec3f &A,
 
     // Determine the transformation matrix for the 2D projection:
     Vec3f diff = {B.x() - A.x(), B.y() - A.y(), 0.f};
-    Vec3f dir  = diff.normalized(); // TODO: avoid normalization
+    // Unit XY direction of AB (Eigen handles zero-length by leaving zeros).
+    Vec3f dir  = diff.normalized();
 
     Eigen::Matrix<float, 2, 3> tr2D;
     tr2D.row(0) = Vec3f{dir.x(), dir.y(), dir.z()};

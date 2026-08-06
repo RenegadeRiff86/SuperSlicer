@@ -609,8 +609,9 @@ static constexpr const bool polygons_strictly_simple = false;
 
 inline double tiny_area_threshold() { return sqr(scaled<double>(0.001)); }
 
+// Diagnostic helper for Orca tree-support faults (see TreeSupportCommon.cpp counterpart).
 inline void tree_supports_show_error(std::string_view message, bool critical)
-{ // todo Remove!  ONLY FOR PUBLIC BETA!!
+{
     printf("Error: %s, critical: %d\n", message.data(), int(critical));
 #ifdef TREE_SUPPORT_SHOW_ERRORS_WIN32
     static bool g_showed_critical_error = false;

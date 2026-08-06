@@ -12,6 +12,7 @@
 #include "../MutablePolygon.hpp"
 #include "../TriangleMeshSlicer.hpp"
 
+#include <algorithm>
 #include <cassert>
 
 #include <oneapi/tbb/parallel_for.h>
@@ -728,8 +729,9 @@ static void organic_smooth_branches_avoid_collisions(
         if (LayerCollisionCache& l = layer_collision_cache[layer_idx]; !l.min_element_radius_known())
             l.min_element_radius = 0;
         else {
-            //FIXME the computed min_element_radius is discarded and 0 is used, making the collision lower-bound query pessimistic.
-            l.min_element_radius = 0;
+            // Use the layer's minimum branch radius so the cached collision outline matches the
+            // smallest element that will be nudged (same as OrcaTreeSupport3D). Radius 0 would be
+            // a pessimistic lower bound and force larger avoidances than needed.
             std::optional<std::pair<coord_t, std::reference_wrapper<const Polygons>>> res = volumes.get_collision_lower_bound_area(layer_idx, l.min_element_radius);
             assert(res.has_value());
             l.collision_radius = res->first;
@@ -1210,9 +1212,12 @@ void organic_draw_branches(
                     }
                     std::vector<Polygons> slices = slice_mesh(partial_mesh, slice_z, mesh_slicing_params, throw_on_cancel);
                     bottom_contacts.clear();
-                    // Possible optimization: parallelize this loop.
+                    // Clip branch slices against the object collision at each layer. Honour min XY
+                    // distance when any node on this branch requested it (Z-overrides-XY mode).
+                    const bool min_xy = std::any_of(branch.path.begin(), branch.path.end(),
+                        [](const SupportElement *e) { return e->state.use_min_xy_dist; });
                     for (LayerIndex i = 0; i < LayerIndex(slices.size()); ++ i)
-                        slices[i] = diff_clipped(slices[i], volumes.getCollision(0, layer_begin + i, true)); //FIXME parent_uses_min || draw_area.element->state.use_min_xy_dist);
+                        slices[i] = diff_clipped(slices[i], volumes.getCollision(0, layer_begin + i, min_xy));
 
                     size_t num_empty = 0;
                     if (slices.front().empty()) {
@@ -1236,10 +1241,11 @@ void organic_draw_branches(
                                 // Don't propagate further than 1.5 * bottom radius.
                                 //LayerIndex                      layers_propagate_max = 2 * bottom_radius / config.layer_height;
                                 LayerIndex                      layers_propagate_max = 5 * bottom_radius / config.layer_height;
+                                // Non-gracious roots walk down at most layers_propagate_max. Fully "verylost"
+                                // roots may go to the bed (layer 0); they do not yet stop early when they cross
+                                // another branch's support — that needs a global occupancy map not available here.
                                 LayerIndex                      layer_bottommost = branch.path.front()->state.verylost ? 
-                                    // If the tree bottom is hanging in the air, bring it down to some surface.
                                     0 : 
-                                    //FIXME the "verylost" branches should stop when crossing another support.
                                     std::max(0, layer_begin - layers_propagate_max);
                                 double                          support_area_min_radius = M_PI * sqr(double(config.branch_radius));
                                 double                          support_area_stop = std::max(0.2 * M_PI * sqr(double(bottom_radius)), 0.5 * support_area_min_radius);
