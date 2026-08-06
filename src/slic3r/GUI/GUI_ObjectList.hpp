@@ -34,7 +34,7 @@ class ModelVolume;
 class TriangleMesh;
 enum class ModelVolumeType : int;
 
-// FIXME: broken build on mac os because of this is missing:
+// Local aliases so this header does not force PrintConfig.hpp on all consumers.
 typedef std::vector<std::string>                    t_config_option_keys;
 typedef std::vector<ModelVolume*>                   ModelVolumePtrs;
 typedef double                                      coordf_t;

@@ -102,7 +102,8 @@ wxString PrintHost::format_error(const std::string &body, const std::string &err
 
 struct PrintHostJobQueue::priv
 {
-    // XXX: comment on how bg thread works
+    // Background worker: pulls jobs from channel_jobs, posts progress to queue_dialog on the
+    // UI thread, and honours cancel tokens from channel_cancels. bg_exit stops the loop.
 
     PrintHostJobQueue *q;
 

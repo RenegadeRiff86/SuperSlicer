@@ -91,15 +91,8 @@ class ParamsNode
 
     ParamType           m_param_type{ ParamType::Undef };
 
-    // TODO/FIXME:
-    // the GTK version of wxDVC (in particular wxDataViewCtrlInternal::ItemAdded)
-    // needs to know in advance if a node is or _will be_ a container.
-    // Thus implementing:
-    //   bool IsContainer() const
-    //    { return m_children.size()>0; }
-    // doesn't work with wxGTK when DiffModel::AddToClassical is called
-    // AND the classical node was removed (a new node temporary without children
-    // would be added to the control)
+    // wxGTK DataView needs IsContainer() true before children are attached (ItemAdded),
+    // so this flag is set eagerly rather than derived from m_children.empty().
     bool                m_container{ true };
 
 public:

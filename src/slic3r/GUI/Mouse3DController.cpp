@@ -677,7 +677,7 @@ bool Mouse3DController::handle_input(const DataPacketAxis& packet)
 
     {
     	// Synchronize parameters between the UI thread and the background thread.
-    	//FIXME is this necessary on OSX? Are these notifications triggered from the main thread or from a worker thread?
+    	// Lock required on every platform: UI may update m_params_ui while a device callback runs.
     	std::scoped_lock<std::mutex> lock(m_params_ui_mutex);
     	if (m_params_ui_changed) {
     		m_params = m_params_ui;

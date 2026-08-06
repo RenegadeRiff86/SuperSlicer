@@ -121,8 +121,10 @@ bool AstroBox::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, Error
 
     auto http = Http::post(std::move(url));
     set_auth(http);
+    // HTTP APIs expect POSIX-style paths; generic_string() uses '/' on every platform.
+    const std::string remote_dir = upload_parent_path.empty() ? std::string() : upload_parent_path.generic_string();
     http.form_add("print", upload_data.post_action == PrintHostPostUploadAction::StartPrint ? "true" : "false")
-        .form_add("path", upload_parent_path.string())      // XXX: slashes on windows ???
+        .form_add("path", remote_dir)
         .form_add_file("file", upload_data.source_path.string(), upload_filename.string())
         .on_complete([&](const std::string& body, unsigned status) {
             BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: File uploaded: HTTP %2%: %3%") % name % status % body;

@@ -48,7 +48,7 @@ public:
         virtual bool skip(const size_t &model_volume_id) const { return false; }
     };
 
-    // TODO: it is more general object move outside of this class
+    // Generic hit sample (position + normal); kept here because Hit and the raycast API share it.
     template<typename T> 
     struct SurfacePoint {
         using Vec3 = Eigen::Matrix<T, 3, 1, Eigen::DontAlign>;

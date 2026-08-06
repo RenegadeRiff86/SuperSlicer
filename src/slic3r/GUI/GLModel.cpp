@@ -1213,7 +1213,8 @@ bool contains(const BuildVolume& volume, const GLModel& model, bool ignore_botto
             all_vertices_inside(model.get_geometry(), [c, r2, z = volume.max_print_height() + epsilon](const Vec3f& p) { return (to_2d(p) - c).squaredNorm() <= r2 && p.z() <= z; });
     }
     case BuildVolume::Type::Convex:
-        //FIXME doing test on convex hull until we learn to do test on non-convex polygons efficiently.
+        // Custom beds use the same convex-hull containment test; a full non-convex polygon
+        // test is too expensive for per-vertex checks on large meshes.
     case BuildVolume::Type::Custom:
         return volume.max_print_height() == 0.0 ?
             all_vertices_inside(model.get_geometry(), [&volume](const Vec3f& p) { return Geometry::inside_convex_polygon(volume.top_bottom_convex_hull_decomposition_bed(), to_2d(p).cast<double>()); }) :

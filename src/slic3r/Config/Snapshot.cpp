@@ -607,10 +607,10 @@ bool take_config_snapshot_cancel_on_error(const AppConfig &app_config, Snapshot:
             *psnapshot = snapshot;
         return true;
     } catch (std::exception &err) {
-        //TODO: use  format(_L("%s..."), SLIC3R_APP_NAME)
         RichMessageDialog dlg(static_cast<wxWindow*>(wxGetApp().mainframe),
-            _L("Slic3r has encountered an error while taking a configuration snapshot.") + "\n\n" + from_u8(err.what()) + "\n\n" + from_u8(message),
-            _L("Slic3r error"),
+            from_u8(format(_u8L("%1% has encountered an error while taking a configuration snapshot."), SLIC3R_APP_NAME))
+                + "\n\n" + from_u8(err.what()) + "\n\n" + from_u8(message),
+            from_u8(format(_u8L("%1% error"), SLIC3R_APP_NAME)),
             wxYES_NO);
         dlg.SetYesNoLabels(_L("Continue"), _L("Abort"));
         return dlg.ShowModal() == wxID_YES;

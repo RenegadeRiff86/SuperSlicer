@@ -62,7 +62,7 @@ void TCPConsole::wait_next_line()
     );
 }
 
-// TODO: Use std::optional here
+// Empty string means no complete line yet (partial buffer or stream error).
 std::string TCPConsole::extract_next_line()
 {
     char linebuf[1024];
@@ -155,7 +155,9 @@ bool TCPConsole::is_deadline_over() const
 bool TCPConsole::run_queue()
 {
     try {
-        // TODO: Add more resets and initializations after previous run (reset() method?..)
+        // Re-arm for a fresh run (socket closed at end of previous run_queue).
+        m_error_code = {};
+        m_recv_buffer.consume(m_recv_buffer.size());
         set_deadline_in(m_connect_timeout);
         m_is_connected = false;
         m_io_context.restart();
@@ -166,8 +168,8 @@ bool TCPConsole::run_queue()
             boost::bind(&TCPConsole::handle_connect, this, boost::placeholders::_1)
         );
 
-        // Loop until we get any reasonable result. Negative result is also result.
-        // TODO: Rewrite to more graceful way using deadlime_timer
+        // Poll the context until deadline or stop. A deadline_timer would be cleaner but this
+        // matches the existing connect/read/write deadline checks without reworking the handlers.
         bool timeout = false;
         while (!(timeout = is_deadline_over()) && !m_io_context.stopped()) {
             if (m_error_code) {

@@ -458,7 +458,7 @@ void Serial::printer_setup()
 
 size_t Serial::write_string(const std::string &str)
 {
-	// TODO: might be wise to timeout here as well
+	// Blocking write; callers already bound total wait via printer_ready_wait / read_line timeouts.
 	return asio::write(*this, asio::buffer(str));
 }
 

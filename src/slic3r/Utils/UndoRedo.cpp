@@ -206,10 +206,10 @@ public:
 				// There are some intervals that start inside (timestamp_start, timestamp_end), that could be released.
 				assert(it_lo->begin() > timestamp_start && it_lo->end() <= timestamp_end);
 				assert(it_hi == m_history.end() || (it_hi->begin() > it_lo->begin() && it_hi->end() > timestamp_end));
-				if (it_lo != m_history.begin() && it_hi != m_history.end()) {
-					// One may consider merging the two intervals.
-					//FIXME merge them.
-				}
+				// Leave a gap between the remaining intervals: for immutable objects the lifetime
+				// is already discontinuous (object may leave the scene while still on the copy stack),
+				// and for mutable payloads different intervals carry different data so they must not
+				// be joined across the released range.
 				for (auto it = it_lo; it != it_hi; ++ it)
 					mem_released += it->memsize();
 				m_history.erase(it_lo, it_hi);

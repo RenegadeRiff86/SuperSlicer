@@ -539,8 +539,10 @@ void OctoPrint::set_http_send(Http& http, const PrintHostUpload& upload_data) co
 {
     const auto upload_filename = upload_data.upload_path.filename();
     const auto upload_parent_path = upload_data.upload_path.parent_path();
+    // HTTP APIs expect POSIX-style paths; generic_string() uses '/' on every platform.
+    const std::string remote_dir = upload_parent_path.empty() ? std::string() : upload_parent_path.generic_string();
     http.form_add("print", upload_data.post_action == PrintHostPostUploadAction::StartPrint ? "true" : "false")
-        .form_add("path", upload_parent_path.string())      // XXX: slashes on windows ???
+        .form_add("path", remote_dir)
         .form_add_file("file", upload_data.source_path.string(), upload_filename.string());
 }
 
@@ -1176,7 +1178,9 @@ bool PrusaLink::post_inner(PrintHostUpload upload_data, std::string url, const s
 #endif // _WIN32
     set_auth(http);
     set_http_post_header_args(http, upload_data.post_action);
-    http.form_add("path", upload_parent_path.string())      // XXX: slashes on windows ???
+    // HTTP APIs expect POSIX-style paths; generic_string() uses '/' on every platform.
+    const std::string remote_dir = upload_parent_path.empty() ? std::string() : upload_parent_path.generic_string();
+    http.form_add("path", remote_dir)
         .form_add_file("file", upload_data.source_path.string(), upload_filename.string())
         .on_complete([&](const std::string& body, unsigned status) {
             if (m_show_after_message) {
