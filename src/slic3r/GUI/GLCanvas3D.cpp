@@ -97,6 +97,30 @@ static const Slic3r::ColorRGBA ERROR_BG_LIGHT_COLOR   = { 0.753f, 0.192f, 0.039f
 // Number of floats
 static constexpr const size_t MAX_VERTEX_BUFFER_SIZE = 131072 * 6; // 3.15MB
 
+// The layer height profile is a flat list of (print z, layer height) pairs: even entries are the
+// z, odd entries the height at that z. These names make the pairing visible at the index, so
+// [i - ProfileStride + ProfileHeight] reads as "the height of the previous pair" rather than [i - 1].
+static constexpr size_t ProfileZ      = 0;
+static constexpr size_t ProfileHeight = 1;
+static constexpr size_t ProfileStride = 2;
+// Interpolating a height needs a segment, so at least two pairs.
+static constexpr size_t MinProfileEntries = 2 * ProfileStride;
+
+// A screen-space quad, drawn as two triangles.
+static constexpr size_t QuadVertexCount = 4;
+static constexpr size_t QuadIndexCount  = 6;
+// A line segment: two endpoints, and two indices to join them.
+static constexpr size_t LineVertexCount = 2;
+// The layer height ruler draws one vertical line per reference height: the slicing limits
+// (layer height, max, min) in black, and the user's own min/max in orange.
+static constexpr size_t SlicingLimitLineCount = 3;
+static constexpr size_t UserLimitLineCount    = 2;
+
+// ImGui widget widths in the layer-height editor and the binary G-code config table, before
+// style scaling is applied.
+static constexpr float LayerHeightSliderWidth = 120.0f;
+static constexpr float BinaryGCodeComboWidth  = 175.0f;
+
 #define SHOW_IMGUI_DEMO_WINDOW
 #ifdef SHOW_IMGUI_DEMO_WINDOW
 static bool show_imgui_demo_window = false;
@@ -282,7 +306,7 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas)
 
     ImGui::SameLine();
     float widget_align = ImGui::GetCursorPosX();
-    ImGui::PushItemWidth(imgui.get_style_scaling() * 120.0f);
+    ImGui::PushItemWidth(imgui.get_style_scaling() * LayerHeightSliderWidth);
     if (imgui.slider_float("##min_layer_height", &this->m_min_layer_height, min_height, max_height, "%.4f")) {
         if (z_step) {
             this->m_min_layer_height = static_cast<float>(check_z_step(this->m_min_layer_height, z_step));
@@ -316,7 +340,7 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas)
 
     ImGui::SameLine();
     ImGui::SetCursorPosX(widget_align);
-    ImGui::PushItemWidth(imgui.get_style_scaling() * 120.0f);
+    ImGui::PushItemWidth(imgui.get_style_scaling() * LayerHeightSliderWidth);
     if (imgui.slider_float("##max_layer_height", &this->m_max_layer_height, min_height, max_height, "%.4f")) {
         if (z_step) {
             this->m_max_layer_height = static_cast<float>(check_z_step(this->m_max_layer_height, z_step));
@@ -352,7 +376,7 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas)
 
     ImGui::SameLine();
     widget_align = ImGui::GetCursorPosX();
-    ImGui::PushItemWidth(imgui.get_style_scaling() * 120.0f);
+    ImGui::PushItemWidth(imgui.get_style_scaling() * LayerHeightSliderWidth);
     m_adaptive_params.adaptive_quality = std::clamp(m_adaptive_params.adaptive_quality, 0.0f, 1.f);
     imgui.slider_float("##adaptive_quality", &m_adaptive_params.adaptive_quality, 0.0f, 1.f, "%.2f");
 
@@ -366,7 +390,7 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas)
     imgui.text(_L("Radius"));
     ImGui::SameLine();
     ImGui::SetCursorPosX(widget_align);
-    ImGui::PushItemWidth(imgui.get_style_scaling() * 120.0f);
+    ImGui::PushItemWidth(imgui.get_style_scaling() * LayerHeightSliderWidth);
     int radius = static_cast<int>(m_smooth_params.radius);
     if (ImGui::SliderInt("##1", &radius, 1, 10)) {
         radius = std::clamp(radius, 1, 10);
@@ -380,7 +404,7 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas)
     if (ImGui::GetCursorPosX() < widget_align)  // because of line lenght after localization
         ImGui::SetCursorPosX(widget_align);
 
-    ImGui::PushItemWidth(imgui.get_style_scaling() * 120.0f);
+    ImGui::PushItemWidth(imgui.get_style_scaling() * LayerHeightSliderWidth);
     imgui.checkbox("##2", m_smooth_params.keep_min);
 
     ImGui::Separator();
@@ -447,19 +471,19 @@ bool GLCanvas3D::LayersEditing::is_initialized() const
 std::string GLCanvas3D::LayersEditing::get_tooltip(const GLCanvas3D& canvas) const
 {
     std::string ret;
-    if (m_enabled && m_layer_height_profile.size() >= 4) {
+    if (m_enabled && m_layer_height_profile.size() >= MinProfileEntries) {
         float z = get_cursor_z_relative(canvas);
         if (z != -1000.0f) {
             z *= m_object_max_z;
 
             float h = 0.0f;
-            for (size_t i = m_layer_height_profile.size() - 2; i >= 2; i -= 2) {
-                const float zi = static_cast<float>(m_layer_height_profile[i]);
-                const float zi_1 = static_cast<float>(m_layer_height_profile[i - 2]);
+            for (size_t i = m_layer_height_profile.size() - ProfileStride; i >= ProfileStride; i -= ProfileStride) {
+                const float zi = static_cast<float>(m_layer_height_profile[i + ProfileZ]);
+                const float zi_1 = static_cast<float>(m_layer_height_profile[i - ProfileStride + ProfileZ]);
                 if (zi_1 <= z && z <= zi) {
                     float dz = zi - zi_1;
-                    h = (dz != 0.0f) ? static_cast<float>(lerp(m_layer_height_profile[i - 1], m_layer_height_profile[i + 1], (z - zi_1) / dz)) :
-                        static_cast<float>(m_layer_height_profile[i + 1]);
+                    h = (dz != 0.0f) ? static_cast<float>(lerp(m_layer_height_profile[i - ProfileStride + ProfileHeight], m_layer_height_profile[i + ProfileHeight], (z - zi_1) / dz)) :
+                        static_cast<float>(m_layer_height_profile[i + ProfileHeight]);
                     h = check_z_step(h, m_slicing_parameters->z_step);
                     break;
                 }
@@ -505,8 +529,8 @@ void GLCanvas3D::LayersEditing::render_active_object_annotations(const GLCanvas3
 
         GLModel::Geometry init_data;
         init_data.format = { GLModel::Geometry::EPrimitiveType::Triangles, GLModel::Geometry::EVertexLayout::P3N3T2 };
-        init_data.reserve_vertices(4);
-        init_data.reserve_indices(6);
+        init_data.reserve_vertices(QuadVertexCount);
+        init_data.reserve_indices(QuadIndexCount);
 
         // vertices
         const float l = 1.0f - 2.0f * THICKNESS_BAR_WIDTH * cnv_inv_width;
@@ -566,8 +590,8 @@ void GLCanvas3D::LayersEditing::render_profile(const GLCanvas3D& canvas)
         GLModel::Geometry init_data;
         init_data.format = { GLModel::Geometry::EPrimitiveType::Lines, GLModel::Geometry::EVertexLayout::P2 };
         init_data.color = ColorRGBA::BLACK();
-        init_data.reserve_vertices(6);
-        init_data.reserve_indices(6);
+        init_data.reserve_vertices(SlicingLimitLineCount * LineVertexCount);
+        init_data.reserve_indices(SlicingLimitLineCount * LineVertexCount);
 
         // vertices
         float axis_x = left + 2.0f * float(m_slicing_parameters->layer_height) * scale_x * cnv_inv_width;
@@ -597,8 +621,8 @@ void GLCanvas3D::LayersEditing::render_profile(const GLCanvas3D& canvas)
         GLModel::Geometry init_data;
         init_data.format = { GLModel::Geometry::EPrimitiveType::Lines, GLModel::Geometry::EVertexLayout::P2 };
         init_data.color = ColorRGBA::ORANGE();
-        init_data.reserve_vertices(4);
-        init_data.reserve_indices(4);
+        init_data.reserve_vertices(UserLimitLineCount * LineVertexCount);
+        init_data.reserve_indices(UserLimitLineCount * LineVertexCount);
 
         // vertices
         float axis_x = left + 2.0f * float(m_slicing_parameters->min_user_layer_height) * scale_x * cnv_inv_width;
@@ -625,14 +649,14 @@ void GLCanvas3D::LayersEditing::render_profile(const GLCanvas3D& canvas)
         GLModel::Geometry init_data;
         init_data.format = { GLModel::Geometry::EPrimitiveType::LineStrip, GLModel::Geometry::EVertexLayout::P2 };
         init_data.color = ColorRGBA::BLUE();
-        init_data.reserve_vertices(m_layer_height_profile.size() / 2);
-        init_data.reserve_indices(m_layer_height_profile.size() / 2);
+        init_data.reserve_vertices(m_layer_height_profile.size() / ProfileStride);
+        init_data.reserve_indices(m_layer_height_profile.size() / ProfileStride);
 
-        // vertices + indices
-        for (unsigned int i = 0; i < static_cast<unsigned int>(m_layer_height_profile.size()); i += 2) {
-            init_data.add_vertex(Vec2f(left + 2.0f * float(m_layer_height_profile[i + 1]) * scale_x * cnv_inv_width,
-                2.0f * (float(m_layer_height_profile[i]) * scale_y * cnv_inv_height - 0.5)));
-            init_data.add_index(i / 2);
+        // vertices + indices - one point per (z, height) pair
+        for (unsigned int i = 0; i < static_cast<unsigned int>(m_layer_height_profile.size()); i += ProfileStride) {
+            init_data.add_vertex(Vec2f(left + 2.0f * float(m_layer_height_profile[i + ProfileHeight]) * scale_x * cnv_inv_width,
+                2.0f * (float(m_layer_height_profile[i + ProfileZ]) * scale_y * cnv_inv_height - 0.5)));
+            init_data.add_index(i / ProfileStride);
         }
 
         m_profile.profile.init_from(std::move(init_data));
@@ -7082,8 +7106,8 @@ void GLCanvas3D::_render_camera_target()
             GLModel::Geometry init_data;
             init_data.format = { GLModel::Geometry::EPrimitiveType::Lines, GLModel::Geometry::EVertexLayout::P3 };
             init_data.color = (i == X) ? ColorRGBA::X() : ((i == Y) ? ColorRGBA::Y() : ColorRGBA::Z());
-            init_data.reserve_vertices(2);
-            init_data.reserve_indices(2);
+            init_data.reserve_vertices(LineVertexCount);
+            init_data.reserve_indices(LineVertexCount);
 
             // vertices
             if (i == X) {
@@ -8581,7 +8605,7 @@ void GLCanvas3D::show_binary_gcode_debug_window()
         ImGui::TableSetColumnIndex(1);
         std::vector<std::string> options = { "None", "Deflate", "heatshrink 11,4", "heatshrink 12,4" };
         int option_id = static_cast<int>(binarizer_config.compression.file_metadata);
-        if (imgui.combo(std::string("##file_metadata_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, 175.0f))
+        if (imgui.combo(std::string("##file_metadata_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, BinaryGCodeComboWidth))
             binarizer_config.compression.file_metadata = (ECompressionType)option_id;
 
         ImGui::TableNextRow();
@@ -8589,7 +8613,7 @@ void GLCanvas3D::show_binary_gcode_debug_window()
         imgui.text_colored(ImGuiWrapper::get_COL_LIGHT(), "Printer metadata compression");
         ImGui::TableSetColumnIndex(1);
         option_id = static_cast<int>(binarizer_config.compression.printer_metadata);
-        if (imgui.combo(std::string("##printer_metadata_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, 175.0f))
+        if (imgui.combo(std::string("##printer_metadata_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, BinaryGCodeComboWidth))
             binarizer_config.compression.printer_metadata = (ECompressionType)option_id;
 
         ImGui::TableNextRow();
@@ -8597,7 +8621,7 @@ void GLCanvas3D::show_binary_gcode_debug_window()
         imgui.text_colored(ImGuiWrapper::get_COL_LIGHT(), "Print metadata compression");
         ImGui::TableSetColumnIndex(1);
         option_id = static_cast<int>(binarizer_config.compression.print_metadata);
-        if (imgui.combo(std::string("##print_metadata_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, 175.0f))
+        if (imgui.combo(std::string("##print_metadata_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, BinaryGCodeComboWidth))
             binarizer_config.compression.print_metadata = (ECompressionType)option_id;
 
         ImGui::TableNextRow();
@@ -8605,7 +8629,7 @@ void GLCanvas3D::show_binary_gcode_debug_window()
         imgui.text_colored(ImGuiWrapper::get_COL_LIGHT(), "Slicer metadata compression");
         ImGui::TableSetColumnIndex(1);
         option_id = static_cast<int>(binarizer_config.compression.slicer_metadata);
-        if (imgui.combo(std::string("##slicer_metadata_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, 175.0f))
+        if (imgui.combo(std::string("##slicer_metadata_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, BinaryGCodeComboWidth))
             binarizer_config.compression.slicer_metadata = (ECompressionType)option_id;
 
         ImGui::TableNextRow();
@@ -8613,7 +8637,7 @@ void GLCanvas3D::show_binary_gcode_debug_window()
         imgui.text_colored(ImGuiWrapper::get_COL_LIGHT(), "GCode compression");
         ImGui::TableSetColumnIndex(1);
         option_id = static_cast<int>(binarizer_config.compression.gcode);
-        if (imgui.combo(std::string("##gcode_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, 175.0f))
+        if (imgui.combo(std::string("##gcode_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, BinaryGCodeComboWidth))
             binarizer_config.compression.gcode = (ECompressionType)option_id;
 
         ImGui::TableNextRow();
@@ -8622,7 +8646,7 @@ void GLCanvas3D::show_binary_gcode_debug_window()
         ImGui::TableSetColumnIndex(1);
         options = { "None", "MeatPack", "MeatPack Comments" };
         option_id = static_cast<int>(binarizer_config.gcode_encoding);
-        if (imgui.combo(std::string("##gcode_encoding"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, 175.0f))
+        if (imgui.combo(std::string("##gcode_encoding"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, BinaryGCodeComboWidth))
             binarizer_config.gcode_encoding = (EGCodeEncodingType)option_id;
 
         ImGui::TableNextRow();
@@ -8631,7 +8655,7 @@ void GLCanvas3D::show_binary_gcode_debug_window()
         ImGui::TableSetColumnIndex(1);
         options = { "INI" };
         option_id = static_cast<int>(binarizer_config.metadata_encoding);
-        if (imgui.combo(std::string("##metadata_encoding"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, 175.0f))
+        if (imgui.combo(std::string("##metadata_encoding"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, BinaryGCodeComboWidth))
             binarizer_config.metadata_encoding = (EMetadataEncodingType)option_id;
 
         ImGui::TableNextRow();
@@ -8640,7 +8664,7 @@ void GLCanvas3D::show_binary_gcode_debug_window()
         ImGui::TableSetColumnIndex(1);
         options = { "None", "CRC32" };
         option_id = static_cast<int>(binarizer_config.checksum);
-        if (imgui.combo(std::string("##4"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, 175.0f))
+        if (imgui.combo(std::string("##4"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, BinaryGCodeComboWidth))
             binarizer_config.checksum = (EChecksumType)option_id;
 
         ImGui::EndTable();
