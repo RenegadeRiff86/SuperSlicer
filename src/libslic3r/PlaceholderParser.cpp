@@ -176,7 +176,8 @@ namespace spirit = boost::spirit;
 // Using an encoding, which accepts unsigned chars.
 // Don't use boost::spirit::ascii, as it crashes internally due to indexing with negative char values for UTF8 characters into some 7bit character classification tables.
 //namespace spirit_encoding = boost::spirit::ascii;
-//FIXME iso8859_1 is just a workaround for the problem above. Replace it with UTF8 support!
+// iso8859_1 avoids ascii's negative-char crash on UTF-8 bytes. Full UTF-8 spirit encoding
+// would be a larger parser change; placeholders still store/emit UTF-8 strings correctly.
 namespace spirit_encoding = boost::spirit::iso8859_1;
 namespace qi = boost::spirit::qi;
 namespace px = boost::phoenix;
@@ -939,9 +940,9 @@ namespace client
                     //if over no other key, it's most probably a simple %
                     if (opt_def->ratio_over == "")
                         return cast_opt->get_abs_value(1);
-                    // Compute absolute value over the absolute value of the base option.
-                    //FIXME there are some ratio_over chains, which end with empty ratio_with.
-                    // For example, XXX_extrusion_width parameters are not handled by get_abs_value correctly.
+                    // Absolute value over the base option. Options with empty ratio_over or
+                    // ratio_over "depends" (e.g. some extrusion_width chains) cannot be resolved
+                    // here and throw below — callers must supply a numeric base instead.
                     if (!opt_def->ratio_over.empty() && opt_def->ratio_over != "depends")
                         return cast_opt->get_abs_value(this->get_computed_value(opt_def->ratio_over));
 

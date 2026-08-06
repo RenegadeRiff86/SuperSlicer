@@ -4380,7 +4380,15 @@ std::shared_ptr<SlicingParameters> PrintObject::slicing_parameters(const Dynamic
                         region_config_from_model_volume(default_region_config, &range_and_config.second.get(), *model_volume, num_extruders),
                         object_extruders);
         }
-    //FIXME add painting extruders
+    // Multi-material painted volumes may use any tool; enumerate all extruders when painting is present
+    // (same approach as PrintApply when building painting_extruders for shared regions).
+    if (num_extruders > 1) {
+        const bool has_mm_paint = std::any_of(model_object.volumes.begin(), model_object.volumes.end(),
+            [](const ModelVolume *v) { return v != nullptr && !v->mm_segmentation_facets.empty(); });
+        if (has_mm_paint)
+            for (size_t i = 0; i < num_extruders; ++i)
+                object_extruders.insert(static_cast<uint16_t>(i));
+    }
 
     if (object_max_z <= 0.f)
         object_max_z = static_cast<float>(model_object.raw_bounding_box().size().z());

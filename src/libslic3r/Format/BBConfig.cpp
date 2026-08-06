@@ -442,7 +442,7 @@ void init()
     custom_gcode_replace.emplace_back("bed_temperature_initial_layer_vector", "\"\"");
     custom_gcode_replace.emplace_back("[temperature_initial_layer]", "{first_layer_temperature[initial_extruder]}");
     custom_gcode_replace.emplace_back("temperature_initial_layer", "first_layer_temperature[initial_extruder]");
-    //custom_gcode_replace.emplace_back("overall_chamber_temperature", "chamber_temperature"); //fixme: it's a max.
+    // overall_chamber_temperature is a max over tools in BBL; SuperSlicer chamber_temperature is not equivalent, so leave unmapped.
 
     //if plate_name, then add plate_name as custom setting
     key_custom_settings_translation_map["print_custom_variables"] = BBSettingType(bbstFFF_PRINT | bbstSLA_PRINT);

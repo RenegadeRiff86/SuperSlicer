@@ -781,7 +781,8 @@ public:
     const ToolOrdering&         get_tool_ordering() const { return m_wipe_tower_data.tool_ordering; }
 
     const Polygons& get_sequential_print_clearance_contours() const { return m_sequential_print_clearance_contours; }
-//TODO: decide to use this one or the printconfig one.
+// Contour-aware sequential clearance (fills optional polygons). PrintConfig has a
+// config-only helper; this one is the geometric check used by the print pipeline.
     static bool sequential_print_horizontal_clearance_valid(const Print& print, Polygons* polygons = nullptr);
 
     //put this in public to be accessible for tests, it was in private before.

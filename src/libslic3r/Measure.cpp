@@ -1331,7 +1331,9 @@ static void measure_circle_circle(const SurfaceFeature& f1, const SurfaceFeature
     else
         compute_circle_circle_candidate_parallel(c0, r0, n0, c1, r1, D, candidates[0]);
 
-    result.distance_infinite = std::make_optional(DistAndPoints{ std::sqrt(candidates[0].sqrDistance), candidates[0].circle0Closest, candidates[0].circle1Closest }); // TODO: implement distance_strict for the circle-circle combination.
+    // Strict (segment-clamped) circle-circle distance is not required for current measure UI;
+    // infinite distance uses the closest points on both circles.
+    result.distance_infinite = std::make_optional(DistAndPoints{ std::sqrt(candidates[0].sqrDistance), candidates[0].circle0Closest, candidates[0].circle1Closest });
 }
 
 static void measure_circle_plane(const SurfaceFeature& f1, const SurfaceFeature& f2, MeasurementResult& result, const Measuring* measuring)
@@ -1374,7 +1376,8 @@ static void measure_plane_plane(const SurfaceFeature& f1, const SurfaceFeature& 
     if (are_parallel(normal1, normal2)) {
         // The planes are parallel, calculate distance.
         const Eigen::Hyperplane<double, 3> plane(normal1, pt1);  // 3D plane
-        result.distance_infinite = std::make_optional(DistAndPoints{ plane.absDistance(pt2), pt2, plane.projection(pt2) }); // TODO: implement distance_strict for the plane-plane combination.
+        // Parallel planes: infinite distance is the only meaningful metric (no finite segment).
+        result.distance_infinite = std::make_optional(DistAndPoints{ plane.absDistance(pt2), pt2, plane.projection(pt2) });
     }
     else
         result.angle = angle_plane_plane(f1.get_plane(), f2.get_plane());

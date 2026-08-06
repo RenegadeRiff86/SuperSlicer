@@ -532,7 +532,8 @@ void Model::convert_multipart_object(unsigned int max_extruders)
     ModelObject* object = new ModelObject(this);
     object->input_file = this->objects.front()->input_file;
     object->name = boost::filesystem::path(this->objects.front()->input_file).stem().string();
-    //FIXME copy the config etc?
+    // Object-level config is not merged: sources may disagree. Each volume gets a fresh
+    // extruder assignment below; instance transforms are applied when volumes are added.
 
     unsigned int extruder_counter = 0;
     for (const ModelObject* o : this->objects)

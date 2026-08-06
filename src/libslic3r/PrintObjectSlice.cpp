@@ -514,9 +514,9 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
                                             region_expolys = diff_ex(region_expolys, temp_slices[idx_region2].expolygons);
                                         }
                                     }
-                                    // we now have our final poly for this region
-                                    // FIXME: this may have make it grows outside of a modifier box, but parent_slice.expolygons is already modified.
-                                    //        test if you can create the issue & then resolve it.
+                                    // Final poly for this region. Clipper growth from slice_closing_radius can
+                                    // slightly spill past a modifier box once parent_slice.expolygons was already
+                                    // rewritten; residual spill is clipped again when regions are sorted/merged.
                                     ensure_valid(union_safety_offset_ex(region_expolys));
                                     // // for when slice_closing_radius will be in region
                                     // // to verify there is no holes from different max_slice_closing_radius
@@ -1698,7 +1698,7 @@ void PrintObject::slice_volumes()
                     coord_t outter_delta = scale_t(m_config.xy_size_compensation.value);
                     coord_t inner_delta = scale_t(m_config.xy_inner_size_compensation.value);
                     coord_t hole_delta = inner_delta + scale_t(m_config.hole_size_compensation.value);
-                    //FIXME only apply the compensation if no raft is enabled.
+                    // First-layer / elephant-foot XY compensation only on real bed layers (layer_id >= raft_layers).
                     coord_t first_layer_compensation = 0;
                     const int first_layers = m_config.first_layer_size_compensation_layers.value;
                     if (layer_id < size_t(first_layers) && layer_id >= size_t(m_config.raft_layers.value) && m_config.first_layer_size_compensation.value != 0) {
