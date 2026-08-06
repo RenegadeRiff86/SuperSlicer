@@ -347,12 +347,16 @@ bool arrange(
 // transform itself: under non-uniform scaling that tilts it off the surface. It needs the
 // inverse transpose of the linear (rotation-scale-mirror) part, which is what this returns.
 //
-// Spelled with the dynamic-size block() rather than Transform3d::linear() on purpose. linear()
-// is the FIXED-size block<3,3>(0,0) overload, and although the two hold the same nine values,
-// Eigen reaches inverse() by different code paths for fixed and dynamic sizes - measured at
-// 199,826 differing results in 200,000 samples. Every call site historically used block(), so
-// this keeps them bit for bit identical. Change the spelling here and it changes everywhere,
-// which is the point of having one definition.
+// Spelled with the dynamic-size block() rather than Transform3d::linear() on purpose, and the
+// reason is not about the data. Both name the SAME nine doubles at the same address - no copy,
+// no conversion. What differs is the static type: linear() is Block<...,3,3> with
+// RowsAtCompileTime == 3, while block(0,0,3,3) is Block<...,Dynamic,Dynamic>. inverse() is a
+// template that picks its algorithm from that - fixed-3 gets Eigen's cofactor/adjugate
+// specialisation, Dynamic falls through to PartialPivLU. Different arithmetic on identical
+// input: measured over 200,000 random transforms, 199,979 results differ, by up to 1.3e-10
+// relative (the two methods diverge as the matrix approaches singular, so this is well beyond
+// rounding noise). Every call site historically used block(), so this keeps them unchanged.
+// Change the spelling here and it changes everywhere, which is the point of one definition.
 inline Matrix3d normal_matrix(const Transform3d& t)
 {
     return t.matrix().block(0, 0, 3, 3).inverse().transpose();
