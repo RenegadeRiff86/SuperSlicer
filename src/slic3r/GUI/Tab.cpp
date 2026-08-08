@@ -96,6 +96,14 @@
 namespace Slic3r {
 namespace GUI {
 
+// Log channel and message used while building the settings UI from the layout files.
+static constexpr const char* LOG_CHANNEL_SETTINGS_GUI = "settings gui";
+static constexpr const char* LOG_ADD_LINE             = "add line\n";
+
+// Separator placed between a translated field label and its value in the profile
+// description block.
+static constexpr const char* DESC_LABEL_VALUE_SEPARATOR = ": \n\t\t";
+
 namespace {
 constexpr char kCompatiblePrintersKey[] = "compatible_printers";
 constexpr char kCompatiblePrintsKey[]   = "compatible_prints";
@@ -251,7 +259,7 @@ void Tab::create_preset_tab()
     add_scaled_bitmap(this, m_bmp_white_bullet, "dot");
     // Bitmap to be shown on the "edit" button before to each editable input field.
     add_scaled_bitmap(this, m_bmp_edit_value, "edit");
-	// Bitmaps to be shown on the "enable/disable" checkbox next to each input field that can be disabled.
+    // Bitmaps to be shown on the "enable/disable" checkbox next to each input field that can be disabled.
     add_scaled_bitmap(this, m_bmp_on, "check_on");
     add_scaled_bitmap(this, m_bmp_off, "check_off");
     add_scaled_bitmap(this, m_bmp_on_disabled, "check_on_disabled");
@@ -1769,17 +1777,17 @@ void Tab::update_preset_description_line()
         if (type() == Slic3r::Preset::TYPE_PRINTER) {
             const std::string &printer_model = preset.config.opt_string("printer_model");
             if (! printer_model.empty())
-                description_line += "\n\n\t" + _(L("printer model")) + ": \n\t\t" + printer_model;
+                description_line += "\n\n\t" + _(L("printer model")) + DESC_LABEL_VALUE_SEPARATOR + printer_model;
             switch (preset.printer_technology()) {
             case ptFFF:
             {
                 const std::string              &default_print_profile = preset.config.opt_string("default_print_profile");
                 const std::vector<std::string> &default_filament_profiles = preset.config.option<ConfigOptionStrings>("default_filament_profile")->get_values();
                 if (!default_print_profile.empty())
-                    description_line += "\n\n\t" + _(L("default print profile")) + ": \n\t\t" + default_print_profile;
+                    description_line += "\n\n\t" + _(L("default print profile")) + DESC_LABEL_VALUE_SEPARATOR + default_print_profile;
                 if (!default_filament_profiles.empty())
                 {
-                    description_line += "\n\n\t" + _(L("default filament profile")) + ": \n\t\t";
+                    description_line += "\n\n\t" + _(L("default filament profile")) + DESC_LABEL_VALUE_SEPARATOR;
                     for (const std::string& profile : default_filament_profiles) {
                         if (&profile != &*default_filament_profiles.begin())
                             description_line += ", ";
@@ -1792,11 +1800,11 @@ void Tab::update_preset_description_line()
             {
                 const std::string &default_sla_material_profile = preset.config.opt_string("default_sla_material_profile");
                 if (!default_sla_material_profile.empty())
-                    description_line += "\n\n\t" + _(L("default SLA material profile")) + ": \n\t\t" + default_sla_material_profile;
+                    description_line += "\n\n\t" + _(L("default SLA material profile")) + DESC_LABEL_VALUE_SEPARATOR + default_sla_material_profile;
 
                 const std::string &default_sla_print_profile = preset.config.opt_string("default_sla_print_profile");
                 if (!default_sla_print_profile.empty())
-                    description_line += "\n\n\t" + _(L("default SLA print profile")) + ": \n\t\t" + default_sla_print_profile;
+                    description_line += "\n\n\t" + _(L("default SLA print profile")) + DESC_LABEL_VALUE_SEPARATOR + default_sla_print_profile;
                 break;
             }
             default: break;
@@ -1804,8 +1812,8 @@ void Tab::update_preset_description_line()
         }
         else if (!preset.alias.empty())
         {
-            description_line += "\n\n\t" + _(L("full profile name"))     + ": \n\t\t" + preset.name;
-            description_line += "\n\t"   + _(L("symbolic profile name")) + ": \n\t\t" + preset.alias;
+            description_line += "\n\n\t" + _(L("full profile name"))     + DESC_LABEL_VALUE_SEPARATOR + preset.name;
+            description_line += "\n\t"   + _(L("symbolic profile name")) + DESC_LABEL_VALUE_SEPARATOR + preset.alias;
         }
     }
 
@@ -1857,7 +1865,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
         std::cerr << "Error: cannot create " << setting_type_name << "settings, cannot find file " << ui_layout_file << "\n";
         return {};
     } else
-        Slic3r::slic3r_log->info("settings gui") << "create settings  " << setting_type_name << "\n";
+        Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << "create settings  " << setting_type_name << "\n";
 
     if (type_override == Preset::Type::TYPE_INVALID) {
         type_override = this->type();
@@ -1906,7 +1914,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
             no_page_yet = false;
             if (in_line) {
                 current_group->append_line(current_line);
-                if (logs) Slic3r::slic3r_log->info("settings gui") << "add line\n";
+                if (logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << LOG_ADD_LINE;
                 in_line = false;
             }
             std::vector<std::string> params;
@@ -1929,7 +1937,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                 }
             }
 
-            if(logs) Slic3r::slic3r_log->info("settings gui") << "create page " << label.c_str() <<" : "<< params[params.size() - 1] << "\n";
+            if(logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << "create page " << label.c_str() <<" : "<< params[params.size() - 1] << "\n";
             pages.push_back(this->create_options_page(label, params[params.size() - 1]));
             current_page = pages.back();
         }
@@ -1937,7 +1945,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
         {
             if (in_line) {
                 current_group->append_line(current_line);
-                if (logs) Slic3r::slic3r_log->info("settings gui") << "add line\n";
+                if (logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << LOG_ADD_LINE;
                 in_line = false;
             }
             current_page.reset();
@@ -1946,7 +1954,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
         {
             if (in_line) {
                 current_group->append_line(current_line);
-                if (logs) Slic3r::slic3r_log->info("settings gui") << "add line\n";
+                if (logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << LOG_ADD_LINE;
                 in_line = false;
             }
             std::vector<std::string> params;
@@ -2131,13 +2139,13 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                     current_group->edit_custom_gcode = [this](const OptionKeyIdx &opt_key_idx) { edit_custom_gcode(opt_key_idx); };
                 }
             }
-            if (logs) Slic3r::slic3r_log->info("settings gui") << "create group " << params.back() << "\n";
+            if (logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << "create group " << params.back() << "\n";
         }
         else if (boost::starts_with(full_line, "end_group"))
         {
             if (in_line) {
                 current_group->append_line(current_line);
-                if (logs) Slic3r::slic3r_log->info("settings gui") << "add line\n";
+                if (logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << LOG_ADD_LINE;
                 in_line = false;
             }
             current_group.reset();
@@ -2146,7 +2154,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
         {
             if (in_line) {
                 current_group->append_line(current_line);
-                if (logs) Slic3r::slic3r_log->info("settings gui") << "add line\n";
+                if (logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << LOG_ADD_LINE;
                 in_line = false;
             }
             std::vector<std::string> params;
@@ -2164,13 +2172,13 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                 }
             }
             in_line = true;
-            if (logs) Slic3r::slic3r_log->info("settings gui") << "create line " << (params.empty() ? "" : params.back()) << "\n";
+            if (logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << "create line " << (params.empty() ? "" : params.back()) << "\n";
         }
         else if (boost::starts_with(full_line, "end_line"))
         {
             if (in_line  && !current_line.get_options().empty()) {
                 current_group->append_line(current_line);
-                if (logs) Slic3r::slic3r_log->info("settings gui") << "add line\n";
+                if (logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << LOG_ADD_LINE;
             }
             in_line = false;
         }
@@ -2241,7 +2249,6 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
 
             bool need_to_notified_search = false;
             bool colored = false;
-            bool custom_label = false;
             std::string label_path;
             for (size_t i = 1; i + 1 < params.size(); i++) {
                 if (params[i] == "simple")
@@ -2398,7 +2405,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                         boost::split(enum_strs, params[i], boost::is_any_of("$"));
                         if (enum_strs.size() < 3 || enum_strs.size() % 2 == 0) {
                             BOOST_LOG_TRIVIAL(error) << "Error: enum '"<< setting_id << "' doesn't have an even number of key-label values:"<<(enum_strs.size()-1)<<".";
-                            if (logs) Slic3r::slic3r_log->info("settings gui") << "Error: odd number of enum values: should be a key/value list ("<< option.opt.opt_key <<")";
+                            if (logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << "Error: odd number of enum values: should be a key/value list ("<< option.opt.opt_key <<")";
                             continue;
                         }
                         std::vector<std::pair<std::string,std::string>> values_2_labels;
@@ -2416,7 +2423,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                         boost::split(enum_strs, params[i], boost::is_any_of("$"));
                         if (enum_strs.size() < 3 || enum_strs.size() % 2 == 0) {
                             BOOST_LOG_TRIVIAL(error) << "Error: hints '"<< setting_id << "' doesn't have an even number of key-label values:"<<(enum_strs.size()-1)<<".";
-                            if (logs) Slic3r::slic3r_log->info("settings gui") << "Error: odd number of hints values: should be a key/value list ("<< option.opt.opt_key <<")";
+                            if (logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << "Error: odd number of hints values: should be a key/value list ("<< option.opt.opt_key <<")";
                             continue;
                         }
                         std::vector<std::pair<std::string,std::string>> values_2_labels;
@@ -2431,7 +2438,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                                        option.opt.type == coPercent || option.opt.type == coPercents) {
                             option.opt.set_enum_values(ConfigOptionDef::GUIType::f_enum_open, values_2_labels);
                         } else {
-                            if (logs) Slic3r::slic3r_log->info("settings gui") << "Error: hints can only apply to int, int, flaot, flaot, percent, percents ("<< option.opt.opt_key <<")";
+                            if (logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << "Error: hints can only apply to int, int, flaot, flaot, percent, percents ("<< option.opt.opt_key <<")";
                         }
                         //defautl already/will be set by the type
                     } else if (boost::starts_with(params[i], "depends")) {
@@ -2465,7 +2472,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
             } else {
                 current_line.append_option(option);
             }
-            if (logs) Slic3r::slic3r_log->info("settings gui") << "create setting " << setting_id <<"  with label "<< option.opt.label << "and height "<< option.opt.height<<" fw:"<< option.opt.full_width << "\n";
+            if (logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << "create setting " << setting_id <<"  with label "<< option.opt.label << "and height "<< option.opt.height<<" fw:"<< option.opt.full_width << "\n";
         } else if (boost::starts_with(full_line, "height")) {
             std::string arg = "";
             if (size_t dblp_pos = full_line.find(":"); full_line.size() > 6 && dblp_pos != std::string::npos)
@@ -2520,7 +2527,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
             if (in_line) {
                 current_group->append_line(current_line);
                 if (logs)
-                    Slic3r::slic3r_log->info("settings gui") << "add line\n";
+                    Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << LOG_ADD_LINE;
                 in_line = false;
             }
             //check if their is tags
@@ -2896,7 +2903,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
 //        layout_page(current_page);
 #endif
 
-    if(logs) Slic3r::slic3r_log->info("settings gui") << "END create settings  " << setting_type_name << "\n";
+    if(logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << "END create settings  " << setting_type_name << "\n";
 
     return pages;
 }

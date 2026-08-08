@@ -39,6 +39,9 @@ namespace fs = boost::filesystem;
 namespace Slic3r {
 namespace GUI {
 
+// Assertion text shared by every bounds check against the job list.
+static constexpr const char* ERR_JOB_LIST_OUT_OF_BOUNDS = "Out of bounds access to job list";
+
 static const char *CONFIG_KEY_PATH  = "printhost_path";
 static const char *CONFIG_KEY_GROUP = "printhost_group";
 static const char* CONFIG_KEY_STORAGE = "printhost_storage";
@@ -214,13 +217,13 @@ void PrintHostSendDialog::EndModal(int ret)
         // Persist path and print settings
         wxString path = txt_filename->GetValue();
         int last_slash = path.Find('/', true);
-		if (last_slash == wxNOT_FOUND)
-			path.clear();
-		else
+        if (last_slash == wxNOT_FOUND)
+            path.clear();
+        else
             path = path.SubString(0, last_slash);
                 
-		AppConfig *app_config = wxGetApp().app_config.get();
-		app_config->set("recent", CONFIG_KEY_PATH, into_u8(path));
+        AppConfig *app_config = wxGetApp().app_config.get();
+        app_config->set("recent", CONFIG_KEY_PATH, into_u8(path));
 
         if (combo_groups != nullptr) {
             wxString group = combo_groups->GetValue();
@@ -416,13 +419,13 @@ void PrintHostQueueDialog::on_sys_color_changed()
 
 PrintHostQueueDialog::JobState PrintHostQueueDialog::get_state(int idx)
 {
-    wxCHECK_MSG(idx >= 0 && idx < job_list->GetItemCount(), ST_ERROR, "Out of bounds access to job list");
+    wxCHECK_MSG(idx >= 0 && idx < job_list->GetItemCount(), ST_ERROR, ERR_JOB_LIST_OUT_OF_BOUNDS);
     return static_cast<JobState>(job_list->GetItemData(job_list->RowToItem(idx)));
 }
 
 void PrintHostQueueDialog::set_state(int idx, JobState state)
 {
-    wxCHECK_RET(idx >= 0 && idx < job_list->GetItemCount(), "Out of bounds access to job list");
+    wxCHECK_RET(idx >= 0 && idx < job_list->GetItemCount(), ERR_JOB_LIST_OUT_OF_BOUNDS);
     job_list->SetItemData(job_list->RowToItem(idx), static_cast<wxUIntPtr>(state));
 
     switch (state) {
@@ -452,7 +455,7 @@ void PrintHostQueueDialog::on_list_select()
 
 void PrintHostQueueDialog::on_progress(Event &evt)
 {
-    wxCHECK_RET(evt.job_id < static_cast<size_t>(job_list->GetItemCount()), "Out of bounds access to job list");
+    wxCHECK_RET(evt.job_id < static_cast<size_t>(job_list->GetItemCount()), ERR_JOB_LIST_OUT_OF_BOUNDS);
 
     if (evt.progress < 100) {
         set_state(evt.job_id, ST_PROGRESS);
@@ -475,7 +478,7 @@ void PrintHostQueueDialog::on_progress(Event &evt)
 
 void PrintHostQueueDialog::on_error(Event &evt)
 {
-    wxCHECK_RET(evt.job_id < static_cast<size_t>(job_list->GetItemCount()), "Out of bounds access to job list");
+    wxCHECK_RET(evt.job_id < static_cast<size_t>(job_list->GetItemCount()), ERR_JOB_LIST_OUT_OF_BOUNDS);
 
     set_state(evt.job_id, ST_ERROR);
 
@@ -495,7 +498,7 @@ void PrintHostQueueDialog::on_error(Event &evt)
 
 void PrintHostQueueDialog::on_cancel(Event &evt)
 {
-    wxCHECK_RET(evt.job_id < static_cast<size_t>(job_list->GetItemCount()), "Out of bounds access to job list");
+    wxCHECK_RET(evt.job_id < static_cast<size_t>(job_list->GetItemCount()), ERR_JOB_LIST_OUT_OF_BOUNDS);
 
     set_state(evt.job_id, ST_CANCELLED);
     job_list->SetValue(wxVariant(0), evt.job_id, COL_PROGRESS);
@@ -510,7 +513,7 @@ void PrintHostQueueDialog::on_cancel(Event &evt)
 
 void PrintHostQueueDialog::on_info(Event& evt)
 {
-    wxCHECK_RET(evt.job_id < static_cast<size_t>(job_list->GetItemCount()), "Out of bounds access to job list");
+    wxCHECK_RET(evt.job_id < static_cast<size_t>(job_list->GetItemCount()), ERR_JOB_LIST_OUT_OF_BOUNDS);
     
     if (evt.tag == L"resolve") {
         wxVariant hst(evt.status);
