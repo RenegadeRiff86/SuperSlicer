@@ -40,6 +40,12 @@ using std::optional;
 
 namespace Slic3r {
 
+// Marker substituted for the '!' disabled flag when a config value is shown to the
+// user, plus the vector option keys whose length is compared rather than contents.
+static constexpr const char* DISABLED_VALUE_PREFIX = "Disabled:";
+static constexpr const char* KEY_EXTRUDER_COLOUR   = "extruder_colour";
+static constexpr const char* KEY_MILLING_DIAMETER  = "milling_diameter";
+
 namespace GUI {
 
 wxDEFINE_EVENT(EVT_DIFF_DIALOG_TRANSFER,        SimpleEvent);
@@ -285,7 +291,7 @@ ModelNode* DiffModel::AddOptionWithGroup(ModelNode* category_node, wxString grou
 }
 
 ModelNode* DiffModel::AddOptionWithGroupAndCategory(ModelNode* preset_node, wxString category_name, wxString group_name, 
-                                            wxString option_name, wxString old_value, wxString mod_value, wxString new_value, const std::string category_icon_name)
+                                            wxString option_name, wxString old_value, wxString mod_value, wxString new_value, const std::string& category_icon_name)
 {
     preset_node->Append(std::make_unique<ModelNode>(preset_node, category_name, category_icon_name));
     ModelNode* category_node = preset_node->GetChildren().back().get();
@@ -295,7 +301,7 @@ ModelNode* DiffModel::AddOptionWithGroupAndCategory(ModelNode* preset_node, wxSt
 }
 
 wxDataViewItem DiffModel::AddOption(Preset::Type type, wxString category_name, wxString group_name, wxString option_name,
-                                              wxString old_value, wxString mod_value, wxString new_value, const std::string category_icon_name)
+                                              wxString old_value, wxString mod_value, wxString new_value, const std::string& category_icon_name)
 {
     // "color" strings
     color_string(category_name, def_text_color());
@@ -663,7 +669,7 @@ void DiffViewCtrl::Append(const OptionKeyIdx &opt_key_idx,
                           wxString old_value,
                           wxString mod_value,
                           wxString new_value,
-                          const std::string category_icon_name) {
+                          const std::string& category_icon_name) {
     ItemData item_data = { opt_key_idx, option_name, old_value, mod_value, new_value, type };
 
     wxString old_val = get_short_string(item_data.old_val);
@@ -935,8 +941,8 @@ void UnsavedChangesDialog::build(Preset::Type type, PresetCollection* dependent_
             wxString action = m_app_config_key == "default_action_on_new_project"   ? _L("You will not be asked about the unsaved changes in presets the next time you create new project") : 
                               m_app_config_key == "default_action_on_select_preset" ? _L("You will not be asked about the unsaved changes in presets the next time you switch a preset") :
                                                                                       format_wxstr(_L("You will not be asked about the unsaved changes in presets the next time you: \n"
-						                                                                    "- Closing %1% while some presets are modified,\n"
-						                                                                    "- Loading a new project while some presets are modified"), SLIC3R_APP_NAME) ;
+                                                                                            "- Closing %1% while some presets are modified,\n"
+                                                                                            "- Loading a new project while some presets are modified"), SLIC3R_APP_NAME) ;
             wxString msg = format_wxstr(_L("%1% will remember your action."), SLIC3R_APP_NAME) + "\n\n" + action + "\n\n" +
                            format_wxstr(_L("Visit \"Preferences\" and check \"%1%\"\nto be asked about unsaved changes again."), preferences_item);
     
@@ -963,7 +969,7 @@ void UnsavedChangesDialog::build(Preset::Type type, PresetCollection* dependent_
     show_info_line(Action::Undef);
 }
 
-void UnsavedChangesDialog::show_info_line(Action action, std::string preset_name)
+void UnsavedChangesDialog::show_info_line(Action action, const std::string& preset_name)
 {
     if (action == Action::Undef && !m_tree->has_long_strings())
         m_info_line->Hide();
@@ -1087,7 +1093,6 @@ static wxString get_string_value(const OptionKeyIdx &opt_key_id, const DynamicPr
 
     const ConfigOptionDef* opt_def = config.def()->get(opt_key);
     bool is_optional = opt_def->is_optional;
-    bool can_be_disable = opt_def->can_be_disabled;
     
     
     const ConfigOption* option = config.option(opt_key);
@@ -1098,7 +1103,7 @@ static wxString get_string_value(const OptionKeyIdx &opt_key_id, const DynamicPr
     switch (opt_def->type) {
     case coInt:
         serialized_str = from_u8(option->serialize());
-        serialized_str.Replace("!", "Disabled:");
+        serialized_str.Replace("!", DISABLED_VALUE_PREFIX);
         break;
     case coInts: {
         if (!full_serialize) {
@@ -1106,14 +1111,14 @@ static wxString get_string_value(const OptionKeyIdx &opt_key_id, const DynamicPr
         } else {
             serialized_str = from_u8(option->serialize());
         }
-        serialized_str.Replace("!", "Disabled:");
+        serialized_str.Replace("!", DISABLED_VALUE_PREFIX);
         break;
     }
     case coBool:
         serialized_str = from_u8(option->serialize());
         serialized_str.Replace("0", "false");
         serialized_str.Replace("1", "true");
-        serialized_str.Replace("!", "Disabled:");
+        serialized_str.Replace("!", DISABLED_VALUE_PREFIX);
         break;
     case coBools: {
         if (!full_serialize) {
@@ -1123,28 +1128,28 @@ static wxString get_string_value(const OptionKeyIdx &opt_key_id, const DynamicPr
         }
         serialized_str.Replace("0", "false");
         serialized_str.Replace("1", "true");
-        serialized_str.Replace("!", "Disabled:");
+        serialized_str.Replace("!", DISABLED_VALUE_PREFIX);
         break;
     }
     case coPercent:
     case coPercents: {
         if (!full_serialize) {
-            serialized_str = option->is_enabled(opt_idx) ? "" : "Disabled:";
+            serialized_str = option->is_enabled(opt_idx) ? "" : DISABLED_VALUE_PREFIX;
             serialized_str += from_u8((boost::format("%1%%%") % int(option->get_float(opt_idx))).str());
         } else {
             serialized_str = from_u8(option->serialize());
-            serialized_str.Replace("!", "Disabled:");
+            serialized_str.Replace("!", DISABLED_VALUE_PREFIX);
         }
         break;
     }
     case coFloat:
     case coFloats: {
         if (!full_serialize) {
-            serialized_str = option->is_enabled(opt_idx) ? "" : "Disabled:";
+            serialized_str = option->is_enabled(opt_idx) ? "" : DISABLED_VALUE_PREFIX;
             serialized_str += double_to_string(option->get_float(opt_idx), opt_def->precision);
         } else {
             serialized_str = from_u8(option->serialize());
-            serialized_str.Replace("!", "Disabled:");
+            serialized_str.Replace("!", DISABLED_VALUE_PREFIX);
         }
         break;
     }
@@ -1152,7 +1157,7 @@ static wxString get_string_value(const OptionKeyIdx &opt_key_id, const DynamicPr
         const ConfigOptionString* option_str = config.option<ConfigOptionString>(opt_key);
         assert(option_str);
         //character '<' '>' create strange problems for wxWidget, so remove them (only for the display)
-        std::string str = option->is_enabled() ? "" : "Disabled:";
+        std::string str = option->is_enabled() ? "" : DISABLED_VALUE_PREFIX;
         str += option_str->value;
         boost::erase_all(str, "<");
         boost::erase_all(str, ">");
@@ -1186,13 +1191,13 @@ static wxString get_string_value(const OptionKeyIdx &opt_key_id, const DynamicPr
         }
         if (!strings->empty()) {
             if (opt_idx < int32_t(strings->size())) {
-                serialized_str = option->is_enabled(opt_idx) ? "" : "Disabled:";
+                serialized_str = option->is_enabled(opt_idx) ? "" : DISABLED_VALUE_PREFIX;
                 serialized_str += from_u8(strings->get_at(opt_idx));
             } else {
                 serialized_str = "";
                 for (size_t i = 0; i < option->size(); ++i) {
                     serialized_str += i==0 ? "\"" : "\",\"";
-                    serialized_str += option->is_enabled(i) ? "" : "Disabled:";
+                    serialized_str += option->is_enabled(i) ? "" : DISABLED_VALUE_PREFIX;
                     serialized_str += from_u8(strings->get_at(i));
                 }
                 serialized_str += "\"";
@@ -1203,7 +1208,7 @@ static wxString get_string_value(const OptionKeyIdx &opt_key_id, const DynamicPr
     case coFloatOrPercent: {
         const ConfigOptionFloatOrPercent* float_percent = config.option<ConfigOptionFloatOrPercent>(opt_key);
         assert(float_percent);
-        serialized_str = (float_percent->is_enabled() ? "" : "Disabled:");
+        serialized_str = (float_percent->is_enabled() ? "" : DISABLED_VALUE_PREFIX);
         serialized_str += double_to_string(float_percent->value, opt_def->precision);
         serialized_str += (float_percent->percent ? "%" : "");
         break;
@@ -1213,24 +1218,24 @@ static wxString get_string_value(const OptionKeyIdx &opt_key_id, const DynamicPr
         assert(floats_or_percents);
         if (!full_serialize) {
             const FloatOrPercent f_o_p = floats_or_percents->get_at(opt_idx);
-            serialized_str = (floats_or_percents->is_enabled(opt_idx) ? "" : "Disabled:");
+            serialized_str = (floats_or_percents->is_enabled(opt_idx) ? "" : DISABLED_VALUE_PREFIX);
             serialized_str += double_to_string(f_o_p.value, opt_def->precision);
             serialized_str += (f_o_p.percent ? "%" : "");
         } else {
             serialized_str = from_u8(floats_or_percents->serialize());
-            serialized_str.Replace("!", "Disabled:");
+            serialized_str.Replace("!", DISABLED_VALUE_PREFIX);
         }
         break;
     }
     case coEnum: {
         auto optional_str = config.option_def(opt_key)->enum_def->enum_to_label(config.option(opt_key)->get_int());
-        serialized_str = (option->is_enabled() ? "" : "Disabled:");
+        serialized_str = (option->is_enabled() ? "" : DISABLED_VALUE_PREFIX);
         serialized_str += optional_str.has_value() ? _(from_u8(*optional_str)) : _L("Undef");
         break;
     }
     case coPoint: {
         Vec2d pointd = config.opt<ConfigOptionPoint>(opt_key)->value;
-        serialized_str = (option->is_enabled() ? "" : "Disabled:");
+        serialized_str = (option->is_enabled() ? "" : DISABLED_VALUE_PREFIX);
         serialized_str += from_u8((boost::format("[%1%]") % ConfigOptionPoint(pointd).serialize()).str());
         break;
     }
@@ -1243,17 +1248,17 @@ static wxString get_string_value(const OptionKeyIdx &opt_key_id, const DynamicPr
         }
         if (!opt_pts->empty()) {
             if (!full_serialize) {
-                serialized_str = (option->is_enabled(opt_idx) ? "" : "Disabled:");
+                serialized_str = (option->is_enabled(opt_idx) ? "" : DISABLED_VALUE_PREFIX);
                 serialized_str += from_u8((boost::format("[%1%]") % opt_pts->serialize_at(opt_idx)).str());
             } else {
                 serialized_str = from_u8(opt_pts->serialize());
-                serialized_str.Replace("!", "Disabled:");
+                serialized_str.Replace("!", DISABLED_VALUE_PREFIX);
             }
         }
         break;
     }
     case coGraph: {
-        serialized_str = (option->is_enabled() ? "" : "Disabled:");
+        serialized_str = (option->is_enabled() ? "" : DISABLED_VALUE_PREFIX);
         serialized_str += graph_to_string(config.option<ConfigOptionGraph>(opt_key)->value);
         break;
     }
@@ -1261,11 +1266,11 @@ static wxString get_string_value(const OptionKeyIdx &opt_key_id, const DynamicPr
         const ConfigOptionGraphs* opt_graphs = config.opt<ConfigOptionGraphs>(opt_key);
         if (!opt_graphs->empty()) {
             if (!full_serialize) {
-                serialized_str = (option->is_enabled(opt_idx) ? "" : "Disabled:");
+                serialized_str = (option->is_enabled(opt_idx) ? "" : DISABLED_VALUE_PREFIX);
                 serialized_str += graph_to_string(opt_graphs->get_at(opt_idx));
             } else {
                 serialized_str = from_u8(opt_graphs->serialize());
-                serialized_str.Replace("!", "Disabled:");
+                serialized_str.Replace("!", DISABLED_VALUE_PREFIX);
             }
         }
         break;
@@ -1355,11 +1360,11 @@ void UnsavedChangesDialog::update_tree(Preset::Type type, PresetCollection* pres
 
         // process changes of extruders count
         if (type == Preset::TYPE_PRINTER && old_pt == ptFFF &&
-            old_config.opt<ConfigOptionStrings>("extruder_colour")->size() != mod_config.opt<ConfigOptionStrings>("extruder_colour")->size()) {
+            old_config.opt<ConfigOptionStrings>(KEY_EXTRUDER_COLOUR)->size() != mod_config.opt<ConfigOptionStrings>(KEY_EXTRUDER_COLOUR)->size()) {
             wxString local_label = _L("Extruders count");
-            wxString old_val = from_u8((boost::format("%1%") % old_config.opt<ConfigOptionStrings>("extruder_colour")->size()).str());
-            wxString mod_val = from_u8((boost::format("%1%") % mod_config.opt<ConfigOptionStrings>("extruder_colour")->size()).str());
-            wxString new_val = !m_tree->has_new_value_column() ? "" : from_u8((boost::format("%1%") % new_config.opt<ConfigOptionStrings>("extruder_colour")->size()).str());
+            wxString old_val = from_u8((boost::format("%1%") % old_config.opt<ConfigOptionStrings>(KEY_EXTRUDER_COLOUR)->size()).str());
+            wxString mod_val = from_u8((boost::format("%1%") % mod_config.opt<ConfigOptionStrings>(KEY_EXTRUDER_COLOUR)->size()).str());
+            wxString new_val = !m_tree->has_new_value_column() ? "" : from_u8((boost::format("%1%") % new_config.opt<ConfigOptionStrings>(KEY_EXTRUDER_COLOUR)->size()).str());
 
             assert(category_icon_map.find(wxGetApp().get_tab(type)->get_page(0)->title()) != category_icon_map.end());
             if(wxGetApp().get_tab(type)->get_page_count() > 0)
@@ -1368,16 +1373,16 @@ void UnsavedChangesDialog::update_tree(Preset::Type type, PresetCollection* pres
         }
         // Milling cutter count (printer FFF with milling options).
         if (type == Preset::TYPE_PRINTER && old_pt == ptFFF &&
-            old_config.option<ConfigOptionFloats>("milling_diameter") &&
-            mod_config.option<ConfigOptionFloats>("milling_diameter") &&
-            old_config.opt<ConfigOptionFloats>("milling_diameter")->size() !=
-                mod_config.opt<ConfigOptionFloats>("milling_diameter")->size()) {
+            old_config.option<ConfigOptionFloats>(KEY_MILLING_DIAMETER) &&
+            mod_config.option<ConfigOptionFloats>(KEY_MILLING_DIAMETER) &&
+            old_config.opt<ConfigOptionFloats>(KEY_MILLING_DIAMETER)->size() !=
+                mod_config.opt<ConfigOptionFloats>(KEY_MILLING_DIAMETER)->size()) {
             wxString local_label = _L("Milling cutters count");
-            wxString old_val = from_u8((boost::format("%1%") % old_config.opt<ConfigOptionFloats>("milling_diameter")->size()).str());
-            wxString mod_val = from_u8((boost::format("%1%") % mod_config.opt<ConfigOptionFloats>("milling_diameter")->size()).str());
+            wxString old_val = from_u8((boost::format("%1%") % old_config.opt<ConfigOptionFloats>(KEY_MILLING_DIAMETER)->size()).str());
+            wxString mod_val = from_u8((boost::format("%1%") % mod_config.opt<ConfigOptionFloats>(KEY_MILLING_DIAMETER)->size()).str());
             wxString new_val = !m_tree->has_new_value_column() ? "" :
-                (new_config.option<ConfigOptionFloats>("milling_diameter")
-                    ? from_u8((boost::format("%1%") % new_config.opt<ConfigOptionFloats>("milling_diameter")->size()).str())
+                (new_config.option<ConfigOptionFloats>(KEY_MILLING_DIAMETER)
+                    ? from_u8((boost::format("%1%") % new_config.opt<ConfigOptionFloats>(KEY_MILLING_DIAMETER)->size()).str())
                     : "");
             if (wxGetApp().get_tab(type)->get_page_count() > 0)
                 m_tree->Append(OptionKeyIdx::scalar("milling_cutters_count"), type,
@@ -1913,7 +1918,7 @@ void DiffPresetDialog::update_tree()
 
         // Collect dirty options.
         auto dirty_options = type == Preset::TYPE_PRINTER && left_pt == ptFFF &&
-                             left_config.opt<ConfigOptionStrings>("extruder_colour")->size() < right_congig.opt<ConfigOptionStrings>("extruder_colour")->size() ?
+                             left_config.opt<ConfigOptionStrings>(KEY_EXTRUDER_COLOUR)->size() < right_congig.opt<ConfigOptionStrings>(KEY_EXTRUDER_COLOUR)->size() ?
                              presets->dirty_options(right_preset, left_preset, false /*ignore/also with phony*/) :
                              presets->dirty_options(left_preset, right_preset, false /*ignore/also with phony*/);
 
@@ -1935,10 +1940,10 @@ void DiffPresetDialog::update_tree()
 
         // process changes of extruders count
         if (type == Preset::TYPE_PRINTER && left_pt == ptFFF &&
-            left_config.opt<ConfigOptionStrings>("extruder_colour")->size() != right_congig.opt<ConfigOptionStrings>("extruder_colour")->size()) {
+            left_config.opt<ConfigOptionStrings>(KEY_EXTRUDER_COLOUR)->size() != right_congig.opt<ConfigOptionStrings>(KEY_EXTRUDER_COLOUR)->size()) {
             wxString local_label = _L("Extruders count");
-            wxString left_val = from_u8((boost::format("%1%") % left_config.opt<ConfigOptionStrings>("extruder_colour")->size()).str());
-            wxString right_val = from_u8((boost::format("%1%") % right_congig.opt<ConfigOptionStrings>("extruder_colour")->size()).str());
+            wxString left_val = from_u8((boost::format("%1%") % left_config.opt<ConfigOptionStrings>(KEY_EXTRUDER_COLOUR)->size()).str());
+            wxString right_val = from_u8((boost::format("%1%") % right_congig.opt<ConfigOptionStrings>(KEY_EXTRUDER_COLOUR)->size()).str());
 
             m_tree->Append(OptionKeyIdx::scalar("extruders_count"), type, _L("General"), _L("Capabilities"), local_label, left_val, right_val, "", "printer");
         }
