@@ -32,6 +32,11 @@ namespace Slic3r
 namespace GUI
 {
 
+// Icon name shared by every seam-attractor menu entry, and the application-config key
+// that forces expert-only object options to stay visible in simple mode.
+static constexpr const char* ICON_ADD_SEAM             = "add_seam";
+static constexpr const char* APP_OBJECTS_ALWAYS_EXPERT = "objects_always_expert";
+
 static PrinterTechnology printer_technology()
 {
     return wxGetApp().preset_bundle->printers.get_selected_preset().printer_technology();
@@ -185,10 +190,10 @@ static const constexpr std::array<std::pair<const char *, const char *>, 11> ADD
     {L("Add modifier"),          "add_modifier"},        // ~ModelVolumeType::PARAMETER_MODIFIER
     {L("Add support blocker"),   "support_blocker"},     // ~ModelVolumeType::SUPPORT_BLOCKER
     {L("Add support enforcer"),  "support_enforcer"},    // ~ModelVolumeType::SUPPORT_ENFORCER
-    {L("Add seam attractor (sphere)"),     "add_seam"},            // ~ModelVolumeType::SEAM_POSITION_CENTER
-    {L("Add seam attractor (cylinder)"),   "add_seam"},            // ~ModelVolumeType::SEAM_POSITION_CENTER_Z
-    {L("Enforce seam position (sphere)"), "add_seam"},            // ~ModelVolumeType::SEAM_POSITION_INSIDE_CENTER
-    {L("Enforce seam position"),     "add_seam"},            // ~ModelVolumeType::SEAM_POSITION_INSIDE
+    {L("Add seam attractor (sphere)"),     ICON_ADD_SEAM},            // ~ModelVolumeType::SEAM_POSITION_CENTER
+    {L("Add seam attractor (cylinder)"),   ICON_ADD_SEAM},            // ~ModelVolumeType::SEAM_POSITION_CENTER_Z
+    {L("Enforce seam position (sphere)"), ICON_ADD_SEAM},            // ~ModelVolumeType::SEAM_POSITION_INSIDE_CENTER
+    {L("Enforce seam position"),     ICON_ADD_SEAM},            // ~ModelVolumeType::SEAM_POSITION_INSIDE
     {L("Add brim patch"),        "add_brim_patch"},      // ~ModelVolumeType::BRIM_PATCH
     {L("Add brim negative"),     "add_brim_negative"},   // ~ModelVolumeType::BRIM_NEGATIVE
 }};
@@ -387,7 +392,6 @@ static wxMenu* create_settings_popupmenu(wxMenu* parent_menu, const bool is_obje
                 m_freq_settings_sla : m_freq_settings_fff;
             bool changed_existing = false;
 
-            std::vector<std::string> tmp_freq_cat = {};
 
             for (auto& cat : freq_settings)
             {
@@ -576,7 +580,7 @@ void MenuFactory::append_submenu_add_generic(wxMenu* menu_parent, wxMenu* sub_me
     //assert(type != ModelVolumeType::SEAM_POSITION_INSIDE);
     const ConfigOptionMode mode = wxGetApp().get_mode();
 
-    if (type != ModelVolumeType::INVALID && type != ModelVolumeType::SEAM_POSITION_INSIDE && (mode > comSimple || get_app_config()->get_bool("objects_always_expert"))) {
+    if (type != ModelVolumeType::INVALID && type != ModelVolumeType::SEAM_POSITION_INSIDE && (mode > comSimple || get_app_config()->get_bool(APP_OBJECTS_ALWAYS_EXPERT))) {
         append_menu_item(sub_menu, wxID_ANY, _L("Load") + " " + dots, "",
             [type](wxCommandEvent&) { obj_list()->load_subobject(type); }, "", menu_parent);
         sub_menu->AppendSeparator();
@@ -600,7 +604,7 @@ void MenuFactory::append_submenu_add_generic(wxMenu* menu_parent, wxMenu* sub_me
         append_menu_item_add_svg(sub_menu, type);
     }
 
-    if (type != ModelVolumeType::SEAM_POSITION_INSIDE && (mode >= comAdvanced || get_app_config()->get_bool("objects_always_expert"))) {
+    if (type != ModelVolumeType::SEAM_POSITION_INSIDE && (mode >= comAdvanced || get_app_config()->get_bool(APP_OBJECTS_ALWAYS_EXPERT))) {
         sub_menu->AppendSeparator();
         append_menu_item(sub_menu, wxID_ANY, _L("Gallery"), "",
             [type](wxCommandEvent&) { obj_list()->load_subobject(type, true); }, "", menu_parent);
@@ -688,7 +692,7 @@ void MenuFactory::append_menu_items_add_volume(MenuType menu_type)
             menu->Destroy(item_id);
     }
 
-    if (wxGetApp().get_mode() == comSimple && !get_app_config()->get_bool("objects_always_expert")) {
+    if (wxGetApp().get_mode() == comSimple && !get_app_config()->get_bool(APP_OBJECTS_ALWAYS_EXPERT)) {
         //append_menu_item_add_text(menu, ModelVolumeType::MODEL_PART, false);
         //append_menu_item_add_text(menu, ModelVolumeType::NEGATIVE_VOLUME, false);
 
@@ -768,7 +772,7 @@ void MenuFactory::append_menu_items_add_volume(MenuType menu_type)
         wxMenu* sub_menu_patch = new wxMenu;
         append_submenu_add_generic(sub_menu_both, sub_menu_patch, ModelVolumeType::SEAM_POSITION_INSIDE);
         append_submenu(sub_menu_both, sub_menu_patch, wxID_ANY, _L("Seam enforcer (inside volume)"), "", "", selected_func, m_parent);
-        append_submenu(menu, sub_menu_both, wxID_ANY, combined_seam_str, "", "add_seam", selected_func, m_parent);
+        append_submenu(menu, sub_menu_both, wxID_ANY, combined_seam_str, "", ICON_ADD_SEAM, selected_func, m_parent);
     }
     if (menu_type != mtObjectSLA) {
         // Brim: patch or blocker
@@ -852,7 +856,7 @@ wxMenuItem* MenuFactory::append_menu_item_settings(wxMenu* menu_)
         return nullptr;
 
     const ConfigOptionMode mode = wxGetApp().get_mode();
-    if (mode == comSimple && !get_app_config()->get_bool("objects_always_expert"))
+    if (mode == comSimple && !get_app_config()->get_bool(APP_OBJECTS_ALWAYS_EXPERT))
         return nullptr;
 
     // Create new items for settings popupmenu
@@ -882,7 +886,7 @@ wxMenuItem* MenuFactory::append_menu_item_settings(wxMenu* menu_)
     // Add frequently settings
     create_freq_settings_popupmenu(menu, is_object_settings, item);
 
-    if (mode == comAdvanced && !get_app_config()->get_bool("objects_always_expert"))
+    if (mode == comAdvanced && !get_app_config()->get_bool(APP_OBJECTS_ALWAYS_EXPERT))
         return nullptr;
 
     menu->SetSecondSeparator();

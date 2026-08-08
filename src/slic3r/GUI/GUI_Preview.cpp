@@ -58,6 +58,9 @@
 namespace Slic3r {
 namespace GUI {
 
+// Per-object/volume config option key inspected when deciding what the preview shows.
+static constexpr const char* KEY_EXTRUDER = "extruder";
+
 View3D::View3D(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig* config, BackgroundSlicingProcess* process)
     : m_canvas_widget(nullptr)
 {
@@ -67,7 +70,7 @@ View3D::View3D(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig* c
 View3D::~View3D()
 {
     m_canvas.reset();
-    delete m_canvas_widget;
+    m_canvas_widget.reset();
 }
 
 bool View3D::init(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig* config, BackgroundSlicingProcess* process)
@@ -79,12 +82,12 @@ bool View3D::init(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig
         return false;
     SetName("superslicer.view.3d");
 
-    m_canvas_widget = OpenGLManager::create_wxglcanvas(*this);
+    m_canvas_widget.reset(OpenGLManager::create_wxglcanvas(*this));
     if (m_canvas_widget == nullptr)
         return false;
     m_canvas_widget->SetName("superslicer.canvas.3d");
 
-    m_canvas = std::make_unique<GLCanvas3D>(m_canvas_widget, bed);
+    m_canvas = std::make_unique<GLCanvas3D>(m_canvas_widget.get(), bed);
     m_canvas->set_context(wxGetApp().init_glcontext(*m_canvas_widget));
 
     m_canvas->allow_multisample(OpenGLManager::can_multisample());
@@ -103,7 +106,7 @@ bool View3D::init(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig
     m_canvas->enable_slope(true);
 
     wxBoxSizer* main_sizer = new wxBoxSizer(wxVERTICAL);
-    main_sizer->Add(m_canvas_widget, 1, wxALL | wxEXPAND, 0);
+    main_sizer->Add(m_canvas_widget.get(), 1, wxALL | wxEXPAND, 0);
 
     SetSizer(main_sizer);
     SetMinSize(GetSize());
@@ -236,12 +239,12 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     SetBackgroundColour(GetParent()->GetBackgroundColour());
 #endif // _WIN32
 
-    m_canvas_widget = OpenGLManager::create_wxglcanvas(*this);
+    m_canvas_widget.reset(OpenGLManager::create_wxglcanvas(*this));
     if (m_canvas_widget == nullptr)
         return false;
     m_canvas_widget->SetName("superslicer.canvas.preview");
 
-    m_canvas = std::make_unique<GLCanvas3D>(m_canvas_widget, bed);
+    m_canvas = std::make_unique<GLCanvas3D>(m_canvas_widget.get(), bed);
     m_canvas->set_context(wxGetApp().init_glcontext(*m_canvas_widget));
     m_canvas->allow_multisample(OpenGLManager::can_multisample());
     m_canvas->set_config(m_config);
@@ -255,7 +258,7 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     wxGetApp().UpdateDarkUI(m_bottom_toolbar_panel = new wxPanel(this));
 
     m_left_sizer = new wxBoxSizer(wxVERTICAL);
-    m_left_sizer->Add(m_canvas_widget, 1, wxALL | wxEXPAND, 0);
+    m_left_sizer->Add(m_canvas_widget.get(), 1, wxALL | wxEXPAND, 0);
 
     wxBoxSizer* right_sizer = new wxBoxSizer(wxVERTICAL);
     right_sizer->Add(m_layers_slider_sizer, 1, wxEXPAND, 0);
@@ -292,8 +295,7 @@ Preview::~Preview()
 
     m_canvas.reset();
 
-    if (m_canvas_widget != nullptr)
-        delete m_canvas_widget;
+    m_canvas_widget.reset();
 }
 
 void Preview::set_as_dirty()
@@ -741,28 +743,28 @@ void Preview::update_layers_slider_mode()
         // check if whole model uses just only one extruder
         if (!objects.empty())
         {
-            const int extruder = objects[0]->config.has("extruder") ?
-                                 objects[0]->config.option("extruder")->get_int() : 0;
+            const int extruder = objects[0]->config.has(KEY_EXTRUDER) ?
+                                 objects[0]->config.option(KEY_EXTRUDER)->get_int() : 0;
 
             auto is_one_extruder_printed_model = [objects, extruder]()
             {
                 for (ModelObject* object : objects)
                 {
-                    if (object->config.has("extruder") &&
-                        object->config.option("extruder")->get_int() != extruder)
+                    if (object->config.has(KEY_EXTRUDER) &&
+                        object->config.option(KEY_EXTRUDER)->get_int() != extruder)
                         return false;
 
                     for (ModelVolume* volume : object->volumes)
-                        if ((volume->config.has("extruder") && 
-                            volume->config.option("extruder")->get_int() != 0 && // extruder isn't default
-                            volume->config.option("extruder")->get_int() != extruder) ||
+                        if ((volume->config.has(KEY_EXTRUDER) && 
+                            volume->config.option(KEY_EXTRUDER)->get_int() != 0 && // extruder isn't default
+                            volume->config.option(KEY_EXTRUDER)->get_int() != extruder) ||
                             !volume->mm_segmentation_facets.empty())
                             return false;
 
                     for (const auto& range : object->layer_config_ranges)
-                        if (range.second.has("extruder") &&
-                            range.second.option("extruder")->get_int() != 0 && // extruder isn't default
-                            range.second.option("extruder")->get_int() != extruder)
+                        if (range.second.has(KEY_EXTRUDER) &&
+                            range.second.option(KEY_EXTRUDER)->get_int() != 0 && // extruder isn't default
+                            range.second.option(KEY_EXTRUDER)->get_int() != extruder)
                             return false;
                 }
                 return true;

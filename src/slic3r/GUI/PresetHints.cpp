@@ -19,6 +19,9 @@
 
 namespace Slic3r {
 
+// Printer config option key holding the per-extruder nozzle diameters.
+static constexpr const char* KEY_NOZZLE_DIAMETER = "nozzle_diameter";
+
 using Slic3r::GUI::format_wxstr;
 
 void format_simple_fan_speed(wxString &out, int min_speed, int default_speed, wxString &&feature_name, int fan_speed) {
@@ -299,7 +302,7 @@ std::string PresetHints::maximum_volumetric_flow_description(const PresetBundle 
     const DynamicPrintConfig &printer_config  = preset_bundle.printers  .get_edited_preset().config;
 
     // Current printer values.
-    float  nozzle_diameter                  = static_cast<float>(printer_config.opt_float("nozzle_diameter", idx_extruder));
+    float  nozzle_diameter                  = static_cast<float>(printer_config.opt_float(KEY_NOZZLE_DIAMETER, idx_extruder));
 
     // Print config values
     DynamicPrintConfig full_print_config;
@@ -544,7 +547,7 @@ std::string PresetHints::maximum_volumetric_flow_description(const PresetBundle 
         out += pattern + " " + pattern2;
     }
 
- 	return out;
+    return out;
 }
 
 std::string PresetHints::recommended_thin_wall_thickness(const PresetBundle& preset_bundle)
@@ -556,7 +559,7 @@ std::string PresetHints::recommended_thin_wall_thickness(const PresetBundle& pre
     float   layer_height = float(print_config.opt_float("layer_height"));
     int     num_perimeters = print_config.option("perimeters")->get_int();
     bool    thin_walls = print_config.opt_bool("thin_walls");
-    float   nozzle_diameter = float(printer_config.opt_float("nozzle_diameter", 0));
+    float   nozzle_diameter = float(printer_config.opt_float(KEY_NOZZLE_DIAMETER, 0));
 
     std::string out;
     if (layer_height <= 0.f) {
@@ -615,11 +618,11 @@ std::string PresetHints::recommended_extrusion_width(const PresetBundle& preset_
     const DynamicPrintConfig& print_config = preset_bundle.fff_prints.get_edited_preset().config;
     const DynamicPrintConfig& printer_config = preset_bundle.printers.get_edited_preset().config;
 
-    int nb_nozzles = printer_config.option<ConfigOptionFloats>("nozzle_diameter")->size();
+    int nb_nozzles = printer_config.option<ConfigOptionFloats>(KEY_NOZZLE_DIAMETER)->size();
 
     double nozzle_diameter = 0;
     for(int i=0; i< nb_nozzles; i++)
-        nozzle_diameter = std::max(nozzle_diameter, printer_config.opt_float("nozzle_diameter", i));
+        nozzle_diameter = std::max(nozzle_diameter, printer_config.opt_float(KEY_NOZZLE_DIAMETER, i));
     double layer_height = print_config.opt_float("layer_height");
     double first_layer_height = print_config.option<ConfigOptionFloatOrPercent>("first_layer_height")->get_abs_value(nozzle_diameter);
 
@@ -662,30 +665,30 @@ std::string PresetHints::top_bottom_shell_thickness_explanation(const PresetBund
     // Variable LH floor is the smallest min height across all nozzles (most restrictive).
     double  min_layer_height = layer_height;
     if (variable_layer_height) {
-        const auto &nozzles = printer_config.option<ConfigOptionFloats>("nozzle_diameter")->get_values();
+        const auto &nozzles = printer_config.option<ConfigOptionFloats>(KEY_NOZZLE_DIAMETER)->get_values();
         min_layer_height = Slicing::min_layer_height_from_nozzle(printer_config, 0);
         for (size_t i = 1; i < nozzles.size(); ++i)
             min_layer_height = std::min(min_layer_height, Slicing::min_layer_height_from_nozzle(printer_config, uint16_t(i)));
     }
 
-	if (layer_height <= 0.f) {
-		out += _u8L("Top / bottom shell thickness hint: Not available due to invalid layer height.");
-		return out;
-	}
+    if (layer_height <= 0.f) {
+        out += _u8L("Top / bottom shell thickness hint: Not available due to invalid layer height.");
+        return out;
+    }
 
     if (has_top_layers) {
-    	double top_shell_thickness = top_solid_layers * layer_height;
-    	if (top_shell_thickness < top_solid_min_thickness) {
-    		// top_solid_min_shell_thickness triggers even in case of normal layer height. Round the top_shell_thickness up
-    		// to an integer multiply of layer_height.
-    		double n = ceil(top_solid_min_thickness / layer_height);
-    		top_shell_thickness = n * layer_height;
-    	}
-    	double top_shell_thickness_minimum = std::max(top_solid_min_thickness, top_solid_layers * min_layer_height);
+        double top_shell_thickness = top_solid_layers * layer_height;
+        if (top_shell_thickness < top_solid_min_thickness) {
+            // top_solid_min_shell_thickness triggers even in case of normal layer height. Round the top_shell_thickness up
+            // to an integer multiply of layer_height.
+            double n = ceil(top_solid_min_thickness / layer_height);
+            top_shell_thickness = n * layer_height;
+        }
+        double top_shell_thickness_minimum = std::max(top_solid_min_thickness, top_solid_layers * min_layer_height);
         out += (boost::format(_u8L("Top shell is %1% mm thick for layer height %2% mm.")) % top_shell_thickness % layer_height).str();
         if (variable_layer_height && top_shell_thickness_minimum < top_shell_thickness) {
-        	out += " ";
-	        out += (boost::format(_u8L("Minimum top shell thickness is %1% mm.")) % top_shell_thickness_minimum).str();        	
+            out += " ";
+            out += (boost::format(_u8L("Minimum top shell thickness is %1% mm.")) % top_shell_thickness_minimum).str();        	
         }
     } else
         out += _u8L("Top is open.");
@@ -693,18 +696,18 @@ std::string PresetHints::top_bottom_shell_thickness_explanation(const PresetBund
     out += "\n";
 
     if (has_bottom_layers) {
-    	double bottom_shell_thickness = bottom_solid_layers * layer_height;
-    	if (bottom_shell_thickness < bottom_solid_min_thickness) {
-    		// bottom_solid_min_shell_thickness triggers even in case of normal layer height. Round the bottom_shell_thickness up
-    		// to an integer multiply of layer_height.
-    		double n = ceil(bottom_solid_min_thickness / layer_height);
-    		bottom_shell_thickness = n * layer_height;
-    	}
-    	double bottom_shell_thickness_minimum = std::max(bottom_solid_min_thickness, bottom_solid_layers * min_layer_height);
+        double bottom_shell_thickness = bottom_solid_layers * layer_height;
+        if (bottom_shell_thickness < bottom_solid_min_thickness) {
+            // bottom_solid_min_shell_thickness triggers even in case of normal layer height. Round the bottom_shell_thickness up
+            // to an integer multiply of layer_height.
+            double n = ceil(bottom_solid_min_thickness / layer_height);
+            bottom_shell_thickness = n * layer_height;
+        }
+        double bottom_shell_thickness_minimum = std::max(bottom_solid_min_thickness, bottom_solid_layers * min_layer_height);
         out += (boost::format(_u8L("Bottom shell is %1% mm thick for layer height %2% mm.")) % bottom_shell_thickness % layer_height).str();
         if (variable_layer_height && bottom_shell_thickness_minimum < bottom_shell_thickness) {
-        	out += " ";
-	        out += (boost::format(_u8L("Minimum bottom shell thickness is %1% mm.")) % bottom_shell_thickness_minimum).str();        	
+            out += " ";
+            out += (boost::format(_u8L("Minimum bottom shell thickness is %1% mm.")) % bottom_shell_thickness_minimum).str();        	
         }
     } else 
         out += _u8L("Bottom is open.");

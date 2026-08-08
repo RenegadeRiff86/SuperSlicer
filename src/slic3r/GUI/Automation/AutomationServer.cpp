@@ -95,14 +95,18 @@ constexpr char ERROR_TARGET_NOT_FOREGROUND[] = "target_not_" "foreground";
 constexpr char FIELD_ACCEPTED[] = "acc" "epted";
 constexpr char FIELD_OPERATION_ID[] = "operation_" "id";
 constexpr char FIELD_REQUEST_ID[] = "request_" "id";
-constexpr char TOOL_ARM_FILE_DIALOG[] = "superslicer_" "arm_file_dialog";
-constexpr char TOOL_BATCH[] = "superslicer_" "batch";
-constexpr char TOOL_FILE_DIALOG_STATUS[] = "superslicer_" "file_dialog_status";
-constexpr char TOOL_INPUT[] = "superslicer_" "input";
-constexpr char TOOL_STATUS[] = "superslicer_" "status";
+// Prefix every automation tool name shares. A macro rather than a constant so the
+// parts still concatenate into a single compile-time literal.
+#define TOOL_NAME_PREFIX "superslicer_"
+
+constexpr char TOOL_ARM_FILE_DIALOG[] = TOOL_NAME_PREFIX "arm_file_dialog";
+constexpr char TOOL_BATCH[] = TOOL_NAME_PREFIX "batch";
+constexpr char TOOL_FILE_DIALOG_STATUS[] = TOOL_NAME_PREFIX "file_dialog_status";
+constexpr char TOOL_INPUT[] = TOOL_NAME_PREFIX "input";
+constexpr char TOOL_STATUS[] = TOOL_NAME_PREFIX "status";
 constexpr char TOOL_UI_SCREENSHOT[] = "superslicer_ui_" "screenshot";
 constexpr char TOOL_UI_SNAPSHOT[] = "superslicer_ui_" "snapshot";
-constexpr char TOOL_WAIT[] = "superslicer_" "wait";
+constexpr char TOOL_WAIT[] = TOOL_NAME_PREFIX "wait";
 
 json failure(const std::string& code, const std::string& message, const std::string& request_id = {})
 {

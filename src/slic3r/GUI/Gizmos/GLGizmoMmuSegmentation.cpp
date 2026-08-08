@@ -24,6 +24,10 @@
 
 namespace Slic3r::GUI {
 
+// Keys into m_desc, the map holding this gizmo's translated tool labels.
+static constexpr const char* DESC_FIRST_COLOR  = "first_color";
+static constexpr const char* DESC_SECOND_COLOR = "second_color";
+
 static inline void show_notification_extruders_limit_exceeded()
 {
     wxGetApp()
@@ -114,9 +118,9 @@ bool GLGizmoMmuSegmentation::on_init()
     m_desc["cursor_size"]          = _L("Brush size") + ": ";
     m_desc["cursor_type"]          = _L("Brush shape");
     m_desc["first_color_caption"]  = _L("Left mouse button") + ": ";
-    m_desc["first_color"]          = _L("First color");
+    m_desc[DESC_FIRST_COLOR]          = _L("First color");
     m_desc["second_color_caption"] = _L("Right mouse button") + ": ";
-    m_desc["second_color"]         = _L("Second color");
+    m_desc[DESC_SECOND_COLOR]         = _L("Second color");
     m_desc["remove_caption"]       = _L("Shift + Left mouse button") + ": ";
     m_desc["remove"]               = _L("Remove painted color");
     m_desc["remove_all"]           = _L("Clear all");
@@ -292,8 +296,8 @@ void GLGizmoMmuSegmentation::on_render_input_window(float x, float y, float bott
     const float buttons_width            = m_imgui->scaled(0.5f);
     const float minimal_slider_width     = m_imgui->scaled(4.f);
     const float color_button_width       = m_imgui->scaled(1.75f);
-    const float combo_label_width        = std::max(m_imgui->calc_text_size(m_desc.at("first_color")).x,
-                                                    m_imgui->calc_text_size(m_desc.at("second_color")).x) + m_imgui->scaled(1.f);
+    const float combo_label_width        = std::max(m_imgui->calc_text_size(m_desc.at(DESC_FIRST_COLOR)).x,
+                                                    m_imgui->calc_text_size(m_desc.at(DESC_SECOND_COLOR)).x) + m_imgui->scaled(1.f);
 
     const float tool_type_radio_brush       = m_imgui->calc_text_size(m_desc["tool_brush"]).x + m_imgui->scaled(2.5f);
     const float tool_type_radio_bucket_fill = m_imgui->calc_text_size(m_desc["tool_bucket_fill"]).x + m_imgui->scaled(2.5f);
@@ -303,7 +307,7 @@ void GLGizmoMmuSegmentation::on_render_input_window(float x, float y, float bott
 
     float caption_max    = 0.f;
     float total_text_max = 0.f;
-    for (const auto &t : std::array<std::string, 3>{"first_color", "second_color", "remove"}) {
+    for (const auto &t : std::array<std::string, 3>{DESC_FIRST_COLOR, DESC_SECOND_COLOR, "remove"}) {
         caption_max    = std::max(caption_max, m_imgui->calc_text_size(m_desc[t + "_caption"]).x);
         total_text_max = std::max(total_text_max, m_imgui->calc_text_size(m_desc[t]).x);
     }
@@ -326,13 +330,13 @@ void GLGizmoMmuSegmentation::on_render_input_window(float x, float y, float bott
         m_imgui->text(text);
     };
 
-    for (const auto &t : std::array<std::string, 3>{"first_color", "second_color", "remove"})
+    for (const auto &t : std::array<std::string, 3>{DESC_FIRST_COLOR, DESC_SECOND_COLOR, "remove"})
         draw_text_with_caption(m_desc.at(t + "_caption"), m_desc.at(t));
 
     ImGui::Separator();
 
     ImGui::AlignTextToFramePadding();
-    m_imgui->text(m_desc.at("first_color"));
+    m_imgui->text(m_desc.at(DESC_FIRST_COLOR));
     ImGui::SameLine(combo_label_width);
     ImGui::PushItemWidth(window_width - combo_label_width - color_button_width);
     render_extruders_combo("##first_color_combo", m_original_extruders_names, m_original_extruders_colors, m_first_selected_extruder_idx);
@@ -340,7 +344,7 @@ void GLGizmoMmuSegmentation::on_render_input_window(float x, float y, float bott
 
     const ColorRGBA& select_first_color = m_modified_extruders_colors[m_first_selected_extruder_idx];
     ImVec4           first_color        = ImGuiWrapper::to_ImVec4(select_first_color);
-    const std::string first_label       = into_u8(m_desc.at("first_color")) + "##color_picker";
+    const std::string first_label       = into_u8(m_desc.at(DESC_FIRST_COLOR)) + "##color_picker";
     if (ImGui::ColorEdit4(first_label.c_str(), (float*)&first_color, ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel,
         // TRN Means "current color"
         _u8L("Current").c_str(),
@@ -349,7 +353,7 @@ void GLGizmoMmuSegmentation::on_render_input_window(float x, float y, float bott
         m_modified_extruders_colors[m_first_selected_extruder_idx] = ImGuiWrapper::from_ImVec4(first_color);
 
     ImGui::AlignTextToFramePadding();
-    m_imgui->text(m_desc.at("second_color"));
+    m_imgui->text(m_desc.at(DESC_SECOND_COLOR));
     ImGui::SameLine(combo_label_width);
     ImGui::PushItemWidth(window_width - combo_label_width - color_button_width);
     render_extruders_combo("##second_color_combo", m_original_extruders_names, m_original_extruders_colors, m_second_selected_extruder_idx);
@@ -357,7 +361,7 @@ void GLGizmoMmuSegmentation::on_render_input_window(float x, float y, float bott
 
     const ColorRGBA& select_second_color = m_modified_extruders_colors[m_second_selected_extruder_idx];
     ImVec4           second_color        = ImGuiWrapper::to_ImVec4(select_second_color);
-    const std::string second_label       = into_u8(m_desc.at("second_color")) + "##color_picker";
+    const std::string second_label       = into_u8(m_desc.at(DESC_SECOND_COLOR)) + "##color_picker";
     if (ImGui::ColorEdit4(second_label.c_str(), (float*)&second_color, ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel,
         _u8L("Current").c_str(), _u8L("Original").c_str()))
         m_modified_extruders_colors[m_second_selected_extruder_idx] = ImGuiWrapper::from_ImVec4(second_color);

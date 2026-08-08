@@ -51,6 +51,9 @@
 namespace Slic3r {
 namespace GUI {
 
+// Name of the GLSL uniform controlling self-illumination; must match the shader source.
+static constexpr const char* UNIFORM_EMISSION_FACTOR = "emission_factor";
+
 static unsigned char buffer_id(EMoveType type) {
     return static_cast<unsigned char>(type) - static_cast<unsigned char>(EMoveType::Retract);
 }
@@ -1063,7 +1066,7 @@ void GCodeViewer::SequentialView::Marker::render()
     glsafe(::glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
 
     shader->start_using();
-    shader->set_uniform("emission_factor", 0.0f);
+    shader->set_uniform(UNIFORM_EMISSION_FACTOR, 0.0f);
     const Camera& camera = wxGetApp().plater()->get_camera();
     const Transform3d& view_matrix = camera.get_view_matrix();
     const Transform3d model_matrix = m_world_transform.cast<double>();
@@ -4175,19 +4178,19 @@ void GCodeViewer::render_toolpaths()
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, (Matrix3d)Matrix3d::Identity());
 
         if (buffer.render_primitive_type == TBuffer::ERenderPrimitiveType::InstancedModel) {
-            shader->set_uniform("emission_factor", 0.25f);
+            shader->set_uniform(UNIFORM_EMISSION_FACTOR, 0.25f);
             render_as_instanced_model(buffer, *shader);
-            shader->set_uniform("emission_factor", 0.0f);
+            shader->set_uniform(UNIFORM_EMISSION_FACTOR, 0.0f);
         }
         else if (buffer.render_primitive_type == TBuffer::ERenderPrimitiveType::BatchedModel) {
-            shader->set_uniform("emission_factor", 0.25f);
+            shader->set_uniform(UNIFORM_EMISSION_FACTOR, 0.25f);
             const int position_id = shader->get_attrib_location("v_position");
             const int normal_id   = shader->get_attrib_location("v_normal");
             render_as_batched_model(buffer, *shader, position_id, normal_id);
-            shader->set_uniform("emission_factor", 0.0f);
+            shader->set_uniform(UNIFORM_EMISSION_FACTOR, 0.0f);
         }
         else {
-            shader->set_uniform("emission_factor", 0.15f);
+            shader->set_uniform(UNIFORM_EMISSION_FACTOR, 0.15f);
             const int position_id = shader->get_attrib_location("v_position");
             const int normal_id   = shader->get_attrib_location("v_normal");
             const int uniform_color = shader->get_uniform_location("uniform_color");
@@ -4342,10 +4345,10 @@ void GCodeViewer::render_shells()
         return;
 
     shader->start_using();
-    shader->set_uniform("emission_factor", 0.1f);
+    shader->set_uniform(UNIFORM_EMISSION_FACTOR, 0.1f);
     const Camera& camera = wxGetApp().plater()->get_camera();
     m_shells.volumes.render(GLVolumeCollection::ERenderType::Transparent, true, camera.get_view_matrix(), camera.get_projection_matrix());
-    shader->set_uniform("emission_factor", 0.0f);
+    shader->set_uniform(UNIFORM_EMISSION_FACTOR, 0.0f);
     shader->stop_using();
 }
 
