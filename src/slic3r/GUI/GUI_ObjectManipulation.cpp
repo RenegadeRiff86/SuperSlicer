@@ -64,6 +64,12 @@ namespace Slic3r
 namespace GUI
 {
 
+// Labels reused across the manipulation panel. L() is the no-op xgettext marker, so the
+// strings are still extracted here; _L() stays at each call site so the lookup happens
+// against the current locale.
+static constexpr const char* LABEL_DROP_TO_BED     = L("Drop to bed");
+static constexpr const char* LABEL_ROTATE_RELATIVE = L("Rotate (relative)");
+
 const double ObjectManipulation::in_to_mm = 25.4;
 const double ObjectManipulation::mm_to_in = 1 / ObjectManipulation::in_to_mm;
 
@@ -86,9 +92,9 @@ static choice_ctrl* create_word_local_combo(wxWindow *parent)
      */
     temp = new wxBitmapComboBox();
     temp->SetTextCtrlStyle(wxTE_READONLY);
-	temp->Create(parent, wxID_ANY, wxString(""), wxDefaultPosition, size, 0, nullptr);
+    temp->Create(parent, wxID_ANY, wxString(""), wxDefaultPosition, size, 0, nullptr);
 #else
-	temp = new choice_ctrl(parent, wxID_ANY, wxString(""), wxDefaultPosition, size, 0, nullptr, wxCB_READONLY | DD_NO_CHECK_ICON);
+    temp = new choice_ctrl(parent, wxID_ANY, wxString(""), wxDefaultPosition, size, 0, nullptr, wxCB_READONLY | DD_NO_CHECK_ICON);
 #endif //__WXOSX__
 
     temp->SetFont(Slic3r::GUI::wxGetApp().normal_font());
@@ -100,7 +106,7 @@ static choice_ctrl* create_word_local_combo(wxWindow *parent)
     temp->Select(static_cast<int>(ECoordinatesType::World));
 
     temp->SetToolTip(_L("Select coordinate space, in which the transformation will be performed."));
-	return temp;
+    return temp;
 }
 
 void msw_rescale_word_local_combo(choice_ctrl* combo)
@@ -334,7 +340,7 @@ ObjectManipulation::ObjectManipulation(wxWindow* parent) :
     };
     
     // add Units 
-    auto add_unit_text = [this, parent, editors_grid_sizer, height](std::string unit, wxStaticText** unit_text)
+    auto add_unit_text = [this, parent, editors_grid_sizer, height](const std::string& unit, wxStaticText** unit_text)
     {
         *unit_text = new wxStaticText(parent, wxID_ANY, _(unit));
         set_font_and_background_style(*unit_text, wxGetApp().normal_font()); 
@@ -354,7 +360,7 @@ ObjectManipulation::ObjectManipulation(wxWindow* parent) :
 
     // Add drop to bed button
     m_drop_to_bed_button = new ScalableButton(parent, wxID_ANY, ScalableBitmap(parent, "drop_to_bed"));
-    m_drop_to_bed_button->SetToolTip(_L("Drop to bed"));
+    m_drop_to_bed_button->SetToolTip(_L(LABEL_DROP_TO_BED));
     m_drop_to_bed_button->Bind(wxEVT_BUTTON, [=](wxCommandEvent& e) {
         // ???
         GLCanvas3D* canvas = wxGetApp().plater()->canvas3D();
@@ -369,13 +375,13 @@ ObjectManipulation::ObjectManipulation(wxWindow* parent) :
                     diff = volume->get_volume_transformation().get_matrix_no_offset().inverse() * diff;
                 diff = m_cache.position - diff;
 
-                Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L("Drop to bed"));
+                Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L(LABEL_DROP_TO_BED));
                 change_position_value(0, diff.x());
                 change_position_value(1, diff.y());
                 change_position_value(2, diff.z());
             }
             else {
-                Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L("Drop to bed"));
+                Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L(LABEL_DROP_TO_BED));
                 change_position_value(2, m_cache.position.z() - min_z);
             }
         }
@@ -385,13 +391,13 @@ ObjectManipulation::ObjectManipulation(wxWindow* parent) :
                 const GLVolume* volume = selection.get_first_volume();
                 const Vec3d diff = m_cache.position - volume->get_instance_transformation().get_matrix_no_offset().inverse() * (min_z * Vec3d::UnitZ());
 
-                Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L("Drop to bed"));
+                Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L(LABEL_DROP_TO_BED));
                 change_position_value(0, diff.x());
                 change_position_value(1, diff.y());
                 change_position_value(2, diff.z());
             }
             else {
-                Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L("Drop to bed"));
+                Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L(LABEL_DROP_TO_BED));
                 change_position_value(2, m_cache.position.z() - min_z);
             }
         }
@@ -561,15 +567,15 @@ void ObjectManipulation::Show(const bool show)
 
 bool ObjectManipulation::IsShown()
 {
-	return dynamic_cast<const wxStaticBoxSizer*>(m_og->sizer)->GetStaticBox()->IsShown(); //  m_og->get_grid_sizer()->IsShown(2);
+    return dynamic_cast<const wxStaticBoxSizer*>(m_og->sizer)->GetStaticBox()->IsShown(); //  m_og->get_grid_sizer()->IsShown(2);
 }
 
 void ObjectManipulation::UpdateAndShow(const bool show)
 {
-	if (show) {
+    if (show) {
         this->set_dirty();
-		this->update_if_dirty();
-	}
+        this->update_if_dirty();
+    }
 
     OG_Settings::UpdateAndShow(show);
     
@@ -678,12 +684,12 @@ void ObjectManipulation::update_settings_value(const Selection& selection)
             m_new_position = volume->get_instance_offset();
             m_new_size = selection.get_bounding_box_in_current_reference_system().first.size();
             m_new_scale = m_new_size.cwiseQuotient(selection.get_unscaled_instance_bounding_box().size()) * 100.0;
-            m_new_rotate_label_string = L("Rotate (relative)");
+            m_new_rotate_label_string = LABEL_ROTATE_RELATIVE;
             m_new_rotation = Vec3d::Zero();
         }
         else {
             m_new_move_label_string = L("Translate (relative) [World]");
-            m_new_rotate_label_string = L("Rotate (relative)");
+            m_new_rotate_label_string = LABEL_ROTATE_RELATIVE;
             m_new_position = Vec3d::Zero();
             m_new_rotation = Vec3d::Zero();
             m_new_size = selection.get_bounding_box_in_current_reference_system().first.size();
@@ -711,7 +717,7 @@ void ObjectManipulation::update_settings_value(const Selection& selection)
             const Vec3d& offset = trafo.get_offset();
 
             m_new_position = offset;
-            m_new_rotate_label_string = L("Rotate (relative)");
+            m_new_rotate_label_string = LABEL_ROTATE_RELATIVE;
             m_new_scale_label_string = L("Scale");
             m_new_scale = Vec3d(100.0, 100.0, 100.0);
             m_new_rotation = Vec3d::Zero();
@@ -719,7 +725,7 @@ void ObjectManipulation::update_settings_value(const Selection& selection)
         }
         else if (is_local_coordinates()) {
             m_new_move_label_string = L("Translate (relative) [World]");
-            m_new_rotate_label_string = L("Rotate (relative)");
+            m_new_rotate_label_string = LABEL_ROTATE_RELATIVE;
             m_new_position = Vec3d::Zero();
             m_new_rotation = Vec3d::Zero();
             m_new_scale = volume->get_volume_scaling_factor() * 100.0;
@@ -727,7 +733,7 @@ void ObjectManipulation::update_settings_value(const Selection& selection)
         }
         else {
             m_new_position = volume->get_volume_offset();
-            m_new_rotate_label_string = L("Rotate (relative)");
+            m_new_rotate_label_string = LABEL_ROTATE_RELATIVE;
             m_new_rotation = Vec3d::Zero();
             m_new_scale_label_string = L("Scale");
             m_new_scale = Vec3d(100.0, 100.0, 100.0);
@@ -775,11 +781,11 @@ void ObjectManipulation::update_if_dirty()
 
     for (int i = 0; i < 3; ++ i) {
         auto update = [this, i](Vec3d &cached, Vec3d &cached_rounded, ManipulationEditorKey key_id, const Vec3d &new_value) {
-			wxString new_text = double_to_string(new_value(i), m_imperial_units && key_id == meSize ? 4 : 2);
-			double new_rounded;
-			new_text.ToDouble(&new_rounded);
-			if (std::abs(cached_rounded(i) - new_rounded) > EPSILON) {
-				cached_rounded(i) = new_rounded;
+            wxString new_text = double_to_string(new_value(i), m_imperial_units && key_id == meSize ? 4 : 2);
+            double new_rounded;
+            new_text.ToDouble(&new_rounded);
+            if (std::abs(cached_rounded(i) - new_rounded) > EPSILON) {
+                cached_rounded(i) = new_rounded;
                 const int id = key_id*3+i;
                 if (m_imperial_units) {
                     double inch_value = new_value(i) * mm_to_in;
@@ -793,8 +799,8 @@ void ObjectManipulation::update_if_dirty()
                 }
                 if (id >= 0) m_editors[id]->set_value(new_text);
             }
-			cached(i) = new_value(i);
-		};
+            cached(i) = new_value(i);
+        };
         update(m_cache.position, m_cache.position_rounded, mePosition, m_new_position);
         update(m_cache.scale,    m_cache.scale_rounded,    meScale,    m_new_scale);
         update(m_cache.size,     m_cache.size_rounded,     meSize,     m_new_size);
@@ -1000,13 +1006,13 @@ void ObjectManipulation::change_rotation_value(int axis, double value)
         transformation_type.set_instance();
 
     selection.setup_cache();
-	selection.rotate(
-		(M_PI / 180.0) * (transformation_type.absolute() ? rotation : rotation - m_cache.rotation), 
-		transformation_type);
+    selection.rotate(
+        (M_PI / 180.0) * (transformation_type.absolute() ? rotation : rotation - m_cache.rotation), 
+        transformation_type);
     canvas->do_rotate(L("Set Orientation"));
 
     m_cache.rotation = rotation;
-	m_cache.rotation_rounded(axis) = DBL_MAX;
+    m_cache.rotation_rounded(axis) = DBL_MAX;
     this->UpdateAndShow(true);
 }
 
