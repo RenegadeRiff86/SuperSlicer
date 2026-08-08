@@ -25,6 +25,12 @@
 namespace Slic3r {
 namespace GUI {
 
+// Hover-hint labels for the measure tool. L() is the no-op xgettext marker, so the
+// strings are still extracted here; the _u8L() at each call site does the actual
+// lookup, which must stay per-call so a language change takes effect.
+static constexpr const char* LABEL_SELECT_FEATURE   = L("Select feature");
+static constexpr const char* LABEL_UNSELECT_FEATURE = L("Unselect feature");
+
 static const Slic3r::ColorRGBA SELECTED_1ST_COLOR = { 0.25f, 0.75f, 0.75f, 1.0f };
 static const Slic3r::ColorRGBA SELECTED_2ND_COLOR = { 0.75f, 0.25f, 0.75f, 1.0f };
 static const Slic3r::ColorRGBA NEUTRAL_COLOR      = { 0.5f, 0.5f, 0.5f, 1.0f };
@@ -1836,7 +1842,7 @@ void GLGizmoMeasure::on_render_input_window(float x, float y, float bottom_limit
                 if (m_selected_features.second.feature.has_value()) {
                     if (m_selected_features.first.feature == m_curr_feature && m_mode == EMode::FeatureSelection) {
                         // hovering over 1st selected feature
-                        text = _u8L("Unselect feature");
+                        text = _u8L(LABEL_UNSELECT_FEATURE);
                         color = SELECTED_1ST_COLOR;
                     }
                     else if (m_hover_id == SEL_SPHERE_1_ID) {
@@ -1858,18 +1864,18 @@ void GLGizmoMeasure::on_render_input_window(float x, float y, float bottom_limit
                     }
                     else if (m_selected_features.first.is_center && m_selected_features.first.source == m_curr_feature) {
                         // hovering over feature whose center is selected as 1st feature
-                        text = _u8L("Select feature");
+                        text = _u8L(LABEL_SELECT_FEATURE);
                         color = SELECTED_1ST_COLOR;
                     }
                     else if (m_selected_features.second.feature == m_curr_feature && m_mode == EMode::FeatureSelection) {
                         // hovering over 2nd selected feature
-                        text = _u8L("Unselect feature");
+                        text = _u8L(LABEL_UNSELECT_FEATURE);
                         color = SELECTED_2ND_COLOR;
                     }
                     else if (m_hover_id == SEL_SPHERE_2_ID) {
                         if (m_selected_features.second.is_center) {
                             // hovering over center selected as 2nd feature
-                            text = _u8L("Unselect feature");
+                            text = _u8L(LABEL_UNSELECT_FEATURE);
                             color = SELECTED_2ND_COLOR;
                         }
                         else if (is_feature_with_center(*m_selected_features.second.feature)) {
@@ -1885,12 +1891,12 @@ void GLGizmoMeasure::on_render_input_window(float x, float y, float bottom_limit
                     }
                     else if (m_selected_features.second.is_center && m_selected_features.second.source == m_curr_feature) {
                         // hovering over feature whose center is selected as 2nd feature
-                        text = _u8L("Select feature");
+                        text = _u8L(LABEL_SELECT_FEATURE);
                         color = SELECTED_2ND_COLOR;
                     }
                     else {
                         // 1st feature selected
-                        text = (m_mode == EMode::PointSelection) ? _u8L("Select point") : _u8L("Select feature");
+                        text = (m_mode == EMode::PointSelection) ? _u8L("Select point") : _u8L(LABEL_SELECT_FEATURE);
                         color = SELECTED_2ND_COLOR;
                     }
                 }
@@ -1898,14 +1904,14 @@ void GLGizmoMeasure::on_render_input_window(float x, float y, float bottom_limit
                     if (m_selected_features.first.feature.has_value()) {
                         if (m_selected_features.first.feature == m_curr_feature && m_mode == EMode::FeatureSelection) {
                             // hovering over 1st selected feature
-                            text = _u8L("Unselect feature");
+                            text = _u8L(LABEL_UNSELECT_FEATURE);
                             color = SELECTED_1ST_COLOR;
                         }
                         else {
                             if (m_hover_id == SEL_SPHERE_1_ID) {
                                 if (m_selected_features.first.is_center) {
                                     // hovering over center selected as 1st feature
-                                    text = _u8L("Unselect feature");
+                                    text = _u8L(LABEL_UNSELECT_FEATURE);
                                     color = SELECTED_1ST_COLOR;
                                 }
                                 else if (is_feature_with_center(*m_selected_features.first.feature)) {
@@ -1922,12 +1928,12 @@ void GLGizmoMeasure::on_render_input_window(float x, float y, float bottom_limit
                             else {
                                 if (m_selected_features.first.is_center && m_selected_features.first.source == m_curr_feature) {
                                     // hovering over feature whose center is selected as 1st feature
-                                    text = _u8L("Select feature");
+                                    text = _u8L(LABEL_SELECT_FEATURE);
                                     color = SELECTED_1ST_COLOR;
                                 }
                                 else {
                                     // 1st feature selected
-                                    text = (m_mode == EMode::PointSelection) ? _u8L("Select point") : _u8L("Select feature");
+                                    text = (m_mode == EMode::PointSelection) ? _u8L("Select point") : _u8L(LABEL_SELECT_FEATURE);
                                     color = SELECTED_2ND_COLOR;
                                 }
                             }
@@ -1935,7 +1941,7 @@ void GLGizmoMeasure::on_render_input_window(float x, float y, float bottom_limit
                     }
                     else {
                         // nothing is selected
-                        text = (m_mode == EMode::PointSelection) ? _u8L("Select point") : _u8L("Select feature");
+                        text = (m_mode == EMode::PointSelection) ? _u8L("Select point") : _u8L(LABEL_SELECT_FEATURE);
                         color = SELECTED_1ST_COLOR;
                     }
                 }

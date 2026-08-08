@@ -60,6 +60,13 @@ using Slic3r::GUI::format_wxstr;
 namespace Slic3r {
 namespace GUI {
 
+// Icon names used across the preset dropdowns, and the separator label heading the
+// system presets. L() is the no-op xgettext marker, so keeping it here is what keeps
+// the label in the .pot now that the call sites reference the constant instead.
+static constexpr const char* ICON_SLA_PRINTER     = "sla_printer";
+static constexpr const char* ICON_EDIT_UNI        = "edit_uni";
+static constexpr const char* LABEL_SYSTEM_PRESETS = L("System presets");
+
 #define BORDER_W 10
 
 // ---------------------------------
@@ -286,7 +293,7 @@ void PresetComboBox::update(std::string select_preset_name)
 
     wxString selected = "";
     if (!presets.front().is_visible)
-        set_label_marker(Append(separator(L("System presets")), NullBitmapBndl()));
+        set_label_marker(Append(separator(LABEL_SYSTEM_PRESETS), NullBitmapBndl()));
 
     for (size_t i = presets.front().is_visible ? 0 : m_collection->num_default_presets(); i < presets.size(); ++i)
     {
@@ -305,7 +312,7 @@ void PresetComboBox::update(std::string select_preset_name)
             if (preset.printer_technology() == ptSLA)
                 bitmap_key += "_sla";
         }
-        std::string main_icon_name = m_type == Preset::TYPE_PRINTER && preset.printer_technology() == ptSLA ? "sla_printer" : m_main_bitmap_name;
+        std::string main_icon_name = m_type == Preset::TYPE_PRINTER && preset.printer_technology() == ptSLA ? ICON_SLA_PRINTER : m_main_bitmap_name;
 
         auto bmp = get_bmp(bitmap_key, main_icon_name, "lock_closed", is_enabled, preset.is_compatible, preset.is_system || preset.is_default);
         assert(bmp);
@@ -341,7 +348,7 @@ void PresetComboBox::update(std::string select_preset_name)
             }
         }
         if (i + 1 == m_collection->num_default_presets())
-            set_label_marker(Append(separator(L("System presets")), NullBitmapBndl()));
+            set_label_marker(Append(separator(LABEL_SYSTEM_PRESETS), NullBitmapBndl()));
     }
     
     if (!system_presets.empty())
@@ -805,14 +812,14 @@ void PlaterPresetComboBox::show_add_menu()
     append_menu_item(menu, wxID_ANY, _L("Add/Remove presets"), "",
         [](wxCommandEvent&) {
             wxTheApp->CallAfter([]() { run_wizard(ConfigWizard::SP_PRINTERS); });
-        }, "edit_uni", menu, []() { return true; }, wxGetApp().plater());
+        }, ICON_EDIT_UNI, menu, []() { return true; }, wxGetApp().plater());
 
     append_menu_item(menu, wxID_ANY, _L("Add physical printer"), "",
         [this](wxCommandEvent&) {
             PhysicalPrinterDialog dlg(this->GetParent(), wxEmptyString);
             if (dlg.ShowModal() == wxID_OK)
                 update();
-        }, "edit_uni", menu, []() { return true; }, wxGetApp().plater());
+        }, ICON_EDIT_UNI, menu, []() { return true; }, wxGetApp().plater());
 
     wxGetApp().plater()->PopupMenu(menu);
 }
@@ -856,10 +863,10 @@ void PlaterPresetComboBox::show_edit_menu()
         append_menu_item(menu, wxID_ANY, _L("Add/Remove presets"), "",
             [](wxCommandEvent&) {
                 wxTheApp->CallAfter([]() { run_wizard(ConfigWizard::SP_PRINTERS); });
-            }, "edit_uni", menu, []() { return true; }, wxGetApp().plater());
+            }, ICON_EDIT_UNI, menu, []() { return true; }, wxGetApp().plater());
 
     append_menu_item(menu, wxID_ANY, _L("Add physical printer"), "",
-        [this](wxCommandEvent&) { this->add_physical_printer(); }, "edit_uni", menu, []() { return true; }, wxGetApp().plater());
+        [this](wxCommandEvent&) { this->add_physical_printer(); }, ICON_EDIT_UNI, menu, []() { return true; }, wxGetApp().plater());
 
     wxGetApp().plater()->PopupMenu(menu);
 }
@@ -923,7 +930,7 @@ void PlaterPresetComboBox::update()
     const std::deque<Preset>& presets = m_collection->get_presets();
 
     if (!presets.front().is_visible)
-        this->set_label_marker(this->Append(separator(L("System presets")), NullBitmapBndl()));
+        this->set_label_marker(this->Append(separator(LABEL_SYSTEM_PRESETS), NullBitmapBndl()));
 
     for (size_t i = presets.front().is_visible ? 0 : m_collection->num_default_presets(); i < presets.size(); ++i) 
     {
@@ -940,7 +947,7 @@ void PlaterPresetComboBox::update()
             continue;
 
         std::string bitmap_key, filament_rgb, extruder_rgb, material_rgb;
-        std::string bitmap_type_name = bitmap_key = m_type == Preset::TYPE_PRINTER && preset.printer_technology() == ptSLA ? "sla_printer" : m_main_bitmap_name;
+        std::string bitmap_type_name = bitmap_key = m_type == Preset::TYPE_PRINTER && preset.printer_technology() == ptSLA ? ICON_SLA_PRINTER : m_main_bitmap_name;
 
         bool single_bar = false;
         if (m_type == Preset::TYPE_FFF_FILAMENT)
@@ -991,7 +998,7 @@ void PlaterPresetComboBox::update()
             }
         }
         if (i + 1 == m_collection->num_default_presets())
-            set_label_marker(Append(separator(L("System presets")), NullBitmapBndl()));
+            set_label_marker(Append(separator(LABEL_SYSTEM_PRESETS), NullBitmapBndl()));
     }
     
     if(!system_presets.empty())
@@ -1061,7 +1068,7 @@ void PlaterPresetComboBox::update()
                 Preset* preset = m_collection->find_preset(data.name);
                 if (!preset || !preset->is_visible)
                     continue;
-                std::string main_icon_name = preset->printer_technology() == ptSLA ? "sla_printer" : m_main_bitmap_name;
+                std::string main_icon_name = preset->printer_technology() == ptSLA ? ICON_SLA_PRINTER : m_main_bitmap_name;
 
                 auto bmp = get_bmp(main_icon_name, main_icon_name, "", true, true, false);
                 assert(bmp);
@@ -1073,7 +1080,7 @@ void PlaterPresetComboBox::update()
     }
 
     if (m_type == Preset::TYPE_PRINTER || m_type == Preset::TYPE_FFF_FILAMENT || m_type == Preset::TYPE_SLA_MATERIAL) {
-        auto bmp = get_bmp("edit_preset_list", wide_icons, "edit_uni");
+        auto bmp = get_bmp("edit_preset_list", wide_icons, ICON_EDIT_UNI);
         assert(bmp);
 
         if (m_type == Preset::TYPE_FFF_FILAMENT)
@@ -1206,7 +1213,7 @@ void TabPresetComboBox::update()
     const bool allow_templates = !wxGetApp().app_config->get_bool("no_templates");
     wxString selected = "";
     if (!presets.front().is_visible)
-        set_label_marker(Append(separator(L("System presets")), NullBitmapBndl()));
+        set_label_marker(Append(separator(LABEL_SYSTEM_PRESETS), NullBitmapBndl()));
     size_t idx_selected = m_type == Preset::TYPE_FFF_FILAMENT ? extruder_filaments.get_selected_idx() : m_collection->get_selected_idx();
 
     if (m_type == Preset::TYPE_PRINTER && m_preset_bundle->physical_printers.has_selection()) {
@@ -1234,7 +1241,7 @@ void TabPresetComboBox::update()
             if (preset.printer_technology() == ptSLA)
                 bitmap_key += "_sla";
         }
-        std::string main_icon_name = m_type == Preset::TYPE_PRINTER && preset.printer_technology() == ptSLA ? "sla_printer" : m_main_bitmap_name;
+        std::string main_icon_name = m_type == Preset::TYPE_PRINTER && preset.printer_technology() == ptSLA ? ICON_SLA_PRINTER : m_main_bitmap_name;
 
         auto bmp = get_bmp(bitmap_key, main_icon_name, "lock_closed", is_enabled, is_compatible, preset.is_system || preset.is_default);
         assert(bmp);
@@ -1260,7 +1267,7 @@ void TabPresetComboBox::update()
                 selected = get_preset_name(preset);
         }
         if (i + 1 == m_collection->num_default_presets())
-            set_label_marker(Append(separator(L("System presets")), NullBitmapBndl()));
+            set_label_marker(Append(separator(LABEL_SYSTEM_PRESETS), NullBitmapBndl()));
     }
    
     if (!system_presets.empty()) 
@@ -1336,7 +1343,7 @@ void TabPresetComboBox::update()
                 Preset* preset = m_collection->find_preset(data.name);
                 if (!preset || !preset->is_visible)
                     continue;
-                std::string main_icon_name = preset->printer_technology() == ptSLA ? "sla_printer" : m_main_bitmap_name;
+                std::string main_icon_name = preset->printer_technology() == ptSLA ? ICON_SLA_PRINTER : m_main_bitmap_name;
 
                 auto bmp = get_bmp(main_icon_name, main_icon_name, "", true, true, false);
                 assert(bmp);
@@ -1347,7 +1354,7 @@ void TabPresetComboBox::update()
         }
 
         // add "Add/Remove printers" item
-        std::string icon_name = "edit_uni";
+        std::string icon_name = ICON_EDIT_UNI;
         auto bmp = get_bmp("edit_preset_list, tab,", icon_name, "");
         assert(bmp);
 
