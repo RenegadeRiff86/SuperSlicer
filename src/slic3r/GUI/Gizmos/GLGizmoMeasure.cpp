@@ -9,12 +9,9 @@
 #include "slic3r/GUI/GUI_ObjectManipulation.hpp"
 
 
-#include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/MeasureUtils.hpp"
 
 #include <imgui/imgui_internal.h>
-
-#include <numeric>
 
 #include <GL/glew.h>
 
@@ -28,6 +25,27 @@ namespace GUI {
 // Hover-hint labels for the measure tool. L() is the no-op xgettext marker, so the
 // strings are still extracted here; the _u8L() at each call site does the actual
 // lookup, which must stay per-call so a language change takes effect.
+static constexpr size_t       TRIANGLE_VERTEX_COUNT          = 3;
+static constexpr size_t       TRIANGLE_LAST_VERTEX_INDEX      = 2;
+static constexpr size_t       TRIANGLES_PER_QUAD              = 2;
+static constexpr unsigned int TORUS_MIN_SECTOR_COUNT          = 4;
+static constexpr unsigned int CIRCLE_SEGMENT_COUNT            = 16;
+static constexpr int          MATRIX_DIMENSION                = 3;
+static constexpr size_t       LINE_VERTEX_COUNT               = 2;
+static constexpr int          DETAIL_TABLE_COLUMN_COUNT       = 2;
+static constexpr int          MEASURE_TABLE_COLUMN_COUNT      = 4;
+static constexpr int          CLIPBOARD_COLUMN_INDEX          = 2;
+static constexpr int          MIN_ARC_RESOLUTION              = 2;
+static constexpr int          SECOND_ARROW_INDEX              = 2;
+static constexpr size_t       VIEWPORT_COMPONENT_COUNT        = 4;
+static constexpr int          ANGLE_TOOLTIP_STYLE_VAR_COUNT   = 3;
+static constexpr int          FEATURE_TOOLTIP_STYLE_VAR_COUNT = 4;
+static constexpr double       FULL_TURN_SCALE                 = 2.0;
+static constexpr float        DIMENSION_LINE_WIDTH            = 2.0f;
+static constexpr double       ARROW_HEAD_LENGTH_SCALE         = 2.0;
+static constexpr float        SYMMETRIC_PADDING_SCALE         = 2.0f;
+static constexpr double       DIAMETER_SCALE                  = 2.0;
+
 static constexpr const char* LABEL_SELECT_FEATURE   = L("Select feature");
 static constexpr const char* LABEL_UNSELECT_FEATURE = L("Unselect feature");
 
@@ -44,14 +62,6 @@ static const int SEL_SPHERE_2_ID  = 502;
 
 static const float TRIANGLE_BASE = 10.0f;
 static const float TRIANGLE_HEIGHT = TRIANGLE_BASE * 1.618033f;
-
-static const std::string CTRL_STR =
-#ifdef __APPLE__
-"⌘"
-#else
-"Ctrl"
-#endif //__APPLE__
-;
 
 static std::string format_double(double value)
 {
@@ -108,20 +118,20 @@ static GLModel::Geometry init_plane_data(const indexed_triangle_set& its, const 
 {
     GLModel::Geometry init_data;
     init_data.format = { GUI::GLModel::Geometry::EPrimitiveType::Triangles, GLModel::Geometry::EVertexLayout::P3N3 };
-    init_data.reserve_indices(3 * triangle_indices.size());
-    init_data.reserve_vertices(3 * triangle_indices.size());
+    init_data.reserve_indices(TRIANGLE_VERTEX_COUNT * triangle_indices.size());
+    init_data.reserve_vertices(TRIANGLE_VERTEX_COUNT * triangle_indices.size());
     unsigned int i = 0;
     for (int idx : triangle_indices) {
         const Vec3f& v0 = its.vertices[its.indices[idx][0]];
         const Vec3f& v1 = its.vertices[its.indices[idx][1]];
-        const Vec3f& v2 = its.vertices[its.indices[idx][2]];
+        const Vec3f& v2 = its.vertices[its.indices[idx][TRIANGLE_LAST_VERTEX_INDEX]];
 
         const Vec3f n = (v1 - v0).cross(v2 - v0).normalized();
         init_data.add_vertex(v0, n);
         init_data.add_vertex(v1, n);
         init_data.add_vertex(v2, n);
-        init_data.add_triangle(i, i + 1, i + 2);
-        i += 3;
+        init_data.add_triangle(i, i + 1, i + TRIANGLE_LAST_VERTEX_INDEX);
+        i += TRIANGLE_VERTEX_COUNT;
     }
 
     return init_data;
@@ -130,15 +140,15 @@ static GLModel::Geometry init_plane_data(const indexed_triangle_set& its, const 
 static GLModel::Geometry init_torus_data(unsigned int primary_resolution, unsigned int secondary_resolution, const Vec3f& center,
     float radius, float thickness, const Vec3f& model_axis, const Transform3f& world_trafo)
 {
-    const unsigned int torus_sector_count = std::max<unsigned int>(4, primary_resolution);
-    const unsigned int section_sector_count = std::max<unsigned int>(4, secondary_resolution);
-    const float torus_sector_step = 2.0f * float(M_PI) / float(torus_sector_count);
-    const float section_sector_step = 2.0f * float(M_PI) / float(section_sector_count);
+    const unsigned int torus_sector_count = std::max(TORUS_MIN_SECTOR_COUNT, primary_resolution);
+    const unsigned int section_sector_count = std::max(TORUS_MIN_SECTOR_COUNT, secondary_resolution);
+    const float torus_sector_step = float(FULL_TURN_SCALE * M_PI) / float(torus_sector_count);
+    const float section_sector_step = float(FULL_TURN_SCALE * M_PI) / float(section_sector_count);
 
     GLModel::Geometry data;
     data.format = { GLModel::Geometry::EPrimitiveType::Triangles, GLModel::Geometry::EVertexLayout::P3N3 };
     data.reserve_vertices(torus_sector_count * section_sector_count);
-    data.reserve_indices(torus_sector_count * section_sector_count * 2 * 3);
+    data.reserve_indices(torus_sector_count * section_sector_count * TRIANGLES_PER_QUAD * TRIANGLE_VERTEX_COUNT);
 
     // vertices
     const Transform3f local_to_world_matrix = world_trafo * Geometry::translation_transform(center.cast<double>()).cast<float>() *
@@ -149,7 +159,8 @@ static GLModel::Geometry init_torus_data(unsigned int primary_resolution, unsign
         const Vec3f local_section_center = radius * radius_dir;
         const Vec3f world_section_center = local_to_world_matrix * local_section_center;
         const Vec3f local_section_normal = local_section_center.normalized().cross(Vec3f::UnitZ()).normalized();
-        const Vec3f world_section_normal = (Vec3f)(local_to_world_matrix.matrix().block(0, 0, 3, 3) * local_section_normal).normalized();
+        const Vec3f world_section_normal = (Vec3f)(local_to_world_matrix.matrix().block(
+            0, 0, MATRIX_DIMENSION, MATRIX_DIMENSION) * local_section_normal).normalized();
         const Vec3f base_v = thickness * radius_dir;
         for (unsigned int j = 0; j < section_sector_count; ++j) {
             const Vec3f v = Eigen::AngleAxisf(section_sector_step * j, world_section_normal) * base_v;
@@ -214,7 +225,7 @@ class TransformHelper
 {
     struct Cache
     {
-        std::array<int, 4> viewport;
+        std::array<int, VIEWPORT_COMPONENT_COUNT> viewport;
         Matrix4d ndc_to_ss_matrix;
         Transform3d ndc_to_ss_matrix_inverse;
     };
@@ -288,11 +299,11 @@ TransformHelper::Cache TransformHelper::s_cache = { { 0, 0, 0, 0 }, Matrix4d::Id
 GLGizmoMeasure::GLGizmoMeasure(GLCanvas3D& parent, const std::string& icon_filename, unsigned int sprite_id)
 : GLGizmoBase(parent, icon_filename, sprite_id)
 {
-    GLModel::Geometry sphere_geometry = smooth_sphere(16, 7.5f);
+    GLModel::Geometry sphere_geometry = smooth_sphere(CIRCLE_SEGMENT_COUNT, 7.5f);
     m_sphere.mesh_raycaster = std::make_unique<MeshRaycaster>(std::make_shared<const TriangleMesh>(sphere_geometry.get_as_indexed_triangle_set()));
     m_sphere.model.init_from(std::move(sphere_geometry));
 
-    GLModel::Geometry cylinder_geometry = smooth_cylinder(16, 5.0f, 1.0f);
+    GLModel::Geometry cylinder_geometry = smooth_cylinder(CIRCLE_SEGMENT_COUNT, 5.0f, 1.0f);
     m_cylinder.mesh_raycaster = std::make_unique<MeshRaycaster>(std::make_shared<const TriangleMesh>(cylinder_geometry.get_as_indexed_triangle_set()));
     m_cylinder.model.init_from(std::move(cylinder_geometry));
 }
@@ -606,7 +617,7 @@ void GLGizmoMeasure::on_render()
             m_last_circle = m_curr_feature;
             m_circle.reset();
             const auto [center, radius, normal] = m_curr_feature->get_circle();
-            GLModel::Geometry circle_geometry = init_torus_data(64, 16, center.cast<float>(), float(radius), 5.0f * inv_zoom, normal.cast<float>(), Transform3f::Identity());
+            GLModel::Geometry circle_geometry = init_torus_data(64, CIRCLE_SEGMENT_COUNT, center.cast<float>(), float(radius), 5.0f * inv_zoom, normal.cast<float>(), Transform3f::Identity());
             m_circle.mesh_raycaster = std::make_unique<MeshRaycaster>(std::make_shared<const TriangleMesh>(circle_geometry.get_as_indexed_triangle_set()));
             m_circle.model.init_from(std::move(circle_geometry));
             return true;
@@ -734,7 +745,7 @@ void GLGizmoMeasure::on_render()
                     const Vec3d local_proj = local_to_model_matrix.inverse() * plane.projection(world_pof);
                     double angle = std::atan2(local_proj.y(), local_proj.x());
                     if (angle < 0.0)
-                        angle += 2.0 * double(M_PI);
+                        angle += FULL_TURN_SCALE * double(M_PI);
 
                     const Vec3d local_pos = radius * Vec3d(std::cos(angle), std::sin(angle), 0.0);
                     m_curr_point_on_feature_position = local_to_model_matrix * local_pos;
@@ -821,7 +832,7 @@ void GLGizmoMeasure::on_render()
                 }
                 else {
                     GLModel circle;
-                    GLModel::Geometry circle_geometry = init_torus_data(64, 16, center.cast<float>(), float(radius), 5.0f * inv_zoom, normal.cast<float>(), Transform3f::Identity());
+                    GLModel::Geometry circle_geometry = init_torus_data(64, CIRCLE_SEGMENT_COUNT, center.cast<float>(), float(radius), 5.0f * inv_zoom, normal.cast<float>(), Transform3f::Identity());
                     circle.init_from(std::move(circle_geometry));
                     set_emission_uniform(colors.front(), hover);
                     circle.set_color(colors.front());
@@ -1162,7 +1173,7 @@ void GLGizmoMeasure::render_dimensioning()
         const Vec2d v12ss = v2ss - v1ss;
         const double v12ss_len = v12ss.norm();
 
-        const bool overlap = v12ss_len - 2.0 * TRIANGLE_HEIGHT < 0.0;
+        const bool overlap = v12ss_len - ARROW_HEAD_LENGTH_SCALE * TRIANGLE_HEIGHT < 0.0;
 
         const auto q12ss = Eigen::Quaternion<double>::FromTwoVectors(Vec3d::UnitX(), Vec3d(v12ss.x(), v12ss.y(), 0.0));
         const auto q21ss = Eigen::Quaternion<double>::FromTwoVectors(Vec3d::UnitX(), Vec3d(-v12ss.x(), -v12ss.y(), 0.0));
@@ -1191,11 +1202,11 @@ void GLGizmoMeasure::render_dimensioning()
         }
         else
 #endif // ENABLE_GL_CORE_PROFILE
-            glsafe(::glLineWidth(2.0f));
+            glsafe(::glLineWidth(DIMENSION_LINE_WIDTH));
 
         // stem
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, overlap ?
-            ss_to_ndc_matrix * Geometry::translation_transform(v1ss_3) * q12ss * Geometry::translation_transform(-2.0 * TRIANGLE_HEIGHT * Vec3d::UnitX()) * Geometry::scale_transform({ v12ss_len + 4.0 * TRIANGLE_HEIGHT, 1.0f, 1.0f }) :
+            ss_to_ndc_matrix * Geometry::translation_transform(v1ss_3) * q12ss * Geometry::translation_transform(-ARROW_HEAD_LENGTH_SCALE * TRIANGLE_HEIGHT * Vec3d::UnitX()) * Geometry::scale_transform({ v12ss_len + 4.0 * TRIANGLE_HEIGHT, 1.0f, 1.0f }) :
             ss_to_ndc_matrix * Geometry::translation_transform(v1ss_3) * q12ss * Geometry::scale_transform({ v12ss_len, 1.0f, 1.0f }));
         m_dimensioning.line.set_color(ColorRGBA::WHITE());
         m_dimensioning.line.render();
@@ -1249,7 +1260,7 @@ void GLGizmoMeasure::render_dimensioning()
             const std::string txt = curr_value_str + " " + units;
             ImVec2 txt_size = ImGui::CalcTextSize(txt.c_str());
             const ImGuiStyle& style = ImGui::GetStyle();
-            draw_list->AddRectFilled({ pos.x - style.FramePadding.x, pos.y + style.FramePadding.y }, { pos.x + txt_size.x + 2.0f * style.FramePadding.x , pos.y + txt_size.y + 2.0f * style.FramePadding.y },
+            draw_list->AddRectFilled({ pos.x - style.FramePadding.x, pos.y + style.FramePadding.y }, { pos.x + txt_size.x + SYMMETRIC_PADDING_SCALE * style.FramePadding.x , pos.y + txt_size.y + SYMMETRIC_PADDING_SCALE * style.FramePadding.y },
               ImGuiWrapper::to_ImU32(ColorRGBA(0.5f, 0.5f, 0.5f, 0.5f)));
             ImGui::SetCursorScreenPos({ pos.x + style.FramePadding.x, pos.y });
             m_imgui->text(txt);
@@ -1260,7 +1271,7 @@ void GLGizmoMeasure::render_dimensioning()
                 m_imgui->requires_extra_frame();
             }
             m_imgui->end();
-            ImGui::PopStyleVar(3);
+            ImGui::PopStyleVar(ANGLE_TOOLTIP_STYLE_VAR_COUNT);
         }
 
         if (m_editing_distance && !ImGui::IsPopupOpen("distance_popup"))
@@ -1387,7 +1398,7 @@ void GLGizmoMeasure::render_dimensioning()
                 action_exit();
             ImGui::EndPopup();
         }
-        ImGui::PopStyleVar(4);
+        ImGui::PopStyleVar(FEATURE_TOOLTIP_STYLE_VAR_COUNT);
     };
 
     auto point_edge = [this, shader](const Measure::SurfaceFeature& f1, const Measure::SurfaceFeature& f2) {
@@ -1445,7 +1456,7 @@ void GLGizmoMeasure::render_dimensioning()
         const Vec3d e1_unit = Measure::edge_direction(e1);
         const Vec3d e2_unit = Measure::edge_direction(e2);
 
-        const unsigned int resolution = std::max<unsigned int>(2, 64 * angle / double(PI));
+        const unsigned int resolution = std::max<unsigned int>(MIN_ARC_RESOLUTION, 64 * angle / double(PI));
         const double step = angle / double(resolution);
         const Vec3d normal = e1_unit.cross(e2_unit).normalized();
 
@@ -1485,7 +1496,7 @@ void GLGizmoMeasure::render_dimensioning()
         }
         else
 #endif // ENABLE_GL_CORE_PROFILE
-          glsafe(::glLineWidth(2.0f));
+          glsafe(::glLineWidth(DIMENSION_LINE_WIDTH));
 
         // arc
         shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
@@ -1521,7 +1532,7 @@ void GLGizmoMeasure::render_dimensioning()
 
         glsafe(::glDisable(GL_CULL_FACE));
         render_arrow(1);
-        render_arrow(2);
+        render_arrow(SECOND_ARROW_INDEX);
         glsafe(::glEnable(GL_CULL_FACE));
 
         // edge 1 extension
@@ -1567,7 +1578,7 @@ void GLGizmoMeasure::render_dimensioning()
         const std::string txt = format_double(Geometry::rad2deg(angle)) + "°";
         ImVec2 txt_size = ImGui::CalcTextSize(txt.c_str());
         const ImGuiStyle& style = ImGui::GetStyle();
-        draw_list->AddRectFilled({ pos.x - style.FramePadding.x, pos.y + style.FramePadding.y }, { pos.x + txt_size.x + 2.0f * style.FramePadding.x , pos.y + txt_size.y + 2.0f * style.FramePadding.y },
+        draw_list->AddRectFilled({ pos.x - style.FramePadding.x, pos.y + style.FramePadding.y }, { pos.x + txt_size.x + SYMMETRIC_PADDING_SCALE * style.FramePadding.x , pos.y + txt_size.y + SYMMETRIC_PADDING_SCALE * style.FramePadding.y },
           ImGuiWrapper::to_ImU32(ColorRGBA(0.5f, 0.5f, 0.5f, 0.5f)));
         ImGui::SetCursorScreenPos({ pos.x + style.FramePadding.x, pos.y });
         m_imgui->text(txt);
@@ -1613,8 +1624,8 @@ void GLGizmoMeasure::render_dimensioning()
         GLModel::Geometry init_data;
         init_data.format = { GLModel::Geometry::EPrimitiveType::Lines, GLModel::Geometry::EVertexLayout::P3 };
         init_data.color = ColorRGBA::WHITE();
-        init_data.reserve_vertices(2);
-        init_data.reserve_indices(2);
+        init_data.reserve_vertices(LINE_VERTEX_COUNT);
+        init_data.reserve_indices(LINE_VERTEX_COUNT);
 
         // vertices
         init_data.add_vertex(Vec3f(0.0f, 0.0f, 0.0f));
@@ -1630,8 +1641,8 @@ void GLGizmoMeasure::render_dimensioning()
         GLModel::Geometry init_data;
         init_data.format = { GLModel::Geometry::EPrimitiveType::Triangles, GLModel::Geometry::EVertexLayout::P3 };
         init_data.color = ColorRGBA::WHITE();
-        init_data.reserve_vertices(3);
-        init_data.reserve_indices(3);
+        init_data.reserve_vertices(TRIANGLE_VERTEX_COUNT);
+        init_data.reserve_indices(TRIANGLE_VERTEX_COUNT);
 
         // vertices
         init_data.add_vertex(Vec3f(0.0f, 0.0f, 0.0f));
@@ -1639,7 +1650,7 @@ void GLGizmoMeasure::render_dimensioning()
         init_data.add_vertex(Vec3f(-TRIANGLE_HEIGHT, -0.5f * TRIANGLE_BASE, 0.0f));
 
         // indices
-        init_data.add_triangle(0, 1, 2);
+        init_data.add_triangle(0, 1, TRIANGLE_LAST_VERTEX_INDEX);
 
         m_dimensioning.triangle.init_from(std::move(init_data));
     }
@@ -1759,7 +1770,7 @@ void GLGizmoMeasure::render_debug_dialog()
     };
 
     m_imgui->begin("Measure tool debug", ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
-    if (ImGui::BeginTable("Mode", 2)) {
+    if (ImGui::BeginTable("Mode", DETAIL_TABLE_COLUMN_COUNT)) {
         std::string txt;
         switch (m_mode)
         {
@@ -1772,7 +1783,7 @@ void GLGizmoMeasure::render_debug_dialog()
     }
 
     ImGui::Separator();
-    if (ImGui::BeginTable("Hover", 2)) {
+    if (ImGui::BeginTable("Hover", DETAIL_TABLE_COLUMN_COUNT)) {
         add_strings_row_to_table(*m_imgui, "Hover id", ImGuiWrapper::get_COL_LIGHT(), std::to_string(m_hover_id), ImGui::GetStyleColorVec4(ImGuiCol_Text));
         const std::string txt = m_curr_feature.has_value() ? surface_feature_type_as_string(m_curr_feature->get_type()) : "None";
         add_strings_row_to_table(*m_imgui, "Current feature", ImGuiWrapper::get_COL_LIGHT(), txt, ImGui::GetStyleColorVec4(ImGuiCol_Text));
@@ -1786,14 +1797,14 @@ void GLGizmoMeasure::render_debug_dialog()
         const ImGuiTableFlags flags = ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersH;
         if (m_selected_features.first.feature.has_value()) {
             m_imgui->text_colored(ImGuiWrapper::get_COL_LIGHT(), "Selection 1");
-            if (ImGui::BeginTable("Selection 1", 2, flags)) {
+            if (ImGui::BeginTable("Selection 1", DETAIL_TABLE_COLUMN_COUNT, flags)) {
                 add_feature_data(m_selected_features.first);
                 ImGui::EndTable();
             }
         }
         if (m_selected_features.second.feature.has_value()) {
             m_imgui->text_colored(ImGuiWrapper::get_COL_LIGHT(), "Selection 2");
-            if (ImGui::BeginTable("Selection 2", 2, flags)) {
+            if (ImGui::BeginTable("Selection 2", DETAIL_TABLE_COLUMN_COUNT, flags)) {
                 add_feature_data(m_selected_features.second);
                 ImGui::EndTable();
             }
@@ -1830,7 +1841,7 @@ void GLGizmoMeasure::on_render_input_window(float x, float y, float bottom_limit
             last_y = y;
     }
 
-    if (ImGui::BeginTable("Commands", 2)) {
+    if (ImGui::BeginTable("Commands", DETAIL_TABLE_COLUMN_COUNT)) {
         unsigned int row_count = 1;
         add_row_to_table(
             [this]() {
@@ -1987,7 +1998,7 @@ void GLGizmoMeasure::on_render_input_window(float x, float y, float bottom_limit
         }
 
         // add dummy rows to keep dialog size fixed
-        for (unsigned int i = row_count; i < 4; ++i) {
+        for (unsigned int i = row_count; i < MEASURE_TABLE_COLUMN_COUNT; ++i) {
             add_strings_row_to_table(*m_imgui, " ", ImGuiWrapper::get_COL_LIGHT(), " ", ImGui::GetStyleColorVec4(ImGuiCol_Text));
         }
 
@@ -1999,7 +2010,7 @@ void GLGizmoMeasure::on_render_input_window(float x, float y, float bottom_limit
 
     ImGui::Separator();
     const ImGuiTableFlags flags = ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersH;
-    if (ImGui::BeginTable("Selection", 2, flags)) {
+    if (ImGui::BeginTable("Selection", DETAIL_TABLE_COLUMN_COUNT, flags)) {
         auto format_item_text = [this, use_inches, &units](const SelectedFeatures::Item& item) {
             if (!item.feature.has_value())
                 return _u8L("None");
@@ -2012,7 +2023,7 @@ void GLGizmoMeasure::on_render_input_window(float x, float y, float bottom_limit
                 radius = (on_circle - center).norm();
                 if (use_inches)
                     radius = ObjectManipulation::mm_to_in * radius;
-                text += " (" + _u8L("Diameter") + ": " + format_double(2.0 * radius) + units + ")";
+                text += " (" + _u8L("Diameter") + ": " + format_double(DIAMETER_SCALE * radius) + units + ")";
             }
             else if (item.feature.has_value() && item.feature->get_type() == Measure::SurfaceFeatureType::Edge) {
                 auto [start, end] = item.feature->get_edge();
@@ -2045,7 +2056,7 @@ void GLGizmoMeasure::on_render_input_window(float x, float y, float bottom_limit
         m_imgui->text_colored(col_1_color, col_1);
         ImGui::TableSetColumnIndex(1);
         m_imgui->text_colored(col_2_color, col_2);
-        ImGui::TableSetColumnIndex(2);
+        ImGui::TableSetColumnIndex(CLIPBOARD_COLUMN_INDEX);
         if (m_imgui->image_button(ImGui::ClipboardBtnIcon, _L("Copy to clipboard"))) {
             wxTheClipboard->Open();
             wxTheClipboard->SetData(new wxTextDataObject(col_1 + ": " + col_2));
@@ -2058,7 +2069,7 @@ void GLGizmoMeasure::on_render_input_window(float x, float y, float bottom_limit
 
     const unsigned int max_measure_row_count = 2;
     unsigned int measure_row_count = 0;
-    if (ImGui::BeginTable("Measure", 4)) {
+    if (ImGui::BeginTable("Measure", MEASURE_TABLE_COLUMN_COUNT)) {
         if (m_selected_features.second.feature.has_value()) {
             const Measure::MeasurementResult& measure = m_measurement_result;
             if (measure.angle.has_value()) {

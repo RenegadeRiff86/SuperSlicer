@@ -93,33 +93,33 @@ bool ObjectSettings::update_settings_list()
 
     if (!cat_options.empty())
     {
-	    std::vector<Slic3r::OptionCategory> categories;
+        std::vector<Slic3r::OptionCategory> categories;
         categories.reserve(cat_options.size());
 
         auto extra_column = [config, this](wxWindow* parent, const Line& line)
-		{
+        {
             assert(!line.get_options().empty());
             t_config_option_key opt_key = (line.get_options())[0].opt_key; // we assume that we have one option per line
             assert((line.get_options())[0].opt_idx < 0);
 
-			auto btn = new ScalableButton(parent, wxID_ANY, m_bmp_delete);
+            auto btn = new ScalableButton(parent, wxID_ANY, m_bmp_delete);
             btn->SetToolTip(_(L("Remove parameter")));
 
             btn->SetBitmapFocus(m_bmp_delete_focus.bmp());
             btn->SetBitmapCurrent(m_bmp_delete_focus.bmp());
 
-			btn->Bind(wxEVT_BUTTON, [opt_key, config, this](wxEvent &event) {
+            btn->Bind(wxEVT_BUTTON, [opt_key, config, this](wxEvent &event) {
                 wxGetApp().plater()->take_snapshot(format_wxstr(_L("Delete Option %s"), opt_key));
-				config->erase(opt_key);
+                config->erase(opt_key);
                 wxGetApp().obj_list()->changed_object();
                 wxTheApp->CallAfter([this]() {
                     wxWindowUpdateLocker noUpdates(m_parent);
                     update_settings_list(); 
                     m_parent->Layout(); 
                 });
-			});
-			return btn;
-		};
+            });
+            return btn;
+        };
 
         for (auto& [opt_category, opt_keys] : cat_options)
         {

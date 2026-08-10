@@ -92,7 +92,8 @@ namespace GUI {
         if (!core_profile) {
 #endif // ENABLE_GL_CORE_PROFILE
         glsafe(::glPushAttrib(GL_ENABLE_BIT));
-        glsafe(::glLineStipple(4, 0xAAAA));
+        constexpr GLint stipple_repeat_factor = 4;
+        glsafe(::glLineStipple(stipple_repeat_factor, 0xAAAA));
         glsafe(::glEnable(GL_LINE_STIPPLE));
 #if ENABLE_GL_CORE_PROFILE
         }

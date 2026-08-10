@@ -20,11 +20,17 @@
 namespace Slic3r {
 namespace GUI {
 
+static constexpr double FULL_TURN_FACTOR = 2.0;
+static constexpr float RADIUS_SCALE_FACTOR = 2.0f;
+static constexpr size_t LINE_VERTEX_COUNT = 2;
+static constexpr int PADDING_SCALE_FACTOR = 2;
+static constexpr int ROTATION_AXIS_COUNT = 3;
+static constexpr float SNAP_INNER_RADIUS_DIVISOR = 3.0f;
 
 const float GLGizmoRotate::Offset = 5.0f;
 const unsigned int GLGizmoRotate::AngleResolution = 64;
 const unsigned int GLGizmoRotate::ScaleStepsCount = 72;
-const float GLGizmoRotate::ScaleStepRad = 2.0f * float(PI) / GLGizmoRotate::ScaleStepsCount;
+const float GLGizmoRotate::ScaleStepRad = float(FULL_TURN_FACTOR) * float(PI) / GLGizmoRotate::ScaleStepsCount;
 const unsigned int GLGizmoRotate::ScaleLongEvery = 2;
 const float GLGizmoRotate::ScaleLongTooth = 0.1f; // in percent of radius
 const unsigned int GLGizmoRotate::SnapRegionsCount = 8;
@@ -53,7 +59,7 @@ void GLGizmoRotate::set_highlight_color(const ColorRGBA &color)
 
 void GLGizmoRotate::set_angle(double angle)
 {
-    if (std::abs(angle - 2.0 * double(PI)) < EPSILON)
+    if (std::abs(angle - FULL_TURN_FACTOR * double(PI)) < EPSILON)
         angle = 0.0;
 
     m_angle = angle;
@@ -119,18 +125,18 @@ void GLGizmoRotate::on_dragging(const UpdateData &data)
 
     // snap to coarse snap region
     if (m_snap_coarse_in_radius <= len && len <= m_snap_coarse_out_radius) {
-        const double step = 2.0 * double(PI) / double(SnapRegionsCount);
+        const double step = FULL_TURN_FACTOR * double(PI) / double(SnapRegionsCount);
         theta = step * std::round(theta / step);
     }
     else {
         // snap to fine snap region (scale)
         if (m_snap_fine_in_radius <= len && len <= m_snap_fine_out_radius) {
-            const double step = 2.0 * double(PI) / double(ScaleStepsCount);
+            const double step = FULL_TURN_FACTOR * double(PI) / double(ScaleStepsCount);
             theta = step * std::round(theta / step);
         }
     }
 
-    if (theta == 2.0 * double(PI))
+    if (theta == FULL_TURN_FACTOR * double(PI))
         theta = 0.0;
 
     m_angle = theta;
@@ -210,8 +216,8 @@ void GLGizmoRotate::init_data_from_selection(const Selection& selection)
     m_radius = Offset + sphere.second;
     m_orient_matrix = box_trafo;
     m_orient_matrix.translation() = m_center;
-    m_snap_coarse_in_radius = m_radius / 3.0f;
-    m_snap_coarse_out_radius = 2.0f * m_snap_coarse_in_radius;
+    m_snap_coarse_in_radius = m_radius / SNAP_INNER_RADIUS_DIVISOR;
+    m_snap_coarse_out_radius = RADIUS_SCALE_FACTOR * m_snap_coarse_in_radius;
     m_snap_fine_in_radius = m_radius;
     m_snap_fine_out_radius = m_snap_fine_in_radius + m_radius * ScaleLongTooth;
 }
@@ -280,8 +286,8 @@ void GLGizmoRotate::render_scale(const ColorRGBA& color, bool radius_changed)
 
         GLModel::Geometry init_data;
         init_data.format = { GLModel::Geometry::EPrimitiveType::Lines, GLModel::Geometry::EVertexLayout::P3 };
-        init_data.reserve_vertices(2 * ScaleStepsCount);
-        init_data.reserve_indices(2 * ScaleStepsCount);
+        init_data.reserve_vertices(LINE_VERTEX_COUNT * ScaleStepsCount);
+        init_data.reserve_indices(LINE_VERTEX_COUNT * ScaleStepsCount);
 
         // vertices + indices
         for (unsigned int i = 0; i < ScaleStepsCount; ++i) {
@@ -298,7 +304,7 @@ void GLGizmoRotate::render_scale(const ColorRGBA& color, bool radius_changed)
             init_data.add_vertex(Vec3f(out_x, out_y, 0.0f));
 
             // indices
-            init_data.add_line(i * 2, i * 2 + 1);
+            init_data.add_line(i * LINE_VERTEX_COUNT, i * LINE_VERTEX_COUNT + 1);
         }
 
         m_scale.init_from(std::move(init_data));
@@ -310,17 +316,17 @@ void GLGizmoRotate::render_scale(const ColorRGBA& color, bool radius_changed)
 
 void GLGizmoRotate::render_snap_radii(const ColorRGBA& color, bool radius_changed)
 {
-    const float step = 2.0f * float(PI) / float(SnapRegionsCount);
-    const float in_radius = m_radius / 3.0f;
-    const float out_radius = 2.0f * in_radius;
+    const float step = float(FULL_TURN_FACTOR) * float(PI) / float(SnapRegionsCount);
+    const float in_radius = m_radius / SNAP_INNER_RADIUS_DIVISOR;
+    const float out_radius = RADIUS_SCALE_FACTOR * in_radius;
 
     if (!m_snap_radii.is_initialized() || radius_changed) {
         m_snap_radii.reset();
 
         GLModel::Geometry init_data;
         init_data.format = { GLModel::Geometry::EPrimitiveType::Lines, GLModel::Geometry::EVertexLayout::P3 };
-        init_data.reserve_vertices(2 * ScaleStepsCount);
-        init_data.reserve_indices(2 * ScaleStepsCount);
+        init_data.reserve_vertices(LINE_VERTEX_COUNT * ScaleStepsCount);
+        init_data.reserve_indices(LINE_VERTEX_COUNT * ScaleStepsCount);
 
         // vertices + indices
         for (unsigned int i = 0; i < ScaleStepsCount; ++i) {
@@ -337,7 +343,7 @@ void GLGizmoRotate::render_snap_radii(const ColorRGBA& color, bool radius_change
             init_data.add_vertex(Vec3f(out_x, out_y, 0.0f));
 
             // indices
-            init_data.add_line(i * 2, i * 2 + 1);
+            init_data.add_line(i * LINE_VERTEX_COUNT, i * LINE_VERTEX_COUNT + 1);
         }
 
         m_snap_radii.init_from(std::move(init_data));
@@ -354,8 +360,8 @@ void GLGizmoRotate::render_reference_radius(const ColorRGBA& color, bool radius_
 
         GLModel::Geometry init_data;
         init_data.format = { GLModel::Geometry::EPrimitiveType::Lines, GLModel::Geometry::EVertexLayout::P3 };
-        init_data.reserve_vertices(2);
-        init_data.reserve_indices(2);
+        init_data.reserve_vertices(LINE_VERTEX_COUNT);
+        init_data.reserve_indices(LINE_VERTEX_COUNT);
 
         // vertices
         init_data.add_vertex(Vec3f(0.0f, 0.0f, 0.0f));
@@ -410,8 +416,8 @@ void GLGizmoRotate::render_grabber_connection(const ColorRGBA& color, bool radiu
 
         GLModel::Geometry init_data;
         init_data.format = { GLModel::Geometry::EPrimitiveType::Lines, GLModel::Geometry::EVertexLayout::P3 };
-        init_data.reserve_vertices(2);
-        init_data.reserve_indices(2);
+        init_data.reserve_vertices(LINE_VERTEX_COUNT);
+        init_data.reserve_indices(LINE_VERTEX_COUNT);
 
         // vertices
         init_data.add_vertex(Vec3f(0.0f, 0.0f, 0.0f));
@@ -558,7 +564,7 @@ bool GLGizmoRotate3D::on_init()
     for (GLGizmoRotate& g : m_gizmos) 
         if (!g.init()) return false;
 
-    for (unsigned int i = 0; i < 3; ++i)
+    for (unsigned int i = 0; i < ROTATION_AXIS_COUNT; ++i)
         m_gizmos[i].set_highlight_color(AXES_COLOR[i]);
 
     m_shortcut_key = WXK_CONTROL_R;
@@ -586,20 +592,20 @@ bool GLGizmoRotate3D::on_is_activable() const
 
 void GLGizmoRotate3D::on_start_dragging()
 {
-    assert(0 <= m_hover_id && m_hover_id < 3);
+    assert(0 <= m_hover_id && m_hover_id < ROTATION_AXIS_COUNT);
     m_gizmos[m_hover_id].start_dragging();
 }
 
 void GLGizmoRotate3D::on_stop_dragging()
 {
-    assert(0 <= m_hover_id && m_hover_id < 3);
+    assert(0 <= m_hover_id && m_hover_id < ROTATION_AXIS_COUNT);
     m_parent.do_rotate(L("Gizmo-Rotate"));
     m_gizmos[m_hover_id].stop_dragging();
 }
 
 void GLGizmoRotate3D::on_dragging(const UpdateData &data)
 {
-    assert(0 <= m_hover_id && m_hover_id < 3);
+    assert(0 <= m_hover_id && m_hover_id < ROTATION_AXIS_COUNT);
     m_gizmos[m_hover_id].dragging(data);
 }
 
@@ -651,8 +657,8 @@ GLGizmoRotate3D::RotoptimzeWindow::RotoptimzeWindow(ImGuiWrapper *   imgui,
 
     float max_text_w = 0.;
     auto padding = ImGui::GetStyle().FramePadding;
-    padding.x *= 2.f;
-    padding.y *= 2.f;
+    padding.x *= PADDING_SCALE_FACTOR;
+    padding.y *= PADDING_SCALE_FACTOR;
 
     for (size_t i = 0; i < RotoptimizeJob::get_methods_count(); ++i) {
         float w =

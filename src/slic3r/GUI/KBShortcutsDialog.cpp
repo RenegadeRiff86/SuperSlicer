@@ -19,6 +19,8 @@
 namespace Slic3r {
 namespace GUI {
 
+static constexpr int DIALOG_SPACING = 10;
+
 KBShortcutsDialog::KBShortcutsDialog()
     : DPIDialog(static_cast<wxWindow*>(wxGetApp().mainframe), wxID_ANY, wxString(wxGetApp().is_editor() ? SLIC3R_APP_NAME : GCODEVIEWER_APP_NAME) + " - " + _L("Keyboard Shortcuts"),
     wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER, "kbshortcut")
@@ -30,7 +32,7 @@ KBShortcutsDialog::KBShortcutsDialog()
 
     auto main_sizer = new wxBoxSizer(wxVERTICAL);
 
-    main_sizer->Add(create_header(this, bold_font), 0, wxEXPAND | wxALL, 10);
+    main_sizer->Add(create_header(this, bold_font), 0, wxEXPAND | wxALL, DIALOG_SPACING);
 
 #ifdef _MSW_DARK_MODE
     wxBookCtrlBase* book;
@@ -41,7 +43,7 @@ KBShortcutsDialog::KBShortcutsDialog()
 #else
     wxNotebook* book = new wxNotebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNB_TOP);
 #endif
-    main_sizer->Add(book, 1, wxEXPAND | wxALL, 10);
+    main_sizer->Add(book, 1, wxEXPAND | wxALL, DIALOG_SPACING);
 
     fill_shortcuts();
     for (size_t i = 0; i < m_full_shortcuts.size(); ++i) {
@@ -285,7 +287,7 @@ wxPanel* KBShortcutsDialog::create_header(wxWindow* parent, const wxFont& bold_f
     // logo
     m_header_bitmap = new wxStaticBitmap(panel, wxID_ANY, *get_bmp_bundle(wxGetApp().logo_name(), 32));
 
-    sizer->Add(m_header_bitmap, 0, wxEXPAND | wxLEFT | wxRIGHT, 10);
+    sizer->Add(m_header_bitmap, 0, wxEXPAND | wxLEFT | wxRIGHT, DIALOG_SPACING);
 
     // text
     wxStaticText* text = new wxStaticText(panel, wxID_ANY, _L("Keyboard shortcuts"));
@@ -348,7 +350,7 @@ wxPanel* KBShortcutsDialog::create_page(wxWindow* parent, const ShortcutsItem& s
         }
     }
 
-    scrollable_panel_sizer->Add(grid_sizer, 1, wxEXPAND | wxALL, 10);
+    scrollable_panel_sizer->Add(grid_sizer, 1, wxEXPAND | wxALL, DIALOG_SPACING);
     scrollable_panel->SetSizer(scrollable_panel_sizer);
 
     main_sizer->Add(scrollable_panel, 1, wxEXPAND);

@@ -94,6 +94,9 @@
 
 #pragma comment(lib, "version.lib") // for "VerQueryValue"
 
+#define STACKWALKER_MSVC_2005_VERSION 1400
+#define STACKWALKER_MSVC_2015_VERSION 1900
+
 namespace {
 
 bool try_get_os_version(OSVERSIONINFOEXW &version)
@@ -141,6 +144,8 @@ void narrow_csd_version(const WCHAR *source, char *destination, size_t destinati
 #pragma pack(pop)
 
 static constexpr DWORD USED_CONTEXT_FLAGS = CONTEXT_FULL;
+static constexpr TCHAR PROGRAM_FILES_ENV[] = _T("ProgramFiles");
+static constexpr DWORD TEMP_PATH_BUFFER_SIZE = 4096;
 
 static void MyStrCpy(char* szDest, size_t nMaxDestSize, const char* szSrc)
 {
@@ -197,9 +202,9 @@ public:
       return FALSE;
     // Dynamically load the Entry-Points for dbghelp.dll:
     // First try to load the newest one from
-    TCHAR szTemp[4096];
+    TCHAR szTemp[TEMP_PATH_BUFFER_SIZE];
     // But before we do this, we first check if the ".local" file exists
-    if (GetModuleFileName(NULL, szTemp, 4096) > 0)
+    if (GetModuleFileName(NULL, szTemp, TEMP_PATH_BUFFER_SIZE) > 0)
     {
       _tcscat_s(szTemp, _T(".local"));
       if (GetFileAttributes(szTemp) == INVALID_FILE_ATTRIBUTES)
@@ -207,7 +212,7 @@ public:
         // ".local" file does not exist, so we can try to load the dbghelp.dll from the "Debugging Tools for Windows"
         // Ok, first try the new path according to the architecture:
 #ifdef _M_IX86
-        if ((m_hDbhHelp == NULL) && (GetEnvironmentVariable(_T("ProgramFiles"), szTemp, 4096) > 0))
+        if ((m_hDbhHelp == NULL) && (GetEnvironmentVariable(PROGRAM_FILES_ENV, szTemp, TEMP_PATH_BUFFER_SIZE) > 0))
         {
           _tcscat_s(szTemp, _T("\\Debugging Tools for Windows (x86)\\dbghelp.dll"));
           // now check if the file exists:
@@ -217,7 +222,7 @@ public:
           }
         }
 #elif _M_X64
-        if ((m_hDbhHelp == NULL) && (GetEnvironmentVariable(_T("ProgramFiles"), szTemp, 4096) > 0))
+        if ((m_hDbhHelp == NULL) && (GetEnvironmentVariable(PROGRAM_FILES_ENV, szTemp, TEMP_PATH_BUFFER_SIZE) > 0))
         {
           _tcscat_s(szTemp, _T("\\Debugging Tools for Windows (x64)\\dbghelp.dll"));
           // now check if the file exists:
@@ -227,7 +232,7 @@ public:
           }
         }
 #elif _M_IA64
-        if ((m_hDbhHelp == NULL) && (GetEnvironmentVariable(_T("ProgramFiles"), szTemp, 4096) > 0))
+        if ((m_hDbhHelp == NULL) && (GetEnvironmentVariable(PROGRAM_FILES_ENV, szTemp, TEMP_PATH_BUFFER_SIZE) > 0))
         {
           _tcscat_s(szTemp, _T("\\Debugging Tools for Windows (ia64)\\dbghelp.dll"));
           // now check if the file exists:
@@ -238,7 +243,7 @@ public:
         }
 #endif
         // If still not found, try the old directories...
-        if ((m_hDbhHelp == NULL) && (GetEnvironmentVariable(_T("ProgramFiles"), szTemp, 4096) > 0))
+        if ((m_hDbhHelp == NULL) && (GetEnvironmentVariable(PROGRAM_FILES_ENV, szTemp, TEMP_PATH_BUFFER_SIZE) > 0))
         {
           _tcscat_s(szTemp, _T("\\Debugging Tools for Windows\\dbghelp.dll"));
           // now check if the file exists:
@@ -249,7 +254,7 @@ public:
         }
 #if defined _M_X64 || defined _M_IA64
         // Still not found? Then try to load the (old) 64-Bit version:
-        if ((m_hDbhHelp == NULL) && (GetEnvironmentVariable(_T("ProgramFiles"), szTemp, 4096) > 0))
+        if ((m_hDbhHelp == NULL) && (GetEnvironmentVariable(PROGRAM_FILES_ENV, szTemp, TEMP_PATH_BUFFER_SIZE) > 0))
         {
           _tcscat_s(szTemp, _T("\\Debugging Tools for Windows 64-Bit\\dbghelp.dll"));
           if (GetFileAttributes(szTemp) != INVALID_FILE_ATTRIBUTES)
@@ -779,22 +784,22 @@ public:
 
 // #############################################################
 
-#if defined(_MSC_VER) && _MSC_VER >= 1400 && _MSC_VER < 1900
+#if defined(_MSC_VER) && _MSC_VER >= STACKWALKER_MSVC_2005_VERSION && _MSC_VER < STACKWALKER_MSVC_2015_VERSION
 extern "C" void* __cdecl _getptd();
 #endif
-#if defined(_MSC_VER) && _MSC_VER >= 1900
+#if defined(_MSC_VER) && _MSC_VER >= STACKWALKER_MSVC_2015_VERSION
 extern "C" void** __cdecl __current_exception_context();
 #endif
 
 static PCONTEXT get_current_exception_context()
 {
   PCONTEXT * pctx = NULL;
-#if defined(_MSC_VER) && _MSC_VER >= 1400 && _MSC_VER < 1900  
+#if defined(_MSC_VER) && _MSC_VER >= STACKWALKER_MSVC_2005_VERSION && _MSC_VER < STACKWALKER_MSVC_2015_VERSION  
   LPSTR ptd = (LPSTR)_getptd();
   if (ptd)
     pctx = (PCONTEXT *)(ptd + (sizeof(void*) == 4 ? 0x8C : 0xF8));
 #endif
-#if defined(_MSC_VER) && _MSC_VER >= 1900
+#if defined(_MSC_VER) && _MSC_VER >= STACKWALKER_MSVC_2015_VERSION
   pctx = (PCONTEXT *)__current_exception_context();
 #endif
   return pctx ? *pctx : NULL;
@@ -1335,7 +1340,7 @@ void StackWalker::OnLoadModule(LPCSTR    img,
 {
   CHAR   buffer[STACKWALK_MAX_NAMELEN];
   size_t maxLen = STACKWALK_MAX_NAMELEN;
-#if _MSC_VER >= 1400
+#if _MSC_VER >= STACKWALKER_MSVC_2005_VERSION
   maxLen = _TRUNCATE;
 #endif
   if (fileVersion == 0)
@@ -1360,7 +1365,7 @@ void StackWalker::OnCallstackEntry(CallstackEntryType eType, CallstackEntry& ent
 {
   CHAR   buffer[STACKWALK_MAX_NAMELEN];
   size_t maxLen = STACKWALK_MAX_NAMELEN;
-#if _MSC_VER >= 1400
+#if _MSC_VER >= STACKWALKER_MSVC_2005_VERSION
   maxLen = _TRUNCATE;
 #endif
   if ((eType != lastEntry) && (entry.offset != 0))
@@ -1391,7 +1396,7 @@ void StackWalker::OnDbgHelpErr(LPCSTR szFuncName, DWORD gle, DWORD64 addr)
 {
   CHAR   buffer[STACKWALK_MAX_NAMELEN];
   size_t maxLen = STACKWALK_MAX_NAMELEN;
-#if _MSC_VER >= 1400
+#if _MSC_VER >= STACKWALKER_MSVC_2005_VERSION
   maxLen = _TRUNCATE;
 #endif
   _snprintf_s(buffer, maxLen, "ERROR: %s, GetLastError: %d (Address: %p)\n", szFuncName, gle,
@@ -1404,7 +1409,7 @@ void StackWalker::OnSymInit(LPCSTR szSearchPath, DWORD symOptions, LPCSTR szUser
 {
   CHAR   buffer[STACKWALK_MAX_NAMELEN];
   size_t maxLen = STACKWALK_MAX_NAMELEN;
-#if _MSC_VER >= 1400
+#if _MSC_VER >= STACKWALKER_MSVC_2005_VERSION
   maxLen = _TRUNCATE;
 #endif
   _snprintf_s(buffer, maxLen, "SymInit: Symbol-SearchPath: '%s', symOptions: %d, UserName: '%s'\n",

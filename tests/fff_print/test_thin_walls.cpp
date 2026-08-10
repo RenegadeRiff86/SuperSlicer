@@ -41,33 +41,6 @@ SCENARIO("Medial Axis", "[ThinWalls]") {
             }
         }
     }
-#if 0
-    //FIXME this test never worked
-    GIVEN("narrow rectangle with an extra vertex") {
-        ExPolygon expolygon{ Polygon::new_scale({ 
-            {100, 100}, {120, 100}, {120, 200}, 
-            {105, 200} /* extra point in the short side*/, 
-            {100, 200} 
-        })};
-        WHEN("Medial axis is extracted") {
-            Polylines res = expolygon.medial_axis(scaled<double>(0.5), scaled<double>(1.));
-            THEN("medial axis of a narrow rectangle with an extra vertex is still a single line") {
-                REQUIRE(res.size() == 1);
-            }
-            THEN("medial axis has still a reasonable length") {
-                REQUIRE(res.front().length() >= scaled<double>(200.-100. - (120.-100.)) - SCALED_EPSILON);
-            }
-            THEN("extra vertices don't influence medial axis") {
-                size_t invalid = 0;
-                for (const Polyline &pl : res)
-                    for (const Point &p : pl.points)
-                        if (std::abs(p.y() - scaled<coord_t>(150.)) < SCALED_EPSILON)
-                            ++ invalid;
-                REQUIRE(invalid == 0);
-            }
-        }
-    }
-#endif
     GIVEN("semicircumference") {
         ExPolygon expolygon{{ 
             {1185881,829367},{1421988,1578184},{1722442,2303558},{2084981,2999998},{2506843,3662186},{2984809,4285086},{3515250,4863959},{4094122,5394400},

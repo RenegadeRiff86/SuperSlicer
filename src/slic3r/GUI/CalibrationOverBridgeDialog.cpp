@@ -30,6 +30,10 @@ namespace {
 constexpr char kCalibrationResourceDirectory[] = "calibration";
 constexpr char kOverBridgeResourceDirectory[] = "over-bridge_tuning";
 constexpr char kOverBridgeTestFilename[] = "over-bridge_flow_ratio_test.amf";
+constexpr size_t CALIBRATION_PATCH_COUNT = 6;
+constexpr double DIAMETER_DIVISOR = 2.0;
+constexpr double HALF_TURN_DIVISOR = 2.0;
+constexpr int PERIMETER_COUNT = 2;
 } // namespace
 
 void CalibrationOverBridgeDialog::create_buttons(wxStdDialogButtonSizer* buttons){
@@ -77,7 +81,7 @@ void CalibrationOverBridgeDialog::create_geometry(bool over_bridge) {
             (boost::filesystem::path(Slic3r::resources_dir()) / kCalibrationResourceDirectory / kOverBridgeResourceDirectory / kOverBridgeTestFilename).string()},
         LoadFileOption::LoadModel | LoadFileOption::DontUpdateDirs);
 
-    assert(objs_idx.size() == 6);
+    assert(objs_idx.size() == CALIBRATION_PATCH_COUNT);
     const DynamicPrintConfig* print_config = this->gui_app->get_tab(Preset::TYPE_FFF_PRINT)->get_config();
     const DynamicPrintConfig* printer_config = this->gui_app->get_tab(Preset::TYPE_PRINTER)->get_config();
 
@@ -92,7 +96,7 @@ void CalibrationOverBridgeDialog::create_geometry(bool over_bridge) {
     } else {
         xyz_scale = 1;
     }
-    for (size_t i = 0; i < 6; i++)
+    for (size_t i = 0; i < CALIBRATION_PATCH_COUNT; i++)
         model.objects[objs_idx[i]]->scale(xyz_scale * 1.5f, xyz_scale * 1.5f, xyz_scale);
 
     // it's rotated but not around the good origin: correct that
@@ -107,12 +111,12 @@ void CalibrationOverBridgeDialog::create_geometry(bool over_bridge) {
 
     //add sub-part after scale
     const ConfigOptionFloatOrPercent* first_layer_height = print_config->option<ConfigOptionFloatOrPercent>("first_layer_height");
-    float patch_zscale = (first_layer_height->get_abs_value(nozzle_diameter) + nozzle_diameter / 2) / 0.4;
+    float patch_zscale = (first_layer_height->get_abs_value(nozzle_diameter) + nozzle_diameter / DIAMETER_DIVISOR) / 0.4;
     float zshift =  0.8 * (1 - xyz_scale);
     const boost::filesystem::path bridge_flow_dir =
         boost::filesystem::path(Slic3r::resources_dir()) / kCalibrationResourceDirectory / "bridge_flow";
-    for (size_t i = 0; i < 6; i++) {
-        model.objects[objs_idx[i]]->rotate(PI / 2, { 0, 0, 1 });
+    for (size_t i = 0; i < CALIBRATION_PATCH_COUNT; i++) {
+        model.objects[objs_idx[i]]->rotate(PI / HALF_TURN_DIVISOR, { 0, 0, 1 });
         add_part(model.objects[objs_idx[i]],
                  (bridge_flow_dir / ("f" + std::to_string(100 + i * 5) + ".amf")).string(),
                  Vec3d{ 0, 10 * xyz_scale, zshift }, Vec3d{ 1, 1, patch_zscale });
@@ -130,8 +134,8 @@ void CalibrationOverBridgeDialog::create_geometry(bool over_bridge) {
     }
 
     /// --- custom config ---
-    for (size_t i = 0; i < 6; i++) {
-        model.objects[objs_idx[i]]->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(2));
+    for (size_t i = 0; i < CALIBRATION_PATCH_COUNT; i++) {
+        model.objects[objs_idx[i]]->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(PERIMETER_COUNT));
         model.objects[objs_idx[i]]->config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(1)); // at least the first, to prevent adhesion issues.
         model.objects[objs_idx[i]]->config.set_key_value("top_solid_layers", std::make_unique<ConfigOptionInt>(3));
         model.objects[objs_idx[i]]->config.set_key_value("fill_density", std::make_unique<ConfigOptionPercent>(5.5));
@@ -144,7 +148,7 @@ void CalibrationOverBridgeDialog::create_geometry(bool over_bridge) {
         } else {
             model.objects[objs_idx[i]]->config.set_key_value("fill_top_flow_ratio", std::make_unique<ConfigOptionPercent>(/*print_config->option<ConfigOptionPercent>("fill_top_flow_ratio")->get_abs_value(100)*/100 + i * 5));
         }
-        model.objects[objs_idx[i]]->config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(nozzle_diameter / 2));
+        model.objects[objs_idx[i]]->config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(nozzle_diameter / DIAMETER_DIVISOR));
         model.objects[objs_idx[i]]->config.set_key_value("external_infill_margin", std::make_unique<ConfigOptionFloatOrPercent>(400,true));
         model.objects[objs_idx[i]]->config.set_key_value("top_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipSmooth));
         model.objects[objs_idx[i]]->config.set_key_value("fill_angle", std::make_unique<ConfigOptionFloat>(45));

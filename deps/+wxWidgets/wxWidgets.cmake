@@ -3,14 +3,17 @@ set(_wx_webview_args -DwxUSE_WEBVIEW=ON)
 set(_wx_patch_args "")
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(_wx_patch_args
+        PATCH_COMMAND ${PATCH_CMD} ${CMAKE_CURRENT_LIST_DIR}/utf8-pos-from-impl.patch
+    )
     option(DEP_WX_GTK3 "Build wxWidgets for GTK3 instead of GTK2" ON)
 
     set(_gtk_ver 2)
     if(DEP_WX_GTK3)
         set(_gtk_ver 3)
         list(APPEND _wx_webview_args -DwxUSE_WEBVIEW_WEBKIT=ON)
-        set(_wx_patch_args
-            PATCH_COMMAND ${PATCH_CMD} ${CMAKE_CURRENT_LIST_DIR}/webkitgtk-4.1.patch
+        list(APPEND _wx_patch_args
+            COMMAND ${PATCH_CMD} ${CMAKE_CURRENT_LIST_DIR}/webkitgtk-4.1.patch
         )
     else()
         # Supported WebKitGTK releases require GTK3. GTK2 builds keep the

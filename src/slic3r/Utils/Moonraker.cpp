@@ -136,7 +136,7 @@ bool Moonraker::test(wxString& msg) const
     })
 #ifdef _WIN32
     .ssl_revoke_best_effort(m_ssl_revoke_best_effort)
-    .on_ip_resolve([&](std::string address) {
+    .on_ip_resolve([&](const std::string& address) {
         // Workaround for Windows 10/11 mDNS resolve issue, where two mDNS resolves in succession fail.
         // Remember resolved address to be reused at successive REST API call.
         msg = GUI::from_u8(address);

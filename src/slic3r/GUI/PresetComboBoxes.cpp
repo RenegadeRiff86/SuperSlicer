@@ -26,7 +26,6 @@
 #include <wx/msw/private.h>
 #endif
 
-#include "libslic3r/libslic3r.h"
 #include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/Color.hpp"
@@ -38,9 +37,6 @@
 #include "format.hpp"
 #include "Tab.hpp"
 #include "ConfigWizard.hpp"
-#include "../Utils/ASCIIFolding.hpp"
-#include "../Utils/FixModelByWin10.hpp"
-#include "../Utils/UndoRedo.hpp"
 #include "BitmapCache.hpp"
 #include "PhysicalPrinterDialog.hpp"
 #include "MsgDialog.hpp"
@@ -55,8 +51,6 @@
     #include <gtk/gtk.h>
 #endif
 
-using Slic3r::GUI::format_wxstr;
-
 namespace Slic3r {
 namespace GUI {
 
@@ -66,6 +60,7 @@ namespace GUI {
 static constexpr const char* ICON_SLA_PRINTER     = "sla_printer";
 static constexpr const char* ICON_EDIT_UNI        = "edit_uni";
 static constexpr const char* LABEL_SYSTEM_PRESETS = L("System presets");
+static constexpr int PRESET_COMBO_MIN_WIDTH_EM = 20;
 
 #define BORDER_W 10
 
@@ -1109,8 +1104,8 @@ void PlaterPresetComboBox::update()
     // Use this part of code just on Windows to avoid of some layout issues on Linux
     // see https://github.com/prusa3d/PrusaSlicer/issues/5163 and https://github.com/prusa3d/PrusaSlicer/issues/5505
     // Update control min size after rescale (changed Display DPI under MSW)
-    if (GetMinWidth() != 20 * m_em_unit)
-        SetMinSize(wxSize(20 * m_em_unit, GetSize().GetHeight()));
+    if (GetMinWidth() != PRESET_COMBO_MIN_WIDTH_EM * m_em_unit)
+        SetMinSize(wxSize(PRESET_COMBO_MIN_WIDTH_EM * m_em_unit, GetSize().GetHeight()));
 #endif //__WXMSW__
 }
 
@@ -1121,8 +1116,8 @@ void PlaterPresetComboBox::msw_rescale()
     // Use this part of code just on Windows to avoid of some layout issues on Linux
     // see https://github.com/prusa3d/PrusaSlicer/issues/5163 and https://github.com/prusa3d/PrusaSlicer/issues/5505
     // Update control min size after rescale (changed Display DPI under MSW)
-    if (GetMinWidth() != 20 * m_em_unit)
-        SetMinSize(wxSize(20 * m_em_unit, GetSize().GetHeight()));
+    if (GetMinWidth() != PRESET_COMBO_MIN_WIDTH_EM * m_em_unit)
+        SetMinSize(wxSize(PRESET_COMBO_MIN_WIDTH_EM * m_em_unit, GetSize().GetHeight()));
 #endif //__WXMSW__
 }
 

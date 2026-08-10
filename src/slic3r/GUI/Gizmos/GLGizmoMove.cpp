@@ -7,7 +7,6 @@
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/GUI/GUI_ObjectManipulation.hpp"
 #include "slic3r/GUI/Plater.hpp"
-#include "libslic3r/Model.hpp"
 
 #include <GL/glew.h>
 
@@ -24,12 +23,13 @@ GLGizmoMove3D::GLGizmoMove3D(GLCanvas3D& parent, const std::string& icon_filenam
 
 std::string GLGizmoMove3D::get_tooltip() const
 {
-  if (m_hover_id == 0)
-        return "X: " + format(m_displacement.x(), 2);
-    else if (m_hover_id == 1)
-        return "Y: " + format(m_displacement.y(), 2);
-    else if (m_hover_id == 2)
-        return "Z: " + format(m_displacement.z(), 2);
+    constexpr int tooltip_decimal_places = 2;
+    if (m_hover_id == X)
+        return "X: " + format(m_displacement.x(), tooltip_decimal_places);
+    else if (m_hover_id == Y)
+        return "Y: " + format(m_displacement.y(), tooltip_decimal_places);
+    else if (m_hover_id == Z)
+        return "Z: " + format(m_displacement.z(), tooltip_decimal_places);
     else
         return "";
 }
@@ -89,7 +89,7 @@ void GLGizmoMove3D::on_dragging(const UpdateData& data)
         m_displacement.x() = calc_projection(data);
     else if (m_hover_id == 1)
         m_displacement.y() = calc_projection(data);
-    else if (m_hover_id == 2)
+    else if (m_hover_id == Z)
         m_displacement.z() = calc_projection(data);
         
     Selection &selection = m_parent.get_selection();
@@ -131,12 +131,13 @@ void GLGizmoMove3D::on_render()
     m_grabbers[1].color = AXES_COLOR[1];
 
     // z axis
-    m_grabbers[2].center = { 0.0, 0.0, half_box_size.z() + Offset };
-    m_grabbers[2].color = AXES_COLOR[2];
+    m_grabbers[Z].center = { 0.0, 0.0, half_box_size.z() + Offset };
+    m_grabbers[Z].color = AXES_COLOR[Z];
 
     if (OpenGLManager::get_gl_info().get_max_line_width() > 1) {
         float min = std::min(1.5f, OpenGLManager::get_gl_info().get_min_line_width());
-        float bigger = min <= 1.5f ? 2.f : min + 1.f;
+        constexpr float minimum_hovered_line_width = 2.f;
+        float bigger = min <= 1.5f ? minimum_hovered_line_width : min + 1.f;
         glsafe(::glLineWidth((m_hover_id != -1) ? bigger : min));
     }
 
@@ -146,11 +147,12 @@ void GLGizmoMove3D::on_render()
                 m_grabber_connections[id].old_center = m_grabbers[id].center;
                 m_grabber_connections[id].model.reset();
 
+                constexpr size_t connection_vertex_count = 2;
                 GLModel::Geometry init_data;
                 init_data.format = { GLModel::Geometry::EPrimitiveType::Lines, GLModel::Geometry::EVertexLayout::P3 };
                 init_data.color = AXES_COLOR[id];
-                init_data.vertices.reserve(2);
-                init_data.indices.reserve(2);
+                init_data.vertices.reserve(connection_vertex_count);
+                init_data.indices.reserve(connection_vertex_count);
 
                 // vertices
                 init_data.add_vertex((Vec3f)zero.cast<float>());

@@ -11,14 +11,31 @@
 #include "GUI_App.hpp"
 #include "I18N.hpp"
 
+namespace {
+constexpr int    kLegendPrecisionLimit   = 6;
+constexpr double kDecimalRadix           = 10.0;
+constexpr float  kAxisOriginSubdivisions = 10.0f;
+constexpr double kHalfLegendUnit         = 0.5;
+constexpr double kButtonRadiusDivisor    = 2.0;
+constexpr double kCenterDivisor          = 2.0;
+constexpr double kSnapCenterDivisor      = 2.0;
+constexpr int    kLineEndMargin          = 2;
+constexpr int    kLegendBoxPadding       = 2;
+constexpr int    kButtonDiameterScale    = 2;
+constexpr int    kYLegendBaseWidthUnits  = 2;
+constexpr int    kAxisTickHalfLength     = 3;
+constexpr int    kSplinePolynomialDegree = 3;
+constexpr float  kSplineEquationFactor   = 6.0f;
+}
+
 wxDEFINE_EVENT(EVT_SLIC3R_CHART_CHANGED, wxCommandEvent);
 
 void Chart::set_x_label(const wxString &label, float incr)
 {
     m_x_legend      = label;
     m_x_legend_incr = incr;
-    for (int i = 0; i < 6; i++) {
-        if (std::round(m_x_legend_incr * std::pow(10, i)) > 0) {
+    for (int i = 0; i < kLegendPrecisionLimit; i++) {
+        if (std::round(m_x_legend_incr * std::pow(kDecimalRadix, i)) > 0) {
             m_x_precision = i;
             break;
         }
@@ -30,8 +47,8 @@ void Chart::set_y_label(const wxString &label, float incr)
     assert(incr > 0.0001);
     m_y_legend      = label;
     m_y_legend_incr = incr;
-    for (int i = 0; i < 6; i++) {
-        if (std::round(m_y_legend_incr * std::pow(10, i)) > 0) {
+    for (int i = 0; i < kLegendPrecisionLimit; i++) {
+        if (std::round(m_y_legend_incr * std::pow(kDecimalRadix, i)) > 0) {
             m_y_precision = i;
             break;
         }
@@ -55,12 +72,12 @@ void Chart::draw() {
     dc.DrawRectangle(m_rect);
     
     if (m_line_to_draw.empty()) {
-        dc.DrawText(m_no_point_legend, wxPoint(m_rect.GetLeft() + m_rect.GetWidth() / 2 - 2*legend_side,
-                                                     m_rect.GetBottom() - m_rect.GetHeight() / 2));
+        dc.DrawText(m_no_point_legend, wxPoint(m_rect.GetLeft() + m_rect.GetWidth() / kCenterDivisor - kLegendBoxPadding * legend_side,
+                                                     m_rect.GetBottom() - m_rect.GetHeight() / kCenterDivisor));
     }
 
     if (!m_line_to_draw.empty()) {
-        for (unsigned int i=0;i<m_line_to_draw.size()-2;++i) {
+        for (unsigned int i=0;i<m_line_to_draw.size()-kLineEndMargin;++i) {
             int color = 510*((m_rect.GetBottom()-(m_line_to_draw)[i])/double(m_rect.GetHeight()));
             dc.SetPen( wxPen( wxColor(std::min(255,color),255-std::max(color-255,0),0), 1 ) );
             dc.DrawLine(m_rect.GetLeft()+1+i, (m_line_to_draw)[i], m_rect.GetLeft()+1+i, m_rect.GetBottom());        
@@ -70,7 +87,7 @@ void Chart::draw() {
 #else
         dc.SetPen( wxPen( wxColor(0,0,0), 1 ) );
 #endif
-        for (unsigned int i=0; i<m_line_to_draw.size()-2; ++i) {
+        for (unsigned int i=0; i<m_line_to_draw.size()-kLineEndMargin; ++i) {
             if (this->m_type == Slic3r::GraphData::GraphType::SPLINE) {
                 dc.DrawLine(m_rect.GetLeft()+i,  (m_line_to_draw)[i], m_rect.GetLeft()+i+1, (m_line_to_draw)[i+1]);
             } else if (this->m_type == Slic3r::GraphData::GraphType::LINEAR) {
@@ -100,7 +117,7 @@ void Chart::draw() {
         ptx.x -= 1 * legend_side;
         ptx.y -= 1 * legend_side;
         pty.x -= 1 * legend_side;
-        pty.y -= 0.5 * legend_side;
+        pty.y -= kHalfLegendUnit * legend_side;
         //{
         //    wxFont font = dc.GetFont();
         //    font.MakeBold();
@@ -112,13 +129,12 @@ void Chart::draw() {
         //    dc.DrawText(wxString().Format(wxT("y: %.3f"), pos.m_y), pty);
         //}
         // need wxGraphicsContext to draw semi-transaperent
-        wxGraphicsContext *gc = wxGraphicsContext::Create( dc ); 
+        std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create( dc )); 
         if (gc) {
                 wxColour bcol = GetBackgroundColour();
                 bcol = wxColour(bcol.Red(), bcol.Green(), bcol.Blue(), 127);
                 gc->SetBrush(bcol);
-                gc->DrawRectangle(ptx.x - 2, ptx.y, legend_side + 2, legend_side);
-                delete gc;
+                gc->DrawRectangle(ptx.x - kLegendBoxPadding, ptx.y, legend_side + kLegendBoxPadding, legend_side);
                 dc.DrawText(wxString().Format(wxT("x: %.3f"), pos.m_x), ptx);
                 dc.DrawText(wxString().Format(wxT("y: %.3f"), pos.m_y), pty);
         } else {
@@ -140,49 +156,49 @@ void Chart::draw() {
         if (m_dragged != &button && button_idx_hover != idx) {
             if (m_visible_area.GetLeft() <= button.get_pos().m_x && button.get_pos().m_x <= m_visible_area.GetRight() &&
                 m_visible_area.GetTop() <= button.get_pos().m_y && button.get_pos().m_y <= m_visible_area.GetBottom()) {
-                dc.DrawCircle(math_to_screen(button.get_pos()), side / 2.);
+                dc.DrawCircle(math_to_screen(button.get_pos()), side / kButtonRadiusDivisor);
             }
         }
     }
     if (m_dragged || button_idx_hover < m_buttons.size()) {
         dc.SetBrush(orange_brush);
-        dc.DrawCircle(math_to_screen(m_dragged ? m_dragged->get_pos() : m_buttons[button_idx_hover].get_pos()), side/2.);
+        dc.DrawCircle(math_to_screen(m_dragged ? m_dragged->get_pos() : m_buttons[button_idx_hover].get_pos()), side / kButtonRadiusDivisor);
     }
     if (m_clicked && m_clicked != m_dragged && (button_idx_hover >= m_buttons.size() || m_buttons[button_idx_hover].get_pos() != m_clicked->get_pos())) {
         dc.SetBrush(yellow_brush);
-        dc.DrawCircle(math_to_screen(m_clicked->get_pos()), side/2.);
+        dc.DrawCircle(math_to_screen(m_clicked->get_pos()), side / kButtonRadiusDivisor);
     }
 
     // draw x-axis:
     double last_mark = -10000;
-    for (double math_x = int(m_moveable_area.m_x * 10) / 10.f; math_x <= (m_moveable_area.m_x + m_moveable_area.m_width); math_x += m_x_legend_incr) {
+    for (double math_x = int(m_moveable_area.m_x * kAxisOriginSubdivisions) / kAxisOriginSubdivisions; math_x <= (m_moveable_area.m_x + m_moveable_area.m_width); math_x += m_x_legend_incr) {
         int x = math_to_screen(wxPoint2DDouble(math_x, m_visible_area.m_y)).x;
         int y = m_rect.GetBottom();
         if (x-last_mark < legend_side) continue;
-        dc.DrawLine(x,y+3,x,y-3);
+        dc.DrawLine(x, y + kAxisTickHalfLength, x, y - kAxisTickHalfLength);
         if (m_x_precision == 0) {
-            dc.DrawText(wxString()<<int(math_x), wxPoint(x - scale_unit, y + 0.5 * scale_unit));
+            dc.DrawText(wxString()<<int(math_x), wxPoint(x - scale_unit, y + kHalfLegendUnit * scale_unit));
         } else if (m_x_precision < 5){
-            dc.DrawText(Slic3r::to_string_nozero(math_x, m_x_precision), wxPoint(x - scale_unit, y + 0.5 * scale_unit));
+            dc.DrawText(Slic3r::to_string_nozero(math_x, m_x_precision), wxPoint(x - scale_unit, y + kHalfLegendUnit * scale_unit));
         } else {
-            dc.DrawText(wxString().Format(wxT("%f"), math_x), wxPoint(x - scale_unit, y + 0.5 * scale_unit));
+            dc.DrawText(wxString().Format(wxT("%f"), math_x), wxPoint(x - scale_unit, y + kHalfLegendUnit * scale_unit));
         }
         last_mark = x;
     }
 
     // draw y-axis:
     last_mark=10000;
-    for (double math_y = int(m_moveable_area.m_y * 10) / 10.f; math_y < (m_moveable_area.m_y + m_moveable_area.m_height); math_y += m_y_legend_incr) {
+    for (double math_y = int(m_moveable_area.m_y * kAxisOriginSubdivisions) / kAxisOriginSubdivisions; math_y < (m_moveable_area.m_y + m_moveable_area.m_height); math_y += m_y_legend_incr) {
         int y = math_to_screen(wxPoint2DDouble(m_visible_area.m_x, math_y)).y;
         int x = m_rect.GetLeft();
-        if (last_mark-y < legend_side / 2) continue;    
-        dc.DrawLine(x-3,y,x+3,y);
+        if (last_mark-y < legend_side * kHalfLegendUnit) continue;    
+        dc.DrawLine(x - kAxisTickHalfLength, y, x + kAxisTickHalfLength, y);
         if (m_y_precision == 0) {
-            dc.DrawText(wxString()<<int(math_y), wxPoint(x - 2 * scale_unit, y - 0.5 * scale_unit));
+            dc.DrawText(wxString()<<int(math_y), wxPoint(x - kYLegendBaseWidthUnits * scale_unit, y - kHalfLegendUnit * scale_unit));
         } else if (m_y_precision < 5){
-            dc.DrawText(Slic3r::to_string_nozero(math_y, m_y_precision), wxPoint(x - (2 + m_y_precision * 0.5f) * scale_unit, y - 0.5 * scale_unit));
+            dc.DrawText(Slic3r::to_string_nozero(math_y, m_y_precision), wxPoint(x - (kYLegendBaseWidthUnits + m_y_precision * kHalfLegendUnit) * scale_unit, y - kHalfLegendUnit * scale_unit));
         } else {
-            dc.DrawText(wxString().Format(wxT("%f"), math_y), wxPoint(x - 4 * scale_unit, y - 0.5 * scale_unit));
+            dc.DrawText(wxString().Format(wxT("%f"), math_y), wxPoint(x - 4 * scale_unit, y - kHalfLegendUnit * scale_unit));
         }
         last_mark = y;
     }
@@ -191,9 +207,10 @@ void Chart::draw() {
     int text_width = 0;
     int text_height = 0;
     dc.GetTextExtent(m_x_legend, &text_width, &text_height);
-    dc.DrawText(m_x_legend, wxPoint(0.5*(m_rect.GetRight()+m_rect.GetLeft())-text_width/2.f, m_rect.GetBottom()+0.5*legend_side));
+    dc.DrawText(m_x_legend, wxPoint(kHalfLegendUnit * (m_rect.GetRight() + m_rect.GetLeft()) - text_width / kCenterDivisor,
+                                    m_rect.GetBottom() + kHalfLegendUnit * legend_side));
     dc.GetTextExtent(m_y_legend, &text_width, &text_height);
-    dc.DrawRotatedText(m_y_legend, wxPoint(0,0.5*(m_rect.GetBottom()+m_rect.GetTop())+text_width/2.f), 90);
+    dc.DrawRotatedText(m_y_legend, wxPoint(0, kHalfLegendUnit * (m_rect.GetBottom() + m_rect.GetTop()) + text_width / kCenterDivisor), 90);
 
 
     // refresh clicked point position
@@ -219,8 +236,8 @@ void Chart::mouse_right_button_clicked(wxMouseEvent& event) {
             return;
         wxPoint2DDouble dblpoint = screen_to_math(point);
         // trunc by precision
-        dblpoint.m_x = int((dblpoint.m_x + this->m_x_legend_incr / 2) / this->m_x_legend_incr) * this->m_x_legend_incr;
-        dblpoint.m_y = int((dblpoint.m_y + this->m_y_legend_incr / 2) / this->m_y_legend_incr) * this->m_y_legend_incr;
+        dblpoint.m_x = int((dblpoint.m_x + this->m_x_legend_incr / kSnapCenterDivisor) / this->m_x_legend_incr) * this->m_x_legend_incr;
+        dblpoint.m_y = int((dblpoint.m_y + this->m_y_legend_incr / kSnapCenterDivisor) / this->m_y_legend_incr) * this->m_y_legend_incr;
         //check it doesn't exist
         for (const ButtonToDrag &bt : m_buttons)
             if(bt.get_pos().m_x == dblpoint.m_x)
@@ -256,9 +273,8 @@ void Chart::mouse_clicked(wxMouseEvent& event) {
 void Chart::mouse_moved(wxMouseEvent& event) {
     wxPoint pos = event.GetPosition();
     wxRect rect = m_rect;
-    size_t button_idx_hover_old = button_idx_hover;
     button_idx_hover = size_t(-1);
-    rect.Deflate(side/2.);
+    rect.Deflate(side / kButtonRadiusDivisor);
     if (!(rect.Contains(pos))) {  // the mouse left chart area
         mouse_left_window(event);
         return;
@@ -321,7 +337,7 @@ void Chart::mouse_left_window(wxMouseEvent &e)
                     m_x = m_moveable_area.m_x + m_moveable_area.m_width;
                 }
             }
-            m_x = int((m_x + this->m_x_legend_incr / 2) / this->m_x_legend_incr) * this->m_x_legend_incr;
+            m_x = int((m_x + this->m_x_legend_incr / kSnapCenterDivisor) / this->m_x_legend_incr) * this->m_x_legend_incr;
             m_dragged->move(m_x - m_dragged->get_pos().m_x, 0);
         }
         wxDouble m_y = m_dragged->get_pos().m_y;
@@ -333,7 +349,7 @@ void Chart::mouse_left_window(wxMouseEvent &e)
                 m_y = m_moveable_area.m_y + m_moveable_area.m_height;
             }
         }
-        m_y = int((m_y + this->m_y_legend_incr / 2) / this->m_y_legend_incr) * this->m_y_legend_incr;
+        m_y = int((m_y + this->m_y_legend_incr / kSnapCenterDivisor) / this->m_y_legend_incr) * this->m_y_legend_incr;
         m_dragged->move(0, m_y - m_dragged->get_pos().m_y);
         m_previous_mouse = math_to_screen(m_dragged->get_pos());
         m_dragged        = nullptr;
@@ -345,10 +361,10 @@ void Chart::mouse_released(wxMouseEvent & event)
 {
     if (m_dragged != nullptr) {
         if (!fixed_x) {
-            float m_x = int((m_dragged->get_pos().m_x + this->m_x_legend_incr / 2) / this->m_x_legend_incr) * this->m_x_legend_incr;
+            float m_x = int((m_dragged->get_pos().m_x + this->m_x_legend_incr / kSnapCenterDivisor) / this->m_x_legend_incr) * this->m_x_legend_incr;
             m_dragged->move(m_x - m_dragged->get_pos().m_x, 0);
         }
-        float m_y = int((m_dragged->get_pos().m_y + this->m_y_legend_incr / 2) / this->m_y_legend_incr) * this->m_y_legend_incr;
+        float m_y = int((m_dragged->get_pos().m_y + this->m_y_legend_incr / kSnapCenterDivisor) / this->m_y_legend_incr) * this->m_y_legend_incr;
         m_dragged->move(0, m_y - m_dragged->get_pos().m_y);
         m_previous_mouse = math_to_screen(m_dragged->get_pos());
         m_dragged = nullptr;
@@ -364,9 +380,9 @@ int Chart::which_button_is_clicked(const wxPoint& point) const {
     int dist = 99999;
     int idx = -1;
     for (size_t i = 0; i < m_buttons.size(); ++i) {
-        wxRect rect(math_to_screen(m_buttons[i].get_pos())-wxPoint(side,side),wxSize(side*2,side*2)); // bounding rectangle of this button
+        wxRect rect(math_to_screen(m_buttons[i].get_pos())-wxPoint(side,side),wxSize(side * kButtonDiameterScale,side * kButtonDiameterScale)); // bounding rectangle of this button
         if (rect.Contains(point)) {
-            int new_dist = std::abs(rect.x + rect.width/2 - point.x) + std::abs(rect.y + rect.height/2 - point.y);
+            int new_dist = std::abs(rect.x + rect.width / kCenterDivisor - point.x) + std::abs(rect.y + rect.height / kCenterDivisor - point.y);
             if (new_dist < dist) {
                 dist = new_dist;
                 idx = int(i);
@@ -412,7 +428,7 @@ void Chart::recalculate_line() {
         for (int i=1;i<=N-1;++i) {
             mu[i] = h[i]/(h[i]+h[i+1]);
             lambda[i] = 1.f - mu[i];
-            rhs[i] = 6 * ( float(points[i+1].y-points[i].y  )/(h[i+1]*(points[i+1].x-points[i-1].x)) -
+            rhs[i] = kSplineEquationFactor * ( float(points[i+1].y-points[i].y  )/(h[i+1]*(points[i+1].x-points[i-1].x)) -
                            float(points[i].y  -points[i-1].y)/(h[i]  *(points[i+1].x-points[i-1].x))   );
         }
 
@@ -421,8 +437,8 @@ void Chart::recalculate_line() {
             const float endpoints_derivative = 0;
             lambda[0] = 1;
             mu[N]     = 1;
-            rhs[0] = (6.f/h[1]) * (float(points[0].y-points[1].y)/(points[0].x-points[1].x) - endpoints_derivative);
-            rhs[N] = (6.f/h[N]) * (endpoints_derivative - float(points[N-1].y-points[N].y)/(points[N-1].x-points[N].x));
+            rhs[0] = (kSplineEquationFactor /h[1]) * (float(points[0].y-points[1].y)/(points[0].x-points[1].x) - endpoints_derivative);
+            rhs[N] = (kSplineEquationFactor /h[N]) * (endpoints_derivative - float(points[N-1].y-points[N].y)/(points[N-1].x-points[N].x));
         } else {
             lambda[0] = 0;
             mu[N]     = 0;
@@ -457,9 +473,9 @@ void Chart::recalculate_line() {
                     ++curr_idx;
                 }
                 if (this->m_type == Slic3r::GraphData::GraphType::SPLINE) {
-                    y = (rhs[curr_idx - 1] * pow(points[curr_idx].x - x, 3) + rhs[curr_idx] * pow(x - points[curr_idx - 1].x, 3)) / (6 * h[curr_idx]) +
-                        (points[curr_idx - 1].y - rhs[curr_idx - 1] * h[curr_idx] * h[curr_idx] / 6.f) * (points[curr_idx].x - x) / h[curr_idx] +
-                        (points[curr_idx].y - rhs[curr_idx] * h[curr_idx] * h[curr_idx] / 6.f) * (x - points[curr_idx - 1].x) / h[curr_idx];
+                    y = (rhs[curr_idx - 1] * pow(points[curr_idx].x - x, kSplinePolynomialDegree) + rhs[curr_idx] * pow(x - points[curr_idx - 1].x, kSplinePolynomialDegree)) / (kSplineEquationFactor * h[curr_idx]) +
+                        (points[curr_idx - 1].y - rhs[curr_idx - 1] * h[curr_idx] * h[curr_idx] / kSplineEquationFactor) * (points[curr_idx].x - x) / h[curr_idx] +
+                        (points[curr_idx].y - rhs[curr_idx] * h[curr_idx] * h[curr_idx] / kSplineEquationFactor) * (x - points[curr_idx - 1].x) / h[curr_idx];
                     m_line_to_draw.push_back(y);
                 } else if (this->m_type == Slic3r::GraphData::GraphType::LINEAR) {
                     assert(points[curr_idx - 1].x < points[curr_idx].x);

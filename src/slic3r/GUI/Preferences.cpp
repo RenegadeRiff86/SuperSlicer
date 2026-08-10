@@ -128,6 +128,22 @@ constexpr const char* OPT_default_action_on_select_preset       = "default_actio
 constexpr const char* OPT_default_action_on_dirty_project       = "default_action_on_" "dirty_project";
 constexpr const char* OPT_tabs_as_menu                          = "tabs_as_" "menu";
 constexpr const char* OPT_remember_output_path                  = "remember_output_" "path";
+constexpr const char* LABEL_PREFERENCES                         = L("Preferences");
+constexpr int kScrollbarWidthEm               = 2;
+constexpr int kGuiPageIndex                   = 2;
+constexpr int kColorsPageIndex                = 3;
+constexpr int kCompactOptionsPadding          = 3;
+constexpr int kDefaultOptionsPadding          = 20;
+constexpr int kPathColumnWidth                = 20;
+constexpr int kBlinkerSpacing                 = 2;
+constexpr int kNewSettingsLayoutRadioId       = 2;
+constexpr int kOldSettingsLayoutRadioId       = 3;
+constexpr int kDialogExtraWidthEm             = 3;
+constexpr int kButtonVerticalMargin           = 10;
+constexpr int kInitialTextReserve             = 10;
+constexpr int kIconSizeSliderStep             = 10;
+constexpr int kHexColorDigits                 = 6;
+constexpr int kStandardIntegerFieldWidth      = 6;
 
 } // namespace
 
@@ -138,7 +154,7 @@ wxIcon icon_from_bitmap(const wxBitmap &bitmap) {
 }
 
 PreferencesDialog::PreferencesDialog(wxWindow* parent) :
-    DPIDialog(parent, wxID_ANY, _L("Preferences"), wxDefaultPosition, 
+    DPIDialog(parent, wxID_ANY, _L(LABEL_PREFERENCES), wxDefaultPosition, 
               wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER, "preferences")
 {
 #ifdef __WXOSX__
@@ -164,7 +180,7 @@ PreferencesDialog::PreferencesDialog(wxWindow* parent) :
     }
 
     if (is_scrollbar_shown)
-        sz.x += 2*em_unit();
+        sz.x += kScrollbarWidthEm * em_unit();
 #ifdef __WXGTK__
     // To correct Layout of wxScrolledWindow we need at least small change of size
     else
@@ -260,8 +276,9 @@ void PreferencesDialog::show(const std::string& highlight_opt_key /*= std::strin
             this->m_downloader->allow(!app_config->has(OPT_downloader_url_registered) ||
                                       app_config->get_bool(OPT_downloader_url_registered));
         }
-        for (const std::string &opt_key : {OPT_downloader_url_registered})
-            m_optkey_to_optgroup[opt_key]->set_value(OptionKeyIdx::scalar(opt_key), app_config->get_bool(opt_key), true, false);
+        m_optkey_to_optgroup[OPT_downloader_url_registered]->set_value(
+            OptionKeyIdx::scalar(OPT_downloader_url_registered),
+            app_config->get_bool(OPT_downloader_url_registered), true, false);
 
         for (const std::string opt_key : {OPT_default_action_on_close_application, OPT_default_action_on_new_project,
                                           OPT_default_action_on_select_preset, "show_step_import_parameters"})
@@ -270,40 +287,40 @@ void PreferencesDialog::show(const std::string& highlight_opt_key /*= std::strin
             ->set_value(OptionKeyIdx::scalar(OPT_default_action_on_dirty_project),
                         app_config->get(OPT_default_action_on_dirty_project).empty(), true, false);
 
-		// update colors for color pickers of the labels
-		update_color(m_sys_colour, wxGetApp().get_label_clr_sys());
-		update_color(m_mod_colour, wxGetApp().get_label_clr_modified());
-		
+        // update colors for color pickers of the labels
+        update_color(m_sys_colour, wxGetApp().get_label_clr_sys());
+        update_color(m_mod_colour, wxGetApp().get_label_clr_modified());
+        
 #ifdef GUI_TAG_PALETTE
-		// update color pickers for mode palette
-		//const std::map<ConfigOptionMode, wxColour> palette = wxGetApp().get_mode_palette(); 
-		//std::vector<wxColourPickerCtrl*> color_pickres = {m_mode_simple, m_mode_advanced, m_mode_expert};
-		//for (size_t mode = 0; mode < color_pickres.size(); ++mode)
-			//update_color(color_pickres[mode], palette[mode]);
+        // update color pickers for mode palette
+        //const std::map<ConfigOptionMode, wxColour> palette = wxGetApp().get_mode_palette(); 
+        //std::vector<wxColourPickerCtrl*> color_pickres = {m_mode_simple, m_mode_advanced, m_mode_expert};
+        //for (size_t mode = 0; mode < color_pickres.size(); ++mode)
+            //update_color(color_pickres[mode], palette[mode]);
 #endif
-	}
+    }
 
-	this->ShowModal();
+    this->ShowModal();
 }
 void PreferencesDialog::create_options_tab(const wxString& title)
 {
-	// note: prusa wxScrolledWindow into a panel that only contains it, I don't know why.
+    // note: prusa wxScrolledWindow into a panel that only contains it, I don't know why.
     // set inside a scrollable panel
-	// Vertical scroll only; preference rows fit width without HSCROLL.
+    // Vertical scroll only; preference rows fit width without HSCROLL.
     wxScrolledWindow *tab = new wxScrolledWindow(tabs, wxID_ANY, wxDefaultPosition, wxDefaultSize,
                                                  wxBK_LEFT | wxTAB_TRAVERSAL | wxVSCROLL);
 
-	tabs->AddPage(tab, _(title));
-	tab->SetFont(wxGetApp().normal_font());
+    tabs->AddPage(tab, _(title));
+    tab->SetFont(wxGetApp().normal_font());
 
-	// Sizer in the scrolled area
-	wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
-	sizer->SetSizeHints(tab);
-	tab->SetSizer(sizer);
+    // Sizer in the scrolled area
+    wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
+    sizer->SetSizeHints(tab);
+    tab->SetSizer(sizer);
     tab->SetScrollRate(0, 5);
 
-	// also reflect the new tab into the tab é optgroup struct
-	m_tabid_2_optgroups.emplace_back();
+    // also reflect the new tab into the tab é optgroup struct
+    m_tabid_2_optgroups.emplace_back();
 }
 
 
@@ -316,7 +333,7 @@ std::shared_ptr<ConfigOptionsGroup> PreferencesDialog::create_options_group(cons
     optgroup->title_width = 40;
     optgroup->label_width = 40;
     optgroup->set_config_category_and_type(title, int(Preset::TYPE_PREFERENCES));
-    optgroup->m_on_change = [this, tabs, optgroup](const OptionKeyIdx &opt_key_idx, bool enabled, const boost::any &value) {
+    optgroup->m_on_change = [this, optgroup](const OptionKeyIdx &opt_key_idx, bool enabled, const boost::any &value) {
         assert(enabled);
         assert(opt_key_idx.idx < 0);
         Field *field = optgroup->get_field(opt_key_idx);
@@ -361,7 +378,7 @@ std::shared_ptr<ConfigOptionsGroup> PreferencesDialog::create_options_group(cons
                 m_values[opt_key_idx.key] = std::to_string(boost::any_cast<int>(value));
             } else if (field->m_opt.type == coString && field->m_opt.gui_type == ConfigOptionDef::GUIType::color) {
                 std::string str_color = boost::any_cast<std::string>(value);
-                if (str_color.size() >= 6 && str_color.size() <= 7) {
+                if (str_color.size() >= kHexColorDigits && str_color.size() <= 7) {
                     m_values[opt_key_idx.key] = str_color[0] == '#' ? str_color.substr(1) : str_color;
                 }
             } else if (field->m_opt.type == coString || field->m_opt.type == coStrings) {
@@ -381,118 +398,118 @@ std::shared_ptr<ConfigOptionsGroup> PreferencesDialog::create_options_group(cons
     return optgroup;
 }
 
-static void activate_options_tab(std::shared_ptr<ConfigOptionsGroup> optgroup, int padding = 20)
+static void activate_options_tab(std::shared_ptr<ConfigOptionsGroup> optgroup, int padding = kDefaultOptionsPadding)
 {
-	optgroup->activate([](){}, wxALIGN_RIGHT);
-	optgroup->update_visibility(comNone);
-	wxBoxSizer* sizer = static_cast<wxBoxSizer*>(static_cast<wxPanel*>(optgroup->parent())->GetSizer());
-	sizer->Add(optgroup->sizer, 0, wxEXPAND | wxALL, padding);
+    optgroup->activate([](){}, wxALIGN_RIGHT);
+    optgroup->update_visibility(comNone);
+    wxBoxSizer* sizer = static_cast<wxBoxSizer*>(static_cast<wxPanel*>(optgroup->parent())->GetSizer());
+    sizer->Add(optgroup->sizer, 0, wxEXPAND | wxALL, padding);
 
-	optgroup->parent()->Layout();
+    optgroup->parent()->Layout();
 
-	// apply sercher
-	wxGetApp().sidebar().get_searcher().append_preferences_options(optgroup->get_lines());
+    // apply sercher
+    wxGetApp().sidebar().get_searcher().append_preferences_options(optgroup->get_lines());
 }
 
 void PreferencesDialog::append_bool_option( std::shared_ptr<ConfigOptionsGroup> optgroup,
-								const t_config_option_key& opt_key,
-								const std::string& label,
-								const std::string& tooltip,
-								bool def_val,
-								ConfigOptionMode mode)
+                                const t_config_option_key& opt_key,
+                                const std::string& label,
+                                const std::string& tooltip,
+                                bool def_val,
+                                ConfigOptionMode mode)
 {
-	ConfigOptionDef def = {opt_key, coBool};
-	def.label = label;
-	def.tooltip = tooltip;
-	def.mode = mode;
-	def.set_default_value(std::make_unique<ConfigOptionBool>(ConfigOptionBool{ def_val }));
-	Option option(def);
-	optgroup->append_single_option_line(option);
-	
-	m_optkey_to_optgroup[opt_key] = optgroup;
+    ConfigOptionDef def = {opt_key, coBool};
+    def.label = label;
+    def.tooltip = tooltip;
+    def.mode = mode;
+    def.set_default_value(std::make_unique<ConfigOptionBool>(ConfigOptionBool{ def_val }));
+    Option option(def);
+    optgroup->append_single_option_line(option);
+    
+    m_optkey_to_optgroup[opt_key] = optgroup;
 
     // fill data to the Search Dialog
     wxGetApp().sidebar().get_searcher().add_key(OptionKeyIdx::scalar(opt_key), Preset::TYPE_PREFERENCES,
-                                                optgroup->config_category(), L("Preferences"), def);
+                                                optgroup->config_category(), L(LABEL_PREFERENCES), def);
 }
 
 void PreferencesDialog::append_int_option( std::shared_ptr<ConfigOptionsGroup> optgroup,
-								const t_config_option_key& opt_key,
-								const std::string& label,
-								const std::string& tooltip,
-								int option_width,
-								int def_val,
-								ConfigOptionMode mode,
-								int32_t min /*= -FLT_MAX*/,
-								int32_t max /*= FLT_MAX*/)
+                                const t_config_option_key& opt_key,
+                                const std::string& label,
+                                const std::string& tooltip,
+                                int option_width,
+                                int def_val,
+                                ConfigOptionMode mode,
+                                int32_t min /*= -FLT_MAX*/,
+                                int32_t max /*= FLT_MAX*/)
 {
-	ConfigOptionDef def = {opt_key, coInt};
-	def.label = label;
-	def.tooltip = tooltip;
-	def.mode = mode;
-	def.min = double(min);
-	def.max = double(max);
-	def.set_default_value(std::make_unique<ConfigOptionInt>(def_val));
-	Option option(def);
-	option.opt.width = option_width;
-	optgroup->append_single_option_line(option);
-	
-	m_optkey_to_optgroup[opt_key] = optgroup;
+    ConfigOptionDef def = {opt_key, coInt};
+    def.label = label;
+    def.tooltip = tooltip;
+    def.mode = mode;
+    def.min = double(min);
+    def.max = double(max);
+    def.set_default_value(std::make_unique<ConfigOptionInt>(def_val));
+    Option option(def);
+    option.opt.width = option_width;
+    optgroup->append_single_option_line(option);
+    
+    m_optkey_to_optgroup[opt_key] = optgroup;
 
     // fill data to the Search Dialog
     wxGetApp().sidebar().get_searcher().add_key(OptionKeyIdx::scalar(opt_key), Preset::TYPE_PREFERENCES,
-                                                optgroup->config_category(), L("Preferences"), def);
+                                                optgroup->config_category(), L(LABEL_PREFERENCES), def);
 }
 
 void PreferencesDialog::append_color_option( std::shared_ptr<ConfigOptionsGroup> optgroup,
-								const t_config_option_key& opt_key,
-								const std::string& label,
-								const std::string& tooltip,
-								std::string color_str,
-								ConfigOptionMode mode)
+                                const t_config_option_key& opt_key,
+                                const std::string& label,
+                                const std::string& tooltip,
+                                std::string color_str,
+                                ConfigOptionMode mode)
 {
-	ConfigOptionDef def = {opt_key, coString};
-	def.label = label;
-	def.tooltip = tooltip;
-	def.mode = mode;
-	if (color_str[0] != '#') color_str = "#" + color_str;
-	def.set_default_value(std::make_unique<ConfigOptionString>(ConfigOptionString{ color_str }));
-	Option option(def);
-	option.opt.gui_type = ConfigOptionDef::GUIType::color;
-	optgroup->append_single_option_line(option);
-	
-	m_optkey_to_optgroup[opt_key] = optgroup;
-	m_values_need_restart.push_back("color_light");
+    ConfigOptionDef def = {opt_key, coString};
+    def.label = label;
+    def.tooltip = tooltip;
+    def.mode = mode;
+    if (color_str[0] != '#') color_str = "#" + color_str;
+    def.set_default_value(std::make_unique<ConfigOptionString>(ConfigOptionString{ color_str }));
+    Option option(def);
+    option.opt.gui_type = ConfigOptionDef::GUIType::color;
+    optgroup->append_single_option_line(option);
+    
+    m_optkey_to_optgroup[opt_key] = optgroup;
+    m_values_need_restart.push_back("color_light");
 
     // fill data to the Search Dialog
     wxGetApp().sidebar().get_searcher().add_key(OptionKeyIdx::scalar(opt_key), Preset::TYPE_PREFERENCES,
-                                                optgroup->config_category(), L("Preferences"), def);
+                                                optgroup->config_category(), L(LABEL_PREFERENCES), def);
 }
 
 template<typename EnumType>
 void PreferencesDialog::append_enum_option( std::shared_ptr<ConfigOptionsGroup> optgroup,
-								const t_config_option_key& opt_key,
-								const std::string& label,
-								const std::string& tooltip,
-								std::unique_ptr<ConfigOption> def_val,
-								std::initializer_list<std::pair<std::string_view, std::string_view>> enum_values,
-								ConfigOptionMode mode)
+                                const t_config_option_key& opt_key,
+                                const std::string& label,
+                                const std::string& tooltip,
+                                std::unique_ptr<ConfigOption> def_val,
+                                std::initializer_list<std::pair<std::string_view, std::string_view>> enum_values,
+                                ConfigOptionMode mode)
 {
-	ConfigOptionDef def = {opt_key, coEnum };
-	def.label = label;
-	def.tooltip = tooltip;
-	def.mode = mode;
-	def.set_enum<EnumType>(enum_values);
+    ConfigOptionDef def = {opt_key, coEnum };
+    def.label = label;
+    def.tooltip = tooltip;
+    def.mode = mode;
+    def.set_enum<EnumType>(enum_values);
 
-	def.set_default_value(std::move(def_val));
-	Option option(def);
-	optgroup->append_single_option_line(option);
-	
-	m_optkey_to_optgroup[opt_key] = optgroup;
+    def.set_default_value(std::move(def_val));
+    Option option(def);
+    optgroup->append_single_option_line(option);
+    
+    m_optkey_to_optgroup[opt_key] = optgroup;
 
     // fill data to the Search Dialog
     wxGetApp().sidebar().get_searcher().add_key(OptionKeyIdx::scalar(opt_key), Preset::TYPE_PREFERENCES,
-                                                optgroup->config_category(), L("Preferences"), def);
+                                                optgroup->config_category(), L(LABEL_PREFERENCES), def);
 }
 
 static void append_preferences_option_to_searcher(std::shared_ptr<ConfigOptionsGroup> optgroup,
@@ -500,7 +517,7 @@ static void append_preferences_option_to_searcher(std::shared_ptr<ConfigOptionsG
                                                 const wxString& label)
 {
     // fill data to the Search Dialog
-    wxGetApp().sidebar().get_searcher().add_key(OptionKeyIdx::scalar(opt_key), Preset::TYPE_PREFERENCES, optgroup->config_category(), L("Preferences"), {});
+    wxGetApp().sidebar().get_searcher().add_key(OptionKeyIdx::scalar(opt_key), Preset::TYPE_PREFERENCES, optgroup->config_category(), L(LABEL_PREFERENCES), {});
     // apply sercher
     wxGetApp().sidebar().get_searcher().append_preferences_option(Line(opt_key, label, ""));
 }
@@ -508,33 +525,33 @@ static void append_preferences_option_to_searcher(std::shared_ptr<ConfigOptionsG
 void PreferencesDialog::build()
 {
 #ifdef _WIN32
-	wxGetApp().UpdateDarkUI(this);
+    wxGetApp().UpdateDarkUI(this);
 #else
-	//SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
+    //SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
 #endif
-	const wxFont& font = wxGetApp().normal_font();
-	SetFont(font);
+    const wxFont& font = wxGetApp().normal_font();
+    SetFont(font);
 
-	auto app_config = get_app_config();
+    auto app_config = get_app_config();
 
 #ifdef _MSW_DARK_MODE
-		tabs = new Notebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNB_TOP | wxTAB_TRAVERSAL | wxNB_DEFAULT);
+        tabs = new Notebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNB_TOP | wxTAB_TRAVERSAL | wxNB_DEFAULT);
 #else
     tabs = new wxNotebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNB_TOP | wxTAB_TRAVERSAL   | wxNB_DEFAULT );
 #ifdef __linux__
-	tabs->Bind(wxEVT_NOTEBOOK_PAGE_CHANGED, [this](wxBookCtrlEvent& e) {
-		e.Skip();
-		CallAfter([this]() { tabs->GetCurrentPage()->Layout(); });
+    tabs->Bind(wxEVT_NOTEBOOK_PAGE_CHANGED, [this](wxBookCtrlEvent& e) {
+        e.Skip();
+        CallAfter([this]() { tabs->GetCurrentPage()->Layout(); });
     });
 #endif
 #endif
-	assert(m_tabid_2_optgroups.empty());
+    assert(m_tabid_2_optgroups.empty());
 
-	// Add "General" tab
-	create_options_tab(_L("General"));
-	assert(!m_tabid_2_optgroups.empty());
+    // Add "General" tab
+    create_options_tab(_L("General"));
+    assert(!m_tabid_2_optgroups.empty());
 
-	bool is_editor = wxGetApp().is_editor();
+    bool is_editor = wxGetApp().is_editor();
 
 #if defined(SLIC3R_ENABLE_AUTOMATION_API) && defined(__linux__)
     m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Automation"), tabs, 0));
@@ -557,30 +574,30 @@ void PreferencesDialog::build()
         65535);
 #endif
 
-	if (is_editor) {
+    if (is_editor) {
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), OPT_remember_output_path, 
-			L("Remember output directory"),
-			L("If this is enabled, Slic3r will prompt the last output directory instead of the one containing the input files."),
-			app_config->has(OPT_remember_output_path) ? app_config->get_bool(OPT_remember_output_path) : true);
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "autocenter", 
-			L("Auto-center parts"),
-			L("If this is enabled, Slic3r will auto-center objects around the print bed center."),
-			app_config->get_bool("autocenter"));
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "background_processing", 
-			L("Background processing"),
-			L("If this is enabled, Slic3r will pre-process objects as soon "
-				"as they\'re loaded in order to save time when exporting G-code."),
-			app_config->get_bool("background_processing"));
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "alert_when_supports_needed", 
-			L("Alert when supports needed"),
-			L("If this is enabled, Slic3r will raise alerts when it detects "
-				"issues in the sliced object, that can be resolved with supports (and brim). "
-				"Examples of such issues are floating object parts, unsupported extrusions and low bed adhesion."),
-			app_config->get_bool("alert_when_supports_needed"));
+        append_bool_option(m_tabid_2_optgroups.back().back(), OPT_remember_output_path, 
+            L("Remember output directory"),
+            L("If this is enabled, Slic3r will prompt the last output directory instead of the one containing the input files."),
+            app_config->has(OPT_remember_output_path) ? app_config->get_bool(OPT_remember_output_path) : true);
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "autocenter", 
+            L("Auto-center parts"),
+            L("If this is enabled, Slic3r will auto-center objects around the print bed center."),
+            app_config->get_bool("autocenter"));
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "background_processing", 
+            L("Background processing"),
+            L("If this is enabled, Slic3r will pre-process objects as soon "
+                "as they\'re loaded in order to save time when exporting G-code."),
+            app_config->get_bool("background_processing"));
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "alert_when_supports_needed", 
+            L("Alert when supports needed"),
+            L("If this is enabled, Slic3r will raise alerts when it detects "
+                "issues in the sliced object, that can be resolved with supports (and brim). "
+                "Examples of such issues are floating object parts, unsupported extrusions and low bed adhesion."),
+            app_config->get_bool("alert_when_supports_needed"));
 
         // auto_switch_preview
         {
@@ -619,15 +636,15 @@ void PreferencesDialog::build()
                 });
         }
         //m_optkey_to_optgroup[OPT_auto_switch_preview] = m_tabid_2_optgroups.back().back();
-        //wxGetApp().sidebar().get_searcher().add_key(OptionKeyIdx::scalar(OPT_auto_switch_preview), Preset::TYPE_PREFERENCES, m_tabid_2_optgroups.back().back()->config_category(), L("Preferences"), def_combobox_auto_switch_preview);
+        //wxGetApp().sidebar().get_searcher().add_key(OptionKeyIdx::scalar(OPT_auto_switch_preview), Preset::TYPE_PREFERENCES, m_tabid_2_optgroups.back().back()->config_category(), L(LABEL_PREFERENCES), def_combobox_auto_switch_preview);
 
-		// Please keep in sync with ConfigWizard
-		append_bool_option(m_tabid_2_optgroups.back().back(), "export_sources_full_pathnames",
-			L("Export sources full pathnames to 3mf and amf"),
-			L("If enabled, allows the Reload from disk command to automatically find and load the files when invoked."),
-			app_config->get_bool("export_sources_full_pathnames"));
+        // Please keep in sync with ConfigWizard
+        append_bool_option(m_tabid_2_optgroups.back().back(), "export_sources_full_pathnames",
+            L("Export sources full pathnames to 3mf and amf"),
+            L("If enabled, allows the Reload from disk command to automatically find and load the files when invoked."),
+            app_config->get_bool("export_sources_full_pathnames"));
 
-        activate_options_tab(m_tabid_2_optgroups.back().back(), 3);
+        activate_options_tab(m_tabid_2_optgroups.back().back(), kCompactOptionsPadding);
         m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Presets and updates"), tabs, 0));
 /*
         // Please keep in sync with ConfigWizard
@@ -640,97 +657,97 @@ void PreferencesDialog::build()
         m_tabid_2_optgroups.back().back()->append_single_option_line(option);
 */
         // Please keep in sync with ConfigWizard
-		append_bool_option(m_tabid_2_optgroups.back().back(), "preset_update",
-			L("Update built-in Presets automatically"),
-			L("If enabled, Slic3r downloads updates of built-in system presets in the background. These updates are downloaded "
-			  "into a separate temporary location. When a new preset version becomes available it is offered at application startup."),
-			app_config->get_bool("preset_update"));
+        append_bool_option(m_tabid_2_optgroups.back().back(), "preset_update",
+            L("Update built-in Presets automatically"),
+            L("If enabled, Slic3r downloads updates of built-in system presets in the background. These updates are downloaded "
+              "into a separate temporary location. When a new preset version becomes available it is offered at application startup."),
+            app_config->get_bool("preset_update"));
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), "no_defaults",
-			L("Suppress \" - default - \" presets"),
-			L("Suppress \" - default - \" presets in the Print / Filament / Printer selections once there are any other valid presets available."),
-			app_config->get_bool("no_defaults"));
-		m_values_need_restart.push_back("no_defaults");
+        append_bool_option(m_tabid_2_optgroups.back().back(), "no_defaults",
+            L("Suppress \" - default - \" presets"),
+            L("Suppress \" - default - \" presets in the Print / Filament / Printer selections once there are any other valid presets available."),
+            app_config->get_bool("no_defaults"));
+        m_values_need_restart.push_back("no_defaults");
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), "no_templates",
-			L("Suppress \" Template \" filament presets"),
-			L("Suppress \" Template \" filament presets in configuration wizard and sidebar visibility."),
-			app_config->get_bool("no_templates"));
+        append_bool_option(m_tabid_2_optgroups.back().back(), "no_templates",
+            L("Suppress \" Template \" filament presets"),
+            L("Suppress \" Template \" filament presets in configuration wizard and sidebar visibility."),
+            app_config->get_bool("no_templates"));
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), "show_incompatible_presets",
-			L("Show incompatible print and filament presets"),
-			L("When checked, the print and filament presets are shown in the preset editor "
-			"even if they are marked as incompatible with the active printer"),
-			app_config->get_bool("show_incompatible_presets"));
+        append_bool_option(m_tabid_2_optgroups.back().back(), "show_incompatible_presets",
+            L("Show incompatible print and filament presets"),
+            L("When checked, the print and filament presets are shown in the preset editor "
+            "even if they are marked as incompatible with the active printer"),
+            app_config->get_bool("show_incompatible_presets"));
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), "objects_always_expert",
-			L("Main GUI always in expert mode"),
-			L("If enabled, the gui will be in expert mode even if the simple or advanced mode is selected (but not the setting tabs)."),
-			app_config->get_bool("objects_always_expert"));
+        append_bool_option(m_tabid_2_optgroups.back().back(), "objects_always_expert",
+            L("Main GUI always in expert mode"),
+            L("If enabled, the gui will be in expert mode even if the simple or advanced mode is selected (but not the setting tabs)."),
+            app_config->get_bool("objects_always_expert"));
 
-        activate_options_tab(m_tabid_2_optgroups.back().back(), 3);
+        activate_options_tab(m_tabid_2_optgroups.back().back(), kCompactOptionsPadding);
         m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Files"), tabs, 0));
 
         // Please keep in sync with ConfigWizard
-		append_bool_option(m_tabid_2_optgroups.back().back(), "export_sources_full_pathnames",
-			L("Export sources full pathnames to 3mf and amf"),
-			L("If enabled, allows the Reload from disk command to automatically find and load the files when invoked."),
-			app_config->get_bool("export_sources_full_pathnames"));
+        append_bool_option(m_tabid_2_optgroups.back().back(), "export_sources_full_pathnames",
+            L("Export sources full pathnames to 3mf and amf"),
+            L("If enabled, allows the Reload from disk command to automatically find and load the files when invoked."),
+            app_config->get_bool("export_sources_full_pathnames"));
 
 #ifdef _WIN32
-		// Please keep in sync with ConfigWizard
-		append_bool_option(m_tabid_2_optgroups.back().back(), "associate_3mf",
-			(boost::format(_u8L("Associate .3mf files to %1%")) % SLIC3R_APP_NAME).str(),
-			L("If enabled, sets Slic3r as default application to open .3mf files."),
-			app_config->get_bool("associate_3mf"));
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "associate_stl",
-			(boost::format(_u8L("Associate .stl files to %1%")) % SLIC3R_APP_NAME).str(),
-			L("If enabled, sets Slic3r as default application to open .stl files."),
-			app_config->get_bool("associate_stl"));
+        // Please keep in sync with ConfigWizard
+        append_bool_option(m_tabid_2_optgroups.back().back(), "associate_3mf",
+            (boost::format(_u8L("Associate .3mf files to %1%")) % SLIC3R_APP_NAME).str(),
+            L("If enabled, sets Slic3r as default application to open .3mf files."),
+            app_config->get_bool("associate_3mf"));
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "associate_stl",
+            (boost::format(_u8L("Associate .stl files to %1%")) % SLIC3R_APP_NAME).str(),
+            L("If enabled, sets Slic3r as default application to open .stl files."),
+            app_config->get_bool("associate_stl"));
 #endif // _WIN32
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), OPT_remember_output_path,
-			L("Remember output directory"),
-			L("If this is enabled, Slic3r will prompt the last output directory "
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), OPT_remember_output_path,
+            L("Remember output directory"),
+            L("If this is enabled, Slic3r will prompt the last output directory "
             "instead of the one containing the input files."),
-			app_config->get_bool(OPT_remember_output_path));
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "date_in_config_file",
-			L("Export headers with date and time"),
+            app_config->get_bool(OPT_remember_output_path));
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "date_in_config_file",
+            L("Export headers with date and time"),
             L("If this is enabled, Slic3r will add the date of the export to the first line of any exported config and gcode file."
               " Note that some software may rely on that to work, be careful and report any problem if you deactivate it."),
-			app_config->get_bool("date_in_config_file"));
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "check_material_export",
-			L("Show a Pop-up with the current material when exporting"),
+            app_config->get_bool("date_in_config_file"));
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "check_material_export",
+            L("Show a Pop-up with the current material when exporting"),
             L("If you constantly forgot to select the right filament/material, check this option to have a really obtrusive reminder on each export."),
-			app_config->get_bool("check_material_export"));
+            app_config->get_bool("check_material_export"));
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), "show_unknown_setting",
-			L("Show ignored settings when loading a project or configuration"),
+        append_bool_option(m_tabid_2_optgroups.back().back(), "show_unknown_setting",
+            L("Show ignored settings when loading a project or configuration"),
             L("When loading a configuration, if it's coming from an earlier, a future or from another software, show the ignored settings that doesn't suit this version. Uncheck to remove this anoying pop-up."),
-			app_config->get_bool("show_unknown_setting"));
+            app_config->get_bool("show_unknown_setting"));
 
         append_bool_option(m_tabid_2_optgroups.back().back(), "use_binary_gcode_when_supported", L("Use binary G-code when the printer supports it"),
                     L("If the 'Supports binary G-code' option is enabled in Printer Settings, "
                       "checking this option will result in the export of G-code in binary format."),
                     app_config->get_bool("use_binary_gcode_when_supported"));
 
-        activate_options_tab(m_tabid_2_optgroups.back().back(), 3);
+        activate_options_tab(m_tabid_2_optgroups.back().back(), kCompactOptionsPadding);
         m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Dialogs"), tabs, 0));
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "show_drop_project_dialog",
-			L("Show drop project dialog"),
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "show_drop_project_dialog",
+            L("Show drop project dialog"),
             L("When checked, whenever dragging and dropping a project file on the application, shows a dialog asking to select the action to take on the file to load."),
-			app_config->get_bool("show_drop_project_dialog"));
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "show_overwrite_dialog",
-			L("Show overwrite dialog."),
+            app_config->get_bool("show_drop_project_dialog"));
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "show_overwrite_dialog",
+            L("Show overwrite dialog."),
             L("If this is enabled, Slic3r will prompt for when overwriting files from save dialogs."),
-			app_config->get_bool("show_overwrite_dialog"));
+            app_config->get_bool("show_overwrite_dialog"));
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), "single_instance",
+        append_bool_option(m_tabid_2_optgroups.back().back(), "single_instance",
 #if __APPLE__
             Slic3r::GUI::format(L("Allow just a single %1% instance"), SLIC3R_APP_NAME),
             L("On OSX there is always only one instance of app running by default. However it is allowed to run multiple instances "
@@ -743,79 +760,79 @@ void PreferencesDialog::build()
             app_config->has("single_instance") ? app_config->get_bool("single_instance") : false);
 
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), OPT_default_action_on_dirty_project,
-			L("Ask for unsaved changes in project"),
-			L("Always ask for unsaved changes in project, when: \n"
-						"- Closing Slic3r,\n"
-						"- Loading or creating a new project"),
-			app_config->get(OPT_default_action_on_dirty_project).empty());
+        append_bool_option(m_tabid_2_optgroups.back().back(), OPT_default_action_on_dirty_project,
+            L("Ask for unsaved changes in project"),
+            L("Always ask for unsaved changes in project, when: \n"
+                        "- Closing Slic3r,\n"
+                        "- Loading or creating a new project"),
+            app_config->get(OPT_default_action_on_dirty_project).empty());
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), OPT_default_action_on_close_application,
-			L("Ask to save unsaved changes in presets when closing the application or when loading a new project"),
-			L("Always ask for unsaved changes in presets, when: \n"
-						"- Closing Slic3r while some presets are modified,\n"
-						"- Loading a new project while some presets are modified"),
-			app_config->get(OPT_default_action_on_close_application) == "none");
+        append_bool_option(m_tabid_2_optgroups.back().back(), OPT_default_action_on_close_application,
+            L("Ask to save unsaved changes in presets when closing the application or when loading a new project"),
+            L("Always ask for unsaved changes in presets, when: \n"
+                        "- Closing Slic3r while some presets are modified,\n"
+                        "- Loading a new project while some presets are modified"),
+            app_config->get(OPT_default_action_on_close_application) == "none");
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), OPT_default_action_on_select_preset,
-			L("Ask for unsaved changes in presets when selecting new preset"),
-			L("Always ask for unsaved changes in presets when selecting new preset or resetting a preset"),
-			app_config->get(OPT_default_action_on_select_preset) == "none");
+        append_bool_option(m_tabid_2_optgroups.back().back(), OPT_default_action_on_select_preset,
+            L("Ask for unsaved changes in presets when selecting new preset"),
+            L("Always ask for unsaved changes in presets when selecting new preset or resetting a preset"),
+            app_config->get(OPT_default_action_on_select_preset) == "none");
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), OPT_default_action_on_new_project,
-			L("Ask for unsaved changes in presets when creating new project"),
-			L("Always ask for unsaved changes in presets when creating new project"),
-			app_config->get(OPT_default_action_on_new_project) == "none");
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "default_action_delete_all",
-			L("Ask for 'new project' on 'Delete all'"),
-			L("When you click on the garbage can (or ctrl+del), ask for the action to do. If disable, it will erase all object without asking"),
-			app_config->get_bool("default_action_delete_all"));
+        append_bool_option(m_tabid_2_optgroups.back().back(), OPT_default_action_on_new_project,
+            L("Ask for unsaved changes in presets when creating new project"),
+            L("Always ask for unsaved changes in presets when creating new project"),
+            app_config->get(OPT_default_action_on_new_project) == "none");
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "default_action_delete_all",
+            L("Ask for 'new project' on 'Delete all'"),
+            L("When you click on the garbage can (or ctrl+del), ask for the action to do. If disable, it will erase all object without asking"),
+            app_config->get_bool("default_action_delete_all"));
 
         // Clear Undo / Redo stack on new project
-		append_bool_option(m_tabid_2_optgroups.back().back(), "clear_undo_redo_stack_on_new_project",
-			L("Clear Undo / Redo stack on new project"),
-			L("Clear Undo / Redo stack on new project or when an existing project is loaded."),
-			app_config->get_bool("clear_undo_redo_stack_on_new_project"));
-	}
+        append_bool_option(m_tabid_2_optgroups.back().back(), "clear_undo_redo_stack_on_new_project",
+            L("Clear Undo / Redo stack on new project"),
+            L("Clear Undo / Redo stack on new project or when an existing project is loaded."),
+            app_config->get_bool("clear_undo_redo_stack_on_new_project"));
+    }
 #ifdef _WIN32
-	else {
-		append_bool_option(m_tabid_2_optgroups.back().back(), "associate_gcode",
-			(boost::format(_u8L("Associate .gcode files to %1%")) % GCODEVIEWER_APP_NAME).str(),
-			(boost::format(_u8L("If enabled, sets %1% as default application to open .gcode files.")) % GCODEVIEWER_APP_NAME).str(),
-			app_config->get_bool("associate_gcode"));
-		append_bool_option(m_tabid_2_optgroups.back().back(), "associate_bgcode",
-			(boost::format(_u8L("Associate .bgcode files to %1%")) % GCODEVIEWER_APP_NAME).str(),
-			(boost::format(_u8L("If enabled, sets %1% as default application to open .bgcode files.")) % GCODEVIEWER_APP_NAME).str(),
-			app_config->get_bool("associate_bgcode"));
-	}
+    else {
+        append_bool_option(m_tabid_2_optgroups.back().back(), "associate_gcode",
+            (boost::format(_u8L("Associate .gcode files to %1%")) % GCODEVIEWER_APP_NAME).str(),
+            (boost::format(_u8L("If enabled, sets %1% as default application to open .gcode files.")) % GCODEVIEWER_APP_NAME).str(),
+            app_config->get_bool("associate_gcode"));
+        append_bool_option(m_tabid_2_optgroups.back().back(), "associate_bgcode",
+            (boost::format(_u8L("Associate .bgcode files to %1%")) % GCODEVIEWER_APP_NAME).str(),
+            (boost::format(_u8L("If enabled, sets %1% as default application to open .bgcode files.")) % GCODEVIEWER_APP_NAME).str(),
+            app_config->get_bool("associate_bgcode"));
+    }
 #endif // _WIN32
 
 #if __APPLE__
-	append_bool_option(m_tabid_2_optgroups.back().back(), "use_retina_opengl",
-		L("Use Retina resolution for the 3D scene"),
-		L("If enabled, the 3D scene will be rendered in Retina resolution. "
-	      "If you are experiencing 3D performance problems, disabling this option may help."),
-		app_config->get_bool("use_retina_opengl"));
+    append_bool_option(m_tabid_2_optgroups.back().back(), "use_retina_opengl",
+        L("Use Retina resolution for the 3D scene"),
+        L("If enabled, the 3D scene will be rendered in Retina resolution. "
+          "If you are experiencing 3D performance problems, disabling this option may help."),
+        app_config->get_bool("use_retina_opengl"));
 #endif
 
-	if (is_editor) {
-        activate_options_tab(m_tabid_2_optgroups.back().back(), 3);
-		m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Paths"), tabs, 0));
-		m_tabid_2_optgroups.back().back()->title_width = 20;
-		m_tabid_2_optgroups.back().back()->label_width = 20;
+    if (is_editor) {
+        activate_options_tab(m_tabid_2_optgroups.back().back(), kCompactOptionsPadding);
+        m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Paths"), tabs, 0));
+        m_tabid_2_optgroups.back().back()->title_width = kPathColumnWidth;
+        m_tabid_2_optgroups.back().back()->label_width = kPathColumnWidth;
 
-		append_bool_option(m_tabid_2_optgroups.back().back(), OPT_downloader_url_registered,
-			L("Allow downloads from Printables.com"),
-			L("If enabled, Slic3r will be allowed to download from Printables.com"),
-			app_config->get_bool(OPT_downloader_url_registered));
-		assert(m_tabid_2_optgroups.size() == tabs->GetPageCount());
-		create_downloader_path_sizer(tabs->GetPage(tabs->GetPageCount()-1), m_tabid_2_optgroups.back().back());
-		create_settings_font_widget(tabs->GetPage(tabs->GetPageCount()-1), m_tabid_2_optgroups.back().back());
-	}
+        append_bool_option(m_tabid_2_optgroups.back().back(), OPT_downloader_url_registered,
+            L("Allow downloads from Printables.com"),
+            L("If enabled, Slic3r will be allowed to download from Printables.com"),
+            app_config->get_bool(OPT_downloader_url_registered));
+        assert(m_tabid_2_optgroups.size() == tabs->GetPageCount());
+        create_downloader_path_sizer(tabs->GetPage(tabs->GetPageCount()-1), m_tabid_2_optgroups.back().back());
+        create_settings_font_widget(tabs->GetPage(tabs->GetPageCount()-1), m_tabid_2_optgroups.back().back());
+    }
 
-    activate_options_tab(m_tabid_2_optgroups.back().back(), m_tabid_2_optgroups.back().back()->parent()->GetSizer()->GetItemCount() > 1 ? 3 : 20);
-	// end of general
+    activate_options_tab(m_tabid_2_optgroups.back().back(), m_tabid_2_optgroups.back().back()->parent()->GetSizer()->GetItemCount() > 1 ? kCompactOptionsPadding : kDefaultOptionsPadding);
+    // end of general
 
     // Add "Camera" tab
     create_options_tab(L("Camera"));
@@ -832,32 +849,32 @@ void PreferencesDialog::build()
         m_values[opt_key_idx.key] = boost::any_cast<bool>(value) ? "1" : "0";
     };
 
-	append_bool_option(m_tabid_2_optgroups.back().back(), "use_perspective_camera",
-		L("Use perspective camera"),
-		L("If enabled, use perspective camera. If not enabled, use orthographic camera."),
-		app_config->get_bool("use_perspective_camera"));
+    append_bool_option(m_tabid_2_optgroups.back().back(), "use_perspective_camera",
+        L("Use perspective camera"),
+        L("If enabled, use perspective camera. If not enabled, use orthographic camera."),
+        app_config->get_bool("use_perspective_camera"));
 
-	append_bool_option(m_tabid_2_optgroups.back().back(), "use_free_camera",
-		L("Use free camera"),
-		L("If enabled, use free camera. If not enabled, use constrained camera."),
-		app_config->get_bool("use_free_camera"));
+    append_bool_option(m_tabid_2_optgroups.back().back(), "use_free_camera",
+        L("Use free camera"),
+        L("If enabled, use free camera. If not enabled, use constrained camera."),
+        app_config->get_bool("use_free_camera"));
 
-	append_bool_option(m_tabid_2_optgroups.back().back(), "3D_mouse_drag",
-		L("Right mouse drag pan in 3D"),
-		L("If enabled, when you use the right mouse button to drag the view, it drag in the camera plane."
+    append_bool_option(m_tabid_2_optgroups.back().back(), "3D_mouse_drag",
+        L("Right mouse drag pan in 3D"),
+        L("If enabled, when you use the right mouse button to drag the view, it drag in the camera plane."
             "\nIf disabled, the pan works like for moving an object: you drag the view by locking the bed point to your mouse in the x/y plane. To move in the z direction, you need to press 'Shift' at the same time."),
-		app_config->get_bool("3D_mouse_drag"));
+        app_config->get_bool("3D_mouse_drag"));
 
-	append_bool_option(m_tabid_2_optgroups.back().back(), "mouse_middle_target",
-		L("Use the mouse middle button to set the camera position"),
-		L("If enabled, clicking on the middle mouse button set the focus on the bed's point. You can then drag to set the Z coordinate."
+    append_bool_option(m_tabid_2_optgroups.back().back(), "mouse_middle_target",
+        L("Use the mouse middle button to set the camera position"),
+        L("If enabled, clicking on the middle mouse button set the focus on the bed's point. You can then drag to set the Z coordinate."
         "\nIf disabled, the middle button as the same behavior as the right button (pan on drag)."),
-		app_config->get_bool("mouse_middle_target"));
+        app_config->get_bool("mouse_middle_target"));
 
-	append_bool_option(m_tabid_2_optgroups.back().back(), "reverse_mouse_wheel_zoom",
-		L("Reverse direction of zoom with mouse wheel"),
-		L("If enabled, reverses the direction of zoom with mouse wheel"),
-		app_config->get_bool("reverse_mouse_wheel_zoom"));
+    append_bool_option(m_tabid_2_optgroups.back().back(), "reverse_mouse_wheel_zoom",
+        L("Reverse direction of zoom with mouse wheel"),
+        L("If enabled, reverses the direction of zoom with mouse wheel"),
+        app_config->get_bool("reverse_mouse_wheel_zoom"));
 
 
 #if defined(_WIN32) || defined(__APPLE__)
@@ -870,24 +887,24 @@ void PreferencesDialog::build()
         app_config->get_bool("use_legacy_3DConnexion"));
 #endif // _WIN32 || __APPLE__
 
-	append_bool_option(m_tabid_2_optgroups.back().back(), "compress_png_texture",
-		L("Compress png textures"),
-		L("If your custom texture (in png format) is displayed black, then disable this option to remove the problematic optimisation."),
-		app_config->get_bool("compress_png_texture"));
+    append_bool_option(m_tabid_2_optgroups.back().back(), "compress_png_texture",
+        L("Compress png textures"),
+        L("If your custom texture (in png format) is displayed black, then disable this option to remove the problematic optimisation."),
+        app_config->get_bool("compress_png_texture"));
 
-	activate_options_tab(m_tabid_2_optgroups.back().back());
+    activate_options_tab(m_tabid_2_optgroups.back().back());
 
-	// Add "GUI" tab
-	create_options_tab(_L("GUI"));
+    // Add "GUI" tab
+    create_options_tab(_L("GUI"));
 
-		//activate_options_tab(m_tabid_2_optgroups.back().back(), 3);
-	m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Controls"), tabs, 2));
+        //activate_options_tab(m_tabid_2_optgroups.back().back(), kCompactOptionsPadding);
+    m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Controls"), tabs, kGuiPageIndex));
 
-	append_bool_option(m_tabid_2_optgroups.back().back(), "seq_top_layer_only",
-		L("Sequential slider applied only to top layer"),
-		L("If enabled, changes made using the sequential slider, in preview, apply only to gcode top layer. "
-		  "If disabled, changes made using the sequential slider, in preview, apply to the whole gcode."),
-		app_config->get_bool("seq_top_layer_only"));
+    append_bool_option(m_tabid_2_optgroups.back().back(), "seq_top_layer_only",
+        L("Sequential slider applied only to top layer"),
+        L("If enabled, changes made using the sequential slider, in preview, apply only to gcode top layer. "
+          "If disabled, changes made using the sequential slider, in preview, apply to the whole gcode."),
+        app_config->get_bool("seq_top_layer_only"));
 
     if (is_editor) {
         {
@@ -922,65 +939,65 @@ void PreferencesDialog::build()
                     { "allow", L("Allow") }
                 });
         }
-		append_bool_option(m_tabid_2_optgroups.back().back(), "show_collapse_button",
-			L("Show sidebar collapse/expand button"),
-			L("If enabled, the button for the collapse sidebar will be appeared in top right corner of the 3D Scene"),
-			app_config->get_bool("show_collapse_button"));
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "color_manipulation_panel",
-			L("Use colors for axes values in Manipulation panel"),
-			L("If enabled, the axes names and axes values will be colorized according to the axes colors. "
-			  "If disabled, old UI will be used."),
-			app_config->get_bool("color_manipulation_panel"));
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "order_volumes",
-			L("Order object volumes by types"),
-			L("If enabled, volumes will be always ordered inside the object. Correct order is Model Part, Negative Volume, Modifier, Support Blocker and Support Enforcer. "
-			  "If disabled, you can reorder Model Parts, Negative Volumes and Modifiers. But one of the model parts have to be on the first place."),
-			app_config->get_bool("order_volumes"));
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "focus_platter_on_mouse",
-			L("Focusing platter on mouse over"),
-			L("If disabled, moving the mouse over the platter panel will not change the focus but some shortcuts from the platter may not work. "
-			"If enabled, moving the mouse over the platter panel will move focus there, and away from the current control."),
-			app_config->get_bool("focus_platter_on_mouse"));
+        append_bool_option(m_tabid_2_optgroups.back().back(), "show_collapse_button",
+            L("Show sidebar collapse/expand button"),
+            L("If enabled, the button for the collapse sidebar will be appeared in top right corner of the 3D Scene"),
+            app_config->get_bool("show_collapse_button"));
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "color_manipulation_panel",
+            L("Use colors for axes values in Manipulation panel"),
+            L("If enabled, the axes names and axes values will be colorized according to the axes colors. "
+              "If disabled, old UI will be used."),
+            app_config->get_bool("color_manipulation_panel"));
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "order_volumes",
+            L("Order object volumes by types"),
+            L("If enabled, volumes will be always ordered inside the object. Correct order is Model Part, Negative Volume, Modifier, Support Blocker and Support Enforcer. "
+              "If disabled, you can reorder Model Parts, Negative Volumes and Modifiers. But one of the model parts have to be on the first place."),
+            app_config->get_bool("order_volumes"));
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "focus_platter_on_mouse",
+            L("Focusing platter on mouse over"),
+            L("If disabled, moving the mouse over the platter panel will not change the focus but some shortcuts from the platter may not work. "
+            "If enabled, moving the mouse over the platter panel will move focus there, and away from the current control."),
+            app_config->get_bool("focus_platter_on_mouse"));
 
-		activate_options_tab(m_tabid_2_optgroups.back().back(), 3);
-		m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Appearance"), tabs, 2));
+        activate_options_tab(m_tabid_2_optgroups.back().back(), kCompactOptionsPadding);
+        m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Appearance"), tabs, kGuiPageIndex));
 
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "allow_auto_color_change",
-			L("Allow automatically color change"),
-			L("If enabled, related notification will be shown, when sliced object looks like a logo or a sign."),
-			app_config->get_bool("allow_auto_color_change"));
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "allow_auto_color_change",
+            L("Allow automatically color change"),
+            L("If enabled, related notification will be shown, when sliced object looks like a logo or a sign."),
+            app_config->get_bool("allow_auto_color_change"));
    
-		append_bool_option(m_tabid_2_optgroups.back().back(), "show_step_import_parameters",
-			L("Show STEP file import parameters"),
-			L("If enabled, SliCR-3D will show dialog with quality selection when importing STEP file."),
-			app_config->get_bool("show_step_import_parameters"));
+        append_bool_option(m_tabid_2_optgroups.back().back(), "show_step_import_parameters",
+            L("Show STEP file import parameters"),
+            L("If enabled, SliCR-3D will show dialog with quality selection when importing STEP file."),
+            app_config->get_bool("show_step_import_parameters"));
 
 #ifdef _USE_CUSTOM_NOTEBOOK
-		append_bool_option(m_tabid_2_optgroups.back().back(), OPT_tabs_as_menu,
-			L("Set settings tabs as menu items"),
-			L("If enabled, Settings Tabs will be placed as menu items. If disabled, old UI will be used."),
-			app_config->get_bool(OPT_tabs_as_menu));
-		m_values_need_restart.push_back(OPT_tabs_as_menu);
+        append_bool_option(m_tabid_2_optgroups.back().back(), OPT_tabs_as_menu,
+            L("Set settings tabs as menu items"),
+            L("If enabled, Settings Tabs will be placed as menu items. If disabled, old UI will be used."),
+            app_config->get_bool(OPT_tabs_as_menu));
+        m_values_need_restart.push_back(OPT_tabs_as_menu);
 #endif
 
-		m_tabid_2_optgroups.back().back()->append_separator();
+        m_tabid_2_optgroups.back().back()->append_separator();
 /*
-		append_bool_option(m_tabid_2_optgroups.back().back(), "suppress_round_corners",
-			L("Suppress round corners for controls (experimental)"),
-			L("If enabled, Settings Tabs will be placed as menu items. If disabled, old UI will be used."),
-			app_config->get("suppress_round_corners") == "1");
-		m_values_need_restart.push_back("suppress_round_corners");
+        append_bool_option(m_tabid_2_optgroups.back().back(), "suppress_round_corners",
+            L("Suppress round corners for controls (experimental)"),
+            L("If enabled, Settings Tabs will be placed as menu items. If disabled, old UI will be used."),
+            app_config->get("suppress_round_corners") == "1");
+        m_values_need_restart.push_back("suppress_round_corners");
 
-		m_tabid_2_optgroups.back().back()->append_separator();
+        m_tabid_2_optgroups.back().back()->append_separator();
 */
-		append_bool_option(m_tabid_2_optgroups.back().back(), "show_hints",
-			L("Show \"Tip of the day\" notification after start"),
-			L("If enabled, useful hints are displayed at startup."),
-			app_config->get_bool("show_hints"));
+        append_bool_option(m_tabid_2_optgroups.back().back(), "show_hints",
+            L("Show \"Tip of the day\" notification after start"),
+            L("If enabled, useful hints are displayed at startup."),
+            app_config->get_bool("show_hints"));
 
         std::string notify_release_value = app_config->get("notify_release");
         if (s_keys_map_NotifyReleaseMode.find(notify_release_value) == s_keys_map_NotifyReleaseMode.end()) {
@@ -997,105 +1014,105 @@ void PreferencesDialog::build()
               { "none", L("None") }
             });
 
-		m_tabid_2_optgroups.back().back()->append_separator(); //seems it's not working
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), OPT_use_custom_toolbar_size,
-			L("Use custom size for toolbar icons"),
-			L("If enabled, you can change size of toolbar icons manually."),
-			app_config->get_bool(OPT_use_custom_toolbar_size));
-		create_icon_size_slider(tabs->GetPage(m_tabid_2_optgroups.size() - 1), m_tabid_2_optgroups.back().back());
-		m_icon_size_sizer->ShowItems(app_config->get(OPT_use_custom_toolbar_size) == "1");
-		
-		append_int_option(m_tabid_2_optgroups.back().back(), "tab_icon_size",
-			L("Tab icon size"),
-			L("Size of the tab icons, in pixels. Set to 0 to remove icons."),
-			6,
-			app_config->get_int("tab_icon_size"));
-		m_values_need_restart.push_back("tab_icon_size");
+        m_tabid_2_optgroups.back().back()->append_separator(); //seems it's not working
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), OPT_use_custom_toolbar_size,
+            L("Use custom size for toolbar icons"),
+            L("If enabled, you can change size of toolbar icons manually."),
+            app_config->get_bool(OPT_use_custom_toolbar_size));
+        create_icon_size_slider(tabs->GetPage(m_tabid_2_optgroups.size() - 1), m_tabid_2_optgroups.back().back());
+        m_icon_size_sizer->ShowItems(app_config->get(OPT_use_custom_toolbar_size) == "1");
+        
+        append_int_option(m_tabid_2_optgroups.back().back(), "tab_icon_size",
+            L("Tab icon size"),
+            L("Size of the tab icons, in pixels. Set to 0 to remove icons."),
+            kStandardIntegerFieldWidth,
+            app_config->get_int("tab_icon_size"));
+        m_values_need_restart.push_back("tab_icon_size");
 
-		std::string ui_density_value = app_config->get("ui_density");
-		if (s_keys_map_UiDensityMode.find(ui_density_value) == s_keys_map_UiDensityMode.end())
-			ui_density_value = app_config->get_bool("tab_density_compact") ? "compact" : "comfortable";
-		append_enum_option<UiDensityMode>(m_tabid_2_optgroups.back().back(), "ui_density",
-			L("UI density"),
-			L("Controls spacing across tabs, toolbars, and combo boxes. Compact fits more UI on screen; Comfortable provides roomier spacing."),
-			std::make_unique<ConfigOptionEnum<UiDensityMode>>(
-				static_cast<UiDensityMode>(s_keys_map_UiDensityMode.at(ui_density_value))),
-			{ { "comfortable", L("Comfortable") },
-			  { "compact", L("Compact") } });
-		m_values_need_restart.push_back("ui_density");
-		
-		append_int_option(m_tabid_2_optgroups.back().back(), "font_size",
-			L("Font size"),
+        std::string ui_density_value = app_config->get("ui_density");
+        if (s_keys_map_UiDensityMode.find(ui_density_value) == s_keys_map_UiDensityMode.end())
+            ui_density_value = app_config->get_bool("tab_density_compact") ? "compact" : "comfortable";
+        append_enum_option<UiDensityMode>(m_tabid_2_optgroups.back().back(), "ui_density",
+            L("UI density"),
+            L("Controls spacing across tabs, toolbars, and combo boxes. Compact fits more UI on screen; Comfortable provides roomier spacing."),
+            std::make_unique<ConfigOptionEnum<UiDensityMode>>(
+                static_cast<UiDensityMode>(s_keys_map_UiDensityMode.at(ui_density_value))),
+            { { "comfortable", L("Comfortable") },
+              { "compact", L("Compact") } });
+        m_values_need_restart.push_back("ui_density");
+        
+        append_int_option(m_tabid_2_optgroups.back().back(), "font_size",
+            L("Font size"),
             L("Size of the font, and most of the gui (but not the menu and dialog ones). Set to 0 to let the Operating System decide."
               "\nPlease don't set this preference unless your OS scaling factor doesn't works. Set 10 for 100% scaling, and 20 for 200% scaling."),
-			6,
-			app_config->get_int("font_size"));
-		m_values_need_restart.push_back("font_size");
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "setting_icon",
-			L("Display setting icons"),
-			L("The settings have a lock and dot to show how they are modified. You can hide them by uncheking this option."),
-			app_config->get_bool("setting_icon"));
-		m_values_need_restart.push_back("setting_icon");
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "use_rich_tooltip",
-			L("Use custom tooltip"),
-			L("On some OS like MacOS or some Linux, tooltips can't stay on for a long time."
-		      " This setting replaces native tooltips with custom dialogs to improve readability (only for settings)."
-			  "\nNote that for the number controls, you need to hover the arrows to get the custom tooltip."
-			  " Also, it keeps the focus but will give it back when it closes. It won't show up if you are editing the field."),
-			app_config->get_bool("use_rich_tooltip"));
-		m_values_need_restart.push_back("use_rich_tooltip");
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "hide_slice_tooltip",
-			L("Hide tooltips on slice buttons"),
-			L("These tooltip may be bothersome. You can hide them with this option."),
-			app_config->get_bool("hide_slice_tooltip"));
-		m_values_need_restart.push_back("hide_slice_tooltip");
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "show_layer_height_doubleslider",
-			L("Show layer height on the scroll bar"),
-			L("Add the layer height (first number after the layer z position) next to a widget of the layer double-scrollbar."),
-			app_config->get_bool("show_layer_height_doubleslider"));
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "show_layer_time_doubleslider",
-			L("Show layer time on the scroll bar"),
-			L("Add the layer height (after the layer height, or if it's hidden after the layer z position) next to a widget of the layer double-scrollbar."),
-			app_config->get_bool("show_layer_time_doubleslider"));
-		
-		append_bool_option(m_tabid_2_optgroups.back().back(), "show_layer_area_doubleslider",
-			L("Show layer area on the scroll bar"),
-			L("Add the layer area (the number just below the layer id) next to a widget of the layer double-scrollbar."),
-			app_config->get_bool("show_layer_area_doubleslider"));
-		
+            kStandardIntegerFieldWidth,
+            app_config->get_int("font_size"));
+        m_values_need_restart.push_back("font_size");
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "setting_icon",
+            L("Display setting icons"),
+            L("The settings have a lock and dot to show how they are modified. You can hide them by uncheking this option."),
+            app_config->get_bool("setting_icon"));
+        m_values_need_restart.push_back("setting_icon");
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "use_rich_tooltip",
+            L("Use custom tooltip"),
+            L("On some OS like MacOS or some Linux, tooltips can't stay on for a long time."
+              " This setting replaces native tooltips with custom dialogs to improve readability (only for settings)."
+              "\nNote that for the number controls, you need to hover the arrows to get the custom tooltip."
+              " Also, it keeps the focus but will give it back when it closes. It won't show up if you are editing the field."),
+            app_config->get_bool("use_rich_tooltip"));
+        m_values_need_restart.push_back("use_rich_tooltip");
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "hide_slice_tooltip",
+            L("Hide tooltips on slice buttons"),
+            L("These tooltip may be bothersome. You can hide them with this option."),
+            app_config->get_bool("hide_slice_tooltip"));
+        m_values_need_restart.push_back("hide_slice_tooltip");
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "show_layer_height_doubleslider",
+            L("Show layer height on the scroll bar"),
+            L("Add the layer height (first number after the layer z position) next to a widget of the layer double-scrollbar."),
+            app_config->get_bool("show_layer_height_doubleslider"));
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "show_layer_time_doubleslider",
+            L("Show layer time on the scroll bar"),
+            L("Add the layer height (after the layer height, or if it's hidden after the layer z position) next to a widget of the layer double-scrollbar."),
+            app_config->get_bool("show_layer_time_doubleslider"));
+        
+        append_bool_option(m_tabid_2_optgroups.back().back(), "show_layer_area_doubleslider",
+            L("Show layer area on the scroll bar"),
+            L("Add the layer area (the number just below the layer id) next to a widget of the layer double-scrollbar."),
+            app_config->get_bool("show_layer_area_doubleslider"));
+        
         append_int_option(m_tabid_2_optgroups.back().back(), "side_panel_width", L("Side Panel Width"),
                           L("The width of the right panel, where the objects , presets and slicing information are "
                             "displayeed. It's in 'display unit'."),
-                          6, app_config->get_int("side_panel_width"));
+                          kStandardIntegerFieldWidth, app_config->get_int("side_panel_width"));
         m_values_need_restart.push_back("side_panel_width");
     }
 
-	append_int_option(m_tabid_2_optgroups.back().back(), "gcodeviewer_decimals",
-		L("Decimals for gcode viewer colors"),
-		L("On the gcode viewer window, how many decimals are used to separate colors?"
-					" It's used for height, width, volumetric rate, section. Default is 2."),
-		/*width*/6,
-		app_config->get_int("gcodeviewer_decimals"),
-		ConfigOptionMode::comNone,
-		/*min,max*/0, 5);
-	// as it's quite hard to detect a change and then clean & reload the gcode data... then asking for relaod is easier.
-	m_values_need_restart.push_back("gcodeviewer_decimals");
+    append_int_option(m_tabid_2_optgroups.back().back(), "gcodeviewer_decimals",
+        L("Decimals for gcode viewer colors"),
+        L("On the gcode viewer window, how many decimals are used to separate colors?"
+                    " It's used for height, width, volumetric rate, section. Default is 2."),
+        /*width*/kStandardIntegerFieldWidth,
+        app_config->get_int("gcodeviewer_decimals"),
+        ConfigOptionMode::comNone,
+        /*min,max*/0, 5);
+    // as it's quite hard to detect a change and then clean & reload the gcode data... then asking for relaod is easier.
+    m_values_need_restart.push_back("gcodeviewer_decimals");
 
-	activate_options_tab(m_tabid_2_optgroups.back().back(), 3);
+    activate_options_tab(m_tabid_2_optgroups.back().back(), kCompactOptionsPadding);
 
     if (is_editor) {
         // create layout options
-        assert(m_tabid_2_optgroups.size() - 1 == 2);
+        assert(m_tabid_2_optgroups.size() - 1 == kGuiPageIndex);
         create_settings_mode_widget(tabs->GetPage(m_tabid_2_optgroups.size() - 1), m_tabid_2_optgroups.back().back());
         // create ui_layout check
         {
-            m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Settings layout and colors"), tabs, 2));
+            m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Settings layout and colors"), tabs, kGuiPageIndex));
             m_tabid_2_optgroups.back().back()->title_width = 0;
             m_tabid_2_optgroups.back().back()->label_width = 0;
             ConfigOptionDef def_combobox;
@@ -1123,12 +1140,12 @@ void PreferencesDialog::build()
             m_optkey_to_optgroup[OPT_ui_layout] = m_tabid_2_optgroups.back().back();
             wxGetApp().sidebar().get_searcher().add_key(OptionKeyIdx::scalar(OPT_ui_layout), Preset::TYPE_PREFERENCES,
                                                         m_tabid_2_optgroups.back().back()->config_category(),
-                                                        L("Preferences"), def_combobox);
-            activate_options_tab(m_tabid_2_optgroups.back().back(), 3);
+                                                        L(LABEL_PREFERENCES), def_combobox);
+            activate_options_tab(m_tabid_2_optgroups.back().back(), kCompactOptionsPadding);
         }
     }
 
-    m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Splash screen"), tabs, 2));
+    m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Splash screen"), tabs, kGuiPageIndex));
 
     // Show/Hide splash screen
     append_bool_option(m_tabid_2_optgroups.back().back(), "show_splash_screen",
@@ -1171,7 +1188,7 @@ void PreferencesDialog::build()
                                                                                      OPT_splash_screen_gcodeviewer),
                                                     Preset::TYPE_PREFERENCES,
                                                     m_tabid_2_optgroups.back().back()->config_category(),
-                                                    L("Preferences"), def_combobox);
+                                                    L(LABEL_PREFERENCES), def_combobox);
     }
 
     append_bool_option(m_tabid_2_optgroups.back().back(), "restore_win_position",
@@ -1188,7 +1205,7 @@ void PreferencesDialog::build()
         app_config->get_bool("check_blacklisted_library"));
 #endif
 
-    activate_options_tab(m_tabid_2_optgroups.back().back(), 3);
+    activate_options_tab(m_tabid_2_optgroups.back().back(), kCompactOptionsPadding);
 
     if (is_editor) {
 #if ENABLE_ENVIRONMENT_MAP
@@ -1221,7 +1238,7 @@ void PreferencesDialog::build()
     // Add "Dark Mode" group
     {
         // Add "Dark Mode" group
-        m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Dark mode (experimental)"), tabs, 3));
+        m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Dark mode (experimental)"), tabs, kColorsPageIndex));
 
         append_bool_option(m_tabid_2_optgroups.back().back(), "dark_color_mode", L("Enable dark mode"),
                            L("If enabled, UI will use Dark mode colors. If disabled, old UI will be used."),
@@ -1237,12 +1254,12 @@ void PreferencesDialog::build()
             m_values_need_restart.push_back("sys_menu_enabled");
         }
 
-        activate_options_tab(m_tabid_2_optgroups.back().back(), 3);
+        activate_options_tab(m_tabid_2_optgroups.back().back(), kCompactOptionsPadding);
     }
 #endif //_WIN32
     
     if (is_editor) {
-        m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Gui Colors"), tabs, 3));
+        m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Gui Colors"), tabs, kColorsPageIndex));
         //prusa hue : ~22, Susi hue: ~216, slic3r hue: ~55
         // color prusa -> susie
         //ICON 237, 107, 33 -> ed6b21 ; 2172eb
@@ -1275,40 +1292,40 @@ void PreferencesDialog::build()
             _u8L("Slic3r(yellow): ccbe29, PrusaSlicer(orange): cc6429, SuperSlicer(blue): 275cad"),
             app_config->get("color_dark"));
 
-        activate_options_tab(m_tabid_2_optgroups.back().back(), 3);
+        activate_options_tab(m_tabid_2_optgroups.back().back(), kCompactOptionsPadding);
 
         //create text options
         create_settings_text_color_widget(tabs->GetPage(m_tabid_2_optgroups.size() - 1), m_tabid_2_optgroups.back().back());
         create_settings_mode_color_widget(tabs->GetPage(m_tabid_2_optgroups.size() - 1), m_tabid_2_optgroups.back().back());
     }
 
-	// update alignment of the controls for all tabs
-	//update_ctrls_alignment();
+    // update alignment of the controls for all tabs
+    //update_ctrls_alignment();
 
-	auto sizer = new wxBoxSizer(wxVERTICAL);
-	sizer->Add(tabs, 1, wxEXPAND | wxTOP | wxLEFT | wxRIGHT, 5);
+    auto sizer = new wxBoxSizer(wxVERTICAL);
+    sizer->Add(tabs, 1, wxEXPAND | wxTOP | wxLEFT | wxRIGHT, 5);
 
-	auto buttons = CreateStdDialogButtonSizer(wxOK | wxCANCEL);
-	wxGetApp().SetWindowVariantForButton(buttons->GetAffirmativeButton());
-	wxGetApp().SetWindowVariantForButton(buttons->GetCancelButton());
-	this->Bind(wxEVT_BUTTON, &PreferencesDialog::accept, this, wxID_OK);
-	this->Bind(wxEVT_BUTTON, &PreferencesDialog::revert, this, wxID_CANCEL);
+    auto buttons = CreateStdDialogButtonSizer(wxOK | wxCANCEL);
+    wxGetApp().SetWindowVariantForButton(buttons->GetAffirmativeButton());
+    wxGetApp().SetWindowVariantForButton(buttons->GetCancelButton());
+    this->Bind(wxEVT_BUTTON, &PreferencesDialog::accept, this, wxID_OK);
+    this->Bind(wxEVT_BUTTON, &PreferencesDialog::revert, this, wxID_CANCEL);
 
-	for (int id : {wxID_OK, wxID_CANCEL})
-		wxGetApp().UpdateDarkUI(static_cast<wxButton*>(FindWindowById(id, this)));
+    for (int id : {wxID_OK, wxID_CANCEL})
+        wxGetApp().UpdateDarkUI(static_cast<wxButton*>(FindWindowById(id, this)));
 
-	sizer->Add(buttons, 0, wxALIGN_CENTER_HORIZONTAL | wxBOTTOM | wxTOP, 10);
+    sizer->Add(buttons, 0, wxALIGN_CENTER_HORIZONTAL | wxBOTTOM | wxTOP, kButtonVerticalMargin);
 
-	SetSizer(sizer);
-	sizer->SetSizeHints(this);
+    SetSizer(sizer);
+    sizer->SetSizeHints(this);
     this->layout();
-	this->CenterOnParent();
+    this->CenterOnParent();
 }
 
 std::vector<ConfigOptionsGroup*> PreferencesDialog::optgroups()
 {
-	std::vector<ConfigOptionsGroup*> out;
-	out.reserve(10);
+    std::vector<ConfigOptionsGroup*> out;
+    out.reserve(kInitialTextReserve);
     for (auto &opt_group_list : m_tabid_2_optgroups) {
         for (int i = 0; i < static_cast<int>(opt_group_list.size()); i++) {
             if (opt_group_list[i]) {
@@ -1319,7 +1336,7 @@ std::vector<ConfigOptionsGroup*> PreferencesDialog::optgroups()
             }
         }
     }
-	return out;
+    return out;
 }
 
 void PreferencesDialog::update_ctrls_alignment()
@@ -1343,61 +1360,61 @@ void PreferencesDialog::update_ctrls_alignment()
 
 void PreferencesDialog::accept(wxEvent&)
 {
-	if(wxGetApp().is_editor()) {
-		if (const auto it = m_values.find(OPT_downloader_url_registered); it != m_values.end())
-			this->m_downloader->allow(it->second == "1");
-		if (!this->m_downloader->on_finish())
-			return;
+    if(wxGetApp().is_editor()) {
+        if (const auto it = m_values.find(OPT_downloader_url_registered); it != m_values.end())
+            this->m_downloader->allow(it->second == "1");
+        if (!this->m_downloader->on_finish())
+            return;
 #ifdef __linux__
-		if( this->m_downloader->get_perform_registration_linux()) 
-			DesktopIntegrationDialog::perform_downloader_desktop_integration();
+        if( this->m_downloader->get_perform_registration_linux()) 
+            DesktopIntegrationDialog::perform_downloader_desktop_integration();
 #endif // __linux__
-	}
+    }
 //	std::vector<std::string> options_to_recreate_GUI = { "no_defaults", OPT_tabs_as_menu, "sys_menu_enabled", "font_pt_size", "suppress_round_corners" };
 
 
-	for (const std::string& option : m_values_need_restart) {
-		if (m_values.find(option) != m_values.end()) {
-			wxString title = wxGetApp().is_editor() ? wxString(SLIC3R_APP_NAME) : wxString(GCODEVIEWER_APP_NAME);
-			title += " - " + _L("Changes for the critical options");
-			MessageDialog dialog(nullptr,
-				_L("Changing some options will trigger application restart.\n"
-				   "You will lose the content of the plater.") + "\n\n" +
-				_L("Do you want to proceed?"),
-				title,
-				wxICON_QUESTION | wxYES | wxNO| wxCANCEL);
+    for (const std::string& option : m_values_need_restart) {
+        if (m_values.find(option) != m_values.end()) {
+            wxString title = wxGetApp().is_editor() ? wxString(SLIC3R_APP_NAME) : wxString(GCODEVIEWER_APP_NAME);
+            title += " - " + _L("Changes for the critical options");
+            MessageDialog dialog(nullptr,
+                _L("Changing some options will trigger application restart.\n"
+                   "You will lose the content of the plater.") + "\n\n" +
+                _L("Do you want to proceed?"),
+                title,
+                wxICON_QUESTION | wxYES | wxNO| wxCANCEL);
             int answer = dialog.ShowModal();
             if (answer == wxID_YES) {
-				m_recreate_GUI = true;
+                m_recreate_GUI = true;
             } else if (answer == wxID_CANCEL) {
-				for (const std::string& option : m_values_need_restart)
-					m_values.erase(option);
+                for (const std::string& option : m_values_need_restart)
+                    m_values.erase(option);
             }
-			break;
-		}
-	}
+            break;
+        }
+    }
 
     auto app_config = get_app_config();
 
-	m_seq_top_layer_only_changed = false;
-	if (auto it = m_values.find("seq_top_layer_only"); it != m_values.end())
-		m_seq_top_layer_only_changed = app_config->get("seq_top_layer_only") != it->second;
+    m_seq_top_layer_only_changed = false;
+    if (auto it = m_values.find("seq_top_layer_only"); it != m_values.end())
+        m_seq_top_layer_only_changed = app_config->get("seq_top_layer_only") != it->second;
 
-	m_settings_layout_changed = false;
-	for (const std::string key : { "old_settings_layout_mode",
-								    "new_settings_layout_mode",
-								    "dlg_settings_layout_mode" })
-	{
-	    auto it = m_values.find(key);
-	    if (it != m_values.end() && app_config->get(key) != it->second) {
-			m_settings_layout_changed = true;
-			break;
-		}
-	}
+    m_settings_layout_changed = false;
+    for (const std::string key : { "old_settings_layout_mode",
+                                    "new_settings_layout_mode",
+                                    "dlg_settings_layout_mode" })
+    {
+        auto it = m_values.find(key);
+        if (it != m_values.end() && app_config->get(key) != it->second) {
+            m_settings_layout_changed = true;
+            break;
+        }
+    }
 
 #if 0 //#ifdef _WIN32 // #ysDarkMSW - Allow it when we deside to support the sustem colors for application
-	if (m_values.find("always_dark_color_mode") != m_values.end())
-		wxGetApp().force_sys_colors_update();
+    if (m_values.find("always_dark_color_mode") != m_values.end())
+        wxGetApp().force_sys_colors_update();
 #endif
 
     auto it_background_processing = m_values.find("background_processing");
@@ -1417,51 +1434,51 @@ void PreferencesDialog::accept(wxEvent&)
         }
     }
 
-	// `set_label_clr_default` BEFORE  `app_config->set` to set the right color (light or dark mode)
-	if (wxGetApp().is_editor()) {
-		wxGetApp().set_label_clr_sys(m_sys_colour->GetColour());
-		wxGetApp().set_label_clr_modified(m_mod_colour->GetColour());
-		wxGetApp().set_label_clr_default(m_def_colour->GetColour());
-		wxGetApp().set_label_clr_phony(m_phony_colour->GetColour());
+    // `set_label_clr_default` BEFORE  `app_config->set` to set the right color (light or dark mode)
+    if (wxGetApp().is_editor()) {
+        wxGetApp().set_label_clr_sys(m_sys_colour->GetColour());
+        wxGetApp().set_label_clr_modified(m_mod_colour->GetColour());
+        wxGetApp().set_label_clr_default(m_def_colour->GetColour());
+        wxGetApp().set_label_clr_phony(m_phony_colour->GetColour());
 #ifdef GUI_TAG_PALETTE
-		wxGetApp().set_mode_palette(m_mode_palette);
+        wxGetApp().set_mode_palette(m_mode_palette);
 #endif
-	}
-	
-	for (std::map<std::string, std::string>::iterator it = m_values.begin(); it != m_values.end(); ++it)
-		app_config->set(it->first, it->second);
+    }
+    
+    for (std::map<std::string, std::string>::iterator it = m_values.begin(); it != m_values.end(); ++it)
+        app_config->set(it->first, it->second);
 
-	EndModal(wxID_OK);
+    EndModal(wxID_OK);
 
 #ifdef _WIN32
-	if (m_values.find("dark_color_mode") != m_values.end())
-		wxGetApp().force_colors_update();
+    if (m_values.find("dark_color_mode") != m_values.end())
+        wxGetApp().force_colors_update();
 #ifdef _MSW_DARK_MODE
-	if (m_values.find("sys_menu_enabled") != m_values.end())
-		wxGetApp().force_menu_update();
+    if (m_values.find("sys_menu_enabled") != m_values.end())
+        wxGetApp().force_menu_update();
 #endif //_MSW_DARK_MODE
 #endif // _WIN32
 
-	if (m_values.find("no_templates") != m_values.end())
-		wxGetApp().plater()->force_filament_cb_update();
+    if (m_values.find("no_templates") != m_values.end())
+        wxGetApp().plater()->force_filament_cb_update();
 
-	wxGetApp().update_ui_from_settings();
+    wxGetApp().update_ui_from_settings();
 #if defined(SLIC3R_ENABLE_AUTOMATION_API) && defined(__linux__)
     if (m_values.find("automation_api_enabled") != m_values.end() ||
         m_values.find("automation_api_port") != m_values.end())
         wxGetApp().configure_automation_api_from_preferences();
 #endif
-	clear_cache();
+    clear_cache();
 }
 
 void PreferencesDialog::revert(wxEvent&)
 {
-	auto app_config = get_app_config();
+    auto app_config = get_app_config();
 
-	if (m_custom_toolbar_size != atoi(app_config->get(OPT_custom_toolbar_size).c_str())) {
-		app_config->set(OPT_custom_toolbar_size, (boost::format("%d") % m_custom_toolbar_size).str());
-		m_icon_size_slider->SetValue(m_custom_toolbar_size);
-	}
+    if (m_custom_toolbar_size != atoi(app_config->get(OPT_custom_toolbar_size).c_str())) {
+        app_config->set(OPT_custom_toolbar_size, (boost::format("%d") % m_custom_toolbar_size).str());
+        m_icon_size_slider->SetValue(m_custom_toolbar_size);
+    }
     if (m_use_custom_toolbar_size != (get_app_config()->get_bool(OPT_use_custom_toolbar_size))) {
         app_config->set(OPT_use_custom_toolbar_size, m_use_custom_toolbar_size ? "1" : "0");
 
@@ -1471,37 +1488,37 @@ void PreferencesDialog::revert(wxEvent&)
         refresh_og(m_optkey_to_optgroup[OPT_use_custom_toolbar_size]);
     }
 
-	for (auto value : m_values) {
-		const std::string& key = value.first;
-		// special cases
-		if (key == OPT_default_action_on_dirty_project) {
-			m_optkey_to_optgroup[key]->set_value(OptionKeyIdx::scalar(key), app_config->get(key).empty(), true, false);
-			continue;
-		}
-		if (key == OPT_default_action_on_close_application || key == OPT_default_action_on_select_preset || key == OPT_default_action_on_new_project) {
-			m_optkey_to_optgroup[key]->set_value(OptionKeyIdx::scalar(key), app_config->get(key) == "none", true, false);
-			continue;
-		}
-		if (key == "old_settings_layout_mode") {
-			m_rb_old_settings_layout_mode->SetValue(app_config->get_bool(key));
-			m_settings_layout_changed = false;
-			continue;
-		}
-		if (key == "new_settings_layout_mode") {
-			m_rb_new_settings_layout_mode->SetValue(app_config->get_bool(key));
-			m_settings_layout_changed = false;
-			continue;
-		}
-		if (key == "dlg_settings_layout_mode") {
-			m_rb_dlg_settings_layout_mode->SetValue(app_config->get_bool(key));
-			m_settings_layout_changed = false;
-			continue;
-		}
-		if (key == OPT_tabs_as_menu) {
-			m_rb_new_settings_layout_mode->Show(!app_config->get_bool(key));
-			refresh_og(m_optkey_to_optgroup[key]);
-			continue;
-		}
+    for (auto value : m_values) {
+        const std::string& key = value.first;
+        // special cases
+        if (key == OPT_default_action_on_dirty_project) {
+            m_optkey_to_optgroup[key]->set_value(OptionKeyIdx::scalar(key), app_config->get(key).empty(), true, false);
+            continue;
+        }
+        if (key == OPT_default_action_on_close_application || key == OPT_default_action_on_select_preset || key == OPT_default_action_on_new_project) {
+            m_optkey_to_optgroup[key]->set_value(OptionKeyIdx::scalar(key), app_config->get(key) == "none", true, false);
+            continue;
+        }
+        if (key == "old_settings_layout_mode") {
+            m_rb_old_settings_layout_mode->SetValue(app_config->get_bool(key));
+            m_settings_layout_changed = false;
+            continue;
+        }
+        if (key == "new_settings_layout_mode") {
+            m_rb_new_settings_layout_mode->SetValue(app_config->get_bool(key));
+            m_settings_layout_changed = false;
+            continue;
+        }
+        if (key == "dlg_settings_layout_mode") {
+            m_rb_dlg_settings_layout_mode->SetValue(app_config->get_bool(key));
+            m_settings_layout_changed = false;
+            continue;
+        }
+        if (key == OPT_tabs_as_menu) {
+            m_rb_new_settings_layout_mode->Show(!app_config->get_bool(key));
+            refresh_og(m_optkey_to_optgroup[key]);
+            continue;
+        }
         //general case
         Field* field = m_optkey_to_optgroup[key]->get_field(OptionKeyIdx::scalar(key));
         if (field->m_opt.type == coBool) {
@@ -1510,12 +1527,12 @@ void PreferencesDialog::revert(wxEvent&)
             continue;
         }
         if (field->m_opt.type == coString) {
-			std::string val = app_config->get(key);
-			if(field->m_opt.gui_type == ConfigOptionDef::GUIType::color)
-				if (val[0] != '#') val = "#" + val;
-			field->set_any_value(ConfigOptionString(val).get_any(), false);
-			continue;
-		}
+            std::string val = app_config->get(key);
+            if(field->m_opt.gui_type == ConfigOptionDef::GUIType::color)
+                if (val[0] != '#') val = "#" + val;
+            field->set_any_value(ConfigOptionString(val).get_any(), false);
+            continue;
+        }
         if (field->m_opt.type == coStrings) {
             assert(false);
             continue;
@@ -1531,19 +1548,19 @@ void PreferencesDialog::revert(wxEvent&)
             field->set_any_value(int32_t(*idx), false);
             continue;
         }
-		assert(false);
-	}
+        assert(false);
+    }
 
-	clear_cache();
-	EndModal(wxID_CANCEL);
+    clear_cache();
+    EndModal(wxID_CANCEL);
 }
 
 void PreferencesDialog::msw_rescale()
 {
-	for (ConfigOptionsGroup* og : this->optgroups())
-		og->msw_rescale();
+    for (ConfigOptionsGroup* og : this->optgroups())
+        og->msw_rescale();
 
-	update_ctrls_alignment();
+    update_ctrls_alignment();
 
     msw_buttons_rescale(this, em_unit(), { wxID_OK, wxID_CANCEL });
 
@@ -1553,9 +1570,9 @@ void PreferencesDialog::msw_rescale()
 void PreferencesDialog::on_sys_color_changed()
 {
 #ifdef _WIN32
-	wxGetApp().UpdateDlgDarkUI(this);
+    wxGetApp().UpdateDlgDarkUI(this);
 #endif
-	// update settings_text_color_widget
+    // update settings_text_color_widget
     if (m_sys_colour) {
         m_sys_colour->SetColour(wxGetApp().get_label_clr_sys());
     }
@@ -1599,7 +1616,7 @@ void PreferencesDialog::layout()
         //best_size += tab_inset;
     }
     // add space for buttons and insets of the main panel 
-    best_size += wxSize(3 * em, 12 * em);
+    best_size += wxSize(kDialogExtraWidthEm * em, 12 * em);
     // also reduce size to fit in screen if needed
     unsigned int display_id = 0;
     try {
@@ -1619,14 +1636,14 @@ void PreferencesDialog::layout()
 
 void PreferencesDialog::clear_cache()
 {
-	m_values.clear();
-	m_custom_toolbar_size = -1;
+    m_values.clear();
+    m_custom_toolbar_size = -1;
 }
 
 void PreferencesDialog::refresh_og(std::shared_ptr<ConfigOptionsGroup> og)
 {
-	og->parent()->Layout();
-	tabs->Layout();
+    og->parent()->Layout();
+    tabs->Layout();
 //	this->layout();
 }
 
@@ -1638,8 +1655,8 @@ void PreferencesDialog::create_icon_size_slider(wxWindow* tab, std::shared_ptr<C
 
     m_icon_size_sizer = new wxBoxSizer(wxHORIZONTAL);
 
-	wxWindow* parent = tab; //container->parent();
-	wxGetApp().UpdateDarkUI(parent);
+    wxWindow* parent = tab; //container->parent();
+    wxGetApp().UpdateDarkUI(parent);
 
     if (isOSX)
         // For correct rendering of the slider and value label under OSX
@@ -1659,8 +1676,8 @@ void PreferencesDialog::create_icon_size_slider(wxWindow* tab, std::shared_ptr<C
     m_icon_size_slider = new wxSlider(parent, wxID_ANY, def_val, 30, 100, 
                                wxDefaultPosition, wxDefaultSize, style);
 
-    m_icon_size_slider->SetTickFreq(10);
-    m_icon_size_slider->SetPageSize(10);
+    m_icon_size_slider->SetTickFreq(kIconSizeSliderStep);
+    m_icon_size_slider->SetPageSize(kIconSizeSliderStep);
     m_icon_size_slider->SetToolTip(_L("Select toolbar icon size in respect to the default one."));
 
     m_icon_size_sizer->Add(m_icon_size_slider, 1, wxEXPAND);
@@ -1674,8 +1691,8 @@ void PreferencesDialog::create_icon_size_slider(wxWindow* tab, std::shared_ptr<C
     m_icon_size_slider->Bind(wxEVT_SLIDER, ([this, val_label, app_config](wxCommandEvent e) {
         auto val = m_icon_size_slider->GetValue();
 
-		app_config->set(OPT_custom_toolbar_size, (boost::format("%d") % val).str());
-		wxGetApp().plater()->get_current_canvas3D()->render();
+        app_config->set(OPT_custom_toolbar_size, (boost::format("%d") % val).str());
+        wxGetApp().plater()->get_current_canvas3D()->render();
 
         if (val_label)
             val_label->SetLabelText(wxString::Format("%d", val));
@@ -1691,124 +1708,121 @@ void PreferencesDialog::create_icon_size_slider(wxWindow* tab, std::shared_ptr<C
 
     // opt_grp->parent()->GetSizer()->Add(m_icon_size_sizer, 0, wxEXPAND | wxALL, em);
     wxBoxSizer *parent_sizer = static_cast<wxBoxSizer *>(tab->GetSizer());
-    parent_sizer->Add(m_icon_size_sizer, 0, wxEXPAND | wxALL, 3);
+    parent_sizer->Add(m_icon_size_sizer, 0, wxEXPAND | wxALL, kCompactOptionsPadding);
 }
 
 void PreferencesDialog::create_settings_mode_widget(wxWindow* tab, std::shared_ptr<ConfigOptionsGroup> opt_grp)
 {
-#ifdef _USE_CUSTOM_NOTEBOOK
-	bool disable_new_layout = wxGetApp().tabs_as_menu();
-#endif
-	wxWindow* parent = tab;//opt_grp->parent();
+    wxWindow* parent = tab;//opt_grp->parent();
 
-	wxString title = L("Layout Options");
+    wxString title = L("Layout Options");
     wxStaticBox* stb = new wxStaticBox(parent, wxID_ANY, _(title));
-	wxGetApp().UpdateDarkUI(stb);
-	if (!wxOSX) stb->SetBackgroundStyle(wxBG_STYLE_PAINT);
-	stb->SetFont(wxGetApp().normal_font());
+    wxGetApp().UpdateDarkUI(stb);
+    if (!wxOSX) stb->SetBackgroundStyle(wxBG_STYLE_PAINT);
+    stb->SetFont(wxGetApp().normal_font());
 
-	wxString unstable_warning = _L("!! Can be unstable in some os distribution !!");
-	stb->SetToolTip(_L("Choose how the windows are selectable and displayed:")
-		+ "\n* " + _L(" Tab layout: all windows are in the application, all are selectable via a tab.")
+    wxString unstable_warning = _L("!! Can be unstable in some os distribution !!");
+    stb->SetToolTip(_L("Choose how the windows are selectable and displayed:")
+        + "\n* " + _L(" Tab layout: all windows are in the application, all are selectable via a tab.")
 #ifndef _USE_CUSTOM_NOTEBOOK
-		+ " " + unstable_warning
+        + " " + unstable_warning
 #endif
-		+ "\n* " + _L("Old layout: all windows are in the application, settings are on the top tab bar and the platter choice in on the bottom of the platter view.")
-		+ "\n* " + _L("Settings button: all windows are in the application, no tabs: you have to clic on settings gears to switch to settings tabs.")
-		+ "\n* " + _L("Settings window: settings are displayed in their own window. You have to clic on settings gears to show the settings window.")
-	);
+        + "\n* " + _L("Old layout: all windows are in the application, settings are on the top tab bar and the platter choice in on the bottom of the platter view.")
+        + "\n* " + _L("Settings button: all windows are in the application, no tabs: you have to clic on settings gears to switch to settings tabs.")
+        + "\n* " + _L("Settings window: settings are displayed in their own window. You have to clic on settings gears to show the settings window.")
+    );
 
-	auto sizer_v = new wxBoxSizer(wxVERTICAL);
+    auto sizer_v = new wxBoxSizer(wxVERTICAL);
 
-	auto app_config = get_app_config();
-	std::vector<wxString> choices = {  _L("Layout with the tab bar"),
+    auto app_config = get_app_config();
+    std::vector<wxString> choices = {  _L("Layout with the tab bar"),
                                        _L("Legacy layout"),
                                        _L("Access via settings button in the top menu"),
                                        _L("Settings in non-modal window") };
-	int id = -1;
-	auto add_radio = [this, parent, sizer_v, choices](wxRadioButton** rb, int id, bool select) {
-		*rb = new wxRadioButton(parent, wxID_ANY, choices[id], wxDefaultPosition, wxDefaultSize, id == 0 ? wxRB_GROUP : 0);
-		sizer_v->Add(*rb);
-		(*rb)->SetValue(select);
-		(*rb)->Bind(wxEVT_RADIOBUTTON, [this, id](wxCommandEvent&) {
-			m_values["tab_settings_layout_mode"] = (id == 0) ? "1" : "0";
-			m_values["old_settings_layout_mode"] = (id == 1) ? "1" : "0";
-			m_values["new_settings_layout_mode"] = (id == 2) ? "1" : "0";
-			m_values["dlg_settings_layout_mode"] = (id == 3) ? "1" : "0";
-		});
-	};
+    int id = -1;
+    auto add_radio = [this, parent, sizer_v, choices](wxRadioButton** rb, int id, bool select) {
+        *rb = new wxRadioButton(parent, wxID_ANY, choices[id], wxDefaultPosition, wxDefaultSize, id == 0 ? wxRB_GROUP : 0);
+        sizer_v->Add(*rb);
+        (*rb)->SetValue(select);
+        (*rb)->Bind(wxEVT_RADIOBUTTON, [this, id](wxCommandEvent&) {
+            m_values["tab_settings_layout_mode"] = (id == 0) ? "1" : "0";
+            m_values["old_settings_layout_mode"] = (id == 1) ? "1" : "0";
+            m_values["new_settings_layout_mode"] = (id == kNewSettingsLayoutRadioId) ? "1" : "0";
+            m_values["dlg_settings_layout_mode"] = (id == kOldSettingsLayoutRadioId) ? "1" : "0";
+        });
+    };
 
 
-	add_radio(&m_rb_dlg_settings_layout_mode, ++id, app_config->get_bool("tab_settings_layout_mode"));
-	add_radio(&m_rb_old_settings_layout_mode, ++id, app_config->get_bool("old_settings_layout_mode"));
-	add_radio(&m_rb_new_settings_layout_mode, ++id, app_config->get_bool("new_settings_layout_mode"));
-	add_radio(&m_rb_dlg_settings_layout_mode, ++id, app_config->get_bool("dlg_settings_layout_mode"));
+    add_radio(&m_rb_dlg_settings_layout_mode, ++id, app_config->get_bool("tab_settings_layout_mode"));
+    add_radio(&m_rb_old_settings_layout_mode, ++id, app_config->get_bool("old_settings_layout_mode"));
+    add_radio(&m_rb_new_settings_layout_mode, ++id, app_config->get_bool("new_settings_layout_mode"));
+    add_radio(&m_rb_dlg_settings_layout_mode, ++id, app_config->get_bool("dlg_settings_layout_mode"));
 #ifdef _USE_CUSTOM_NOTEBOOK
-	if (app_config->get_bool(OPT_tabs_as_menu)) {
-		m_rb_new_settings_layout_mode->Hide();
-		if (m_rb_new_settings_layout_mode->GetValue()) {
-			m_rb_new_settings_layout_mode->SetValue(false);
-			m_rb_old_settings_layout_mode->SetValue(true);
+    if (app_config->get_bool(OPT_tabs_as_menu)) {
+        m_rb_new_settings_layout_mode->Hide();
+        if (m_rb_new_settings_layout_mode->GetValue()) {
+            m_rb_new_settings_layout_mode->SetValue(false);
+            m_rb_old_settings_layout_mode->SetValue(true);
 
 
-		}
-	}
+        }
+    }
 #endif
-	
-	wxSizer* stb_sizer = new wxStaticBoxSizer(stb, wxHORIZONTAL);
-	std::string opt_key = "settings_layout_mode";
-	m_blinkers[opt_key] = new BlinkingBitmap(parent);
-	m_optkey_to_optgroup[opt_key] = opt_grp;
-	stb_sizer->Add(m_blinkers[opt_key], 0, wxRIGHT, 2);
-	stb_sizer->Add(sizer_v, 1, wxEXPAND);
-	wxBoxSizer* parent_sizer = static_cast<wxBoxSizer*>(tab->GetSizer());
-	parent_sizer->Add(stb_sizer, 0, wxEXPAND | wxALL, 3);
-	//opt_grp->sizer->Add(sizer, 0, wxEXPAND | wxTOP, em_unit());
+    
+    wxSizer* stb_sizer = new wxStaticBoxSizer(stb, wxHORIZONTAL);
+    std::string opt_key = "settings_layout_mode";
+    m_blinkers[opt_key] = new BlinkingBitmap(parent);
+    m_optkey_to_optgroup[opt_key] = opt_grp;
+    stb_sizer->Add(m_blinkers[opt_key], 0, wxRIGHT, kBlinkerSpacing);
+    stb_sizer->Add(sizer_v, 1, wxEXPAND);
+    wxBoxSizer* parent_sizer = static_cast<wxBoxSizer*>(tab->GetSizer());
+    parent_sizer->Add(stb_sizer, 0, wxEXPAND | wxALL, kCompactOptionsPadding);
+    //opt_grp->sizer->Add(sizer, 0, wxEXPAND | wxTOP, em_unit());
 
-	append_preferences_option_to_searcher(opt_grp, opt_key, title);
+    append_preferences_option_to_searcher(opt_grp, opt_key, title);
 }
 
 void PreferencesDialog::create_settings_text_color_widget(wxWindow* tab, std::shared_ptr<ConfigOptionsGroup> opt_grp)
 {
-	wxWindow* parent = tab;//opt_grp->parent();
-	wxString title = L("Text colors");
-	wxStaticBox* stb = new wxStaticBox(parent, wxID_ANY, _(title));	wxGetApp().UpdateDarkUI(stb);
-	if (!wxOSX) stb->SetBackgroundStyle(wxBG_STYLE_PAINT);
+    wxWindow* parent = tab;//opt_grp->parent();
+    wxString title = L("Text colors");
+    wxStaticBox* stb = new wxStaticBox(parent, wxID_ANY, _(title));	wxGetApp().UpdateDarkUI(stb);
+    if (!wxOSX) stb->SetBackgroundStyle(wxBG_STYLE_PAINT);
 
-	std::string opt_key = "text_colors";
-	m_blinkers[opt_key] = new BlinkingBitmap(parent);
-	m_optkey_to_optgroup[opt_key] = opt_grp;
+    std::string opt_key = "text_colors";
+    m_blinkers[opt_key] = new BlinkingBitmap(parent);
+    m_optkey_to_optgroup[opt_key] = opt_grp;
 
-	wxSizer* stb_sizer = new wxStaticBoxSizer(stb, wxHORIZONTAL);
-	stb_sizer->Add(m_blinkers[opt_key], 0, wxRIGHT, 2);
-	GUI_Descriptions::FillSizerWithTextColorDescriptions(stb_sizer, parent, &m_def_colour, &m_sys_colour, &m_mod_colour, &m_phony_colour);
+    wxSizer* stb_sizer = new wxStaticBoxSizer(stb, wxHORIZONTAL);
+    stb_sizer->Add(m_blinkers[opt_key], 0, wxRIGHT, kBlinkerSpacing);
+    GUI_Descriptions::FillSizerWithTextColorDescriptions(stb_sizer, parent, &m_def_colour, &m_sys_colour, &m_mod_colour, &m_phony_colour);
 
-	wxBoxSizer* parent_sizer = static_cast<wxBoxSizer*>(tab->GetSizer());
-	//opt_grp->sizer->Add(sizer, 0, wxEXPAND | wxTOP, em_unit());
-	parent_sizer->Add(stb_sizer, 0, wxEXPAND | wxALL, 3);
+    wxBoxSizer* parent_sizer = static_cast<wxBoxSizer*>(tab->GetSizer());
+    //opt_grp->sizer->Add(sizer, 0, wxEXPAND | wxTOP, em_unit());
+    parent_sizer->Add(stb_sizer, 0, wxEXPAND | wxALL, kCompactOptionsPadding);
 
-	append_preferences_option_to_searcher(opt_grp, opt_key, title);
+    append_preferences_option_to_searcher(opt_grp, opt_key, title);
 }
 
 
 void PreferencesDialog::create_settings_mode_color_widget(wxWindow* tab, std::shared_ptr<ConfigOptionsGroup> opt_grp)
 {
-	wxWindow* parent = tab;//opt_grp->parent();
+    wxWindow* parent = tab;//opt_grp->parent();
 
-	wxString title = L("Mode markers");
-	wxStaticBox* stb = new wxStaticBox(parent, wxID_ANY, _(title));
-	wxGetApp().UpdateDarkUI(stb);
-	if (!wxOSX) stb->SetBackgroundStyle(wxBG_STYLE_PAINT);
-	stb->SetFont(wxGetApp().normal_font());
+    wxString title = L("Mode markers");
+    wxStaticBox* stb = new wxStaticBox(parent, wxID_ANY, _(title));
+    wxGetApp().UpdateDarkUI(stb);
+    if (!wxOSX) stb->SetBackgroundStyle(wxBG_STYLE_PAINT);
+    stb->SetFont(wxGetApp().normal_font());
 
-	std::string opt_key = "mode_markers";
-	m_blinkers[opt_key] = new BlinkingBitmap(parent);
-	m_optkey_to_optgroup[opt_key] = opt_grp;
-	wxSizer* stb_sizer = new wxStaticBoxSizer(stb, wxHORIZONTAL);
+    std::string opt_key = "mode_markers";
+    m_blinkers[opt_key] = new BlinkingBitmap(parent);
+    m_optkey_to_optgroup[opt_key] = opt_grp;
+    wxSizer* stb_sizer = new wxStaticBoxSizer(stb, wxHORIZONTAL);
 
     // Mode color markers description
-	//check if we have enough colour picker
-	std::vector<std::pair<wxColourPickerCtrl**, AppConfig::Tag>> clr_pickers_2_color;
+    //check if we have enough colour picker
+    std::vector<std::pair<wxColourPickerCtrl**, AppConfig::Tag>> clr_pickers_2_color;
     {
         std::lock_guard<std::recursive_mutex> lk(get_app_config()->config_lock);
         for (const AppConfig::Tag &tag : get_app_config()->tags()) {
@@ -1821,123 +1835,123 @@ void PreferencesDialog::create_settings_mode_color_widget(wxWindow* tab, std::sh
             clr_pickers_2_color.emplace_back(&m_tag_color[tag.tag], tag);
         }
     }
-	stb_sizer->Add(m_blinkers[opt_key], 0, wxRIGHT, 2);
-	GUI_Descriptions::FillSizerWithModeColorDescriptions(stb_sizer, parent, clr_pickers_2_color);
-	
-	wxBoxSizer* parent_sizer = static_cast<wxBoxSizer*>(tab->GetSizer());
-	//opt_grp->sizer->Add(sizer, 0, wxEXPAND | wxTOP, em_unit());
-	parent_sizer->Add(stb_sizer, 0, wxEXPAND | wxALL, 3);
+    stb_sizer->Add(m_blinkers[opt_key], 0, wxRIGHT, kBlinkerSpacing);
+    GUI_Descriptions::FillSizerWithModeColorDescriptions(stb_sizer, parent, clr_pickers_2_color);
+    
+    wxBoxSizer* parent_sizer = static_cast<wxBoxSizer*>(tab->GetSizer());
+    //opt_grp->sizer->Add(sizer, 0, wxEXPAND | wxTOP, em_unit());
+    parent_sizer->Add(stb_sizer, 0, wxEXPAND | wxALL, kCompactOptionsPadding);
 
-	append_preferences_option_to_searcher(opt_grp, opt_key, title);
+    append_preferences_option_to_searcher(opt_grp, opt_key, title);
 }
 
 void PreferencesDialog::create_settings_font_widget(wxWindow* tab, std::shared_ptr<ConfigOptionsGroup> opt_grp)
 {
-	wxWindow* parent = tab; //opt_grp->parent();
-	wxGetApp().UpdateDarkUI(parent); //?
+    wxWindow* parent = tab; //opt_grp->parent();
+    wxGetApp().UpdateDarkUI(parent); //?
 
-	const wxString title = L("Application font size");
-	wxStaticBox* stb = new wxStaticBox(parent, wxID_ANY, _(title));
-	if (!wxOSX) stb->SetBackgroundStyle(wxBG_STYLE_PAINT);
+    const wxString title = L("Application font size");
+    wxStaticBox* stb = new wxStaticBox(parent, wxID_ANY, _(title));
+    if (!wxOSX) stb->SetBackgroundStyle(wxBG_STYLE_PAINT);
 
-	const std::string opt_key = "font_pt_size";
-	m_blinkers[opt_key] = new BlinkingBitmap(parent);
-	m_optkey_to_optgroup[opt_key] = opt_grp;
+    const std::string opt_key = "font_pt_size";
+    m_blinkers[opt_key] = new BlinkingBitmap(parent);
+    m_optkey_to_optgroup[opt_key] = opt_grp;
 
-	m_values_need_restart.push_back("font_pt_size");
+    m_values_need_restart.push_back("font_pt_size");
 
-	wxSizer* stb_sizer = new wxStaticBoxSizer(stb, wxHORIZONTAL);
+    wxSizer* stb_sizer = new wxStaticBoxSizer(stb, wxHORIZONTAL);
 
-	wxStaticText* font_example = new wxStaticText(parent, wxID_ANY, "Application text");
+    wxStaticText* font_example = new wxStaticText(parent, wxID_ANY, "Application text");
     int val = wxGetApp().normal_font().GetPointSize();
-	SpinInput* size_sc = new SpinInput(parent, format_wxstr("%1%", val), "", wxDefaultPosition, wxSize(15 * em_unit(), -1), wxTE_PROCESS_ENTER | wxSP_ARROW_KEYS
+    SpinInput* size_sc = new SpinInput(parent, format_wxstr("%1%", val), "", wxDefaultPosition, wxSize(15 * em_unit(), -1), wxTE_PROCESS_ENTER | wxSP_ARROW_KEYS
 #ifdef _WIN32
-		| wxBORDER_SIMPLE
+        | wxBORDER_SIMPLE
 #endif 
-	, 8, wxGetApp().get_max_font_pt_size());
-	wxGetApp().UpdateDarkUI(size_sc);
+    , 8, wxGetApp().get_max_font_pt_size());
+    wxGetApp().UpdateDarkUI(size_sc);
 
-	auto apply_font = [this, font_example, opt_key, stb_sizer, opt_grp](const int val, const wxFont& font) {
-		font_example->SetFont(font);
-		m_values[opt_key] = format("%1%", val);
-		stb_sizer->Layout();
+    auto apply_font = [this, font_example, opt_key, stb_sizer, opt_grp](const int val, const wxFont& font) {
+        font_example->SetFont(font);
+        m_values[opt_key] = format("%1%", val);
+        stb_sizer->Layout();
 #ifdef __linux__
-		CallAfter([this, opt_grp]() { refresh_og(opt_grp); });
+        CallAfter([this, opt_grp]() { refresh_og(opt_grp); });
 #else
-		refresh_og(opt_grp);
+        refresh_og(opt_grp);
 #endif
-	};
+    };
 
-	auto change_value = [size_sc, apply_font](wxCommandEvent& evt) {
-		const int val = size_sc->GetValue();
-		wxFont font = wxGetApp().normal_font();
-		font.SetPointSize(val);
+    auto change_value = [size_sc, apply_font](wxCommandEvent& evt) {
+        const int val = size_sc->GetValue();
+        wxFont font = wxGetApp().normal_font();
+        font.SetPointSize(val);
 
-		apply_font(val, font);
-	};
+        apply_font(val, font);
+    };
     size_sc->Bind(wxEVT_SPINCTRL, change_value);
-	size_sc->Bind(wxEVT_TEXT_ENTER, change_value);
+    size_sc->Bind(wxEVT_TEXT_ENTER, change_value);
 
-	auto revert_btn = new ScalableButton(parent, wxID_ANY, "undo");
-	revert_btn->SetToolTip(_L("Revert font to default"));
-	revert_btn->Bind(wxEVT_BUTTON, [size_sc, apply_font](wxEvent& event) {
-		wxFont font = wxGetApp().normal_font();
-		const int val = font.GetPointSize();
-	    size_sc->SetValue(val);
-		apply_font(val, font);
-		});
-	parent->Bind(wxEVT_UPDATE_UI, [size_sc](wxUpdateUIEvent& evt) {
-		const int def_size = wxGetApp().normal_font().GetPointSize();
-		evt.Enable(def_size != size_sc->GetValue());
-	}, revert_btn->GetId());
-	
-	stb_sizer->Add(m_blinkers[opt_key], 0, wxRIGHT, 2);
+    auto revert_btn = new ScalableButton(parent, wxID_ANY, "undo");
+    revert_btn->SetToolTip(_L("Revert font to default"));
+    revert_btn->Bind(wxEVT_BUTTON, [size_sc, apply_font](wxEvent& event) {
+        wxFont font = wxGetApp().normal_font();
+        const int val = font.GetPointSize();
+        size_sc->SetValue(val);
+        apply_font(val, font);
+        });
+    parent->Bind(wxEVT_UPDATE_UI, [size_sc](wxUpdateUIEvent& evt) {
+        const int def_size = wxGetApp().normal_font().GetPointSize();
+        evt.Enable(def_size != size_sc->GetValue());
+    }, revert_btn->GetId());
+    
+    stb_sizer->Add(m_blinkers[opt_key], 0, wxRIGHT, kBlinkerSpacing);
     stb_sizer->Add(new wxStaticText(parent, wxID_ANY, _L("Font size") + ":"), 0, wxALIGN_CENTER_VERTICAL | wxLEFT, em_unit());
     stb_sizer->Add(size_sc, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT | wxLEFT, em_unit());
     stb_sizer->Add(revert_btn, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, em_unit());
-	wxBoxSizer* font_sizer = new wxBoxSizer(wxVERTICAL);
-	font_sizer->Add(font_example, 1, wxALIGN_CENTER_HORIZONTAL);
+    wxBoxSizer* font_sizer = new wxBoxSizer(wxVERTICAL);
+    font_sizer->Add(font_example, 1, wxALIGN_CENTER_HORIZONTAL);
     stb_sizer->Add(font_sizer, 1, wxALIGN_CENTER_VERTICAL);
 
-	wxBoxSizer* parent_sizer = static_cast<wxBoxSizer*>(tab->GetSizer());
-	//opt_grp->sizer->Add(sizer, 0, wxEXPAND | wxTOP, em_unit());
-	parent_sizer->Add(stb_sizer,  0, wxEXPAND | wxALL, 3);
+    wxBoxSizer* parent_sizer = static_cast<wxBoxSizer*>(tab->GetSizer());
+    //opt_grp->sizer->Add(sizer, 0, wxEXPAND | wxTOP, em_unit());
+    parent_sizer->Add(stb_sizer,  0, wxEXPAND | wxALL, kCompactOptionsPadding);
 
-	append_preferences_option_to_searcher(opt_grp, opt_key, title);
+    append_preferences_option_to_searcher(opt_grp, opt_key, title);
 }
 
 void PreferencesDialog::create_downloader_path_sizer(wxWindow* tab, std::shared_ptr<ConfigOptionsGroup> opt_grp)
 {
-	wxWindow* parent = tab; //opt_grp->parent();
+    wxWindow* parent = tab; //opt_grp->parent();
 
-	wxString title = L("Download path");
-	std::string opt_key = "url_downloader_dest";
-	this->m_blinkers[opt_key] = new BlinkingBitmap(parent);
-	m_optkey_to_optgroup[opt_key] = opt_grp;
+    wxString title = L("Download path");
+    std::string opt_key = "url_downloader_dest";
+    this->m_blinkers[opt_key] = new BlinkingBitmap(parent);
+    m_optkey_to_optgroup[opt_key] = opt_grp;
 
-	this->m_downloader = new DownloaderUtils::Worker(parent);
+    this->m_downloader = new DownloaderUtils::Worker(parent);
 
-	auto sizer = new wxBoxSizer(wxHORIZONTAL);
-	sizer->Add(this->m_blinkers[opt_key], 0, wxRIGHT, 2);
-	sizer->Add(this->m_downloader, 1, wxALIGN_CENTER_VERTICAL);
+    auto sizer = new wxBoxSizer(wxHORIZONTAL);
+    sizer->Add(this->m_blinkers[opt_key], 0, wxRIGHT, kBlinkerSpacing);
+    sizer->Add(this->m_downloader, 1, wxALIGN_CENTER_VERTICAL);
 
-	wxBoxSizer* parent_sizer = static_cast<wxBoxSizer*>(tab->GetSizer());
-	//opt_grp->sizer->Add(sizer, 0, wxEXPAND | wxTOP, em_unit());
-	parent_sizer->Add(sizer, 0, wxEXPAND | wxTOP, em_unit());
+    wxBoxSizer* parent_sizer = static_cast<wxBoxSizer*>(tab->GetSizer());
+    //opt_grp->sizer->Add(sizer, 0, wxEXPAND | wxTOP, em_unit());
+    parent_sizer->Add(sizer, 0, wxEXPAND | wxTOP, em_unit());
 
-	append_preferences_option_to_searcher(opt_grp, opt_key, title);
+    append_preferences_option_to_searcher(opt_grp, opt_key, title);
 }
 
 void PreferencesDialog::init_highlighter(const t_config_option_key& opt_key)
 {
-	if (m_blinkers.find(opt_key) != m_blinkers.end())
-		if (BlinkingBitmap* blinker = m_blinkers.at(opt_key); blinker) {
-			m_highlighter.init(blinker);
-			return;
-	}
-	
-	assert(m_optkey_to_optgroup.find(opt_key) != m_optkey_to_optgroup.end()); 
-	assert(m_optkey_to_optgroup[opt_key]);
+    if (m_blinkers.find(opt_key) != m_blinkers.end())
+        if (BlinkingBitmap* blinker = m_blinkers.at(opt_key); blinker) {
+            m_highlighter.init(blinker);
+            return;
+    }
+    
+    assert(m_optkey_to_optgroup.find(opt_key) != m_optkey_to_optgroup.end()); 
+    assert(m_optkey_to_optgroup[opt_key]);
     if (auto it = m_optkey_to_optgroup.find(opt_key); it != m_optkey_to_optgroup.end() && it->second) {
         std::pair<OG_CustomCtrl *, bool *> ctrl = it->second->get_custom_ctrl_with_blinking_ptr(opt_key, -1);
         if (ctrl.second) {

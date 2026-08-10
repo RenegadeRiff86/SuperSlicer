@@ -205,21 +205,6 @@ TEST_CASE("Simple gcode") {
         processed_gcode += fan_mover.process_gcode(gcode, true);
         REQUIRE(gcode+gcode.substr(5) == processed_gcode); // substr to remove first m107
     }
-    //TODO?
-    //SECTION("erase M106 -> M107")
-    //{
-    //    Slic3r::FanMover fan_mover(writer,
-    //                               0,     // fan_speedup_time.value,
-    //                               false, // with_D_option
-    //                               true,  // use_relative_e_distances.value,
-    //                               false, // fan_speedup_overhangs.value,
-    //                               0      // fan_kickstart.value));
-    //    );
-    //    std::string m106 = "M106 S125\n";
-    //    std::string processed_gcode = fan_mover.process_gcode(m106+gcode+m106, false);
-    //    processed_gcode += fan_mover.process_gcode(gcode, true);
-    //    REQUIRE(gcode+m106 == processed_gcode); // substr to remove first m107
-    //}
 }
 
 

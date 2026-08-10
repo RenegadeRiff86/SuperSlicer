@@ -180,10 +180,6 @@ template<class L> bool intersection(const L &l1, const L &l2, Vec<Dim<L>, Scalar
     Floating t1     = nume_a / denom;
     Floating t2     = nume_b / denom;
     if (t1 >= 0 && t1 <= 1.0f && t2 >= 0 && t2 <= 1.0f) {
-        VecType vv = l1.a.template cast<Floating>();
-        VecType vv1  = t1 * v1;
-        VecType vvend = vv + vv1;
-        Vec<Dim<L>, Scalar<L>> ptend = vvend.template cast<Scalar<L>>();
         // Get the intersection point.
         VecType float_vec = l1.a.template cast<Floating>() + t1 * v1;
         if (std::is_same<Scalar<L>, int64_t>::value) {

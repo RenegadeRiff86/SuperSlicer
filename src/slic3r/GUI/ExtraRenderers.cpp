@@ -65,7 +65,6 @@ BitmapTextRenderer::~BitmapTextRenderer()
 {
 #ifdef SUPPORTS_MARKUP
     #ifdef wxHAS_GENERIC_DATAVIEWCTRL
-        delete m_markupText;
     #endif //wxHAS_GENERIC_DATAVIEWCTRL
 #endif // SUPPORTS_MARKUP
 }
@@ -76,13 +75,10 @@ void BitmapTextRenderer::EnableMarkup(bool enable)
 #ifdef wxHAS_GENERIC_DATAVIEWCTRL
     if (enable) {
         if (!m_markupText)
-            m_markupText = new wxItemMarkupText(wxString());
+            m_markupText = std::make_unique<wxItemMarkupText>(wxString());
     }
     else {
-        if (m_markupText) {
-            delete m_markupText;
-            m_markupText = nullptr;
-        }
+        m_markupText.reset();
     }
 #else
     is_markupText = enable;

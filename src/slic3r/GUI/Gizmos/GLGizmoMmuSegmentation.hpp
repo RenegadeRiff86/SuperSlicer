@@ -7,6 +7,7 @@
 
 #include "GLGizmoPainterBase.hpp"
 
+#include "libslic3r/Technologies.hpp"
 #include "slic3r/GUI/I18N.hpp"
 
 namespace Slic3r::GUI {

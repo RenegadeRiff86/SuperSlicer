@@ -783,6 +783,7 @@ public:
         }
         case smsTree:
         case smsOrganic:
+        case smsOrcaTree:
 //            assert(false);
             [[fallthrough]];
         case smsSnug:
@@ -1890,7 +1891,6 @@ static inline SupportGeneratorLayer* detect_bottom_contacts(
     assert_valid(supports_projected);
     Polygons touching = intersection(top, supports_projected);
     ensure_valid(touching, support_params.resolution);
-    for (Polygon &poly : touching);
     if (touching.empty())
         return nullptr;
 
@@ -2141,12 +2141,10 @@ SupportGeneratorLayersPtr PrintObjectSupportMaterial::bottom_contact_layers_and_
         Polygons enforcers_projection_raw = union_(std::move(enforcers_projection));
         ensure_valid(overhangs_projection_raw, this->m_support_params.resolution);
         ensure_valid(enforcers_projection_raw, this->m_support_params.resolution);
-        for (Polygon &poly : overhangs_projection_raw);
-        for (Polygon &poly : enforcers_projection_raw);
 
         tbb::task_group task_group;
         const Polygons &overhangs_for_bottom_contacts = buildplate_only ? enforcers_projection_raw : overhangs_projection_raw;
-        if (! overhangs_for_bottom_contacts.empty())
+        if (! overhangs_for_bottom_contacts.empty()) {
             assert_valid(overhangs_for_bottom_contacts);
             // Find the bottom contact layers above the top surfaces of this layer.
             task_group.run([this, &object, &layer, &top_contacts, contact_idx, &layer_storage, &layer_support_areas, &bottom_contacts, &overhangs_for_bottom_contacts
@@ -2165,6 +2163,7 @@ SupportGeneratorLayersPtr PrintObjectSupportMaterial::bottom_contact_layers_and_
                     if (layer_new)
                         bottom_contacts.push_back(layer_new);
                 });
+        }
 
         Polygons &layer_support_area = layer_support_areas[layer_id];
         Polygons *layer_buildplate_covered = buildplate_covered.empty() ? nullptr : &buildplate_covered[layer_id];
@@ -2411,8 +2410,6 @@ SupportGeneratorLayersPtr PrintObjectSupportMaterial::raft_and_intermediate_supp
             size_t      n_layers_total = 0;
             coordf_t    step_interface = support_interface_layer_height;
             coordf_t    step = 0;
-            auto compute_step = []() {
-            };
             {
                 n_layers_top = m_object_config->support_material_interface_layers.value;
                 coordf_t height_top_interface = std::max(0., support_interface_layer_height * n_layers_top);
@@ -2606,8 +2603,6 @@ void PrintObjectSupportMaterial::generate_base_layers(
         // No top contacts -> no intermediate layers will be produced.
         return;
 
-    for(auto layer : intermediate_layers) for(Polygon &poly: layer->polygons);
-
     BOOST_LOG_TRIVIAL(debug) << "PrintObjectSupportMaterial::generate_base_layers() in parallel - start";
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0, intermediate_layers.size()),
@@ -2764,7 +2759,6 @@ void PrintObjectSupportMaterial::trim_support_layers_by_object(
     nonempty_layers.reserve(support_layers.size());
     for (size_t idx_layer = 0; idx_layer < support_layers.size(); ++ idx_layer) {
         SupportGeneratorLayer *support_layer = support_layers[idx_layer];
-        for (Polygon &poly : support_layer->polygons);
         if (! support_layer->polygons.empty() && support_layer->print_z >= m_slicing_params->raft_contact_top_z + EPSILON)
             // Non-empty support layer and not a raft layer.
             nonempty_layers.push_back(support_layer);
@@ -2822,11 +2816,8 @@ void PrintObjectSupportMaterial::trim_support_layers_by_object(
                 // material, thus including the width of its foremost extrusion.
                 // We leave a gap equal to a full extrusion width.
                 ensure_valid(polygons_trimming, this->m_support_params.resolution);
-                for (Polygon &poly : polygons_trimming);
-                for (Polygon &poly : support_layer.polygons);
                 support_layer.polygons = diff(support_layer.polygons, polygons_trimming);
                 ensure_valid(support_layer.polygons, this->m_support_params.resolution);
-                for (Polygon &poly : support_layer.polygons);
             }
         });
     BOOST_LOG_TRIVIAL(debug) << "PrintObjectSupportMaterial::trim_support_layers_by_object() in parallel - end";

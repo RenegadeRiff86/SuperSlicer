@@ -5,19 +5,21 @@
 
 class StateColor
 {
+    static constexpr int NegatedStateBitOffset = 16;
+
 public:
     enum State {
-        Normal = 0, 
-        Enabled = 1,
-        Checked = 2,
-        Focused = 4,
-        Hovered = 8,
-        Pressed = 16,
-        Disabled = 1 << 16,
-        NotChecked = 2 << 16,
-        NotFocused = 4 << 16,
-        NotHovered = 8 << 16,
-        NotPressed = 16 << 16,
+        Normal     = 0,
+        Enabled    = 1 << 0,
+        Checked    = 1 << 1,
+        Focused    = 1 << 2,
+        Hovered    = 1 << 3,
+        Pressed    = 1 << 4,
+        Disabled   = Enabled << NegatedStateBitOffset,
+        NotChecked = Checked << NegatedStateBitOffset,
+        NotFocused = Focused << NegatedStateBitOffset,
+        NotHovered = Hovered << NegatedStateBitOffset,
+        NotPressed = Pressed << NegatedStateBitOffset,
     };
 
 public:

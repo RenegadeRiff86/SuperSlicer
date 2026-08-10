@@ -19,7 +19,6 @@
 #include "OG_CustomCtrl.hpp"
 #include "MsgDialog.hpp"
 #include "ThemeMetrics.hpp"
-#include "format.hpp"
 #include "Tab.hpp"
 
 #include <utility>
@@ -28,12 +27,13 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/classification.hpp>
 #include "libslic3r/Exception.hpp"
-#include "libslic3r/Utils.hpp"
 #include "libslic3r/AppConfig.hpp"
 #include "libslic3r/Preset.hpp"
 #include "I18N.hpp"
 
 namespace Slic3r { namespace GUI {
+
+static constexpr int LABEL_PADDING = 5;
 
 const t_field& OptionsGroup::build_field(const Option& opt) {
     return build_field(OptionKeyIdx{opt.opt_key, opt.opt_idx}, opt.opt);
@@ -110,17 +110,17 @@ const t_field& OptionsGroup::build_field(const OptionKeyIdx& key_idx, const Conf
     }
     // Grab a reference to fields for convenience
     const t_field& field = m_fields[key_idx];
-	field->m_on_change = [this](const OptionKeyIdx& opt_key_idx, bool enabled, const boost::any& value) {
-			//! This function will be called from Field.
-			//! Call OptionGroup._on_change(...)
-			if (!m_disabled)
-				this->on_change_OG(opt_key_idx, enabled, value);
-	};
+    field->m_on_change = [this](const OptionKeyIdx& opt_key_idx, bool enabled, const boost::any& value) {
+            //! This function will be called from Field.
+            //! Call OptionGroup._on_change(...)
+            if (!m_disabled)
+                this->on_change_OG(opt_key_idx, enabled, value);
+    };
     field->m_on_kill_focus = [this](const OptionKeyIdx& opt_key_idx) {
-			//! This function will be called from Field.
-			if (!m_disabled)
-				this->on_kill_focus(opt_key_idx);
-	};
+            //! This function will be called from Field.
+            if (!m_disabled)
+                this->on_kill_focus(opt_key_idx);
+    };
     field->m_parent = parent();
 
     if (edit_custom_gcode && opt.is_code) {
@@ -131,16 +131,16 @@ const t_field& OptionsGroup::build_field(const OptionKeyIdx& key_idx, const Conf
         field->set_edit_tooltip(_L("Edit Custom G-code"));
     }
 
-	field->m_back_to_initial_value = [this](const OptionKeyIdx& opt_key_idx) {
-		if (!m_disabled)
-			this->back_to_initial_value(opt_key_idx);
-	};
-	field->m_back_to_sys_value = [this](const OptionKeyIdx& opt_key_idx) {
-		if (!m_disabled)
-			this->back_to_sys_value(opt_key_idx);
-	};
+    field->m_back_to_initial_value = [this](const OptionKeyIdx& opt_key_idx) {
+        if (!m_disabled)
+            this->back_to_initial_value(opt_key_idx);
+    };
+    field->m_back_to_sys_value = [this](const OptionKeyIdx& opt_key_idx) {
+        if (!m_disabled)
+            this->back_to_sys_value(opt_key_idx);
+    };
 
-	// assign function objects for callbacks, etc.
+    // assign function objects for callbacks, etc.
     return field;
 }
 
@@ -178,31 +178,36 @@ void Line::clear()
 
     if (widget_sizer) {
         widget_sizer->Clear(true);
-        delete widget_sizer;
-        widget_sizer = nullptr;
+        widget_sizer.reset();
     }
 
     if (extra_widget_sizer) {
         extra_widget_sizer->Clear(true);
-        delete extra_widget_sizer;
+        if (extra_widget_sizer_parent) {
+            if (!extra_widget_sizer_parent->Remove(extra_widget_sizer))
+                assert(false);
+        } else {
+            owned_extra_widget_sizer.reset();
+        }
         extra_widget_sizer = nullptr;
+        extra_widget_sizer_parent = nullptr;
     }
 }
 
 wxWindow* OptionsGroup::ctrl_parent() const
 {
-	wxWindow* ret_val = this->custom_ctrl && m_use_custom_ctrl_as_parent ? static_cast<wxWindow*>(this->custom_ctrl) : (this->stb ? static_cast<wxWindow*>(this->stb) : this->parent());
+    wxWindow* ret_val = this->custom_ctrl && m_use_custom_ctrl_as_parent ? static_cast<wxWindow*>(this->custom_ctrl) : (this->stb ? static_cast<wxWindow*>(this->stb) : this->parent());
     assert(ret_val);
     return ret_val;
 }
 
 bool OptionsGroup::is_legend_line()
 {
-	if (m_lines.size() == 1) {
-		const std::vector<Option>& option_set = m_lines.front().get_options();
-		return option_set.empty() || option_set.front().opt.gui_type == ConfigOptionDef::GUIType::legend;
-	}
-	return false;
+    if (m_lines.size() == 1) {
+        const std::vector<Option>& option_set = m_lines.front().get_options();
+        return option_set.empty() || option_set.front().opt.gui_type == ConfigOptionDef::GUIType::legend;
+    }
+    return false;
 }
 
 void OptionsGroup::set_max_win_width(int max_win_width)
@@ -253,16 +258,16 @@ void OptionsGroup::show_field(const t_config_option_key& opt_key, bool show/* = 
 
 void OptionsGroup::append_line(const Line& line)
 {
-	m_lines.push_back(line);
+    m_lines.push_back(line);
 
-	if (line.full_width && (
-		line.widget != nullptr ||
-		!line.get_extra_widgets().empty())
-		)
-		return;
+    if (line.full_width && (
+        line.widget != nullptr ||
+        !line.get_extra_widgets().empty())
+        )
+        return;
 
-	const auto& option_set = line.get_options();
-	for (const auto& opt : option_set)
+    const auto& option_set = line.get_options();
+    for (const auto& opt : option_set)
         m_options.emplace(OptionKeyIdx{opt.opt_key, opt.opt_idx}, opt);
 
     //if first control don't have a label, use the line one for the tooltip
@@ -272,7 +277,7 @@ void OptionsGroup::append_line(const Line& line)
         m_lines.back().label_tooltip = tooltip;
     }
 
-	// add mode value for current line to m_options_mode
+    // add mode value for current line to m_options_mode
     if (!option_set.empty()){
         m_line_sizer.emplace_back();
         // add index -1 (ie the line, before the fist item inside) to mode of the first option_set.
@@ -293,26 +298,26 @@ void OptionsGroup::activate_line(Line& line)
 
     m_use_custom_ctrl_as_parent = false;
 
-	if (line.full_width && (
-		line.widget != nullptr ||
-		!line.get_extra_widgets().empty())
-		) {
+    if (line.full_width && (
+        line.widget != nullptr ||
+        !line.get_extra_widgets().empty())
+        ) {
         if (line.widget != nullptr) {
-			// description lines
+            // description lines
             sizer->Add(line.widget(this->ctrl_parent()), 0, wxEXPAND | wxALL, wxOSX ? 0 : 15);
             return;
         }
-		if (!line.get_extra_widgets().empty()) {
-			const auto h_sizer = new wxBoxSizer(wxHORIZONTAL);
-			sizer->Add(h_sizer, 1, wxEXPAND | wxALL, wxOSX ? 0 : 15);
+        if (!line.get_extra_widgets().empty()) {
+            const auto h_sizer = new wxBoxSizer(wxHORIZONTAL);
+            sizer->Add(h_sizer, 1, wxEXPAND | wxALL, wxOSX ? 0 : 15);
 
             bool is_first_item = true;
-			for (const auto& extra_widget : line.get_extra_widgets()) {
-				h_sizer->Add(extra_widget(this->ctrl_parent()), is_first_item ? 1 : 0, wxLEFT, 15);
-				is_first_item = false;
-			}
-			return;
-		}
+            for (const auto& extra_widget : line.get_extra_widgets()) {
+                h_sizer->Add(extra_widget(this->ctrl_parent()), is_first_item ? 1 : 0, wxLEFT, 15);
+                is_first_item = false;
+            }
+            return;
+        }
     }
 
     const std::vector<Option>& option_set = line.get_options();
@@ -321,33 +326,33 @@ void OptionsGroup::activate_line(Line& line)
     if (!custom_ctrl && m_use_custom_ctrl) {
         custom_ctrl = new OG_CustomCtrl(is_legend_line || !staticbox ? this->parent() : static_cast<wxWindow*>(this->stb), this);
         wxGetApp().UpdateDarkUI(custom_ctrl);
-		if (is_legend_line)
-			sizer->Add(custom_ctrl, 0, wxEXPAND | wxLEFT, wxOSX ? 0 : 10);
-		else
+        if (is_legend_line)
+            sizer->Add(custom_ctrl, 0, wxEXPAND | wxLEFT, wxOSX ? 0 : 10);
+        else
             sizer->Add(custom_ctrl, 0, wxEXPAND | wxALL,
                        wxOSX || !staticbox ? 0 : ThemeMetrics::settings_group_padding(m_parent));
     }
 
-	// Set sidetext width for a better alignment of options in line
-	// "m_show_modified_btns==true" means that options groups are in tabs
-	if (option_set.size() > 1 && m_use_custom_ctrl) {
-		sidetext_width = Field::def_width_thinner();
-	}
+    // Set sidetext width for a better alignment of options in line
+    // "m_show_modified_btns==true" means that options groups are in tabs
+    if (option_set.size() > 1 && m_use_custom_ctrl) {
+        sidetext_width = Field::def_width_thinner();
+    }
 
-	// if we have a single option with no label, no sidetext just add it directly to sizer
+    // if we have a single option with no label, no sidetext just add it directly to sizer
     if (option_set.size() == 1 && title_width == 0 && option_set.front().opt.full_width &&
-		option_set.front().opt.sidetext.size() == 0 && option_set.front().side_widget == nullptr &&
-		line.get_extra_widgets().size() == 0) {
+        option_set.front().opt.sidetext.size() == 0 && option_set.front().side_widget == nullptr &&
+        line.get_extra_widgets().size() == 0) {
 
-		const auto& option = option_set.front();
-		const auto& field = build_field(option);
+        const auto& option = option_set.front();
+        const auto& field = build_field(option);
 
-		if (is_window_field(field))
-			sizer->Add(field->getWindow(), 0, wxEXPAND | wxALL, wxOSX ? 0 : 5);
-		if (is_sizer_field(field))
-			sizer->Add(field->getSizer(), 0, wxEXPAND | wxALL, wxOSX ? 0 : 5);
-		return;
-	}
+        if (is_window_field(field))
+            sizer->Add(field->getWindow(), 0, wxEXPAND | wxALL, wxOSX ? 0 : LABEL_PADDING);
+        if (is_sizer_field(field))
+            sizer->Add(field->getSizer(), 0, wxEXPAND | wxALL, wxOSX ? 0 : LABEL_PADDING);
+        return;
+    }
 
     if (custom_ctrl)
         m_use_custom_ctrl_as_parent = true;
@@ -356,7 +361,7 @@ void OptionsGroup::activate_line(Line& line)
     if (extra_column) {
         m_extra_column_item_ptrs.push_back(extra_column(this->ctrl_parent(), line));
         m_grid_sizer->Add(m_extra_column_item_ptrs.back(), 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 3);
-	}
+    }
 
     // Build a (title) label if we have it
     wxStaticText* label=nullptr;
@@ -382,13 +387,13 @@ void OptionsGroup::activate_line(Line& line)
                 label->Wrap(title_width * wxGetApp().em_unit()); // avoid a Linux/GTK bug
             }
             if (!line.near_label_widget)
-                m_grid_sizer->Add(label, 0, (staticbox ? 0 : wxALIGN_RIGHT | wxRIGHT) | wxALIGN_CENTER_VERTICAL, line.label.IsEmpty() ? 0 : 5);
+                m_grid_sizer->Add(label, 0, (staticbox ? 0 : wxALIGN_RIGHT | wxRIGHT) | wxALIGN_CENTER_VERTICAL, line.label.IsEmpty() ? 0 : LABEL_PADDING);
             else if (!line.label.IsEmpty()) {
                 // If we're here, we have some widget near the label
                 // so we need a horizontal sizer to arrange these things
                 auto sizer = new wxBoxSizer(wxHORIZONTAL);
                 m_grid_sizer->Add(sizer, 0, wxEXPAND | (staticbox ? wxALL : wxBOTTOM | wxTOP | wxLEFT), staticbox ? 0 : 1);
-                sizer->Add(label, 0, (staticbox ? 0 : wxALIGN_RIGHT | wxRIGHT) | wxALIGN_CENTER_VERTICAL, 5);
+                sizer->Add(label, 0, (staticbox ? 0 : wxALIGN_RIGHT | wxRIGHT) | wxALIGN_CENTER_VERTICAL, LABEL_PADDING);
             }
             if (label != nullptr && line.label_tooltip != "")
                 label->SetToolTip(line.label_tooltip);
@@ -396,16 +401,16 @@ void OptionsGroup::activate_line(Line& line)
     }
 
     // If there's a widget, build it and add the result to the sizer.
-	if (line.widget != nullptr) {
-		auto wgt = line.widget(this->ctrl_parent());
+    if (line.widget != nullptr) {
+        auto wgt = line.widget(this->ctrl_parent());
         if (custom_ctrl)
-            line.widget_sizer = wgt;
+            line.widget_sizer.reset(wgt);
         else
-            m_grid_sizer->Add(wgt, 0, wxEXPAND | wxBOTTOM | wxTOP, (wxOSX || line.label.IsEmpty()) ? 0 : 5);
-		return;
-	}
+            m_grid_sizer->Add(wgt, 0, wxEXPAND | wxBOTTOM | wxTOP, (wxOSX || line.label.IsEmpty()) ? 0 : LABEL_PADDING);
+        return;
+    }
 
-	// If we're here, we have more than one option or a single option with sidetext
+    // If we're here, we have more than one option or a single option with sidetext
     // so we need a horizontal sizer to arrange these things
     wxBoxSizer* h_sizer{ nullptr };
     if (!custom_ctrl) {
@@ -429,7 +434,7 @@ void OptionsGroup::activate_line(Line& line)
                 h_sizer->Add(field->getSizer(), 1, (option.opt.full_width ? int(wxEXPAND) : int(wxALIGN_CENTER_VERTICAL)), 0);
         }
         return;
-	}
+    }
 
     for (const Option& opt : option_set) {
         // add field
@@ -486,12 +491,13 @@ void OptionsGroup::activate_line(Line& line)
             // add sidetext if any
             if ((!option.sidetext.empty() || sidetext_width > 0) && option.sidetext_width != 0){
                 wxString textstring;
-                if(!option.sidetext.empty())
+                if (!option.sidetext.empty()) {
                     if (option.sidetext.at(option.sidetext.size() - 1) != '_') {
                         textstring = _(option.sidetext);
                     } else {
                         textstring = option.sidetext.substr(0, option.sidetext.size() - 1);
                     }
+                }
                 wxSize wxsize{ -1,-1 };
                 if (option.sidetext_width >= 0) {
                     if (option.sidetext_width != 0)
@@ -534,75 +540,78 @@ void OptionsGroup::activate_line(Line& line)
         }
 
         line.extra_widget_sizer = extra_widget(this->ctrl_parent());
-        if (!custom_ctrl)
+        if (!custom_ctrl) {
             h_sizer->Add(line.extra_widget_sizer, 0, wxLEFT | wxALIGN_CENTER_VERTICAL, 4);        //! requires verification
+            line.extra_widget_sizer_parent = h_sizer;
+        } else {
+            line.owned_extra_widget_sizer.reset(line.extra_widget_sizer);
+        }
     }
 }
 
 // create all controls for the option group from the m_lines
 bool OptionsGroup::activate(std::function<void()> throw_if_canceled/* = [](){}*/, int horiz_alignment/* = wxALIGN_LEFT*/)
 {
-	if (sizer)//(!sizer->IsEmpty())
-		return false;
+    if (sizer)//(!sizer->IsEmpty())
+        return false;
 
-	try {
-		if (staticbox) {
-			stb = new wxStaticBox(m_parent, wxID_ANY, _(title));
-			if (!wxOSX) stb->SetBackgroundStyle(wxBG_STYLE_PAINT);
-			stb->SetFont(wxOSX ? wxGetApp().normal_font() : wxGetApp().bold_font());
-			wxGetApp().UpdateDarkUI(stb);
-		}
-		else
-			stb = nullptr;
-		sizer = (staticbox ? new wxStaticBoxSizer(stb, wxVERTICAL) : new wxBoxSizer(wxVERTICAL));
+    try {
+        if (staticbox) {
+            stb = new wxStaticBox(m_parent, wxID_ANY, _(title));
+            if (!wxOSX) stb->SetBackgroundStyle(wxBG_STYLE_PAINT);
+            stb->SetFont(wxOSX ? wxGetApp().normal_font() : wxGetApp().bold_font());
+            wxGetApp().UpdateDarkUI(stb);
+        }
+        else
+            stb = nullptr;
+        sizer = (staticbox ? new wxStaticBoxSizer(stb, wxVERTICAL) : new wxBoxSizer(wxVERTICAL));
 
-		auto num_columns = 1U;
-		size_t grow_col = 1;
+        auto num_columns = 1U;
+        size_t grow_col = 1;
 
-		if (label_width == 0)
-			grow_col = 0;
-		else
-			num_columns++;
+        if (label_width == 0)
+            grow_col = 0;
+        else
+            num_columns++;
 
-		if (extra_column) {
-			num_columns++;
-			grow_col++;
-		}
+        if (extra_column) {
+            num_columns++;
+            grow_col++;
+        }
 
-		m_grid_sizer = new wxFlexGridSizer(0, num_columns, 1, 0);
-		static_cast<wxFlexGridSizer*>(m_grid_sizer)->SetFlexibleDirection(wxBOTH);
-		static_cast<wxFlexGridSizer*>(m_grid_sizer)->AddGrowableCol(grow_col);
+        m_grid_sizer = new wxFlexGridSizer(0, num_columns, 1, 0);
+        static_cast<wxFlexGridSizer*>(m_grid_sizer)->SetFlexibleDirection(wxBOTH);
+        static_cast<wxFlexGridSizer*>(m_grid_sizer)->AddGrowableCol(grow_col);
 
         sizer->Add(m_grid_sizer, 0, wxEXPAND | wxALL,
                    wxOSX || !staticbox ? 0 : ThemeMetrics::settings_group_padding(m_parent));
 
-		// activate lines
-		for (Line& line: m_lines) {
-			throw_if_canceled();
-			activate_line(line);
-		}
+        // activate lines
+        for (Line& line: m_lines) {
+            throw_if_canceled();
+            activate_line(line);
+        }
 
         ctrl_horiz_alignment = horiz_alignment;
         if (custom_ctrl)
             custom_ctrl->init_max_win_width();
-	} catch (UIBuildCanceled&) {
-		auto p = sizer;
-		this->clear();
-		p->Clear(true);
-		delete p;
-		throw;
-	}
+    } catch (UIBuildCanceled&) {
+        std::unique_ptr<wxSizer> owned_sizer{sizer};
+        this->clear();
+        owned_sizer->Clear(true);
+        throw;
+    }
 
-	return true;
+    return true;
 }
 // delete all controls from the option group
 void OptionsGroup::clear(bool destroy_custom_ctrl)
 {
-	if (!sizer)
-		return;
+    if (!sizer)
+        return;
 
-	m_grid_sizer = nullptr;
-	sizer = nullptr;
+    m_grid_sizer = nullptr;
+    sizer = nullptr;
 
     for (Line& line : m_lines)
         line.clear();
@@ -619,8 +628,8 @@ void OptionsGroup::clear(bool destroy_custom_ctrl)
             custom_ctrl = nullptr;
     }
 
-	m_extra_column_item_ptrs.clear();
-	m_fields.clear();
+    m_extra_column_item_ptrs.clear();
+    m_fields.clear();
 }
 
 Line OptionsGroup::create_single_option_line(const Option& option, const std::string& path/* = std::string()*/) const
@@ -628,8 +637,8 @@ Line OptionsGroup::create_single_option_line(const Option& option, const std::st
     wxString tooltip = _(option.opt.tooltip);
     update_Slic3r_string(tooltip);
     // note: Line constructor already do _()
-	Line retval{ _(option.opt.label), tooltip };
-	retval.label_path = path;
+    Line retval{ _(option.opt.label), tooltip };
+    retval.label_path = path;
     if(option.opt.label.empty()) {
         retval.append_option(option);
     } else {
@@ -712,11 +721,9 @@ void ConfigOptionsGroup::back_to_config_value(const DynamicPrintConfig& config, 
 {
     boost::any value;
     bool enabled = true;
-    auto it_opt = m_options.find(opt_key_idx);
     auto it_opt_set = m_opt_set.find(opt_key_idx);
-    const int opt_index = opt_key_idx.idx;
     if (opt_key_idx.key == "bed_shape") {
-        for (const std::string &key : {"bed_custom_texture", "bed_custom_model"}) {
+        for (const char *key : {"bed_custom_texture", "bed_custom_model"}) {
             const ConfigOptionString *option = config.option<ConfigOptionString>(key);
             assert(option);
             this->change_opt_value(key, option->is_enabled(), option->value);
@@ -898,7 +905,7 @@ void ConfigOptionsGroup::msw_rescale()
     // scale widgets and extra widgets if any exists
     for (const Line& line : m_lines) {
         if (line.widget_sizer)
-            rescale(line.widget_sizer);
+            rescale(line.widget_sizer.get());
         if (line.extra_widget_sizer)
             rescale(line.extra_widget_sizer);
     }
@@ -937,7 +944,7 @@ void ConfigOptionsGroup::sys_color_changed()
     // scale widgets and extra widgets if any exists
     for (const Line& line : m_lines) {
         if (line.widget_sizer)
-            update(line.widget_sizer);
+            update(line.widget_sizer.get());
         if (line.extra_widget_sizer)
             update(line.extra_widget_sizer);
     }
@@ -1025,17 +1032,17 @@ ogStaticText::ogStaticText(wxWindow* parent, const wxString& text) :
     wxStaticText(parent, wxID_ANY, text, wxDefaultPosition, wxDefaultSize)
 {
     if (!text.IsEmpty()) {
-		Wrap(60 * wxGetApp().em_unit());
-		GetParent()->Layout();
+        Wrap(60 * wxGetApp().em_unit());
+        GetParent()->Layout();
     }
 }
 
 
 void ogStaticText::SetText(const wxString& value, bool wrap/* = true*/)
 {
-	SetLabel(value);
+    SetLabel(value);
     if (wrap) Wrap(60 * wxGetApp().em_unit());
-	GetParent()->Layout();
+    GetParent()->Layout();
 }
 
 void ogStaticText::SetPathEnd(const std::string& link)
@@ -1078,7 +1085,7 @@ void ogStaticText::SetPathEnd(const std::string& link)
     });
 
     // On Linux a mouse capturing causes a totally application freeze
-    Bind(wxEVT_LEFT_UP, [link, this](wxMouseEvent& event) {
+    Bind(wxEVT_LEFT_UP, [link](wxMouseEvent& event) {
         OptionsGroup::launch_browser(link);
         event.Skip();
     });

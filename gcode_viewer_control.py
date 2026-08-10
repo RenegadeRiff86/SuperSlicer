@@ -17,6 +17,7 @@ from pathlib import Path
 
 
 CENTER_DIVISOR = 2
+WINDOW_STATE_MINIMIZED = "minimized"
 # Poll / animation delays (seconds).
 VIEW_READY_POLL_S = 0.5
 ZOOM_SCROLL_DELAY_S = 0.05
@@ -76,7 +77,7 @@ def set_window_state(window, state: str) -> None:
         window.restore()
     elif state == "maximized":
         window.maximize()
-    elif state == "minimized":
+    elif state == WINDOW_STATE_MINIMIZED:
         window.minimize()
 
 
@@ -313,7 +314,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--window-state",
-        choices=("normal", "maximized", "minimized"),
+        choices=("normal", "maximized", WINDOW_STATE_MINIMIZED),
         help="Restore, maximize, or minimize the controlled window",
     )
     parser.add_argument("--window-x", type=int, help="Set the HWND left edge in screen pixels")
@@ -400,7 +401,7 @@ def main() -> int:
                 args.window_height,
             )
             time.sleep(VIEW_READY_POLL_S)
-        if args.window_state is not None and args.window_state != "minimized":
+        if args.window_state is not None and args.window_state != WINDOW_STATE_MINIMIZED:
             set_window_state(window, args.window_state)
             time.sleep(VIEW_READY_POLL_S)
 
@@ -432,8 +433,8 @@ def main() -> int:
             print(screenshot)
         if args.export_gcode is not None:
             export_gcode(window, args.export_gcode.resolve(), args.timeout)
-        if args.window_state == "minimized":
-            set_window_state(window, "minimized")
+        if args.window_state == WINDOW_STATE_MINIMIZED:
+            set_window_state(window, WINDOW_STATE_MINIMIZED)
         print(f"viewer_pid={process_id}")
         print(f"window_handle={window.handle}")
         print(f"window_rect={window.rectangle()}")

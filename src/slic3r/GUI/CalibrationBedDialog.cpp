@@ -49,7 +49,17 @@ constexpr int    kZOffsetGridSize          = 3;   // 3x3 Klipper Z-offset pad gr
 constexpr int    kRectangularBedCorners    = 4;
 constexpr int    kCalibPerimeters          = 2;
 constexpr int    kCalibBottomSolidLayers   = 2;
-constexpr double kZOffsetAbsLimitMm        = 2.0; // supported filament Z offset range ±mm
+constexpr double kZOffsetAbsLimitMm        = 2.0;
+constexpr double kQuarterTurnDivisor       = 4.0;
+constexpr double kDiagonalProjectionDivisor = 4.0;
+constexpr int    kZOffsetCenterIndex       = 4;
+constexpr double kZOffsetRadiusSteps       = 4.0;
+constexpr size_t kFourthLoadedObjectIndex  = 4;
+constexpr size_t kThirdLoadedObjectIndex   = 3;
+constexpr size_t kSecondLoadedObjectIndex  = 2;
+constexpr double kHalfTurnDivisor          = 2.0;
+constexpr double kCenterDivisor            = 2.0;
+constexpr double kDoubleMarginFactor       = 2.0; // supported filament Z offset range ±mm
 } // namespace
 
 // First-layer height of the active print profile for nozzle 1, the default pad height.
@@ -283,13 +293,13 @@ void CalibrationBedDialog::create_geometry(wxCommandEvent& event_args) {
     /// --- rotate ---
     const ConfigOptionPoints* bed_shape = printerConfig->option<ConfigOptionPoints>("bed_shape");
     if (bed_shape->size() == kRectangularBedCorners) {
-        model.objects[objs_idx[0]]->rotate(PI / 4, { 0,0,1 });
-        model.objects[objs_idx[1]]->rotate(5 * PI / 4, { 0,0,1 });
-        model.objects[objs_idx[3]]->rotate(3 * PI / 4, { 0,0,1 });
-        model.objects[objs_idx[4]]->rotate(7 * PI / 4, { 0,0,1 });
+        model.objects[objs_idx[0]]->rotate(PI / kQuarterTurnDivisor, { 0,0,1 });
+        model.objects[objs_idx[1]]->rotate(5 * PI / kQuarterTurnDivisor, { 0,0,1 });
+        model.objects[objs_idx[kThirdLoadedObjectIndex]]->rotate(3 * PI / kQuarterTurnDivisor, { 0,0,1 });
+        model.objects[objs_idx[kFourthLoadedObjectIndex]]->rotate(7 * PI / kQuarterTurnDivisor, { 0,0,1 });
     } else {
-        model.objects[objs_idx[3]]->rotate(PI / 2, { 0,0,1 });
-        model.objects[objs_idx[4]]->rotate(PI / 2, { 0,0,1 });
+        model.objects[objs_idx[kThirdLoadedObjectIndex]]->rotate(PI / kHalfTurnDivisor, { 0,0,1 });
+        model.objects[objs_idx[kFourthLoadedObjectIndex]]->rotate(PI / kHalfTurnDivisor, { 0,0,1 });
     }
 
     /// --- translate ---
@@ -302,23 +312,23 @@ void CalibrationBedDialog::create_geometry(wxCommandEvent& event_args) {
     float offsetx = kBedPadMarginBase + kBedPadMarginBase * xyScale;
     float offsety = kBedPadMarginBase + kBedPadMarginBase * xyScale;
     if (bed_shape->size() > kRectangularBedCorners) {
-        offsetx = bed_size.x() / 2 - bed_size.x() * 1.414 / 4 + kBedPadMarginBase * xyScale;
-        offsety = bed_size.y() / 2 - bed_size.y() * 1.414 / 4 + kBedPadMarginBase * xyScale;
+        offsetx = bed_size.x() / kCenterDivisor - bed_size.x() * 1.414 / kDiagonalProjectionDivisor + kBedPadMarginBase * xyScale;
+        offsety = bed_size.y() / kCenterDivisor - bed_size.y() * 1.414 / kDiagonalProjectionDivisor + kBedPadMarginBase * xyScale;
     }
     bool large_enough = bed_shape->size() == kRectangularBedCorners ?
-        (bed_size.x() > offsetx * 3 && bed_size.y() > offsety * 3) :
-        (bed_size.x() > offsetx * 2 + kBedPadMarginBase * xyScale && bed_size.y() > offsety * 2 + kBedPadMarginBase * xyScale);
+        (bed_size.x() > offsetx * kZOffsetGridSize && bed_size.y() > offsety * kZOffsetGridSize) :
+        (bed_size.x() > offsetx * kDoubleMarginFactor + kBedPadMarginBase * xyScale && bed_size.y() > offsety * kDoubleMarginFactor + kBedPadMarginBase * xyScale);
     // note: objects are loaded around bed_size center (because of load_model bool : center_instances_around_point(this->bed.build_volume().bed_center());)
     if (large_enough) {
         ModelInstance *instance = model.objects[objs_idx[0]]->instances.front();
         instance->set_offset({ bed_min.x() + offsetx,               bed_min.y() + bed_size.y() - offsety, instance->get_offset().z() + 1 * zscale });
         instance = model.objects[objs_idx[1]]->instances.front();
         instance->set_offset({ bed_min.x() + bed_size.x() - offsetx,bed_min.y() + offsety ,               instance->get_offset().z() + 1 * zscale });
-        instance = model.objects[objs_idx[2]]->instances.front();
-        instance->set_offset({ bed_min.x() + bed_size.x()/2,       bed_min.y() + bed_size.y() / 2,        instance->get_offset().z() + 1 * zscale });
-        instance = model.objects[objs_idx[3]]->instances.front();
+        instance = model.objects[objs_idx[kSecondLoadedObjectIndex]]->instances.front();
+        instance->set_offset({ bed_min.x() + bed_size.x()/2,       bed_min.y() + bed_size.y() / kCenterDivisor,        instance->get_offset().z() + 1 * zscale });
+        instance = model.objects[objs_idx[kThirdLoadedObjectIndex]]->instances.front();
         instance->set_offset({ bed_min.x() + offsetx,               bed_min.y() + offsety,                instance->get_offset().z() + 1 * zscale });
-        instance = model.objects[objs_idx[4]]->instances.front();
+        instance = model.objects[objs_idx[kFourthLoadedObjectIndex]]->instances.front();
         instance->set_offset({ bed_min.x() + bed_size.x() - offsetx,bed_min.y() + bed_size.y() - offsety, instance->get_offset().z() + 1 * zscale });
     }
 
@@ -343,12 +353,12 @@ void CalibrationBedDialog::create_geometry(wxCommandEvent& event_args) {
     if (bed_shape->size() == kRectangularBedCorners) {
         model.objects[objs_idx[0]]->config.set_key_value(kFillAngleConfigKey, std::make_unique<ConfigOptionFloat>(90));
         model.objects[objs_idx[1]]->config.set_key_value(kFillAngleConfigKey, std::make_unique<ConfigOptionFloat>(90));
-        model.objects[objs_idx[2]]->config.set_key_value(kFillAngleConfigKey, std::make_unique<ConfigOptionFloat>(45));
-        model.objects[objs_idx[3]]->config.set_key_value(kFillAngleConfigKey, std::make_unique<ConfigOptionFloat>(0));
-        model.objects[objs_idx[4]]->config.set_key_value(kFillAngleConfigKey, std::make_unique<ConfigOptionFloat>(0));
+        model.objects[objs_idx[kSecondLoadedObjectIndex]]->config.set_key_value(kFillAngleConfigKey, std::make_unique<ConfigOptionFloat>(45));
+        model.objects[objs_idx[kThirdLoadedObjectIndex]]->config.set_key_value(kFillAngleConfigKey, std::make_unique<ConfigOptionFloat>(0));
+        model.objects[objs_idx[kFourthLoadedObjectIndex]]->config.set_key_value(kFillAngleConfigKey, std::make_unique<ConfigOptionFloat>(0));
     } else {
-        for (size_t i = 0; i < 3; i++)
-        for (size_t i = 3; i < 5; i++)
+        for (size_t i = 0; i < kZOffsetGridSize; i++)
+        for (size_t i = kZOffsetGridSize; i < 5; i++)
             model.objects[objs_idx[i]]->config.set_key_value(kFillAngleConfigKey, std::make_unique<ConfigOptionFloat>(135));
     }
 
@@ -405,13 +415,13 @@ void CalibrationBedDialog::create_z_offset_geometry(wxCommandEvent& /*event_args
         return;
     }
 
-    if (!txt_outer_walls->GetValue().ToLong(&outer_walls) || outer_walls < 2 || outer_walls > 20) {
+    if (!txt_outer_walls->GetValue().ToLong(&outer_walls) || outer_walls < kCalibPerimeters || outer_walls > 20) {
         show_error(this, _L("Outer walls must be a whole number between 2 and 20."));
         return;
     }
 
     if (!std::isfinite(center) || !std::isfinite(step) || step <= 0. || step > 0.25 ||
-        center - 4. * step < -kZOffsetAbsLimitMm || center + 4. * step > kZOffsetAbsLimitMm) {
+        center - kZOffsetRadiusSteps * step < -kZOffsetAbsLimitMm || center + kZOffsetRadiusSteps * step > kZOffsetAbsLimitMm) {
         show_error(this, _L("Use a positive step no greater than 0.25 mm, with all nine offsets between -2 and 2 mm."));
         return;
     }
@@ -430,7 +440,7 @@ void CalibrationBedDialog::create_z_offset_geometry(wxCommandEvent& /*event_args
     constexpr double pad_xy = 30.;
     constexpr double gap = 3.; // spacing between pads in the 3x3 grid (mm)
     constexpr double pitch = pad_xy + gap;
-    constexpr double grid_span = double(kZOffsetGridSize) * pad_xy + 2. * gap;
+    constexpr double grid_span = double(kZOffsetGridSize) * pad_xy + kDoubleMarginFactor * gap;
 
     const ConfigOptionPoints* bed_shape = printer_config->option<ConfigOptionPoints>("bed_shape");
     if (bed_shape == nullptr || bed_shape->get_values().empty()) {
@@ -477,7 +487,7 @@ void CalibrationBedDialog::create_z_offset_geometry(wxCommandEvent& /*event_args
         const int row = int(index / kZOffsetGridSize);
         const int column = int(index % kZOffsetGridSize);
         // Center of 0..8 is index 4 (middle of 3x3).
-        const double offset = center + (int(index) - 4) * step;
+        const double offset = center + (int(index) - kZOffsetCenterIndex) * step;
         const std::string offset_text = Slic3r::to_string_nozero(offset, kZOffsetDecimalPlaces);
         const std::string object_name = "Z" + std::to_string(index + 1) + " " +
             positions[index] + " " + offset_text + " mm";

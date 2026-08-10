@@ -141,7 +141,7 @@ public:
 
             auto cost_items = get_features(orientation, params.min_volume);
 
-            float unprintability = target_function(cost_items, params.min_volume);
+            target_function(cost_items, params.min_volume);
 
             results[orientation] = cost_items;
 
@@ -467,12 +467,12 @@ public:
         }
         else {
             float overhang = costs.overhang;
-            cost = params.RELATIVE_F * (costs.overhang * params.TAR_C + params.TAR_D + params.TAR_LAF * costs.area_laf * params.use_low_angle_face) / (params.TAR_D +
+            cost = params.RELATIVE_F * (overhang * params.TAR_C + params.TAR_D + params.TAR_LAF * costs.area_laf * params.use_low_angle_face) / (params.TAR_D +
                 params.CONTOUR_F * costs.contour + params.BOTTOM_F * bottom + params.BOTTOM_HULL_F * bottom_hull + params.TAR_PROJ_AREA * costs.area_projected);
         }
         cost += (costs.bottom < params.BOTTOM_MIN) * 100;// +(costs.height_to_bottom_hull_ratio > params.height_to_bottom_hull_ratio_MIN) * 110;
 
-        costs.unprintability = costs.unprintability = cost;
+        costs.unprintability = cost;
 
         return cost;
     }

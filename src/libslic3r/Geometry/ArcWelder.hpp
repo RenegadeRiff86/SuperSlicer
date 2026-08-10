@@ -116,8 +116,6 @@ inline Float arc_angle(
         (a >= Float( 1.) ? Float(M_PI) : Float(2.) * std::asin(a)) :
         // obtuse angle:
         (a <= Float(-1.) ? Float(M_PI) : Float(2. * M_PI) + Float(2.) * std::asin(a));
-    double asina = 0;
-    if(a >-1 && a <1) asina = std::asin(a);
     assert(angle >= 0 && angle <= Float(2. * M_PI));
     return angle;
 }

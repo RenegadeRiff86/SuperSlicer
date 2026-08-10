@@ -5,7 +5,6 @@
 #include "Search.hpp"
 
 #include <cstddef>
-#include <optional>
 #include <regex>
 #include <string>
 
@@ -13,10 +12,8 @@
 #include <boost/nowide/convert.hpp>
 
 #include "wx/dataview.h"
-#include "wx/numformatter.h"
 
 #include "libslic3r/PrintConfig.hpp"
-#include "libslic3r/PresetBundle.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"
 #include "Plater.hpp"
@@ -28,8 +25,6 @@
 
 #include "imgui/imconfig.h"
 
-using std::optional;
-
 namespace Slic3r {
 
 wxDEFINE_EVENT(wxCUSTOMEVT_JUMP_TO_OPTION, wxCommandEvent);
@@ -38,6 +33,11 @@ using GUI::from_u8;
 using GUI::into_u8;
 
 namespace Search {
+
+static constexpr size_t MATCH_RESERVE_FACTOR = 2;
+static constexpr size_t MIN_RESULT_PATH_LENGTH = 2;
+static constexpr int SLA_ICON_INDENT = 2;
+static constexpr int MATCH_SCORE_THRESHOLD = 90;
 
 static char marker_by_type(Preset::Type type, PrinterTechnology pt)
 {
@@ -185,8 +185,6 @@ void OptionsSearcher::append_options(DynamicPrintConfig* config, Preset::Type ty
 
     for (const t_config_option_key &opt_key : config->keys())
     {
-        const ConfigOptionDef& opt = *config->option_def(opt_key);
-
         // try with all idx, only the right ones will be added
         emplace_option(opt_key, type, -1);
         for (int i = 0; i < int(config->option(opt_key)->size()); ++i)
@@ -197,31 +195,31 @@ void OptionsSearcher::append_options(DynamicPrintConfig* config, Preset::Type ty
 // Mark a string using ColorMarkerStart and ColorMarkerEnd symbols
 static std::wstring mark_string(const std::wstring &str, const std::vector<uint16_t> &matches, Preset::Type type, PrinterTechnology pt)
 {
-	std::wstring out;
+    std::wstring out;
     out += marker_by_type(type, pt);
-	if (matches.empty())
-		out += str;
-	else {
-		out.reserve(str.size() * 2);
-		if (matches.front() > 0)
-			out += str.substr(0, matches.front());
-		for (size_t i = 0;;) {
-			// Find the longest string of successive indices.
-			size_t j = i + 1;
+    if (matches.empty())
+        out += str;
+    else {
+        out.reserve(str.size() * MATCH_RESERVE_FACTOR);
+        if (matches.front() > 0)
+            out += str.substr(0, matches.front());
+        for (size_t i = 0;;) {
+            // Find the longest string of successive indices.
+            size_t j = i + 1;
             while (j < matches.size() && matches[j] == matches[j - 1] + 1)
                 ++ j;
             out += ImGui::ColorMarkerStart;
             out += str.substr(matches[i], matches[j - 1] - matches[i] + 1);
             out += ImGui::ColorMarkerEnd;
             if (j == matches.size()) {
-				out += str.substr(matches[j - 1] + 1);
-				break;
-			}
+                out += str.substr(matches[j - 1] + 1);
+                break;
+            }
             out += str.substr(matches[j - 1] + 1, matches[j] - matches[j - 1] - 1);
             i = j;
-		}
-	}
-	return out;
+        }
+    }
+    return out;
 }
 
 bool OptionsSearcher::search()
@@ -234,13 +232,13 @@ static bool fuzzy_match(const std::wstring &search_pattern, const std::wstring &
     uint16_t matches[fts::max_matches + 1]; // +1 for the stopper
     int score;
     if (fts::fuzzy_match(search_pattern.c_str(), label.c_str(), score, matches)) {
-	    size_t cnt = 0;
-	    for (; matches[cnt] != fts::stopper; ++cnt);
-	    out_matches.assign(matches, matches + cnt);
-		out_score = score;
-		return true;
-	} else
-		return false;
+        size_t cnt = 0;
+        for (; matches[cnt] != fts::stopper; ++cnt);
+        out_matches.assign(matches, matches + cnt);
+        out_score = score;
+        return true;
+    } else
+        return false;
 }
 
 static bool strong_match(const std::wregex &search_pattern,
@@ -313,7 +311,7 @@ bool OptionsSearcher::search(const std::string& search,  bool force/* = false*/)
             view_params.category ?  &opt.group_local : nullptr,
                                     & opt.label_local }) {
             if (s != nullptr && (prev == nullptr || *prev != *s)) {
-                if (out.size() > 2)
+                if (out.size() > MIN_RESULT_PATH_LENGTH)
                     out += sep;
                 out += *s;
                 prev = s;
@@ -334,7 +332,7 @@ bool OptionsSearcher::search(const std::string& search,  bool force/* = false*/)
                 view_params.category ? &opt.group : nullptr,
                 & opt.label }) {
             if (s != nullptr && (prev == nullptr || *prev != *s)) {
-                if (out.size() > 2)
+                if (out.size() > MIN_RESULT_PATH_LENGTH)
                     out += sep;
                 out += *s;
                 prev = s;
@@ -422,7 +420,7 @@ bool OptionsSearcher::search(const std::string& search,  bool force/* = false*/)
 
         //search in tooltip
         size_t find_in_tooltip = std::wstring::npos;
-        if (score <= 90) {
+        if (score <= MATCH_SCORE_THRESHOLD) {
             //strong_match(wsearch, opt.tooltip_local, score2, matches2);  //Too slow
             std::wstring tooltip_lowercase = opt.tooltip_local;
             find_in_tooltip = opt.tooltip_local_lowercase.find(wsearch);
@@ -430,14 +428,14 @@ bool OptionsSearcher::search(const std::string& search,  bool force/* = false*/)
                 find_in_tooltip = opt.tooltip_lowercase.find(wsearch);
             }
         }
-        if ((view_params.exact ? score > 10 : score > 90) /*std::numeric_limits<int>::min()*/ ||
+        if ((view_params.exact ? score > 10 : score > MATCH_SCORE_THRESHOLD) /*std::numeric_limits<int>::min()*/ ||
             find_in_tooltip != std::wstring::npos) {
-            if (score <= 90) {
+            if (score <= MATCH_SCORE_THRESHOLD) {
                 score = score > 0
-                    ? score + int( (90.-score) * std::min(1., find_in_tooltip / 300.))
-                    : int(90. * std::min(1., find_in_tooltip / 300.));
+                    ? score + int( (MATCH_SCORE_THRESHOLD - score) * std::min(1., find_in_tooltip / 300.))
+                    : int(MATCH_SCORE_THRESHOLD * std::min(1., find_in_tooltip / 300.));
             }
-		    label = mark_string(label, matches, opt.type, printer_technology);
+            label = mark_string(label, matches, opt.type, printer_technology);
             label += L"  [" + std::to_wstring(score) + L"]";// add score value
             if (view_params.all_mode && (opt.tags & current_tags) == 0) {
                 label += L" " + _L("tags") + L":{";
@@ -448,8 +446,8 @@ bool OptionsSearcher::search(const std::string& search,  bool force/* = false*/)
                 }
                 label += L"}";
             }
-	        std::string label_u8 = into_u8(label);
-	        std::string label_plain = label_u8;
+            std::string label_u8 = into_u8(label);
+            std::string label_plain = label_u8;
 
 #ifdef SUPPORTS_MARKUP
             boost::replace_all(label_plain, std::string(1, char(ImGui::ColorMarkerStart)), "<b>");
@@ -458,7 +456,7 @@ bool OptionsSearcher::search(const std::string& search,  bool force/* = false*/)
             boost::erase_all(label_plain, std::string(1, char(ImGui::ColorMarkerStart)));
             boost::erase_all(label_plain, std::string(1, char(ImGui::ColorMarkerEnd)));
 #endif
-	        found.emplace_back(FoundOption{ label_plain, label_u8, boost::nowide::narrow(get_tooltip(opt, true)), i, score });
+            found.emplace_back(FoundOption{ label_plain, label_u8, boost::nowide::narrow(get_tooltip(opt, true)), i, score });
         }
     }
 
@@ -483,7 +481,7 @@ OptionsSearcher::~OptionsSearcher()
 {
 }
 
-void OptionsSearcher::check_and_update(PrinterTechnology pt_in, ConfigOptionMode tags_in, std::vector<InputInfo> input_values)
+void OptionsSearcher::check_and_update(PrinterTechnology pt_in, ConfigOptionMode tags_in, const std::vector<InputInfo>& input_values)
 {
     if (printer_technology == pt_in && current_tags == tags_in)
         return;
@@ -669,7 +667,7 @@ void OptionsSearcher::add_key(const OptionKeyIdx& opt_key_idx, Preset::Type type
 static const std::map<const char, int> icon_idxs = {
     {ImGui::PrintIconMarker     , 0},
     {ImGui::PrinterIconMarker   , 1},
-    {ImGui::PrinterSlaIconMarker, 2},
+    {ImGui::PrinterSlaIconMarker, SLA_ICON_INDENT},
     {ImGui::FilamentIconMarker  , 3},
     {ImGui::MaterialIconMarker  , 4},
     {ImGui::PreferencesButton   , 5},

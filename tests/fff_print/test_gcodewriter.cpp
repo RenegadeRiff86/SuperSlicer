@@ -65,7 +65,7 @@ SCENARIO("lift() is not ignored after unlift() at normal values of Z", "[GCodeWr
                 }
             }
         }
-		// The test above will fail for trouble_Z == 9007199254740992, where trouble_Z + 1.5 will be rounded to trouble_Z + 2.0 due to double mantisa overflow.
+        // The test above will fail for trouble_Z == 9007199254740992, where trouble_Z + 1.5 will be rounded to trouble_Z + 2.0 due to double mantisa overflow.
     }
 }
 

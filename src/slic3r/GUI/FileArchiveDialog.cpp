@@ -61,12 +61,21 @@ void  ArchiveViewModel::Delete(const wxDataViewItem& item)
 {
     assert(item.IsOk());
     ArchiveViewNode* node = static_cast<ArchiveViewNode*>(item.GetID());
-    assert(node->get_parent() != nullptr);
+    std::shared_ptr<ArchiveViewNode> parent = node->get_parent();
+    assert(parent != nullptr);
     for (std::shared_ptr<ArchiveViewNode> child : node->get_children())
     {
         Delete(wxDataViewItem(static_cast<void*>(child.get())));
     }
-    delete [] node;
+    // node's lifetime is owned by parent's shared_ptr entry, not by this raw view - erase it
+    // there so the refcount reaches zero and frees it, instead of double-freeing it here.
+    auto& siblings = parent->get_children();
+    for (auto it = siblings.begin(); it != siblings.end(); ++it) {
+        if (it->get() == node) {
+            siblings.erase(it);
+            break;
+        }
+    }
 }
 void  ArchiveViewModel::Clear()
 {

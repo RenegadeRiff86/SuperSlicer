@@ -30,6 +30,8 @@
 namespace Slic3r {
 namespace GUI {
 
+static constexpr size_t TRIANGLE_LAST_VERTEX_INDEX = 2;
+
 void MeshClipper::set_behaviour(bool fill_cut, double contour_width)
 {
     if (fill_cut != m_fill_cut || ! is_approx(contour_width, m_contour_width))
@@ -193,7 +195,7 @@ std::vector<Vec3d> MeshClipper::point_per_contour() const
     std::vector<Vec3d> out;
     
     for (const CutIsland& isl : m_result->cut_islands) {
-        assert(isl.expoly.contour.size() > 2);
+        assert(isl.expoly.contour.size() > 2); // A polygon needs at least three vertices.
         // Now return a point lying inside the contour but not in a hole.
         // We do this by taking a point lying close to the edge, repeating
         // this several times for different edges and distances from them.
@@ -218,7 +220,7 @@ std::vector<Vec3d> MeshClipper::point_per_contour() const
             }
             if (done)
                 break;
-            i += std::max(size_t(2), isl.expoly.contour.size() / 5);
+            i += std::max(size_t(2), isl.expoly.contour.size() / 5); // Advance by at least two contour vertices.
         }
         // If the above failed, just return the centroid, regardless of whether
         // it is inside the contour or in a hole (we must return something).
@@ -311,11 +313,11 @@ void MeshClipper::recalculate_triangles()
             // from the cut. The coordinates must not overflow after the transform,
             // make the rectangle a bit smaller.
 #ifdef CLIPPERLIB_INT32
-            const coord_t size = (std::numeric_limits<coord_t>::max()/2 - scale_(std::max(std::abs(e * a), std::abs(e * b)))) / 4;
+            const coord_t size = (std::numeric_limits<coord_t>::max()/2 - scale_(std::max(std::abs(e * a), std::abs(e * b)))) / 4; // Split the coordinate range, then retain overflow headroom.
 #else
-            const coord_t size = (ClipperLib::hiRange/2 - scale_(std::max(std::abs(e * a), std::abs(e * b)))) / 4;
+            const coord_t size = (ClipperLib::hiRange/2 - scale_(std::max(std::abs(e * a), std::abs(e * b)))) / 4; // Split the coordinate range, then retain overflow headroom.
 #endif
-            Polygons ep {Polygon({Point(-size, coord_t(0)), Point(size, coord_t(0)), Point(size, 2*size), Point(-size, 2*size)})};
+            Polygons ep {Polygon({Point(-size, coord_t(0)), Point(size, coord_t(0)), Point(size, 2*size), Point(-size, 2*size)})}; // The box spans twice the selected half-size.
             ep.front().rotate(angle);
             ep.front().translate(scale_(-e * a), scale_(-e * b));
             expolys = diff_ex(expolys, ep);
@@ -346,9 +348,9 @@ void MeshClipper::recalculate_triangles()
             for (auto it = triangles2d.cbegin(); it != triangles2d.cend(); it = it + 3) {
                 init_data.add_vertex((Vec3f)(tr * Vec3d((*(it + 0)).x(), (*(it + 0)).y(), height_mesh)).cast<float>(), (Vec3f)up.cast<float>());
                 init_data.add_vertex((Vec3f)(tr * Vec3d((*(it + 1)).x(), (*(it + 1)).y(), height_mesh)).cast<float>(), (Vec3f)up.cast<float>());
-                init_data.add_vertex((Vec3f)(tr * Vec3d((*(it + 2)).x(), (*(it + 2)).y(), height_mesh)).cast<float>(), (Vec3f)up.cast<float>());
+                init_data.add_vertex((Vec3f)(tr * Vec3d((*(it + TRIANGLE_LAST_VERTEX_INDEX)).x(), (*(it + TRIANGLE_LAST_VERTEX_INDEX)).y(), height_mesh)).cast<float>(), (Vec3f)up.cast<float>());
                 const size_t idx = it - triangles2d.cbegin();
-                init_data.add_triangle(static_cast<unsigned int>(idx), static_cast<unsigned int>(idx) + 1, static_cast<unsigned int>(idx) + 2);
+                init_data.add_triangle(static_cast<unsigned int>(idx), static_cast<unsigned int>(idx) + 1, static_cast<unsigned int>(idx) + TRIANGLE_LAST_VERTEX_INDEX);
             }
 
             if (!init_data.is_empty())
@@ -370,10 +372,10 @@ void MeshClipper::recalculate_triangles()
             // To prevent overflow after scaling, downscale the input if needed:
             double extra_scale = 1.;
 #ifdef CLIPPERLIB_INT32
-            int32_t limit = int32_t(std::min(std::numeric_limits<coord_t>::max() / (2. * std::max(1., scale_x)), std::numeric_limits<coord_t>::max() / (2. * std::max(1., scale_y))));
+            int32_t limit = int32_t(std::min(std::numeric_limits<coord_t>::max() / (2. * std::max(1., scale_x)), std::numeric_limits<coord_t>::max() / (2. * std::max(1., scale_y)))); // Share the symmetric coordinate range between both sides.
             int32_t max_coord = 0;
 #else
-            coord_t limit = int32_t(std::min(ClipperLib::hiRange / (2. * std::max(1., scale_x)), ClipperLib::hiRange / (2. * std::max(1., scale_y))));
+            coord_t limit = int32_t(std::min(ClipperLib::hiRange / (2. * std::max(1., scale_x)), ClipperLib::hiRange / (2. * std::max(1., scale_y)))); // Share the symmetric coordinate range between both sides.
             coord_t max_coord = 0;
 #endif
             for (const Point& pt : exp.contour)
@@ -406,9 +408,9 @@ void MeshClipper::recalculate_triangles()
             for (auto it = triangles2d.cbegin(); it != triangles2d.cend(); it = it + 3) {
                 init_data.add_vertex((Vec3f)(tr2 * Vec3d((*(it + 0)).x(), (*(it + 0)).y(), height_mesh)).cast<float>(), (Vec3f)up.cast<float>());
                 init_data.add_vertex((Vec3f)(tr2 * Vec3d((*(it + 1)).x(), (*(it + 1)).y(), height_mesh)).cast<float>(), (Vec3f)up.cast<float>());
-                init_data.add_vertex((Vec3f)(tr2 * Vec3d((*(it + 2)).x(), (*(it + 2)).y(), height_mesh)).cast<float>(), (Vec3f)up.cast<float>());
+                init_data.add_vertex((Vec3f)(tr2 * Vec3d((*(it + TRIANGLE_LAST_VERTEX_INDEX)).x(), (*(it + TRIANGLE_LAST_VERTEX_INDEX)).y(), height_mesh)).cast<float>(), (Vec3f)up.cast<float>());
                 const size_t idx = it - triangles2d.cbegin();
-                init_data.add_triangle(static_cast<unsigned short>(idx), static_cast<unsigned short>(idx) + 1, static_cast<unsigned short>(idx) + 2);
+                init_data.add_triangle(static_cast<unsigned short>(idx), static_cast<unsigned short>(idx) + 1, static_cast<unsigned short>(idx) + TRIANGLE_LAST_VERTEX_INDEX);
             }
 
             if (!init_data.is_empty())
@@ -471,7 +473,7 @@ bool MeshRaycaster::unproject_on_mesh(const Vec2d& mouse_pos, const Transform3d&
             break;
     }
 
-    if (i==hits.size() || (hits.size()-i) % 2 != 0) {
+    if (i==hits.size() || (hits.size()-i) % 2 != 0) { // Surface crossings must occur in entry/exit pairs.
         // All hits are either clipped, or there is an odd number of unclipped
         // hits - meaning the nearest must be from inside the mesh.
         return false;

@@ -53,7 +53,6 @@ public:
     ScalableButton* GetPageButton(size_t n);
 
 private:
-    wxWindow*                       m_parent;
     wxFlexGridSizer*                m_buttons_sizer;
     wxBoxSizer*                     m_sizer;
     std::vector<ScalableButton*>    m_pageButtons;
@@ -653,7 +652,6 @@ private:
 
     std::vector<int16_t> btidx_to_tabpage;
 
-    ButtonsListCtrl* m_ctrl{ nullptr };
 
 };
 #endif // slic3r_Notebook_hpp_

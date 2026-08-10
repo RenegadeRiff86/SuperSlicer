@@ -457,12 +457,12 @@ static inline std::vector<Vec2f> poisson_disk_from_samples(const std::vector<Vec
         enum {
             max_positions = 4
         };
-        Vec2f   poisson_samples[max_positions];
+        Vec2f   poisson_samples[max_positions] {};
         int     num_poisson_samples = 0;
 
         // Index into raw_samples:
-        int     first_sample_idx;
-        int     sample_cnt;
+        int     first_sample_idx = 0;
+        int     sample_cnt       = 0;
     };
 
     struct CellIDHash {

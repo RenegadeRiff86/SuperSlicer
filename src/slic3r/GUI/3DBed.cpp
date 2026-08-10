@@ -42,6 +42,11 @@ static const Slic3r::ColorRGBA DEFAULT_TRANSPARENT_GRID_COLOR  = { 0.9f, 0.9f, 0
 namespace Slic3r {
 namespace GUI {
 
+static constexpr float COLOR_CHANNEL_SCALE = 256.0f;
+static constexpr size_t TRIANGLE_VERTEX_COUNT = 3;
+static constexpr size_t LINE_VERTEX_COUNT = 2;
+static constexpr size_t TRIANGLE_LAST_VERTEX_INDEX = 2;
+
 Bed3D::Bed3D()
 {
     this->m_model_color = DEFAULT_MODEL_COLOR;
@@ -60,17 +65,17 @@ Bed3D::Bed3D()
             if (color_code.length() > 5) {
                 wxColour color;
                 color.Set((color_code[0] == '#') ? color_code : ("#" + color_code));
-                this->m_model_color.r(color.Red() / 256.f);
-                this->m_model_color.g(color.Green() / 256.f);
-                this->m_model_color.b(color.Blue() / 256.f);
+                this->m_model_color.r(color.Red() / COLOR_CHANNEL_SCALE);
+                this->m_model_color.g(color.Green() / COLOR_CHANNEL_SCALE);
+                this->m_model_color.b(color.Blue() / COLOR_CHANNEL_SCALE);
             }
             color_code = tree_colors.get<std::string>("Gui_plater_grid");
             if (color_code.length() > 5) {
                 wxColour color;
                 color.Set((color_code[0] == '#') ? color_code : ("#" + color_code));
-                this->m_grid_color.r(color.Red() / 256.f);
-                this->m_grid_color.g(color.Green() / 256.f);
-                this->m_grid_color.b(color.Blue() / 256.f);
+                this->m_grid_color.r(color.Red() / COLOR_CHANNEL_SCALE);
+                this->m_grid_color.g(color.Green() / COLOR_CHANNEL_SCALE);
+                this->m_grid_color.b(color.Blue() / COLOR_CHANNEL_SCALE);
             }
         }
         catch (const std::ifstream::failure& err) {
@@ -233,13 +238,13 @@ void Bed3D::init_triangles()
         return;
 
     const std::vector<Vec2f> triangles = triangulate_expolygon_2f(m_contour, NORMALS_UP);
-    if (triangles.empty() || triangles.size() % 3 != 0)
+    if (triangles.empty() || triangles.size() % TRIANGLE_VERTEX_COUNT != 0)
         return;
 
     GLModel::Geometry init_data;
     init_data.format = { GLModel::Geometry::EPrimitiveType::Triangles, GLModel::Geometry::EVertexLayout::P3T2 };
     init_data.reserve_vertices(triangles.size());
-    init_data.reserve_indices(triangles.size() / 3);
+    init_data.reserve_indices(triangles.size() / TRIANGLE_VERTEX_COUNT);
 
     Vec2f min = triangles.front();
     Vec2f max = min;
@@ -261,8 +266,8 @@ void Bed3D::init_triangles()
         const Vec3f p = { v.x(), v.y(), GROUND_Z };
         init_data.add_vertex(p, (Vec2f)(v - min).cwiseProduct(inv_size).eval());
         ++vertices_counter;
-        if (vertices_counter % 3 == 0)
-            init_data.add_triangle(vertices_counter - 3, vertices_counter - 2, vertices_counter - 1);
+        if (vertices_counter % TRIANGLE_VERTEX_COUNT == 0)
+            init_data.add_triangle(vertices_counter - 3, vertices_counter - LINE_VERTEX_COUNT, vertices_counter - 1);
     }
 
     if (m_model.model.get_filename().empty() && m_model.mesh_raycaster == nullptr)
@@ -328,19 +333,19 @@ void Bed3D::init_gridlines()
     std::copy(contour_lines.begin(), contour_lines.end(), std::back_inserter(gridlines));
 
     auto createGrid = [](const Lines &grid_lines, GLModel &model_to_fill){
-	    GLModel::Geometry init_data;
-	    init_data.format = { GLModel::Geometry::EPrimitiveType::Lines, GLModel::Geometry::EVertexLayout::P3 };
-	    init_data.reserve_vertices(2 * grid_lines.size());
-	    init_data.reserve_indices(2 * grid_lines.size());
+        GLModel::Geometry init_data;
+        init_data.format = { GLModel::Geometry::EPrimitiveType::Lines, GLModel::Geometry::EVertexLayout::P3 };
+        init_data.reserve_vertices(LINE_VERTEX_COUNT * grid_lines.size());
+        init_data.reserve_indices(LINE_VERTEX_COUNT * grid_lines.size());
 
-	    for (const Slic3r::Line& l : grid_lines) {
-	        init_data.add_vertex(Vec3f(unscale<float>(l.a.x()), unscale<float>(l.a.y()), GROUND_Z));
-	        init_data.add_vertex(Vec3f(unscale<float>(l.b.x()), unscale<float>(l.b.y()), GROUND_Z));
-	        const unsigned int vertices_counter = static_cast<unsigned int>(init_data.vertices_count());
-	        init_data.add_line(vertices_counter - 2, vertices_counter - 1);
-	    }
+        for (const Slic3r::Line& l : grid_lines) {
+            init_data.add_vertex(Vec3f(unscale<float>(l.a.x()), unscale<float>(l.a.y()), GROUND_Z));
+            init_data.add_vertex(Vec3f(unscale<float>(l.b.x()), unscale<float>(l.b.y()), GROUND_Z));
+            const unsigned int vertices_counter = static_cast<unsigned int>(init_data.vertices_count());
+            init_data.add_line(vertices_counter - LINE_VERTEX_COUNT, vertices_counter - 1);
+        }
 
-	    model_to_fill.init_from(std::move(init_data));
+        model_to_fill.init_from(std::move(init_data));
     };
     createGrid(gridlines, m_gridlines);
     createGrid(gridlines_big, m_gridlines_big);
@@ -360,14 +365,14 @@ void Bed3D::init_contourlines()
 
     GLModel::Geometry init_data;
     init_data.format = { GLModel::Geometry::EPrimitiveType::Lines, GLModel::Geometry::EVertexLayout::P3 };
-    init_data.reserve_vertices(2 * contour_lines.size());
-    init_data.reserve_indices(2 * contour_lines.size());
+    init_data.reserve_vertices(LINE_VERTEX_COUNT * contour_lines.size());
+    init_data.reserve_indices(LINE_VERTEX_COUNT * contour_lines.size());
 
     for (const Slic3r::Line& l : contour_lines) {
         init_data.add_vertex(Vec3f(unscale<float>(l.a.x()), unscale<float>(l.a.y()), GROUND_Z));
         init_data.add_vertex(Vec3f(unscale<float>(l.b.x()), unscale<float>(l.b.y()), GROUND_Z));
         const unsigned int vertices_counter = static_cast<unsigned int>(init_data.vertices_count());
-        init_data.add_line(vertices_counter - 2, vertices_counter - 1);
+        init_data.add_line(vertices_counter - LINE_VERTEX_COUNT, vertices_counter - 1);
     }
 
     m_contourlines.init_from(std::move(init_data));
@@ -749,10 +754,10 @@ void Bed3D::register_raycasters_for_picking(const GLModel::Geometry& geometry, c
     for (size_t i = 0; i < geometry.vertices_count(); ++i) {
         its.vertices.emplace_back(geometry.extract_position_3(i));
     }
-    its.indices.reserve(geometry.indices_count() / 3);
-    for (size_t i = 0; i < geometry.indices_count() / 3; ++i) {
-        const size_t tri_id = i * 3;
-        its.indices.emplace_back(geometry.extract_index(tri_id), geometry.extract_index(tri_id + 1), geometry.extract_index(tri_id + 2));
+    its.indices.reserve(geometry.indices_count() / TRIANGLE_VERTEX_COUNT);
+    for (size_t i = 0; i < geometry.indices_count() / TRIANGLE_VERTEX_COUNT; ++i) {
+        const size_t tri_id = i * TRIANGLE_VERTEX_COUNT;
+        its.indices.emplace_back(geometry.extract_index(tri_id), geometry.extract_index(tri_id + 1), geometry.extract_index(tri_id + TRIANGLE_LAST_VERTEX_INDEX));
     }
 
     m_model.mesh_raycaster = std::make_unique<MeshRaycaster>(std::make_shared<const TriangleMesh>(std::move(its)));

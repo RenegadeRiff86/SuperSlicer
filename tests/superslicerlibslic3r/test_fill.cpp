@@ -29,19 +29,19 @@ bool test_if_solid_surface_filled(const ExPolygon& expolygon, double flow_spacin
 //    REQUIRE(surface_width % distance == 0);
 //}
 Polylines test(const ExPolygon& poly, Fill &filler, const FillParams &params){
-	Surface surface{ Slic3r::Surface((stPosTop | stDensSolid), poly) };
-	return filler.fill_surface(&surface, params);
+    Surface surface{ Slic3r::Surface((stPosTop | stDensSolid), poly) };
+    return filler.fill_surface(&surface, params);
 }
 
 TEST_CASE("Fill: Pattern Path Length") {
     Fill* filler {Slic3r::Fill::new_from_type("rectilinear")};
-	filler->angle = -(PI) / 2.0;
+    filler->angle = -(PI) / 2.0;
     FillParams params{};
     params.dont_adjust = true;
     params.density = 0.1; // 5/50
     filler->set_bounding_box(BoundingBox(Point(0, 0), Point::new_scale(Point(100, 100))));
     filler->init_spacing(5, params);
-	//params.endpoints_overlap = false;
+    //params.endpoints_overlap = false;
 
 
 
@@ -52,7 +52,7 @@ TEST_CASE("Fill: Pattern Path Length") {
         for (size_t i = 0; i < 4; ++i) {
             std::transform(points.cbegin()+i, points.cend(),   std::back_inserter(test_set), [] (const Point& a) -> Point { return Point::new_scale(a); } ); 
             std::transform(points.cbegin(), points.cbegin()+i, std::back_inserter(test_set), [] (const Point& a) -> Point { return Point::new_scale(a); } ); 
-			Slic3r::ExPolygon expoly{};
+            Slic3r::ExPolygon expoly{};
             expoly.contour = Slic3r::Polygon{ test_set };
             Polylines paths {test(expoly, *filler, params)};
             REQUIRE(paths.size() == 1); // one continuous path
@@ -70,8 +70,8 @@ TEST_CASE("Fill: Pattern Path Length") {
         Points test_set{};
         test_set.reserve(6);
         std::transform(points.cbegin(), points.cend(),   std::back_inserter(test_set), [] (const Point& a) -> Point { return Point::new_scale(a); } );
-		Slic3r::ExPolygon expoly;
-		expoly.contour = Slic3r::Polygon(test_set);
+        Slic3r::ExPolygon expoly;
+        expoly.contour = Slic3r::Polygon(test_set);
         Polylines paths {test(expoly, *filler, params)};
         REQUIRE(paths.size() == 1); // one continuous path
     }
@@ -89,22 +89,22 @@ TEST_CASE("Fill: Pattern Path Length") {
 
         for (double angle : {-(PI/2.0), -(PI/4.0), -(PI), PI/2.0, PI}) {
             for (double spacing : {25.0, 5.0, 7.5, 8.5}) {
-				FillParams params_local = params;
-				params_local.density = filler->get_spacing() / spacing;
+                FillParams params_local = params;
+                params_local.density = filler->get_spacing() / spacing;
                 filler->angle = angle;
-				Slic3r::ExPolygon e{};
-				e.contour = Slic3r::Polygon(test_square);
+                Slic3r::ExPolygon e{};
+                e.contour = Slic3r::Polygon(test_square);
                 e.holes = Slic3r::Polygons{Slic3r::Polygon(test_hole)};
                 Polylines paths {test(e, *filler, params_local)};
-				//std::cout << "paths.size="<<paths.size() << "\n";
-				//{
-				//    std::stringstream stri;
-				//    stri << "squarewithhole.svg";
-				//    SVG svg(stri.str());
-				//    svg.draw(paths);
-				//    svg.draw(e);
-				//    svg.Close();
-				//}
+                //std::cout << "paths.size="<<paths.size() << "\n";
+                //{
+                //    std::stringstream stri;
+                //    stri << "squarewithhole.svg";
+                //    SVG svg(stri.str());
+                //    svg.draw(paths);
+                //    svg.draw(e);
+                //    svg.Close();
+                //}
                 //path CAN loop around the hole
                 REQUIRE(paths.size() >= 1);
                 REQUIRE(paths.size() <= 3);
@@ -114,20 +114,20 @@ TEST_CASE("Fill: Pattern Path Length") {
         }
     }
     SECTION("Regression: Missing infill segments in some rare circumstances") {
-		FillParams params_local = params;
+        FillParams params_local = params;
         params_local.density = 1;
         params_local.dont_adjust = false;
-		Fill* filler_local = { Slic3r::Fill::new_from_type("rectilinear") };
-		filler_local->angle = (PI/4.0);
+        Fill* filler_local = { Slic3r::Fill::new_from_type("rectilinear") };
+        filler_local->angle = (PI/4.0);
         filler_local->set_bounding_box(BoundingBox(Point(0, 0), Point(2512749, 2512749)));
-		filler_local->init_spacing(0.654498, params_local);
+        filler_local->init_spacing(0.654498, params_local);
         //filler_local->endpoints_overlap = unscale(359974);
         filler_local->layer_id = 66;
         filler_local->z = 20.15;
 
         Points points {Point{25771516,14142125},Point{14142138,25771515},Point{2512749,14142131},Point{14142125,2512749}};
-		Slic3r::ExPolygon expoly{};
-		expoly.contour = Slic3r::Polygon(points);
+        Slic3r::ExPolygon expoly{};
+        expoly.contour = Slic3r::Polygon(points);
         Polylines paths {test(expoly, *filler_local, params_local)};
         REQUIRE(paths.size() == 1); // one continuous path
 
@@ -139,8 +139,8 @@ TEST_CASE("Fill: Pattern Path Length") {
 
     SECTION("Rotated Square") {
         Points square { Point::new_scale(0,0), Point::new_scale(50,0), Point::new_scale(50,50), Point::new_scale(0,50)};
-		ExPolygon expolygon{};
-		expolygon.contour = Slic3r::Polygon(square);
+        ExPolygon expolygon{};
+        expolygon.contour = Slic3r::Polygon(square);
         auto filler {Slic3r::Fill::new_from_type("rectilinear")};
         filler->bounding_box = expolygon.contour.bounding_box();
         filler->angle = 0.F;
@@ -192,7 +192,7 @@ TEST_CASE("Fill: Pattern Path Length") {
                 Point{59963609,19493297},Point{59695865,19994587},Point{59531222,20539379},
                 Point{59515153,20697500},Point{58502480,20697500},Point{58502480,5422499}
         };
-		Slic3r::ExPolygon expolygon;
+        Slic3r::ExPolygon expolygon;
         expolygon.contour = Slic3r::Polygon{ points };
          
         REQUIRE(test_if_solid_surface_filled(expolygon, 0.55) == true);
@@ -202,7 +202,7 @@ TEST_CASE("Fill: Pattern Path Length") {
         Points points {
             Point::new_scale(0,0),Point::new_scale(98,0),Point::new_scale(98,10), Point::new_scale(0,10)
         };
-		Slic3r::ExPolygon expolygon{};
+        Slic3r::ExPolygon expolygon{};
         expolygon.contour = Slic3r::Polygon{ points };
          
         REQUIRE(test_if_solid_surface_filled(expolygon, 0.5, 45.0, 0.99) == true);
@@ -878,13 +878,13 @@ bool test_if_solid_surface_filled(const ExPolygon& expolygon, double flow_width,
     auto* filler {Slic3r::Fill::new_from_type("concentricgapfill")};
     filler->bounding_box = expolygon.contour.bounding_box();
     filler->angle = angle;
-	FillParams params;
-	params.dont_adjust = false;
+    FillParams params;
+    params.dont_adjust = false;
     FullPrintConfig config= FullPrintConfig::defaults();
     params.config = &config;
 
     Surface surface((stPosBottom | stDensSolid), expolygon);
-	//note: here we do flow.width = flow_width , flow.gheight = 0.4, flow.nozzle_size = flow_width;
+    //note: here we do flow.width = flow_width , flow.gheight = 0.4, flow.nozzle_size = flow_width;
     params.flow = Flow::new_from_width( float(flow_width), 0.4, float(flow_width), 1.f, false);
 
     params.density = density;
@@ -913,9 +913,9 @@ bool test_if_solid_surface_filled(const ExPolygon& expolygon, double flow_width,
     }) };
     uncovered.erase(iter, uncovered.end());
 
-	double uncovered_area = 0;
-	for (ExPolygon &p : uncovered) uncovered_area += unscaled(unscaled(p.area()));
-	std::cout << "uncovered size =" << uncovered_area << " / "<< unscaled(unscaled(expolygon.area()))<<"\n";
+    double uncovered_area = 0;
+    for (ExPolygon &p : uncovered) uncovered_area += unscaled(unscaled(p.area()));
+    std::cout << "uncovered size =" << uncovered_area << " / "<< unscaled(unscaled(expolygon.area()))<<"\n";
     return uncovered_area < 0.05; // solid surface is (almost) fully filled
 
 }

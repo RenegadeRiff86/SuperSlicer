@@ -16,6 +16,12 @@
 namespace Slic3r {
 namespace GUI {
 
+static constexpr size_t NEG_X_EXTENSION_INDEX = 2;
+static constexpr size_t POS_Y_EXTENSION_INDEX = 3;
+static constexpr size_t NEG_Y_EXTENSION_INDEX = 4;
+static constexpr size_t POS_Z_EXTENSION_INDEX = 5;
+static constexpr size_t NEG_Z_EXTENSION_INDEX = 6;
+
 const float GLGizmoBase::Grabber::SizeFactor = 0.05f;
 const float GLGizmoBase::Grabber::MinHalfSize = 1.5f;
 const float GLGizmoBase::Grabber::DraggingScaleFactor = 1.25f;
@@ -107,24 +113,24 @@ void GLGizmoBase::Grabber::render(float size, const ColorRGBA& render_color)
         render_extension(elements_matrices[1]);
     }
     if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::NegX)) != 0) {
-        elements_matrices[2] = elements_matrices[0] * Geometry::translation_transform(-Vec3d::UnitX()) * Geometry::rotation_transform({ 0.0, -0.5 * double(PI), 0.0 });
-        render_extension(elements_matrices[2]);
+        elements_matrices[NEG_X_EXTENSION_INDEX] = elements_matrices[0] * Geometry::translation_transform(-Vec3d::UnitX()) * Geometry::rotation_transform({ 0.0, -0.5 * double(PI), 0.0 });
+        render_extension(elements_matrices[NEG_X_EXTENSION_INDEX]);
     }
     if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::PosY)) != 0) {
-        elements_matrices[3] = elements_matrices[0] * Geometry::translation_transform(Vec3d::UnitY()) * Geometry::rotation_transform({ -0.5 * double(PI), 0.0, 0.0 });
-        render_extension(elements_matrices[3]);
+        elements_matrices[POS_Y_EXTENSION_INDEX] = elements_matrices[0] * Geometry::translation_transform(Vec3d::UnitY()) * Geometry::rotation_transform({ -0.5 * double(PI), 0.0, 0.0 });
+        render_extension(elements_matrices[POS_Y_EXTENSION_INDEX]);
     }
     if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::NegY)) != 0) {
-        elements_matrices[4] = elements_matrices[0] * Geometry::translation_transform(-Vec3d::UnitY()) * Geometry::rotation_transform({ 0.5 * double(PI), 0.0, 0.0 });
-        render_extension(elements_matrices[4]);
+        elements_matrices[NEG_Y_EXTENSION_INDEX] = elements_matrices[0] * Geometry::translation_transform(-Vec3d::UnitY()) * Geometry::rotation_transform({ 0.5 * double(PI), 0.0, 0.0 });
+        render_extension(elements_matrices[NEG_Y_EXTENSION_INDEX]);
     }
     if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::PosZ)) != 0) {
-        elements_matrices[5] = elements_matrices[0] * Geometry::translation_transform(Vec3d::UnitZ());
-        render_extension(elements_matrices[5]);
+        elements_matrices[POS_Z_EXTENSION_INDEX] = elements_matrices[0] * Geometry::translation_transform(Vec3d::UnitZ());
+        render_extension(elements_matrices[POS_Z_EXTENSION_INDEX]);
     }
     if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::NegZ)) != 0) {
-        elements_matrices[6] = elements_matrices[0] * Geometry::translation_transform(-Vec3d::UnitZ()) * Geometry::rotation_transform({ double(PI), 0.0, 0.0 });
-        render_extension(elements_matrices[6]);
+        elements_matrices[NEG_Z_EXTENSION_INDEX] = elements_matrices[0] * Geometry::translation_transform(-Vec3d::UnitZ()) * Geometry::rotation_transform({ double(PI), 0.0, 0.0 });
+        render_extension(elements_matrices[NEG_Z_EXTENSION_INDEX]);
     }
 
     if (raycasters[0] == nullptr) {
@@ -133,15 +139,15 @@ void GLGizmoBase::Grabber::render(float size, const ColorRGBA& render_color)
         if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::PosX)) != 0)
             raycasters[1] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[1]);
         if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::NegX)) != 0)
-            raycasters[2] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[2]);
+            raycasters[NEG_X_EXTENSION_INDEX] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[NEG_X_EXTENSION_INDEX]);
         if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::PosY)) != 0)
-            raycasters[3] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[3]);
+            raycasters[POS_Y_EXTENSION_INDEX] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[POS_Y_EXTENSION_INDEX]);
         if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::NegY)) != 0)
-            raycasters[4] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[4]);
+            raycasters[NEG_Y_EXTENSION_INDEX] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[NEG_Y_EXTENSION_INDEX]);
         if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::PosZ)) != 0)
-            raycasters[5] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[5]);
+            raycasters[POS_Z_EXTENSION_INDEX] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[POS_Z_EXTENSION_INDEX]);
         if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::NegZ)) != 0)
-            raycasters[6] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[6]);
+            raycasters[NEG_Z_EXTENSION_INDEX] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[NEG_Z_EXTENSION_INDEX]);
     }
     else {
         for (size_t i = 0; i < GRABBER_ELEMENTS_MAX_COUNT; ++i) {

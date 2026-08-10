@@ -52,6 +52,18 @@ GLGizmoSVG::GLGizmoSVG(GLCanvas3D &parent)
 // Private functions to create emboss volume
 namespace{
 
+constexpr int    QUARTER_TURN_DIVISOR         = 2;
+constexpr double CENTER_DIVISOR               = 2.;
+constexpr size_t INTERSECTION_PAIR_SIZE       = 2;
+constexpr size_t WARNINGS_PER_SHAPE           = 2;
+constexpr float  SYMMETRIC_PADDING_SCALE      = 2.f;
+constexpr int    DISPLAY_DECIMAL_PLACES       = 2;
+constexpr float  PROJECTION_DEPTH_LIMIT_SCALE = 2.f;
+constexpr float  SEPARATOR_LINE_HEIGHT        = 2.f;
+constexpr int    FULL_ALPHA                   = 255;
+constexpr size_t RGBA_CHANNEL_COUNT           = 4;
+constexpr float  ICON_ALIGNMENT_GRID          = 8.f;
+
 // TRN - Title in Undo/Redo stack after rotate with SVG around emboss axe
 const std::string rotation_snapshot_name = L("SVG rotate");
 // NOTE: Translation is made in "m_parent.do_rotate()"
@@ -356,7 +368,7 @@ bool GLGizmoSVG::on_init()
     ColorRGBA gray_color(.6f, .6f, .6f, .3f);
     m_rotate_gizmo.set_highlight_color(gray_color);
     // Set rotation gizmo upwardrotate
-    m_rotate_gizmo.set_angle(PI / 2);
+    m_rotate_gizmo.set_angle(PI / QUARTER_TURN_DIVISOR);
     return true;
 }
 
@@ -544,7 +556,7 @@ void GLGizmoSVG::on_stop_dragging()
     // TODO: when start second rotatiton previous rotation rotate draggers
     // This is fast fix for second try to rotate
     // When fixing, move grabber above text (not on side)
-    m_rotate_gizmo.set_angle(PI/2);
+    m_rotate_gizmo.set_angle(PI / QUARTER_TURN_DIVISOR);
 
     // apply rotation
     // TRN This is an item label in the undo-redo stack.
@@ -741,7 +753,7 @@ void draw(const ExPolygonsWithIds &shapes_with_ids, unsigned max_size)
     double scale      = max_size / static_cast<double>(std::max(bb_size.x(), bb_size.y()));
     ImVec2 win_offset = ImGui::GetWindowPos();
     Point  offset(win_offset.x + actual_pos.x, win_offset.y + actual_pos.y);
-    offset += bb_size / 2 * scale;
+    offset += bb_size / CENTER_DIVISOR * scale;
     auto draw_polygon = [&scale, offset](Slic3r::Polygon p) {
         p.scale(scale, -scale); // Y mirror
         p.translate(offset);
@@ -784,9 +796,9 @@ void draw_side_outline(const ExPolygons &shape, const std::array<unsigned char, 
 
         unsigned char &alpha = data[offset + N - 1];
         if (alpha == 0 || change_color){
-            alpha = static_cast<unsigned char>(std::round(brightess * 255));
-        } else if (alpha != 255){
-            alpha = static_cast<unsigned char>(std::min(255, int(alpha) + static_cast<int>(std::round(brightess * 255))));
+            alpha = static_cast<unsigned char>(std::round(brightess * FULL_ALPHA));
+        } else if (alpha != FULL_ALPHA){
+            alpha = static_cast<unsigned char>(std::min(FULL_ALPHA, int(alpha) + static_cast<int>(std::round(brightess * FULL_ALPHA))));
         }
     };
 
@@ -862,11 +874,11 @@ void draw_filled(const ExPolygons &shape, const std::array<unsigned char, N>& co
         size_t offset = get_offset(x, y);
         unsigned char &alpha = data[offset + N - 1];
         if (alpha == 0){
-            alpha = static_cast<unsigned char>(std::round(brightess * 255));
+            alpha = static_cast<unsigned char>(std::round(brightess * FULL_ALPHA));
             for (size_t i = 0; i < N-1; ++i)
                 data[offset + i] = color[i];
-        } else if (alpha != 255){
-            alpha = static_cast<unsigned char>(std::min(255, int(alpha) + static_cast<int>(std::round(brightess * 255))));
+        } else if (alpha != FULL_ALPHA){
+            alpha = static_cast<unsigned char>(std::min(FULL_ALPHA, int(alpha) + static_cast<int>(std::round(brightess * FULL_ALPHA))));
         }
     };
 
@@ -891,14 +903,14 @@ void draw_filled(const ExPolygons &shape, const std::array<unsigned char, N>& co
         if (intersections.empty())
             continue;
 
-        assert((intersections.size() % 2) == 0);
+        assert((intersections.size() % INTERSECTION_PAIR_SIZE) == 0);
 
         // sort intersections by x
         std::sort(intersections.begin(), intersections.end(), 
             [](const Intersection &i1, const Intersection &i2) { return i1.first.x() < i2.first.x(); });
 
         // draw lines
-        for (size_t i = 0; i < intersections.size(); i+=2) {
+        for (size_t i = 0; i < intersections.size(); i += INTERSECTION_PAIR_SIZE) {
             const Vec2d& p2 = intersections[i+1].first;
             if (p2.x() < 0)
                 continue; // out of data
@@ -950,8 +962,7 @@ bool init_texture(Texture &texture, const ExPolygonsWithIds& shapes_with_ids, un
     if (n_pixels <= 0)
         return false;
 
-    constexpr int channels_count = 4;
-    std::vector<unsigned char> data(n_pixels * channels_count, {0});
+    std::vector<unsigned char> data(n_pixels * RGBA_CHANNEL_COUNT, {0});
 
     // Union All shapes
     ExPolygons shape = union_ex(shapes_with_ids);
@@ -959,16 +970,16 @@ bool init_texture(Texture &texture, const ExPolygonsWithIds& shapes_with_ids, un
     // align to texture
     translate(shape, -bb.min);
     size_t texture_width = static_cast<size_t>(texture.width);
-    unsigned char alpha = 255; // without transparency
-    std::array<unsigned char, 4> color_shape{201, 201, 201, alpha}; // from degin by @JosefZachar
-    std::array<unsigned char, 4> color_error{237, 28, 36, alpha}; // from icon: resources/icons/flag_red.svg
-    std::array<unsigned char, 4> color_warning{237, 107, 33, alpha}; // icons orange
+    unsigned char alpha = FULL_ALPHA; // without transparency
+    std::array<unsigned char, RGBA_CHANNEL_COUNT> color_shape{201, 201, 201, alpha}; // from degin by @JosefZachar
+    std::array<unsigned char, RGBA_CHANNEL_COUNT> color_error{237, 28, 36, alpha}; // from icon: resources/icons/flag_red.svg
+    std::array<unsigned char, RGBA_CHANNEL_COUNT> color_warning{237, 107, 33, alpha}; // icons orange
     // draw unhealedable shape
     for (const ExPolygonsWithId &shapes_with_id : shapes_with_ids)
         if (!shapes_with_id.is_healed) {
             ExPolygons bad_shape = shapes_with_id.expoly; // copy
             translate(bad_shape, -bb.min); // align to texture
-            draw_side_outline<4>(bad_shape, color_error, data, texture_width, scale);
+            draw_side_outline<RGBA_CHANNEL_COUNT>(bad_shape, color_error, data, texture_width, scale);
         }
     // Draw shape with warning
     if (!shape_warnings.empty()) {
@@ -980,12 +991,12 @@ bool init_texture(Texture &texture, const ExPolygonsWithIds& shapes_with_ids, un
                 continue; // no warnings for shape
             ExPolygons warn_shape = shapes_with_id.expoly; // copy
             translate(warn_shape, -bb.min); // align to texture
-            draw_side_outline<4>(warn_shape, color_warning, data, texture_width, scale);
+            draw_side_outline<RGBA_CHANNEL_COUNT>(warn_shape, color_warning, data, texture_width, scale);
         }
     }
 
     // Draw rest of shape
-    draw_filled<4>(shape, color_shape, data, texture_width, scale);
+    draw_filled<RGBA_CHANNEL_COUNT>(shape, color_shape, data, texture_width, scale);
 
     // sends data to gpu 
     glsafe(::glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
@@ -1103,7 +1114,7 @@ std::vector<std::string> create_shape_warnings(const EmbossShape &shape, float s
     std::vector<std::string> result;
     auto add_warning = [&result, &image](size_t index, const std::string &message) {
         if (result.empty())
-            result = std::vector<std::string>(get_shapes_count(image) * 2);
+            result = std::vector<std::string>(get_shapes_count(image) * WARNINGS_PER_SHAPE);
         std::string &res = result[index];
         if (res.empty())
             res = message;
@@ -1124,24 +1135,24 @@ std::vector<std::string> create_shape_warnings(const EmbossShape &shape, float s
     size_t shape_index = 0;
     for (NSVGshape *shape = image.shapes; shape != NULL; shape = shape->next, ++shape_index) {
         if (!(shape->flags & NSVG_FLAGS_VISIBLE)){
-            add_warning(shape_index * 2, GUI::format(_L("Shape is marked as invisible (%1%)."), shape->id));
+            add_warning(shape_index * WARNINGS_PER_SHAPE, GUI::format(_L("Shape is marked as invisible (%1%)."), shape->id));
             continue;
         }
 
         std::string fill_warning = create_fill_warning(*shape);
         if (!fill_warning.empty()) {
             // TRN: The first placeholder is shape identifier, the second one is text describing the problem.
-            add_warning(shape_index * 2, GUI::format(_L("Fill of shape (%1%) contains unsupported: %2%."), shape->id, fill_warning));
+            add_warning(shape_index * WARNINGS_PER_SHAPE, GUI::format(_L("Fill of shape (%1%) contains unsupported: %2%."), shape->id, fill_warning));
         }
         
         float minimal_width_in_mm = 1e-3f;
         if (shape->strokeWidth <= minimal_width_in_mm * scale) {
-            add_warning(shape_index * 2, GUI::format(_L("Stroke of shape (%1%) is too thin (minimal width is %2% mm)."), shape->id, minimal_width_in_mm));
+            add_warning(shape_index * WARNINGS_PER_SHAPE, GUI::format(_L("Stroke of shape (%1%) is too thin (minimal width is %2% mm)."), shape->id, minimal_width_in_mm));
             continue;
         }
         std::string stroke_warning = create_stroke_warning(*shape);
         if (!stroke_warning.empty())
-            add_warning(shape_index * 2 + 1, GUI::format(_L("Stroke of shape (%1%) contains unsupported: %2%."), shape->id, stroke_warning));
+            add_warning(shape_index * WARNINGS_PER_SHAPE + 1, GUI::format(_L("Stroke of shape (%1%) contains unsupported: %2%."), shape->id, stroke_warning));
     }
     return result;
 }
@@ -1389,14 +1400,14 @@ void GLGizmoSVG::draw_preview(){
         std::optional<float> spacing;
         // is texture over full height?
         if (m_texture.height != m_gui_cfg->texture_max_size_px) {
-            spacing = (m_gui_cfg->texture_max_size_px - m_texture.height) / 2.f;
+            spacing = (m_gui_cfg->texture_max_size_px - m_texture.height) / CENTER_DIVISOR;
             ImGui::SetCursorPosY(ImGui::GetCursorPosY() + *spacing);
         }
         // is texture over full width?
         unsigned window_width = static_cast<unsigned>(
-            ImGui::GetWindowSize().x - 2*ImGui::GetStyle().WindowPadding.x);
+            ImGui::GetWindowSize().x - SYMMETRIC_PADDING_SCALE * ImGui::GetStyle().WindowPadding.x);
         if (window_width > m_texture.width){
-            float space = (window_width - m_texture.width) / 2.f;
+            float space = (window_width - m_texture.width) / CENTER_DIVISOR;
             ImGui::SetCursorPosX(ImGui::GetCursorPosX() + space);
         }
 
@@ -1694,7 +1705,7 @@ void GLGizmoSVG::draw_size()
 
     if (m_keep_ratio) {
         std::stringstream ss;
-        ss << std::setprecision(2) << std::fixed << width << " x " << height << " " << (use_inch ? "in" : "mm");
+        ss << std::setprecision(DISPLAY_DECIMAL_PLACES) << std::fixed << width << " x " << height << " " << (use_inch ? "in" : "mm");
 
         ImGui::SameLine(m_gui_cfg->input_offset);
         ImGui::SetNextItemWidth(m_gui_cfg->input_width);
@@ -1715,8 +1726,8 @@ void GLGizmoSVG::draw_size()
     } else {
         ImGuiInputTextFlags flags = 0;
 
-        float space         = m_gui_cfg->icon_width / 2;
-        float input_width   = m_gui_cfg->input_width / 2 - space / 2;
+        float space         = m_gui_cfg->icon_width / CENTER_DIVISOR;
+        float input_width   = m_gui_cfg->input_width / CENTER_DIVISOR - space / CENTER_DIVISOR;
         float second_offset = m_gui_cfg->input_offset + input_width + space;
 
         const char *size_format = (use_inch) ? "%.2f in" : "%.1f mm";
@@ -1823,8 +1834,8 @@ void GLGizmoSVG::draw_distance()
     bool allowe_surface_distance = !use_surface && !m_volume->is_the_only_one_part();
 
     float prev_distance = m_distance.value_or(.0f);
-    float min_distance = static_cast<float>(-2 * projection.depth);
-    float max_distance = static_cast<float>(2 * projection.depth);
+    float min_distance = static_cast<float>(-PROJECTION_DEPTH_LIMIT_SCALE * projection.depth);
+    float max_distance = static_cast<float>(PROJECTION_DEPTH_LIMIT_SCALE * projection.depth);
  
     m_imgui->disabled_begin(!allowe_surface_distance);
     ScopeGuard sg([imgui = m_imgui]() { imgui->disabled_end(); });
@@ -2104,7 +2115,8 @@ GuiCfg create_gui_configuration() {
 
     float space = line_height_with_spacing - line_height;
 
-    cfg.icon_width = std::max(std::round(line_height/8)*8, 8.f);    
+    cfg.icon_width = std::max(std::round(line_height / ICON_ALIGNMENT_GRID) * ICON_ALIGNMENT_GRID,
+                              ICON_ALIGNMENT_GRID);
 
     GuiCfg::Translations &tr = cfg.translations;
 
@@ -2137,7 +2149,8 @@ GuiCfg create_gui_configuration() {
     ImVec2 letter_m_size = ImGui::CalcTextSize("M");
     const float count_letter_M_in_input = 12.f;
     cfg.input_width = letter_m_size.x * count_letter_M_in_input;
-    cfg.texture_max_size_px = std::round((cfg.input_width + cfg.input_offset + cfg.icon_width + space)/8) * 8;
+    cfg.texture_max_size_px = std::round(
+        (cfg.input_width + cfg.input_offset + cfg.icon_width + space) / ICON_ALIGNMENT_GRID) * ICON_ALIGNMENT_GRID;
 
      // calculate window size
     float window_input_width = cfg.input_offset + cfg.input_width + style.WindowPadding.x + space;
@@ -2145,7 +2158,7 @@ GuiCfg create_gui_configuration() {
 
     float window_title     = line_height + 2 * style.FramePadding.y + 2 * style.WindowTitleAlign.y;
     float input_height     = line_height_with_spacing + 2 * style.FramePadding.y;
-    float separator_height = 2 + style.FramePadding.y;
+    float separator_height = SEPARATOR_LINE_HEIGHT + style.FramePadding.y;
     float window_height = 
         window_title + // window title
         cfg.texture_max_size_px + 2 * style.FramePadding.y +  // preview (-- not sure with padding -> fix retina height)

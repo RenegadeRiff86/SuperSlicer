@@ -74,7 +74,7 @@ struct OrientParamsArea {
     float overhang_angle = 60.f;
     bool use_low_angle_face = true;
     bool min_volume = false;
-    Eigen::Vector3f fun_dir;
+    Eigen::Vector3f fun_dir = Eigen::Vector3f::Zero();
 
     /// Allow parallel execution.
     bool parallel = true;
@@ -122,7 +122,7 @@ struct OrientParams {
     float overhang_angle = 60.f;
     bool use_low_angle_face = true;
     bool min_volume = false;
-    Eigen::Vector3f fun_dir;
+    Eigen::Vector3f fun_dir = Eigen::Vector3f::Zero();
 
 
     /// Allow parallel execution.
@@ -134,6 +134,48 @@ struct OrientParams {
 
     /// A predicate returning true if abort is needed.
     std::function<bool(void)>     stopcondition = {};
+
+    static OrientParams for_minimum_support_area()
+    {
+        const OrientParamsArea area;
+        OrientParams params;
+        params.TAR_A                           = area.TAR_A;
+        params.TAR_B                           = area.TAR_B;
+        params.RELATIVE_F                      = area.RELATIVE_F;
+        params.CONTOUR_F                       = area.CONTOUR_F;
+        params.BOTTOM_F                        = area.BOTTOM_F;
+        params.BOTTOM_HULL_F                   = area.BOTTOM_HULL_F;
+        params.TAR_C                           = area.TAR_C;
+        params.TAR_D                           = area.TAR_D;
+        params.TAR_E                           = area.TAR_E;
+        params.FIRST_LAY_H                     = area.FIRST_LAY_H;
+        params.VECTOR_TOL                      = area.VECTOR_TOL;
+        params.NEGL_FACE_SIZE                  = area.NEGL_FACE_SIZE;
+        params.ASCENT                          = area.ASCENT;
+        params.PLAFOND_ADV                     = area.PLAFOND_ADV;
+        params.CONTOUR_AMOUNT                  = area.CONTOUR_AMOUNT;
+        params.OV_H                            = area.OV_H;
+        params.height_offset                   = area.height_offset;
+        params.height_log                      = area.height_log;
+        params.height_log_k                    = area.height_log_k;
+        params.LAF_MAX                         = area.LAF_MAX;
+        params.LAF_MIN                         = area.LAF_MIN;
+        params.TAR_LAF                         = area.TAR_LAF;
+        params.TAR_PROJ_AREA                   = area.TAR_PROJ_AREA;
+        params.BOTTOM_MIN                      = area.BOTTOM_MIN;
+        params.BOTTOM_MAX                      = area.BOTTOM_MAX;
+        params.height_to_bottom_hull_ratio_MIN = area.height_to_bottom_hull_ratio_MIN;
+        params.BOTTOM_HULL_MAX                 = area.BOTTOM_HULL_MAX;
+        params.APPERANCE_FACE_SUPP              = area.APPERANCE_FACE_SUPP;
+        params.overhang_angle                  = area.overhang_angle;
+        params.use_low_angle_face              = area.use_low_angle_face;
+        params.min_volume                      = area.min_volume;
+        params.fun_dir                         = area.fun_dir;
+        params.parallel                        = area.parallel;
+        params.progressind                     = area.progressind;
+        params.stopcondition                   = area.stopcondition;
+        return params;
+    }
 
     OrientParams() = default;
 };

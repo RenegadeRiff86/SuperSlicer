@@ -61,6 +61,16 @@ class TriangleSelector;
 
 namespace UndoRedo {
     class StackImpl;
+
+    class DeserializationToken
+    {
+    public:
+        DeserializationToken(const DeserializationToken&) = default;
+
+    private:
+        DeserializationToken() = default;
+        friend class StackImpl;
+    };
 }
 
 class ModelConfigObject : public ObjectBase, public ModelConfig
@@ -122,8 +132,8 @@ typedef std::vector<ModelInstance*> ModelInstancePtrs;
 #define OBJECTBASE_DERIVED_COPY_MOVE_CLONE(TYPE) \
     /* Copy a model, copy the IDs. The Print::apply() will call the TYPE::copy() method */ \
     /* to make a private copy for background processing. */ \
-    static TYPE* new_copy(const TYPE &rhs)  { auto *ret = new TYPE(rhs); assert(ret->id() == rhs.id()); return ret; } \
-    static TYPE* new_copy(TYPE &&rhs)       { [[maybe_unused]] const auto rhs_id = rhs.id(); auto *ret = new TYPE(std::move(rhs)); assert(ret->id() == rhs_id); return ret; } \
+    static TYPE* new_copy(const TYPE &rhs)  { auto ret = std::make_unique<TYPE>(CopyConstructionToken{}, rhs); assert(ret->id() == rhs.id()); return ret.release(); } \
+    static TYPE* new_copy(TYPE &&rhs)       { [[maybe_unused]] const auto rhs_id = rhs.id(); auto ret = std::make_unique<TYPE>(CopyConstructionToken{}, std::move(rhs)); assert(ret->id() == rhs_id); return ret.release(); } \
     static TYPE  make_copy(const TYPE &rhs) { TYPE ret(rhs); assert(ret.id() == rhs.id()); return ret; } \
     static TYPE  make_copy(TYPE &&rhs)      { [[maybe_unused]] const auto rhs_id = rhs.id(); TYPE ret(std::move(rhs)); assert(ret.id() == rhs_id); return ret; } \
     TYPE&        assign_copy(const TYPE &rhs); \
@@ -131,10 +141,10 @@ typedef std::vector<ModelInstance*> ModelInstancePtrs;
     /* Copy a TYPE, generate new IDs. The front end will use this call. */ \
     static TYPE* new_clone(const TYPE &rhs) { \
         /* Default constructor assigning an invalid ID. */ \
-        auto obj = new TYPE(-1); \
+        auto obj = std::make_unique<TYPE>(CopyConstructionToken{}, -1); \
         obj->assign_clone(rhs); \
         assert(obj->id().valid() && obj->id() != rhs.id()); \
-        return obj; \
+        return obj.release(); \
     } \
     TYPE         make_clone(const TYPE &rhs) { \
         /* Default constructor assigning an invalid ID. */ \
@@ -155,6 +165,8 @@ typedef std::vector<ModelInstance*> ModelInstancePtrs;
 class ModelMaterial final : public ObjectBase
 {
 public:
+    explicit ModelMaterial(UndoRedo::DeserializationToken) : ModelMaterial() {}
+
     // Attributes are defined by the AMF file format, but they don't seem to be used by Slic3r for any purpose.
     t_model_material_attributes attributes;
     // Dynamic configuration storage for the object specific configuration values, overriding the global configuration.
@@ -351,6 +363,8 @@ enum class ModelVolumeType : int {
 class ModelObject final : public ObjectBase
 {
 public:
+    explicit ModelObject(UndoRedo::DeserializationToken) : ModelObject() {}
+
     std::string             name;
     std::string             input_file;    // Possible refactor: consider boost::filesystem::path
     // Instances of this ModelObject. Each instance defines a shift on the print bed, rotation around the Z axis and a uniform scaling.
@@ -524,6 +538,14 @@ public:
     bool has_sla_drain_holes() const { return !sla_drain_holes.empty(); }
     bool is_cut() const { return cut_id.id().valid(); }
     bool has_connectors() const;
+
+    class CopyConstructionToken {
+        friend class ModelObject;
+        CopyConstructionToken() = default;
+    };
+    ModelObject(CopyConstructionToken, const ModelObject &rhs) : ModelObject(rhs) {}
+    ModelObject(CopyConstructionToken, ModelObject &&rhs) noexcept : ModelObject(std::move(rhs)) {}
+    explicit ModelObject(CopyConstructionToken, int) : ModelObject(-1) {}
 
 private:
     friend class Model;
@@ -778,6 +800,8 @@ private:
 class ModelVolume final : public ObjectBase
 {
 public:
+    explicit ModelVolume(UndoRedo::DeserializationToken) : ModelVolume() {}
+
     std::string         name;
     // struct used by reload from disk command to recover data from disk
     struct Source
@@ -1164,6 +1188,7 @@ private:
     Geometry::Transformation m_transformation;
 
 public:
+    explicit ModelInstance(UndoRedo::DeserializationToken) : ModelInstance() {}
     // flag showing the position of this instance with respect to the print volume (set by Print::validate() using ModelObject::check_instances_print_volume_state())
     ModelInstanceEPrintVolumeState print_volume_state;
     // Whether or not this instance is printable
@@ -1308,9 +1333,17 @@ public:
     // Properties from loading, can be used to save.
     bool baked_transformation = true;
 
+    class CopyConstructionToken {
+        friend class Model;
+        CopyConstructionToken() = default;
+    };
+
     // Default constructor assigns a new ID to the model.
     Model() { assert(this->id().valid()); }
     ~Model() { this->clear_objects(); this->clear_materials(); }
+    Model(CopyConstructionToken, const Model &rhs) : Model(rhs) {}
+    Model(CopyConstructionToken, Model &&rhs) noexcept : Model(std::move(rhs)) {}
+    explicit Model(CopyConstructionToken, int) : Model(-1) {}
 
     /* To be able to return an object from own copy / clone methods. Hopefully the compiler will do the "Copy elision" */
     /* (Omits copy and move(since C++11) constructors, resulting in zero - copy pass - by - value semantics). */

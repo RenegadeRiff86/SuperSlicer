@@ -3,7 +3,6 @@
 #include "libslic3r/AppConfig.hpp"
 #include "libslic3r/LocalesUtils.hpp"
 #include "libslic3r/Model.hpp"
-#include "libslic3r/Utils.hpp"
 #include "Jobs/ArrangeJob.hpp"
 #include "GLCanvas3D.hpp"
 #include "GUI.hpp"
@@ -13,7 +12,6 @@
 #include <wx/scrolwin.h>
 #include <wx/display.h>
 #include <wx/file.h>
-#include "wxExtensions.hpp"
 #include "MsgDialog.hpp"
 
 #include <string>
@@ -303,7 +301,6 @@ void CalibrationFlowSpeedDialog::create_flow(wxCommandEvent &event_args)
     float overlap      = print_config->option("solid_infill_overlap")->get_float();
     float filament_max_overlap = filament_config->option("filament_max_overlap")->get_float();
     overlap = std::min(overlap, filament_max_overlap);
-    float extrusion_mult = filament_config->option("extrusion_multiplier")->get_float(0);
 
     create_geometry(min_flow, max_flow, 0, 0, std::min(80.f, overlap), std::min(80.f, overlap));
 }

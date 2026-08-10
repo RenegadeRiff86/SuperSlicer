@@ -96,8 +96,7 @@ wxString	L_str(const std::string &str);
 
 // Macro to function both as a marker for xgettext and to actually perform the translation.
 #ifndef _L_PLURAL
-//#define _L_PLURAL(s, plural, n) Slic3r::GUI::I18N::translate(s, plural, n) //doesn't want to compile
-#define _L_PLURAL(s, plural, n) Slic3r::GUI::I18N::translate((s))
+#define _L_PLURAL(s, plural, n) Slic3r::GUI::I18N::translate((s), (plural), static_cast<unsigned int>(n))
 #endif /* L */
 
 #endif /* slic3r_GUI_I18N_hpp_ */

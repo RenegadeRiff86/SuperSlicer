@@ -44,6 +44,8 @@ constexpr char kPrintHostTypeKey[]          = "host_type";
 constexpr char kPrintHostAuthorizationKey[] = "printhost_authorization_type";
 constexpr char kPrintHostAddressKey[]       = "print_host";
 constexpr char kPrintHostApiKey[]           = "printhost_apikey";
+constexpr size_t MIN_MODEL_NAME_LENGTH = 2;
+constexpr size_t MODEL_GENERATION_INDEX = 2;
 
 } // namespace
 
@@ -266,27 +268,6 @@ PhysicalPrinterDialog::PhysicalPrinterDialog(wxWindow* parent, wxString printer_
 }
 
 PhysicalPrinterDialog::~PhysicalPrinterDialog() = default;
-
-/* TODO: test for validity vs currnt method
-void PhysicalPrinterDialog::update_printers()
-{
-    wxBusyCursor wait;
-
-    std::unique_ptr<PrintHost> host(PrintHost::get_print_host(m_config));
-
-    wxArrayString printers;
-    Field *rs = m_optgroup->get_field(kPrintHostPortKey);
-    try {
-        if (! host->get_printers(printers))
-            printers.clear();
-    } catch (const HostNetworkError &err) {
-        printers.clear();
-        show_error(this, _L("Connection to printers connected via the print host failed.") + "\n\n" + from_u8(err.what()));
-    }
-    Choice *choice = dynamic_cast<Choice*>(rs);
-    choice->set_values(printers);
-    printers.empty() ? rs->disable() : rs->enable();
-}*/
 
 void PhysicalPrinterDialog::update_printers()
 {
@@ -706,8 +687,8 @@ void PhysicalPrinterDialog::update_host_type(bool printer_change)
     } link, connect;
     // allowed models are: all MINI, all MK3 and newer, MK2.5 and MK2.5S  
     auto model_supports_prusalink = [](const std::string& model) {
-        return model.size() >= 2 &&
-                (( boost::starts_with(model, "MK") && model[2] > '2' && model[2] <= '9')
+        return model.size() >= MIN_MODEL_NAME_LENGTH &&
+                (( boost::starts_with(model, "MK") && model[MODEL_GENERATION_INDEX] > '2' && model[MODEL_GENERATION_INDEX] <= '9')
                 || boost::starts_with(model, "MINI")
                 || boost::starts_with(model, "MK2.5")
                 || boost::starts_with(model, "XL")
@@ -717,8 +698,8 @@ void PhysicalPrinterDialog::update_host_type(bool printer_change)
     // Since 2.6.2 also MINI, which makes list of supported printers same for both services.
     // Lets keep these 2 functions separated for now.
     auto model_supports_prusaconnect = [](const std::string& model) {
-        return model.size() >= 2 &&
-                ((boost::starts_with(model, "MK") && model[2] > '2' && model[2] <= '9')
+        return model.size() >= MIN_MODEL_NAME_LENGTH &&
+                ((boost::starts_with(model, "MK") && model[MODEL_GENERATION_INDEX] > '2' && model[MODEL_GENERATION_INDEX] <= '9')
                 || boost::starts_with(model, "MINI")
                 || boost::starts_with(model, "MK2.5")
                 || boost::starts_with(model, "XL")
@@ -796,7 +777,10 @@ void PhysicalPrinterDialog::update_host_type(bool printer_change)
 
     Choice* choice = dynamic_cast<Choice*>(ht);
     choice->set_values(types);
-    int32_t index_in_choice = (printer_change ? std::clamp(last_in_conf - (static_cast<int32_t>(ht->m_opt.enum_def->values().size()) - static_cast<int32_t>(types.size())), 0, static_cast<int32_t>(ht->m_opt.enum_def->values().size()) - 1) : last_in_conf);
+    int32_t index_in_choice = (printer_change
+        ? std::clamp(last_in_conf - (static_cast<int32_t>(ht->m_opt.enum_def->values().size()) - static_cast<int32_t>(types.size())),
+                     0, static_cast<int32_t>(ht->m_opt.enum_def->values().size()) - 1)
+        : last_in_conf);
     choice->set_any_value(index_in_choice, false);
     if (link.supported && link.label == _(ht->m_opt.enum_def->label(index_in_choice)))
         m_config->set_key_value(kPrintHostTypeKey, std::make_unique<ConfigOptionEnum<PrintHostType>>(htPrusaLink));

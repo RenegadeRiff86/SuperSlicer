@@ -14,7 +14,6 @@
 #include <algorithm>
 #include <numeric>
 #include <utility>
-#include <stdexcept>
 #include <boost/format.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/algorithm/string/predicate.hpp>
@@ -47,10 +46,8 @@
 #include <wx/msw/dark_mode.h>
 #endif // _MSW_DARK_MODE
 
-#include "libslic3r/Platform.hpp"
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/Config.hpp"
-#include "libslic3r/libslic3r.h"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/Color.hpp"
 #include "GUI.hpp"
@@ -64,9 +61,7 @@
 #include "format.hpp"
 #include "MsgDialog.hpp"
 #include "UnsavedChangesDialog.hpp"
-#include "slic3r/Utils/AppUpdater.hpp"
 #include "slic3r/GUI/I18N.hpp"
-#include "slic3r/Config/Version.hpp"
 
 #if defined(__linux__) && defined(__WXGTK3__)
 #define wxLinux_gtk3 true
@@ -82,8 +77,27 @@ namespace GUI {
 static constexpr const char* PLACEHOLDER_TECHNOLOGY        = "{technology}";
 static constexpr const char* APP_DOWNLOADER_URL_REGISTERED = "downloader_url_registered";
 
+constexpr int    kPrinterItemBottomMarginPx    = 3;
+constexpr int    kSettingsGridColumns          = 3;
+constexpr int    kProfileColumn                = 3;
+constexpr size_t kPrinterTableColumns          = 3;
+constexpr size_t kPrinterTableLastColumn       = 2;
+constexpr int    kPrinterGridGapPx             = 20;
+constexpr int    kDisplayInsetDivisor          = 20;
+constexpr int    kDownloaderInfoHeightEm       = 5;
+constexpr int    kPathControlBorderPx          = 5;
+constexpr int    kSettingsGridGapPx            = 5;
+constexpr double kTemperatureIncrementC        = 5.0;
+constexpr int    kPresetListHeightEm           = 30;
+constexpr int    kPrinterRowSeparatorHeightPx  = 30;
+constexpr int    kScrollStepPx                 = 30;
+constexpr int    kDialogWidthPaddingEm         = 30;
+constexpr int    kNominalExtrusionPercent      = 100;
+constexpr int    kDefaultExtrusionPercent      = 105;
+constexpr int    kIndexBackgroundIconSizePx    = 192;
+constexpr int    kHalfDivisor                  = 2;
+
 using Config::Snapshot;
-using Config::SnapshotDB;
 
 
 static const std::unordered_map<PrinterTechnology, std::string> tech_to_string{ {
@@ -391,7 +405,7 @@ PrinterPicker::PrinterPicker(wxWindow *parent, const VendorProfile &vendor, wxSt
             if (i == 1) {
                 auto *alt_label = new wxStaticText(variants_panel, wxID_ANY, _L("Alternate nozzles:"));
                 alt_label->SetFont(font_alt_nozzle);
-                variants_sizer->Add(alt_label, 0, wxBOTTOM, 3);
+                variants_sizer->Add(alt_label, 0, wxBOTTOM, kPrinterItemBottomMarginPx);
                 is_variants = true;
             }
 
@@ -401,7 +415,7 @@ PrinterPicker::PrinterPicker(wxWindow *parent, const VendorProfile &vendor, wxSt
             const bool enabled = appconfig.get_variant(vendor.id, model_id, variant.name);
             cbox->SetValue(enabled);
 
-            variants_sizer->Add(cbox, 0, wxBOTTOM, 3);
+            variants_sizer->Add(cbox, 0, wxBOTTOM, kPrinterItemBottomMarginPx);
 
             cbox->Bind(wxEVT_CHECKBOX, [this, cbox](wxCommandEvent &event) {
                 on_checkbox(cbox, event.IsChecked());
@@ -415,28 +429,28 @@ PrinterPicker::PrinterPicker(wxWindow *parent, const VendorProfile &vendor, wxSt
 
     const size_t cols = std::min(max_cols, titles.size());
 
-    auto *printer_grid = new wxFlexGridSizer(cols, 0, 20);
+    auto *printer_grid = new wxFlexGridSizer(cols, 0, kPrinterGridGapPx);
     printer_grid->SetFlexibleDirection(wxVERTICAL | wxHORIZONTAL);
 
     if (titles.size() > 0) {
         const size_t odd_items = titles.size() % cols;
 
         for (size_t i = 0; i < titles.size() - odd_items; i += cols) {
-            for (size_t j = i; j < i + cols; j++) { printer_grid->Add(bitmaps[j], 0, wxBOTTOM, 20); }
-            for (size_t j = i; j < i + cols; j++) { printer_grid->Add(titles[j], 0, wxBOTTOM, 3); }
+            for (size_t j = i; j < i + cols; j++) { printer_grid->Add(bitmaps[j], 0, wxBOTTOM, kPrinterGridGapPx); }
+            for (size_t j = i; j < i + cols; j++) { printer_grid->Add(titles[j], 0, wxBOTTOM, kPrinterItemBottomMarginPx); }
             for (size_t j = i; j < i + cols; j++) { printer_grid->Add(variants_panels[j]); }
 
             // Add separator space to multiliners
             if (titles.size() > cols) {
-                for (size_t j = i; j < i + cols; j++) { printer_grid->Add(1, 30); }
+                for (size_t j = i; j < i + cols; j++) { printer_grid->Add(1, kPrinterRowSeparatorHeightPx); }
             }
         }
         if (odd_items > 0) {
             const size_t rem = titles.size() - odd_items;
 
-            for (size_t i = rem; i < titles.size(); i++) { printer_grid->Add(bitmaps[i], 0, wxBOTTOM, 20); }
+            for (size_t i = rem; i < titles.size(); i++) { printer_grid->Add(bitmaps[i], 0, wxBOTTOM, kPrinterGridGapPx); }
             for (size_t i = 0; i < cols - odd_items; i++) { printer_grid->AddSpacer(1); }
-            for (size_t i = rem; i < titles.size(); i++) { printer_grid->Add(titles[i], 0, wxBOTTOM, 3); }
+            for (size_t i = rem; i < titles.size(); i++) { printer_grid->Add(titles[i], 0, wxBOTTOM, kPrinterItemBottomMarginPx); }
             for (size_t i = 0; i < cols - odd_items; i++) { printer_grid->AddSpacer(1); }
             for (size_t i = rem; i < titles.size(); i++) { printer_grid->Add(variants_panels[i]); }
         }
@@ -680,7 +694,7 @@ PagePrinters::PagePrinters(ConfigWizard *parent,
     const t_config_option_keys families = vendor.families();
     for (const std::string &family : families) {
         const auto filter = [&](const VendorProfile::PrinterModel &model) {
-            return (model.technology == technology)
+            return (static_cast<Technology>(model.technology) == technology)
                 && model.family == family;
         };
 
@@ -772,7 +786,7 @@ PageMaterials::PageMaterials(ConfigWizard *parent, Materials *materials, wxStrin
     append_spacer(VERTICAL_SPACING);
 
     const int em = parent->em_unit();
-    const int list_h = 30*em;
+    const int list_h = kPresetListHeightEm * em;
 
 
     list_printer->SetMinSize(wxSize(23*em, list_h));
@@ -786,8 +800,8 @@ PageMaterials::PageMaterials(ConfigWizard *parent, Materials *materials, wxStrin
 #endif
 
 
-    grid = new wxFlexGridSizer(4, em/2, em);
-    grid->AddGrowableCol(3, 1);
+    grid = new wxFlexGridSizer(4, em / kHalfDivisor, em);
+    grid->AddGrowableCol(kProfileColumn, 1);
     grid->AddGrowableRow(1, 1);
 
     grid->Add(new wxStaticText(this, wxID_ANY, _L("Printer:")));
@@ -803,7 +817,7 @@ PageMaterials::PageMaterials(ConfigWizard *parent, Materials *materials, wxStrin
     auto *btn_sizer = new wxBoxSizer(wxHORIZONTAL);
     auto *sel_all = new wxButton(this, wxID_ANY, _L("All"));
     auto *sel_none = new wxButton(this, wxID_ANY, _L("None"));
-    btn_sizer->Add(sel_all, 0, wxRIGHT, em / 2);
+    btn_sizer->Add(sel_all, 0, wxRIGHT, em / kHalfDivisor);
     btn_sizer->Add(sel_none);
 
     wxGetApp().UpdateDarkUI(list_printer);
@@ -961,7 +975,7 @@ void PageMaterials::set_compatible_printers_html_window(const std::vector<std::s
             for (size_t i = 0; i < printer_names.size(); ++i)
             {
                 text += wxString::Format("<td>%s</td>", boost::nowide::widen(printer_names[i]));
-                if (i % 3 == 2) {
+                if (i % kPrinterTableColumns == kPrinterTableLastColumn) {
                     text += wxString::Format(
                         "</tr>"
                         "<tr>");
@@ -1479,12 +1493,12 @@ Worker::Worker(wxWindow* parent)
 
     auto* path_label = new wxStaticText(m_parent, wxID_ANY, _L("Download path") + ":");
 
-    this->Add(path_label, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
-    this->Add(m_input_path, 1, wxEXPAND | wxTOP | wxLEFT | wxRIGHT, 5);
+    this->Add(path_label, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, kPathControlBorderPx);
+    this->Add(m_input_path, 1, wxEXPAND | wxTOP | wxLEFT | wxRIGHT, kPathControlBorderPx);
 
     auto* button_path = new wxButton(m_parent, wxID_ANY, _L("Browse"));
     wxGetApp().SetWindowVariantForButton(button_path);
-    this->Add(button_path, 0, wxEXPAND | wxTOP | wxLEFT, 5);
+    this->Add(button_path, 0, wxEXPAND | wxTOP | wxLEFT, kPathControlBorderPx);
     button_path->Bind(wxEVT_BUTTON, [this](wxCommandEvent& event) {
         boost::filesystem::path chosen_dest(boost::nowide::narrow(m_input_path->GetValue()));
 
@@ -1543,7 +1557,7 @@ PageDownloader::PageDownloader(ConfigWizard* parent)
     // append info line with link on printables.com
     {
         const int em = parent->em_unit();
-        wxHtmlWindow* html_window = new wxHtmlWindow(this, wxID_ANY, wxDefaultPosition, wxSize(60 * em, 5 * em), wxHW_SCROLLBAR_NEVER);
+        wxHtmlWindow* html_window = new wxHtmlWindow(this, wxID_ANY, wxDefaultPosition, wxSize(60 * em, kDownloaderInfoHeightEm * em), wxHW_SCROLLBAR_NEVER);
 
         html_window->Bind(wxEVT_HTML_LINK_CLICKED, [](wxHtmlLinkEvent& event) {
             wxGetApp().open_browser_with_warning_dialog(event.GetLinkInfo().GetHref());
@@ -1588,8 +1602,7 @@ PageDownloader::PageDownloader(ConfigWizard* parent)
 
     auto downloader = std::make_unique<DownloaderUtils::Worker>(this);
     m_downloader = downloader.get();
-    append(m_downloader);
-    downloader.release(); // The page's sizer now owns this nested sizer.
+    append(downloader.release()); // The page's sizer now owns this nested sizer.
     m_downloader->allow(box_allow_value);
 }
 
@@ -1963,7 +1976,7 @@ PageBuildVolume::PageBuildVolume(ConfigWizard* parent)
             build_volume->SetValue(double_to_string(val));
     }, build_volume->GetId());
 
-    auto* sizer_volume = new wxFlexGridSizer(3, 5, 5);
+    auto* sizer_volume = new wxFlexGridSizer(kSettingsGridColumns, kSettingsGridGapPx, kSettingsGridGapPx);
     auto* text_volume = new wxStaticText(this, wxID_ANY, _L("Max print height") + ":");
     auto* unit_volume = new wxStaticText(this, wxID_ANY, _L("mm"));
     sizer_volume->AddGrowableCol(0, 1);
@@ -1998,7 +2011,7 @@ PageDiameters::PageDiameters(ConfigWizard *parent)
 
     append_text(_L("Enter the diameter of your printer's hot end nozzle."));
 
-    auto *sizer_nozzle = new wxFlexGridSizer(3, 5, 5);
+    auto *sizer_nozzle = new wxFlexGridSizer(kSettingsGridColumns, kSettingsGridGapPx, kSettingsGridGapPx);
     auto *text_nozzle = new wxStaticText(this, wxID_ANY, _L("Nozzle Diameter") + ":");
     auto *unit_nozzle = new wxStaticText(this, wxID_ANY, _L("mm"));
     sizer_nozzle->AddGrowableCol(0, 1);
@@ -2012,7 +2025,7 @@ PageDiameters::PageDiameters(ConfigWizard *parent)
     append_text(_L("Enter the diameter of your filament."));
     append_text(_L("Good precision is required, so use a caliper and do multiple measurements along the filament, then compute the average."));
 
-    auto *sizer_filam = new wxFlexGridSizer(3, 5, 5);
+    auto *sizer_filam = new wxFlexGridSizer(kSettingsGridColumns, kSettingsGridGapPx, kSettingsGridGapPx);
     auto *text_filam = new wxStaticText(this, wxID_ANY, _L("Filament Diameter") + ":");
     auto *unit_filam = new wxStaticText(this, wxID_ANY, _L("mm"));
     sizer_filam->AddGrowableCol(0, 1);
@@ -2036,28 +2049,28 @@ void PageDiameters::apply_custom_config(DynamicPrintConfig &config)
     opt_filam->set_is_extruder_size(true);
     config.set_key_value("filament_diameter", std::move(opt_filam));
 
-    config.set_key_value("extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(105, true));
+    config.set_key_value("extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(kDefaultExtrusionPercent, true));
     config.set_key_value("first_layer_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(140, true));
     auto first_layer_infill_width = std::make_unique<ConfigOptionFloatOrPercent>(140, true);
     first_layer_infill_width->set_can_be_disabled(true);
     config.set_key_value("first_layer_infill_extrusion_width", std::move(first_layer_infill_width));
-    config.set_key_value("perimeter_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(105, true));
-    config.set_key_value("external_perimeter_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(100, true));
-    config.set_key_value("infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(100, true));
-    config.set_key_value("solid_infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(105, true));
-    config.set_key_value("top_infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(100, true));
-    config.set_key_value("support_material_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(100, true));
+    config.set_key_value("perimeter_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(kDefaultExtrusionPercent, true));
+    config.set_key_value("external_perimeter_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(kNominalExtrusionPercent, true));
+    config.set_key_value("infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(kNominalExtrusionPercent, true));
+    config.set_key_value("solid_infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(kDefaultExtrusionPercent, true));
+    config.set_key_value("top_infill_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(kNominalExtrusionPercent, true));
+    config.set_key_value("support_material_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(kNominalExtrusionPercent, true));
     config.set_key_value("skirt_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(110, true));
 
     //configure spacing where needed
-    config.set_key_value("extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(105, true));
+    config.set_key_value("extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(kDefaultExtrusionPercent, true));
     config.set_key_value("first_layer_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(140, true));
     config.set_key_value("first_layer_infill_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(140, true));
-    config.set_key_value("perimeter_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(105, true));
-    config.set_key_value("external_perimeter_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(100, true));
-    config.set_key_value("infill_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(100, true));
-    config.set_key_value("solid_infill_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(105, true));
-    config.set_key_value("top_infill_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(100, true));
+    config.set_key_value("perimeter_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(kDefaultExtrusionPercent, true));
+    config.set_key_value("external_perimeter_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(kNominalExtrusionPercent, true));
+    config.set_key_value("infill_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(kNominalExtrusionPercent, true));
+    config.set_key_value("solid_infill_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(kDefaultExtrusionPercent, true));
+    config.set_key_value("top_infill_extrusion_spacing", std::make_unique<ConfigOptionFloatOrPercent>(kNominalExtrusionPercent, true));
     config.option("extrusion_width")->set_phony(true);
     config.option("first_layer_extrusion_width")->set_phony(true);
     config.option("perimeter_extrusion_width")->set_phony(true);
@@ -2093,13 +2106,13 @@ PageTemperatures::PageTemperatures(ConfigWizard *parent)
     , spin_extr(new SpinCtrlDouble(this))
     , spin_bed (new SpinCtrlDouble(this))
 {
-    spin_extr->SetIncrement(5.0);
+    spin_extr->SetIncrement(kTemperatureIncrementC);
     const auto &def_extr = *print_config_def.get("temperature");
     spin_extr->SetRange(def_extr.min, def_extr.max);
     auto *default_extr = def_extr.get_default_value<ConfigOptionInts>();
     spin_extr->SetValue(default_extr != nullptr && default_extr->size() > 0 ? default_extr->get_at(0) : 200);
 
-    spin_bed->SetIncrement(5.0);
+    spin_bed->SetIncrement(kTemperatureIncrementC);
     const auto &def_bed = *print_config_def.get("bed_temperature");
     spin_bed->SetRange(def_bed.min, def_bed.max);
     auto *default_bed = def_bed.get_default_value<ConfigOptionInts>();
@@ -2108,7 +2121,7 @@ PageTemperatures::PageTemperatures(ConfigWizard *parent)
     append_text(_L("Enter the temperature needed for extruding your filament."));
     append_text(_L("A rule of thumb is 160 to 230 °C for PLA, and 215 to 250 °C for ABS."));
 
-    auto *sizer_extr = new wxFlexGridSizer(3, 5, 5);
+    auto *sizer_extr = new wxFlexGridSizer(kSettingsGridColumns, kSettingsGridGapPx, kSettingsGridGapPx);
     auto *text_extr = new wxStaticText(this, wxID_ANY, _L("Extrusion Temperature:"));
     auto *unit_extr = new wxStaticText(this, wxID_ANY, _L("°C"));
     sizer_extr->AddGrowableCol(0, 1);
@@ -2122,7 +2135,7 @@ PageTemperatures::PageTemperatures(ConfigWizard *parent)
     append_text(_L("Enter the bed temperature needed for getting your filament to stick to your heated bed."));
     append_text(_L("A rule of thumb is 60 °C for PLA and 110 °C for ABS. Leave zero if you have no heated bed."));
 
-    auto *sizer_bed = new wxFlexGridSizer(3, 5, 5);
+    auto *sizer_bed = new wxFlexGridSizer(kSettingsGridColumns, kSettingsGridGapPx, kSettingsGridGapPx);
     auto *text_bed = new wxStaticText(this, wxID_ANY, _L("Bed Temperature") + ":");
     auto *unit_bed = new wxStaticText(this, wxID_ANY, _L("°C"));
     sizer_bed->AddGrowableCol(0, 1);
@@ -2153,7 +2166,13 @@ void PageTemperatures::apply_custom_config(DynamicPrintConfig &config)
 
 ConfigWizardIndex::ConfigWizardIndex(wxWindow *parent)
     : wxScrolledWindow(parent)
-    , bg(ScalableBitmap(parent, get_bmp_bundle(GUI_App::dark_mode() ? wxGetApp().light_icon_name() : wxGetApp().dark_icon_name(), 192)->GetBitmap(wxSize(192, 192)), 192))
+    , bg(ScalableBitmap(
+          parent,
+          get_bmp_bundle(
+              GUI_App::dark_mode() ? wxGetApp().light_icon_name() : wxGetApp().dark_icon_name(),
+              kIndexBackgroundIconSizePx)
+              ->GetBitmap(wxSize(kIndexBackgroundIconSizePx, kIndexBackgroundIconSizePx)),
+          kIndexBackgroundIconSizePx))
     , bullet_black(ScalableBitmap(parent, "bullet_black.png"))
     , bullet_blue(ScalableBitmap(parent, "bullet_blue.png"))
     , bullet_white(ScalableBitmap(parent, "bullet_white.png"))
@@ -2167,7 +2186,7 @@ ConfigWizardIndex::ConfigWizardIndex(wxWindow *parent)
     SetMinSize(bg.GetSize());
 
     // scrollling: only vertical, by 30 pixels at a time.
-    SetScrollRate(30, 30);
+    SetScrollRate(kScrollStepPx, kScrollStepPx);
     EnableScrolling(false, true); // does nothing
     ShowScrollbars(wxSHOW_SB_NEVER, wxSHOW_SB_DEFAULT);
 
@@ -2293,15 +2312,15 @@ void ConfigWizardIndex::on_paint(wxPaintEvent &evt)
     if (size.GetHeight() == 0 || size.GetWidth() == 0) {
         return;
     }
-    const wxPoint start = GetViewStart() * 30; // GetViewStart is in scroll unit
+    const wxPoint start = GetViewStart() * kScrollStepPx; // GetViewStart is in scroll unit
 
     wxPaintDC dc(this);
     DoPrepareDC(dc);
 
     const auto bullet_w = bullet_black.GetWidth();
     const auto bullet_h = bullet_black.GetHeight();
-    const int yoff_icon = bullet_h < em_h ? (em_h - bullet_h) / 2 : 0;
-    const int yoff_text = bullet_h > em_h ? (bullet_h - em_h) / 2 : 0;
+    const int yoff_icon = bullet_h < em_h ? (em_h - bullet_h) / kHalfDivisor : 0;
+    const int yoff_text = bullet_h > em_h ? (bullet_h - em_h) / kHalfDivisor : 0;
     const int yinc = item_height();
 
     int index_width = 0;
@@ -2310,7 +2329,7 @@ void ConfigWizardIndex::on_paint(wxPaintEvent &evt)
     unsigned y = 0;
     for (size_t i = 0; i < items.size(); i++) {
         const Item &item = items[i];
-        unsigned x = em_w / 2 + item.indent * em_w;
+        unsigned x = em_w / kHalfDivisor + item.indent * em_w;
 
         if (i == item_active || (item_hover >= 0 && i == static_cast<size_t>(item_hover))) {
             dc.DrawBitmap(bullet_blue.get_bitmap(), x, y + yoff_icon, false);
@@ -2320,7 +2339,7 @@ void ConfigWizardIndex::on_paint(wxPaintEvent &evt)
             dc.DrawBitmap(bullet_white.get_bitmap(), x, y + yoff_icon, false);
         }
 
-        x += +bullet_w + em_w / 2;
+        x += +bullet_w + em_w / kHalfDivisor;
         const auto text_size = dc.GetTextExtent(item.label);
         dc.SetTextForeground(wxGetApp().get_label_clr_default());
         dc.DrawText(item.label, x, y + yoff_text);
@@ -2332,10 +2351,10 @@ void ConfigWizardIndex::on_paint(wxPaintEvent &evt)
     // draw logo
     if (int y = start.y + size.y - bg.GetHeight(); y >= 0) {
         dc.DrawBitmap(bg.get_bitmap(), 0, y, false);
-        index_width = std::max(index_width, bg.GetWidth() + em_w / 2);
+        index_width = std::max(index_width, bg.GetWidth() + em_w / kHalfDivisor);
     }
 
-    index_height = std::max(index_height, bg.GetHeight() + em_w / 2);
+    index_height = std::max(index_height, bg.GetHeight() + em_w / kHalfDivisor);
 
     wxSize virtual_size = GetVirtualSize();
     if (virtual_size.GetWidth() != index_width && virtual_size.GetHeight() != index_height) {
@@ -2543,15 +2562,15 @@ void ConfigWizard::priv::init_dialog_size()
 
     const auto disp_rect = display.GetClientArea();
     wxRect window_rect(
-        disp_rect.x + disp_rect.width / 20,
-        disp_rect.y + disp_rect.height / 20,
+        disp_rect.x + disp_rect.width / kDisplayInsetDivisor,
+        disp_rect.y + disp_rect.height / kDisplayInsetDivisor,
         9*disp_rect.width / 10,
         9*disp_rect.height / 10);
 
     // Prefer a wide content area (~900px + index) so material tables are not clipped.
-    const int width_hint = index->GetSize().GetWidth() + 900 + 30 * em();
+    const int width_hint = index->GetSize().GetWidth() + 900 + kDialogWidthPaddingEm * em();
     if (width_hint < window_rect.width) {
-        window_rect.x += (window_rect.width - width_hint) / 2;
+        window_rect.x += (window_rect.width - width_hint) / kHalfDivisor;
         window_rect.width = width_hint;
     }
 
@@ -3654,7 +3673,7 @@ ConfigWizard::ConfigWizard(wxWindow *parent)
     SetSizerAndFit(vsizer);
 
     // We can now enable scrolling on hscroll
-    p->hscroll->SetScrollRate(30, 30);
+    p->hscroll->SetScrollRate(kScrollStepPx, kScrollStepPx);
 
     on_window_geometry(this, [this]() {
         p->init_dialog_size();

@@ -40,7 +40,7 @@ namespace GUI {
 
         void render(wxDC& dc);
 
-        void loadImage(std::string filepath);
+        void loadImage(const std::string& filepath);
         void redrawImage();
 
         // some useful events

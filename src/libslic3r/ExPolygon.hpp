@@ -235,18 +235,20 @@ inline Linesf to_linesf(const ExPolygons &src, uint32_t count_lines = 0)
     if (count_lines == 0) count_lines = static_cast<uint32_t>(line_count);
     Linesf lines;
     lines.reserve(count_lines);
-    Vec2d prev_pd;
-    auto to_lines = [&lines, &prev_pd](const Points &pts) {
+    auto to_lines = [&lines](const Points &pts) {
         assert(pts.size() >= 3);
-        if (pts.size() < 2) return;
-        bool is_first = true;
-        for (const Point &p : pts) { 
-            Vec2d pd = p.cast<double>();
-            if (is_first) is_first = false;
-            else lines.emplace_back(prev_pd, pd);
+        if (pts.size() < 2)
+            return;
+
+        auto  it       = pts.begin();
+        Vec2d first_pd = it->cast<double>();
+        Vec2d prev_pd  = first_pd;
+        for (++it; it != pts.end(); ++it) {
+            Vec2d pd = it->cast<double>();
+            lines.emplace_back(prev_pd, pd);
             prev_pd = pd;
         }
-        lines.emplace_back(prev_pd, pts.front().cast<double>());
+        lines.emplace_back(prev_pd, first_pd);
     };
     for (const ExPolygon& expoly: src) {
         to_lines(expoly.contour.points);

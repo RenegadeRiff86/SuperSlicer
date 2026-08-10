@@ -1035,7 +1035,7 @@ bool GLGizmoSlaSupports::has_backend_supports() const
     // find SlaPrintObject with this ID
     for (const SLAPrintObject* po : m_parent.sla_print()->objects()) {
         if (po->model_object()->id() == mo->id())
-        	return po->is_step_done(slaposSupportPoints);
+            return po->is_step_done(slaposSupportPoints);
     }
     return false;
 }

@@ -1,0 +1,17 @@
+diff --git a/include/wx/string.h b/include/wx/string.h
+index e77d649b41..dd68c3c0e6 100644
+--- a/include/wx/string.h
++++ b/include/wx/string.h
+@@ -734,10 +734,10 @@ private:
+ 
+   size_t PosFromImpl(size_t pos) const
+   {
+       if ( pos == 0 || pos == npos )
+           return pos;
+-      else
+-          return const_iterator(this, m_impl.begin() + pos) - begin();
++
++      return static_cast<size_t>(wxStringOperations::DiffIters(m_impl.begin() + pos, m_impl.begin()));
+   }
+ #endif // !wxUSE_UNICODE_UTF8/wxUSE_UNICODE_UTF8
+ 

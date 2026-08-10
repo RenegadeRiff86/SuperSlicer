@@ -148,6 +148,23 @@ namespace {
 constexpr char kOnSnapshotConfigKey[] = "on_snapshot";
 constexpr char kDarkColorModeConfigKey[] = "dark_color_mode";
 constexpr char kRestoreWindowPositionConfigKey[] = "restore_win_position";
+constexpr int    kActionMarginScale                = 2;
+constexpr int    kSplashIntegralScale              = 2;
+constexpr int    kBannerVerticalMarginScale        = 2;
+constexpr float  kMinimumTitleFontScale            = 2.0f;
+constexpr size_t kSameVersionChoiceMultiplier      = 2;
+constexpr size_t kArchitecturePrefixLength         = 2;
+constexpr size_t kGcodeLinePrefixLength            = 2;
+constexpr double kSplashWidthRatioDivisor          = 3.0;
+constexpr double kMaximumSplashScaling             = 10.0;
+constexpr double kSplashScalingDecimalFactor       = 10.0;
+constexpr int    kDefaultEmUnit                    = 10;
+constexpr int    kMacDarkModeMajorVersion          = 10;
+constexpr int    kWindows10MajorVersion            = 10;
+constexpr int    kProgressInitialValue             = 10;
+constexpr int    kDarkTextChannel                  = 230;
+constexpr int    kWholePercent                     = 100;
+constexpr int    kOrangeBlueChannel                = 100;
 } // namespace
 
 wxDEFINE_EVENT(EVT_CONFIG_UPDATER_SHOW_DIALOG, wxCommandEvent);
@@ -201,7 +218,7 @@ public:
 ///            memDC.SetTextForeground(wxColour(237, 107, 33)); // ed6b21
             uint32_t color = Slic3r::GUI::wxGetApp().app_config->create_color(0.86f, 0.93f);
             memDC.SetTextForeground(wxColour(color & 0xFF, (color & 0xFF00) >> 8, (color & 0xFF0000) >> 16));
-            memDC.DrawText(text, int(get_margin() * 2), m_action_line_y_position);
+            memDC.DrawText(text, int(get_margin() * kActionMarginScale), m_action_line_y_position);
 
             memDC.SelectObject(wxNullBitmap);
             set_bitmap(bitmap);
@@ -219,7 +236,7 @@ public:
 
         // create dark grey background for the splashscreen
         // It will be 5/3 of the weight of the bitmap
-        int width = lround((double)5 / 3 * bmp.GetWidth());
+        int width = lround(static_cast<double>(5) / kSplashWidthRatioDivisor * bmp.GetWidth());
         int height = bmp.GetHeight();
 
         wxDisplay main_display;
@@ -243,7 +260,7 @@ public:
                 (display_size.width /*- display_size.x*/) / width,
                 (display_size.height /*- display_size.y*/) / height);
         }
-        if (scaling > 10) {
+        if (scaling > kMaximumSplashScaling) {
             // error
             scaling = 1;
             assert(false);
@@ -251,14 +268,14 @@ public:
         if (scaling > 1) {
             // don't grow with fractional scaling
             if (scaling > 1.8) {
-                scaling = 2 * int(scaling * 0.56);
+                scaling = kSplashIntegralScale * int(scaling * 0.56);
             } else if (scaling > 1.4) {
                 scaling = 1.5;
             } else {
                 scaling = 1.;
             }
         } else if (scaling > 0.1) {
-            scaling = int(scaling * 10) / 10.;
+            scaling = int(scaling * kSplashScalingDecimalFactor) / kSplashScalingDecimalFactor;
         } else {
             scaling = 1;
             assert(false);
@@ -311,7 +328,7 @@ public:
         wxCoord margin = get_margin();
 
         wxRect banner_rect(wxPoint(0, logo_bmp.GetSize().y), wxPoint(width, m_main_bitmap.GetHeight()));
-        banner_rect.Deflate(margin, 2 * margin);
+        banner_rect.Deflate(margin, kBannerVerticalMarginScale * margin);
 
         // use a memory DC to draw directly onto the bitmap
         wxMemoryDC memDc(m_main_bitmap);
@@ -405,8 +422,8 @@ private:
 
         int default_width_title = GetTextExtent(m_constant_text.title).GetX();
         float title_font_scale = static_cast<float>(text_banner_width) / default_width_title;
-        if (title_font_scale > 2.f) {
-            title_font_scale = std::max(2.f, text_banner_width * 0.5f / default_width_title);
+        if (title_font_scale > kMinimumTitleFontScale) {
+            title_font_scale = std::max(kMinimumTitleFontScale, text_banner_width * 0.5f / default_width_title);
         }
         scale_font(m_constant_text.title_font, title_font_scale);
 
@@ -702,7 +719,7 @@ wxString sla_wildcards(OutputFormat formatid, const std::string& custom_extensio
 static std::string libslic3r_translate_callback(const char *s) { return wxGetTranslation(wxString(s, wxConvUTF8)).utf8_str().data(); }
 
 #ifdef WIN32
-#if !wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3)
+#if !wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3) // wxWidgets 3.1.3 API boundary
 static void register_win32_dpi_event()
 {
     enum { WM_DPICHANGED_ = 0x02e0 };
@@ -731,30 +748,30 @@ static void register_win32_device_notification_event()
         if (plater == nullptr)
             // Maybe some other top level window like a dialog or maybe a pop-up menu?
             return true;
-		PDEV_BROADCAST_HDR lpdb = (PDEV_BROADCAST_HDR)lParam;
+        PDEV_BROADCAST_HDR lpdb = (PDEV_BROADCAST_HDR)lParam;
         switch (wParam) {
         case DBT_DEVICEARRIVAL:
-			if (lpdb->dbch_devicetype == DBT_DEVTYP_VOLUME)
-		        plater->GetEventHandler()->AddPendingEvent(VolumeAttachedEvent(EVT_VOLUME_ATTACHED));
-			else if (lpdb->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE) {
-				PDEV_BROADCAST_DEVICEINTERFACE lpdbi = (PDEV_BROADCAST_DEVICEINTERFACE)lpdb;
+            if (lpdb->dbch_devicetype == DBT_DEVTYP_VOLUME)
+                plater->GetEventHandler()->AddPendingEvent(VolumeAttachedEvent(EVT_VOLUME_ATTACHED));
+            else if (lpdb->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE) {
+                PDEV_BROADCAST_DEVICEINTERFACE lpdbi = (PDEV_BROADCAST_DEVICEINTERFACE)lpdb;
 //				if (lpdbi->dbcc_classguid == GUID_DEVINTERFACE_VOLUME) {
 //					printf("DBT_DEVICEARRIVAL %d - Media has arrived: %ws\n", msg_count, lpdbi->dbcc_name);
-				if (lpdbi->dbcc_classguid == GUID_DEVINTERFACE_HID)
-			        plater->GetEventHandler()->AddPendingEvent(HIDDeviceAttachedEvent(EVT_HID_DEVICE_ATTACHED, boost::nowide::narrow(lpdbi->dbcc_name)));
-			}
+                if (lpdbi->dbcc_classguid == GUID_DEVINTERFACE_HID)
+                    plater->GetEventHandler()->AddPendingEvent(HIDDeviceAttachedEvent(EVT_HID_DEVICE_ATTACHED, boost::nowide::narrow(lpdbi->dbcc_name)));
+            }
             break;
-		case DBT_DEVICEREMOVECOMPLETE:
-			if (lpdb->dbch_devicetype == DBT_DEVTYP_VOLUME)
+        case DBT_DEVICEREMOVECOMPLETE:
+            if (lpdb->dbch_devicetype == DBT_DEVTYP_VOLUME)
                 plater->GetEventHandler()->AddPendingEvent(VolumeDetachedEvent(EVT_VOLUME_DETACHED));
-			else if (lpdb->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE) {
-				PDEV_BROADCAST_DEVICEINTERFACE lpdbi = (PDEV_BROADCAST_DEVICEINTERFACE)lpdb;
+            else if (lpdb->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE) {
+                PDEV_BROADCAST_DEVICEINTERFACE lpdbi = (PDEV_BROADCAST_DEVICEINTERFACE)lpdb;
 //				if (lpdbi->dbcc_classguid == GUID_DEVINTERFACE_VOLUME)
 //					printf("DBT_DEVICEARRIVAL %d - Media was removed: %ws\n", msg_count, lpdbi->dbcc_name);
-				if (lpdbi->dbcc_classguid == GUID_DEVINTERFACE_HID)
-        			plater->GetEventHandler()->AddPendingEvent(HIDDeviceDetachedEvent(EVT_HID_DEVICE_DETACHED, boost::nowide::narrow(lpdbi->dbcc_name)));
-			}
-			break;
+                if (lpdbi->dbcc_classguid == GUID_DEVINTERFACE_HID)
+                    plater->GetEventHandler()->AddPendingEvent(HIDDeviceDetachedEvent(EVT_HID_DEVICE_DETACHED, boost::nowide::narrow(lpdbi->dbcc_name)));
+            }
+            break;
         default:
             break;
         }
@@ -789,10 +806,10 @@ static void register_win32_device_notification_event()
             plater->GetEventHandler()->AddPendingEvent(VolumeDetachedEvent(EVT_VOLUME_DETACHED));
             break;
         }
-	    default:
+        default:
 //          printf("Unknown\n");
             break;
-	    }
+        }
         return true;
     });
 
@@ -814,15 +831,15 @@ static void register_win32_device_notification_event()
         return false;
     });
 
-	wxWindow::MSWRegisterMessageHandler(WM_COPYDATA, [](wxWindow* win, WXUINT /* nMsg */, WXWPARAM wParam, WXLPARAM lParam) {
-		COPYDATASTRUCT* copy_data_structure = { 0 };
-		copy_data_structure = (COPYDATASTRUCT*)lParam;
-		if (copy_data_structure->dwData == 1) {
-			LPCWSTR arguments = (LPCWSTR)copy_data_structure->lpData;
-			Slic3r::GUI::wxGetApp().other_instance_message_handler()->handle_message(boost::nowide::narrow(arguments));
-		}
-		return true;
-		});
+    wxWindow::MSWRegisterMessageHandler(WM_COPYDATA, [](wxWindow* win, WXUINT /* nMsg */, WXWPARAM wParam, WXLPARAM lParam) {
+        COPYDATASTRUCT* copy_data_structure = { 0 };
+        copy_data_structure = (COPYDATASTRUCT*)lParam;
+        if (copy_data_structure->dwData == 1) {
+            LPCWSTR arguments = (LPCWSTR)copy_data_structure->lpData;
+            Slic3r::GUI::wxGetApp().other_instance_message_handler()->handle_message(boost::nowide::narrow(arguments));
+        }
+        return true;
+        });
 }
 #endif // WIN32
 
@@ -982,10 +999,10 @@ IMPLEMENT_APP(GUI_App)
 GUI_App::GUI_App(EAppMode mode)
     : wxApp()
     , m_app_mode(mode)
-    , m_em_unit(10)
+    , m_em_unit(kDefaultEmUnit)
     , m_imgui()
-	, m_removable_drive_manager(std::make_unique<RemovableDriveManager>())
-	, m_other_instance_message_handler(std::make_unique<OtherInstanceMessageHandler>())
+    , m_removable_drive_manager(std::make_unique<RemovableDriveManager>())
+    , m_other_instance_message_handler(std::make_unique<OtherInstanceMessageHandler>())
     , m_downloader(std::make_unique<Downloader>())
 {
     // all initailisation is reported into GUI_App::OnInit() to be able to have the gui set up and be abel to display messages.
@@ -1121,7 +1138,7 @@ bool GUI_App::init_opengl()
 }
 
 // gets path to PrusaSlicer.ini, returns semver from first line comment
-static std::optional<Semver> parse_semver_from_ini(std::string path)
+static std::optional<Semver> parse_semver_from_ini(const std::string& path)
 {
     boost::nowide::ifstream stream(path);
     std::stringstream buffer;
@@ -1236,7 +1253,7 @@ static void choose_app_dir(GUI_App &app) {
             my_new_installation.installed_name = my_default_installation.installed_name;
             my_new_installation.exe_path = my_default_installation.exe_path;
             //dir already created & in use
-        } else if (size_t(choice) < same_version.size() * 2) {
+        } else if (size_t(choice) < same_version.size() * kSameVersionChoiceMultiplier) {
             choice -=  same_version.size();
             // create dir & copy
             boost::filesystem::path path = my_default_installation.get_config_path(app.app_config->get_root_data_dir());
@@ -1244,8 +1261,8 @@ static void choose_app_dir(GUI_App &app) {
             boost::filesystem::copy(same_version[choice]->get_config_path(app.app_config->get_root_data_dir()), path,
                                   boost::filesystem::copy_options::update_existing | boost::filesystem::copy_options::recursive);
         } else {
-            assert(choice < same_version.size() * 2 + old_versions.size());
-            choice -= same_version.size() * 2;
+            assert(choice < same_version.size() * kSameVersionChoiceMultiplier + old_versions.size());
+            choice -= same_version.size() * kSameVersionChoiceMultiplier;
             assert(choice < old_versions.size());
             boost::filesystem::path path = my_default_installation.get_config_path(app.app_config->get_root_data_dir());
             boost::filesystem::create_directories(path);
@@ -1303,7 +1320,7 @@ void GUI_App::init_app_config()
 //	SetAppDisplayName(SLIC3R_APP_NAME);
 
 
-	if (!app_config) {
+    if (!app_config) {
         app_config = std::make_unique<AppConfig>(is_editor() ? AppConfig::EAppMode::Editor : AppConfig::EAppMode::GCodeViewer);
 #ifdef _M_ARM64
         AppConfig::HardwareType hard_cpu = AppConfig::HardwareType::hCpuOther;
@@ -1520,7 +1537,7 @@ bool GUI_App::on_init_inner()
 
 #if defined(_WIN32) && ! defined(_WIN64)
     // Win32 32bit build.
-    if (wxPlatformInfo::Get().GetArchName().substr(0, 2) == "64") {
+    if (wxPlatformInfo::Get().GetArchName().substr(0, kArchitecturePrefixLength) == "64") {
         RichMessageDialog dlg(nullptr,
             format_wxstr(_L("You are running a 32 bit build of %s on 64-bit Windows."
                 "\n32 bit build of %s will likely not be able to utilize all the RAM available in the system."
@@ -1753,7 +1770,7 @@ bool GUI_App::on_init_inner()
         Bind(EVT_SLIC3R_APP_DOWNLOAD_PROGRESS, [this](const wxCommandEvent& evt) {
             //lm:This does not force a render. The progress bar only updateswhen the mouse is moved.
             if (this->plater_ != nullptr)
-                this->plater_->get_notification_manager()->set_download_progress_percentage(static_cast<float>(std::stoi(into_u8(evt.GetString()))) / 100.f );
+                this->plater_->get_notification_manager()->set_download_progress_percentage(static_cast<float>(std::stoi(into_u8(evt.GetString()))) / kWholePercent );
         });
         Bind(EVT_SLIC3R_APP_DOWNLOAD_NAME, [this](const wxCommandEvent& evt) {
             //lm:This does not force a render. The progress bar only updateswhen the mouse is moved.
@@ -1877,7 +1894,7 @@ bool GUI_App::on_init_inner()
     preset_bundle = std::move(new_preset_bundle);
 
 #ifdef WIN32
-#if !wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3)
+#if !wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3) // wxWidgets 3.1.3 API boundary
     register_win32_dpi_event();
 #endif // !wxVERSION_EQUAL_OR_GREATER_THAN
     register_win32_device_notification_event();
@@ -2019,7 +2036,7 @@ bool GUI_App::dark_mode()
     // which allowed setting dark menu bar and dock area, which is
     // is detected as dark mode. We must run on at least 10.14 where the
     // proper dark mode was first introduced.
-    return wxPlatformInfo::Get().CheckOSVersion(10, 14) && mac_dark_mode();
+    return wxPlatformInfo::Get().CheckOSVersion(kMacDarkModeMajorVersion, 14) && mac_dark_mode();
 #else
     if (wxGetApp().app_config->has(kDarkColorModeConfigKey))
         return wxGetApp().app_config->get_bool(kDarkColorModeConfigKey);
@@ -2039,7 +2056,7 @@ const wxColour GUI_App::get_label_default_clr_modified(bool is_dark_mode)
 
 const wxColour GUI_App::get_label_default_clr_default(bool is_dark_mode)
 {
-    return is_dark_mode ? wxColour(230, 230, 230) : wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);
+    return is_dark_mode ? wxColour(kDarkTextChannel, kDarkTextChannel, kDarkTextChannel) : wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);
 }
 
 const wxColour GUI_App::get_label_default_clr_phony(bool is_dark_mode)
@@ -2095,7 +2112,7 @@ void GUI_App::init_ui_colours()
 #endif
 
     const bool is_dark_mode = dark_mode();
-    m_color_highlight_label_default = is_dark_mode ? wxColour(230, 230, 230) : wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);
+    m_color_highlight_label_default = is_dark_mode ? wxColour(kDarkTextChannel, kDarkTextChannel, kDarkTextChannel) : wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);
     m_color_highlight_default       = is_dark_mode ? wxColour(78, 78, 78) : wxSystemSettings::GetColour(wxSYS_COLOUR_3DLIGHT);
     derive_semantic_ui_colours();
     m_color_window_default          = is_dark_mode ? wxColour(43, 43, 43)   : wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
@@ -2121,7 +2138,7 @@ void GUI_App::derive_semantic_ui_colours()
                                         is_dark_mode ? wxColour(253, 111, 40) : wxColour(252, 77, 1));
     // default button text (enter key action), graph line accent.
     m_color_default_btn_label = resolve(0.90f, 0.80f, 1.00f, 0.80f, AppConfig::EAppColorType::Highlight,
-                                        is_dark_mode ? wxColour(255, 181, 100) : wxColour(203, 61, 0));
+                                        is_dark_mode ? wxColour(255, 181, kOrangeBlueChannel) : wxColour(203, 61, 0));
     // selected tab/button background accent.
     m_color_selected_btn_bg   = resolve(0.35f, 0.37f, 0.05f, 0.90f, AppConfig::EAppColorType::Main,
                                         is_dark_mode ? wxColour(95, 73, 62) : wxColour(228, 220, 216));
@@ -2446,8 +2463,8 @@ void GUI_App::update_fonts(const MainFrame *main_frame)
      * To avoid same rescaling twice, just fill this values
      * from rescaled MainFrame
      */
-	if (main_frame == nullptr)
-		main_frame = this->mainframe;
+    if (main_frame == nullptr)
+        main_frame = this->mainframe;
     m_small_font.SetPointSize(main_frame->normal_font().GetPointSize());
     m_bold_font.SetPointSize(main_frame->normal_font().GetPointSize());
     m_normal_font.SetPointSize(main_frame->normal_font().GetPointSize());
@@ -2540,7 +2557,7 @@ const std::string GUI_App::get_html_bg_color(wxWindow* html_parent) const
     // may not match the window background exactly, but it seems to never end up
     // as black on black.
 
-    if (wxPlatformInfo::Get().GetOSMajorVersion() == 10
+    if (wxPlatformInfo::Get().GetOSMajorVersion() == kWindows10MajorVersion
         && wxPlatformInfo::Get().GetOSMinorVersion() < 14)
         bgr_clr = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
 #endif
@@ -2652,7 +2669,7 @@ float GUI_App::toolbar_icon_scale(const bool is_limited/* = false*/) const
     if (val.empty() || auto_val.empty() || use_val.empty())
         return icon_sc;
 
-    int int_val = use_val == "0" ? 100 : atoi(val.c_str());
+    int int_val = use_val == "0" ? kWholePercent : atoi(val.c_str());
     // correct value in respect to auto_toolbar_size
     int_val = std::min(atoi(auto_val.c_str()), int_val);
 
@@ -2670,7 +2687,7 @@ void GUI_App::set_auto_toolbar_icon_scale(float scale) const
     const float icon_sc = m_em_unit * 0.1f;
 #endif // __APPLE__
 
-    long int_val = std::min(int(std::lround(scale / icon_sc * 100)), 100);
+    long int_val = std::min(int(std::lround(scale / icon_sc * kWholePercent)), kWholePercent);
     std::string val = std::to_string(int_val);
 
     app_config->set("auto_toolbar_size", val);
@@ -2704,9 +2721,9 @@ void GUI_App::recreate_GUI(const wxString& msg_name)
 
     mainframe->shutdown();
 
-    wxProgressDialog dlg(msg_name, msg_name, 100, nullptr, wxPD_AUTO_HIDE);
+    wxProgressDialog dlg(msg_name, msg_name, kWholePercent, nullptr, wxPD_AUTO_HIDE);
     dlg.Pulse();
-    dlg.Update(10, _L("Recreating") + dots);
+    dlg.Update(kProgressInitialValue, _L("Recreating") + dots);
 
     // re-init app config for new tags, colors, layout.
     this->init_app_config();
@@ -3130,16 +3147,16 @@ int GUI_App::GetSingleChoiceIndex(const wxString& message,
 // select language from the list of installed languages
 bool GUI_App::select_language()
 {
-	wxArrayString translations = wxTranslations::Get()->GetAvailableTranslations(SLIC3R_APP_KEY);
+    wxArrayString translations = wxTranslations::Get()->GetAvailableTranslations(SLIC3R_APP_KEY);
     std::vector<const wxLanguageInfo*> language_infos;
     language_infos.emplace_back(wxLocale::GetLanguageInfo(wxLANGUAGE_ENGLISH));
     for (size_t i = 0; i < translations.GetCount(); ++ i) {
-	    const wxLanguageInfo *langinfo = wxLocale::FindLanguageInfo(translations[i]);
+        const wxLanguageInfo *langinfo = wxLocale::FindLanguageInfo(translations[i]);
         if (langinfo != nullptr)
             language_infos.emplace_back(langinfo);
     }
     sort_remove_duplicates(language_infos);
-	std::sort(language_infos.begin(), language_infos.end(), [](const wxLanguageInfo* l, const wxLanguageInfo* r) { return l->Description < r->Description; });
+    std::sort(language_infos.begin(), language_infos.end(), [](const wxLanguageInfo* l, const wxLanguageInfo* r) { return l->Description < r->Description; });
 
     wxArrayString names;
     names.Alloc(language_infos.size());
@@ -3151,31 +3168,31 @@ bool GUI_App::select_language()
     int 			 init_selection_default = -1;
     for (size_t i = 0; i < language_infos.size(); ++ i) {
         if (wxLanguage(language_infos[i]->Language) == current_language)
-        	// The dictionary matches the active language and country.
+            // The dictionary matches the active language and country.
             init_selection = i;
         else if ((language_infos[i]->CanonicalName.BeforeFirst('_') == m_wxLocale->GetCanonicalName().BeforeFirst('_')) ||
-        		 // if the active language is Slovak, mark the Czech language as active.
-        	     (language_infos[i]->CanonicalName.BeforeFirst('_') == "cs" && m_wxLocale->GetCanonicalName().BeforeFirst('_') == "sk"))
-        	// The dictionary matches the active language, it does not necessarily match the country.
-        	init_selection_alt = i;
+                 // if the active language is Slovak, mark the Czech language as active.
+                 (language_infos[i]->CanonicalName.BeforeFirst('_') == "cs" && m_wxLocale->GetCanonicalName().BeforeFirst('_') == "sk"))
+            // The dictionary matches the active language, it does not necessarily match the country.
+            init_selection_alt = i;
         if (language_infos[i]->CanonicalName.BeforeFirst('_') == "en")
-        	// This will be the default selection if the active language does not match any dictionary.
-        	init_selection_default = i;
+            // This will be the default selection if the active language does not match any dictionary.
+            init_selection_default = i;
         names.Add(language_infos[i]->Description);
     }
     if (init_selection == -1)
-    	// This is the dictionary matching the active language.
-    	init_selection = init_selection_alt;
+        // This is the dictionary matching the active language.
+        init_selection = init_selection_alt;
     if (init_selection != -1)
-    	// This is the language to highlight in the choice dialog initially.
-    	init_selection_default = init_selection;
+        // This is the language to highlight in the choice dialog initially.
+        init_selection_default = init_selection;
 
     const long index = GetSingleChoiceIndex(_L("Select the language"), _L("Language"), names, init_selection_default);
-	// Try to load a new language.
+    // Try to load a new language.
     if (index != -1 && (init_selection == -1 || init_selection != index)) {
-    	const wxLanguageInfo *new_language_info = language_infos[index];
-    	if (this->load_language(new_language_info->CanonicalName, false)) {
-			// Save language at application config.
+        const wxLanguageInfo *new_language_info = language_infos[index];
+        if (this->load_language(new_language_info->CanonicalName, false)) {
+            // Save language at application config.
             // Which language to save as the selected dictionary language?
             // 1) Hopefully the language set to wxTranslations by this->load_language(), but that API is weird and we don't want to rely on its
             //    stability in the future:
@@ -3183,9 +3200,9 @@ bool GUI_App::select_language()
             // 2) Current locale language may not match the dictionary name, see GH issue #3901
             //    m_wxLocale->GetCanonicalName()
             // 3) new_language_info->CanonicalName is a safe bet. It points to a valid dictionary name.
-			app_config->set("translation_language", new_language_info->CanonicalName.ToUTF8().data());            
-    		return true;
-    	}
+            app_config->set("translation_language", new_language_info->CanonicalName.ToUTF8().data());            
+            return true;
+        }
     }
 
     return false;
@@ -3204,24 +3221,24 @@ PrinterTechnology GUI_App::get_current_printer_technology() const {
 bool GUI_App::load_language(wxString language, bool initial)
 {
     if (initial) {
-    	// There is a static list of lookup path prefixes in wxWidgets. Add ours.
-	    wxFileTranslationsLoader::AddCatalogLookupPathPrefix(from_u8(localization_dir()));
-    	// Get the active language from PrusaSlicer.ini, or empty string if the key does not exist.
+        // There is a static list of lookup path prefixes in wxWidgets. Add ours.
+        wxFileTranslationsLoader::AddCatalogLookupPathPrefix(from_u8(localization_dir()));
+        // Get the active language from PrusaSlicer.ini, or empty string if the key does not exist.
         language = app_config->get("translation_language");
         if (! language.empty())
             BOOST_LOG_TRIVIAL(trace) << boost::format("translation_language provided by " SLIC3R_APP_NAME ".ini: %1%") % language;
 
         // Get the system language.
         {
-	        const wxLanguage lang_system = wxLanguage(wxLocale::GetSystemLanguage());
-	        if (lang_system != wxLANGUAGE_UNKNOWN) {
-				m_language_info_system = wxLocale::GetLanguageInfo(lang_system);
-	        	BOOST_LOG_TRIVIAL(trace) << boost::format("System language detected (user locales and such): %1%") % m_language_info_system->CanonicalName.ToUTF8().data();
-	        }
-		}
+            const wxLanguage lang_system = wxLanguage(wxLocale::GetSystemLanguage());
+            if (lang_system != wxLANGUAGE_UNKNOWN) {
+                m_language_info_system = wxLocale::GetLanguageInfo(lang_system);
+                BOOST_LOG_TRIVIAL(trace) << boost::format("System language detected (user locales and such): %1%") % m_language_info_system->CanonicalName.ToUTF8().data();
+            }
+        }
         {
-	    	// Allocating a temporary locale will switch the default wxTranslations to its internal wxTranslations instance.
-	    	wxLocale temp_locale;
+            // Allocating a temporary locale will switch the default wxTranslations to its internal wxTranslations instance.
+            wxLocale temp_locale;
 #ifdef __WXOSX__
             // ysFIXME - temporary workaround till it isn't fixed in wxWidgets:
             // Use English as an initial language, because of under OSX it try to load "inappropriate" language for wxLANGUAGE_DEFAULT.
@@ -3231,18 +3248,18 @@ bool GUI_App::load_language(wxString language, bool initial)
 #else
             temp_locale.Init();
 #endif // __WXOSX__
-	    	// Set the current translation's language to default, otherwise GetBestTranslation() may not work (see the wxWidgets source code).
-	    	wxTranslations::Get()->SetLanguage(wxLANGUAGE_DEFAULT);
-	    	// Let the wxFileTranslationsLoader enumerate all translation dictionaries for PrusaSlicer
-	    	// and try to match them with the system specific "preferred languages". 
-	    	// There seems to be a support for that on Windows and OSX, while on Linuxes the code just returns wxLocale::GetSystemLanguage().
-	    	// The last parameter gets added to the list of detected dictionaries. This is a workaround 
-	    	// for not having the English dictionary. Let's hope wxWidgets of various versions process this call the same way.
-			wxString best_language = wxTranslations::Get()->GetBestTranslation(SLIC3R_APP_KEY, wxLANGUAGE_ENGLISH);
-			if (! best_language.IsEmpty()) {
-				m_language_info_best = wxLocale::FindLanguageInfo(best_language);
-	        	BOOST_LOG_TRIVIAL(trace) << boost::format("Best translation language detected (may be different from user locales): %1%") % m_language_info_best->CanonicalName.ToUTF8().data();
-			}
+            // Set the current translation's language to default, otherwise GetBestTranslation() may not work (see the wxWidgets source code).
+            wxTranslations::Get()->SetLanguage(wxLANGUAGE_DEFAULT);
+            // Let the wxFileTranslationsLoader enumerate all translation dictionaries for PrusaSlicer
+            // and try to match them with the system specific "preferred languages". 
+            // There seems to be a support for that on Windows and OSX, while on Linuxes the code just returns wxLocale::GetSystemLanguage().
+            // The last parameter gets added to the list of detected dictionaries. This is a workaround 
+            // for not having the English dictionary. Let's hope wxWidgets of various versions process this call the same way.
+            wxString best_language = wxTranslations::Get()->GetBestTranslation(SLIC3R_APP_KEY, wxLANGUAGE_ENGLISH);
+            if (! best_language.IsEmpty()) {
+                m_language_info_best = wxLocale::FindLanguageInfo(best_language);
+                BOOST_LOG_TRIVIAL(trace) << boost::format("Best translation language detected (may be different from user locales): %1%") % m_language_info_best->CanonicalName.ToUTF8().data();
+            }
             #ifdef __linux__
             wxString lc_all;
             if (wxGetEnv("LC_ALL", &lc_all) && ! lc_all.IsEmpty()) {
@@ -3251,15 +3268,15 @@ bool GUI_App::load_language(wxString language, bool initial)
                 m_language_info_best = nullptr;
             }
             #endif
-		}
+        }
     }
 
-	const wxLanguageInfo *language_info = language.empty() ? nullptr : wxLocale::FindLanguageInfo(language);
-	if (! language.empty() && (language_info == nullptr || language_info->CanonicalName.empty())) {
-		// Fix for wxWidgets issue, where the FindLanguageInfo() returns locales with undefined ANSII code (wxLANGUAGE_KONKANI or wxLANGUAGE_MANIPURI).
-		language_info = nullptr;
-    	BOOST_LOG_TRIVIAL(error) << boost::format("Language code \"%1%\" is not supported") % language.ToUTF8().data();
-	}
+    const wxLanguageInfo *language_info = language.empty() ? nullptr : wxLocale::FindLanguageInfo(language);
+    if (! language.empty() && (language_info == nullptr || language_info->CanonicalName.empty())) {
+        // Fix for wxWidgets issue, where the FindLanguageInfo() returns locales with undefined ANSII code (wxLANGUAGE_KONKANI or wxLANGUAGE_MANIPURI).
+        language_info = nullptr;
+        BOOST_LOG_TRIVIAL(error) << boost::format("Language code \"%1%\" is not supported") % language.ToUTF8().data();
+    }
 
     if (language_info != nullptr && language_info->LayoutDirection == wxLayout_RightToLeft) {
         BOOST_LOG_TRIVIAL(trace) << boost::format("The following language code requires right to left layout, which is not supported by %1%: %2%") % SLIC3R_APP_NAME % language_info->CanonicalName.ToUTF8().data();
@@ -3271,9 +3288,9 @@ bool GUI_App::load_language(wxString language, bool initial)
         if (m_language_info_system != nullptr && m_language_info_system->LayoutDirection != wxLayout_RightToLeft)
             language_info = m_language_info_system;
         if (m_language_info_best != nullptr && m_language_info_best->LayoutDirection != wxLayout_RightToLeft)
-        	language_info = m_language_info_best;
-	    if (language_info == nullptr)
-			language_info = wxLocale::GetLanguageInfo(wxLANGUAGE_ENGLISH_US);
+            language_info = m_language_info_best;
+        if (language_info == nullptr)
+            language_info = wxLocale::GetLanguageInfo(wxLANGUAGE_ENGLISH_US);
     }
 
     if (language_info == nullptr) {
@@ -3281,14 +3298,14 @@ bool GUI_App::load_language(wxString language, bool initial)
         return false;
     }
 
-	BOOST_LOG_TRIVIAL(trace) << boost::format("Switching wxLocales to %1%") % language_info->CanonicalName.ToUTF8().data();
+    BOOST_LOG_TRIVIAL(trace) << boost::format("Switching wxLocales to %1%") % language_info->CanonicalName.ToUTF8().data();
 
     // Alternate language code.
     wxLanguage language_dict = wxLanguage(language_info->Language);
     if (language_info->CanonicalName.BeforeFirst('_') == "sk") {
-    	// Slovaks understand Czech well. Give them the Czech translation.
-    	language_dict = wxLANGUAGE_CZECH;
-		BOOST_LOG_TRIVIAL(trace) << "Using Czech dictionaries for Slovak language";
+        // Slovaks understand Czech well. Give them the Czech translation.
+        language_dict = wxLANGUAGE_CZECH;
+        BOOST_LOG_TRIVIAL(trace) << "Using Czech dictionaries for Slovak language";
     }
 
     // Select language for locales. This language may be different from the language of the dictionary.
@@ -3344,7 +3361,7 @@ bool GUI_App::load_language(wxString language, bool initial)
     m_imgui->set_language(into_u8(language_info->CanonicalName));
     // Numeric locale changes are scoped in libslic3r import/export code instead of being forced globally here.
     Preset::update_suffix_modified(format(" (%1%)", _L("modified")));
-	return true;
+    return true;
 }
 
 Tab* GUI_App::get_tab(Preset::Type type, bool only_completed)
@@ -4108,28 +4125,28 @@ int GUI_App::extruders_edited_cnt() const
 
 wxString GUI_App::current_language_code_safe() const
 {
-	// Translate the language code to a code, for which Prusa Research maintains translations.
-	const std::map<wxString, wxString> mapping {
-		{ "cs", 	"cs_CZ", },
-		{ "sk", 	"cs_CZ", },
-		{ "de", 	"de_DE", },
-		{ "es", 	"es_ES", },
-		{ "fr", 	"fr_FR", },
-		{ "it", 	"it_IT", },
-		{ "ja", 	"ja_JP", },
-		{ "ko", 	"ko_KR", },
-		{ "pl", 	"pl_PL", },
-		//{ "uk", 	"uk_UA", },
-		//{ "zh", 	"zh_CN", },
-		//{ "ru", 	"ru_RU", },
-	};
-	wxString language_code = this->current_language_code().BeforeFirst('_');
-	auto it = mapping.find(language_code);
-	if (it != mapping.end())
-		language_code = it->second;
-	else
-		language_code = "en_US";
-	return language_code;
+    // Translate the language code to a code, for which Prusa Research maintains translations.
+    const std::map<wxString, wxString> mapping {
+        { "cs", 	"cs_CZ", },
+        { "sk", 	"cs_CZ", },
+        { "de", 	"de_DE", },
+        { "es", 	"es_ES", },
+        { "fr", 	"fr_FR", },
+        { "it", 	"it_IT", },
+        { "ja", 	"ja_JP", },
+        { "ko", 	"ko_KR", },
+        { "pl", 	"pl_PL", },
+        //{ "uk", 	"uk_UA", },
+        //{ "zh", 	"zh_CN", },
+        //{ "ru", 	"ru_RU", },
+    };
+    wxString language_code = this->current_language_code().BeforeFirst('_');
+    auto it = mapping.find(language_code);
+    if (it != mapping.end())
+        language_code = it->second;
+    else
+        language_code = "en_US";
+    return language_code;
 }
 
 void GUI_App::open_web_page_localized(const std::string &http_address)
@@ -4342,7 +4359,7 @@ void GUI_App::gcode_thumbnails_debug()
                     rows.clear();
                 }
                 else if (reading_image)
-                    row += gcode_line.substr(2);
+                    row += gcode_line.substr(kGcodeLinePrefixLength);
             }
         }
 
@@ -4449,25 +4466,25 @@ bool GUI_App::config_wizard_startup()
     ///////////////////////// not used anymore 
 bool GUI_App::check_updates(const bool verbose, int nb_updates)
 {	
-	PresetUpdater::UpdateResult updater_result;
-	try {
+    PresetUpdater::UpdateResult updater_result;
+    try {
         preset_updater->update_index_db();
-		updater_result = preset_updater->config_update(app_config->orig_version(), verbose ? PresetUpdater::UpdateParams::SHOW_TEXT_BOX : PresetUpdater::UpdateParams::SHOW_NOTIFICATION);
-		if (updater_result == PresetUpdater::R_INCOMPAT_EXIT) {
-			mainframe->Close();
+        updater_result = preset_updater->config_update(app_config->orig_version(), verbose ? PresetUpdater::UpdateParams::SHOW_TEXT_BOX : PresetUpdater::UpdateParams::SHOW_NOTIFICATION);
+        if (updater_result == PresetUpdater::R_INCOMPAT_EXIT) {
+            mainframe->Close();
             // Applicaiton is closing.
             return false;
-		}
-		else if (updater_result == PresetUpdater::R_INCOMPAT_CONFIGURED) {
+        }
+        else if (updater_result == PresetUpdater::R_INCOMPAT_CONFIGURED) {
             m_app_conf_exists = true;
-		}
-		else if (verbose && updater_result == PresetUpdater::R_NOOP) {
-			MsgNoUpdates dlg;
-			dlg.ShowModal();
-		}
-	} catch (const std::exception &ex) {
-		show_error(nullptr, ex.what());
-	}
+        }
+        else if (verbose && updater_result == PresetUpdater::R_NOOP) {
+            MsgNoUpdates dlg;
+            dlg.ShowModal();
+        }
+    } catch (const std::exception &ex) {
+        show_error(nullptr, ex.what());
+    }
     // Applicaiton will continue.
     return true;
 }
@@ -4679,7 +4696,7 @@ void GUI_App::app_version_check(bool from_user)
     m_app_updater->sync_version(version_check_url, from_user);
 }
 
-void GUI_App::start_download(std::string url) const
+void GUI_App::start_download(const std::string& url) const
 {
     if (!plater_) {
         BOOST_LOG_TRIVIAL(error) << "Could not start URL download: plater is nullptr.";

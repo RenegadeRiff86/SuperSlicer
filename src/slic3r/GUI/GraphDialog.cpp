@@ -16,6 +16,11 @@
 
 namespace Slic3r { namespace GUI {
 
+static constexpr int DECIMAL_BASE = 10;
+static constexpr int MILLI_SCALE = 1000;
+static constexpr int DISPLAY_DECIMAL_PLACES = 4;
+static constexpr int CONTROL_SPACER = 20;
+
 int scale(const int val) { return val * Slic3r::GUI::wxGetApp().em_unit(); }
 #ifdef __WXGTK3__
 int ITEM_WIDTH() { return scale(12); }
@@ -102,8 +107,8 @@ double use_double_event(SpinInputDouble *widget,
         last_val = old_val;
     widget->SetValue(last_val);
     double precision = 0.000001f;
-    while (precision < (curr_max - curr_min)) precision *= 10;
-    return precision / 1000;
+    while (precision < (curr_max - curr_min)) precision *= DECIMAL_BASE;
+    return precision / MILLI_SCALE;
 }
 
 GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &settings)
@@ -148,15 +153,15 @@ GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &se
             m_last_max_x = std::max(m_last_min_x, m_last_max_x) * 1.1f;
             m_last_min_x = std::min(m_last_min_x, m_last_max_x) * 0.9f;
         } else {
-            m_last_min_x = int(m_last_min_x * 10 - 1 + EPSILON) / 10.f;
-            m_last_max_x = int(1.9f + m_last_max_x * 10 - EPSILON) / 10.f;
+            m_last_min_x = int(m_last_min_x * DECIMAL_BASE - 1 + EPSILON) / float(DECIMAL_BASE);
+            m_last_max_x = int(1.9f + m_last_max_x * DECIMAL_BASE - EPSILON) / float(DECIMAL_BASE);
         }
         if (m_last_min_y >= m_last_max_y) {
             m_last_max_y = std::max(m_last_min_y, m_last_max_y) * 1.1f;
             m_last_min_y = std::min(m_last_min_y, m_last_max_y) * 0.9f;
         } else {
-            m_last_min_y = int(m_last_min_y * 10 - 1 + EPSILON) / 10.f;
-            m_last_max_y = int(1.9f + m_last_max_y * 10 - EPSILON) / 10.f;
+            m_last_min_y = int(m_last_min_y * DECIMAL_BASE - 1 + EPSILON) / float(DECIMAL_BASE);
+            m_last_max_y = int(1.9f + m_last_max_y * DECIMAL_BASE - EPSILON) / float(DECIMAL_BASE);
         }
         if (settings.label_min_x.empty()) {
             m_last_min_x = settings.min_x;
@@ -183,11 +188,11 @@ GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &se
     m_chart = new Chart(this, wxRect(scale(1), scale(1), scale(64), scale(36)), buttons, scale(1));
     m_chart->set_manual_points_manipulation(true);
     double precision = 0.000001f;
-    while (precision < (m_last_max_x - m_last_min_x)) precision *= 10;
-    m_chart->set_x_label(_(settings.x_label), precision / 1000);
+    while (precision < (m_last_max_x - m_last_min_x)) precision *= DECIMAL_BASE;
+    m_chart->set_x_label(_(settings.x_label), precision / MILLI_SCALE);
     precision = 0.000001f;
-    while (precision < (m_last_max_y - m_last_min_y)) precision *= 10;
-    m_chart->set_y_label(_(settings.y_label), precision / 1000);
+    while (precision < (m_last_max_y - m_last_min_y)) precision *= DECIMAL_BASE;
+    m_chart->set_y_label(_(settings.y_label), precision / MILLI_SCALE);
     m_chart->set_no_point_label(_(settings.null_label));
     m_chart->set_type(data.type);
 #ifdef _WIN32
@@ -203,13 +208,13 @@ GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &se
         m_widget_min_x = new SpinInputDouble(this, wxID_ANY, wxEmptyString, wxDefaultPosition,
                                               wxSize(ITEM_WIDTH(), -1), style | wxTE_PROCESS_ENTER, settings.min_x,
                                               settings.max_x, m_last_min_x, settings.step_x);
-        m_widget_min_x->SetToolTip(format_wxstr(_L("Minimum: %1%"), Slic3r::to_string_nozero(settings.min_x, 4)));
+        m_widget_min_x->SetToolTip(format_wxstr(_L("Minimum: %1%"), Slic3r::to_string_nozero(settings.min_x, DISPLAY_DECIMAL_PLACES)));
     }
     if (!settings.label_max_x.empty()) {
         m_widget_max_x = new SpinInputDouble(this, wxID_ANY, wxEmptyString, wxDefaultPosition,
                                               wxSize(ITEM_WIDTH(), -1), style | wxTE_PROCESS_ENTER, settings.min_x,
                                               settings.max_x, m_last_max_x, settings.step_x);
-        m_widget_max_x->SetToolTip(format_wxstr(_L("Maximum: %1%"), Slic3r::to_string_nozero(settings.max_x, 4)));
+        m_widget_max_x->SetToolTip(format_wxstr(_L("Maximum: %1%"), Slic3r::to_string_nozero(settings.max_x, DISPLAY_DECIMAL_PLACES)));
     }
     // note: wxTE_PROCESS_ENTER allow the wxSpinCtrl to receive wxEVT_TEXT_ENTER events
 
@@ -217,13 +222,13 @@ GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &se
         m_widget_min_y = new SpinInputDouble(this, wxID_ANY, wxEmptyString, wxDefaultPosition,
                                               wxSize(ITEM_WIDTH(), -1), style | wxTE_PROCESS_ENTER, settings.min_y,
                                               settings.max_y, m_last_min_y, settings.step_y);
-        m_widget_min_y->SetToolTip(format_wxstr(_L("Minimum: %1%"), Slic3r::to_string_nozero(settings.min_y, 4)));
+        m_widget_min_y->SetToolTip(format_wxstr(_L("Minimum: %1%"), Slic3r::to_string_nozero(settings.min_y, DISPLAY_DECIMAL_PLACES)));
     }
     if (!settings.label_max_y.empty()) {
         m_widget_max_y = new SpinInputDouble(this, wxID_ANY, wxEmptyString, wxDefaultPosition,
                                               wxSize(ITEM_WIDTH(), -1), style | wxTE_PROCESS_ENTER, settings.min_y,
                                               settings.max_y, m_last_max_y, settings.step_y);
-        m_widget_max_y->SetToolTip(format_wxstr(_L("Maximum: %1%"), Slic3r::to_string_nozero(settings.max_y, 4)));
+        m_widget_max_y->SetToolTip(format_wxstr(_L("Maximum: %1%"), Slic3r::to_string_nozero(settings.max_y, DISPLAY_DECIMAL_PLACES)));
     }
 
     m_chart->set_xy_range(m_last_min_x, m_last_min_y, m_last_max_x, m_last_max_y);
@@ -244,7 +249,7 @@ GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &se
         if (!settings.label_min_x.empty()) {
             size_line->Add(new wxStaticText(this, wxID_ANY, wxString(_(settings.label_min_x) + " :")), 0, wxALIGN_CENTER_VERTICAL);
             size_line->Add(m_widget_min_x);
-            size_line->AddSpacer(20);
+            size_line->AddSpacer(CONTROL_SPACER);
         }
         if (!settings.label_max_x.empty()) {
             size_line->Add(new wxStaticText(this, wxID_ANY, wxString(_(settings.label_max_x) + " :")), 0, wxALIGN_CENTER_VERTICAL);
@@ -259,7 +264,7 @@ GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &se
         if (!settings.label_min_y.empty()) {
             size_line->Add(new wxStaticText(this, wxID_ANY, wxString(_(settings.label_min_y) + " :")), 0, wxALIGN_CENTER_VERTICAL);
             size_line->Add(m_widget_min_y);
-            size_line->AddSpacer(20);
+            size_line->AddSpacer(CONTROL_SPACER);
         }
         
         if (!settings.label_max_y.empty()) {
@@ -273,11 +278,11 @@ GraphPanel::GraphPanel(wxWindow *parent, GraphData data, const GraphSettings &se
     wxButton *bt_reset = new wxButton(this, wxID_ANY, _L("Reset"));
     bt_reset->SetToolTip(_L("Reset all points to defaults."));
     size_line->Add(bt_reset);
-    size_line->AddSpacer(20);
+    size_line->AddSpacer(CONTROL_SPACER);
     wxButton *bt_type = new wxButton(this, wxID_ANY, _L("Change Type"));
     bt_type->SetToolTip(_L("Change the graph type into square (threshold), linear or spline shape."));
     size_line->Add(bt_type);
-    size_line->AddSpacer(20);
+    size_line->AddSpacer(CONTROL_SPACER);
     wxStaticText* help_text = new wxStaticText(this, wxID_ANY, wxString(_("Help")));
     help_text->SetToolTip(_L("You can drag the control points. The value of the point dragged is shown on bottom right."
     "\nYou can left click on a point to select it (it will turn yellow), you can then modify it in the bottom right boxes."

@@ -14,16 +14,12 @@
 #include "GUI_App.hpp"
 #include "MainFrame.hpp"
 #include "format.hpp"
-#include "Tab.hpp"
 #include "wxExtensions.hpp"
-#include "BitmapCache.hpp"
 #include "ExtraRenderers.hpp"
 #include "MsgDialog.hpp"
 #include "Plater.hpp"
 
-#include "libslic3r/PlaceholderParser.hpp"
 #include "libslic3r/Preset.hpp"
-#include "libslic3r/Print.hpp"
 
 namespace Slic3r {
 namespace GUI {
@@ -672,7 +668,7 @@ ParamsViewCtrl::ParamsViewCtrl(wxWindow *parent, wxSize size)
 #ifdef SUPPORTS_MARKUP
     rd->EnableMarkup(true);
 #endif
-    wxDataViewColumn* column = new wxDataViewColumn("", rd, 0, 20 * m_em_unit, wxALIGN_TOP, wxDATAVIEW_COL_RESIZABLE | wxDATAVIEW_CELL_INERT);
+    wxDataViewColumn* column = new wxDataViewColumn("", rd, 0, 20 * m_em_unit, wxALIGN_TOP, wxDATAVIEW_COL_RESIZABLE);
 #else
     wxDataViewColumn* column = new wxDataViewColumn("", new BitmapTextRenderer(true, wxDATAVIEW_CELL_INERT), 0, 20 * m_em_unit, wxALIGN_TOP, wxDATAVIEW_COL_RESIZABLE);
 #endif //__linux__

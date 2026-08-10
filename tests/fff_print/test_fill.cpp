@@ -33,10 +33,10 @@ TEST_CASE("Fill: adjusted solid distance") {
 TEST_CASE("Fill: Pattern Path Length", "[Fill]") {
     std::unique_ptr<Slic3r::Fill> filler(Slic3r::Fill::new_from_type("rectilinear"));
     filler->angle = float(-(PI)/2.0);
-	FillParams fill_params;
-	fill_params.dont_adjust = true;
-	//fill_params.endpoints_overlap = false;
-	fill_params.density = float(5 / 50.0);
+    FillParams fill_params;
+    fill_params.dont_adjust = true;
+    //fill_params.endpoints_overlap = false;
+    fill_params.density = float(5 / 50.0);
     filler->init_spacing(5, fill_params);
 
     auto test = [&filler, &fill_params] (const ExPolygon& poly) -> Slic3r::Polylines {
@@ -84,18 +84,18 @@ TEST_CASE("Fill: Pattern Path Length", "[Fill]") {
 
         for (double angle : {-(PI/2.0), -(PI/4.0), -(PI), PI/2.0, PI}) {
             for (double spacing : {25.0, 5.0, 7.5, 8.5}) {
-				fill_params.density = float(filler->get_spacing() / spacing);
+                fill_params.density = float(filler->get_spacing() / spacing);
                 filler->angle = float(angle);
                 ExPolygon e(test_square, test_hole);
                 Slic3r::Polylines paths = test(e);
 #if 0
-				{
-					BoundingBox bbox = get_extents(e);
-					SVG svg("c:\\data\\temp\\square_with_holes.svg", bbox);
-					svg.draw(e);
-					svg.draw(paths);
-					svg.Close();
-				}
+                {
+                    BoundingBox bbox = get_extents(e);
+                    SVG svg("c:\\data\\temp\\square_with_holes.svg", bbox);
+                    svg.draw(e);
+                    svg.draw(paths);
+                    svg.Close();
+                }
 #endif
                 REQUIRE((paths.size() >= 1 && paths.size() <= 3));
                 // paths don't cross hole
@@ -105,9 +105,9 @@ TEST_CASE("Fill: Pattern Path Length", "[Fill]") {
     }
     SECTION("Regression: Missing infill segments in some rare circumstances") {
         filler->angle = float(PI/4.0);
-		fill_params.dont_adjust = false;
+        fill_params.dont_adjust = false;
         //filler->endpoints_overlap = unscale(359974);
-		fill_params.density = 1;
+        fill_params.density = 1;
         filler->layer_id = 66;
         filler->z = 20.15;
         filler->init_spacing(0.654498, fill_params);
@@ -125,14 +125,14 @@ TEST_CASE("Fill: Pattern Path Length", "[Fill]") {
     SECTION("Rotated Square produces one continuous path") {
         Slic3r::ExPolygon expolygon(Polygon::new_scale({ {0, 0}, {50, 0}, {50, 50}, {0, 50} }));
         std::unique_ptr<Slic3r::Fill> filler(Slic3r::Fill::new_from_type("rectilinear"));
-		filler->bounding_box = get_extents(expolygon);
+        filler->bounding_box = get_extents(expolygon);
         filler->angle = 0;
         
         Surface surface(SurfaceType::stPosTop | SurfaceType::stDensSolid, expolygon);
         // width, height, nozzle_dmr
         auto flow = Slic3r::Flow(0.69f, 0.4f, 0.5f);
 
-		FillParams fill_params;
+        FillParams fill_params;
         for (auto density : { 0.4, 1.0 }) {
             fill_params.density = density;
         filler->init_spacing(flow.spacing(), fill_params);
@@ -654,7 +654,10 @@ SCENARIO("Infill density zero", "[Fill]")
     }
     
     $expolygon = Slic3r::ExPolygon->new(
-        [[59515297,5422499],[59531249,5578697],[59695801,6123186],[59965713,6630228],[60328214,7070685],[60773285,7434379],[61274561,7702115],[61819378,7866770],[62390306,7924789],[62958700,7866744],[63503012,7702244],[64007365,7434357],[64449960,7070398],[64809327,6634999],[65082143,6123325],[65245005,5584454],[65266967,5422499],[66267307,5422499],[66269190,8310081],[66275379,17810072],[66277259,20697500],[65267237,20697500],[65245004,20533538],[65082082,19994444],[64811462,19488579],[64450624,19048208],[64012101,18686514],[63503122,18415781],[62959151,18251378],[62453416,18198442],[62390147,18197355],[62200087,18200576],[61813519,18252990],[61274433,18415918],[60768598,18686517],[60327567,19047892],[59963609,19493297],[59695865,19994587],[59531222,20539379],[59515153,20697500],[58502480,20697500],[58502480,5422499]]
+        [[59515297,5422499],[59531249,5578697],[59695801,6123186],[59965713,6630228],[60328214,7070685],[60773285,7434379],[61274561,7702115],[61819378,7866770],[62390306,7924789],[62958700,7866744],[63503012,7702244],[64007365,
+            7434357],[64449960,7070398],[64809327,6634999],[65082143,6123325],[65245005,5584454],[65266967,5422499],[66267307,5422499],[66269190,8310081],[66275379,17810072],[66277259,20697500],[65267237,20697500],[65245004,
+            20533538],[65082082,19994444],[64811462,19488579],[64450624,19048208],[64012101,18686514],[63503122,18415781],[62959151,18251378],[62453416,18198442],[62390147,18197355],[62200087,18200576],[61813519,18252990],
+            [61274433,18415918],[60768598,18686517],[60327567,19047892],[59963609,19493297],[59695865,19994587],[59531222,20539379],[59515153,20697500],[58502480,20697500],[58502480,5422499]]
     );
     $test->($expolygon, 0.524341649025257);
     
@@ -666,22 +669,22 @@ SCENARIO("Infill density zero", "[Fill]")
 bool test_if_solid_surface_filled(const ExPolygon& expolygon, double flow_spacing, double angle, double density)
 {
     std::unique_ptr<Slic3r::Fill> filler(Slic3r::Fill::new_from_type("rectilinear"));
-	filler->bounding_box = get_extents(expolygon.contour);
+    filler->bounding_box = get_extents(expolygon.contour);
     filler->angle = float(angle);
 
-	Flow flow(float(flow_spacing), 0.4f, float(flow_spacing));
+    Flow flow(float(flow_spacing), 0.4f, float(flow_spacing));
 
-	FillParams fill_params;
-	fill_params.density = float(density);
-	fill_params.dont_adjust = false;
+    FillParams fill_params;
+    fill_params.density = float(density);
+    fill_params.dont_adjust = false;
     filler->init_spacing(flow.spacing(), fill_params);
 
-	Surface surface(SurfaceType::stDensSolid | SurfaceType::stPosBottom, expolygon);
+    Surface surface(SurfaceType::stDensSolid | SurfaceType::stPosBottom, expolygon);
     if (fill_params.use_arachne) // Make this test fail when Arachne is used because this test is not ready for it.
         return false;
     if (fill_params.use_arachne) // Make this test fail when Arachne is used because this test is not ready for it.
         return false;
-	Slic3r::Polylines paths = filler->fill_surface(&surface, fill_params);
+    Slic3r::Polylines paths = filler->fill_surface(&surface, fill_params);
 
     // check whether any part was left uncovered
     Polygons grown_paths;
@@ -693,7 +696,7 @@ bool test_if_solid_surface_filled(const ExPolygon& expolygon, double flow_spacin
         polygons_append(grown_paths, offset(p, line_offset));
     });
 
-	// Shrink the initial expolygon a bit, this simulates the infill / perimeter overlap that we usually apply.
+    // Shrink the initial expolygon a bit, this simulates the infill / perimeter overlap that we usually apply.
     ExPolygons uncovered = diff_ex(offset(expolygon, - float(0.2 * scale_(flow_spacing))), grown_paths, ApplySafetyOffset::Yes);
 
     // ignore very small dots
@@ -701,15 +704,15 @@ bool test_if_solid_surface_filled(const ExPolygon& expolygon, double flow_spacin
     uncovered.erase(std::remove_if(uncovered.begin(), uncovered.end(), [scaled_flow_spacing](const ExPolygon& poly) { return poly.area() < scaled_flow_spacing; }), uncovered.end());
 
 #if 0
-	if (! uncovered.empty()) {
-		BoundingBox bbox = get_extents(expolygon.contour);
-		bbox.merge(get_extents(uncovered));
-		bbox.merge(get_extents(grown_paths));
-		SVG svg("c:\\data\\temp\\test_if_solid_surface_filled.svg", bbox);
-		svg.draw(expolygon);
-		svg.draw(uncovered, "red");
-		svg.Close();
-	}
+    if (! uncovered.empty()) {
+        BoundingBox bbox = get_extents(expolygon.contour);
+        bbox.merge(get_extents(uncovered));
+        bbox.merge(get_extents(grown_paths));
+        SVG svg("c:\\data\\temp\\test_if_solid_surface_filled.svg", bbox);
+        svg.draw(expolygon);
+        svg.draw(uncovered, "red");
+        svg.Close();
+    }
 #endif
 
     return uncovered.empty(); // solid surface is fully filled

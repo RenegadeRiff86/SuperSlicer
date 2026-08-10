@@ -63,7 +63,8 @@ struct DataCreateVolume
 };
 
 // Offset of clossed side to model
-constexpr float SAFE_SURFACE_OFFSET = 0.015f; // [in mm]
+constexpr float SAFE_SURFACE_OFFSET = 0.015f;
+constexpr int TRANSFORM_DIMENSIONS = 3; // [in mm]
 
 /// <summary>
 /// Create new TextVolume on the surface of ModelObject
@@ -663,7 +664,7 @@ bool start_update_volume(DataUpdate &&data, const ModelVolume &volume, const Sel
         if (!volume.emboss_shape->projection.use_surface) {
             auto offset = calc_surface_offset(selection, raycaster);
             if (offset.has_value())
-                volume_tr *= Eigen::Translation<double, 3>(*offset);
+                volume_tr *= Eigen::Translation<double, TRANSFORM_DIMENSIONS>(*offset);
         }
 
         UpdateSurfaceVolumeData surface_data{std::move(data), {volume_tr, std::move(sources)}};
@@ -872,14 +873,14 @@ template<typename Fnc> TriangleMesh create_mesh_per_glyph(DataBase &input, Fnc w
             if (input.from_surface.has_value())
                 surface_offset += *input.from_surface;
 
-            Eigen::Translation<double, 3> to_zero(-to_zero_vec.x(), 0., static_cast<double>(surface_offset));
+            Eigen::Translation<double, TRANSFORM_DIMENSIONS> to_zero(-to_zero_vec.x(), 0., static_cast<double>(surface_offset));
 
             const double &angle = angles[i];
             Eigen::AngleAxisd rotate(angle + M_PI_2, Vec3d::UnitY());
 
             const PolygonPoint &sample = samples[i];
             Vec2d offset_vec = unscale(sample.point); // [in mm]
-            Eigen::Translation<double, 3> offset_tr(offset_vec.x(), 0., -offset_vec.y());
+            Eigen::Translation<double, TRANSFORM_DIMENSIONS> offset_tr(offset_vec.x(), 0., -offset_vec.y());
             Transform3d tr = offset_tr * rotate * to_zero * scale_tr;
 
             const ExPolygons &letter_shape = shape.shapes_with_ids[s_i_offset + i].expoly;
@@ -942,7 +943,7 @@ TriangleMesh try_create_mesh(DataBase &input, const Fnc& was_canceled)
     float offset = input.is_outside ? -SAFE_SURFACE_OFFSET : (SAFE_SURFACE_OFFSET - input.shape.projection.depth);
     if (input.from_surface.has_value())
         offset += *input.from_surface;
-    Transform3d tr = Eigen::Translation<double, 3>(0., 0.,static_cast<double>(offset)) * Eigen::Scaling(scale);
+    Transform3d tr = Eigen::Translation<double, TRANSFORM_DIMENSIONS>(0., 0.,static_cast<double>(offset)) * Eigen::Scaling(scale);
     ProjectTransform project(std::move(projectZ), tr);
     if (was_canceled()) return {};
     return TriangleMesh(polygons2model(shapes, project));
@@ -1320,7 +1321,7 @@ TriangleMesh cut_per_glyph_surface(DataBase &input1, const SurfaceVolumeData &in
 
             const PolygonPoint &sample = samples[i];
             Vec2d offset_vec = unscale(sample.point); // [in mm]
-            auto offset_tr = Eigen::Translation<double, 3>(offset_vec.x(), 0., -offset_vec.y());
+            auto offset_tr = Eigen::Translation<double, TRANSFORM_DIMENSIONS>(offset_vec.x(), 0., -offset_vec.y());
 
             ExPolygons glyph_shape = es.shapes_with_ids[s_i_offset + i].expoly;
             assert(get_extents(glyph_shape) == glyph_bb);

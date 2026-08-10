@@ -73,7 +73,7 @@ public:
     // last point == first point for polygons
     //please don't use that, prefer 'is_loop', front() and back().
     const Point& last_point() const { return this->points.front(); }
-    virtual bool is_loop() const { return true; }
+    bool is_loop() const override { return true; }
 
     distf_t length() const;
     Lines lines() const;

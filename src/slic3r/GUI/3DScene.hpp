@@ -13,6 +13,10 @@
 #ifndef slic3r_3DScene_hpp_
 #define slic3r_3DScene_hpp_
 
+// This header branches on ENABLE_OPENGL_ES / ENABLE_GL_CORE_PROFILE, so it defines them itself and
+// every including translation unit agrees on the resulting declarations.
+#include "libslic3r/Technologies.hpp"
+
 #include "libslic3r/libslic3r.h"
 #include "libslic3r/Point.hpp"
 #include "libslic3r/Line.hpp"
@@ -44,6 +48,10 @@
 #endif // HAS_GLSAFE
 
 namespace Slic3r {
+
+inline constexpr size_t RGBA_COMPONENT_COUNT = 4;
+inline constexpr size_t RANGE_ENDPOINT_COUNT = 2;
+
 class SLAPrintObject;
 enum  SLAPrintObjectStep : uint8_t;
 class BuildVolume;
@@ -72,7 +80,7 @@ public:
     static const ColorRGBA SLA_SUPPORT_COLOR;
     static const ColorRGBA SLA_PAD_COLOR;
     static const ColorRGBA NEUTRAL_COLOR;
-    static const std::array<ColorRGBA, 4> MODEL_COLOR;
+    static const std::array<ColorRGBA, RGBA_COMPONENT_COUNT> MODEL_COLOR;
     static const ColorRGBA NEGATIVE_VOLUME_COLOR;
     static const ColorRGBA PARAMETER_MODIFIER_COLOR;
     static const ColorRGBA SUPPORT_BLOCKER_COLOR;
@@ -160,10 +168,10 @@ public:
         int             volume_id;
         // Instance ID, which is equal to the index of the respective ModelInstance in ModelObject.instances array.
         int             instance_id;
-		bool operator==(const CompositeID &rhs) const { return object_id == rhs.object_id && volume_id == rhs.volume_id && instance_id == rhs.instance_id; }
-		bool operator!=(const CompositeID &rhs) const { return ! (*this == rhs); }
-		bool operator< (const CompositeID &rhs) const 
-			{ return object_id < rhs.object_id || (object_id == rhs.object_id && (volume_id < rhs.volume_id || (volume_id == rhs.volume_id && instance_id < rhs.instance_id))); }
+        bool operator==(const CompositeID &rhs) const { return object_id == rhs.object_id && volume_id == rhs.volume_id && instance_id == rhs.instance_id; }
+        bool operator!=(const CompositeID &rhs) const { return ! (*this == rhs); }
+        bool operator< (const CompositeID &rhs) const 
+            { return object_id < rhs.object_id || (object_id == rhs.object_id && (volume_id < rhs.volume_id || (volume_id == rhs.volume_id && instance_id < rhs.instance_id))); }
     };
     CompositeID         composite_id;
     // Fingerprint of the source geometry. For ModelVolumes, it is the ModelVolume::ID and ModelInstanceID, 
@@ -176,28 +184,28 @@ public:
 
     // Various boolean flags.
     struct {
-	    // Is this object selected?
-	    bool                selected : 1;
-	    // Is this object disabled from selection?
-	    bool                disabled : 1;
-	    // Is this object printable?
-	    bool                printable : 1;
-	    // Whether or not this volume is active for rendering
-	    bool                is_active : 1;
-	    // Whether or not to use this volume when applying zoom_to_volumes()
-	    bool                zoom_to_volumes : 1;
-	    // Wheter or not this volume is enabled for outside print volume detection in shader.
-	    bool                shader_outside_printer_detection_enabled : 1;
-	    // Wheter or not this volume is outside print volume.
-	    bool                is_outside : 1;
-	    // Wheter or not this volume has been generated from a modifier
-	    bool                is_modifier : 1;
-	    // Wheter or not this volume has been generated from the wipe tower
-	    bool                is_wipe_tower : 1;
-	    // Wheter or not this volume has been generated from an extrusion path
-	    bool                is_extrusion_path : 1;
+        // Is this object selected?
+        bool                selected : 1;
+        // Is this object disabled from selection?
+        bool                disabled : 1;
+        // Is this object printable?
+        bool                printable : 1;
+        // Whether or not this volume is active for rendering
+        bool                is_active : 1;
+        // Whether or not to use this volume when applying zoom_to_volumes()
+        bool                zoom_to_volumes : 1;
+        // Wheter or not this volume is enabled for outside print volume detection in shader.
+        bool                shader_outside_printer_detection_enabled : 1;
+        // Wheter or not this volume is outside print volume.
+        bool                is_outside : 1;
+        // Wheter or not this volume has been generated from a modifier
+        bool                is_modifier : 1;
+        // Wheter or not this volume has been generated from the wipe tower
+        bool                is_wipe_tower : 1;
+        // Wheter or not this volume has been generated from an extrusion path
+        bool                is_extrusion_path : 1;
         // Whether or not always use the volume's own color (not using SELECTED/HOVER/DISABLED/OUTSIDE)
-	    bool                force_native_color : 1;
+        bool                force_native_color : 1;
         // Whether or not render this volume in neutral
         bool                force_neutral_color : 1;
         // Whether or not to force rendering of sinking contours
@@ -366,25 +374,25 @@ public:
         //   [0] = min.x, [1] = min.y, [2] = max.x, [3] = max.y
         // Circle:
         //   [0] = center.x, [1] = center.y, [3] = radius
-        std::array<float, 4> data{};
+        std::array<float, RGBA_COMPONENT_COUNT> data{};
         //   [0] = min z, [1] = max z
-        std::array<float, 2> zs{};
+        std::array<float, RANGE_ENDPOINT_COUNT> zs{};
     };
 
 private:
     PrintVolume m_print_volume;
 
     // z range for clipping in shaders
-    std::array<float, 2> m_z_range;
+    std::array<float, RANGE_ENDPOINT_COUNT> m_z_range;
 
     // plane coeffs for clipping in shaders
-    std::array<double, 4> m_clipping_plane;
+    std::array<double, RGBA_COMPONENT_COUNT> m_clipping_plane;
 
     // plane coeffs for render volumes with different colors in shaders
     // used by cut gizmo
-    std::array<double, 4> m_color_clip_plane;
+    std::array<double, RGBA_COMPONENT_COUNT> m_color_clip_plane;
     bool m_use_color_clip_plane{ false };
-    std::array<ColorRGBA, 2> m_color_clip_plane_colors{ ColorRGBA::RED(), ColorRGBA::BLUE() };
+    std::array<ColorRGBA, RANGE_ENDPOINT_COUNT> m_color_clip_plane_colors{ ColorRGBA::RED(), ColorRGBA::BLUE() };
 
     struct Slope
     {
@@ -451,10 +459,10 @@ public:
     void set_print_volume(const PrintVolume& print_volume) { m_print_volume = print_volume; }
 
     void set_z_range(float min_z, float max_z) { m_z_range[0] = min_z; m_z_range[1] = max_z; }
-    void set_clipping_plane(const std::array<double, 4>& coeffs) { m_clipping_plane = coeffs; }
+    void set_clipping_plane(const std::array<double, RGBA_COMPONENT_COUNT>& coeffs) { m_clipping_plane = coeffs; }
 
-    const std::array<float, 2>& get_z_range() const { return m_z_range; }
-    const std::array<double, 4>& get_clipping_plane() const { return m_clipping_plane; }
+    const std::array<float, RANGE_ENDPOINT_COUNT>& get_z_range() const { return m_z_range; }
+    const std::array<double, RGBA_COMPONENT_COUNT>& get_clipping_plane() const { return m_clipping_plane; }
 
     void set_use_color_clip_plane(bool use) { m_use_color_clip_plane = use; }
     void set_color_clip_plane(const Vec3d& cp_normal, double offset) {
@@ -462,7 +470,7 @@ public:
             m_color_clip_plane[i] = -cp_normal[i];
         m_color_clip_plane[3] = offset;
     }
-    void set_color_clip_plane_colors(const std::array<ColorRGBA, 2>& colors) { m_color_clip_plane_colors = colors; }
+    void set_color_clip_plane_colors(const std::array<ColorRGBA, RANGE_ENDPOINT_COUNT>& colors) { m_color_clip_plane_colors = colors; }
 
     bool is_slope_active() const { return m_slope.active; }
     void set_slope_active(bool active) { m_slope.active = active; }

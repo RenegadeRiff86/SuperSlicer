@@ -25,6 +25,11 @@ using namespace Slic3r::Emboss;
 using namespace Slic3r::GUI;
 
 namespace {
+constexpr int FULL_CIRCLE_FACTOR = 2;
+constexpr size_t TORUS_SIDE_COUNT = 2;
+constexpr size_t PREVIOUS_POINT_OFFSET = 2;
+constexpr size_t TRIANGLE_LAST_VERTEX_INDEX = 2;
+
 // Be careful it is not water tide and contain self intersections
 // It is only for visualization purposes
 indexed_triangle_set its_create_torus(const Slic3r::Polygon &polygon, float radius, size_t steps = 20)
@@ -51,7 +56,7 @@ indexed_triangle_set its_create_torus(const Slic3r::Polygon &polygon, float radi
     line_norm.back() = calc_line_norm(points_d.back(), points_d.front());
         
     // precalculate sinus and cosinus
-    double angle_step = 2 * M_PI / steps;
+    double angle_step = FULL_CIRCLE_FACTOR * M_PI / steps;
     std::vector<std::pair<double, float>> sin_cos;
     sin_cos.reserve(steps);
     for (size_t s = 0; s < steps; ++s) {
@@ -62,14 +67,14 @@ indexed_triangle_set its_create_torus(const Slic3r::Polygon &polygon, float radi
         );
     }
     
-    indexed_triangle_set sphere = its_make_sphere(radius, 2 * PI / steps);
+    indexed_triangle_set sphere = its_make_sphere(radius, FULL_CIRCLE_FACTOR * PI / steps);
 
     // create torus model along polygon path
     indexed_triangle_set model;
-    model.vertices.reserve(2 * steps * count + sphere.vertices.size()*count);
-    model.indices.reserve(2 * steps * count + sphere.indices.size()*count);
+    model.vertices.reserve(TORUS_SIDE_COUNT * steps * count + sphere.vertices.size()*count);
+    model.indices.reserve(TORUS_SIDE_COUNT * steps * count + sphere.indices.size()*count);
 
-    const Vec2f *prev_prev_point_d = &points_d[count-2]; // one before back
+    const Vec2f *prev_prev_point_d = &points_d[count - PREVIOUS_POINT_OFFSET]; // one before back
     const Vec2f *prev_point_d = &points_d.back();
 
     auto calc_angle = [](const Vec2f &d0, const Vec2f &d1) {
@@ -99,7 +104,7 @@ indexed_triangle_set its_create_torus(const Slic3r::Polygon &polygon, float radi
         // tube unit top vector is z direction
 
         // Tube
-        int prev_index = model.vertices.size() + 2 * sin_cos.size() - 2;
+        int prev_index = model.vertices.size() + TORUS_SIDE_COUNT * sin_cos.size() - PREVIOUS_POINT_OFFSET;
         for (const auto &[s, c] : sin_cos) {
             Vec2f side = (s * p_dir).cast<float>();
             Vec2f xy0  = side + (*prev_point_d);
@@ -110,7 +115,7 @@ indexed_triangle_set its_create_torus(const Slic3r::Polygon &polygon, float radi
             // create triangle indices
             int f0 = prev_index;
             int s0 = f0 + 1;
-            int f1 = model.vertices.size() - 2;
+            int f1 = model.vertices.size() - PREVIOUS_POINT_OFFSET;
             int s1 = f1 + 1;
             prev_index = f1;
             model.indices.emplace_back(s0, f0, s1);
@@ -210,10 +215,10 @@ GLModel::Geometry create_geometry(const TextLines &lines, float radius, bool is_
     if (is_mirrored) {
         // change order of indices
         for (Vec3i32 t : its.indices)
-            geometry.add_triangle(t[0], t[2], t[1]);
+            geometry.add_triangle(t[0], t[TRIANGLE_LAST_VERTEX_INDEX], t[1]);
     } else {
         for (Vec3i32 t : its.indices)
-            geometry.add_triangle(t[0], t[1], t[2]);
+            geometry.add_triangle(t[0], t[1], t[TRIANGLE_LAST_VERTEX_INDEX]);
     }
     return geometry;    
 }

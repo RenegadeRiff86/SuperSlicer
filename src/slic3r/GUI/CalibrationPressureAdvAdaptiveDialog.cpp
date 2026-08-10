@@ -31,19 +31,40 @@
 namespace Slic3r {
 namespace GUI {
 
+namespace {
+constexpr int    kFieldWidthEm                  = 6;
+constexpr int    kButtonWidthEm                 = 24;
+constexpr int    kStepChoiceCount               = 8;
+constexpr int    kDefaultSpeedStepSelection     = 3;
+constexpr int    kDefaultAccelerationSelection  = 2;
+constexpr float  kMinimumRangeDivisor           = 3.0f;
+constexpr int    kSavedValuePrecision           = 4;
+constexpr int    kRowSpacing                    = 4;
+constexpr double kGridCubeHeight                = 4.0;
+constexpr double kGridGap                       = 4.0;
+constexpr int    kGridCellSpacing               = 4;
+constexpr double kGridCenterDivisor             = 2.0;
+constexpr int    kCalibrationPerimeterCount     = 2;
+constexpr size_t kAdaptiveModelColumnCount      = 3;
+constexpr size_t kAdaptiveModelAccelColumn      = 2;
+constexpr int    kDialogPadding                 = 8;
+constexpr int    kBrimWidth                     = 6;
+constexpr int    kButtonSpacing                 = 6;
+}
+
 void CalibrationPressureAdvAdaptiveDialog::create_buttons(wxStdDialogButtonSizer* buttons)
 {
-    const wxSize size(6 * em_unit(), wxDefaultCoord);
-    const wxSize bt_size(24 * em_unit(), wxDefaultCoord);
+    const wxSize size(kFieldWidthEm * em_unit(), wxDefaultCoord);
+    const wxSize bt_size(kButtonWidthEm * em_unit(), wxDefaultCoord);
 
     wxString choices_nb[] = { "1", "2", "3", "4", "5", "6", "7", "8" };
-    cmb_nb_speed = new ComboBox(this, wxID_ANY, wxString{ "4" }, wxDefaultPosition, size, 8, choices_nb);
+    cmb_nb_speed = new ComboBox(this, wxID_ANY, wxString{ "4" }, wxDefaultPosition, size, kStepChoiceCount, choices_nb);
     cmb_nb_speed->SetToolTip(_L("Number of flow steps (columns): patches printed at different speeds, i.e. volumetric flows."));
-    cmb_nb_speed->SetSelection(3);
+    cmb_nb_speed->SetSelection(kDefaultSpeedStepSelection);
 
-    cmb_nb_accel = new ComboBox(this, wxID_ANY, wxString{ "3" }, wxDefaultPosition, size, 8, choices_nb);
+    cmb_nb_accel = new ComboBox(this, wxID_ANY, wxString{ "3" }, wxDefaultPosition, size, kStepChoiceCount, choices_nb);
     cmb_nb_accel->SetToolTip(_L("Number of acceleration steps (rows)."));
-    cmb_nb_accel->SetSelection(2);
+    cmb_nb_accel->SetSelection(kDefaultAccelerationSelection);
 
     const DynamicPrintConfig* print_config = this->gui_app->get_tab(Preset::TYPE_FFF_PRINT)->get_config();
     float curr_speed = print_config->get_computed_value("solid_infill_speed", 0);
@@ -51,11 +72,11 @@ void CalibrationPressureAdvAdaptiveDialog::create_buttons(wxStdDialogButtonSizer
     float curr_accel = print_config->get_computed_value("default_acceleration", 0);
     if (curr_accel <= 0) curr_accel = 2000;
 
-    txt_min_speed = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(std::max(10.f, curr_speed / 3.f), 4)), wxDefaultPosition, size);
-    txt_max_speed = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(std::max(20.f, curr_speed * 1.5f), 4)), wxDefaultPosition, size);
-    txt_min_accel = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(std::max(500.f, curr_accel / 3.f), 1)), wxDefaultPosition, size);
+    txt_min_speed = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(std::max(10.f, curr_speed / kMinimumRangeDivisor), kSavedValuePrecision)), wxDefaultPosition, size);
+    txt_max_speed = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(std::max(20.f, curr_speed * 1.5f), kSavedValuePrecision)), wxDefaultPosition, size);
+    txt_min_accel = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(std::max(500.f, curr_accel / kMinimumRangeDivisor), 1)), wxDefaultPosition, size);
     txt_max_accel = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(std::max(1000.f, curr_accel), 1)), wxDefaultPosition, size);
-    txt_pa = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(0.04, 4)), wxDefaultPosition, size);
+    txt_pa = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(0.04, kSavedValuePrecision)), wxDefaultPosition, size);
     txt_pa->SetToolTip(_L("Fixed pressure-advance value used for the whole grid (adaptive PA is disabled for the calibration print). "
                           "Re-run with a few PA values to bracket the best one per cell."));
 
@@ -65,7 +86,7 @@ void CalibrationPressureAdvAdaptiveDialog::create_buttons(wxStdDialogButtonSizer
         AppConfig* ac = gui_app->app_config.get();
         auto restore_combo = [](ComboBox* cmb, const std::string& v) {
             if (v.empty()) return;
-            try { int n = std::stoi(v); if (n >= 1 && n <= 8) cmb->SetSelection(n - 1); } catch (...) {}
+            try { int n = std::stoi(v); if (n >= 1 && n <= kStepChoiceCount) cmb->SetSelection(n - 1); } catch (...) {}
         };
         auto restore_text = [&ac](const std::string& key, wxTextCtrl* ctrl) {
             const std::string v = ac->get(key);
@@ -94,7 +115,7 @@ void CalibrationPressureAdvAdaptiveDialog::create_buttons(wxStdDialogButtonSizer
             h->Add(new wxStaticText(this, wxID_ANY, wxString(" ") + unit2, wxDefaultPosition, { 7 * em_unit(), -1 }, wxALIGN_LEFT));
         }
         vertical->Add(h);
-        vertical->AddSpacer(4);
+        vertical->AddSpacer(kRowSpacing);
     };
 
     add_row(_L("Speed steps:"), cmb_nb_speed, "", _L("Accel steps:"), cmb_nb_accel, "");
@@ -145,11 +166,11 @@ void CalibrationPressureAdvAdaptiveDialog::create_geometry(wxCommandEvent& event
     AppConfig* ac = gui_app->app_config.get();
     ac->set("pa_adaptive_cal_nb_speed",  std::to_string(nb_speed));
     ac->set("pa_adaptive_cal_nb_accel",  std::to_string(nb_accel));
-    ac->set("pa_adaptive_cal_min_speed", Slic3r::to_string_nozero(min_speed, 4));
-    ac->set("pa_adaptive_cal_max_speed", Slic3r::to_string_nozero(max_speed, 4));
+    ac->set("pa_adaptive_cal_min_speed", Slic3r::to_string_nozero(min_speed, kSavedValuePrecision));
+    ac->set("pa_adaptive_cal_max_speed", Slic3r::to_string_nozero(max_speed, kSavedValuePrecision));
     ac->set("pa_adaptive_cal_min_accel", Slic3r::to_string_nozero(min_accel, 1));
     ac->set("pa_adaptive_cal_max_accel", Slic3r::to_string_nozero(max_accel, 1));
-    ac->set("pa_adaptive_cal_pa",        Slic3r::to_string_nozero(test_pa, 4));
+    ac->set("pa_adaptive_cal_pa",        Slic3r::to_string_nozero(test_pa, kSavedValuePrecision));
     // Flush to disk now: the results dialog is usually opened in a *later* session (after the
     // part has printed), and under the debugger the process is killed rather than exited
     // cleanly, so AppConfig's normal save-on-exit never runs and these keys would be lost.
@@ -170,7 +191,10 @@ void CalibrationPressureAdvAdaptiveDialog::create_geometry(wxCommandEvent& event
 
     // Tight grid layout (closer than arrange()) centred on the bed, so a single wide brim can
     // wrap the whole set.
-    const double cube_xy = 10.0, cube_z = 4.0, gap = 4.0, pitch = cube_xy + gap;
+    const double cube_xy = 10.0;
+    const double cube_z  = kGridCubeHeight;
+    const double gap     = kGridGap;
+    const double pitch   = cube_xy + gap;
     Vec2d bed_center(100.0, 100.0);
     if (const ConfigOptionPoints* bs = printer_config->option<ConfigOptionPoints>("bed_shape")) {
         if (!bs->get_values().empty())
@@ -189,8 +213,8 @@ void CalibrationPressureAdvAdaptiveDialog::create_geometry(wxCommandEvent& event
             ModelObject* obj = model.add_object(name.c_str(), "", Slic3r::make_cube(cube_xy, cube_xy, cube_z));
             obj->center_around_origin();
             obj->add_instance();
-            const double x = bed_center.x() - grid_w / 2 + is * pitch + pitch / 2;
-            const double y = bed_center.y() - grid_h / 2 + ja * pitch + pitch / 2;
+            const double x = bed_center.x() - grid_w / kGridCenterDivisor + is * pitch + pitch / kGridCenterDivisor;
+            const double y = bed_center.y() - grid_h / kGridCenterDivisor + ja * pitch + pitch / kGridCenterDivisor;
             obj->instances[0]->set_offset(Vec3d(x, y, 0));
             obj->ensure_on_bed();
             objs.push_back(obj);
@@ -202,7 +226,7 @@ void CalibrationPressureAdvAdaptiveDialog::create_geometry(wxCommandEvent& event
     new_print_config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(false));
     // Wide brim around the whole grid; with the tight spacing the per-object brims merge into
     // one mat that holds the thin single-wall boxes down.
-    new_print_config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(6));
+    new_print_config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(kBrimWidth));
 
     DynamicPrintConfig new_printer_config = *printer_config;
 
@@ -240,7 +264,7 @@ void CalibrationPressureAdvAdaptiveDialog::create_geometry(wxCommandEvent& event
             o->config.set_key_value("ironing", std::make_unique<ConfigOptionBool>(false));
             // Hollow wall test: perimeters only, no top/bottom skins, no infill, so pressure
             // advance shows up at the corners instead of being masked by solid fill.
-            o->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(2));
+            o->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(kCalibrationPerimeterCount));
             o->config.set_key_value("top_solid_layers", std::make_unique<ConfigOptionInt>(0));
             o->config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(0));
             o->config.set_key_value("fill_density", std::make_unique<ConfigOptionPercent>(0));
@@ -330,11 +354,11 @@ void CalibrationPressureAdvAdaptiveDialog::show_results_grid(wxCommandEvent& /*e
            "moving down means lower acceleration. For each box, type the pressure-advance value that printed best "
            "into its cell, then copy the rows or write them into the filament's adaptive PA model."));
     help->Wrap(680);
-    root->Add(help, 0, wxALL, 8);
+    root->Add(help, 0, wxALL, kDialogPadding);
 
     wxScrolledWindow* scroll = new wxScrolledWindow(&dlg, wxID_ANY);
     scroll->SetScrollRate(10, 10);
-    wxFlexGridSizer* grid = new wxFlexGridSizer(nb_accel + 1, nb_speed + 1, 4, 4);
+    wxFlexGridSizer* grid = new wxFlexGridSizer(nb_accel + 1, nb_speed + 1, kGridCellSpacing, kGridCellSpacing);
 
     grid->Add(new wxStaticText(scroll, wxID_ANY, _L("accel \\ flow")), 0, wxALIGN_CENTER);
     for (int is = 0; is < nb_speed; is++) {
@@ -348,7 +372,7 @@ void CalibrationPressureAdvAdaptiveDialog::show_results_grid(wxCommandEvent& /*e
     struct Cell { wxTextCtrl* tc; double flow; double accel; };
     std::vector<Cell> cells;
     cells.reserve(size_t(nb_speed) * size_t(nb_accel));
-    const wxString pa_prefill = Slic3r::from_dot_to_local(Slic3r::to_string_nozero(test_pa, 4));
+    const wxString pa_prefill = Slic3r::from_dot_to_local(Slic3r::to_string_nozero(test_pa, kSavedValuePrecision));
     for (int dr = 0; dr < nb_accel; dr++) {
         const int   ja    = nb_accel - 1 - dr;
         const float accel = axis_value(ja, nb_accel, min_accel, max_accel);
@@ -366,23 +390,25 @@ void CalibrationPressureAdvAdaptiveDialog::show_results_grid(wxCommandEvent& /*e
         }
     }
     scroll->SetSizer(grid);
-    root->Add(scroll, 1, wxEXPAND | wxLEFT | wxRIGHT, 8);
+    root->Add(scroll, 1, wxEXPAND | wxLEFT | wxRIGHT, kDialogPadding);
 
     // Assemble "PA, flow, accel" rows (dot decimals, C locale) for every cell with a valid PA.
     auto build_rows = [&cells]() -> std::string {
-        std::vector<std::array<double, 3>> pts; // pa, flow, accel
+        std::vector<std::array<double, kAdaptiveModelColumnCount>> pts; // pa, flow, accel
         for (const Cell& c : cells) {
             const double pa = parse_float_all_locale(c.tc->GetValue().ToStdString());
             if (pa >= 0.)
                 pts.push_back({ pa, c.flow, c.accel });
         }
-        std::sort(pts.begin(), pts.end(), [](const std::array<double, 3>& a, const std::array<double, 3>& b) {
-            return a[2] != b[2] ? a[2] < b[2] : a[1] < b[1];
+        std::sort(pts.begin(), pts.end(), [](const std::array<double, kAdaptiveModelColumnCount>& a, const std::array<double, kAdaptiveModelColumnCount>& b) {
+            return a[kAdaptiveModelAccelColumn] != b[kAdaptiveModelAccelColumn]
+                ? a[kAdaptiveModelAccelColumn] < b[kAdaptiveModelAccelColumn]
+                : a[1] < b[1];
         });
         std::string out;
         for (const auto& p : pts)
-            out += Slic3r::to_string_nozero(p[0], 4) + ", " + Slic3r::to_string_nozero(p[1], 4) + ", " +
-                   Slic3r::to_string_nozero(p[2], 1) + "\n";
+            out += Slic3r::to_string_nozero(p[0], kSavedValuePrecision) + ", " + Slic3r::to_string_nozero(p[1], kSavedValuePrecision) + ", " +
+                   Slic3r::to_string_nozero(p[kAdaptiveModelAccelColumn], 1) + "\n";
         return out;
     };
 
@@ -391,11 +417,11 @@ void CalibrationPressureAdvAdaptiveDialog::show_results_grid(wxCommandEvent& /*e
     wxButton*   bt_copy  = new wxButton(&dlg, wxID_ANY, _L("Copy model rows"));
     wxButton*   bt_apply = new wxButton(&dlg, wxID_ANY, _L("Write to filament model"));
     wxButton*   bt_close = new wxButton(&dlg, wxID_OK, _L("Close"));
-    btns->Add(bt_copy, 0, wxRIGHT, 6);
-    btns->Add(bt_apply, 0, wxRIGHT, 6);
+    btns->Add(bt_copy, 0, wxRIGHT, kButtonSpacing);
+    btns->Add(bt_apply, 0, wxRIGHT, kButtonSpacing);
     btns->AddStretchSpacer();
     btns->Add(bt_close);
-    root->Add(btns, 0, wxEXPAND | wxALL, 8);
+    root->Add(btns, 0, wxEXPAND | wxALL, kDialogPadding);
 
     bt_copy->Bind(wxEVT_BUTTON, [&](wxCommandEvent&) {
         const std::string rows = build_rows();

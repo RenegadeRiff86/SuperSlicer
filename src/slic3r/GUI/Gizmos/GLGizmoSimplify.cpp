@@ -22,6 +22,14 @@
 
 namespace Slic3r::GUI {
 
+static constexpr size_t ELLIPSIS_LENGTH          = 3;
+static constexpr int    CENTER_DIVISOR            = 2;
+static constexpr int    WINDOW_OFFSET_SCALE       = 2;
+static constexpr int    MAX_REDUCTION_LEVEL       = 4;
+static constexpr size_t TRIANGLE_VERTEX_COUNT     = 3;
+static constexpr size_t TRIANGLE_LAST_VERTEX_INDEX = TRIANGLE_VERTEX_COUNT - 1;
+static constexpr float  PERCENT_SCALE             = 100.f;
+
 // Extend call after only when Simplify gizmo is still alive
 static void call_after_if_active(std::function<void()> fn, GUI_App* app = &wxGetApp())
 {
@@ -224,7 +232,7 @@ void GLGizmoSimplify::on_render_input_window(float x, float y, float bottom_limi
         // Create volumes name to describe what will be simplified
         std::string name = create_volumes_name(m_volume_ids, selection);
         if (name.length() > m_gui_cfg->max_char_in_name)
-            name = name.substr(0, m_gui_cfg->max_char_in_name - 3) + "...";
+            name = name.substr(0, m_gui_cfg->max_char_in_name - ELLIPSIS_LENGTH) + "...";
         m_volumes_name = name;
 
         // Start processing. If we switched from another object, process will
@@ -237,8 +245,8 @@ void GLGizmoSimplify::on_render_input_window(float x, float y, float bottom_limi
             Size parent_size = m_parent.get_canvas_size();
             if (m_move_to_center) {
                 m_move_to_center   = false;
-                pos = ImVec2(parent_size.get_width() / 2 - m_gui_cfg->window_offset_x,
-                             parent_size.get_height() / 2 - m_gui_cfg->window_offset_y);                
+                pos = ImVec2(parent_size.get_width() / CENTER_DIVISOR - m_gui_cfg->window_offset_x,
+                             parent_size.get_height() / CENTER_DIVISOR - m_gui_cfg->window_offset_y);                
             } else {
                 // keep window wisible on canvas and close to mouse click
                 pos = ImGui::GetMousePos();
@@ -250,8 +258,8 @@ void GLGizmoSimplify::on_render_input_window(float x, float y, float bottom_limi
                 if (pos.x < tl.x) pos.x = tl.x;
                 if (pos.y < tl.y) pos.y = tl.y;
                 // maximal bottom right value
-                ImVec2 br(parent_size.get_width() - (2 * m_gui_cfg->window_offset_x + m_gui_cfg->window_padding),
-                          parent_size.get_height() -(2 * m_gui_cfg->window_offset_y + m_gui_cfg->window_padding));
+                ImVec2 br(parent_size.get_width() - (WINDOW_OFFSET_SCALE * m_gui_cfg->window_offset_x + m_gui_cfg->window_padding),
+                          parent_size.get_height() -(WINDOW_OFFSET_SCALE * m_gui_cfg->window_offset_y + m_gui_cfg->window_padding));
                 if (pos.x > br.x) pos.x = br.x;
                 if (pos.y > br.y) pos.y = br.y;
             }
@@ -290,15 +298,15 @@ void GLGizmoSimplify::on_render_input_window(float x, float y, float bottom_limi
     ImGui::SameLine(m_gui_cfg->bottom_left_width);
     ImGui::SetNextItemWidth(m_gui_cfg->input_width);
     static int reduction = 2;
-    if(ImGui::SliderInt("##ReductionLevel", &reduction, 0, 4, reduce_captions[reduction].c_str())) {
+    if(ImGui::SliderInt("##ReductionLevel", &reduction, 0, MAX_REDUCTION_LEVEL, reduce_captions[reduction].c_str())) {
         if (reduction < 0) reduction = 0;
-        if (reduction > 4) reduction = 4;
+        if (reduction > MAX_REDUCTION_LEVEL) reduction = MAX_REDUCTION_LEVEL;
         switch (reduction) {
         case 0: m_configuration.max_error = 1e-3f; break;
         case 1: m_configuration.max_error = 1e-2f; break;
         case 2: m_configuration.max_error = 0.1f; break;
         case 3: m_configuration.max_error = 0.5f; break;
-        case 4: m_configuration.max_error = 1.f; break;
+        case MAX_REDUCTION_LEVEL: m_configuration.max_error = 1.f; break;
         }
         start_process = true;
     }
@@ -315,8 +323,8 @@ void GLGizmoSimplify::on_render_input_window(float x, float y, float bottom_limi
     // show preview result triangle count (percent)
     if (!m_configuration.use_count) {
         m_configuration.wanted_count = static_cast<uint32_t>(m_triangle_count);
-        m_configuration.decimate_ratio = 
-            (1.0f - (m_configuration.wanted_count / static_cast<float>(m_original_triangle_count))) * 100.f;
+        m_configuration.decimate_ratio =
+            (1.0f - (m_configuration.wanted_count / static_cast<float>(m_original_triangle_count))) * PERCENT_SCALE;
     }
 
     m_imgui->disabled_begin(!m_configuration.use_count);
@@ -326,11 +334,11 @@ void GLGizmoSimplify::on_render_input_window(float x, float y, float bottom_limi
     const char * format = (m_configuration.decimate_ratio > 10)? "%.0f %%": 
         ((m_configuration.decimate_ratio > 1)? "%.1f %%":"%.2f %%");
 
-    if(m_imgui->slider_float("##decimate_ratio",  &m_configuration.decimate_ratio, 0.f, 100.f, format)){
+    if(m_imgui->slider_float("##decimate_ratio", &m_configuration.decimate_ratio, 0.f, PERCENT_SCALE, format)) {
         if (m_configuration.decimate_ratio < 0.f)
             m_configuration.decimate_ratio = 0.01f;
-        if (m_configuration.decimate_ratio > 100.f)
-            m_configuration.decimate_ratio = 100.f;
+        if (m_configuration.decimate_ratio > PERCENT_SCALE)
+            m_configuration.decimate_ratio = PERCENT_SCALE;
         m_configuration.fix_count_by_ratio(m_original_triangle_count);
         start_process = true;
     }
@@ -364,7 +372,7 @@ void GLGizmoSimplify::on_render_input_window(float x, float y, float bottom_limi
         // draw progress bar
         std::string progress_text = GUI::format(_L("Process %1% / 100"), std::to_string(progress));
         ImVec2 progress_size(m_gui_cfg->input_width, 0.f);
-        ImGui::ProgressBar(progress / 100., progress_size, progress_text.c_str());
+        ImGui::ProgressBar(progress / PERCENT_SCALE, progress_size, progress_text.c_str());
     }
     m_imgui->end();
     if (start_process)
@@ -592,7 +600,7 @@ void GLGizmoSimplify::create_gui_cfg() {
         space_size + radio_size;
 
     cfg.input_width   = cfg.bottom_left_width * 1.5;
-    cfg.window_offset_x = (cfg.bottom_left_width + cfg.input_width)/2;
+    cfg.window_offset_x = (cfg.bottom_left_width + cfg.input_width) / CENTER_DIVISOR;
     cfg.window_offset_y = ImGui::GetTextLineHeightWithSpacing() * 5;
     
     m_gui_cfg = cfg;
@@ -680,21 +688,25 @@ void GLGizmoSimplify::update_model(const State::Data &data)
 #if ENABLE_OPENGL_ES
         GLModel::Geometry init_data;
         init_data.format = { GLModel::Geometry::EPrimitiveType::Triangles, GLModel::Geometry::EVertexLayout::P3N3E3 };
-        init_data.reserve_vertices(3 * its.indices.size());
-        init_data.reserve_indices(3 * its.indices.size());
+        init_data.reserve_vertices(TRIANGLE_VERTEX_COUNT * its.indices.size());
+        init_data.reserve_indices(TRIANGLE_VERTEX_COUNT * its.indices.size());
 
         // vertices + indices
-        std::array<Vec3f, 3> barycentric_coords = { Vec3f::UnitX(), Vec3f::UnitY(), Vec3f::UnitZ() };
+        std::array<Vec3f, TRIANGLE_VERTEX_COUNT> barycentric_coords = { Vec3f::UnitX(), Vec3f::UnitY(), Vec3f::UnitZ() };
         unsigned int vertices_counter = 0;
         for (uint32_t i = 0; i < its.indices.size(); ++i) {
             const stl_triangle_vertex_indices face = its.indices[i];
-            const stl_vertex                  vertex[3] = { its.vertices[face[0]], its.vertices[face[1]], its.vertices[face[2]] };
-            const stl_vertex                  n = face_normal_normalized(vertex);
-            for (size_t j = 0; j < 3; ++j) {
+            const stl_vertex vertex[TRIANGLE_VERTEX_COUNT] = {
+                its.vertices[face[0]], its.vertices[face[1]], its.vertices[face[TRIANGLE_LAST_VERTEX_INDEX]]
+            };
+            const stl_vertex n = face_normal_normalized(vertex);
+            for (size_t j = 0; j < TRIANGLE_VERTEX_COUNT; ++j) {
                 init_data.add_vertex(vertex[j], n, barycentric_coords[j]);
             }
-            vertices_counter += 3;
-            init_data.add_triangle(vertices_counter - 3, vertices_counter - 2, vertices_counter - 1);
+            vertices_counter += TRIANGLE_VERTEX_COUNT;
+            init_data.add_triangle(vertices_counter - TRIANGLE_VERTEX_COUNT,
+                                   vertices_counter - TRIANGLE_LAST_VERTEX_INDEX,
+                                   vertices_counter - 1);
         }
 
         glmodel.init_from(std::move(init_data));
@@ -798,11 +810,11 @@ void GLGizmoSimplify::Configuration::fix_count_by_ratio(size_t triangle_count)
 {
     if (decimate_ratio <= 0.f)
         wanted_count = static_cast<uint32_t>(triangle_count);
-    else if (decimate_ratio >= 100.f)
+    else if (decimate_ratio >= PERCENT_SCALE)
         wanted_count = 0;
     else
         wanted_count = static_cast<uint32_t>(std::round(
-            triangle_count * (100.f - decimate_ratio) / 100.f));
+            triangle_count * (PERCENT_SCALE - decimate_ratio) / PERCENT_SCALE));
 }
 
 // any existing icon filename to not influence GUI

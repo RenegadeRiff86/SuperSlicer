@@ -45,6 +45,9 @@ struct Camera
     bool requires_zoom_to_bed{ false };
 
 private:
+    static constexpr Eigen::Index ViewRotationDimensions       = 3;
+    static constexpr Eigen::Index HomogeneousTranslationColumn = 3;
+
     EType m_type{ EType::Perspective };
     bool m_update_config_on_type_change_enabled{ false };
     Vec3d m_target{ Vec3d::Zero() };
@@ -96,11 +99,11 @@ public:
     const Transform3d& get_view_matrix() const { return m_view_matrix; }
     const Transform3d& get_projection_matrix() const { return m_projection_matrix; }
 
-    Vec3d get_dir_right() const { return m_view_matrix.matrix().block(0, 0, 3, 3).row(0); }
-    Vec3d get_dir_up() const { return m_view_matrix.matrix().block(0, 0, 3, 3).row(1); }
-    Vec3d get_dir_forward() const { return -m_view_matrix.matrix().block(0, 0, 3, 3).row(2); }
+    Vec3d get_dir_right() const { return m_view_matrix.matrix().block(0, 0, ViewRotationDimensions, ViewRotationDimensions).row(0); }
+    Vec3d get_dir_up() const { return m_view_matrix.matrix().block(0, 0, ViewRotationDimensions, ViewRotationDimensions).row(1); }
+    Vec3d get_dir_forward() const { return -m_view_matrix.matrix().block(0, 0, ViewRotationDimensions, ViewRotationDimensions).row(2); }
 
-    Vec3d get_position() const { return m_view_matrix.matrix().inverse().block(0, 3, 3, 1); }
+    Vec3d get_position() const { return m_view_matrix.matrix().inverse().block(0, HomogeneousTranslationColumn, ViewRotationDimensions, 1); }
 
     double get_near_z() const { return m_frustrum_zs.first; }
     double get_far_z() const { return m_frustrum_zs.second; }

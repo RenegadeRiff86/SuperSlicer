@@ -24,20 +24,15 @@
 #include "Tab.hpp"
 
 #include "libslic3r/Log.hpp"
-#include "libslic3r/Model.hpp"
 #include "libslic3r/PresetBundle.hpp"
-#include "libslic3r/Utils.hpp"
 #include "libslic3r/GCode/GCodeProcessor.hpp"
 #include <libslic3r/Slicing.hpp>
-#include "libslic3r/GCode/GCodeWriter.hpp"
-#include "libslic3r/GCode/Thumbnails.hpp"
 
 #include "BonjourDialog.hpp"
 #include "ButtonsDescription.hpp"
 #include "EditGCodeDialog.hpp"
 #include "format.hpp"
 #include "GLCanvas3D.hpp"
-#include "GraphDialog.hpp"
 #include "GUI_App.hpp"
 #include "GUI_ObjectList.hpp"
 #include "MainFrame.hpp"
@@ -49,15 +44,12 @@
 #include "Plater.hpp"
 #include "PresetComboBoxes.hpp"
 #include "PresetHints.hpp"
-#include "slic3r/Utils/Http.hpp"
 #include "slic3r/Utils/Moonraker.hpp"
 #include "slic3r/Utils/PrintHost.hpp"
-#include "slic3r/Utils/Serial.hpp"
 #include <boost/algorithm/string/join.hpp>
 #include "SavePresetDialog.hpp"
 #include "Search.hpp"
 #include "UnsavedChangesDialog.hpp"
-#include "Widgets/CheckBox.hpp"
 #include "WipeTowerDialog.hpp"
 
 
@@ -120,6 +112,29 @@ constexpr char kMaxLayerHeightKey[]               = "max_layer_height";
 constexpr char kFilamentTravelRampingLiftKey[]    = "filament_travel_ramping_lift";
 constexpr char kGcodeFlavorKey[]                  = "gcode_flavor";
 constexpr char kSilentModeKey[]                   = "silent_mode";
+
+constexpr size_t TAB_BUTTON_CAPACITY           = 6;
+constexpr size_t PAGE_BUTTON_CAPACITY          = 2;
+constexpr int    SCROLL_PAGE_UNITS             = 2;
+constexpr int    HEADER_BORDER                 = 3;
+constexpr int    HEADER_SPACING                = 4;
+constexpr size_t PAGE_DIRECTIVE_FIELD_COUNT    = 2;
+constexpr size_t ENUM_VALUE_LABEL_PAIR_SIZE    = 2;
+constexpr size_t ENUM_DIRECTIVE_MIN_SIZE       = 3;
+constexpr size_t LAYOUT_DIRECTIVE_MIN_SIZE     = 4;
+constexpr int    OPTION_BUTTON_WIDTH_ADJUSTMENT = 4;
+constexpr size_t SUBSTITUTION_FIELD_COUNT      = 4;
+constexpr size_t SUBSTITUTION_PARAMS_INDEX     = 2;
+constexpr size_t SUBSTITUTION_NOTES_INDEX      = 3;
+constexpr int    SUBSTITUTION_GRID_COLUMNS     = 2;
+constexpr int    SUBSTITUTION_LABEL_PROPORTION = 3;
+constexpr int    SUBSTITUTION_NOTES_PROPORTION = 2;
+constexpr int    FLOAT_DISPLAY_PRECISION       = 6;
+constexpr size_t KEY_VALUE_DIRECTIVE_MIN_LENGTH = 6;
+constexpr size_t MIN_SETTING_ID_LENGTH          = 2;
+constexpr int    SILENT_MODE_MAX_FIELD          = 2;
+constexpr int    BUTTON_ROW_SPACING_UNITS       = 3;
+constexpr int    SUBSTITUTION_BUTTON_WIDTH_EM   = 4;
 } // namespace
 
 Tab::Tab(wxBookCtrlBase* parent, const wxString& title, Preset::Type type) :
@@ -215,8 +230,8 @@ void Tab::create_preset_tab()
     });
 
     //buttons
-    m_scaled_buttons.reserve(6);
-    m_scaled_buttons.reserve(2);
+    m_scaled_buttons.reserve(TAB_BUTTON_CAPACITY);
+    m_scaled_buttons.reserve(PAGE_BUTTON_CAPACITY);
 
     add_scaled_button(panel, &m_btn_compare_preset, "compare");
     add_scaled_button(panel, &m_btn_save_preset, "save");
@@ -296,20 +311,20 @@ void Tab::create_preset_tab()
 
     const float scale_factor = em_unit(this)*0.1;// GetContentScaleFactor();
     m_top_hsizer = new wxBoxSizer(wxHORIZONTAL);
-    sizer->Add(m_top_hsizer, 0, wxEXPAND | wxBOTTOM, 3);
-    m_top_hsizer->Add(m_presets_choice, 0, wxLEFT | wxRIGHT | wxTOP | wxALIGN_CENTER_VERTICAL, 3);
-    m_top_hsizer->AddSpacer(int(4*scale_factor));
+    sizer->Add(m_top_hsizer, 0, wxEXPAND | wxBOTTOM, HEADER_BORDER);
+    m_top_hsizer->Add(m_presets_choice, 0, wxLEFT | wxRIGHT | wxTOP | wxALIGN_CENTER_VERTICAL, HEADER_BORDER);
+    m_top_hsizer->AddSpacer(int(HEADER_SPACING * scale_factor));
 
     m_h_buttons_sizer = new wxBoxSizer(wxHORIZONTAL);
     m_h_buttons_sizer->Add(m_btn_save_preset, 0, wxALIGN_CENTER_VERTICAL);
-    m_h_buttons_sizer->AddSpacer(int(4*scale_factor));
+    m_h_buttons_sizer->AddSpacer(int(HEADER_SPACING * scale_factor));
     m_h_buttons_sizer->Add(m_btn_save_as_preset, 0, wxALIGN_CENTER_VERTICAL);
-    m_h_buttons_sizer->AddSpacer(int(4 * scale_factor));
+    m_h_buttons_sizer->AddSpacer(int(HEADER_SPACING * scale_factor));
     m_h_buttons_sizer->Add(m_btn_rename_preset, 0, wxALIGN_CENTER_VERTICAL);
-    m_h_buttons_sizer->AddSpacer(int(4 * scale_factor));
+    m_h_buttons_sizer->AddSpacer(int(HEADER_SPACING * scale_factor));
     m_h_buttons_sizer->Add(m_btn_delete_preset, 0, wxALIGN_CENTER_VERTICAL);
     if (m_btn_edit_ph_printer) {
-        m_h_buttons_sizer->AddSpacer(int(4 * scale_factor));
+        m_h_buttons_sizer->AddSpacer(int(HEADER_SPACING * scale_factor));
         m_h_buttons_sizer->Add(m_btn_edit_ph_printer, 0, wxALIGN_CENTER_VERTICAL);
     }
     m_h_buttons_sizer->AddSpacer(int(/*16*/8 * scale_factor));
@@ -396,7 +411,7 @@ void Tab::create_preset_tab()
     m_page_view = new wxScrolledWindow(page_parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL);
     m_page_sizer = new wxBoxSizer(wxVERTICAL);
     m_page_view->SetSizer(m_page_sizer);
-    m_page_view->SetScrollbars(1, ThemeMetrics::settings_scroll_step(m_page_view), 1, 2);
+    m_page_view->SetScrollbars(1, ThemeMetrics::settings_scroll_step(m_page_view), 1, SCROLL_PAGE_UNITS);
     m_hsizer->Add(m_page_view, 1, wxEXPAND | wxLEFT, ThemeMetrics::space_md(panel));
 
     m_btn_compare_preset->Bind(wxEVT_BUTTON, ([this](wxCommandEvent e) { compare_preset(); }));
@@ -791,7 +806,6 @@ void Tab::update_changed_ui()
         opt.second = m_opt_status_value;
     }
 
-    const bool deep_compare = type() != Preset::TYPE_FFF_FILAMENT;
     std::map<OptionKeyIdx, uint16_t> dirty_options = m_presets->dirty_options(&m_presets->get_edited_preset(), &m_presets->get_selected_preset(), false);
     std::map<OptionKeyIdx, uint16_t> nonsys_options;
     if (m_presets->get_selected_preset_parent()) {
@@ -844,12 +858,10 @@ void Tab::update_changed_ui()
                 nonsys_options.emplace(OptionKeyIdx{special_key, 0}, tool_id);
             }
         }
-        for (auto &entry : dirty_options) {
-            assert(entry.first.idx >= 0);
-        }
-        for (auto &entry : nonsys_options) {
-            assert(entry.first.idx >= 0);
-        }
+        assert(std::all_of(dirty_options.begin(), dirty_options.end(),
+                           [](const auto &entry) { return entry.first.idx >= 0; }));
+        assert(std::all_of(nonsys_options.begin(), nonsys_options.end(),
+                           [](const auto &entry) { return entry.first.idx >= 0; }));
     }
 
     const Preset& edited_preset   = m_presets->get_edited_preset();
@@ -1242,7 +1254,7 @@ void Tab::update_mode()
 
     // update mode for ModeSizer
     if (m_mode_sizer)
-    m_mode_sizer->SetMode(m_mode);
+        m_mode_sizer->SetMode(m_mode);
 
     update_visibility();
 
@@ -1412,27 +1424,6 @@ bool Tab::set_value(const OptionKeyIdx& opt_key_idx, const boost::any& value, bo
             changed = true;
     }
     return changed;
-}
-
-static wxString support_combo_value_for_config(const DynamicPrintConfig &config, bool is_fff)
-{
-    std::string slatree = is_fff ? "" : get_sla_suptree_prefix(config);
-
-    const std::string support         = is_fff ? "support_material"                 : "supports_enable";
-    const std::string buildplate_only = is_fff ? "support_material_buildplate_only" : slatree + "support_buildplate_only";
-
-    return
-        ! config.opt_bool(support) ?
-            _("None") :
-               ((is_fff && !config.opt_bool("support_material_auto")) || (!is_fff && config.opt_bool("support_enforcers_only"))) ?
-                _("For support enforcers only") :
-                (config.opt_bool(buildplate_only) ? _("Support on build plate only") :
-                                                    _("Everywhere"));
-}
-
-static wxString pad_combo_value_for_config(const DynamicPrintConfig &config)
-{
-    return config.opt_bool("pad_enable") ? (config.opt_bool("pad_around_object") ? _("Around object") : _("Below object")) : _("None");
 }
 
 void Tab::on_value_change(const OptionKeyIdx& opt_key_idx, const boost::any& value)
@@ -1871,7 +1862,6 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
         type_override = this->type();
     }
 
-    bool no_page_yet = true;
 #ifdef __WXMSW__
     /* Workaround for correct layout of controls inside the created page:
      * In some _strange_ way we should we should imitate page resizing.
@@ -1898,7 +1888,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
     while (std::getline(filestream, full_line)) {
         //remove spaces
         boost::algorithm::trim(full_line);
-        if (full_line.size() < 4 || full_line[0] == '#') continue;
+        if (full_line.size() < LAYOUT_DIRECTIVE_MIN_SIZE || full_line[0] == '#') continue;
         boost::replace_all(full_line, "\\:", "¤");
         //get main command
         if (boost::starts_with(full_line, "logs"))
@@ -1911,7 +1901,6 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
 //            if(!no_page_yet)
 //                layout_page(current_page);
 #endif
-            no_page_yet = false;
             if (in_line) {
                 current_group->append_line(current_line);
                 if (logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << LOG_ADD_LINE;
@@ -1924,11 +1913,11 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                 while (str.size() > 1 && (str.back() == ' ' || str.back() == '\t')) str = str.substr(0, str.size() - 1);
                 boost::replace_all(str, "¤", ":");
             }
-            if (params.size() < 2) std::cerr << "error, you need to add the title and icon of the page example: page:awsome page:shell, \n";
-            if (params.size() < 2) continue;
-            if (params.size() == 2) params.push_back("wrench");
+            if (params.size() < PAGE_DIRECTIVE_FIELD_COUNT) std::cerr << "error, you need to add the title and icon of the page example: page:awsome page:shell, \n";
+            if (params.size() < PAGE_DIRECTIVE_FIELD_COUNT) continue;
+            if (params.size() == PAGE_DIRECTIVE_FIELD_COUNT) params.push_back("wrench");
 
-            wxString label = _(params[params.size()-2]);
+            wxString label = _(params[params.size() - PAGE_DIRECTIVE_FIELD_COUNT]);
 
             for (size_t i = 1; i + 1 < params.size(); i++) {
                 if (params[i] == "idx")
@@ -2078,7 +2067,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                     TabPrinter* tab = nullptr;
                     if ((tab = dynamic_cast<TabPrinter*>(this)) == nullptr) continue;
                     current_group->m_on_change = set_or_add(current_group->m_on_change,
-                        [this, tab](const OptionKeyIdx &opt_key_idx, bool enabled, const boost::any &value) {
+                        [tab](const OptionKeyIdx &opt_key_idx, bool enabled, const boost::any &value) {
                         tab->update_fff(); //check for kinematic rebuild
                         tab->build_unregular_pages(false);
                     });
@@ -2195,7 +2184,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
             bool is_script = false; // dummy - scripted widgets support removed
             std::string setting_id = "";
             if (params.size() > 1) setting_id = params.back();
-            if (setting_id.size() < 2) continue;
+            if (setting_id.size() < MIN_SETTING_ID_LENGTH) continue;
             if (!m_config_base->has(setting_id)) {
                 std::cerr << "No " << setting_id << " in ConfigOptionsGroup config, tab " << setting_type_name << ".\n";
                 continue;
@@ -2231,14 +2220,14 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
             if (height > 0)
                 option.opt.height = height;
             
-            auto fct_add_enum = [this, &option](std::string& str_list, ConfigOptionDef::GUIType type)->bool {
+            auto fct_add_enum = [&option](std::string& str_list, ConfigOptionDef::GUIType type)->bool {
                 std::vector<std::string> enum_strs;
                 boost::split(enum_strs, str_list, boost::is_any_of("$"));
-                if (enum_strs.size() > 2 && enum_strs.size() % 2 == 1) {
+                if (enum_strs.size() > ENUM_VALUE_LABEL_PAIR_SIZE && enum_strs.size() % ENUM_VALUE_LABEL_PAIR_SIZE == 1) {
                     return false;
                 }
                 std::vector<std::pair<std::string,std::string>> values_2_labels;
-                for (size_t idx = 1; idx < enum_strs.size(); idx += 2) {
+                for (size_t idx = 1; idx < enum_strs.size(); idx += ENUM_VALUE_LABEL_PAIR_SIZE) {
                     values_2_labels.emplace_back(enum_strs[idx], enum_strs[idx + 1]);
                 }
                 // create enum_def in option.opt
@@ -2247,7 +2236,6 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                 return true;
             };
 
-            bool need_to_notified_search = false;
             bool colored = false;
             std::string label_path;
             for (size_t i = 1; i + 1 < params.size(); i++) {
@@ -2287,7 +2275,6 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                     } else {
                         option.opt.label = option.opt.full_label;
                     }
-                    need_to_notified_search = true;
                 }
                 else if (params[i] == "is_gcode")
                 {
@@ -2301,7 +2288,6 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                     option.opt.label = (params[i].substr(strlen("label$")));
                     if (option.opt.full_label.empty()) 
                         option.opt.full_label = option.opt.label;
-                    need_to_notified_search = true;
                 }
                 else if (boost::starts_with(params[i], "label_width$")) {
                     option.opt.label_width = atoi(params[i].substr(strlen("label_width$")).c_str());
@@ -2323,7 +2309,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                 else if (boost::starts_with(params[i], "width$")) {
                     option.opt.width = atoi(params[i].substr(strlen("width$")).c_str());
 #ifdef __WXGTK3__
-                    option.opt.width += 4; // add width for the big [-][+] buttons
+                    option.opt.width += OPTION_BUTTON_WIDTH_ADJUSTMENT; // add width for the big [-][+] buttons
 #endif
                 }
                 else if (boost::starts_with(params[i], "height$")) {
@@ -2345,7 +2331,6 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                     boost::replace_all(option.opt.tooltip, "\\t", "\t");
                     boost::replace_all(option.opt.tooltip, "\\.", ":");
                     boost::replace_all(option.opt.tooltip, "\\£", "$");
-                    need_to_notified_search = true;
                 }
                 else if (boost::starts_with(params[i], "max_literal$"))
                 {
@@ -2403,13 +2388,13 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                         option.opt.type = coEnum;
                         std::vector<std::string> enum_strs;
                         boost::split(enum_strs, params[i], boost::is_any_of("$"));
-                        if (enum_strs.size() < 3 || enum_strs.size() % 2 == 0) {
+                        if (enum_strs.size() < ENUM_DIRECTIVE_MIN_SIZE || enum_strs.size() % ENUM_VALUE_LABEL_PAIR_SIZE == 0) {
                             BOOST_LOG_TRIVIAL(error) << "Error: enum '"<< setting_id << "' doesn't have an even number of key-label values:"<<(enum_strs.size()-1)<<".";
                             if (logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << "Error: odd number of enum values: should be a key/value list ("<< option.opt.opt_key <<")";
                             continue;
                         }
                         std::vector<std::pair<std::string,std::string>> values_2_labels;
-                        for (size_t idx = 1; idx < enum_strs.size(); idx += 2) {
+                        for (size_t idx = 1; idx < enum_strs.size(); idx += ENUM_VALUE_LABEL_PAIR_SIZE) {
                             values_2_labels.emplace_back(enum_strs[idx], enum_strs[idx + 1]);
                         }
                         // create enum_def in option.opt
@@ -2421,13 +2406,13 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                     } else if (boost::starts_with(params[i], "hints")) {
                         std::vector<std::string> enum_strs;
                         boost::split(enum_strs, params[i], boost::is_any_of("$"));
-                        if (enum_strs.size() < 3 || enum_strs.size() % 2 == 0) {
+                        if (enum_strs.size() < ENUM_DIRECTIVE_MIN_SIZE || enum_strs.size() % ENUM_VALUE_LABEL_PAIR_SIZE == 0) {
                             BOOST_LOG_TRIVIAL(error) << "Error: hints '"<< setting_id << "' doesn't have an even number of key-label values:"<<(enum_strs.size()-1)<<".";
                             if (logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << "Error: odd number of hints values: should be a key/value list ("<< option.opt.opt_key <<")";
                             continue;
                         }
                         std::vector<std::pair<std::string,std::string>> values_2_labels;
-                        for (size_t idx = 1; idx < enum_strs.size(); idx += 2) {
+                        for (size_t idx = 1; idx < enum_strs.size(); idx += ENUM_VALUE_LABEL_PAIR_SIZE) {
                             values_2_labels.emplace_back(enum_strs[idx], enum_strs[idx + 1]);
                         }
                         // create enum_def in option.opt
@@ -2475,7 +2460,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
             if (logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << "create setting " << setting_id <<"  with label "<< option.opt.label << "and height "<< option.opt.height<<" fw:"<< option.opt.full_width << "\n";
         } else if (boost::starts_with(full_line, "height")) {
             std::string arg = "";
-            if (size_t dblp_pos = full_line.find(":"); full_line.size() > 6 && dblp_pos != std::string::npos)
+            if (size_t dblp_pos = full_line.find(":"); full_line.size() > KEY_VALUE_DIRECTIVE_MIN_LENGTH && dblp_pos != std::string::npos)
                 arg = full_line.substr(dblp_pos + 1, full_line.size() - 1 - dblp_pos);
             while (arg.size() > 1 && (arg.back() == ' ' || arg.back() == '\t')) arg = arg.substr(0, arg.size() - 1);
             height = atoi(arg.c_str());
@@ -2569,7 +2554,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                     continue;
                 current_line            = {"", ""};
                 current_line.full_width = 1;
-                current_line.widget     = [this, tab](wxWindow *parent) {
+                current_line.widget     = [tab](wxWindow *parent) {
                     // return description_line_widget(parent, &(tab->m_recommended_extrusion_width_description_line));
 
                     auto               sizer    = new wxBoxSizer(wxVERTICAL);
@@ -2739,7 +2724,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                 });
                 current_line            = current_group->create_single_option_line(opt_key);
                 current_line.label_path = "";
-                current_line.widget     = [this, manager, current_page, opt_key](wxWindow *parent) {
+                current_line.widget     = [manager](wxWindow *parent) {
                     auto create_btn = [parent](ScalableButton **btn, const wxString &label,
                                                const std::string &icon_name) {
                         *btn = new ScalableButton(parent, wxID_ANY, icon_name, " " + label + " ", wxDefaultSize,
@@ -2778,7 +2763,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                                         });
                 current_line            = {"", ""};
                 current_line.full_width = 1;
-                current_line.widget     = [this, tab](wxWindow *parent) {
+                current_line.widget     = [tab](wxWindow *parent) {
                     return tab->create_substitutions_widget(parent);
                 };
                 current_group->append_line(current_line);
@@ -2806,7 +2791,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                 TabPrinter *tab = nullptr;
                 if ((tab = dynamic_cast<TabPrinter *>(this)) == nullptr)
                     continue;
-                widget_t sync_pa_mirrors = [this, idx_page, tab](wxWindow *parent) -> wxBoxSizer * {
+                widget_t sync_pa_mirrors = [idx_page, tab](wxWindow *parent) -> wxBoxSizer * {
                     ScalableButton *btn = new ScalableButton(parent, wxID_ANY, "refresh", _L("Detect from printer"),
                                                      wxDefaultSize, wxDefaultPosition, wxBU_LEFT | wxBU_EXACTFIT);
                     btn->SetFont(Slic3r::GUI::wxGetApp().normal_font());
@@ -2816,7 +2801,6 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                     btn->SetSize(btn->GetBestSize());
                     wxBoxSizer *sizer = new wxBoxSizer(wxHORIZONTAL);
                     sizer->Add(btn);
-                    assert(m_config);
                     btn->Bind(wxEVT_BUTTON, [tab, idx_page](wxCommandEvent &e) {
                         tab->sync_pressure_advance_mirrors(int(idx_page));
                     });
@@ -2829,7 +2813,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                 TabPrinter *tab = nullptr;
                 if ((tab = dynamic_cast<TabPrinter *>(this)) == nullptr)
                     continue;
-                widget_t reset_to_filament_color = [this, idx_page, tab](wxWindow *parent) -> wxBoxSizer * {
+                widget_t reset_to_filament_color = [this, idx_page](wxWindow *parent) -> wxBoxSizer * {
                     ScalableButton* btn = new ScalableButton(parent, wxID_ANY, "undo", _L("Reset to Filament Color"),
                                                      wxDefaultSize, wxDefaultPosition, wxBU_LEFT | wxBU_EXACTFIT);
                     btn->SetFont(Slic3r::GUI::wxGetApp().normal_font());
@@ -3210,9 +3194,6 @@ void TabFilament::update_filament_overrides_page()
 {
     if (!m_active_page || m_active_page->title() != "Filament Overrides")
         return;
-    Page* page = m_active_page;
-
-
     const int extruder_idx = 0; // #ys_FIXME
 
     assert(m_config->option("filament_retract_length")->size() == 1);
@@ -3284,7 +3265,7 @@ void TabFilament::create_extruder_combobox()
         set_active_extruder(m_extruders_cb->GetSelection());
     });
 
-    m_h_buttons_sizer->AddSpacer(3*em_unit(this));
+    m_h_buttons_sizer->AddSpacer(BUTTON_ROW_SPACING_UNITS * em_unit(this));
     m_h_buttons_sizer->Add(m_extruders_cb, 0, wxALIGN_CENTER_VERTICAL);
 }
 
@@ -3840,7 +3821,6 @@ void TabPrinter::build_unregular_pages(bool from_initial_build/* = false*/)
 {
     size_t		n_before_extruders = m_unregular_page_pos;			//	Count of pages before Extruder pages
     bool changed = false;
-    GCodeFlavor flavor = m_config->option<ConfigOptionEnum<GCodeFlavor>>(kGcodeFlavorKey)->value;
 
     /* ! Freeze/Thaw in this function is needed to avoid call OnPaint() for erased pages
      * and be cause of application crash, when try to change Preset in moment,
@@ -3937,10 +3917,10 @@ void TabPrinter::build_unregular_pages(bool from_initial_build/* = false*/)
 
     Thaw();
 
-    if(changed)
-
-    if (from_initial_build && m_printer_technology == ptSLA)
-        return; // next part of code is no needed to execute at this moment
+    if (changed) {
+        if (from_initial_build && m_printer_technology == ptSLA)
+            return; // next part of code is no needed to execute at this moment
+    }
 
     rebuild_page_tree();
 
@@ -4067,7 +4047,7 @@ void TabPrinter::toggle_options()
         const auto *machine_limits_usage = m_config->option<ConfigOptionEnum<MachineLimitsUsage>>("machine_limits_usage");
         bool enabled = machine_limits_usage->value != MachineLimitsUsage::Ignore;
         bool silent_mode = (m_last_gcode_flavor == gcfMarlinLegacy || m_last_gcode_flavor == gcfMarlinFirmware) && m_config->opt_bool(kSilentModeKey);
-        int  max_field = silent_mode ? 2 : 1;
+        int  max_field = silent_mode ? SILENT_MODE_MAX_FIELD : 1;
         for (const std::string &opt : Preset::machine_limits_options())
             for (int i = 0; i < max_field; ++i)
                 toggle_option(opt, enabled, i);
@@ -4081,7 +4061,6 @@ void TabPrinter::toggle_options()
         coord_t z_step_Mlong = scale_t(z_step);
         DynamicPrintConfig new_conf;
         bool has_changed = false;
-        const std::vector<double>& nozzle_diameters = m_config->option<ConfigOptionFloats>(kNozzleDiameterKey)->get_values();
         const std::vector<FloatOrPercent>& min_layer_height = m_config->option<ConfigOptionFloatsOrPercents>("min_layer_height")->get_values();
         for (size_t i = 0; i < min_layer_height.size(); i++) {
             if(!min_layer_height[i].percent)
@@ -5320,9 +5299,9 @@ void SubstitutionManager::create_legend()
 
     // Legend for another columns
     auto legend_sizer = new wxBoxSizer(wxHORIZONTAL); // "Find", "Replace", "Notes"
-    legend_sizer->Add(new wxStaticText(m_parent, wxID_ANY, _L("Find")), 3, wxEXPAND);
-    legend_sizer->Add(new wxStaticText(m_parent, wxID_ANY, _L("Replace with")), 3, wxEXPAND);
-    legend_sizer->Add(new wxStaticText(m_parent, wxID_ANY, _L("Notes")), 2, wxEXPAND);
+    legend_sizer->Add(new wxStaticText(m_parent, wxID_ANY, _L("Find")), SUBSTITUTION_LABEL_PROPORTION, wxEXPAND);
+    legend_sizer->Add(new wxStaticText(m_parent, wxID_ANY, _L("Replace with")), SUBSTITUTION_LABEL_PROPORTION, wxEXPAND);
+    legend_sizer->Add(new wxStaticText(m_parent, wxID_ANY, _L("Notes")), SUBSTITUTION_NOTES_PROPORTION, wxEXPAND);
 
     m_grid_sizer->Add(legend_sizer, 1, wxEXPAND);
 }
@@ -5401,9 +5380,9 @@ void SubstitutionManager::add_substitution(int substitution_id,
         });
     };
 
-    add_text_editor(from_u8(plain_pattern), 0, 3);
-    add_text_editor(from_u8(format),        1, 3);
-    add_text_editor(from_u8(notes),         3, 2);
+    add_text_editor(from_u8(plain_pattern), 0, SUBSTITUTION_LABEL_PROPORTION);
+    add_text_editor(from_u8(format),        1, SUBSTITUTION_LABEL_PROPORTION);
+    add_text_editor(from_u8(notes),         SUBSTITUTION_NOTES_INDEX, SUBSTITUTION_NOTES_PROPORTION);
 
     auto params_sizer = new wxBoxSizer(wxHORIZONTAL);
     bool regexp              = strchr(params.c_str(), 'r') != nullptr || strchr(params.c_str(), 'R') != nullptr;
@@ -5446,7 +5425,7 @@ void SubstitutionManager::add_substitution(int substitution_id,
             chb_match_single_line->Show(CheckBox::GetValue(chb_regexp));
             m_grid_sizer->Layout();
 
-            edit_substitution(substitution_id, 2, value);
+            edit_substitution(substitution_id, SUBSTITUTION_PARAMS_INDEX, value);
         });
     }
 
@@ -5467,9 +5446,9 @@ void SubstitutionManager::update_from_config()
     if (m_substitutions == subst && m_grid_sizer->IsShown(1)) {
         // just update visibility for chb_match_single_lines
         int subst_id = 0;
-        assert(m_chb_match_single_lines.size() == size_t(subst.size()/4));
-        for (size_t i = 0; i < subst.size(); i += 4) {
-            const std::string& params = subst[i + 2];
+        assert(m_chb_match_single_lines.size() == size_t(subst.size() / SUBSTITUTION_FIELD_COUNT));
+        for (size_t i = 0; i < subst.size(); i += SUBSTITUTION_FIELD_COUNT) {
+            const std::string& params = subst[i + SUBSTITUTION_PARAMS_INDEX];
             const bool         regexp = strchr(params.c_str(), 'r') != nullptr || strchr(params.c_str(), 'R') != nullptr;
             m_chb_match_single_lines[subst_id++]->Show(regexp);
         }
@@ -5493,8 +5472,9 @@ void SubstitutionManager::update_from_config()
     validate_length();
 
     int subst_id = 0;
-    for (size_t i = 0; i < subst.size(); i += 4)
-        add_substitution(subst_id++, subst[i], subst[i + 1], subst[i + 2], subst[i + 3]);
+    for (size_t i = 0; i < subst.size(); i += SUBSTITUTION_FIELD_COUNT)
+        add_substitution(subst_id++, subst[i], subst[i + 1],
+                         subst[i + SUBSTITUTION_PARAMS_INDEX], subst[i + SUBSTITUTION_NOTES_INDEX]);
 
     m_parent->GetParent()->Layout();
 }
@@ -5573,7 +5553,7 @@ wxSizer* TabPrint::create_manage_substitution_widget(wxWindow* parent)
 // Return a callback to create a TabPrint widget to edit G-code substitutions
 wxSizer* TabPrint::create_substitutions_widget(wxWindow* parent)
 {
-    wxFlexGridSizer* grid_sizer = new wxFlexGridSizer(2, 5, wxGetApp().em_unit()); // delete_button,  edit column contains "Find", "Replace", "Notes"
+    wxFlexGridSizer* grid_sizer = new wxFlexGridSizer(SUBSTITUTION_GRID_COLUMNS, 5, wxGetApp().em_unit()); // delete_button,  edit column contains "Find", "Replace", "Notes"
     grid_sizer->SetFlexibleDirection(wxBOTH);
     grid_sizer->AddGrowableCol(1);
     
@@ -5603,7 +5583,7 @@ wxSizer *VectorManager::init(DynamicPrintConfig *config, wxWindow *parent, PageS
     m_grid_sizer    = new wxBoxSizer(wxHORIZONTAL);
     m_em            = em_unit(parent);
     // use a wxFlexGridSizer in-between to let some free space at the right and not force the input to grow to full width
-    wxFlexGridSizer *line_sizer = new wxFlexGridSizer(2, 1, 0);
+    wxFlexGridSizer *line_sizer = new wxFlexGridSizer(SUBSTITUTION_GRID_COLUMNS, 1, 0);
     line_sizer->SetFlexibleDirection(wxHORIZONTAL);
     line_sizer->AddGrowableCol(1);
     //wxSizer *line_sizer = new wxBoxSizer(wxHORIZONTAL);
@@ -5663,7 +5643,7 @@ void VectorManager::push_back(const std::string &str_value)
     const size_t idx_value = m_grid_sizer->GetItemCount();
 
     wxTextCtrl *editor = new wxTextCtrl(m_parent, wxID_ANY, str_value == "" ? "0" : str_value, wxDefaultPosition,
-                                       wxSize(4 * m_em, wxDefaultCoord),
+                                       wxSize(SUBSTITUTION_BUTTON_WIDTH_EM * m_em, wxDefaultCoord),
                                      wxTE_PROCESS_ENTER
 #ifdef _WIN32
                                          | wxBORDER_SIMPLE
@@ -5719,7 +5699,7 @@ void VectorManager::update_from_config()
         if (values.empty())
             clear();
         else
-            for (size_t i = 0; i < values.size(); i++) push_back(to_string_nozero(values[i], 6));
+            for (size_t i = 0; i < values.size(); i++) push_back(to_string_nozero(values[i], FLOAT_DISPLAY_PRECISION));
         break;
     }
     case coPercents: {
@@ -5727,7 +5707,7 @@ void VectorManager::update_from_config()
         if (values.empty())
             clear();
         else
-            for (size_t i = 0; i < values.size(); i++) push_back(to_string_nozero(values[i], 6));
+            for (size_t i = 0; i < values.size(); i++) push_back(to_string_nozero(values[i], FLOAT_DISPLAY_PRECISION));
         break;
     }
     case coFloatsOrPercents: {
@@ -5735,7 +5715,7 @@ void VectorManager::update_from_config()
         if (values.empty())
             clear();
         else
-            for (size_t i = 0; i < values.size(); i++) push_back(to_string_nozero(values[i].value, 6) + (values[i].percent?"%":""));
+            for (size_t i = 0; i < values.size(); i++) push_back(to_string_nozero(values[i].value, FLOAT_DISPLAY_PRECISION) + (values[i].percent?"%":""));
         break;
     }
     case coPoints: {
@@ -6398,27 +6378,6 @@ void TabSLAMaterial::update()
 //    optgroup->append_line(line);
 //}
 
-static std::vector<std::string> get_override_opt_kyes_for_line(const std::string& title, const std::string& key)
-{
-    const std::string preprefix = "material_ow_";
-
-    std::vector<std::string> opt_keys;
-    opt_keys.reserve(3);
-
-    if (title == "Support head" || title == "Support pillar") {
-        for (auto& prefix : { "", "branching" })
-            opt_keys.push_back(preprefix + prefix + key);
-    }
-    else if (key == "relative_correction") {
-        for (auto& axis : { "x", "y", "z" })
-            opt_keys.push_back(preprefix + key + "_" + char(axis[0]));
-    }
-    else
-        opt_keys.push_back(preprefix + key);
-
-    return opt_keys;
-}
-
 PageShp TabSLAMaterial::create_material_overrides_page()
 {
     
@@ -6486,8 +6445,6 @@ void TabSLAMaterial::update_material_overrides_page()
 {
     if (!m_active_page || m_active_page->title() != "Material Overrides")
         return;
-
-    const std::string preprefix = "material_ow_";
 
     // nothing to do, nothing can inactivate the material overrides.
     //for (const std::string &opt_key : material_overrides_option_keys) {

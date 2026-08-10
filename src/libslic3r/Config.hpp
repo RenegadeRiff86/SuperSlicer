@@ -23,9 +23,10 @@
 #ifndef slic3r_Config_hpp_
 #define slic3r_Config_hpp_
 
+#include "libslic3r_version.h"
+
 #include <cassert>
 #include <cfloat>
-#include <climits>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -2401,7 +2402,7 @@ public:
 
     static bool has(T value) 
     {
-        for (const std::pair<std::string, int32_t> &kvp : ConfigOptionEnum<T>::get_enum_values())
+        for (const auto &kvp : ConfigOptionEnum<T>::get_enum_values())
             if (kvp.second == value)
                 return true;
         return false;
@@ -2496,6 +2497,15 @@ private:
 // open enums with ints resp. floats, if gui_type is set to GUIType::i_enum_open" resp. GUIType::f_enum_open.
 class ConfigOptionEnumDef {
 public:
+    class ConstructionToken {
+        friend class ConfigOptionDef;
+        friend class ConfigOptionEnumDef;
+        ConstructionToken() = default;
+    };
+
+    explicit ConfigOptionEnumDef(ConstructionToken) : ConfigOptionEnumDef() {}
+    ConfigOptionEnumDef(ConstructionToken, const ConfigOptionEnumDef &other) : ConfigOptionEnumDef(other) {}
+
     bool                            has_values() const { return ! m_values.empty(); }
     bool                            has_labels() const { return ! m_labels.empty(); }
     const std::vector<std::string>& values() const { return m_values; }
@@ -2538,7 +2548,7 @@ public:
 
     void                    clear();
 
-    ConfigOptionEnumDef*    clone() const { return new ConfigOptionEnumDef{ *this }; }
+    ConfigOptionEnumDef*    clone() const { return std::make_unique<ConfigOptionEnumDef>(ConstructionToken{}, *this).release(); }
 
 private:
     friend ConfigDef;
@@ -2654,31 +2664,31 @@ public:
 
     bool                                is_scalar()     const { return (int(this->type) & int(coVectorType)) == 0; }
 
-    template<class Archive> ConfigOption* load_option_from_archive(Archive &archive) const {
+    template<class Archive> std::unique_ptr<ConfigOption> load_option_from_archive(Archive &archive) const {
         switch (this->type) {
-        case coFloat:           { auto opt = new ConfigOptionFloat();           archive(*opt);
+        case coFloat:           { auto opt = std::make_unique<ConfigOptionFloat>();           archive(*opt);
             assert(this->can_be_disabled == opt->can_be_disabled());
             if (this->can_be_disabled) opt->set_can_be_disabled(); return opt; }
-        case coFloats:          { auto opt = new ConfigOptionFloats();          archive(*opt);
+        case coFloats:          { auto opt = std::make_unique<ConfigOptionFloats>();          archive(*opt);
             assert(this->can_be_disabled == opt->can_be_disabled());
             assert(this->is_vector_extruder == opt->is_extruder_size());
             opt->set_is_extruder_size(this->is_vector_extruder); if (this->can_be_disabled) opt->set_can_be_disabled(); return opt; }
-        case coInt:             { auto opt = new ConfigOptionInt();             archive(*opt); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
-        case coInts:            { auto opt = new ConfigOptionInts();            archive(*opt); opt->set_is_extruder_size(this->is_vector_extruder); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
-        case coString:          { auto opt = new ConfigOptionString();          archive(*opt); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
-        case coStrings:         { auto opt = new ConfigOptionStrings();         archive(*opt); opt->set_is_extruder_size(this->is_vector_extruder); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
-        case coPercent:         { auto opt = new ConfigOptionPercent();         archive(*opt); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
-        case coPercents:        { auto opt = new ConfigOptionPercents();        archive(*opt); opt->set_is_extruder_size(this->is_vector_extruder); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
-        case coFloatOrPercent:  { auto opt = new ConfigOptionFloatOrPercent();  archive(*opt); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
-        case coFloatsOrPercents:{ auto opt = new ConfigOptionFloatsOrPercents();archive(*opt); opt->set_is_extruder_size(this->is_vector_extruder); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
-        case coPoint:           { auto opt = new ConfigOptionPoint();           archive(*opt); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
-        case coPoints:          { auto opt = new ConfigOptionPoints();          archive(*opt); opt->set_is_extruder_size(this->is_vector_extruder); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
-        case coPoint3:          { auto opt = new ConfigOptionPoint3();          archive(*opt); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
-        case coGraph:           { auto opt = new ConfigOptionGraph();           archive(*opt); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
-        case coGraphs:          { auto opt = new ConfigOptionGraphs();          archive(*opt); opt->set_is_extruder_size(this->is_vector_extruder); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
-        case coBool:            { auto opt = new ConfigOptionBool();            archive(*opt); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
-        case coBools:           { auto opt = new ConfigOptionBools();           archive(*opt); opt->set_is_extruder_size(this->is_vector_extruder); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
-        case coEnum:            { auto opt = new ConfigOptionEnumGeneric(this->enum_def->m_enum_keys_map); archive(*opt); return opt; }
+        case coInt:             { auto opt = std::make_unique<ConfigOptionInt>();             archive(*opt); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
+        case coInts:            { auto opt = std::make_unique<ConfigOptionInts>();            archive(*opt); opt->set_is_extruder_size(this->is_vector_extruder); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
+        case coString:          { auto opt = std::make_unique<ConfigOptionString>();          archive(*opt); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
+        case coStrings:         { auto opt = std::make_unique<ConfigOptionStrings>();         archive(*opt); opt->set_is_extruder_size(this->is_vector_extruder); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
+        case coPercent:         { auto opt = std::make_unique<ConfigOptionPercent>();         archive(*opt); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
+        case coPercents:        { auto opt = std::make_unique<ConfigOptionPercents>();        archive(*opt); opt->set_is_extruder_size(this->is_vector_extruder); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
+        case coFloatOrPercent:  { auto opt = std::make_unique<ConfigOptionFloatOrPercent>();  archive(*opt); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
+        case coFloatsOrPercents:{ auto opt = std::make_unique<ConfigOptionFloatsOrPercents>();archive(*opt); opt->set_is_extruder_size(this->is_vector_extruder); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
+        case coPoint:           { auto opt = std::make_unique<ConfigOptionPoint>();           archive(*opt); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
+        case coPoints:          { auto opt = std::make_unique<ConfigOptionPoints>();          archive(*opt); opt->set_is_extruder_size(this->is_vector_extruder); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
+        case coPoint3:          { auto opt = std::make_unique<ConfigOptionPoint3>();          archive(*opt); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
+        case coGraph:           { auto opt = std::make_unique<ConfigOptionGraph>();           archive(*opt); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
+        case coGraphs:          { auto opt = std::make_unique<ConfigOptionGraphs>();          archive(*opt); opt->set_is_extruder_size(this->is_vector_extruder); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
+        case coBool:            { auto opt = std::make_unique<ConfigOptionBool>();            archive(*opt); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
+        case coBools:           { auto opt = std::make_unique<ConfigOptionBools>();           archive(*opt); opt->set_is_extruder_size(this->is_vector_extruder); if (can_be_disabled) opt->set_can_be_disabled(); return opt; }
+        case coEnum:            { auto opt = std::make_unique<ConfigOptionEnumGeneric>(this->enum_def->m_enum_keys_map); archive(*opt); return opt; }
         default:                throw ConfigurationError(std::string("ConfigOptionDef::load_option_from_archive(): Unknown option type for option ") + this->opt_key);
         }
     }
@@ -2867,7 +2877,7 @@ private:
         if (enum_def)
             enum_def->clear();
         else
-            enum_def = Slic3r::clonable_ptr<ConfigOptionEnumDef>(new ConfigOptionEnumDef{});
+            enum_def = Slic3r::clonable_ptr<ConfigOptionEnumDef>(std::make_unique<ConfigOptionEnumDef>(ConfigOptionEnumDef::ConstructionToken{}).release());
     }
 };
 

@@ -375,8 +375,8 @@ const BoundingBoxf3& GLVolume::transformed_convex_hull_bounding_box() const
 
 BoundingBoxf3 GLVolume::transformed_convex_hull_bounding_box(const Transform3d &trafo) const
 {
-	return (m_convex_hull && ! m_convex_hull->empty()) ?
-		m_convex_hull->transformed_bounding_box(trafo) :
+    return (m_convex_hull && ! m_convex_hull->empty()) ?
+        m_convex_hull->transformed_bounding_box(trafo) :
         bounding_box().transformed(trafo);
 }
 
@@ -992,23 +992,23 @@ std::vector<double> GLVolumeCollection::get_current_print_zs(bool active_only) c
 
 size_t GLVolumeCollection::cpu_memory_used() const 
 {
-	size_t memsize = sizeof(*this) + this->volumes.capacity() * sizeof(GLVolume);
-	for (const std::unique_ptr<GLVolume> &volume : this->volumes)
-		memsize += volume->cpu_memory_used();
-	return memsize;
+    size_t memsize = sizeof(*this) + this->volumes.capacity() * sizeof(GLVolume);
+    for (const std::unique_ptr<GLVolume> &volume : this->volumes)
+        memsize += volume->cpu_memory_used();
+    return memsize;
 }
 
 size_t GLVolumeCollection::gpu_memory_used() const 
 {
-	size_t memsize = 0;
-	for (const std::unique_ptr<GLVolume> &volume : this->volumes)
-		memsize += volume->gpu_memory_used();
-	return memsize;
+    size_t memsize = 0;
+    for (const std::unique_ptr<GLVolume> &volume : this->volumes)
+        memsize += volume->gpu_memory_used();
+    return memsize;
 }
 
 std::string GLVolumeCollection::log_memory_info() const 
 { 
-	return " (GLVolumeCollection RAM: " + format_memsize_MB(this->cpu_memory_used()) + " GPU: " + format_memsize_MB(this->gpu_memory_used()) + " Both: " + format_memsize_MB(this->gpu_memory_used()) + ")";
+    return " (GLVolumeCollection RAM: " + format_memsize_MB(this->cpu_memory_used()) + " GPU: " + format_memsize_MB(this->gpu_memory_used()) + " Both: " + format_memsize_MB(this->gpu_memory_used()) + ")";
 }
 
 static void thick_lines_to_geometry(

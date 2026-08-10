@@ -32,14 +32,14 @@ class GLCanvas3D;
 
 class Mouse3DController
 {
-	// Parameters, which are configured by the ImGUI dialog when pressing Ctrl+M.
-	// The UI thread modifies a copy of the parameters and indicates to the background thread that there was a change
-	// to copy the parameters.
-	struct Params
-	{
+    // Parameters, which are configured by the ImGUI dialog when pressing Ctrl+M.
+    // The UI thread modifies a copy of the parameters and indicates to the background thread that there was a change
+    // to copy the parameters.
+    struct Params
+    {
         static constexpr double MinTranslationScale = 0.1;
         static constexpr double MaxTranslationScale = 30.;
-		static constexpr double DefaultTranslationScale = 2.5;
+        static constexpr double DefaultTranslationScale = 2.5;
         static constexpr double MaxTranslationDeadzone = 0.2;
         static constexpr double DefaultTranslationDeadzone = 0.0;
         static constexpr float  DefaultRotationScale = 1.0f;
@@ -74,7 +74,7 @@ class Mouse3DController
         bool                                     invert_roll{ false };
     };
 
-	// Queue of the 3DConnexion input events (translations, rotations, button presses).
+    // Queue of the 3DConnexion input events (translations, rotations, button presses).
     class State
     {
     public:
@@ -95,8 +95,8 @@ class Mouse3DController
         };
 
     private:
-    	// m_input_queue is accessed by the background thread and by the UI thread. Access to m_input_queue
-    	// is guarded with m_input_queue_mutex.
+        // m_input_queue is accessed by the background thread and by the UI thread. Access to m_input_queue
+        // is guarded with m_input_queue_mutex.
         std::deque<QueueItem> m_input_queue;
         mutable std::mutex	  m_input_queue_mutex;
 
@@ -130,8 +130,8 @@ class Mouse3DController
             return (it == m_input_queue.end()) ? Vec3d::Zero() : it->vector;
         }
         size_t              input_queue_size_current() const { 
-        	std::scoped_lock<std::mutex> lock(m_input_queue_mutex); 
-        	return m_input_queue.size(); 
+            std::scoped_lock<std::mutex> lock(m_input_queue_mutex); 
+            return m_input_queue.size(); 
         }
         std::atomic<size_t> input_queue_max_size_achieved;
 #endif // ENABLE_3DCONNEXION_DEVICES_DEBUG_OUTPUT
@@ -169,42 +169,42 @@ class Mouse3DController
 #endif /* _WIN32 */
     // Mutex and condition variable for sleeping during the detection of 3DConnexion devices by polling while allowing
     // cancellation before the end of the polling interval.
-	std::mutex 			m_stop_condition_mutex;
-   	std::condition_variable m_stop_condition;
+    std::mutex 			m_stop_condition_mutex;
+    std::condition_variable m_stop_condition;
 #endif
 
-   	// Is the ImGUI dialog shown? Accessed from UI thread only.
+    // Is the ImGUI dialog shown? Accessed from UI thread only.
     mutable bool 		m_show_settings_dialog { false };
     // Set to true when ther user closes the dialog by clicking on [X] or [Close] buttons. Accessed from UI thread only.
     mutable bool 		m_settings_dialog_closed_by_user { false };
 
 public:
-	// Load the device parameter database from appconfig. To be called on application startup.
-	void load_config(const AppConfig &appconfig);
-	// Store the device parameter database back to appconfig. To be called on application closeup.
-	void save_config(AppConfig &appconfig) const;
-	// Start the background thread to detect and connect to a HID device (Windows and Linux).
-	// Connect to a 3DConnextion driver (OSX).
-	// Call load_config() before init().
+    // Load the device parameter database from appconfig. To be called on application startup.
+    void load_config(const AppConfig &appconfig);
+    // Store the device parameter database back to appconfig. To be called on application closeup.
+    void save_config(AppConfig &appconfig) const;
+    // Start the background thread to detect and connect to a HID device (Windows and Linux).
+    // Connect to a 3DConnextion driver (OSX).
+    // Call load_config() before init().
     void init();
-	// Stop the background thread (Windows and Linux).
-	// Disconnect from a 3DConnextion driver (OSX).
-	// Call save_config() after shutdown().
+    // Stop the background thread (Windows and Linux).
+    // Disconnect from a 3DConnextion driver (OSX).
+    // Call save_config() after shutdown().
     void shutdown();
 
     bool connected() const { return m_connected; }
 
 #if __APPLE__
     // Interfacing with the Objective C code (MouseHandlerMac.mm)
-    void connected(std::string device_name);
+    void connected(const std::string& device_name);
     void disconnected();
     typedef std::array<double, 6> DataPacketAxis;
-	// Unpack a 3DConnexion packet provided by the 3DConnexion driver into m_state. Called by Mouse3DHandlerMac.mm
+    // Unpack a 3DConnexion packet provided by the 3DConnexion driver into m_state. Called by Mouse3DHandlerMac.mm
     bool handle_input(const DataPacketAxis& packet);
 #endif // __APPLE__
 
 #ifdef _WIN32
-	bool handle_raw_input_win32(const unsigned char *data, const int packet_lenght);
+    bool handle_raw_input_win32(const unsigned char *data, const int packet_lenght);
 
     // Called by Win32 HID enumeration callback.
     void device_attached(const std::string &device);
@@ -234,7 +234,7 @@ private:
 
     typedef std::array<unsigned char, 13> DataPacketRaw;
 
-	// Unpack raw 3DConnexion HID packet of a wired 3D mouse into m_state. Called by the worker thread.
+    // Unpack raw 3DConnexion HID packet of a wired 3D mouse into m_state. Called by the worker thread.
     static bool handle_input(const DataPacketRaw& packet, const int packet_length, const Params &params, State &state_in_out);
     // The following is called by handle_input() from the worker thread.
     static bool handle_packet(const DataPacketRaw& packet, const int packet_length, const Params &params, State &state_in_out);

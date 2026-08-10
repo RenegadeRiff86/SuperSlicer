@@ -85,12 +85,10 @@ class MainFrame : public DPIFrame
     bool        m_loaded {false};
 
     wxString    m_qs_last_input_file = wxEmptyString;
-    wxString    m_qs_last_output_file = wxEmptyString;
     wxString    m_last_config = wxEmptyString;
     wxMenuBar*  m_menubar{ nullptr };
 
 #if 0
-    wxMenuItem* m_menu_item_repeat { nullptr }; // doesn't used now
 #endif
     wxMenuItem* m_menu_item_reslice_now { nullptr };
     wxSizer*    m_main_sizer{ nullptr };
@@ -111,8 +109,8 @@ class MainFrame : public DPIFrame
     bool can_export_supports() const;
     bool can_export_gcode() const;
     bool can_send_gcode() const;
-	bool can_export_gcode_sd() const;
-	bool can_eject() const;
+    bool can_export_gcode_sd() const;
+    bool can_eject() const;
     bool can_slice() const;
     bool can_change_view() const;
     bool can_select() const;
@@ -178,8 +176,8 @@ public:
     void update_layout();
     void update_mode_markers();
 
-	// Called when closing the application and when switching the application language.
-	void 		shutdown();
+    // Called when closing the application and when switching the application language.
+    void 		shutdown();
 
     Plater*     plater() { return m_plater; }
     GalleryDialog* gallery_dialog();
@@ -258,7 +256,7 @@ public:
 #ifdef _WIN32
     void*				m_hDeviceNotify { nullptr };
     uint32_t  			m_ulSHChangeNotifyRegister { 0 };
-	static constexpr int WM_USER_MEDIACHANGED { 0x7FFF }; // WM_USER from 0x0400 to 0x7FFF, picking the last one to not interfere with wxWidgets allocation
+    static constexpr int WM_USER_MEDIACHANGED { 0x7FFF }; // WM_USER from 0x0400 to 0x7FFF, picking the last one to not interfere with wxWidgets allocation
 #endif // _WIN32
 };
 

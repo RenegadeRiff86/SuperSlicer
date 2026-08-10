@@ -1,0 +1,29 @@
+# Paths excluded from VS IDE Bridge best-practice (BPxxxx) analysis.
+#
+# Only advisory best-practice coaching is filtered by this file. Compiler and
+# language-server errors and warnings are never affected, so nothing listed here
+# can hide a real defect - only a refactor suggestion.
+#
+# Syntax is the gitignore subset: '#' comments, '*'/'?' inside one path segment,
+# '**' across segments, a trailing '/' for a whole directory, a leading '/' to
+# anchor at this file's directory, and '!' to re-include. The LAST matching
+# pattern wins, so the '!' lines below must stay after the trees they carve into.
+
+# --- Code inherited from PrusaSlicer / Slic3r -------------------------------
+# This is a fork. Flattening nesting or renaming locals in inherited files
+# conflicts with every upstream merge, so BP rows here are noise rather than
+# work this repository can act on.
+/src/libslic3r/
+/src/slic3r/
+/src/platform/
+/src/test-utils/
+/src/occt_wrapper/
+/tests/
+
+# --- Fork-owned code BP should still cover ---------------------------------
+# Added by this repository rather than inherited, so the coaching applies.
+!/src/slic3r/GUI/CreateMMUTiledCanvas.cpp
+!/src/slic3r/GUI/ThemeMetrics.cpp
+!/src/slic3r/GUI/Calibration*.cpp
+!/src/slic3r/GUI/Calibration*.hpp
+!/tests/automation/

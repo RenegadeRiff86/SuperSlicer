@@ -5,6 +5,12 @@
 #ifndef slic3r_GLModel_hpp_
 #define slic3r_GLModel_hpp_
 
+// RenderData below is shaped by ENABLE_OPENGL_ES / ENABLE_GL_CORE_PROFILE (vao_id in particular),
+// so this header defines them itself instead of inheriting whatever the including translation unit
+// happened to have set. Without it, a .cpp that picks up Technologies.hpp only after this header
+// sees a RenderData without vao_id but compiles method bodies that use it.
+#include "libslic3r/Technologies.hpp"
+
 #include "libslic3r/Point.hpp"
 #include "libslic3r/BoundingBox.hpp"
 #include "libslic3r/Color.hpp"

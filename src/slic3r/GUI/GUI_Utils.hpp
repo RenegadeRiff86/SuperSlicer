@@ -64,7 +64,7 @@ bool check_dark_mode();
 void update_dark_ui(wxWindow* window);
 #endif
 
-#if !wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3)
+#if !wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3) // wxWidgets 3.1.3 compatibility boundary.
 struct DpiChangedEvent : public wxEvent {
     int dpi;
     wxRect rect;
@@ -135,7 +135,7 @@ public:
 //        recalc_font();
 
 #ifndef __WXOSX__
-#if wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3)
+#if wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3) // wxWidgets 3.1.3 compatibility boundary.
         this->Bind(wxEVT_DPI_CHANGED, [this](wxDPIChangedEvent& evt) {
             int custom_gui_size = DPIAware_::get_font_size();
             if (custom_gui_size == 0) {
@@ -252,7 +252,7 @@ private:
         this->Freeze();
 
         m_force_rescale = false;
-#if !wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3)
+#if !wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3) // wxWidgets 3.1.3 compatibility boundary.
         // rescale fonts of all controls
         scale_controls_fonts(this, m_new_font_point_size);
         // rescale current window font
@@ -427,7 +427,7 @@ class TaskTimer
     std::chrono::milliseconds   start_timer;
     std::string                 task_name;
 public:
-    TaskTimer(std::string task_name);
+    TaskTimer(const std::string& task_name);
 
     ~TaskTimer();
 };

@@ -118,7 +118,9 @@ private:
 
 class GLGizmoRotate3D : public GLGizmoBase
 {
-    std::array<GLGizmoRotate, 3> m_gizmos;
+    static constexpr int AxisCount = 3;
+
+    std::array<GLGizmoRotate, AxisCount> m_gizmos;
 
 public:
     GLGizmoRotate3D(GLCanvas3D& parent, const std::string& icon_filename, unsigned int sprite_id);
@@ -151,15 +153,15 @@ protected:
             g.set_state(m_state);
     }
     void on_set_hover_id() override {
-        for (int i = 0; i < 3; ++i)
+        for (int i = 0; i < AxisCount; ++i)
             m_gizmos[i].set_hover_id((m_hover_id == i) ? 0 : -1);
     }
     void on_enable_grabber(unsigned int id) override {
-        if (id < 3)
+        if (id < AxisCount)
             m_gizmos[id].enable_grabber();
     }
     void on_disable_grabber(unsigned int id) override {
-        if (id < 3)
+        if (id < AxisCount)
             m_gizmos[id].disable_grabber();
     }
     bool on_is_activable() const override;

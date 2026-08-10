@@ -57,6 +57,26 @@ static constexpr const char* KEY_EXTRUDER      = "extruder";
 static constexpr const char* KEY_LAYER_HEIGHT  = "layer_height";
 static constexpr const char* APP_ORDER_VOLUMES = "order_volumes";
 
+static constexpr int    kPasteAcceleratorIndex          = 2;
+static constexpr int    kSelectAllAcceleratorIndex      = 3;
+static constexpr int    kUndoAcceleratorIndex           = 4;
+static constexpr int    kAddAcceleratorIndex            = 8;
+static constexpr int    kRemoveAcceleratorIndex         = 10;
+static constexpr int    kNumberShortcutCount            = 10;
+static constexpr int    kPrintColumnWidthEm             = 3;
+static constexpr int    kExtruderColumnWidthEm          = 8;
+static constexpr int    kNameColumnHitStartEm           = 2;
+static constexpr int    kNameColumnHitEndEm             = 4;
+static constexpr double kSelectionBoundingBoxScale      = 3.0;
+static constexpr double kPreviewBoxSize                 = 10.0;
+static constexpr int    kBoundingBoxCenterDivisor       = 2;
+static constexpr size_t kMaximumCheckedVolumes          = 2;
+static constexpr size_t kExpectedLayerSettingCount      = 2;
+static constexpr size_t kExpectedObjectChildren         = 2;
+static constexpr float  kDefaultLayerRangeUpperBound    = 2.0f;
+static constexpr double kNewLayerRangeSpan              = 2.0;
+static constexpr int    kProgressMaximum                = 100;
+
 wxDEFINE_EVENT(EVT_OBJ_LIST_OBJECT_SELECT, SimpleEvent);
 
 static PrinterTechnology printer_technology()
@@ -190,15 +210,15 @@ ObjectList::ObjectList(wxWindow* parent) :
         wxAcceleratorEntry entries[33];
         entries[0].Set(wxACCEL_CTRL, (int)'C', wxID_COPY);
         entries[1].Set(wxACCEL_CTRL, (int)'X', wxID_CUT);
-        entries[2].Set(wxACCEL_CTRL, (int)'V', wxID_PASTE);
-        entries[3].Set(wxACCEL_CTRL, (int)'A', wxID_SELECTALL);
-        entries[4].Set(wxACCEL_CTRL, (int)'Z', wxID_UNDO);
+        entries[kPasteAcceleratorIndex].Set(wxACCEL_CTRL, (int)'V', wxID_PASTE);
+        entries[kSelectAllAcceleratorIndex].Set(wxACCEL_CTRL, (int)'A', wxID_SELECTALL);
+        entries[kUndoAcceleratorIndex].Set(wxACCEL_CTRL, (int)'Z', wxID_UNDO);
         entries[5].Set(wxACCEL_CTRL, (int)'Y', wxID_REDO);
         entries[6].Set(wxACCEL_NORMAL, WXK_DELETE, wxID_DELETE);
         entries[7].Set(wxACCEL_NORMAL, WXK_BACK, wxID_DELETE);
-        entries[8].Set(wxACCEL_NORMAL, int('+'), wxID_ADD);
+        entries[kAddAcceleratorIndex].Set(wxACCEL_NORMAL, int('+'), wxID_ADD);
         entries[9].Set(wxACCEL_NORMAL, WXK_NUMPAD_ADD, wxID_ADD);
-        entries[10].Set(wxACCEL_NORMAL, int('-'), wxID_REMOVE);
+        entries[kRemoveAcceleratorIndex].Set(wxACCEL_NORMAL, int('-'), wxID_REMOVE);
         entries[11].Set(wxACCEL_NORMAL, WXK_NUMPAD_SUBTRACT, wxID_REMOVE);
         entries[12].Set(wxACCEL_NORMAL, int('p'), wxID_PRINT);
 
@@ -221,7 +241,7 @@ ObjectList::ObjectList(wxWindow* parent) :
         this->Bind(wxEVT_MENU, [this](wxCommandEvent &evt) { this->decrease_instances();        }, wxID_REMOVE);
         this->Bind(wxEVT_MENU, [this](wxCommandEvent &evt) { this->toggle_printable_state();    }, wxID_PRINT);
         
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < kNumberShortcutCount; i++)
             this->Bind(wxEVT_MENU, [this, i](wxCommandEvent &evt) {
                 if (extruders_count() > 1 && i <= extruders_count())
                     this->set_extruder_for_selected_items(i);
@@ -351,7 +371,7 @@ void ObjectList::create_objects_ctrl()
         colName, 20*em, wxALIGN_LEFT, wxDATAVIEW_COL_RESIZABLE));
 
     // column PrintableProperty (Icon) of the view control:
-    AppendBitmapColumn(" ", colPrint, wxDATAVIEW_CELL_INERT, 3*em,
+    AppendBitmapColumn(" ", colPrint, wxDATAVIEW_CELL_INERT, kPrintColumnWidthEm * em,
         wxALIGN_CENTER_HORIZONTAL, wxDATAVIEW_COL_RESIZABLE);
 
     // column Extruder of the view control:
@@ -363,10 +383,10 @@ void ObjectList::create_objects_ctrl()
         return m_objects_model->GetDefaultExtruderIdx(GetSelection());
     });
     AppendColumn(new wxDataViewColumn(_L("Extruder"), bmp_choice_renderer,
-        colExtruder, 8*em, wxALIGN_CENTER_HORIZONTAL, wxDATAVIEW_COL_RESIZABLE));
+        colExtruder, kExtruderColumnWidthEm * em, wxALIGN_CENTER_HORIZONTAL, wxDATAVIEW_COL_RESIZABLE));
 
     // column ItemEditing of the view control:
-    AppendBitmapColumn(_L("Editing"), colEditing, wxDATAVIEW_CELL_INERT, 3*em,
+    AppendBitmapColumn(_L("Editing"), colEditing, wxDATAVIEW_CELL_INERT, kPrintColumnWidthEm * em,
         wxALIGN_CENTER_HORIZONTAL, wxDATAVIEW_COL_RESIZABLE);
 
     // For some reason under OSX on 4K(5K) monitors in wxDataViewColumn constructor doesn't set width of column.
@@ -374,8 +394,8 @@ void ObjectList::create_objects_ctrl()
     if (wxOSX)
     {
         GetColumn(colName)->SetWidth(20*em);
-        GetColumn(colPrint)->SetWidth(3*em);
-        GetColumn(colExtruder)->SetWidth(8*em);
+        GetColumn(colPrint)->SetWidth(kPrintColumnWidthEm * em);
+        GetColumn(colExtruder)->SetWidth(kExtruderColumnWidthEm * em);
         GetColumn(colEditing) ->SetWidth(7*em);
     }
 }
@@ -549,7 +569,7 @@ void ObjectList::set_tooltip_for_item(const wxPoint& pt)
 #else
         tooltip = _(L("Click the icon to change the object printable property"));
 #endif //__WXMSW__
-    else if (col->GetTitle() == _("Name") && (pt.x >= 2 * wxGetApp().em_unit() && pt.x <= 4 * wxGetApp().em_unit()))
+    else if (col->GetTitle() == _("Name") && (pt.x >= kNameColumnHitStartEm * wxGetApp().em_unit() && pt.x <= kNameColumnHitEndEm * wxGetApp().em_unit()))
     {
         if (const ItemType type = m_objects_model->GetItemType(item); 
             type & (itObject | itVolume)) {
@@ -1018,7 +1038,7 @@ void ObjectList::list_manipulation(const wxPoint& mouse_pos, bool evt_context_me
         else if (title == _("Name"))
         {
             if (m_objects_model->HasWarningIcon(item) &&
-                mouse_pos.x > 2 * wxGetApp().em_unit() && mouse_pos.x < 4 * wxGetApp().em_unit())
+                mouse_pos.x > kNameColumnHitStartEm * wxGetApp().em_unit() && mouse_pos.x < kNameColumnHitEndEm * wxGetApp().em_unit())
                 repair_selection();
             else if (evt_context_menu)
                 show_context_menu(evt_context_menu); // show context menu for "Name" column too
@@ -1304,7 +1324,7 @@ bool ObjectList::can_drop(const wxDataViewItem& item) const
 
         bool only_one_solid_part = true;
         auto& volumes = (*m_objects)[m_dragged_data.obj_idx()]->volumes;
-        for (size_t cnt, id = cnt = 0; id < volumes.size() && cnt < 2; id ++)
+        for (size_t cnt, id = cnt = 0; id < volumes.size() && cnt < kMaximumCheckedVolumes; id ++)
             if (volumes[id]->type() == ModelVolumeType::MODEL_PART) {
                 if (++cnt > 1)
                     only_one_solid_part = false;
@@ -1566,7 +1586,7 @@ void ObjectList::load_from_files(const wxArrayString& input_files, ModelObject& 
 {
     wxWindow* parent = wxGetApp().tab_panel()->GetPage(0);
 
-    wxProgressDialog dlg(_L("Loading") + dots, "", 100, wxGetApp().mainframe, wxPD_AUTO_HIDE);
+    wxProgressDialog dlg(_L("Loading") + dots, "", kProgressMaximum, wxGetApp().mainframe, wxPD_AUTO_HIDE);
     wxBusyCursor busy;
 
     const int obj_idx = get_selected_obj_idx();
@@ -1596,7 +1616,7 @@ void ObjectList::load_from_files(const wxArrayString& input_files, ModelObject& 
     for (size_t i = 0; i < input_files.size(); ++i) {
         const std::string input_file = input_files.Item(i).ToUTF8().data();
 
-        dlg.Update(static_cast<int>(100.0f * static_cast<float>(i) / static_cast<float>(input_files.size())),
+        dlg.Update(static_cast<int>(static_cast<float>(kProgressMaximum) * static_cast<float>(i) / static_cast<float>(input_files.size())),
             _L("Loading file") + ": " + from_path(boost::filesystem::path(input_file).filename()));
         dlg.Fit();
 
@@ -1657,9 +1677,9 @@ static TriangleMesh create_mesh(const std::string& type_name, const BoundingBoxf
 {
     const double side_from_bed = wxGetApp().plater()->canvas3D()->get_size_proportional_to_max_bed_size(0.2);
 
-    BoundingBoxf3 side_bb(Vec3d(0,0,0), Vec3d(10,10,10));
+    BoundingBoxf3 side_bb(Vec3d(0,0,0), Vec3d(kPreviewBoxSize, kPreviewBoxSize, kPreviewBoxSize));
     const double side_zoom = wxGetApp().plater()->get_camera().calc_zoom_to_bounding_box_factor(side_bb);
-    const double side_from_zoom = 3 * (side_zoom / wxGetApp().plater()->get_camera().get_zoom());
+    const double side_from_zoom = kSelectionBoundingBoxScale * (side_zoom / wxGetApp().plater()->get_camera().get_zoom());
     const double side = std::min(side_from_zoom, side_from_bed);
 
     indexed_triangle_set mesh;
@@ -1744,8 +1764,8 @@ void ObjectList::load_generic_subobject(const std::string& type_name, const Mode
         const Vec3d &camera_target = wxGetApp().plater()->get_camera().get_target();
         BoundingBoxf3 big_mesh_bb = selection.get_unscaled_instance_bounding_box();
         Vec3d bb_size = big_mesh_bb.max - big_mesh_bb.min;
-        big_mesh_bb.min -= bb_size/2;
-        big_mesh_bb.max += bb_size/2;
+        big_mesh_bb.min -= bb_size / kBoundingBoxCenterDivisor;
+        big_mesh_bb.max += bb_size / kBoundingBoxCenterDivisor;
         big_mesh_bb.min.z() = -999999999;
         big_mesh_bb.max.z() = 999999999;
         big_mesh_bb.offset(wxGetApp().plater()->canvas3D()->get_size_proportional_to_max_bed_size(0.02));
@@ -1990,7 +2010,7 @@ void ObjectList::del_settings_from_config(const wxDataViewItem& parent_item)
 
     const size_t opt_cnt = m_config->keys().size();
     if ((opt_cnt == 1 && m_config->has(KEY_EXTRUDER)) ||
-        (is_layer_settings && opt_cnt == 2 && m_config->has(KEY_EXTRUDER) && m_config->has(KEY_LAYER_HEIGHT)))
+        (is_layer_settings && opt_cnt == kExpectedLayerSettingCount && m_config->has(KEY_EXTRUDER) && m_config->has(KEY_LAYER_HEIGHT)))
         return;
 
     take_snapshot(_(L("Delete Settings")));
@@ -2398,7 +2418,7 @@ void ObjectList::layers_editing()
         // set some default value
         if (ranges.empty()) {
             take_snapshot(_(L("Add Layers")));
-            ranges[{ 0.0f, 2.0f }].assign_config(get_default_layer_config(obj_idx));
+            ranges[{ 0.0f, kDefaultLayerRangeUpperBound }].assign_config(get_default_layer_config(obj_idx));
         }
 
         // create layer root item
@@ -2432,7 +2452,7 @@ void ObjectList::layers_editing(int obj_idx)
 
         if (ranges.empty()) {
             take_snapshot(_(L("Add Layers")));
-            ranges[{ 0.0f, 2.0f }].assign_config(get_default_layer_config(obj_idx));
+            ranges[{ 0.0f, kDefaultLayerRangeUpperBound }].assign_config(get_default_layer_config(obj_idx));
         }
 
         layers_item = add_layer_root_item(obj_item);
@@ -3359,7 +3379,7 @@ void ObjectList::remove()
                 // In case there is just one layer or two instances and we delete it, del_subobject_item will
                 // also remove the parent item. Selection should therefore pass to the top parent (object).
                 wxDataViewItemArray children;
-                if (m_objects_model->GetChildren(parent, children) == (type & itLayer ? 1 : 2))
+                if (m_objects_model->GetChildren(parent, children) == (type & itLayer ? 1 : kExpectedObjectChildren))
                     parent = m_objects_model->GetTopParent(item);
             }
 
@@ -3465,7 +3485,7 @@ void ObjectList::add_layer_range_after_current(const t_layer_height_range curren
         take_snapshot(_(L("Add Height Range")));
         changed = true;
 
-        const t_layer_height_range new_range = { current_range.second, current_range.second + 2. };
+        const t_layer_height_range new_range = { current_range.second, current_range.second + kNewLayerRangeSpan };
         ranges[new_range].assign_config(get_default_layer_config(obj_idx));
         add_layer_item(new_range, layers_item);
     }
@@ -4756,7 +4776,7 @@ void ObjectList::repair_selection()
     Plater::TakeSnapshot snapshot(plater, _L("Repair model"));
 
     // Open a progress dialog.
-    wxProgressDialog progress_dlg(_L("Repairing model"), "", 100, find_toplevel_parent(plater),
+    wxProgressDialog progress_dlg(_L("Repairing model"), "", kProgressMaximum, find_toplevel_parent(plater),
                                     wxPD_AUTO_HIDE | wxPD_APP_MODAL | wxPD_CAN_ABORT);
     int model_idx{ 0 };
     if (vol_idxs.empty()) {
@@ -4780,7 +4800,7 @@ void ObjectList::repair_selection()
         }
     }
     // Close the progress dialog
-    progress_dlg.Update(100, "");
+    progress_dlg.Update(kProgressMaximum, "");
 
     // Show info notification
     wxString msg = MenuFactory::get_repaire_result_message(succes_models, failed_models);
@@ -4828,9 +4848,9 @@ void ObjectList::msw_rescale()
     const int em = wxGetApp().em_unit();
 
     GetColumn(colName    )->SetWidth(20 * em);
-    GetColumn(colPrint   )->SetWidth( 3 * em);
-    GetColumn(colExtruder)->SetWidth( 8 * em);
-    GetColumn(colEditing )->SetWidth( 3 * em);
+    GetColumn(colPrint   )->SetWidth( kPrintColumnWidthEm * em);
+    GetColumn(colExtruder)->SetWidth( kExtruderColumnWidthEm * em);
+    GetColumn(colEditing )->SetWidth( kPrintColumnWidthEm * em);
 
     Layout();
 }

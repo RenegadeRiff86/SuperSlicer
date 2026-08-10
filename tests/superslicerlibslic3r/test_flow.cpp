@@ -31,7 +31,7 @@ using namespace Slic3r;
 SCENARIO("Extrusion width specifics", "[!mayfail]") {
     GIVEN("A config with a skirt, brim, some fill density, 3 perimeters, and 1 bottom solid layer and a 20mm cube mesh") {
         // this is a sharedptr
-		DynamicPrintConfig config {Slic3r::DynamicPrintConfig::full_print_config()};
+        DynamicPrintConfig config {Slic3r::DynamicPrintConfig::full_print_config()};
         config.set_key_value("skirts", std::make_unique<ConfigOptionInt>(1));
         config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(2));
         config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(3));
@@ -55,7 +55,7 @@ SCENARIO("Extrusion width specifics", "[!mayfail]") {
             std::vector<double> E_per_mm_bottom;
             std::string gcode_filepath("");
             Slic3r::Test::gcode(gcode_filepath, print);
-			GCodeReader parser {Slic3r::GCodeReader()};
+            GCodeReader parser {Slic3r::GCodeReader()};
             const double layer_height = config.opt_float("layer_height");
             const double first_layer_height = config.get_computed_value("first_layer_height");
             std::string gcode_from_file= read_to_string(gcode_filepath);

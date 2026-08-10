@@ -53,7 +53,7 @@ constexpr char kForWritingLogSuffix[]   = " for writing: ";
 constexpr char kSnapshotRemovalError[]  = "Error: can't take snapshot, cancel preset removal.";
 } // namespace
 
-bool copy_file_and_icons(boost::filesystem::path dir_in, boost::filesystem::path dir_out, std::string vendor_id, bool copy = true);
+bool copy_file_and_icons(boost::filesystem::path dir_in, boost::filesystem::path dir_out, const std::string& vendor_id, bool copy = true);
 
 PresetUpdater::PresetUpdater(wxEvtHandler* event_handler) : evt_handler(event_handler){
 
@@ -584,7 +584,6 @@ bool VendorSync::parse_tags(const std::string &json) {
         }
         // check if slicer_version is okay
         std::string str_ver = slicer_version->to_string();
-        std::string str_curr_ver = SLIC3R_VERSION_FULL;
         //if (slicer_version > *Semver::parse(SLIC3R_VERSION_FULL) || versions_here.find(config_version->to_string()) != versions_here.end()) {
         const boost::property_tree::ptree& commit_node = json_version.second.get_child("commit");
         if(versions_here.find(tag) != versions_here.end()) {
@@ -828,7 +827,7 @@ void PresetUpdater::install_vendor(const std::string &vendor_id,
     callback_result(result); 
 }
 
-bool copy_file_and_icons(boost::filesystem::path dir_in, boost::filesystem::path dir_out, std::string vendor_id, bool copy) {
+bool copy_file_and_icons(boost::filesystem::path dir_in, boost::filesystem::path dir_out, const std::string& vendor_id, bool copy) {
 
     // copy the file & icons
     assert(boost::filesystem::exists(dir_in));

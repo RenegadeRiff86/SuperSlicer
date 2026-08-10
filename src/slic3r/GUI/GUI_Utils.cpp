@@ -69,7 +69,11 @@ void on_window_geometry(wxTopLevelWindow *tlw, std::function<void()> callback)
 #endif
 }
 
-#if !wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3)
+#define SLIC3R_WX_DPI_EVENT_MAJOR   3
+#define SLIC3R_WX_DPI_EVENT_MINOR   1
+#define SLIC3R_WX_DPI_EVENT_RELEASE 3
+
+#if !wxVERSION_EQUAL_OR_GREATER_THAN(SLIC3R_WX_DPI_EVENT_MAJOR, SLIC3R_WX_DPI_EVENT_MINOR, SLIC3R_WX_DPI_EVENT_RELEASE)
 wxDEFINE_EVENT(EVT_DPI_CHANGED_SLICER, DpiChangedEvent);
 #endif // !wxVERSION_EQUAL_OR_GREATER_THAN
 
@@ -101,8 +105,8 @@ int get_dpi_for_window(const wxWindow *window)
     static auto GetDpiForWindow_fn = winapi_get_function<GetDpiForWindow_t>(L"User32.dll", "GetDpiForWindow");
     static auto GetDpiForMonitor_fn = winapi_get_function<GetDpiForMonitor_t>(L"Shcore.dll", "GetDpiForMonitor");
 
-	// Desktop Window is the window of the primary monitor.
-	const HWND hwnd = (window == nullptr) ? ::GetDesktopWindow() : window->GetHandle();
+    // Desktop Window is the window of the primary monitor.
+    const HWND hwnd = (window == nullptr) ? ::GetDesktopWindow() : window->GetHandle();
 
     if (GetDpiForWindow_fn != nullptr) {
         // We're on Windows 10, we have per-screen DPI settings
@@ -168,7 +172,7 @@ wxFont get_default_font_for_dpi(const wxWindow *window, int dpi)
 }
 
 bool check_dark_mode() {
-#if wxCHECK_VERSION(3,1,3)
+#if wxCHECK_VERSION(SLIC3R_WX_DPI_EVENT_MAJOR, SLIC3R_WX_DPI_EVENT_MINOR, SLIC3R_WX_DPI_EVENT_RELEASE)
     return wxSystemSettings::GetAppearance().IsDark();
 #else
     const unsigned luma = wxGetApp().get_colour_approx_luma(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
@@ -198,11 +202,12 @@ CheckboxFileDialog::ExtraPanel::ExtraPanel(wxWindow *parent)
     auto *dlg = dynamic_cast<CheckboxFileDialog*>(parent);
     const wxString checkbox_label(dlg != nullptr ? dlg->checkbox_label : wxString("String long enough to contain dlg->checkbox_label"));
 
+    constexpr int checkbox_spacing = 5;
     auto* sizer = new wxBoxSizer(wxHORIZONTAL);
     cbox = new wxCheckBox(this, wxID_ANY, checkbox_label);
     cbox->SetValue(true);
-    sizer->AddSpacer(5);
-    sizer->Add(this->cbox, 0, wxEXPAND | wxALL, 5);
+    sizer->AddSpacer(checkbox_spacing);
+    sizer->Add(this->cbox, 0, wxEXPAND | wxALL, checkbox_spacing);
     SetSizer(sizer);
     sizer->SetSizeHints(this);
 }
@@ -254,16 +259,17 @@ WindowMetrics WindowMetrics::from_window(wxTopLevelWindow *window)
 
 std::optional<WindowMetrics> WindowMetrics::deserialize(const std::string &str)
 {
+    constexpr size_t serialized_field_count = 5;
     std::vector<std::string> metrics_str;
-    metrics_str.reserve(5);
+    metrics_str.reserve(serialized_field_count);
 
-    if (!unescape_strings_cstyle(str, metrics_str) || metrics_str.size() != 5) {
+    if (!unescape_strings_cstyle(str, metrics_str) || metrics_str.size() != serialized_field_count) {
         return std::nullopt;
     }
 
-    int metrics[5];
+    std::array<int, serialized_field_count> metrics;
     try {
-        for (size_t i = 0; i < 5; i++) {
+        for (size_t i = 0; i < serialized_field_count; ++i) {
             metrics[i] = boost::lexical_cast<int>(metrics_str[i]);
         }
     } catch(const boost::bad_lexical_cast &) {
@@ -285,10 +291,11 @@ void WindowMetrics::sanitize_for_display(const wxRect &screen_rect)
 {
     rect = rect.Intersect(screen_rect);
 
-    // Prevent the window from going too far towards the right and/or bottom edge
-    // It's hardcoded here that the threshold is 80% of the screen size
-    rect.x = std::min(rect.x, screen_rect.x + 4*screen_rect.width/5);
-    rect.y = std::min(rect.y, screen_rect.y + 4*screen_rect.height/5);
+    // Prevent the window from going too far towards the right and/or bottom edge.
+    constexpr int visible_screen_fraction_numerator   = 4;
+    constexpr int visible_screen_fraction_denominator = 5;
+    rect.x = std::min(rect.x, screen_rect.x + visible_screen_fraction_numerator * screen_rect.width / visible_screen_fraction_denominator);
+    rect.y = std::min(rect.y, screen_rect.y + visible_screen_fraction_numerator * screen_rect.height / visible_screen_fraction_denominator);
 }
 
 std::string WindowMetrics::serialize() const
@@ -308,7 +315,7 @@ std::ostream& operator<<(std::ostream &os, const WindowMetrics& metrics)
 }
 
 
-TaskTimer::TaskTimer(std::string task_name):
+TaskTimer::TaskTimer(const std::string& task_name):
     task_name(task_name.empty() ? "task" : task_name)
 {
     start_timer = std::chrono::duration_cast<std::chrono::milliseconds>(

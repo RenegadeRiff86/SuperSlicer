@@ -11,7 +11,6 @@
 #include "slic3r/GUI/NotificationManager.hpp"
 #include "slic3r/GUI/Plater.hpp"
 #include "slic3r/GUI/MsgDialog.hpp"
-#include "slic3r/GUI/Automation/AutomationFileDialog.hpp"
 #include "slic3r/GUI/format.hpp"
 #include "slic3r/GUI/I18N.hpp"
 #include "slic3r/GUI/CameraUtils.hpp"
@@ -26,10 +25,8 @@
 
 #include "libslic3r/Model.hpp"
 #include "libslic3r/Preset.hpp"
-#include "libslic3r/ClipperUtils.hpp" // union_ex
 #include "libslic3r/AppConfig.hpp"    // store/load font list
 #include "libslic3r/Format/OBJ.hpp" // load obj file for default object
-#include "libslic3r/BuildVolume.hpp"
 
 #include "imgui/imgui_stdlib.h" // using std::string for inputs
 
@@ -78,6 +75,17 @@ using namespace Slic3r::GUI;
 using namespace Slic3r::GUI::Emboss;
 
 namespace {
+constexpr int    QUARTER_TURN_DIVISOR          = 2;
+constexpr float  SYMMETRIC_PADDING_SCALE       = 2.f;
+constexpr float  PROJECTION_DEPTH_LIMIT_SCALE  = 2.f;
+constexpr int    EVEN_DIVISOR                  = 2;
+constexpr float  POPUP_WIDTH_SCALE             = 2.f;
+constexpr float  SEPARATOR_LINE_HEIGHT         = 2.f;
+constexpr int    DEFAULT_MODERN_FONT_SIZE      = 10;
+constexpr float  FONT_POPUP_ROW_COUNT          = 10.f;
+constexpr int    COLLECTION_ID_BIT_OFFSET      = 10;
+constexpr float  ADVANCED_CONTROL_ROW_COUNT    = 10.f;
+
 // TRN - Title in Undo/Redo stack after rotate with text around emboss axe
 const std::string rotation_snapshot_name = L("Text rotate");
 // NOTE: Translation is made in "m_parent.do_rotate()"
@@ -724,7 +732,7 @@ bool GLGizmoEmboss::on_init()
     m_style_manager.init(wxGetApp().app_config.get());
 
     // Set rotation gizmo upwardrotate
-    m_rotate_gizmo.set_angle(PI / 2);
+    m_rotate_gizmo.set_angle(PI / QUARTER_TURN_DIVISOR);
     return true;
 }
 
@@ -806,8 +814,13 @@ static void draw_place_to_add_text()
     Vec2d              mouse_pos(mp.x, mp.y);
     const Camera      &camera = wxGetApp().plater()->get_camera();
     Vec3d              p1 = CameraUtils::get_z0_position(camera, mouse_pos);
-    std::vector<Vec3d> rect3d{p1 + Vec3d(5, 5, 0), p1 + Vec3d(-5, 5, 0),
-                              p1 + Vec3d(-5, -5, 0), p1 + Vec3d(5, -5, 0)};
+    constexpr double marker_half_extent = 5.;
+    std::vector<Vec3d> rect3d{
+        p1 + Vec3d(marker_half_extent, marker_half_extent, 0),
+        p1 + Vec3d(-marker_half_extent, marker_half_extent, 0),
+        p1 + Vec3d(-marker_half_extent, -marker_half_extent, 0),
+        p1 + Vec3d(marker_half_extent, -marker_half_extent, 0)
+    };
     Points             rect2d = CameraUtils::project(camera, rect3d);
     ImGuiWrapper::draw(Slic3r::Polygon(rect2d));
 }
@@ -979,7 +992,7 @@ void GLGizmoEmboss::on_stop_dragging()
 
     // This is fast fix for second try to rotate
     // When fixing, move grabber above text (not on side)
-    m_rotate_gizmo.set_angle(PI/2);
+    m_rotate_gizmo.set_angle(PI / QUARTER_TURN_DIVISOR);
 
     // apply rotation
     m_parent.do_rotate(rotation_snapshot_name);
@@ -1011,7 +1024,7 @@ EmbossStyles GLGizmoEmboss::create_default_styles()
         WxFontUtils::create_emboss_style(*wxSMALL_FONT, _u8L("SMALL")),  // A font using the wxFONTFAMILY_SWISS family and 2 points smaller than wxNORMAL_FONT.
         WxFontUtils::create_emboss_style(*wxITALIC_FONT, _u8L("ITALIC")), // A font using the wxFONTFAMILY_ROMAN family and wxFONTSTYLE_ITALIC style and of the same size of wxNORMAL_FONT.
         WxFontUtils::create_emboss_style(*wxSWISS_FONT, _u8L("SWISS")),  // A font identic to wxNORMAL_FONT except for the family used which is wxFONTFAMILY_SWISS.
-        WxFontUtils::create_emboss_style(wxFont(10, wxFONTFAMILY_MODERN, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD), _u8L("MODERN")),        
+        WxFontUtils::create_emboss_style(wxFont(DEFAULT_MODERN_FONT_SIZE, wxFONTFAMILY_MODERN, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD), _u8L("MODERN")),        
     };
 
     // Not all predefined font for wx must be valid TTF, but at least one style must be loadable
@@ -1175,7 +1188,8 @@ void GLGizmoEmboss::trigger_action() {
     if (gl_volume) {
         const ModelObjectPtrs &objects = m_parent.get_model()->objects;
         ModelVolume *volume = get_model_volume(*gl_volume, objects);
-        assert((volume == nullptr || selection.is_single_full_instance()) && !selection.is_single_text());
+        if ((volume != nullptr && !selection.is_single_full_instance()) || selection.is_single_text())
+            return;
     }
     create_volume(ModelVolumeType::MODEL_PART);
 }
@@ -1525,7 +1539,7 @@ void GLGizmoEmboss::draw_text_input()
     if (!exist_font) {
         warning_tool_tip = _u8L("The text cannot be written using the selected font. Please try choosing a different font.");
     } else {
-        auto append_warning = [&warning_tool_tip](std::string t) {
+        auto append_warning = [&warning_tool_tip](const std::string& t) {
             if (!warning_tool_tip.empty()) 
                 warning_tool_tip += "\n";
             warning_tool_tip += t;
@@ -1586,7 +1600,7 @@ void GLGizmoEmboss::draw_text_input()
         float width = ImGui::GetContentRegionAvailWidth();
         const ImVec2& padding = style.FramePadding;
         ImVec2 icon_pos(width - m_gui_cfg->icon_width - scrollbar_width + padding.x, 
-                        cursor.y - m_gui_cfg->icon_width - scrollbar_height - 2*padding.y);
+                        cursor.y - m_gui_cfg->icon_width - scrollbar_height - SYMMETRIC_PADDING_SCALE * padding.y);
         
         ImGui::SetCursorPos(icon_pos);
         draw(get_icon(m_icons, IconType::exclamation, IconState::hovered));
@@ -1768,7 +1782,8 @@ void GLGizmoEmboss::draw_font_list()
         ImGui::OpenPopup(popup_id);
     
     ImGui::SetNextWindowPos(ImVec2(ImGui::GetItemRectMin().x, ImGui::GetItemRectMax().y));
-    ImGui::SetNextWindowSize({2*m_gui_cfg->input_width, ImGui::GetTextLineHeight()*10});
+    ImGui::SetNextWindowSize({POPUP_WIDTH_SCALE * m_gui_cfg->input_width,
+                              ImGui::GetTextLineHeight() * FONT_POPUP_ROW_COUNT});
     ImGuiWindowFlags popup_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | 
                                    ImGuiWindowFlags_NoResize | ImGuiWindowFlags_ChildWindow;
     if (ImGui::BeginPopup(popup_id, popup_flags))
@@ -2858,8 +2873,8 @@ void GLGizmoEmboss::draw_advanced()
     bool allowe_surface_distance = !use_surface && !m_volume->is_the_only_one_part();
     std::optional<float> &distance = current_style.distance;
     float prev_distance = distance.value_or(.0f);
-    float min_distance = static_cast<float>(-2 * current_style.projection.depth);
-    float max_distance = static_cast<float>(2 * current_style.projection.depth);
+    float min_distance = static_cast<float>(-PROJECTION_DEPTH_LIMIT_SCALE * current_style.projection.depth);
+    float max_distance = static_cast<float>(PROJECTION_DEPTH_LIMIT_SCALE * current_style.projection.depth);
     auto def_distance = stored_style ?
         &stored_style->distance : nullptr;    
     m_imgui->disabled_begin(!allowe_surface_distance);    
@@ -2977,7 +2992,7 @@ void GLGizmoEmboss::draw_advanced()
         unsigned int selected = current_prop.collection_number.value_or(0);
         if (ImGui::BeginCombo("## Font collection", std::to_string(selected).c_str())) {
             for (unsigned int i = 0; i < ff.font_file->infos.size(); ++i) {
-                ImGui::PushID(1 << (10 + i));
+                ImGui::PushID(1 << (COLLECTION_ID_BIT_OFFSET + i));
                 bool is_selected = (i == selected);
                 if (ImGui::Selectable(std::to_string(i).c_str(), is_selected)) {
                     if (i == 0) current_prop.collection_number.reset();
@@ -3239,11 +3254,6 @@ void GLGizmoEmboss::init_icons()
     m_icons = m_icon_manager.init(filenames, size, type);
 }
 
-static std::size_t hash_value(wxString const &s){
-    boost::hash<std::string> hasher;
-    return hasher(s.ToStdString());
-}
-
 // increase number when change struct FacenamesSerializer
 constexpr std::uint32_t FACENAMES_VERSION = 1;
 struct FacenamesSerializer
@@ -3499,7 +3509,9 @@ void init_face_names(Facenames &face_names)
                                 << "in " << enumerate_duration << " ms\n" << concat(face_names.bad);
     });
     wxArrayString facenames = wxFontEnumerator::GetFacenames(face_names.encoding);
-    size_t hash = boost::hash_range(facenames.begin(), facenames.end());
+    size_t hash = 0;
+    for (const wxString &facename : facenames)
+        boost::hash_combine(hash, facename.ToStdString());
     // Zero value is used as uninitialized hash
     if (hash == 0) hash = 1;
     // check if it is same as last time
@@ -3657,7 +3669,7 @@ GuiCfg create_gui_configuration()
 
     cfg.icon_width = static_cast<unsigned int>(std::ceil(line_height));
     // make size pair number
-    if (cfg.icon_width % 2 != 0) ++cfg.icon_width;
+    if (cfg.icon_width % EVEN_DIVISOR != 0) ++cfg.icon_width;
 
     cfg.delete_pos_x = cfg.max_style_name_width + space;
     const float count_line_of_text = 3.f;
@@ -3733,7 +3745,7 @@ GuiCfg create_gui_configuration()
         ImGui::CalcTextSize(tr.boldness.c_str()).x,
         ImGui::CalcTextSize(tr.skew_ration.c_str()).x,
         ImGui::CalcTextSize(tr.from_surface.c_str()).x,
-        ImGui::CalcTextSize(tr.rotation.c_str()).x + cfg.icon_width + 2*space,
+        ImGui::CalcTextSize(tr.rotation.c_str()).x + cfg.icon_width + SYMMETRIC_PADDING_SCALE * space,
         ImGui::CalcTextSize(tr.keep_up.c_str()).x,
         ImGui::CalcTextSize(tr.collection.c_str()).x });
     cfg.advanced_input_offset = max_advanced_text_width
@@ -3741,10 +3753,11 @@ GuiCfg create_gui_configuration()
 
     cfg.lock_offset = cfg.advanced_input_offset - (cfg.icon_width + space);
     // calculate window size
-    float window_title = line_height + 2*style.FramePadding.y + 2 * style.WindowTitleAlign.y;
-    float input_height = line_height_with_spacing + 2*style.FramePadding.y;
+    float window_title = line_height + SYMMETRIC_PADDING_SCALE * style.FramePadding.y
+        + SYMMETRIC_PADDING_SCALE * style.WindowTitleAlign.y;
+    float input_height = line_height_with_spacing + SYMMETRIC_PADDING_SCALE * style.FramePadding.y;
     float tree_header  = line_height_with_spacing;
-    float separator_height = 2 + style.FramePadding.y;
+    float separator_height = SEPARATOR_LINE_HEIGHT + style.FramePadding.y;
 
     // "Text is to object" + radio buttons
     cfg.height_of_volume_type_selector = separator_height + line_height_with_spacing + input_height;
@@ -3756,14 +3769,14 @@ GuiCfg create_gui_configuration()
         tree_header +      // advance tree
         separator_height + // presets separator line
         line_height_with_spacing + // "Presets"
-        2 * style.WindowPadding.y;
-    float window_width = cfg.input_offset + cfg.input_width + 2*style.WindowPadding.x 
-        + 2 * (cfg.icon_width + space);
+        SYMMETRIC_PADDING_SCALE * style.WindowPadding.y;
+    float window_width = cfg.input_offset + cfg.input_width + SYMMETRIC_PADDING_SCALE * style.WindowPadding.x
+        + SYMMETRIC_PADDING_SCALE * (cfg.icon_width + space);
     cfg.minimal_window_size = ImVec2(window_width, window_height);
 
     // 9 = useSurface, charGap, lineGap, bold, italic, surfDist, rotation, keepUp, textFaceToCamera
     // 4 = 1px for fix each edit image of drag float 
-    float advance_height = input_height * 10 + 9;
+    float advance_height = input_height * ADVANCED_CONTROL_ROW_COUNT + 9;
     cfg.minimal_window_size_with_advance =
         ImVec2(cfg.minimal_window_size.x,
                cfg.minimal_window_size.y + advance_height);
@@ -3772,7 +3785,8 @@ GuiCfg create_gui_configuration()
         ImVec2(cfg.minimal_window_size_with_advance.x,
             cfg.minimal_window_size_with_advance.y + input_height);
 
-    int max_style_image_width = static_cast<int>(std::round(cfg.max_style_name_width - 2 * style.FramePadding.x));
+    int max_style_image_width = static_cast<int>(std::round(
+        cfg.max_style_name_width - SYMMETRIC_PADDING_SCALE * style.FramePadding.x));
     int max_style_image_height = static_cast<int>(std::round(1.5 * input_height));
     cfg.max_style_image_size = Vec2i32(max_style_image_width, max_style_image_height);
     cfg.face_name_size = Vec2i32(cfg.input_width, line_height_with_spacing);

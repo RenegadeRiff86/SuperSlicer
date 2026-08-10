@@ -29,7 +29,20 @@ namespace GUI {
 namespace {
 constexpr char kCalibrationResourceDirectory[] = "calibration";
 constexpr char kFilamentFlowResourceDirectory[] = "filament_flow";
-constexpr char kFlowTestCubeFilename[] = "filament_flow_test_cube.amf";
+constexpr char   kFlowTestCubeFilename[]       = "filament_flow_test_cube.amf";
+constexpr float  kCoarseFlowStartPercent       = 80.0f;
+constexpr float  kCoarseFlowStepPercent        = 10.0f;
+constexpr float  kFineBelowFlowStartPercent    = 92.0f;
+constexpr float  kFineAboveFlowStartPercent    = 100.0f;
+constexpr float  kFineFlowStepPercent          = 2.0f;
+constexpr size_t kFlowCubeCount                = 5;
+constexpr int    kAdditionalLayerCount         = 5;
+constexpr double kModelHeightCenterDivisor     = 2.0;
+constexpr double kIndicatorHorizontalOffset    = 10.0;
+constexpr size_t kCenterCubeIndex              = 2;
+constexpr size_t kFourthCubeIndex              = 3;
+constexpr int    kCalibrationPerimeterCount    = 3;
+constexpr int    kPerimeterOverlapPercent      = 80;
 
 boost::filesystem::path flow_resource_path(const char* filename)
 {
@@ -57,7 +70,7 @@ void CalibrationFlowDialog::create_geometry_10(wxCommandEvent &event_args)
     Plater *plat = this->main_frame->plater();
     if (!plat->new_project(L("Flow 10 percent calibration")))
         return;
-    create_geometry(80.f, 10.f);
+    create_geometry(kCoarseFlowStartPercent, kCoarseFlowStepPercent);
 }
 
 void CalibrationFlowDialog::create_geometry_2_5(wxCommandEvent &event_args)
@@ -65,7 +78,7 @@ void CalibrationFlowDialog::create_geometry_2_5(wxCommandEvent &event_args)
     Plater *plat = this->main_frame->plater();
     if (!plat->new_project(L("Flow 2 percent calibration")))
         return;
-    create_geometry(92.f, 2.F);
+    create_geometry(kFineBelowFlowStartPercent, kFineFlowStepPercent);
 }
 
 void CalibrationFlowDialog::create_geometry_2_5_above(wxCommandEvent &event_args)
@@ -73,7 +86,7 @@ void CalibrationFlowDialog::create_geometry_2_5_above(wxCommandEvent &event_args
     Plater *plat = this->main_frame->plater();
     if (!plat->new_project(L("Flow 2 percent above calibration")))
         return;
-    create_geometry(100.f, 2.f);
+    create_geometry(kFineAboveFlowStartPercent, kFineFlowStepPercent);
 }
 
 void CalibrationFlowDialog::create_geometry(float start, float delta) {
@@ -99,7 +112,7 @@ void CalibrationFlowDialog::create_geometry(float start, float delta) {
         LoadFileOption::LoadModel | LoadFileOption::DontUpdateDirs);
 
 
-    assert(objs_idx.size() == 5);
+    assert(objs_idx.size() == kFlowCubeCount);
     const DynamicPrintConfig* print_config = this->gui_app->get_tab(Preset::TYPE_FFF_PRINT)->get_config();
     const DynamicPrintConfig* printerConfig = this->gui_app->get_tab(Preset::TYPE_PRINTER)->get_config();
     
@@ -118,17 +131,17 @@ void CalibrationFlowDialog::create_geometry(float start, float delta) {
 
     // (zscale / 2) represents the midpoint of the filament_flow_test_cube. Note: we ned to use the height of filament_flow_test_cube before scaling. 
     float z_origin = 0.5f;
-    float zscale = first_layer_height + 5 * layer_height;
+    float zscale = first_layer_height + kAdditionalLayerCount * layer_height;
     //do scaling
     if (xyScale < 0.9 || 1.2 < xyScale) {
-        for (size_t i = 0; i < 5; i++)
+        for (size_t i = 0; i < kFlowCubeCount; i++)
             model.objects[objs_idx[i]]->scale(xyScale, xyScale, zscale); // base: 10 10 1
     } else {
-        for (size_t i = 0; i < 5; i++)
+        for (size_t i = 0; i < kFlowCubeCount; i++)
             model.objects[objs_idx[i]]->scale(1, 1, zscale);
     }
     //// move to bed
-    //for (size_t i = 0; i < 5; i++)
+    //for (size_t i = 0; i < kFlowCubeCount; i++)
     //    model.objects[objs_idx[i]]->translate(0, 0, ); // base: 10 10 1
 
 
@@ -151,27 +164,27 @@ void CalibrationFlowDialog::create_geometry(float start, float delta) {
             vol->set_transformation(trsf);
         };
     
-    if (delta == 10.f && start == 80.f) {
-        add_part(model.objects[objs_idx[0]], flow_resource_path("m20.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[1]], flow_resource_path("m10.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
-        add_part(model.objects[objs_idx[2]], flow_resource_path("_0.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
-        add_part(model.objects[objs_idx[3]], flow_resource_path("p10.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
-        add_part(model.objects[objs_idx[4]], flow_resource_path("p20.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
-    } else if (delta == 2.f && start == 92.f) {
-        add_part(model.objects[objs_idx[0]], flow_resource_path("m8.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[1]], flow_resource_path("m6.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[2]], flow_resource_path("m4.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[3]], flow_resource_path("m2.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[4]], flow_resource_path("_0.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-    } else if (delta == 2.f && start == 100.f) {
-        add_part(model.objects[objs_idx[0]], flow_resource_path("_0.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[1]], flow_resource_path("p2.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[2]], flow_resource_path("p4.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[3]], flow_resource_path("p6.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[4]], flow_resource_path("p8.amf").string(), Vec3d{ 10 * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+    if (delta == kCoarseFlowStepPercent && start == kCoarseFlowStartPercent) {
+        add_part(model.objects[objs_idx[0]], flow_resource_path("m20.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[1]], flow_resource_path("m10.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
+        add_part(model.objects[objs_idx[kCenterCubeIndex]], flow_resource_path("_0.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
+        add_part(model.objects[objs_idx[kFourthCubeIndex]], flow_resource_path("p10.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
+        add_part(model.objects[objs_idx[4]], flow_resource_path("p20.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
+    } else if (delta == kFineFlowStepPercent && start == kFineBelowFlowStartPercent) {
+        add_part(model.objects[objs_idx[0]], flow_resource_path("m8.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[1]], flow_resource_path("m6.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[kCenterCubeIndex]], flow_resource_path("m4.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[kFourthCubeIndex]], flow_resource_path("m2.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[4]], flow_resource_path("_0.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+    } else if (delta == kFineFlowStepPercent && start == kFineAboveFlowStartPercent) {
+        add_part(model.objects[objs_idx[0]], flow_resource_path("_0.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[1]], flow_resource_path("p2.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[kCenterCubeIndex]], flow_resource_path("p4.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[kFourthCubeIndex]], flow_resource_path("p6.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[4]], flow_resource_path("p8.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
     }
-    for (size_t i = 0; i < 5; i++) {
-        translate_from_rotation(i, Vec3d{ 10 * xyScale, 0, zscale/2 - z_origin });
+    for (size_t i = 0; i < kFlowCubeCount; i++) {
+        translate_from_rotation(i, Vec3d{ kIndicatorHorizontalOffset * xyScale, 0, zscale / kModelHeightCenterDivisor - z_origin });
         add_part(model.objects[objs_idx[i]], flow_resource_path("O.amf").string(),
           Vec3d{ 0,0, zscale / 2.0 + z_origin + layer_height / 2.0 }, Vec3d{xyScale , xyScale, layer_height / 0.2}); // base: 0.2mm height
     }
@@ -190,14 +203,14 @@ void CalibrationFlowDialog::create_geometry(float start, float delta) {
     }
 
     /// --- custom config ---
-    for (size_t i = 0; i < 5; i++) {
+    for (size_t i = 0; i < kFlowCubeCount; i++) {
         //brim to have some time to build up pressure in the nozzle
         model.objects[objs_idx[i]]->config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(brim_width));
         model.objects[objs_idx[i]]->config.set_key_value("thin_perimeters", std::make_unique<ConfigOptionPercent>(0));
-        model.objects[objs_idx[i]]->config.set_key_value("external_perimeter_overlap", std::make_unique<ConfigOptionPercent>(80));
-        model.objects[objs_idx[i]]->config.set_key_value("perimeter_overlap", std::make_unique<ConfigOptionPercent>(80));
+        model.objects[objs_idx[i]]->config.set_key_value("external_perimeter_overlap", std::make_unique<ConfigOptionPercent>(kPerimeterOverlapPercent));
+        model.objects[objs_idx[i]]->config.set_key_value("perimeter_overlap", std::make_unique<ConfigOptionPercent>(kPerimeterOverlapPercent));
         model.objects[objs_idx[i]]->config.set_key_value("brim_ears", std::make_unique<ConfigOptionBool>(false));
-        model.objects[objs_idx[i]]->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(3));
+        model.objects[objs_idx[i]]->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(kCalibrationPerimeterCount));
         model.objects[objs_idx[i]]->config.set_key_value("only_one_perimeter_top", std::make_unique<ConfigOptionBool>(true));
         model.objects[objs_idx[i]]->config.set_key_value("enforce_full_fill_volume", std::make_unique<ConfigOptionBool>(true));
         model.objects[objs_idx[i]]->config.set_key_value("solid_infill_every_layers", std::make_unique<ConfigOptionInt>(1));

@@ -30,8 +30,6 @@
 
 #include "PresetComboBoxes.hpp"
 
-using std::optional;
-
 #ifdef __linux__
 #define wxLinux true
 #else
@@ -47,6 +45,9 @@ static constexpr const char* KEY_EXTRUDER_COLOUR   = "extruder_colour";
 static constexpr const char* KEY_MILLING_DIAMETER  = "milling_diameter";
 
 namespace GUI {
+
+static constexpr int BUTTON_SPACING = 5;
+static constexpr int DOUBLE_BORDER = 2;
 
 wxDEFINE_EVENT(EVT_DIFF_DIALOG_TRANSFER,        SimpleEvent);
 wxDEFINE_EVENT(EVT_DIFF_DIALOG_UPDATE_PRESETS,  SimpleEvent);
@@ -632,7 +633,7 @@ void DiffViewCtrl::AppendBmpTextColumn(const wxString& label, unsigned model_col
 #ifdef SUPPORTS_MARKUP
     rd->EnableMarkup(true);
 #endif
-    wxDataViewColumn* column = new wxDataViewColumn(label, rd, model_column, width * m_em_unit, wxALIGN_TOP, wxDATAVIEW_COL_RESIZABLE | wxDATAVIEW_CELL_INERT);
+    wxDataViewColumn* column = new wxDataViewColumn(label, rd, model_column, width * m_em_unit, wxALIGN_TOP, wxDATAVIEW_COL_RESIZABLE);
 #else
     wxDataViewColumn* column = new wxDataViewColumn(label, new BitmapTextRenderer(true, wxDATAVIEW_CELL_INERT), model_column, width * m_em_unit, wxALIGN_TOP, wxDATAVIEW_COL_RESIZABLE);
 #endif //__linux__
@@ -874,7 +875,7 @@ void UnsavedChangesDialog::build(Preset::Type type, PresetCollection* dependent_
     {
         *btn = new ScalableButton(this, btn_id = NewControlId(), icon_name, label, wxDefaultSize, wxDefaultPosition, wxBORDER_DEFAULT, 24);
 
-        buttons->Add(*btn, 1, wxLEFT, 5);
+        buttons->Add(*btn, 1, wxLEFT, BUTTON_SPACING);
         (*btn)->SetFont(btn_font);
 
         (*btn)->Bind(wxEVT_BUTTON, [this, close_act, dependent_presets](wxEvent&) {
@@ -919,7 +920,7 @@ void UnsavedChangesDialog::build(Preset::Type type, PresetCollection* dependent_
 #else
     ScalableButton* cancel_btn = new ScalableButton(this, wxID_CANCEL, "cross", _L("Cancel"), wxDefaultSize, wxDefaultPosition, wxBORDER_DEFAULT, 24);
 #endif
-    buttons->Add(cancel_btn, 1, wxLEFT|wxRIGHT, 5);
+    buttons->Add(cancel_btn, 1, wxLEFT|wxRIGHT, BUTTON_SPACING);
     cancel_btn->SetFont(btn_font);
     cancel_btn->Bind(wxEVT_BUTTON, [this](wxEvent&) { this->EndModal(wxID_CANCEL); });
 
@@ -956,7 +957,7 @@ void UnsavedChangesDialog::build(Preset::Type type, PresetCollection* dependent_
 
     topSizer->Add(m_action_line,0, wxEXPAND | wxLEFT | wxTOP | wxRIGHT, border);
     topSizer->Add(m_tree,       1, wxEXPAND | wxLEFT | wxTOP | wxRIGHT, border);
-    topSizer->Add(m_info_line,  0, wxEXPAND | wxLEFT | wxTOP | wxRIGHT, 2*border);
+    topSizer->Add(m_info_line,  0, wxEXPAND | wxLEFT | wxTOP | wxRIGHT, DOUBLE_BORDER * border);
     topSizer->Add(buttons,      0, wxEXPAND | wxALL, border);
     if (m_remember_choice)
         topSizer->Add(m_remember_choice, 0, wxEXPAND | wxLEFT | wxBOTTOM | wxRIGHT, border);
@@ -1092,9 +1093,6 @@ static wxString get_string_value(const OptionKeyIdx &opt_key_id, const DynamicPr
     wxString serialized_str = _L("Undef");
 
     const ConfigOptionDef* opt_def = config.def()->get(opt_key);
-    bool is_optional = opt_def->is_optional;
-    
-    
     const ConfigOption* option = config.option(opt_key);
     bool full_serialize = option->size() > 1 && (opt_idx < 0 || opt_idx >= int32_t(option->size()));
     if (!full_serialize && !option->is_scalar()) {
@@ -1400,8 +1398,9 @@ void UnsavedChangesDialog::update_tree(Preset::Type type, PresetCollection* pres
                 // because of they don't exist in searcher
                 if ((std::set<std::string>{"default_print_profile", "printer_model", "printer_settings_id",
                                            "filament_settings_id", "print_settings_id", "inherits", "print_version"})
-                        .count(opt_key_id.key) > 0)
-                continue;
+                        .count(opt_key_id.key) > 0) {
+                    continue;
+                }
 
                 // Option missing from the search index (legacy alias / non-GUI key): show under "hidden".
                 m_tree->Append(opt_key_id, type, "hidden", "hidden", opt_key_id.key,
@@ -1593,9 +1592,9 @@ void DiffPresetDialog::create_presets_sizer()
             cb->Show(new_type == Preset::TYPE_PRINTER);
         };
         add_preset_combobox(&presets_left, m_preset_bundle_left.get());
-        sizer->Add(equal_bmp, 0, wxRIGHT | wxLEFT | wxALIGN_CENTER_VERTICAL, 5);
+        sizer->Add(equal_bmp, 0, wxRIGHT | wxLEFT | wxALIGN_CENTER_VERTICAL, BUTTON_SPACING);
         add_preset_combobox(&presets_right, m_preset_bundle_right.get());
-        m_presets_sizer->Add(sizer, 1, wxTOP, 5);
+        m_presets_sizer->Add(sizer, 1, wxTOP, BUTTON_SPACING);
         equal_bmp->Show(new_type == Preset::TYPE_PRINTER);
 
         m_preset_combos.push_back({ presets_left, equal_bmp, presets_right });
@@ -1710,7 +1709,7 @@ void DiffPresetDialog::create_buttons()
 
     for (ScalableButton* btn : { m_transfer_btn, m_save_btn, m_cancel_btn }) {
         btn->Bind(wxEVT_LEAVE_WINDOW, [this](wxMouseEvent& e) { update_bottom_info(); Layout(); e.Skip(); });
-        m_buttons->Add(btn, 1, wxLEFT, 5);
+        m_buttons->Add(btn, 1, wxLEFT, BUTTON_SPACING);
         btn->SetFont(font);
     }
 
@@ -1739,9 +1738,9 @@ void DiffPresetDialog::create_edit_sizer()
 
     // Create and fill edit sizer
     m_edit_sizer = new wxBoxSizer(wxHORIZONTAL);
-    m_edit_sizer->Add(m_use_for_transfer, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT, 5);
+    m_edit_sizer->Add(m_use_for_transfer, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT, BUTTON_SPACING);
     m_edit_sizer->AddSpacer(em_unit() * 10);
-    m_edit_sizer->Add(m_buttons, 1, wxLEFT, 5);
+    m_edit_sizer->Add(m_buttons, 1, wxLEFT, BUTTON_SPACING);
     m_edit_sizer->Show(false);
 }
 
@@ -1750,12 +1749,12 @@ void DiffPresetDialog::complete_dialog_creation()
     wxBoxSizer*topSizer = new wxBoxSizer(wxVERTICAL);
 
     int border = 10;
-    topSizer->Add(m_top_info_line,      0, wxEXPAND | wxLEFT | wxTOP | wxRIGHT, 2 * border);
+    topSizer->Add(m_top_info_line,      0, wxEXPAND | wxLEFT | wxTOP | wxRIGHT, DOUBLE_BORDER * border);
     topSizer->Add(m_presets_sizer,      0, wxEXPAND | wxLEFT | wxTOP | wxRIGHT, border);
     topSizer->Add(m_show_all_presets,   0, wxEXPAND | wxALL, border);
     topSizer->Add(m_tree,               1, wxEXPAND | wxALL, border);
-    topSizer->Add(m_bottom_info_line,   0, wxEXPAND | wxALL, 2 * border);
-    topSizer->Add(m_edit_sizer,         0, wxEXPAND | wxLEFT | wxBOTTOM | wxRIGHT, 2 * border);
+    topSizer->Add(m_bottom_info_line,   0, wxEXPAND | wxALL, DOUBLE_BORDER * border);
+    topSizer->Add(m_edit_sizer,         0, wxEXPAND | wxLEFT | wxBOTTOM | wxRIGHT, DOUBLE_BORDER * border);
 
     this->SetMinSize(wxSize(80 * em_unit(), 30 * em_unit()));
     this->SetSizer(topSizer);

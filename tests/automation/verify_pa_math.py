@@ -36,8 +36,9 @@ def check(name: str, cond: bool, detail="") -> None:
 def pa_peak(speed, a, K, Ts):
     if K <= 0 or a <= 0 or speed <= 0:
         return speed
-    r = min(1.0, speed / (a * Ts)) if Ts > 0 else 1.0
-    return speed + K * a * r * (2.0 - r)
+    # Fraction of the smoothing window that the acceleration ramp fills.
+    ramp_fraction = min(1.0, speed / (a * Ts)) if Ts > 0 else 1.0
+    return speed + K * a * ramp_fraction * (2.0 - ramp_fraction)
 
 
 def pa_speed(budget, a, K, Ts):
@@ -47,12 +48,13 @@ def pa_speed(budget, a, K, Ts):
         return budget - K * a
     if budget >= a * Ts + K * a:
         return budget - K * a
-    b = a * Ts * (Ts / K + 2.0)
-    c = a * Ts * Ts * budget / K
-    disc = b * b - 4 * c
+    # Solve the quadratic that inverts pa_peak for the ramp-limited case.
+    quad_b = a * Ts * (Ts / K + 2.0)
+    quad_c = a * Ts * Ts * budget / K
+    disc = quad_b * quad_b - 4 * quad_c
     if disc <= 0:
         return budget - K * a
-    return 0.5 * (b - math.sqrt(disc))
+    return 0.5 * (quad_b - math.sqrt(disc))
 
 
 def pa_accel(budget, speed, K, Ts):
@@ -101,33 +103,84 @@ def sim_peak(speed, a, K, Ts, dt=1e-4):
     if not HAS_NP:
         m = max(1, int(round(Ts / dt)))
         half = m / 2.0
-        w = [max(0.0, 1.0 - abs(j - half) / half) if half > 0 else 1.0 for j in range(m + 1)]
-        s = sum(w)
-        w = [x / s for x in w]
+        tent_weights = [max(0.0, 1.0 - abs(j - half) / half) if half > 0 else 1.0 for j in range(m + 1)]
+        weight_sum = sum(tent_weights)
+        tent_weights = [x / weight_sum for x in tent_weights]
         peak = 0.0
         for i in range(len(v_raw)):
             acc = 0.0
-            for j, wj in enumerate(w):
+            for j, wj in enumerate(tent_weights):
                 k = i - j
                 acc += wj * (v_raw[k] if k >= 0 else 0.0)
             peak = max(peak, acc)
         return peak
 
-    v = np.asarray(v_raw, dtype=float)
+    velocity = np.asarray(v_raw, dtype=float)
     m = max(1, int(round(Ts / dt)))
     half = m / 2.0
     j = np.arange(m + 1)
-    w = np.maximum(0.0, 1.0 - np.abs(j - half) / half) if half > 0 else np.ones(m + 1)
-    w = w / w.sum()
-    sm = np.convolve(v, w, mode="full")[: len(v)]
+    tent_weights = np.maximum(0.0, 1.0 - np.abs(j - half) / half) if half > 0 else np.ones(m + 1)
+    tent_weights = tent_weights / tent_weights.sum()
+    sm = np.convolve(velocity, tent_weights, mode="full")[: len(velocity)]
     return float(sm.max())
+
+
+# Adaptive PA bilinear model (AdaptivePressureAdvance.cpp). Kept at module scope rather than
+# nested inside main() so its own branches read at their natural depth.
+class Model:
+    def __init__(self, pts):
+        self.pts = pts
+        ACC = 1.0
+        acc = sorted(p[2] for p in pts)
+        self.levels = []
+        for a in acc:
+            if not self.levels or a - self.levels[-1] > ACC:
+                self.levels.append(a)
+
+    def at(self, lvl, flow):
+        ACC = 1.0
+        band = sorted([p for p in self.pts if abs(p[2] - lvl) <= ACC], key=lambda p: p[1])
+        if not band:
+            return 0.0
+        if len(band) == 1 or flow <= band[0][1]:
+            return band[0][0]
+        if flow >= band[-1][1]:
+            return band[-1][0]
+        for i in range(1, len(band)):
+            if flow <= band[i][1]:
+                lo, hi = band[i - 1], band[i]
+                sp = hi[1] - lo[1]
+                blend = (flow - lo[1]) / sp if sp > 0 else 0
+                return lo[0] + blend * (hi[0] - lo[0])
+        return band[-1][0]
+
+    def e(self, flow, accel, fb=0.0, step=1e-3):
+        if not self.pts:
+            return fb
+        levels = self.levels
+        if len(levels) == 1 or accel <= levels[0]:
+            pa_value = self.at(levels[0], flow)
+        elif accel >= levels[-1]:
+            pa_value = self.at(levels[-1], flow)
+        else:
+            hi = 1
+            while hi < len(levels) and accel > levels[hi]:
+                hi += 1
+            lo_level, hi_level = levels[hi - 1], levels[hi]
+            blend = (accel - lo_level) / (hi_level - lo_level) if hi_level > lo_level else 0
+            pa_value = self.at(lo_level, flow) + blend * (self.at(hi_level, flow) - self.at(lo_level, flow))
+        if pa_value < 0:
+            pa_value = 0
+        if step > 0:
+            pa_value = round(pa_value / step) * step
+        return pa_value
 
 
 def main() -> int:
     # 1) Unsmoothed identity
     for speed, a, K in [(50, 1000, 0.05), (100, 3000, 0.04), (20, 500, 0.1)]:
-        p = pa_peak(speed, a, K, 0.0)
-        check(f"unsmoothed formula {speed}", abs(p - (speed + K * a)) < 1e-12, p)
+        unsmoothed_peak = pa_peak(speed, a, K, 0.0)
+        check(f"unsmoothed formula {speed}", abs(unsmoothed_peak - (speed + K * a)) < 1e-12, unsmoothed_peak)
         s = sim_peak(speed, a, K, 0.0)
         check(f"unsmoothed sim {speed}", abs(s - (speed + K * a)) < 1e-9, s)
 
@@ -135,12 +188,13 @@ def main() -> int:
     underrun = 0
     max_oh = 0.0
     ohs = []
-    cases = []
-    for speed in [20, 50, 100, 150]:
-        for a in [1000, 3000, 8000]:
-            for K in [0.03, 0.05, 0.08]:
-                for Ts in [0.0, 0.04, 0.1, 0.2]:
-                    cases.append((speed, a, K, Ts))
+    # Every combination of the four sweeps. The nested loops this replaces were four levels deep
+    # and said nothing the comprehension does not.
+    cases = [(speed, a, K, Ts)
+             for speed in [20, 50, 100, 150]
+             for a in [1000, 3000, 8000]
+             for K in [0.03, 0.05, 0.08]
+             for Ts in [0.0, 0.04, 0.1, 0.2]]
     random.seed(1)
     for _ in range(60):
         cases.append(
@@ -176,9 +230,9 @@ def main() -> int:
 
     # 3) large-a asymptote: r->0 => speed + 2*K*speed/Ts
     for speed, K, Ts in [(50, 0.05, 0.04), (100, 0.04, 0.1)]:
-        b = pa_peak(speed, 1e12, K, Ts)
+        asymptotic_peak = pa_peak(speed, 1e12, K, Ts)
         exp = speed + 2 * K * speed / Ts
-        check(f"asymptote {speed}", abs(b - exp) / exp < 1e-6, (b, exp))
+        check(f"asymptote {speed}", abs(asymptotic_peak - exp) / exp < 1e-6, (asymptotic_peak, exp))
 
     # 4) inverses round-trip
     for budget, a, K, Ts in [
@@ -189,17 +243,17 @@ def main() -> int:
         (200, 3000, 0.03, 0.2),
         (60, 4000, 0.06, 0.08),
     ]:
-        v = pa_speed(budget, a, K, Ts)
-        if v > 0:
-            peak = pa_peak(v, a, K, Ts)
+        recovered_speed = pa_speed(budget, a, K, Ts)
+        if recovered_speed > 0:
+            peak = pa_peak(recovered_speed, a, K, Ts)
             check(
                 f"speed-inv b={budget} Ts={Ts}",
                 abs(peak - budget) / budget < 1e-5 or peak <= budget + 1e-6,
-                (v, peak),
+                (recovered_speed, peak),
             )
-            a2 = pa_accel(budget, v, K, Ts)
+            a2 = pa_accel(budget, recovered_speed, K, Ts)
             if math.isfinite(a2) and a2 > 0:
-                peak2 = pa_peak(v, a2, K, Ts)
+                peak2 = pa_peak(recovered_speed, a2, K, Ts)
                 check(
                     f"accel-inv b={budget}",
                     abs(peak2 - budget) / budget < 1e-4 or peak2 <= budget + 1e-5,
@@ -211,61 +265,13 @@ def main() -> int:
         prev = -1.0
         ok = True
         for speed in [5, 10, 20, 40, 80, 120, 200]:
-            p = pa_peak(speed, a, K, Ts)
-            if p + 1e-12 < prev:
+            peak = pa_peak(speed, a, K, Ts)
+            if peak + 1e-12 < prev:
                 ok = False
-            prev = p
+            prev = peak
         check(f"mono-v a={a} Ts={Ts}", ok)
 
     # 6) Adaptive PA bilinear (AdaptivePressureAdvance.cpp)
-    class Model:
-        def __init__(self, pts):
-            self.pts = pts
-            ACC = 1.0
-            acc = sorted(p[2] for p in pts)
-            self.L = []
-            for a in acc:
-                if not self.L or a - self.L[-1] > ACC:
-                    self.L.append(a)
-
-        def at(self, lvl, flow):
-            ACC = 1.0
-            band = sorted([p for p in self.pts if abs(p[2] - lvl) <= ACC], key=lambda p: p[1])
-            if not band:
-                return 0.0
-            if len(band) == 1 or flow <= band[0][1]:
-                return band[0][0]
-            if flow >= band[-1][1]:
-                return band[-1][0]
-            for i in range(1, len(band)):
-                if flow <= band[i][1]:
-                    lo, hi = band[i - 1], band[i]
-                    sp = hi[1] - lo[1]
-                    t = (flow - lo[1]) / sp if sp > 0 else 0
-                    return lo[0] + t * (hi[0] - lo[0])
-            return band[-1][0]
-
-        def e(self, flow, accel, fb=0.0, step=1e-3):
-            if not self.pts:
-                return fb
-            L = self.L
-            if len(L) == 1 or accel <= L[0]:
-                r = self.at(L[0], flow)
-            elif accel >= L[-1]:
-                r = self.at(L[-1], flow)
-            else:
-                hi = 1
-                while hi < len(L) and accel > L[hi]:
-                    hi += 1
-                lo, h = L[hi - 1], L[hi]
-                t = (accel - lo) / (h - lo) if h > lo else 0
-                r = self.at(lo, flow) + t * (self.at(h, flow) - self.at(lo, flow))
-            if r < 0:
-                r = 0
-            if step > 0:
-                r = round(r / step) * step
-            return r
-
     m = Model(
         [
             (0.040, 3.84, 1000),
@@ -299,14 +305,14 @@ def main() -> int:
         return (d * 0.5) ** 2 * PI
 
     for d, ef in [(1.75, 5.8), (2.85, 41)]:
-        c = cross(d)
+        area = cross(d)
         dens = 1.24
-        L = 12820
-        mm_to_g = c * dens * 0.001
-        old = dens / (c * 1000)
+        length_mm = 12820
+        mm_to_g = area * dens * 0.001
+        old = dens / (area * 1000)
         ratio = mm_to_g / old
-        check(f"weight truth {d}", abs(L * mm_to_g - L * c * dens * 0.001) < 1e-12)
-        check(f"ratio=c^2 {d}", abs(ratio - c * c) < 1e-9, ratio)
+        check(f"weight truth {d}", abs(length_mm * mm_to_g - length_mm * area * dens * 0.001) < 1e-12)
+        check(f"ratio=c^2 {d}", abs(ratio - area * area) < 1e-9, ratio)
         check(f"factor~{ef} {d}", abs(ratio - ef) < (0.2 if d < 2 else 1.5), ratio)
 
     meas = 30833.28 / (12.82 * 1000)

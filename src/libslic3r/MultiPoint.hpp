@@ -8,6 +8,7 @@
 
 #include "libslic3r.h"
 #include <algorithm>
+#include <stdexcept>
 #include <vector>
 #include "Line.hpp"
 #include "Point.hpp"
@@ -291,8 +292,7 @@ inline OutputIterator douglas_peucker_int(InputIterator begin, InputIterator end
                         }
                     } else {
                         // Find Find the furthest point from the line <anchor, floater>.
-                        const double d_length_squared = double(length_squared);
-                        const Vec2d  d_vec_af  = vec_af.cast<double>();
+                        const Vec2d d_vec_af = vec_af.cast<double>();
                         for (InputIterator it = std::next(anchor); it != floater; ++ it) {
                             const Point  &pt_check  = point_getter(*it);
                             const Vec2crd vec_ap = (pt_check - pt_start);
@@ -327,7 +327,6 @@ inline OutputIterator douglas_peucker_int(InputIterator begin, InputIterator end
                                 const Vec2crd vtemp = w.cast<coord_t>() - vec_ap;
                                 const Vec2d vtemp_d = w_d - vec_ap_d;
                                 const double normal_dist = vtemp.cast<double>().norm();
-                                const double normal_dist_d = vtemp_d.norm();
                                 dist_sq_d = vtemp_d.squaredNorm();
                                 if (normal_dist > std::numeric_limits<int32_t>::max()) {
                                     dist_sq = std::numeric_limits<int64_t>::max();
@@ -352,7 +351,8 @@ inline OutputIterator douglas_peucker_int(InputIterator begin, InputIterator end
                     }
                     // remove point if less than tolerance
                     take_floater = max_dist_sq <= tolerance_sq;
-                    assert(take_floater == (max_dist_sq_d <= tolerance_sq_d));
+                    if (take_floater != (max_dist_sq_d <= tolerance_sq_d))
+                        throw std::overflow_error("Integer distance comparison diverged from floating-point validation");
                 }
                 if (take_floater) {
                     // The points between anchor and floater are close to the <anchor, floater> line.
@@ -408,6 +408,7 @@ public:
     Points points;
 
     MultiPoint() = default;
+    virtual ~MultiPoint() = default;
     MultiPoint(const MultiPoint &other) : points(other.points) {}
     MultiPoint(MultiPoint &&other) noexcept : points(std::move(other.points)) {}
     MultiPoint(std::initializer_list<Point> list) : points(list) {}

@@ -25,7 +25,8 @@ using Slic3r::GUI::format_wxstr;
 namespace Slic3r {
 namespace GUI {
 
-constexpr auto BORDER_W = 10;
+constexpr auto BORDER_W       = 10;
+constexpr auto SECTION_INDENT = 3 * BORDER_W;
 
 //-----------------------------------------------
 //          SavePresetDialog::Item
@@ -53,7 +54,7 @@ std::string SavePresetDialog::Item::get_init_preset_name(const std::string &suff
     return preset_name;
 }
 
-void SavePresetDialog::Item::init_input_name_ctrl(wxBoxSizer *input_name_sizer, const std::string preset_name)
+void SavePresetDialog::Item::init_input_name_ctrl(wxBoxSizer *input_name_sizer, const std::string& preset_name)
 {
     if (m_use_text_ctrl) {
 #ifdef _WIN32
@@ -118,7 +119,7 @@ SavePresetDialog::Item::Item(Preset::Type type, const std::string& suffix, wxBox
     if (label_top)
         sizer->Add(label_top,   0, wxEXPAND | wxTOP| wxBOTTOM, BORDER_W);
     sizer->Add(input_name_sizer,0, wxEXPAND | (label_top ? 0 : wxTOP) | wxBOTTOM, BORDER_W);
-    sizer->Add(m_valid_label,   0, wxEXPAND | wxLEFT,   3*BORDER_W);
+    sizer->Add(m_valid_label,   0, wxEXPAND | wxLEFT,   SECTION_INDENT);
 
     if (m_type == Preset::TYPE_PRINTER)
         parent->add_info_for_edit_ph_printer(sizer);
@@ -140,7 +141,7 @@ SavePresetDialog::Item::Item(wxWindow* parent, wxBoxSizer* sizer, const std::str
     init_input_name_ctrl(input_name_sizer, m_preset_name);
 
     sizer->Add(input_name_sizer,0, wxEXPAND | wxBOTTOM, BORDER_W);
-    sizer->Add(m_valid_label,   0, wxEXPAND | wxLEFT,   3*BORDER_W);
+    sizer->Add(m_valid_label,   0, wxEXPAND | wxLEFT,   SECTION_INDENT);
 
     update();
 }
@@ -292,7 +293,7 @@ void SavePresetDialog::Item::Enable(bool enable /*= true*/)
 //          SavePresetDialog
 //-----------------------------------------------
 
-SavePresetDialog::SavePresetDialog(wxWindow* parent, std::vector<Preset::Type> types, std::string suffix, bool template_filament/* =false*/, PresetBundle* preset_bundle/* = nullptr*/)
+SavePresetDialog::SavePresetDialog(wxWindow* parent, const std::vector<Preset::Type>& types, const std::string& suffix, bool template_filament/* =false*/, PresetBundle* preset_bundle/* = nullptr*/)
     : DPIDialog(parent, wxID_ANY, types.size() == 1 ? _L("Save preset") : _L("Save presets"), 
                 wxDefaultPosition, wxSize(45 * wxGetApp().em_unit(), 5 * wxGetApp().em_unit()), wxDEFAULT_DIALOG_STYLE | wxICON_WARNING, "savepresets"),
     m_preset_bundle(preset_bundle)
@@ -309,7 +310,7 @@ SavePresetDialog::SavePresetDialog(wxWindow* parent, Preset::Type type, const wx
 }
 SavePresetDialog::~SavePresetDialog() = default;
 
-void SavePresetDialog::build(std::vector<Preset::Type> types, std::string suffix, bool template_filament)
+void SavePresetDialog::build(const std::vector<Preset::Type>& types, std::string suffix, bool template_filament)
 {
     this->SetFont(wxGetApp().normal_font());
 
@@ -427,8 +428,8 @@ void SavePresetDialog::add_info_for_edit_ph_printer(wxBoxSizer* sizer)
     }
     m_radio_sizer->Add(stb_sizer, 1, wxEXPAND | wxTOP, 2*BORDER_W);
 
-    sizer->Add(m_label,         0, wxEXPAND | wxLEFT | wxTOP,   3*BORDER_W);
-    sizer->Add(m_radio_sizer,   1, wxEXPAND | wxLEFT,           3*BORDER_W);
+    sizer->Add(m_label,         0, wxEXPAND | wxLEFT | wxTOP,   SECTION_INDENT);
+    sizer->Add(m_radio_sizer,   1, wxEXPAND | wxLEFT,           SECTION_INDENT);
 }
 
 void SavePresetDialog::update_info_for_edit_ph_printer(const std::string& preset_name)

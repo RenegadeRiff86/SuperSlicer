@@ -28,8 +28,8 @@ static void draw_transparent_icon(const IconManager::Icon &icon); // only help f
 }
 
 IconManager::~IconManager() {
-	priv::clear(m_icons);
-	// release opengl texture is made in ~GLTexture()
+    priv::clear(m_icons);
+    // release opengl texture is made in ~GLTexture()
 
     if (m_id != 0)
         glsafe(::glDeleteTextures(1, &m_id));
@@ -287,34 +287,34 @@ std::vector<IconManager::Icons> IconManager::init(const std::vector<std::string>
         }
         result.emplace_back(std::move(file_icons));
     }
-	return result;
+    return result;
 }
 
 void IconManager::release() {
-	BOOST_LOG_TRIVIAL(error) << "Not implemented yet";
+    BOOST_LOG_TRIVIAL(error) << "Not implemented yet";
 }
 
 void priv::clear(IconManager::Icons &icons) {
     std::string message;
-	for (auto &icon : icons) {
-		// Exist more than this instance of shared ptr?
+    for (auto &icon : icons) {
+        // Exist more than this instance of shared ptr?
         long count = icon.use_count();
         if (count != 1) {
-			// in existing icon change texture to non existing one
+            // in existing icon change texture to non existing one
             icon->tex_id = 0;
 
             std::string descr = 
-				((count > 2) ? (std::to_string(count - 1) + "x") : "") + // count
-				std::to_string(icon->size.x) + "x" + std::to_string(icon->size.y); // resolution
+                ((count > 2) ? (std::to_string(count - 1) + "x") : "") + // count
+                std::to_string(icon->size.x) + "x" + std::to_string(icon->size.y); // resolution
             if (message.empty())
                 message = descr;
             else
                 message += ", " + descr;
-		}
-	}
+        }
+    }
 
     if (!message.empty())
-		BOOST_LOG_TRIVIAL(warning) << "There is still used icons(" << message << ").";
+        BOOST_LOG_TRIVIAL(warning) << "There is still used icons(" << message << ").";
 }
 
 const std::vector<std::pair<int, bool>> &priv::get_states(IconManager::RasterType type) {

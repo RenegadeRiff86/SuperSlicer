@@ -43,17 +43,17 @@ public:
     ~PresetComboBox();
     void init();
 
-	enum LabelItemType {
-		LABEL_ITEM_PHYSICAL_PRINTER = 0xffffff01,
-		LABEL_ITEM_DISABLED,
-		LABEL_ITEM_MARKER,
-		LABEL_ITEM_PHYSICAL_PRINTERS,
-		LABEL_ITEM_WIZARD_PRINTERS,
+    enum LabelItemType {
+        LABEL_ITEM_PHYSICAL_PRINTER = 0xffffff01,
+        LABEL_ITEM_DISABLED,
+        LABEL_ITEM_MARKER,
+        LABEL_ITEM_PHYSICAL_PRINTERS,
+        LABEL_ITEM_WIZARD_PRINTERS,
         LABEL_ITEM_WIZARD_FILAMENTS,
         LABEL_ITEM_WIZARD_MATERIALS,
 
         LABEL_ITEM_MAX,
-	};
+    };
 
     void set_label_marker(int item, LabelItemType label_item_type = LABEL_ITEM_MARKER);
     bool set_printer_technology(PrinterTechnology pt);
@@ -66,6 +66,7 @@ public:
     // and next internal selection was accomplished
     bool selection_is_changed_according_to_physical_printers();
 
+    // By value on purpose: the definition reassigns this parameter, so it cannot be const&.
     void update(std::string select_preset);
     // select preset which is selected in PreseBundle
     void update_from_bundle();

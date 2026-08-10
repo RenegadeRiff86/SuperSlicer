@@ -25,8 +25,9 @@ public:
     {
         SetBackgroundStyle(wxBG_STYLE_PAINT);
         m_rect       = wxRect(wxPoint(2 * legend_side, 0), rect.GetSize() - wxSize(2 * legend_side, legend_side));
-        m_moveable_area = wxRect2DDouble(0.0, 0.0, 20., 20.);
-        m_visible_area = wxRect2DDouble(0.0, 0.0, 20., 20.);
+        constexpr double initial_axis_range = 20.;
+        m_moveable_area = wxRect2DDouble(0.0, 0.0, initial_axis_range, initial_axis_range);
+        m_visible_area  = wxRect2DDouble(0.0, 0.0, initial_axis_range, initial_axis_range);
         m_buttons.clear();
         if (initial_buttons.size()>0)
             for (const auto& pair : initial_buttons)

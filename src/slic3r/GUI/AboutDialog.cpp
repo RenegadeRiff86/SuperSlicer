@@ -23,6 +23,9 @@
 namespace Slic3r { 
 namespace GUI {
 
+static constexpr int CENTER_DIVISOR = 2;
+static constexpr int HTML_BORDER = 2;
+
 AboutDialogLogo::AboutDialogLogo(wxWindow* parent)
     : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize)
 {
@@ -41,7 +44,7 @@ void AboutDialogLogo::onRepaint(wxEvent &event)
     wxSize size = this->GetSize();
     int logo_w = this->logo.GetWidth();
     int logo_h = this->logo.GetHeight();
-    dc.DrawBitmap(this->logo, (size.GetWidth() - logo_w)/2, (size.GetHeight() - logo_h)/2, true);
+    dc.DrawBitmap(this->logo, (size.GetWidth() - logo_w) / CENTER_DIVISOR, (size.GetHeight() - logo_h) / CENTER_DIVISOR, true);
 
     event.Skip();
 }
@@ -60,10 +63,10 @@ CopyrightsDialog::CopyrightsDialog()
 #ifdef _WIN32
     wxGetApp().UpdateDarkUI(this);
 #else
-	this->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
+    this->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
 #endif
 
-	auto sizer = new wxBoxSizer(wxVERTICAL);
+    auto sizer = new wxBoxSizer(wxVERTICAL);
     
     fill_entries();
 
@@ -76,7 +79,7 @@ CopyrightsDialog::CopyrightsDialog()
     std::array<int, 7> size = { fs, fs, fs, fs, fs2, fs2, fs2 };
 
     m_html->SetFonts(font.GetFaceName(), font.GetFaceName(), size.data());
-    m_html->SetBorders(2);
+    m_html->SetBorders(HTML_BORDER);
     m_html->SetPage(get_html_text());
 
     sizer->Add(m_html, 1, wxEXPAND | wxALL, 15);
@@ -238,15 +241,15 @@ AboutDialog::AboutDialog()
     SetFont(wxGetApp().normal_font());
 
     wxColour bgr_clr = wxGetApp().get_window_default_clr();//wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
-	SetBackgroundColour(bgr_clr);
+    SetBackgroundColour(bgr_clr);
     wxBoxSizer* hsizer = new wxBoxSizer(wxHORIZONTAL);
 
-	auto main_sizer = new wxBoxSizer(wxVERTICAL);
-	main_sizer->Add(hsizer, 0, wxEXPAND | wxALL, 20);
+    auto main_sizer = new wxBoxSizer(wxVERTICAL);
+    main_sizer->Add(hsizer, 0, wxEXPAND | wxALL, 20);
 
     // logo
     m_logo = new wxStaticBitmap(this, wxID_ANY, *get_bmp_bundle(wxGetApp().logo_name(), 192));
-	hsizer->Add(m_logo, 1, wxALIGN_CENTER_VERTICAL);
+    hsizer->Add(m_logo, 1, wxALIGN_CENTER_VERTICAL);
     
     wxBoxSizer* vsizer = new wxBoxSizer(wxVERTICAL); 	
     hsizer->Add(vsizer, 2, wxEXPAND|wxLEFT, 20);
@@ -298,10 +301,10 @@ AboutDialog::AboutDialog()
         const auto text_clr_str = encode_color(ColorRGB(text_clr.Red(), text_clr.Green(), text_clr.Blue()));
         const auto bgr_clr_str = encode_color(ColorRGB(bgr_clr.Red(), bgr_clr.Green(), bgr_clr.Blue()));
 
-		const int fs = font.GetPointSize()-1;
+        const int fs = font.GetPointSize()-1;
         std::array<int, 7> size = {fs,fs,fs,fs,fs,fs,fs};
         m_html->SetFonts(font.GetFaceName(), font.GetFaceName(), size.data());
-        m_html->SetBorders(2);
+        m_html->SetBorders(HTML_BORDER);
         const wxString copyright_str    = _L("Copyright");
         // TRN AboutDialog: "Slic3r %1% GNU Affero General Public License"
         const wxString is_lecensed_str  = _L("is licensed under the");
@@ -362,8 +365,8 @@ AboutDialog::AboutDialog()
     this->Bind(wxEVT_BUTTON, &AboutDialog::onCloseDialog, this, wxID_CLOSE);
     vsizer->Add(buttons, 0, wxEXPAND | wxRIGHT | wxBOTTOM, 3);
 
-	SetSizer(main_sizer);
-	main_sizer->SetSizeHints(this);
+    SetSizer(main_sizer);
+    main_sizer->SetSizeHints(this);
 }
 
 void AboutDialog::on_dpi_changed(const wxRect &suggested_rect)

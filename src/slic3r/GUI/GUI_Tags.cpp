@@ -1,8 +1,5 @@
 #include "GUI_Tags.hpp"
 
-#include <stdexcept>
-#include <cmath>
-
 #include <wx/sizer.h>
 
 #include <boost/algorithm/string/replace.hpp>
@@ -14,13 +11,9 @@
 #include "BitmapCache.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"
-#include "GUI_ObjectList.hpp"
 #include "libslic3r/Config.hpp"
 #include "I18N.hpp"
-#include "GUI_Utils.hpp"
 #include "Plater.hpp"
-#include "../Utils/MacDarkMode.hpp"
-#include "BitmapComboBox.hpp"
 #include "format.hpp"
 
 namespace Slic3r{
@@ -143,13 +136,11 @@ void ModeButton::update_bitmap()
     assert(!color_hash.empty() && color_hash[0]=='#');
     color_replaces.add("#E70000", color_hash);
     color_replaces.add("#D30000", "#" + int2hex(rgb2int(hsv2rgb(color_to_darken))));
-    int px_cnt = static_cast<int>(em_unit(m_parent) * mode_icon_px_size() * 0.1f + 0.5f);
-    // wxBitmap* icon = cache.load_svg("mode_expert", 0, static_cast<unsigned int>(px_cnt), color_replace);
     std::string icon_template_name = "mode_expert";
     auto bundle = get_bmp_bundle(icon_template_name, m_bmp_width, m_bmp_height, color_replaces);
     m_bmp = *bundle;
     // m_bmp = *get_bmp_bundle("mode", m_bmp_width, m_bmp_height, Slic3r::GUI::wxGetApp().get_mode_btn_color(m_mode_mask));
-	
+    
     SetBitmap(m_bmp);
     SetBitmapCurrent(m_bmp);
     SetBitmapPressed(m_bmp);

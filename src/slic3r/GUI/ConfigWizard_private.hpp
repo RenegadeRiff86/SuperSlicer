@@ -10,7 +10,6 @@
 
 #include <vector>
 #include <set>
-#include <unordered_map>
 #include <functional>
 #include <boost/filesystem.hpp>
 #include <boost/log/trivial.hpp>
@@ -72,27 +71,27 @@ enum BundleLocation{
 
 struct Bundle
 {
-	std::unique_ptr<PresetBundle> preset_bundle;
-	VendorProfile* vendor_profile{ nullptr };
-	//bool is_in_resources{ false };
+    std::unique_ptr<PresetBundle> preset_bundle;
+    VendorProfile* vendor_profile{ nullptr };
+    //bool is_in_resources{ false };
     BundleLocation location;
-	bool is_prusa_bundle{ false };
+    bool is_prusa_bundle{ false };
 
-	Bundle() = default;
-	Bundle(Bundle&& other);
+    Bundle() = default;
+    Bundle(Bundle&& other);
 
-	// Returns false if not loaded. Reason for that is logged as boost::log error.
-	bool load(fs::path source_path, BundleLocation location, bool is_prusa_bundle = false);
+    // Returns false if not loaded. Reason for that is logged as boost::log error.
+    bool load(fs::path source_path, BundleLocation location, bool is_prusa_bundle = false);
 
-	const std::string& vendor_id() const { return vendor_profile->id; }
+    const std::string& vendor_id() const { return vendor_profile->id; }
 };
 
 struct BundleMap : std::map<std::string /* = vendor ID */, Bundle>
 {
-	static BundleMap load();
+    static BundleMap load();
 
-	Bundle& prusa_bundle();
-	const Bundle& prusa_bundle() const;
+    Bundle& prusa_bundle();
+    const Bundle& prusa_bundle() const;
 };
 
 struct Materials;
@@ -217,7 +216,7 @@ struct PagePrinters: ConfigWizardPage
 template<class T, class D> struct DataList : public T
 {
     DataList(wxWindow *parent) : T(parent, wxID_ANY) {}
-	DataList(wxWindow* parent, int style) : T(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0, NULL, style) {}
+    DataList(wxWindow* parent, int style) : T(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0, NULL, style) {}
 
     // Note: We're _not_ using wxLB_SORT here because it doesn't do the right thing,
     // eg. "ABS" is sorted before "(All)"
@@ -249,19 +248,19 @@ template<class T, class D> struct DataList : public T
     void on_mouse_move(const wxPoint& position) {
         int item = T::HitTest(position);
        
-        if(item == wxHitTest::wxHT_WINDOW_INSIDE)
+        if (item == wxHitTest::wxHT_WINDOW_INSIDE)
             BOOST_LOG_TRIVIAL(error) << "hit test wxHT_WINDOW_INSIDE";
         else if (item == wxHitTest::wxHT_WINDOW_OUTSIDE)
             BOOST_LOG_TRIVIAL(error) << "hit test wxHT_WINDOW_OUTSIDE";
-        else if(item == wxHitTest::wxHT_WINDOW_CORNER)
+        else if (item == wxHitTest::wxHT_WINDOW_CORNER)
             BOOST_LOG_TRIVIAL(error) << "hit test wxHT_WINDOW_CORNER";
         else if (item == wxHitTest::wxHT_WINDOW_VERT_SCROLLBAR)
             BOOST_LOG_TRIVIAL(error) << "hit test wxHT_WINDOW_VERT_SCROLLBAR";
-       else if (item == wxHitTest::wxHT_NOWHERE)
+        else if (item == wxHitTest::wxHT_NOWHERE)
             BOOST_LOG_TRIVIAL(error) << "hit test wxHT_NOWHERE";
-       else if (item == wxHitTest::wxHT_MAX)
+        else if (item == wxHitTest::wxHT_MAX)
             BOOST_LOG_TRIVIAL(error) << "hit test wxHT_MAX";
-       else
+        else
             BOOST_LOG_TRIVIAL(error) << "hit test: " << item;
     }
 };
@@ -303,8 +302,8 @@ struct PageMaterials: ConfigWizardPage
 
     void check_and_update_presets(bool force_reload_presets = false);
     void reload_presets();
-	void update_lists(int sel_type, int sel_vendor, int last_selected_printer = -1);
-	void on_material_highlighted(int sel_material);
+    void update_lists(int sel_type, int sel_vendor, int last_selected_printer = -1);
+    void on_material_highlighted(int sel_material);
     void on_material_hovered(int sel_material);
     void select_material(int i);
     void select_all(bool select);
@@ -348,7 +347,7 @@ struct Materials
         return get_printer_counter(preset) == printers.size();
     }
 
-    const std::vector<const Preset*> get_presets_by_alias(const std::string name) {
+    const std::vector<const Preset*> get_presets_by_alias(const std::string& name) {
         std::vector<const Preset*> ret_vec;
         for (auto it = presets.begin(); it != presets.end(); ++it) {
             if ((*it)->alias == name)
@@ -419,7 +418,6 @@ struct PageUpdate: ConfigWizardPage
 {
     bool version_check;
     bool preset_update;
-    wxTextCtrl* path_text_ctrl;
 
     PageUpdate(ConfigWizard *parent);
 };

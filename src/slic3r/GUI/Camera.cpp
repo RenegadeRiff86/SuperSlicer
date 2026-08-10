@@ -17,6 +17,12 @@
 namespace Slic3r {
 namespace GUI {
 
+static constexpr int Z_COMPONENT_INDEX = 2;
+static constexpr int HOMOGENEOUS_COMPONENT_INDEX = 3;
+static constexpr int SPATIAL_DIMENSIONS = 3;
+static constexpr double HALF_FACTOR = 0.5;
+static constexpr double DOUBLE_RANGE_FACTOR = 2.0;
+
 const double Camera::DefaultDistance = 1000.0;
 const double Camera::DefaultZoomToBoxMarginFactor = 1.025;
 const double Camera::DefaultZoomToVolumesMarginFactor = 1.025;
@@ -98,10 +104,10 @@ double Camera::get_near_left() const
     switch (m_type)
     {
     case EType::Perspective:
-        return m_frustrum_zs.first * (m_projection_matrix.matrix()(0, 2) - 1.0) / m_projection_matrix.matrix()(0, 0);
+        return m_frustrum_zs.first * (m_projection_matrix.matrix()(0, Z_COMPONENT_INDEX) - 1.0) / m_projection_matrix.matrix()(0, 0);
     default:
     case EType::Ortho:
-        return -1.0 / m_projection_matrix.matrix()(0, 0) - 0.5 * m_projection_matrix.matrix()(0, 0) * m_projection_matrix.matrix()(0, 3);
+        return -1.0 / m_projection_matrix.matrix()(0, 0) - HALF_FACTOR * m_projection_matrix.matrix()(0, 0) * m_projection_matrix.matrix()(0, HOMOGENEOUS_COMPONENT_INDEX);
     }
 }
 
@@ -110,10 +116,10 @@ double Camera::get_near_right() const
     switch (m_type)
     {
     case EType::Perspective:
-        return m_frustrum_zs.first * (m_projection_matrix.matrix()(0, 2) + 1.0) / m_projection_matrix.matrix()(0, 0);
+        return m_frustrum_zs.first * (m_projection_matrix.matrix()(0, Z_COMPONENT_INDEX) + 1.0) / m_projection_matrix.matrix()(0, 0);
     default:
     case EType::Ortho:
-        return 1.0 / m_projection_matrix.matrix()(0, 0) - 0.5 * m_projection_matrix.matrix()(0, 0) * m_projection_matrix.matrix()(0, 3);
+        return 1.0 / m_projection_matrix.matrix()(0, 0) - HALF_FACTOR * m_projection_matrix.matrix()(0, 0) * m_projection_matrix.matrix()(0, HOMOGENEOUS_COMPONENT_INDEX);
     }
 }
 
@@ -122,10 +128,10 @@ double Camera::get_near_top() const
     switch (m_type)
     {
     case EType::Perspective:
-        return m_frustrum_zs.first * (m_projection_matrix.matrix()(1, 2) + 1.0) / m_projection_matrix.matrix()(1, 1);
+        return m_frustrum_zs.first * (m_projection_matrix.matrix()(1, Z_COMPONENT_INDEX) + 1.0) / m_projection_matrix.matrix()(1, 1);
     default:
     case EType::Ortho:
-        return 1.0 / m_projection_matrix.matrix()(1, 1) - 0.5 * m_projection_matrix.matrix()(1, 1) * m_projection_matrix.matrix()(1, 3);
+        return 1.0 / m_projection_matrix.matrix()(1, 1) - HALF_FACTOR * m_projection_matrix.matrix()(1, 1) * m_projection_matrix.matrix()(1, HOMOGENEOUS_COMPONENT_INDEX);
     }
 }
 
@@ -134,10 +140,10 @@ double Camera::get_near_bottom() const
     switch (m_type)
     {
     case EType::Perspective:
-        return m_frustrum_zs.first * (m_projection_matrix.matrix()(1, 2) - 1.0) / m_projection_matrix.matrix()(1, 1);
+        return m_frustrum_zs.first * (m_projection_matrix.matrix()(1, Z_COMPONENT_INDEX) - 1.0) / m_projection_matrix.matrix()(1, 1);
     default:
     case EType::Ortho:
-        return -1.0 / m_projection_matrix.matrix()(1, 1) - 0.5 * m_projection_matrix.matrix()(1, 1) * m_projection_matrix.matrix()(1, 3);
+        return -1.0 / m_projection_matrix.matrix()(1, 1) - HALF_FACTOR * m_projection_matrix.matrix()(1, 1) * m_projection_matrix.matrix()(1, HOMOGENEOUS_COMPONENT_INDEX);
     }
 }
 
@@ -146,10 +152,10 @@ double Camera::get_near_width() const
     switch (m_type)
     {
     case EType::Perspective:
-        return 2.0 * m_frustrum_zs.first / m_projection_matrix.matrix()(0, 0);
+        return DOUBLE_RANGE_FACTOR * m_frustrum_zs.first / m_projection_matrix.matrix()(0, 0);
     default:
     case EType::Ortho:
-        return 2.0 / m_projection_matrix.matrix()(0, 0);
+        return DOUBLE_RANGE_FACTOR / m_projection_matrix.matrix()(0, 0);
     }
 }
 
@@ -158,10 +164,10 @@ double Camera::get_near_height() const
     switch (m_type)
     {
     case EType::Perspective:
-        return 2.0 * m_frustrum_zs.first / m_projection_matrix.matrix()(1, 1);
+        return DOUBLE_RANGE_FACTOR * m_frustrum_zs.first / m_projection_matrix.matrix()(1, 1);
     default:
     case EType::Ortho:
-        return 2.0 / m_projection_matrix.matrix()(1, 1);
+        return DOUBLE_RANGE_FACTOR / m_projection_matrix.matrix()(1, 1);
     }
 }
 
@@ -170,7 +176,7 @@ double Camera::get_fov() const
     switch (m_type)
     {
     case EType::Perspective:
-        return 2.0 * Geometry::rad2deg(std::atan(1.0 / m_projection_matrix.matrix()(1, 1)));
+        return DOUBLE_RANGE_FACTOR * Geometry::rad2deg(std::atan(1.0 / m_projection_matrix.matrix()(1, 1)));
     default:
     case EType::Ortho:
         return 0.0;
@@ -200,8 +206,8 @@ void Camera::apply_projection(const BoundingBoxf3& box, double near_z, double fa
     if (far_z > 0.0)
         m_frustrum_zs.second = std::max(m_frustrum_zs.second, far_z);
 
-    w = 0.5 * static_cast<double>(m_viewport[ViewportWidth]);
-    h = 0.5 * static_cast<double>(m_viewport[ViewportHeight]);
+    w = HALF_FACTOR * static_cast<double>(m_viewport[ViewportWidth]);
+    h = HALF_FACTOR * static_cast<double>(m_viewport[ViewportHeight]);
 
     const double inv_zoom = get_inv_zoom();
     w *= inv_zoom;
@@ -241,17 +247,17 @@ void Camera::apply_projection(double left, double right, double bottom, double t
     default:
     case EType::Ortho:
     {
-        m_projection_matrix.matrix() << 2.0 * inv_dx,          0.0,           0.0,   -(left + right) * inv_dx,
-                                                 0.0, 2.0 * inv_dy,           0.0,   -(bottom + top) * inv_dy,
-                                                 0.0,          0.0, -2.0 * inv_dz, -(near_z + far_z) * inv_dz,
+        m_projection_matrix.matrix() << DOUBLE_RANGE_FACTOR * inv_dx,          0.0,           0.0,   -(left + right) * inv_dx,
+                                                 0.0, DOUBLE_RANGE_FACTOR * inv_dy,           0.0,   -(bottom + top) * inv_dy,
+                                                 0.0,          0.0, -DOUBLE_RANGE_FACTOR * inv_dz, -(near_z + far_z) * inv_dz,
                                                  0.0,          0.0,           0.0,                        1.0;
         break;
     }
     case EType::Perspective:
     {
-        m_projection_matrix.matrix() << 2.0 * near_z * inv_dx,                   0.0,    (left + right) * inv_dx,                            0.0,
-                                                          0.0, 2.0 * near_z * inv_dy,    (bottom + top) * inv_dy,                            0.0,
-                                                          0.0,                   0.0, -(near_z + far_z) * inv_dz, -2.0 * near_z * far_z * inv_dz,
+        m_projection_matrix.matrix() << DOUBLE_RANGE_FACTOR * near_z * inv_dx,                   0.0,    (left + right) * inv_dx,                            0.0,
+                                                          0.0, DOUBLE_RANGE_FACTOR * near_z * inv_dy,    (bottom + top) * inv_dy,                            0.0,
+                                                          0.0,                   0.0, -(near_z + far_z) * inv_dz, -DOUBLE_RANGE_FACTOR * near_z * far_z * inv_dz,
                                                           0.0,                   0.0,                       -1.0,                            0.0;
         break;
     }
@@ -368,9 +374,9 @@ void Camera::rotate_local_around_target(const Vec3d& rotation_rad)
         const Vec3d axis = m_view_rotation.conjugate() * rotation_rad.normalized();
         m_view_rotation *= Eigen::Quaterniond(Eigen::AngleAxisd(angle, axis));
         m_view_rotation.normalize();
-	    m_view_matrix.fromPositionOrientationScale(m_view_rotation * (-m_target) + translation, m_view_rotation, Vec3d(1., 1., 1.));
-	    update_zenit();
-	}
+        m_view_matrix.fromPositionOrientationScale(m_view_rotation * (-m_target) + translation, m_view_rotation, Vec3d(1., 1., 1.));
+        update_zenit();
+    }
 }
 
 std::pair<double, double> Camera::calc_tight_frustrum_zs_around(const BoundingBoxf3& box)
@@ -391,8 +397,8 @@ std::pair<double, double> Camera::calc_tight_frustrum_zs_around(const BoundingBo
 
     // ensure min size
     if (far_z - near_z < FrustrumMinZRange) {
-        const double mid_z = 0.5 * (near_z + far_z);
-        const double half_size = 0.5 * FrustrumMinZRange;
+        const double mid_z = HALF_FACTOR * (near_z + far_z);
+        const double half_size = HALF_FACTOR * FrustrumMinZRange;
         near_z = mid_z - half_size;
         far_z = mid_z + half_size;
     }
@@ -424,13 +430,13 @@ double Camera::calc_zoom_to_bounding_box_factor(const BoundingBoxf3& box, double
     // box vertices in world space
     const std::vector<Vec3d> vertices = {
         box.min,
-        { box.max(0), box.min(1), box.min(2) },
-        { box.max(0), box.max(1), box.min(2) },
-        { box.min(0), box.max(1), box.min(2) },
-        { box.min(0), box.min(1), box.max(2) },
-        { box.max(0), box.min(1), box.max(2) },
+        { box.max(0), box.min(1), box.min(Z_COMPONENT_INDEX) },
+        { box.max(0), box.max(1), box.min(Z_COMPONENT_INDEX) },
+        { box.min(0), box.max(1), box.min(Z_COMPONENT_INDEX) },
+        { box.min(0), box.min(1), box.max(Z_COMPONENT_INDEX) },
+        { box.max(0), box.min(1), box.max(Z_COMPONENT_INDEX) },
         box.max,
-        { box.min(0), box.max(1), box.max(2) }
+        { box.min(0), box.max(1), box.max(Z_COMPONENT_INDEX) }
     };
 
     double min_x = DBL_MAX;
@@ -511,7 +517,7 @@ double Camera::calc_zoom_to_volumes_factor(const std::vector<GLVolume*>& volumes
         }
     }
 
-    center += 0.5 * (max_x + min_x) * right + 0.5 * (max_y + min_y) * up;
+    center += HALF_FACTOR * (max_x + min_x) * right + HALF_FACTOR * (max_y + min_y) * up;
 
     const double dx = margin_factor * (max_x - min_x);
     const double dy = margin_factor * (max_y - min_y);
@@ -542,26 +548,26 @@ void Camera::look_at(const Vec3d& position, const Vec3d& target, const Vec3d& up
 
     m_view_matrix(0, 0) = unit_x.x();
     m_view_matrix(0, 1) = unit_x.y();
-    m_view_matrix(0, 2) = unit_x.z();
-    m_view_matrix(0, 3) = -unit_x.dot(new_position);
+    m_view_matrix(0, Z_COMPONENT_INDEX) = unit_x.z();
+    m_view_matrix(0, HOMOGENEOUS_COMPONENT_INDEX) = -unit_x.dot(new_position);
 
     m_view_matrix(1, 0) = unit_y.x();
     m_view_matrix(1, 1) = unit_y.y();
-    m_view_matrix(1, 2) = unit_y.z();
-    m_view_matrix(1, 3) = -unit_y.dot(new_position);
+    m_view_matrix(1, Z_COMPONENT_INDEX) = unit_y.z();
+    m_view_matrix(1, HOMOGENEOUS_COMPONENT_INDEX) = -unit_y.dot(new_position);
 
-    m_view_matrix(2, 0) = unit_z.x();
-    m_view_matrix(2, 1) = unit_z.y();
-    m_view_matrix(2, 2) = unit_z.z();
-    m_view_matrix(2, 3) = -unit_z.dot(new_position);
+    m_view_matrix(Z_COMPONENT_INDEX, 0) = unit_z.x();
+    m_view_matrix(Z_COMPONENT_INDEX, 1) = unit_z.y();
+    m_view_matrix(Z_COMPONENT_INDEX, Z_COMPONENT_INDEX) = unit_z.z();
+    m_view_matrix(Z_COMPONENT_INDEX, HOMOGENEOUS_COMPONENT_INDEX) = -unit_z.dot(new_position);
 
-    m_view_matrix(3, 0) = 0.0;
-    m_view_matrix(3, 1) = 0.0;
-    m_view_matrix(3, 2) = 0.0;
-    m_view_matrix(3, 3) = 1.0;
+    m_view_matrix(HOMOGENEOUS_COMPONENT_INDEX, 0) = 0.0;
+    m_view_matrix(HOMOGENEOUS_COMPONENT_INDEX, 1) = 0.0;
+    m_view_matrix(HOMOGENEOUS_COMPONENT_INDEX, Z_COMPONENT_INDEX) = 0.0;
+    m_view_matrix(HOMOGENEOUS_COMPONENT_INDEX, HOMOGENEOUS_COMPONENT_INDEX) = 1.0;
 
     // Initialize the rotation quaternion from the rotation submatrix of of m_view_matrix.
-    m_view_rotation = Eigen::Quaterniond(m_view_matrix.matrix().template block<3, 3>(0, 0));
+    m_view_rotation = Eigen::Quaterniond(m_view_matrix.matrix().template block<SPATIAL_DIMENSIONS, SPATIAL_DIMENSIONS>(0, 0));
     m_view_rotation.normalize();
 
     update_zenit();
@@ -590,12 +596,12 @@ Vec3d Camera::validate_target(const Vec3d& target) const
 
     return { std::clamp(target(0), test_box.min(0), test_box.max(0)),
         std::clamp(target(1), test_box.min(1), test_box.max(1)),
-             std::clamp(target(2), test_box.min(2), test_box.max(2)) };
+             std::clamp(target(Z_COMPONENT_INDEX), test_box.min(Z_COMPONENT_INDEX), test_box.max(Z_COMPONENT_INDEX)) };
 }
 
 void Camera::update_zenit()
 {
-    m_zenit = Geometry::rad2deg(0.5 * M_PI - std::acos(std::clamp(-get_dir_forward().dot(Vec3d::UnitZ()), -1.0, 1.0)));
+    m_zenit = Geometry::rad2deg(HALF_FACTOR * M_PI - std::acos(std::clamp(-get_dir_forward().dot(Vec3d::UnitZ()), -1.0, 1.0)));
 }
 
 } // GUI

@@ -34,6 +34,9 @@
 namespace Slic3r {
 namespace GUI {
 
+static constexpr int TEXTURE_FALLBACK_DIVISOR = 2;
+static constexpr int COLOR_CHANNEL_BITS = 8;
+
 // A safe wrapper around glGetString to report a "N/A" string in case glGetString returns nullptr.
 std::string gl_get_string_safe(GLenum param, const std::string& default_value)
 {
@@ -87,10 +90,10 @@ int OpenGLManager::GLInfo::get_max_tex_size() const
     // clamp to avoid the texture generation become too slow and use too much GPU memory
 #ifdef __APPLE__
     // and use smaller texture for non retina systems
-    return (Slic3r::GUI::mac_max_scaling_factor() > 1.0) ? std::min(m_max_tex_size, 8192) : std::min(m_max_tex_size / 2, 4096);
+    return (Slic3r::GUI::mac_max_scaling_factor() > 1.0) ? std::min(m_max_tex_size, 8192) : std::min(m_max_tex_size / TEXTURE_FALLBACK_DIVISOR, 4096);
 #else
     // and use smaller texture for older OpenGL versions
-    return is_version_greater_or_equal_to(3, 0) ? std::min(m_max_tex_size, 8192) : std::min(m_max_tex_size / 2, 4096);
+    return is_version_greater_or_equal_to(3, 0) ? std::min(m_max_tex_size, 8192) : std::min(m_max_tex_size / TEXTURE_FALLBACK_DIVISOR, 4096);
 #endif // __APPLE__
 }
 
@@ -131,10 +134,10 @@ void OpenGLManager::GLInfo::detect() const
 
     glsafe(::glGetIntegerv(GL_MAX_TEXTURE_SIZE, &m_max_tex_size));
 
-    m_max_tex_size /= 2;
+    m_max_tex_size /= TEXTURE_FALLBACK_DIVISOR;
 
     if (Slic3r::total_physical_memory() / (1024 * 1024 * 1024) < 6)
-        m_max_tex_size /= 2;
+        m_max_tex_size /= TEXTURE_FALLBACK_DIVISOR;
 
     if (GLEW_EXT_texture_filter_anisotropic) {
         glsafe(::glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &m_max_anisotropy));
@@ -291,6 +294,10 @@ OpenGLManager::EFramebufferType OpenGLManager::s_framebuffers_type = OpenGLManag
 OpenGLManager::OSInfo OpenGLManager::s_os_info;
 #endif // __APPLE__ 
 
+// Defined here, not in the header: see the comment on the declaration - wx/glcanvas.h above
+// makes wxGLContext complete, so the unique_ptr member can be destroyed in this file.
+OpenGLManager::OpenGLManager() = default;
+
 OpenGLManager::~OpenGLManager()
 {
     m_shaders_manager.shutdown();
@@ -301,8 +308,6 @@ OpenGLManager::~OpenGLManager()
     if (s_os_info.major != 10 || s_os_info.minor != 9 || s_os_info.micro != 5)
     {
 #endif //__APPLE__
-        if (m_context != nullptr)
-            delete m_context;
 #ifdef __APPLE__ 
     }
 #endif //__APPLE__
@@ -409,7 +414,7 @@ bool OpenGLManager::init_gl()
                    "while OpenGL version %2%, render  %3%, vendor %4% was detected."), SLIC3R_APP_NAME, "2.0", s_gl_info.get_version_string(), s_gl_info.get_renderer(), s_gl_info.get_vendor());
 #endif // ENABLE_OPENGL_ES
             message += "\n";
-          	message += _L("You may need to update your graphics card driver.");
+            message += _L("You may need to update your graphics card driver.");
 #ifdef _WIN32
             message += "\n";
             message += wxString::Format(_L("As a workaround, you may run %1% with a software rendered 3D graphics by running %2%.exe with the --sw-renderer parameter."), SLIC3R_APP_NAME, SLIC3R_APP_CMD);
@@ -469,7 +474,7 @@ wxGLContext* OpenGLManager::init_glcontext(wxGLCanvas& canvas)
 #if ENABLE_OPENGL_ES
         wxGLContextAttrs attrs;
         attrs.PlatformDefaults().ES2().MajorVersion(2).EndList();
-        m_context = new wxGLContext(&canvas, nullptr, &attrs);
+        m_context = std::make_unique<wxGLContext>(&canvas, nullptr, &attrs);
 #elif ENABLE_GL_CORE_PROFILE
         m_debug_enabled = enable_debug;
 
@@ -488,12 +493,11 @@ wxGLContext* OpenGLManager::init_glcontext(wxGLCanvas& canvas)
                 if (m_debug_enabled)
                     attrs.DebugCtx();
                 attrs.EndList();
-                m_context = new wxGLContext(&canvas, nullptr, &attrs);
+                m_context = std::make_unique<wxGLContext>(&canvas, nullptr, &attrs);
                 if (m_context->IsOK())
                     break;
                 else {
-                    delete m_context;
-                    m_context = nullptr;
+                    m_context.reset();
                 }
             }
         }
@@ -508,10 +512,9 @@ wxGLContext* OpenGLManager::init_glcontext(wxGLCanvas& canvas)
                 if (m_debug_enabled)
                     attrs.DebugCtx();
                 attrs.EndList();
-                m_context = new wxGLContext(&canvas, nullptr, &attrs);
+                m_context = std::make_unique<wxGLContext>(&canvas, nullptr, &attrs);
                 if (!m_context->IsOK()) {
-                    delete m_context;
-                    m_context = nullptr;
+                    m_context.reset();
                 }
             }
             // search for requested core profile version 
@@ -523,10 +526,9 @@ wxGLContext* OpenGLManager::init_glcontext(wxGLCanvas& canvas)
                 if (m_debug_enabled)
                     attrs.DebugCtx();
                 attrs.EndList();
-                m_context = new wxGLContext(&canvas, nullptr, &attrs);
+                m_context = std::make_unique<wxGLContext>(&canvas, nullptr, &attrs);
                 if (!m_context->IsOK()) {
-                    delete m_context;
-                    m_context = nullptr;
+                    m_context.reset();
                 }
             }
         }
@@ -538,10 +540,10 @@ wxGLContext* OpenGLManager::init_glcontext(wxGLCanvas& canvas)
                 attrs.DebugCtx();
             attrs.EndList();
             // if no valid context was created use the default one
-            m_context = new wxGLContext(&canvas, nullptr, &attrs);
+            m_context = std::make_unique<wxGLContext>(&canvas, nullptr, &attrs);
         }
 #else
-        m_context = new wxGLContext(&canvas);
+        m_context = std::make_unique<wxGLContext>(&canvas);
 #endif // ENABLE_OPENGL_ES
 
 #ifdef __APPLE__ 
@@ -551,14 +553,14 @@ wxGLContext* OpenGLManager::init_glcontext(wxGLCanvas& canvas)
         s_os_info.micro = wxPlatformInfo::Get().GetOSMicroVersion();
 #endif //__APPLE__
     }
-    return m_context;
+    return m_context.get();
 }
 
 wxGLCanvas* OpenGLManager::create_wxglcanvas(wxWindow& parent)
 {
 #if ENABLE_GL_CORE_PROFILE || ENABLE_OPENGL_ES
     wxGLAttributes attribList;
-    attribList.PlatformDefaults().RGBA().DoubleBuffer().MinRGBA(8, 8, 8, 8).Depth(24).SampleBuffers(1).Samplers(4).EndList();
+    attribList.PlatformDefaults().RGBA().DoubleBuffer().MinRGBA(COLOR_CHANNEL_BITS, COLOR_CHANNEL_BITS, COLOR_CHANNEL_BITS, COLOR_CHANNEL_BITS).Depth(24).SampleBuffers(1).Samplers(4).EndList();
 #ifdef __APPLE__
     // on MAC the method RGBA() has no effect
     attribList.SetNeedsARB(true);
@@ -566,18 +568,18 @@ wxGLCanvas* OpenGLManager::create_wxglcanvas(wxWindow& parent)
 #else
     int attribList[] = {
         WX_GL_RGBA,
-    	WX_GL_DOUBLEBUFFER,
-    	// RGB channels each should be allocated with 8 bit depth. One should almost certainly get these bit depths by default.
-      	WX_GL_MIN_RED, 			8,
-      	WX_GL_MIN_GREEN, 		8,
-      	WX_GL_MIN_BLUE, 		8,
-      	// Requesting an 8 bit alpha channel. Interestingly, the NVIDIA drivers would most likely work with some alpha plane, but glReadPixels would not return
-      	// the alpha channel on NVIDIA if not requested when the GL context is created.
-      	WX_GL_MIN_ALPHA, 		8,
-    	WX_GL_DEPTH_SIZE, 		24,
-    	WX_GL_SAMPLE_BUFFERS, 	GL_TRUE,
-    	WX_GL_SAMPLES, 			4,
-    	0
+        WX_GL_DOUBLEBUFFER,
+        // RGB channels each should be allocated with 8 bit depth. One should almost certainly get these bit depths by default.
+        WX_GL_MIN_RED, 			COLOR_CHANNEL_BITS,
+        WX_GL_MIN_GREEN, 		COLOR_CHANNEL_BITS,
+        WX_GL_MIN_BLUE, 		COLOR_CHANNEL_BITS,
+        // Requesting an 8 bit alpha channel. Interestingly, the NVIDIA drivers would most likely work with some alpha plane, but glReadPixels would not return
+        // the alpha channel on NVIDIA if not requested when the GL context is created.
+        WX_GL_MIN_ALPHA, 		COLOR_CHANNEL_BITS,
+        WX_GL_DEPTH_SIZE, 		24,
+        WX_GL_SAMPLE_BUFFERS, 	GL_TRUE,
+        WX_GL_SAMPLES, 			4,
+        0
     };
 #endif // ENABLE_GL_CORE_PROFILE || ENABLE_OPENGL_ES
 
@@ -591,7 +593,7 @@ wxGLCanvas* OpenGLManager::create_wxglcanvas(wxWindow& parent)
 #if ENABLE_GL_CORE_PROFILE || ENABLE_OPENGL_ES
     {
         attribList.Reset();
-        attribList.PlatformDefaults().RGBA().DoubleBuffer().MinRGBA(8, 8, 8, 8).Depth(24).EndList();
+        attribList.PlatformDefaults().RGBA().DoubleBuffer().MinRGBA(COLOR_CHANNEL_BITS, COLOR_CHANNEL_BITS, COLOR_CHANNEL_BITS, COLOR_CHANNEL_BITS).Depth(24).EndList();
 #ifdef __APPLE__
         // on MAC the method RGBA() has no effect
         attribList.SetNeedsARB(true);

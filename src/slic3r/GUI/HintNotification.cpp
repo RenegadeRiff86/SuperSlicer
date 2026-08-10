@@ -65,6 +65,27 @@ const std::string HYPERTEXT_MARKER_START = "<a>";
 const std::string HYPERTEXT_MARKER_END   = "</a>";
 
 namespace {
+constexpr size_t MARKER_START_LENGTH          = 3;
+constexpr size_t MARKER_END_LENGTH            = 4;
+constexpr size_t HINT_ID_PREFIX_LENGTH        = 5;
+constexpr float  TEXT_WIDTH_FRACTION_NUMERATOR = 3.f;
+constexpr float  TEXT_WIDTH_FRACTION_DENOMINATOR = 5.f;
+constexpr int    COMPACT_LINE_LIMIT           = 3;
+constexpr float  BUTTON_X_DIVISOR             = 3.f;
+constexpr int    COMPACT_LAYOUT_LINE_COUNT    = 4;
+constexpr float  CENTER_DIVISOR               = 2.f;
+constexpr size_t PREVIOUS_LINE_OFFSET         = 2;
+constexpr size_t PREVIEW_LINE_COUNT           = 2;
+constexpr float  CONTENT_BOTTOM_MARGIN_LINES  = 2.f;
+constexpr int    STYLE_COLOR_COUNT            = 5;
+constexpr float  BUTTON_QUARTER_DIVISOR       = 4.f;
+constexpr float  BUTTON_PICTURE_HEIGHT_SCALE  = 2.f;
+constexpr float  BUTTON_WIDTH_SCALE                 = 2.f;
+constexpr float  CLOSE_BUTTON_RIGHT_OFFSET_SCALE     = 2.75f;
+constexpr float  ACTION_BUTTON_RIGHT_OFFSET_SCALE    = 2.35f;
+constexpr float  ACTION_BUTTON_WIDTH_SCALE           = 2.125f;
+constexpr float  PICTURE_WINDOW_LEFT_OFFSET_SCALE    = 2.5f;
+
 inline void push_style_color(ImGuiCol idx, const ImVec4& col, bool fading_out, float current_fade_opacity)
 {
     if (fading_out)
@@ -324,7 +345,7 @@ void HintDatabase::load_hints_from_file(const boost::filesystem::path& path)
                 dict.emplace(data.first, data.second.data());
             }
             // unique id string [hint:id] (trim "hint:")
-            std::string id_string = section.first.substr(5);
+            std::string id_string = section.first.substr(HINT_ID_PREFIX_LENGTH);
             id_string = std::to_string(std::hash<std::string>{}(id_string));
             // unescaping and translating all texts and saving all data common for all hint types 
             std::string fulltext;
@@ -351,13 +372,13 @@ void HintDatabase::load_hints_from_file(const boost::filesystem::path& path)
             // start marker
             size_t marker_pos = fulltext.find(BOLD_MARKER_START);
             while (marker_pos != std::string::npos) {
-                fulltext.replace(marker_pos, 3, marker_s);
+                fulltext.replace(marker_pos, MARKER_START_LENGTH, marker_s);
                 marker_pos = fulltext.find(BOLD_MARKER_START, marker_pos);
             }
             // end marker
             marker_pos = fulltext.find(BOLD_MARKER_END);
             while (marker_pos != std::string::npos) {
-                fulltext.replace(marker_pos, 4, marker_e);
+                fulltext.replace(marker_pos, MARKER_END_LENGTH, marker_e);
                 marker_pos = fulltext.find(BOLD_MARKER_END, marker_pos);
             }
             // divide fulltext
@@ -569,7 +590,7 @@ void NotificationManager::HintNotification::count_spaces()
     std::string text;
     text = ImGui::WarningMarker; 
     float picture_width = ImGui::CalcTextSize(text.c_str()).x;
-    m_left_indentation = picture_width * 1.5f + m_line_height / 2;
+    m_left_indentation = picture_width * 1.5f + m_line_height / CENTER_DIVISOR;
     
     // no left button picture
     //m_left_indentation = m_line_height;
@@ -616,7 +637,7 @@ void NotificationManager::HintNotification::count_lines()
                 }
                 // when one word longer than line.
                 if (ImGui::CalcTextSize(text.substr(last_end, next_space - last_end).c_str()).x > m_window_width - m_window_width_offset ||
-                    ImGui::CalcTextSize(text.substr(last_end, next_space - last_end).c_str()).x < (m_window_width - m_window_width_offset) / 5 * 3
+                    ImGui::CalcTextSize(text.substr(last_end, next_space - last_end).c_str()).x < (m_window_width - m_window_width_offset) / TEXT_WIDTH_FRACTION_DENOMINATOR * TEXT_WIDTH_FRACTION_NUMERATOR
                     ) {
                     float width_of_a = ImGui::CalcTextSize("a").x;
                     int letter_count = static_cast<int>((m_window_width - m_window_width_offset) / width_of_a);
@@ -638,7 +659,7 @@ void NotificationManager::HintNotification::count_lines()
         }
         m_lines_count++;
     }
-    int prev_end = m_endlines.size() > 1 ? m_endlines[m_endlines.size() - 2] : 0;
+    int prev_end = m_endlines.size() > 1 ? m_endlines[m_endlines.size() - PREVIOUS_LINE_OFFSET] : 0;
     int size_of_last_line = ImGui::CalcTextSize(text.substr(prev_end, last_end - prev_end).c_str()).x;
     // hypertext calculation
     if (!m_hypertext.empty()) {
@@ -686,7 +707,7 @@ void NotificationManager::HintNotification::count_lines()
                     }
                     // when one word longer than line.
                     if (ImGui::CalcTextSize(text.substr(last_end, next_space - last_end).c_str()).x > m_window_width - m_window_width_offset - size_of_last_line ||
-                        ImGui::CalcTextSize(text.substr(last_end, next_space - last_end).c_str()).x + size_of_last_line < (m_window_width - m_window_width_offset) / 5 * 3
+                        ImGui::CalcTextSize(text.substr(last_end, next_space - last_end).c_str()).x + size_of_last_line < (m_window_width - m_window_width_offset) / TEXT_WIDTH_FRACTION_DENOMINATOR * TEXT_WIDTH_FRACTION_NUMERATOR
                         ) {
                         float width_of_a = ImGui::CalcTextSize("a").x;
                         int letter_count = static_cast<int>((m_window_width - m_window_width_offset - size_of_last_line) / width_of_a);
@@ -736,7 +757,7 @@ void NotificationManager::HintNotification::set_next_window_size(ImGuiWrapper& i
     /*
     m_window_height = m_multiline ?
         (m_lines_count + 1.f) * m_line_height :
-        4.f * m_line_height;
+        COMPACT_LAYOUT_LINE_COUNT * m_line_height;
     m_window_height += 1 * m_line_height; // top and bottom
     */
 
@@ -758,16 +779,18 @@ void NotificationManager::HintNotification::render_text(ImGuiWrapper& imgui, con
 
     float	x_offset = m_left_indentation;
     int		last_end = 0;
-    float	starting_y = (m_lines_count < 4 ? m_line_height / 2 * (4 - m_lines_count + 1) : m_line_height / 2);
+    float starting_y = (m_lines_count < COMPACT_LAYOUT_LINE_COUNT
+        ? m_line_height / CENTER_DIVISOR * (COMPACT_LAYOUT_LINE_COUNT - m_lines_count + 1)
+        : m_line_height / CENTER_DIVISOR);
     float	shift_y = m_line_height;
     std::string line;
 
-    for (size_t i = 0; i < (m_multiline ? /*m_lines_count*/m_endlines.size() : 2); i++) {
+    for (size_t i = 0; i < (m_multiline ? /*m_lines_count*/m_endlines.size() : PREVIEW_LINE_COUNT); i++) {
         line.clear();
         ImGui::SetCursorPosX(x_offset);
         ImGui::SetCursorPosY(starting_y + i * shift_y);
         if (m_endlines.size() > i && m_text1.size() >= m_endlines[i]) {
-            if (i == 1 && m_endlines.size() > 2 && !m_multiline) {
+            if (i == 1 && m_endlines.size() > PREVIEW_LINE_COUNT && !m_multiline) {
                 // second line with "more" hypertext
                 line = m_text1.substr(m_endlines[0] + (m_text1[m_endlines[0]] == '\n' || m_text1[m_endlines[0]] == ' ' ? 1 : 0), m_endlines[1] - m_endlines[0] - (m_text1[m_endlines[0]] == '\n' || m_text1[m_endlines[0]] == ' ' ? 1 : 0));
                 while (ImGui::CalcTextSize(line.c_str()).x > m_window_width - m_window_width_offset - ImGui::CalcTextSize((".." + _u8L("More")).c_str()).x) {
@@ -795,7 +818,7 @@ void NotificationManager::HintNotification::render_text(ImGuiWrapper& imgui, con
             
     }
     //hyperlink text
-    if (!m_multiline && m_lines_count > 2) {
+    if (!m_multiline && m_lines_count > PREVIEW_LINE_COUNT) {
         render_hypertext(imgui, x_offset + ImGui::CalcTextSize((line + " ").c_str()).x, starting_y + shift_y, _u8L("More"), true);
     } else if (!m_hypertext.empty()) {
         render_hypertext(imgui, x_offset + ImGui::CalcTextSize((line + (line.empty()? "": " ")).c_str()).x, starting_y + (m_endlines.size() - 1) * shift_y, m_hypertext);
@@ -805,7 +828,7 @@ void NotificationManager::HintNotification::render_text(ImGuiWrapper& imgui, con
     if (!m_text2.empty() && m_multiline) {
         starting_y += (m_endlines.size() - 1) * shift_y;
         last_end = 0;
-        for (size_t i = 0; i < (m_multiline ? m_endlines2.size() : 2); i++) {
+        for (size_t i = 0; i < (m_multiline ? m_endlines2.size() : PREVIEW_LINE_COUNT); i++) {
             if (i == 0) //first line X is shifted by hypertext
                 ImGui::SetCursorPosX(x_offset + ImGui::CalcTextSize((line + m_hypertext + (line.empty() ? " " : "  ")).c_str()).x);
             else
@@ -848,7 +871,7 @@ void NotificationManager::HintNotification::render_close_button(ImGuiWrapper& im
     button_text = ImGui::CloseNotifButton;
 
     if (ImGui::IsMouseHoveringRect(ImVec2(win_pos.x - win_size.x / 10.f, win_pos.y),
-        ImVec2(win_pos.x, win_pos.y + win_size.y - 2 * m_line_height),
+        ImVec2(win_pos.x, win_pos.y + win_size.y - CONTENT_BOTTOM_MARGIN_LINES * m_line_height),
         true))
     {
         button_text = ImGui::CloseNotifHoverButton;
@@ -856,13 +879,13 @@ void NotificationManager::HintNotification::render_close_button(ImGuiWrapper& im
     ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
     ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
     m_close_b_w = button_size.y;
-    if (m_lines_count <= 3) {
-        m_close_b_y = win_size.y / 2 - button_size.y * 1.25f;
-        ImGui::SetCursorPosX(win_size.x - m_line_height * 2.75f);
+    if (m_lines_count <= COMPACT_LINE_LIMIT) {
+        m_close_b_y = win_size.y / CENTER_DIVISOR - button_size.y * 1.25f;
+        ImGui::SetCursorPosX(win_size.x - m_line_height * CLOSE_BUTTON_RIGHT_OFFSET_SCALE);
         ImGui::SetCursorPosY(m_close_b_y);
     } else {
-        ImGui::SetCursorPosX(win_size.x - m_line_height * 2.75f);
-        ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
+        ImGui::SetCursorPosX(win_size.x - m_line_height * CLOSE_BUTTON_RIGHT_OFFSET_SCALE);
+        ImGui::SetCursorPosY(win_size.y / CENTER_DIVISOR - button_size.y);
     }
     if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
     {
@@ -870,14 +893,14 @@ void NotificationManager::HintNotification::render_close_button(ImGuiWrapper& im
     }
     
     //invisible large button
-    ImGui::SetCursorPosX(win_size.x - m_line_height * 2.35f);
+    ImGui::SetCursorPosX(win_size.x - m_line_height * ACTION_BUTTON_RIGHT_OFFSET_SCALE);
     ImGui::SetCursorPosY(0);
-    if (imgui.button(" ", m_line_height * 2.125, win_size.y -  2 * m_line_height))
+    if (imgui.button(" ", m_line_height * ACTION_BUTTON_WIDTH_SCALE, win_size.y -  CONTENT_BOTTOM_MARGIN_LINES * m_line_height))
     {
         close();
     }
     
-    ImGui::PopStyleColor(5);
+    ImGui::PopStyleColor(STYLE_COLOR_COUNT);
 
 
     //render_right_arrow_button(imgui, win_size_x, win_size_y, win_pos_x, win_pos_y);
@@ -923,17 +946,17 @@ void NotificationManager::HintNotification::render_preferences_button(ImGuiWrapp
     ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
     ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
     ImGui::SetCursorPosX(m_window_width - m_line_height * 1.75f);
-    if (m_lines_count <= 3) {
-        ImGui::SetCursorPosY(m_close_b_y + m_close_b_w / 4.f * 7.f);
+    if (m_lines_count <= COMPACT_LINE_LIMIT) {
+        ImGui::SetCursorPosY(m_close_b_y + m_close_b_w / BUTTON_QUARTER_DIVISOR * 7.f);
     } else {
-        ImGui::SetCursorPosY(m_window_height - button_size.y - m_close_b_w / 4.f);
+        ImGui::SetCursorPosY(m_window_height - button_size.y - m_close_b_w / BUTTON_QUARTER_DIVISOR);
     }
     if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
     {
         wxGetApp().open_preferences("show_hints", "GUI");
     }
 
-    ImGui::PopStyleColor(5);
+    ImGui::PopStyleColor(STYLE_COLOR_COUNT);
     // preferences button is in place of minimize button
     m_minimize_b_visible = true;	
 }
@@ -956,16 +979,16 @@ void NotificationManager::HintNotification::render_right_arrow_button(ImGuiWrapp
     ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
 
     ImGui::SetCursorPosX(m_window_width - m_line_height * 3.f);
-    if (m_lines_count <= 3)
-        ImGui::SetCursorPosY(m_close_b_y + m_close_b_w / 4.f * 7.f);
+    if (m_lines_count <= COMPACT_LINE_LIMIT)
+        ImGui::SetCursorPosY(m_close_b_y + m_close_b_w / BUTTON_QUARTER_DIVISOR * 7.f);
     else
-        ImGui::SetCursorPosY(m_window_height - button_size.y - m_close_b_w / 4.f);
+        ImGui::SetCursorPosY(m_window_height - button_size.y - m_close_b_w / BUTTON_QUARTER_DIVISOR);
     if (imgui.button(button_text.c_str(), button_size.x * 0.8f, button_size.y * 1.f))
     {
         retrieve_data();
     }
 
-    ImGui::PopStyleColor(5);
+    ImGui::PopStyleColor(STYLE_COLOR_COUNT);
 }
 void NotificationManager::HintNotification::render_logo(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
 {
@@ -974,8 +997,8 @@ void NotificationManager::HintNotification::render_logo(ImGuiWrapper& imgui, con
     ImVec2 button_pic_size = ImGui::CalcTextSize(placeholder_text.c_str());
     std::wstring text;
     text = ImGui::ClippyMarker;
-    ImGui::SetCursorPosX(button_pic_size.x / 3);
-    ImGui::SetCursorPosY(win_size_y / 2 - button_pic_size.y * 2.f);
+    ImGui::SetCursorPosX(button_pic_size.x / BUTTON_X_DIVISOR);
+    ImGui::SetCursorPosY(win_size_y / CENTER_DIVISOR - button_pic_size.y * BUTTON_PICTURE_HEIGHT_SCALE);
     imgui.text(text.c_str());
 }
 void NotificationManager::HintNotification::render_documentation_button(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
@@ -994,7 +1017,7 @@ void NotificationManager::HintNotification::render_documentation_button(ImGuiWra
     placeholder_text = ImGui::EjectButton;
 
     if (ImGui::IsMouseHoveringRect(ImVec2(win_pos.x - m_line_height * 5.f, win_pos.y),
-        ImVec2(win_pos.x - m_line_height * 2.5f, win_pos.y + win_size.y - 2 * m_line_height),
+        ImVec2(win_pos.x - m_line_height * PICTURE_WINDOW_LEFT_OFFSET_SCALE, win_pos.y + win_size.y - CONTENT_BOTTOM_MARGIN_LINES * m_line_height),
         true))
     {
         button_text = ImGui::DocumentationHoverButton;
@@ -1016,7 +1039,7 @@ void NotificationManager::HintNotification::render_documentation_button(ImGuiWra
     ImVec2 button_pic_size = ImGui::CalcTextSize(placeholder_text.c_str());
     ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
     ImGui::SetCursorPosX(win_size.x - m_line_height * 5.0f);
-    ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
+    ImGui::SetCursorPosY(win_size.y / CENTER_DIVISOR - button_size.y);
     if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
     {
         open_documentation();
@@ -1025,12 +1048,12 @@ void NotificationManager::HintNotification::render_documentation_button(ImGuiWra
     //invisible large button
     ImGui::SetCursorPosX(win_size.x - m_line_height * 4.625f);
     ImGui::SetCursorPosY(0);
-    if (imgui.button("  ", m_line_height * 2.f, win_size.y - 2 * m_line_height))
+    if (imgui.button("  ", m_line_height * BUTTON_WIDTH_SCALE, win_size.y - CONTENT_BOTTOM_MARGIN_LINES * m_line_height))
     {
         open_documentation();
     }
 
-    ImGui::PopStyleColor(5);
+    ImGui::PopStyleColor(STYLE_COLOR_COUNT);
 }
 
 void NotificationManager::HintNotification::open_documentation()

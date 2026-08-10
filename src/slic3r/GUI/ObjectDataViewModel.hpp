@@ -106,7 +106,7 @@ public:
     {
         set_action_and_extruder_icons();
         init_container();
-	}
+    }
 
     ObjectDataViewModelNode(ObjectDataViewModelNode* parent,
                             const wxString& sub_obj_name,
@@ -133,13 +133,13 @@ public:
 #endif /* NDEBUG */
     }
 
-	void init_container();
+    void init_container();
     void invalidate_container();
 
     bool IsContainer() const
-	{
-		return m_container;
-	}
+    {
+        return m_container;
+    }
 
     ObjectDataViewModelNode* GetParent()
     {
@@ -208,10 +208,10 @@ public:
     const wxString& GetName() const                 { return m_name; }
     ItemType        GetType() const                 { return m_type; }
     InfoItemType    GetInfoItemType() const         { return m_info_item_type; }
-	void			SetIdx(const int& idx);
-	int             GetIdx() const                  { return m_idx; }
+    void			SetIdx(const int& idx);
+    int             GetIdx() const                  { return m_idx; }
     ModelVolumeType GetVolumeType() const           { return m_volume_type; }
-	t_layer_height_range    GetLayerRange() const   { return m_layer_range; }
+    t_layer_height_range    GetLayerRange() const   { return m_layer_range; }
     wxString        GetExtruder()                   { return m_extruder; }
     PrintIndicator  IsPrintable() const             { return m_printable; }
     void            UpdateExtruderAndColorIcon(wxString extruder = "");
@@ -251,7 +251,7 @@ public:
     void        set_action_and_extruder_icons();
     // set extruder icon for node
     void        set_extruder_icon();
-	// Set printable icon for node
+    // Set printable icon for node
     void        set_printable_icon(PrintIndicator printable);
 
     void        update_settings_digest_bitmaps();

@@ -95,7 +95,7 @@ public:
 
     void set_next_window_pos(float x, float y, int flag, float pivot_x = 0.0f, float pivot_y = 0.0f);
     void set_next_window_bg_alpha(float alpha);
-	void set_next_window_size(float x, float y, ImGuiCond cond);
+    void set_next_window_size(float x, float y, ImGuiCond cond);
 
     bool begin(const std::string &name, int flags = 0);
     bool begin(const wxString &name, int flags = 0);

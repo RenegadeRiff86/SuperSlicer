@@ -168,7 +168,7 @@ void ProgressStatusBar::embed(wxFrame *frame)
 
 void ProgressStatusBar::set_status_text(const wxString& txt)
 {
-	if(self) self->SetStatusText(txt);
+    if(self) self->SetStatusText(txt);
 }
 
 void ProgressStatusBar::set_status_text(const std::string& txt)

@@ -211,8 +211,8 @@ SCENARIO("Flow: Flow math for non-bridges", "[Flow]") {
 /// Spacing, width calculation for bridge extrusions
 SCENARIO("Flow: Flow math for bridges", "[Flow]") {
     GIVEN("Nozzle Diameter of 0.4, a desired width of 1mm and layer height of 0.5") {
-		float nozzle_diameter	= 0.4f;
-		float bridge_flow		= 1.0f;
+        float nozzle_diameter	= 0.4f;
+        float bridge_flow		= 1.0f;
         WHEN("Flow role is frExternalPerimeter") {
             auto flow = Flow::bridging_flow(nozzle_diameter * sqrt(bridge_flow), nozzle_diameter);
             THEN("Bridge width is same as nozzle diameter") {

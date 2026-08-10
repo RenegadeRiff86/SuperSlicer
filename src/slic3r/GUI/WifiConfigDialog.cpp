@@ -29,6 +29,9 @@ WifiConfigDialog::WifiConfigDialog(wxWindow* parent, std::string& file_path, Rem
      , out_file_path(file_path)
      , m_removable_manager(removable_manager)
 {
+    constexpr int control_spacing = 10;
+    constexpr int grid_spacing    = 15;
+
     // Propagation of error in wifi scanner construtor
     if (!m_wifi_scanner->is_init()) {
         // TRN Error dialog of configuration -> wifi configuration file 
@@ -66,7 +69,7 @@ WifiConfigDialog::WifiConfigDialog(wxWindow* parent, std::string& file_path, Rem
     m_ssid_button_id = NewControlId();
     // TRN Text of button to rescan visible networks in Wifi Config dialog.
     wxButton* ssid_button = new wxButton(panel, m_ssid_button_id, _(L("Rescan")));
-    ssid_sizer->Add(m_ssid_combo, 1, wxALIGN_CENTER_VERTICAL | wxRIGHT, 10);
+    ssid_sizer->Add(m_ssid_combo, 1, wxALIGN_CENTER_VERTICAL | wxRIGHT, control_spacing);
     ssid_sizer->Add(ssid_button, 0);
 
     auto* pass_sizer = new wxBoxSizer(wxHORIZONTAL);
@@ -74,14 +77,14 @@ WifiConfigDialog::WifiConfigDialog(wxWindow* parent, std::string& file_path, Rem
     wxStaticText* password_label = new wxStaticText(panel, wxID_ANY, GUI::format_wxstr("%1%:", _L("Password")));
     m_pass_textctrl = new ::TextInput(panel, "", "", "", wxDefaultPosition, wxDefaultSize, wxFULL_REPAINT_ON_RESIZE);
 #if __APPLE__
-    pass_sizer->Add(m_pass_textctrl, 1, wxALIGN_CENTER_VERTICAL | wxRIGHT, 10);
+    pass_sizer->Add(m_pass_textctrl, 1, wxALIGN_CENTER_VERTICAL | wxRIGHT, control_spacing);
     m_pass_button_id = NewControlId();
     // TRN Text of button to retrieve password from keychain in Wifi Config dialog. Only on Mac.
     wxButton* pass_button = new wxButton(panel, m_pass_button_id, _(L("Retrieve")));
     pass_sizer->Add(pass_button, 0);
     pass_button->Bind(wxEVT_BUTTON, &WifiConfigDialog::on_retrieve_password, this);
 #else
-    pass_sizer->Add(m_pass_textctrl, 1, wxALIGN_CENTER_VERTICAL, 10);
+    pass_sizer->Add(m_pass_textctrl, 1, wxALIGN_CENTER_VERTICAL, control_spacing);
 #endif // __APPLE__
     // show password if current ssid was selected already
     fill_password();
@@ -94,14 +97,14 @@ WifiConfigDialog::WifiConfigDialog(wxWindow* parent, std::string& file_path, Rem
     m_drive_button_id = NewControlId();
     // TRN Text of button to rescan connect usb drives in Wifi Config dialog.
     wxButton* drive_button = new wxButton(panel, m_drive_button_id, _(L("Rescan")));
-    drive_sizer->Add(m_drive_combo, 1, wxALIGN_CENTER_VERTICAL | wxRIGHT, 10);
+    drive_sizer->Add(m_drive_combo, 1, wxALIGN_CENTER_VERTICAL | wxRIGHT, control_spacing);
     drive_sizer->Add(drive_button, 0);
 
     // TRN Text of button to write config file in Wifi Config dialog.
     wxButton* ok_button = new wxButton(panel, wxID_OK, _L("Write"));
     wxButton* cancel_button = new wxButton(panel, wxID_CANCEL);
 
-    auto* grid = new wxFlexGridSizer(2, 15, 15);
+    auto* grid = new wxFlexGridSizer(2, grid_spacing, grid_spacing);
     grid->AddGrowableCol(1);
 
     grid->Add(ssid_label, 0, wxALIGN_CENTER_VERTICAL);
@@ -293,7 +296,6 @@ void WifiConfigDialog::on_ok(wxCommandEvent& e)
     file = boost::nowide::fopen(file_path.string().c_str(), "w");
     if (file == NULL) {
         BOOST_LOG_TRIVIAL(error) << "Failed to write to file " << file_path;
-        // TODO show error
         show_error(nullptr,  _L("Failed to open file for writing."));
         return;
     }

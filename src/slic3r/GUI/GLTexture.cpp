@@ -2,7 +2,6 @@
 ///|/
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
-#include "libslic3r/libslic3r.h"
 #include <libslic3r/AppConfig.hpp>
 #include "GLTexture.hpp"
 
@@ -29,8 +28,6 @@
 
 #include <nanosvg/nanosvg.h>
 #include <nanosvg/nanosvgrast.h>
-
-#include "libslic3r/Utils.hpp"
 
 namespace Slic3r {
 namespace GUI {
@@ -77,38 +74,38 @@ constexpr int SpriteGrayLevel = 128;
 
 void GLTexture::Compressor::reset()
 {
-	if (m_thread.joinable()) {
+    if (m_thread.joinable()) {
         m_abort_compressing = true;
-		m_thread.join();
-	    m_levels.clear();
-	    m_num_levels_compressed = 0;
-	    m_abort_compressing = false;
-	}
-	assert(m_levels.empty());
-	assert(m_abort_compressing == false);
-	assert(m_num_levels_compressed == 0);
+        m_thread.join();
+        m_levels.clear();
+        m_num_levels_compressed = 0;
+        m_abort_compressing = false;
+    }
+    assert(m_levels.empty());
+    assert(m_abort_compressing == false);
+    assert(m_num_levels_compressed == 0);
 }
 
 void GLTexture::Compressor::start_compressing()
 {
-	// The worker thread should be stopped already.
-	assert(! m_thread.joinable());
-	assert(! m_levels.empty());
-	assert(m_abort_compressing == false);
-	assert(m_num_levels_compressed == 0);
-	if (! m_levels.empty()) {
-		std::thread thrd(&GLTexture::Compressor::compress, this);
-    	m_thread = std::move(thrd);
+    // The worker thread should be stopped already.
+    assert(! m_thread.joinable());
+    assert(! m_levels.empty());
+    assert(m_abort_compressing == false);
+    assert(m_num_levels_compressed == 0);
+    if (! m_levels.empty()) {
+        std::thread thrd(&GLTexture::Compressor::compress, this);
+        m_thread = std::move(thrd);
     }
 }
 
 bool GLTexture::Compressor::unsent_compressed_data_available() const
 {
-	if (m_levels.empty())
-		return false;
-	// Querying the atomic m_num_levels_compressed value synchronizes processor caches, so that the data of m_levels modified by the worker thread are accessible to the calling thread.
-	unsigned int num_compressed = m_num_levels_compressed;
-	for (unsigned int i = 0; i < num_compressed; ++ i)
+    if (m_levels.empty())
+        return false;
+    // Querying the atomic m_num_levels_compressed value synchronizes processor caches, so that the data of m_levels modified by the worker thread are accessible to the calling thread.
+    unsigned int num_compressed = m_num_levels_compressed;
+    for (unsigned int i = 0; i < num_compressed; ++ i)
         if (! m_levels[i].sent_to_gpu && ! m_levels[i].compressed_data.empty())
             return true;
     return false;
@@ -117,13 +114,13 @@ bool GLTexture::Compressor::unsent_compressed_data_available() const
 void GLTexture::Compressor::send_compressed_data_to_gpu()
 {
     // this method should be called inside the main thread of Slicer or a new OpenGL context (sharing resources) would be needed
-	if (m_levels.empty())
-		return;
+    if (m_levels.empty())
+        return;
 
     glsafe(::glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
     glsafe(::glBindTexture(GL_TEXTURE_2D, m_texture.m_id));
-	// Querying the atomic m_num_levels_compressed value synchronizes processor caches, so that the dat of m_levels modified by the worker thread are accessible to the calling thread.
-	int num_compressed = static_cast<int>(m_num_levels_compressed);
+    // Querying the atomic m_num_levels_compressed value synchronizes processor caches, so that the dat of m_levels modified by the worker thread are accessible to the calling thread.
+    int num_compressed = static_cast<int>(m_num_levels_compressed);
     for (int i = 0; i < num_compressed; ++ i) {
         Level& level = m_levels[i];
         if (! level.sent_to_gpu && ! level.compressed_data.empty()) {
@@ -139,7 +136,7 @@ void GLTexture::Compressor::send_compressed_data_to_gpu()
 
     if (num_compressed == static_cast<int>(m_levels.size()))
         // Finalize the worker thread, close it.
-    	this->reset();
+        this->reset();
 }
 
 void GLTexture::Compressor::compress()

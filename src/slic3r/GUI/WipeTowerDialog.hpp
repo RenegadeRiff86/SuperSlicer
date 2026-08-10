@@ -55,7 +55,7 @@ public:
     std::vector<float> read_matrix_values();
     std::vector<float> read_extruders_values();
     void toggle_advanced(bool user_action = false);
-	void format_sizer(wxSizer* sizer, wxPanel* page, wxGridSizer* grid_sizer, const wxString& info, const wxString& table_title, int table_lshift=0);
+    void format_sizer(wxSizer* sizer, wxPanel* page, wxGridSizer* grid_sizer, const wxString& info, const wxString& table_title, int table_lshift=0);
         
 private:
     void fill_in_matrix();
@@ -67,8 +67,8 @@ private:
     std::vector<wxColour> m_colours;
     unsigned int m_number_of_extruders  = 0;
     bool m_advanced                     = false;
-	wxPanel*	m_page_simple = nullptr;
-	wxPanel*	m_page_advanced = nullptr;
+    wxPanel*	m_page_simple = nullptr;
+    wxPanel*	m_page_advanced = nullptr;
     wxBoxSizer*	m_sizer = nullptr;
     wxBoxSizer* m_sizer_simple = nullptr;
     wxBoxSizer* m_sizer_advanced = nullptr;

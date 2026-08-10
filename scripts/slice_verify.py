@@ -116,11 +116,10 @@ class TestModel:
 
     @property
     def path(self) -> Path:
-        for directory in MODEL_DIRS:
-            for name in (self.filename,) + tuple(self.alt_filenames):
-                candidate = directory / name
-                if candidate.exists():
-                    return candidate
+        names = (self.filename,) + tuple(self.alt_filenames)
+        for candidate in (directory / name for directory in MODEL_DIRS for name in names):
+            if candidate.exists():
+                return candidate
         # Nothing found -- return the conventional location so the error names it.
         return MODEL_DIRS[-1] / self.filename
 

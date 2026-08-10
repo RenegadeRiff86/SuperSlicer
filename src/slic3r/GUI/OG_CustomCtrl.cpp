@@ -12,11 +12,13 @@
 #include <wx/dcbuffer.h>
 #include <wx/utils.h>
 #include <boost/algorithm/string/split.hpp>
-#include "libslic3r/Utils.hpp"
 #include "I18N.hpp"
-#include "format.hpp"
 
 namespace Slic3r { namespace GUI {
+
+static constexpr int CENTER_DIVISOR = 2;
+static constexpr int DOUBLE_BUTTON_WIDTH = 2;
+static constexpr int WRAPPED_LABEL_LINE_COUNT = 2;
 
 static bool is_point_in_rect(const wxPoint& pt, const wxRect& rect)
 {
@@ -40,17 +42,6 @@ static wxString translate_option_label(const std::string& label)
     if (label == "Bottom")
         return _CTX(L_CONTEXT("Bottom", "Layers"), "Layers");
     return _(label);
-}
-
-static wxString get_url(const wxString& path_end, bool get_default = false) 
-{
-    if (path_end.IsEmpty())
-        return wxEmptyString;
-
-    wxString language = wxGetApp().app_config->get("translation_language");
-    wxString lang_marker = language.IsEmpty() ? "en" : language.BeforeFirst('_');
-
-    return wxString("https://help.prusa3d.com/") + lang_marker + "/article/" + path_end;
 }
 
 int OG_CustomCtrl::m_has_icon = (-1);
@@ -119,7 +110,7 @@ void OG_CustomCtrl::init_ctrl_lines()
         else if (opt_group->title_width != 0 && (!line.label.IsEmpty() || option_set.front().opt.gui_type == ConfigOptionDef::GUIType::legend) )
         {
             wxSize label_sz = GetTextExtent(line.label);
-            height = label_sz.y * (label_sz.GetWidth() > int(opt_group->title_width * m_em_unit) ? 2 : 1) + m_v_gap;
+            height = label_sz.y * (label_sz.GetWidth() > int(opt_group->title_width * m_em_unit) ? WRAPPED_LABEL_LINE_COUNT : 1) + m_v_gap;
             ctrl_lines.emplace_back(CtrlLine(height, this, line, false, opt_group->staticbox));
         }
         else
@@ -149,15 +140,6 @@ wxPoint OG_CustomCtrl::get_pos(const Line& line, Field* field_in/* = nullptr*/)
         int win_height = win->GetSize().GetHeight();
         if (line_height < win_height)
             line_height = win_height;
-    };
-
-    auto correct_horiz_pos = [this](int& h_pos, Field* field) {
-        if (m_max_win_width > 0 && field->getWindow()) {
-            int win_width = field->getWindow()->GetSize().GetWidth();
-            if (dynamic_cast<CheckBox*>(field))
-                win_width *= 0.5;
-            h_pos += m_max_win_width - win_width;
-        }
     };
 
     for (CtrlLine& ctrl_line : ctrl_lines) {
@@ -285,7 +267,7 @@ wxPoint OG_CustomCtrl::get_pos(const Line& line, Field* field_in/* = nullptr*/)
                 }
 
                 if (opt.opt.gui_type == ConfigOptionDef::GUIType::legend)
-                    h_pos += 2 * blinking_button_width;
+                    h_pos += DOUBLE_BUTTON_WIDTH * blinking_button_width;
                 if (field->getSizer()) {
                     for (auto child : field->getSizer()->GetChildren()) {
                         if (child->IsWindow() && child->IsShown()) {
@@ -651,7 +633,7 @@ void OG_CustomCtrl::CtrlLine::correct_items_positions()
     if (og_line.near_label_widget_win)
         ctrl->correct_window_position(og_line.near_label_widget_win, og_line);
     if (og_line.widget_sizer)
-        ctrl->correct_widgets_position(og_line.widget_sizer, og_line);
+        ctrl->correct_widgets_position(og_line.widget_sizer.get(), og_line);
     if (og_line.extra_widget_sizer)
         ctrl->correct_widgets_position(og_line.extra_widget_sizer, og_line);
 
@@ -675,7 +657,7 @@ void OG_CustomCtrl::CtrlLine::msw_rescale()
 
     if (ctrl->opt_group->title_width != 0 && !og_line.label.IsEmpty()) {
         wxSize label_sz = ctrl->GetTextExtent(og_line.label);
-        height = label_sz.y * (label_sz.GetWidth() > int(ctrl->opt_group->title_width * ctrl->m_em_unit) ? 2 : 1) + ctrl->m_v_gap;
+        height = label_sz.y * (label_sz.GetWidth() > int(ctrl->opt_group->title_width * ctrl->m_em_unit) ? WRAPPED_LABEL_LINE_COUNT : 1) + ctrl->m_v_gap;
     }
 
     correct_items_positions();
@@ -815,7 +797,7 @@ void OG_CustomCtrl::CtrlLine::render(wxDC& dc, wxCoord v_pos)
             else if (front_field && !front_field->has_undo_ui() && front_field->blink())
                 draw_blinking_bmp(dc, wxPoint(h_pos, v_pos), front_field->blink());
             else
-                h_pos += 2 * blinking_button_width;
+                h_pos += DOUBLE_BUTTON_WIDTH * blinking_button_width;
             // update width for full_width fields
             if (option_set.front().opt.full_width && front_field->getWindow())
                 front_field->getWindow()->SetSize(ctrl->GetSize().x - h_pos, -1);
@@ -870,7 +852,7 @@ void OG_CustomCtrl::CtrlLine::render(wxDC& dc, wxCoord v_pos)
             if(field->has_undo_ui())
                 h_pos = draw_act_bmps(dc, wxPoint(h_pos, v_pos), field->undo_to_sys_bitmap(), field->undo_bitmap(), field->enable_bitmap(), field->blink(), bmp_rect_id++).x;
             else
-                h_pos += 2 * blinking_button_width;
+                h_pos += DOUBLE_BUTTON_WIDTH * blinking_button_width;
 
             if (field->getSizer())
             {
@@ -913,7 +895,7 @@ wxCoord OG_CustomCtrl::CtrlLine::draw_mode_bmp(wxDC& dc, wxCoord v_pos)
     for (size_t i = 1; i < og_line.get_options().size(); i++)
         mode |= og_line.get_options()[i].opt.mode;
     wxBitmapBundle* bmp = get_bmp_bundle("mode", pix_cnt, pix_cnt, wxGetApp().get_first_mode_btn_color(mode));
-    wxCoord y_draw = v_pos + lround((height - get_bitmap_size(bmp, ctrl).GetHeight()) / 2);
+    wxCoord y_draw = v_pos + lround((height - get_bitmap_size(bmp, ctrl).GetHeight()) / CENTER_DIVISOR);
 
     if (og_line.get_options().front().opt.gui_type != ConfigOptionDef::GUIType::legend)
         dc.DrawBitmap(bmp->GetBitmapFor(ctrl), 0, y_draw);
@@ -954,7 +936,7 @@ wxCoord    OG_CustomCtrl::CtrlLine::draw_text(wxDC& dc, wxPoint pos, const wxStr
         wxCoord text_width, text_height;
         dc.GetMultiLineTextExtent(out_text, &text_width, &text_height);
 
-        pos.y = pos.y + lround((height - text_height) / 2);
+        pos.y = pos.y + lround((height - text_height) / CENTER_DIVISOR);
         wxPoint draw_pos = pos;
         if (align_right && width > 0)
             draw_pos.x += width - text_width;
@@ -985,7 +967,7 @@ wxPoint OG_CustomCtrl::CtrlLine::draw_blinking_bmp(wxDC& dc, wxPoint pos, bool i
 {
     wxBitmapBundle* bmp_blinking = get_bmp_bundle(is_blinking ? "search_blink" : "empty");
     wxCoord h_pos = pos.x;
-    wxCoord v_pos = pos.y + lround((height - get_bitmap_size(bmp_blinking, ctrl).GetHeight()) / 2);
+    wxCoord v_pos = pos.y + lround((height - get_bitmap_size(bmp_blinking, ctrl).GetHeight()) / CENTER_DIVISOR);
 
     dc.DrawBitmap(bmp_blinking->GetBitmapFor(ctrl), h_pos, v_pos);
 
@@ -998,7 +980,7 @@ wxPoint OG_CustomCtrl::CtrlLine::draw_blinking_bmp(wxDC& dc, wxPoint pos, bool i
 wxPoint OG_CustomCtrl::CtrlLine::draw_act_bmps(wxDC& dc, wxPoint pos, const wxBitmapBundle& bmp_undo_to_sys, const wxBitmapBundle& bmp_undo, const wxBitmapBundle* bmp_enable, bool is_blinking, size_t rect_id)
 {
     wxCoord h_pos = pos.x;
-    wxCoord v_pos = pos.y + height / 2 - this->ctrl->m_bmp_blinking_sz.GetHeight() / 2;
+    wxCoord v_pos = pos.y + height / CENTER_DIVISOR - this->ctrl->m_bmp_blinking_sz.GetHeight() / CENTER_DIVISOR;
 
     if (m_has_icon) {
         // undo_to_sys

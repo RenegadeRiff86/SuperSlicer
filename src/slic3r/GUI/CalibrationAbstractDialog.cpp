@@ -4,7 +4,6 @@
 #include "libslic3r/Utils.hpp"
 #include "GUI.hpp"
 #include "GUI_ObjectList.hpp"
-#include "Tab.hpp"
 #include "Plater.hpp"
 
 #include <wx/scrolwin.h>
@@ -35,7 +34,7 @@ namespace GUI {
 // Parented to the main frame rather than NULL: an unparented top-level dialog is not a
 // descendant of mainframe, and the automation server's snapshot_roots() only picks up
 // non-modal dialogs that are, so every calibration dialog was invisible to UI automation.
-CalibrationAbstractDialog::CalibrationAbstractDialog(GUI_App* app, MainFrame* mainframe, std::string name)
+CalibrationAbstractDialog::CalibrationAbstractDialog(GUI_App* app, MainFrame* mainframe, const std::string& name)
         : DPIDialog(mainframe, wxID_ANY, wxString(SLIC3R_APP_NAME) + " - " + _(L(name)),
 #if ENABLE_SCROLLABLE
         wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER
@@ -50,14 +49,11 @@ CalibrationAbstractDialog::CalibrationAbstractDialog(GUI_App* app, MainFrame* ma
 
         // fonts
         const wxFont& font = wxGetApp().normal_font();
-        const wxFont& bold_font = wxGetApp().bold_font();
         SetFont(font);
 
     }
 
-void CalibrationAbstractDialog::create(boost::filesystem::path html_path, std::string html_name, wxSize dialog_size, bool include_close_button){
-
-    const AppConfig* app_config = get_app_config();
+void CalibrationAbstractDialog::create(boost::filesystem::path html_path, const std::string& html_name, wxSize dialog_size, bool include_close_button){
 
     // Create a panel for the entire content
     wxPanel* main_panel = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxFULL_REPAINT_ON_RESIZE);
@@ -88,7 +84,7 @@ void CalibrationAbstractDialog::create(boost::filesystem::path html_path, std::s
         wxDefaultPosition, wxDefaultSize, wxHW_SCROLLBAR_AUTO);
     html_viewer->LoadPage(GUI::from_u8(full_file_path.string()));
     // when using hyperlink, open the browser.
-    html_viewer->Bind(wxEVT_HTML_LINK_CLICKED, [this](wxHtmlLinkEvent& evt) {
+    html_viewer->Bind(wxEVT_HTML_LINK_CLICKED, [](wxHtmlLinkEvent& evt) {
         wxLaunchDefaultBrowser(evt.GetLinkInfo().GetHref());
     });
     panel_sizer->Add(html_viewer, 1, wxEXPAND | wxALL, 5);
@@ -238,7 +234,7 @@ void CalibrationAbstractDialog::close_dialog()
     Destroy();
 }
 
-void CalibrationAbstractDialog::add_part(ModelObject* model_object, std::string input_file, Vec3d move, Vec3d scale, bool rotate) {
+void CalibrationAbstractDialog::add_part(ModelObject* model_object, const std::string& input_file, Vec3d move, Vec3d scale, bool rotate) {
     Model model;
     try {
         model = Model::read_from_file(input_file);

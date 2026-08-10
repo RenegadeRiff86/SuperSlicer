@@ -20,7 +20,10 @@
 #include <boost/property_tree/ptree.hpp> 
 #include <curl/curl.h>
 
+#ifdef _WIN32
 #include "libslic3r/miniz_extension.hpp"
+#include "libslic3r/Utils.hpp"
+#endif
 
 #include "slic3r/GUI/format.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
@@ -28,8 +31,6 @@
 #include "slic3r/GUI/I18N.hpp"
 #include "slic3r/GUI/GLCanvas3D.hpp"
 #include "slic3r/Utils/Http.hpp"
-
-#include "libslic3r/Utils.hpp"
 
 #ifdef _WIN32
 #include <shellapi.h>
@@ -44,8 +45,11 @@ namespace Slic3r {
 
 // Name of the bundled resources directory swapped in and out during an update,
 // and the log line announcing a version fetched from the update server.
-static constexpr const char* DIR_RESOURCES          = "resources";
+#ifdef _WIN32
+static constexpr const char* DIR_RESOURCES = "resources";
+#endif
 static constexpr const char* LOG_GOT_ONLINE_VERSION = "Got %1% online version: `%2%`. Sending to GUI thread...";
+static constexpr size_t BYTES_PER_MEBIBYTE = 1024 * 1024;
 
 namespace {
     
@@ -253,7 +257,7 @@ boost::filesystem::path AppUpdater::priv::download_file(const DownloadAppData& d
     }
 
     std::string error_message;
-    bool res = http_get_file(data.url, 130 * 1024 * 1024 //2.4.0 windows installer is 65MB //lm:I don't know, but larger. The binaries will grow. // dk: changed to 130, to have 100% more space. We should put this information into version file. 
+    bool res = http_get_file(data.url, 130 * BYTES_PER_MEBIBYTE //2.4.0 windows installer is 65MB //lm:I don't know, but larger. The binaries will grow. // dk: changed to 130, to have 100% more space. We should put this information into version file. 
         // on_progress
         , [&last_gui_progress, expected_size](Http::Progress progress) {
             // size check
@@ -348,7 +352,7 @@ void AppUpdater::priv::version_check(const std::string& version_check_url)
     assert(!version_check_url.empty());
     std::string error_message;
     // 02/09/2025: for superslcier, it's currently at 500k char in the string body. 1mio should be plenty.
-    bool res = http_get_file(version_check_url, 1024 * 1024
+    bool res = http_get_file(version_check_url, BYTES_PER_MEBIBYTE
         // on_progress
         , [](Http::Progress progress) { return true; }
         // on_complete
@@ -872,7 +876,7 @@ void AppUpdater::sync_download()
     std::string error_message;
     bool res = p->http_get_file(
         input_data.asset_url,
-        1024 * 1024
+        BYTES_PER_MEBIBYTE
         // on_progress
         ,
         [](Http::Progress progress) {
@@ -905,7 +909,7 @@ void AppUpdater::sync_download()
 #else
                 //linux
                 if (name.find("ubuntu") != std::string::npos ||
-                    name.find("linux") != std::string::npos && name.find("appimage") != std::string::npos)
+                    (name.find("linux") != std::string::npos && name.find("appimage") != std::string::npos))
 #endif
                 {
                     input_data.url = json_asset.second.get<std::string>("browser_download_url");

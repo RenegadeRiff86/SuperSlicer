@@ -26,13 +26,13 @@
 #include "format.hpp"
 
 #ifdef _WIN32
-	// The standard Windows includes.
-	#define WIN32_LEAN_AND_MEAN
+    // The standard Windows includes.
+    #define WIN32_LEAN_AND_MEAN
 #ifndef NOMINMAX
-	#define NOMINMAX
+    #define NOMINMAX
 #endif
-	#include <Windows.h>
-	#include <psapi.h>
+    #include <Windows.h>
+    #include <psapi.h>
 #endif /* _WIN32 */
 
 namespace Slic3r { 
@@ -99,15 +99,15 @@ SysInfoDialog::SysInfoDialog()
     : DPIDialog(static_cast<wxWindow*>(wxGetApp().mainframe), wxID_ANY, (wxGetApp().is_editor() ? wxString(SLIC3R_APP_NAME) : wxString(GCODEVIEWER_APP_NAME)) + " - " + _L("System Information"), wxDefaultPosition, wxDefaultSize,
       wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER, "sysinfo")
 {
-	wxColour bgr_clr = wxGetApp().get_window_default_clr();//wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
-	SetBackgroundColour(bgr_clr);
+    wxColour bgr_clr = wxGetApp().get_window_default_clr();//wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
+    SetBackgroundColour(bgr_clr);
     SetFont(wxGetApp().normal_font());
 
     wxBoxSizer* hsizer = new wxBoxSizer(wxHORIZONTAL);
     hsizer->SetMinSize(wxSize(50 * wxGetApp().em_unit(), -1));
 
-	auto main_sizer = new wxBoxSizer(wxVERTICAL);
-	main_sizer->Add(hsizer, 1, wxEXPAND | wxALL, 10);
+    auto main_sizer = new wxBoxSizer(wxVERTICAL);
+    main_sizer->Add(hsizer, 1, wxEXPAND | wxALL, 10);
 
     // logo
     //m_logo_bmp = ScalableBitmap(this, wxGetApp().logo_name(), 192);
@@ -143,7 +143,7 @@ SysInfoDialog::SysInfoDialog()
     {
         m_html->SetFonts(font.GetFaceName(), font.GetFaceName(), size);
         m_html->SetBorders(2);
-		const auto text = wxString::Format(
+        const auto text = wxString::Format(
             "<html>"
             "<body bgcolor= %s link= %s>"
             "<font color=%s>"
@@ -201,8 +201,8 @@ SysInfoDialog::SysInfoDialog()
 //     this->Bind(wxEVT_LEFT_DOWN, &SysInfoDialog::onCloseDialog, this);
 //     logo->Bind(wxEVT_LEFT_DOWN, &SysInfoDialog::onCloseDialog, this);
 
-	SetSizer(main_sizer);
-	main_sizer->SetSizeHints(this);
+    SetSizer(main_sizer);
+    main_sizer->SetSizeHints(this);
 }
 
 void SysInfoDialog::on_dpi_changed(const wxRect &suggested_rect)

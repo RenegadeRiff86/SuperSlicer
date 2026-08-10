@@ -21,11 +21,7 @@
 #include <wx/statbmp.h>
 #include <wx/stattext.h>
 
-#include "libslic3r/libslic3r.h"
 #include "libslic3r/Utils.hpp"
-#include "slic3r/Config/Snapshot.hpp"
-#include "slic3r/Utils/AppUpdater.hpp"
-#include "slic3r/Utils/Http.hpp"
 
 #include "ConfigWizard.hpp"
 #include "GUI.hpp"
@@ -39,9 +35,26 @@
 namespace Slic3r {
 namespace GUI {
 
+namespace {
+constexpr size_t kHttpThirdCharacterIndex          = 2;
+constexpr size_t kHttpFourthCharacterIndex         = 3;
+constexpr int    kVersionGridColumnCount           = 2;
+constexpr int    kDoubleVerticalSpacingMultiplier  = 2;
+constexpr int    kMultiplePrinterCount             = 2;
+constexpr int    kVersionColumn                    = 2;
+constexpr int    kUpgradeColumn                    = 3;
+constexpr int    kGridCellBorder                   = 2;
+constexpr int    kTripleVerticalSpacingMultiplier  = 3;
+constexpr int    kControlSpacerPixels              = 5;
+constexpr int    kRepositoryFieldHeight            = 30;
+constexpr int    kVersionGridHorizontalGap         = 30;
+constexpr int    kScrollStepPixels                 = 30;
+constexpr int    kPaleColorLowChannel              = 127;
+constexpr int    kPaleColorHighChannel             = 250;
+}
 
 constexpr bool starts_with_http(const char* str) {
-    return str[0] == 'h' && str[1] == 't' && str[2] == 't' && str[3] == 'p';
+    return str[0] == 'h' && str[1] == 't' && str[kHttpThirdCharacterIndex] == 't' && str[kHttpFourthCharacterIndex] == 'p';
 }
 
 static const char *URL_CHANGELOG = starts_with_http(SLIC3R_GITHUB) ? SLIC3R_GITHUB "/releases" :
@@ -58,89 +71,89 @@ static const std::string CONFIG_UPDATE_WIKI_URL("https://github.com/prusa3d/Prus
 // MsgUpdateSlic3r
 
 MsgUpdateSlic3r::MsgUpdateSlic3r(const Semver &ver_current, const Semver &ver_online)
-	: MsgDialog(nullptr, _(L("Update available")), wxString::Format(_(L("New version of %s is available")), SLIC3R_APP_NAME))
+    : MsgDialog(nullptr, _(L("Update available")), wxString::Format(_(L("New version of %s is available")), SLIC3R_APP_NAME))
 {
-	const bool dev_version = true;// ver_online.prerelease() != nullptr; // Slic3r is always a dev version
+    const bool dev_version = true;// ver_online.prerelease() != nullptr; // Slic3r is always a dev version
 
-	auto *versions = new wxFlexGridSizer(2, 0, VERT_SPACING);
-	versions->Add(new wxStaticText(this, wxID_ANY, _(L("Current version:"))));
-	versions->Add(new wxStaticText(this, wxID_ANY, ver_current.to_string()));
-	versions->Add(new wxStaticText(this, wxID_ANY, _(L("New version:"))));
-	versions->Add(new wxStaticText(this, wxID_ANY, ver_online.to_string()));
-	content_sizer->Add(versions);
-	content_sizer->AddSpacer(VERT_SPACING);
+    auto *versions = new wxFlexGridSizer(kVersionGridColumnCount, 0, VERT_SPACING);
+    versions->Add(new wxStaticText(this, wxID_ANY, _(L("Current version:"))));
+    versions->Add(new wxStaticText(this, wxID_ANY, ver_current.to_string()));
+    versions->Add(new wxStaticText(this, wxID_ANY, _(L("New version:"))));
+    versions->Add(new wxStaticText(this, wxID_ANY, ver_online.to_string()));
+    content_sizer->Add(versions);
+    content_sizer->AddSpacer(VERT_SPACING);
 
-	if (dev_version) {
-		const std::string url = (boost::format(URL_DEV) % ver_online.to_string()).str();
-		const wxString url_wx = from_u8(url);
-		auto *link = new wxHyperlinkCtrl(this, wxID_ANY, _(L("Changelog & Download")), url_wx);
-		content_sizer->Add(link);
-	} else {
-		const auto lang_code = wxGetApp().current_language_code_safe().ToStdString();
+    if (dev_version) {
+        const std::string url = (boost::format(URL_DEV) % ver_online.to_string()).str();
+        const wxString url_wx = from_u8(url);
+        auto *link = new wxHyperlinkCtrl(this, wxID_ANY, _(L("Changelog & Download")), url_wx);
+        content_sizer->Add(link);
+    } else {
+        const auto lang_code = wxGetApp().current_language_code_safe().ToStdString();
 
-		const std::string url_log = (boost::format(URL_CHANGELOG) % lang_code).str();
-		const wxString url_log_wx = from_u8(url_log);
-		auto *link_log = new wxHyperlinkCtrl(this, wxID_ANY, _(L("Open changelog page")), url_log_wx);
-		link_log->Bind(wxEVT_HYPERLINK, &MsgUpdateSlic3r::on_hyperlink, this);
-		content_sizer->Add(link_log);
+        const std::string url_log = (boost::format(URL_CHANGELOG) % lang_code).str();
+        const wxString url_log_wx = from_u8(url_log);
+        auto *link_log = new wxHyperlinkCtrl(this, wxID_ANY, _(L("Open changelog page")), url_log_wx);
+        link_log->Bind(wxEVT_HYPERLINK, &MsgUpdateSlic3r::on_hyperlink, this);
+        content_sizer->Add(link_log);
 
-		const std::string url_dw = (boost::format(URL_DOWNLOAD) % lang_code).str();
-		const wxString url_dw_wx = from_u8(url_dw);
-		auto *link_dw = new wxHyperlinkCtrl(this, wxID_ANY, _(L("Open download page")), url_dw_wx);
-		link_dw->Bind(wxEVT_HYPERLINK, &MsgUpdateSlic3r::on_hyperlink, this);
-		content_sizer->Add(link_dw);
-	}
+        const std::string url_dw = (boost::format(URL_DOWNLOAD) % lang_code).str();
+        const wxString url_dw_wx = from_u8(url_dw);
+        auto *link_dw = new wxHyperlinkCtrl(this, wxID_ANY, _(L("Open download page")), url_dw_wx);
+        link_dw->Bind(wxEVT_HYPERLINK, &MsgUpdateSlic3r::on_hyperlink, this);
+        content_sizer->Add(link_dw);
+    }
 
-	content_sizer->AddSpacer(2*VERT_SPACING);
+    content_sizer->AddSpacer(kDoubleVerticalSpacingMultiplier * VERT_SPACING);
 
-	cbox = new wxCheckBox(this, wxID_ANY, _(L("Don't notify about new releases any more")));
-	content_sizer->Add(cbox);
-	content_sizer->AddSpacer(VERT_SPACING);
+    cbox = new wxCheckBox(this, wxID_ANY, _(L("Don't notify about new releases any more")));
+    content_sizer->Add(cbox);
+    content_sizer->AddSpacer(VERT_SPACING);
 
-	finalize();
+    finalize();
 }
 
 MsgUpdateSlic3r::~MsgUpdateSlic3r() {}
 
 void MsgUpdateSlic3r::on_hyperlink(wxHyperlinkEvent& evt)
 {
-	wxGetApp().open_browser_with_warning_dialog(evt.GetURL());
+    wxGetApp().open_browser_with_warning_dialog(evt.GetURL());
 }
 
 bool MsgUpdateSlic3r::disable_version_check() const
 {
-	return cbox->GetValue();
+    return cbox->GetValue();
 }
 
  wxSize AppUpdateAvailableDialog::AUAD_size;
 // AppUpdater
 AppUpdateAvailableDialog::AppUpdateAvailableDialog(const Semver& ver_current, const Semver& ver_online, bool from_user)
-	: MsgDialog(nullptr, _(L("App Update available")), wxString::Format(_(L("New version of %s is available.\nDo you wish to download it?")), SLIC3R_APP_NAME))
+    : MsgDialog(nullptr, _(L("App Update available")), wxString::Format(_(L("New version of %s is available.\nDo you wish to download it?")), SLIC3R_APP_NAME))
 {
-	auto* versions = new wxFlexGridSizer(1, 0, VERT_SPACING);
-	versions->Add(new wxStaticText(this, wxID_ANY, _(L("Current version:"))));
-	versions->Add(new wxStaticText(this, wxID_ANY, ver_current.to_string()));
-	versions->Add(new wxStaticText(this, wxID_ANY, _(L("New version:"))));
-	versions->Add(new wxStaticText(this, wxID_ANY, ver_online.to_string()));
-	content_sizer->Add(versions);
-	content_sizer->AddSpacer(VERT_SPACING);
+    auto* versions = new wxFlexGridSizer(1, 0, VERT_SPACING);
+    versions->Add(new wxStaticText(this, wxID_ANY, _(L("Current version:"))));
+    versions->Add(new wxStaticText(this, wxID_ANY, ver_current.to_string()));
+    versions->Add(new wxStaticText(this, wxID_ANY, _(L("New version:"))));
+    versions->Add(new wxStaticText(this, wxID_ANY, ver_online.to_string()));
+    content_sizer->Add(versions);
+    content_sizer->AddSpacer(VERT_SPACING);
 
-	if(!from_user) {
-		cbox = new wxCheckBox(this, wxID_ANY, _(L("Don't notify about new releases any more")));
-		content_sizer->Add(cbox);
-	}
-	content_sizer->AddSpacer(VERT_SPACING);
-	
-	AUAD_size = content_sizer->GetSize();
-	
+    if(!from_user) {
+        cbox = new wxCheckBox(this, wxID_ANY, _(L("Don't notify about new releases any more")));
+        content_sizer->Add(cbox);
+    }
+    content_sizer->AddSpacer(VERT_SPACING);
     
-	add_button(wxID_NO);
-	add_button(wxID_CANCEL);
+    AUAD_size = content_sizer->GetSize();
     
-	SetButtonLabel(wxID_OK, _L("Next"));
-	SetButtonLabel(wxID_NO, _L("Skip"));
+    
+    add_button(wxID_NO);
+    add_button(wxID_CANCEL);
+    
+    SetButtonLabel(wxID_OK, _L("Next"));
+    SetButtonLabel(wxID_NO, _L("Skip"));
 
-	finalize();
+    finalize();
 }
 
 AppUpdateAvailableDialog::~AppUpdateAvailableDialog() {}
@@ -148,20 +161,20 @@ AppUpdateAvailableDialog::~AppUpdateAvailableDialog() {}
 
 bool AppUpdateAvailableDialog::disable_version_check() const
 {
-	if (!cbox)
-		return false;
-	return cbox->GetValue();
+    if (!cbox)
+        return false;
+    return cbox->GetValue();
 }
 
 // AppUpdateDownloadDialog
 AppUpdateDownloadDialog::AppUpdateDownloadDialog( const Semver& ver_online, boost::filesystem::path& path)
-	: MsgDialog(nullptr, _L("App Update download"), format_wxstr(_L("New version of %1% is available."), SLIC3R_APP_NAME))
+    : MsgDialog(nullptr, _L("App Update download"), format_wxstr(_L("New version of %1% is available."), SLIC3R_APP_NAME))
 {
-	auto* versions = new wxFlexGridSizer(2, 0, VERT_SPACING);
-	versions->Add(new wxStaticText(this, wxID_ANY, _L("New version") + ":"));
-	versions->Add(new wxStaticText(this, wxID_ANY, ver_online.to_string()));
-	content_sizer->Add(versions);
-	content_sizer->AddSpacer(VERT_SPACING);
+    auto* versions = new wxFlexGridSizer(kVersionGridColumnCount, 0, VERT_SPACING);
+    versions->Add(new wxStaticText(this, wxID_ANY, _L("New version") + ":"));
+    versions->Add(new wxStaticText(this, wxID_ANY, ver_online.to_string()));
+    content_sizer->Add(versions);
+    content_sizer->AddSpacer(VERT_SPACING);
 #ifndef __linux__
 #ifdef _WIN32
     cbox_replace = new wxCheckBox(this, wxID_ANY, _(L("Upgrade current installation")));
@@ -188,103 +201,103 @@ AppUpdateDownloadDialog::AppUpdateDownloadDialog( const Semver& ver_online, boos
     cbox_run->SetToolTip(
         _L("This option makes the slicer download the latest release and execute it (.msi on windows, .dmg on macos)."));
 #endif
-	content_sizer->AddSpacer(VERT_SPACING);
-	content_sizer->AddSpacer(VERT_SPACING);
-	content_sizer->Add(new wxStaticText(this, wxID_ANY, _L("Target directory") + ":"));
-	content_sizer->AddSpacer(VERT_SPACING);
-	txtctrl_path = new wxTextCtrl(this, wxID_ANY, GUI::format_wxstr(path.parent_path().string()));
+    content_sizer->AddSpacer(VERT_SPACING);
+    content_sizer->AddSpacer(VERT_SPACING);
+    content_sizer->Add(new wxStaticText(this, wxID_ANY, _L("Target directory") + ":"));
+    content_sizer->AddSpacer(VERT_SPACING);
+    txtctrl_path = new wxTextCtrl(this, wxID_ANY, GUI::format_wxstr(path.parent_path().string()));
     txtctrl_path->SetToolTip(
         _L("The directory the release is downloded to."));
-	filename = GUI::format_wxstr(path.filename().string());
-	content_sizer->Add(txtctrl_path, 1, wxEXPAND);
-	content_sizer->AddSpacer(VERT_SPACING);
-	
-	wxButton* btn = new wxButton(this, wxID_ANY, _L("Select directory"));
-	content_sizer->Add(btn/*, 1, wxEXPAND*/);
+    filename = GUI::format_wxstr(path.filename().string());
+    content_sizer->Add(txtctrl_path, 1, wxEXPAND);
+    content_sizer->AddSpacer(VERT_SPACING);
+    
+    wxButton* btn = new wxButton(this, wxID_ANY, _L("Select directory"));
+    content_sizer->Add(btn/*, 1, wxEXPAND*/);
 
-	// button to open file dialog
-	btn->Bind(wxEVT_BUTTON, ([this, path](wxCommandEvent& e) {
-		std::string extension = path.filename().extension().string();
-		wxString wildcard;
-		if (!extension.empty()) {
-			extension = extension.substr(1);
-			wxString wxext = boost::nowide::widen(extension);
-			wildcard = GUI::format_wxstr("%1% Files (*.%2%)|*.%2%", wxext.Upper(), wxext);
-		}
-		boost::system::error_code ec;
-		boost::filesystem::path dir = boost::filesystem::absolute(into_path(GUI::format(txtctrl_path->GetValue())), ec);
-		if (ec)
-			dir = GUI::format(txtctrl_path->GetValue());
-		wxDirDialog save_dlg(
-			this
-			, _L("Select directory") + ":"
-			, GUI::format_wxstr(dir.string())
-			/*
-			, filename //boost::nowide::widen(AppUpdater::get_filename_from_url(txtctrl_path->GetValue().ToUTF8().data()))
-			, wildcard
-			, wxFD_SAVE | wxFD_OVERWRITE_PROMPT*/
-		);
-		if (save_dlg.ShowModal() == wxID_OK) {
-			txtctrl_path->SetValue(save_dlg.GetPath());
-		}
-	}));
+    // button to open file dialog
+    btn->Bind(wxEVT_BUTTON, ([this, path](wxCommandEvent& e) {
+        std::string extension = path.filename().extension().string();
+        wxString wildcard;
+        if (!extension.empty()) {
+            extension = extension.substr(1);
+            wxString wxext = boost::nowide::widen(extension);
+            wildcard = GUI::format_wxstr("%1% Files (*.%2%)|*.%2%", wxext.Upper(), wxext);
+        }
+        boost::system::error_code ec;
+        boost::filesystem::path dir = boost::filesystem::absolute(into_path(GUI::format(txtctrl_path->GetValue())), ec);
+        if (ec)
+            dir = GUI::format(txtctrl_path->GetValue());
+        wxDirDialog save_dlg(
+            this
+            , _L("Select directory") + ":"
+            , GUI::format_wxstr(dir.string())
+            /*
+            , filename //boost::nowide::widen(AppUpdater::get_filename_from_url(txtctrl_path->GetValue().ToUTF8().data()))
+            , wildcard
+            , wxFD_SAVE | wxFD_OVERWRITE_PROMPT*/
+        );
+        if (save_dlg.ShowModal() == wxID_OK) {
+            txtctrl_path->SetValue(save_dlg.GetPath());
+        }
+    }));
 
-	content_sizer->SetMinSize(AppUpdateAvailableDialog::AUAD_size);
+    content_sizer->SetMinSize(AppUpdateAvailableDialog::AUAD_size);
 
-	add_button(wxID_CANCEL);
+    add_button(wxID_CANCEL);
 
-	if (auto* btn_ok = get_button(wxID_OK); btn_ok != NULL) {
-		btn_ok->SetLabel(_L("Download"));
-		btn_ok->Bind(wxEVT_BUTTON, ([this, path](wxCommandEvent& e){
-			boost::system::error_code ec;
-			std::string input = GUI::into_u8(txtctrl_path->GetValue());
-			boost::filesystem::path dir = boost::filesystem::absolute(into_path(input), ec);
-			if (ec)
-				dir = into_path(input);
-			bool show_change = (dir.string() != input);
-			boost::filesystem::path path = dir / GUI::format(filename);
-			ec.clear();
-			if (dir.string().empty()) {
-				MessageDialog msgdlg(nullptr, _L("Directory path is empty."), _L("Notice"), wxOK);
-				msgdlg.ShowModal();
-				return;
-			}
-			ec.clear();
-			if (!boost::filesystem::exists(dir, ec) || !boost::filesystem::is_directory(dir,ec) || ec) {
-				ec.clear();
-				if (!boost::filesystem::exists(dir.parent_path(), ec) || !boost::filesystem::is_directory(dir.parent_path(), ec) || ec) {
-					MessageDialog msgdlg(nullptr, _L("Directory path is incorrect."), _L("Notice"), wxOK);
-					msgdlg.ShowModal();
-					return;
-				}
-				show_change = false;
-				MessageDialog msgdlg(nullptr, GUI::format_wxstr(_L("Directory %1% doesn't exists. Do you wish to create it?"), dir.string()), _L("Notice"), wxYES_NO);
-				if (msgdlg.ShowModal() != wxID_YES)
-					return;
-				ec.clear();
-				if(!boost::filesystem::create_directory(dir, ec) || ec) {
-					MessageDialog msgdlg(nullptr, _L("Failed to create directory."), _L("Notice"), wxOK);
-					msgdlg.ShowModal();
-					return;
-				}
-			}
-			if (boost::filesystem::exists(path)) {
-				show_change = false;
-				MessageDialog msgdlg(nullptr, GUI::format_wxstr(_L("File %1% already exists. Do you wish to overwrite it?"), path.string()),_L("Notice"), wxYES_NO);
-				if (msgdlg.ShowModal() != wxID_YES)
-					return;
-			}
-			if (show_change) {
-				MessageDialog msgdlg(nullptr, GUI::format_wxstr(_L("Download path is %1%. Do you wish to continue?"), path.string()), _L("Notice"), wxYES_NO);
-				if (msgdlg.ShowModal() != wxID_YES)
-					return;
-			}
-			this->EndModal(wxID_OK);
-		}));
-	}
+    if (auto* btn_ok = get_button(wxID_OK); btn_ok != NULL) {
+        btn_ok->SetLabel(_L("Download"));
+        btn_ok->Bind(wxEVT_BUTTON, ([this, path](wxCommandEvent& e){
+            boost::system::error_code ec;
+            std::string input = GUI::into_u8(txtctrl_path->GetValue());
+            boost::filesystem::path dir = boost::filesystem::absolute(into_path(input), ec);
+            if (ec)
+                dir = into_path(input);
+            bool show_change = (dir.string() != input);
+            boost::filesystem::path path = dir / GUI::format(filename);
+            ec.clear();
+            if (dir.string().empty()) {
+                MessageDialog msgdlg(nullptr, _L("Directory path is empty."), _L("Notice"), wxOK);
+                msgdlg.ShowModal();
+                return;
+            }
+            ec.clear();
+            if (!boost::filesystem::exists(dir, ec) || !boost::filesystem::is_directory(dir,ec) || ec) {
+                ec.clear();
+                if (!boost::filesystem::exists(dir.parent_path(), ec) || !boost::filesystem::is_directory(dir.parent_path(), ec) || ec) {
+                    MessageDialog msgdlg(nullptr, _L("Directory path is incorrect."), _L("Notice"), wxOK);
+                    msgdlg.ShowModal();
+                    return;
+                }
+                show_change = false;
+                MessageDialog msgdlg(nullptr, GUI::format_wxstr(_L("Directory %1% doesn't exists. Do you wish to create it?"), dir.string()), _L("Notice"), wxYES_NO);
+                if (msgdlg.ShowModal() != wxID_YES)
+                    return;
+                ec.clear();
+                if(!boost::filesystem::create_directory(dir, ec) || ec) {
+                    MessageDialog msgdlg(nullptr, _L("Failed to create directory."), _L("Notice"), wxOK);
+                    msgdlg.ShowModal();
+                    return;
+                }
+            }
+            if (boost::filesystem::exists(path)) {
+                show_change = false;
+                MessageDialog msgdlg(nullptr, GUI::format_wxstr(_L("File %1% already exists. Do you wish to overwrite it?"), path.string()),_L("Notice"), wxYES_NO);
+                if (msgdlg.ShowModal() != wxID_YES)
+                    return;
+            }
+            if (show_change) {
+                MessageDialog msgdlg(nullptr, GUI::format_wxstr(_L("Download path is %1%. Do you wish to continue?"), path.string()), _L("Notice"), wxYES_NO);
+                if (msgdlg.ShowModal() != wxID_YES)
+                    return;
+            }
+            this->EndModal(wxID_OK);
+        }));
+    }
 
 
-	finalize();
+    finalize();
 }
 
 AppUpdateDownloadDialog::~AppUpdateDownloadDialog() {}
@@ -308,80 +321,80 @@ bool AppUpdateDownloadDialog::replace_current_after_download() const
 
 boost::filesystem::path AppUpdateDownloadDialog::get_download_path() const
 {
-	boost::system::error_code ec;
-	std::string input = GUI::into_u8(txtctrl_path->GetValue());
-	boost::filesystem::path dir = boost::filesystem::absolute(into_path(input), ec);
-	if (ec)
-		dir = into_path(input);
-	return dir / GUI::format(filename);
+    boost::system::error_code ec;
+    std::string input = GUI::into_u8(txtctrl_path->GetValue());
+    boost::filesystem::path dir = boost::filesystem::absolute(into_path(input), ec);
+    if (ec)
+        dir = into_path(input);
+    return dir / GUI::format(filename);
 }
 
 // MsgUpdateConfig
 
 MsgUpdateConfig::MsgUpdateConfig(const std::vector<Update> &updates, bool force_before_wizard/* = false*/) :
-	MsgDialog(nullptr, force_before_wizard ? _L("Opening Configuration Wizard") : _L("Configuration update"), 
-					   force_before_wizard ? wxString::Format(_L("%s is not using the newest configuration available.\n"
-												"Configuration Wizard may not offer the latest printers, filaments and SLA materials to be installed. "), SLIC3R_APP_NAME) : 
-											 _L("Configuration update is available"), wxICON_ERROR)
+    MsgDialog(nullptr, force_before_wizard ? _L("Opening Configuration Wizard") : _L("Configuration update"), 
+                       force_before_wizard ? wxString::Format(_L("%s is not using the newest configuration available.\n"
+                                                "Configuration Wizard may not offer the latest printers, filaments and SLA materials to be installed. "), SLIC3R_APP_NAME) : 
+                                             _L("Configuration update is available"), wxICON_ERROR)
 {
-	auto *text = new wxStaticText(this, wxID_ANY, _(L(
-		"Would you like to install it?\n\n"
-		"Note that a full configuration snapshot will be created first. It can then be restored at any time "
-		"should there be a problem with the new version.\n\n"
-		"Updated configuration bundles:"
-	)));
-	text->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
-	content_sizer->Add(text);
-	content_sizer->AddSpacer(VERT_SPACING);
+    auto *text = new wxStaticText(this, wxID_ANY, _(L(
+        "Would you like to install it?\n\n"
+        "Note that a full configuration snapshot will be created first. It can then be restored at any time "
+        "should there be a problem with the new version.\n\n"
+        "Updated configuration bundles:"
+    )));
+    text->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
+    content_sizer->Add(text);
+    content_sizer->AddSpacer(VERT_SPACING);
 
-	const auto lang_code = wxGetApp().current_language_code_safe().ToStdString();
+    const auto lang_code = wxGetApp().current_language_code_safe().ToStdString();
 
-	auto *versions = new wxBoxSizer(wxVERTICAL);
-	for (const auto &update : updates) {
-		auto *flex = new wxFlexGridSizer(2, 0, VERT_SPACING);
+    auto *versions = new wxBoxSizer(wxVERTICAL);
+    for (const auto &update : updates) {
+        auto *flex = new wxFlexGridSizer(kVersionGridColumnCount, 0, VERT_SPACING);
 
-		auto *text_vendor = new wxStaticText(this, wxID_ANY, update.vendor);
-		text_vendor->SetFont(boldfont);
-		flex->Add(text_vendor);
-		flex->Add(new wxStaticText(this, wxID_ANY, update.version.to_string()));
+        auto *text_vendor = new wxStaticText(this, wxID_ANY, update.vendor);
+        text_vendor->SetFont(boldfont);
+        flex->Add(text_vendor);
+        flex->Add(new wxStaticText(this, wxID_ANY, update.version.to_string()));
 
-		if (! update.comment.empty()) {
-			flex->Add(new wxStaticText(this, wxID_ANY, _(L("Comment:"))), 0, wxALIGN_RIGHT);
-			auto *update_comment = new wxStaticText(this, wxID_ANY, from_u8(update.comment));
-			update_comment->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
-			flex->Add(update_comment);
-		}
+        if (! update.comment.empty()) {
+            flex->Add(new wxStaticText(this, wxID_ANY, _(L("Comment:"))), 0, wxALIGN_RIGHT);
+            auto *update_comment = new wxStaticText(this, wxID_ANY, from_u8(update.comment));
+            update_comment->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
+            flex->Add(update_comment);
+        }
 
-		if (! update.new_printers.empty()) {
-			flex->Add(new wxStaticText(this, wxID_ANY, _L_PLURAL("New printer", "New printers", update.new_printers.find(',') == std::string::npos ? 1 : 2) + ":"), 0, wxALIGN_RIGHT);
-			auto* update_printer = new wxStaticText(this, wxID_ANY, from_u8(update.new_printers));
-			update_printer->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
-			flex->Add(update_printer);
-		}
+        if (! update.new_printers.empty()) {
+            flex->Add(new wxStaticText(this, wxID_ANY, _L_PLURAL("New printer", "New printers", update.new_printers.find(',') == std::string::npos ? 1 : kMultiplePrinterCount) + ":"), 0, wxALIGN_RIGHT);
+            auto* update_printer = new wxStaticText(this, wxID_ANY, from_u8(update.new_printers));
+            update_printer->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
+            flex->Add(update_printer);
+        }
 
-		versions->Add(flex);
+        versions->Add(flex);
 
-		if (! update.changelog_url.empty() && update.version.prerelease() == nullptr) {
-			auto *line = new wxBoxSizer(wxHORIZONTAL);
-			auto changelog_url = (boost::format(update.changelog_url) % lang_code).str();
-			line->AddSpacer(3*VERT_SPACING);
-			line->Add(new wxHyperlinkCtrl(this, wxID_ANY, _(L("Open changelog page")), changelog_url));
-			versions->Add(line);
-			versions->AddSpacer(1); // empty value for the correct alignment inside a GridSizer
-		}
-	}
+        if (! update.changelog_url.empty() && update.version.prerelease() == nullptr) {
+            auto *line = new wxBoxSizer(wxHORIZONTAL);
+            auto changelog_url = (boost::format(update.changelog_url) % lang_code).str();
+            line->AddSpacer(kTripleVerticalSpacingMultiplier * VERT_SPACING);
+            line->Add(new wxHyperlinkCtrl(this, wxID_ANY, _(L("Open changelog page")), changelog_url));
+            versions->Add(line);
+            versions->AddSpacer(1); // empty value for the correct alignment inside a GridSizer
+        }
+    }
 
-	content_sizer->Add(versions);
-	content_sizer->AddSpacer(2*VERT_SPACING);
+    content_sizer->Add(versions);
+    content_sizer->AddSpacer(kDoubleVerticalSpacingMultiplier * VERT_SPACING);
 
-	add_button(wxID_OK, true, force_before_wizard ? _L("Install") : "OK");
-	if (force_before_wizard) {
-		auto* btn = add_button(wxID_CLOSE, false, _L("Don't install"));
-		btn->Bind(wxEVT_BUTTON, [this](const wxCommandEvent&) { this->EndModal(wxID_CLOSE); });
-	}
-	add_button(wxID_CANCEL);
+    add_button(wxID_OK, true, force_before_wizard ? _L("Install") : "OK");
+    if (force_before_wizard) {
+        auto* btn = add_button(wxID_CLOSE, false, _L("Don't install"));
+        btn->Bind(wxEVT_BUTTON, [this](const wxCommandEvent&) { this->EndModal(wxID_CLOSE); });
+    }
+    add_button(wxID_CANCEL);
 
-	finalize();
+    finalize();
 }
 
 MsgUpdateConfig::~MsgUpdateConfig() {}
@@ -391,53 +404,53 @@ MsgUpdateConfig::~MsgUpdateConfig() {}
 MsgUpdateForced::MsgUpdateForced(const std::vector<Update>& updates) :
     MsgDialog(nullptr, wxString::Format(_(L("%s incompatibility")), SLIC3R_APP_NAME), _(L("You must install a configuration update.")) + " ", wxOK | wxICON_ERROR)
 {
-	auto* text = new wxStaticText(this, wxID_ANY, wxString::Format(_(L(
-		"%s will now start updates. Otherwise these profiles may have some settings modified after loading, and they may not work as expected.\n\n"
-		"Note that a full configuration snapshot will be created first. It can then be restored at any time "
-		"should there be a problem with the new version.\n\n"
-		"Updated configuration bundles:"
-	)), SLIC3R_APP_NAME));
-	
+    auto* text = new wxStaticText(this, wxID_ANY, wxString::Format(_(L(
+        "%s will now start updates. Otherwise these profiles may have some settings modified after loading, and they may not work as expected.\n\n"
+        "Note that a full configuration snapshot will be created first. It can then be restored at any time "
+        "should there be a problem with the new version.\n\n"
+        "Updated configuration bundles:"
+    )), SLIC3R_APP_NAME));
+    
 
-	text->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
-	content_sizer->Add(text);
-	content_sizer->AddSpacer(VERT_SPACING);
+    text->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
+    content_sizer->Add(text);
+    content_sizer->AddSpacer(VERT_SPACING);
 
-	const auto lang_code = wxGetApp().current_language_code_safe().ToStdString();
+    const auto lang_code = wxGetApp().current_language_code_safe().ToStdString();
 
-	auto* versions = new wxFlexGridSizer(2, 0, VERT_SPACING);
-	for (const auto& update : updates) {
-		auto* text_vendor = new wxStaticText(this, wxID_ANY, update.vendor);
-		text_vendor->SetFont(boldfont);
-		versions->Add(text_vendor);
-		versions->Add(new wxStaticText(this, wxID_ANY, update.version.to_string()));
+    auto* versions = new wxFlexGridSizer(kVersionGridColumnCount, 0, VERT_SPACING);
+    for (const auto& update : updates) {
+        auto* text_vendor = new wxStaticText(this, wxID_ANY, update.vendor);
+        text_vendor->SetFont(boldfont);
+        versions->Add(text_vendor);
+        versions->Add(new wxStaticText(this, wxID_ANY, update.version.to_string()));
 
-		if (!update.comment.empty()) {
-			versions->Add(new wxStaticText(this, wxID_ANY, _(L("Comment:")))/*, 0, wxALIGN_RIGHT*/);//uncoment if align to right (might not look good if 1  vedor name is longer than other names)
-			auto* update_comment = new wxStaticText(this, wxID_ANY, from_u8(update.comment));
-			update_comment->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
-			versions->Add(update_comment);
-		}
+        if (!update.comment.empty()) {
+            versions->Add(new wxStaticText(this, wxID_ANY, _(L("Comment:")))/*, 0, wxALIGN_RIGHT*/);//uncoment if align to right (might not look good if 1  vedor name is longer than other names)
+            auto* update_comment = new wxStaticText(this, wxID_ANY, from_u8(update.comment));
+            update_comment->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
+            versions->Add(update_comment);
+        }
 
-		if (!update.new_printers.empty()) {
-			versions->Add(new wxStaticText(this, wxID_ANY, _L_PLURAL("New printer", "New printers", update.new_printers.find(',') == std::string::npos ? 1 : 2)+":")/*, 0, wxALIGN_RIGHT*/);
-			auto* update_printer = new wxStaticText(this, wxID_ANY, from_u8(update.new_printers));
-			update_printer->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
-			versions->Add(update_printer);
-		}
+        if (!update.new_printers.empty()) {
+            versions->Add(new wxStaticText(this, wxID_ANY, _L_PLURAL("New printer", "New printers", update.new_printers.find(',') == std::string::npos ? 1 : kMultiplePrinterCount)+":")/*, 0, wxALIGN_RIGHT*/);
+            auto* update_printer = new wxStaticText(this, wxID_ANY, from_u8(update.new_printers));
+            update_printer->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
+            versions->Add(update_printer);
+        }
 
-		if (!update.changelog_url.empty() && update.version.prerelease() == nullptr) {
-			auto* line = new wxBoxSizer(wxHORIZONTAL);
-			auto changelog_url = (boost::format(update.changelog_url) % lang_code).str();
-			line->AddSpacer(3 * VERT_SPACING);
-			line->Add(new wxHyperlinkCtrl(this, wxID_ANY, _(L("Open changelog page")), changelog_url));
-			versions->Add(line);
-			versions->AddSpacer(1); // empty value for the correct alignment inside a GridSizer
-		}
-	}
+        if (!update.changelog_url.empty() && update.version.prerelease() == nullptr) {
+            auto* line = new wxBoxSizer(wxHORIZONTAL);
+            auto changelog_url = (boost::format(update.changelog_url) % lang_code).str();
+            line->AddSpacer(kTripleVerticalSpacingMultiplier * VERT_SPACING);
+            line->Add(new wxHyperlinkCtrl(this, wxID_ANY, _(L("Open changelog page")), changelog_url));
+            versions->Add(line);
+            versions->AddSpacer(1); // empty value for the correct alignment inside a GridSizer
+        }
+    }
 
-	content_sizer->Add(versions);
-	content_sizer->AddSpacer(2 * VERT_SPACING);
+    content_sizer->Add(versions);
+    content_sizer->AddSpacer(kDoubleVerticalSpacingMultiplier * VERT_SPACING);
 
     if (updates.size() > 1) {
         add_button(wxID_EDIT , false, _L("Choose which one to install"));
@@ -463,44 +476,44 @@ MsgDataIncompatible::MsgDataIncompatible(const std::unordered_map<std::string, w
     MsgDialog(nullptr, wxString::Format(_(L("%s incompatibility")), SLIC3R_APP_NAME), 
                        wxString::Format(_(L("%s configuration is incompatible")), SLIC3R_APP_NAME), wxICON_ERROR)
 {
-	auto *text = new wxStaticText(this, wxID_ANY, wxString::Format(_(L(
-		"This version of %s is not compatible with currently installed configuration bundles.\n"
-		"This probably happened as a result of running an older %s after using a newer one.\n\n"
+    auto *text = new wxStaticText(this, wxID_ANY, wxString::Format(_(L(
+        "This version of %s is not compatible with currently installed configuration bundles.\n"
+        "This probably happened as a result of running an older %s after using a newer one.\n\n"
 
-		"You may either exit %s and try again with a newer version, or you may re-run the initial configuration. "
-		"Doing so will create a backup snapshot of the existing configuration before installing files compatible with this %s.")) + "\n", 
-		SLIC3R_APP_NAME, SLIC3R_APP_NAME, SLIC3R_APP_NAME, SLIC3R_APP_NAME));
-	text->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
-	content_sizer->Add(text);
+        "You may either exit %s and try again with a newer version, or you may re-run the initial configuration. "
+        "Doing so will create a backup snapshot of the existing configuration before installing files compatible with this %s.")) + "\n", 
+        SLIC3R_APP_NAME, SLIC3R_APP_NAME, SLIC3R_APP_NAME, SLIC3R_APP_NAME));
+    text->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
+    content_sizer->Add(text);
 
-	auto *text2 = new wxStaticText(this, wxID_ANY, wxString::Format(_(L("This %s version: %s")), SLIC3R_APP_NAME, SLIC3R_VERSION_FULL));
-	text2->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
-	content_sizer->Add(text2);
-	content_sizer->AddSpacer(VERT_SPACING);
+    auto *text2 = new wxStaticText(this, wxID_ANY, wxString::Format(_(L("This %s version: %s")), SLIC3R_APP_NAME, SLIC3R_VERSION_FULL));
+    text2->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
+    content_sizer->Add(text2);
+    content_sizer->AddSpacer(VERT_SPACING);
 
-	auto *text3 = new wxStaticText(this, wxID_ANY, _(L("Incompatible bundles:")));
-	text3->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
-	content_sizer->Add(text3);
-	content_sizer->AddSpacer(VERT_SPACING);
+    auto *text3 = new wxStaticText(this, wxID_ANY, _(L("Incompatible bundles:")));
+    text3->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
+    content_sizer->Add(text3);
+    content_sizer->AddSpacer(VERT_SPACING);
 
-	auto *versions = new wxFlexGridSizer(2, 0, VERT_SPACING);
-	for (const auto &incompat : incompats) {
-		auto *text_vendor = new wxStaticText(this, wxID_ANY, incompat.first);
-		text_vendor->SetFont(boldfont);
-		versions->Add(text_vendor);
-		versions->Add(new wxStaticText(this, wxID_ANY, incompat.second));
-	}
+    auto *versions = new wxFlexGridSizer(kVersionGridColumnCount, 0, VERT_SPACING);
+    for (const auto &incompat : incompats) {
+        auto *text_vendor = new wxStaticText(this, wxID_ANY, incompat.first);
+        text_vendor->SetFont(boldfont);
+        versions->Add(text_vendor);
+        versions->Add(new wxStaticText(this, wxID_ANY, incompat.second));
+    }
 
-	content_sizer->Add(versions);
-	content_sizer->AddSpacer(2*VERT_SPACING);
+    content_sizer->Add(versions);
+    content_sizer->AddSpacer(kDoubleVerticalSpacingMultiplier * VERT_SPACING);
 
-	add_button(wxID_REPLACE, true, _L("Re-configure"));
-	add_button(wxID_EXIT, false, wxString::Format(_L("Exit %s"), SLIC3R_APP_NAME));
+    add_button(wxID_REPLACE, true, _L("Re-configure"));
+    add_button(wxID_EXIT, false, wxString::Format(_L("Exit %s"), SLIC3R_APP_NAME));
 
-	for (auto ID : {wxID_EXIT, wxID_REPLACE})
-		get_button(ID)->Bind(wxEVT_BUTTON, [this](const wxCommandEvent& evt) { this->EndModal(evt.GetId()); });
+    for (auto ID : {wxID_EXIT, wxID_REPLACE})
+        get_button(ID)->Bind(wxEVT_BUTTON, [this](const wxCommandEvent& evt) { this->EndModal(evt.GetId()); });
 
-	finalize();
+    finalize();
 }
 
 MsgDataIncompatible::~MsgDataIncompatible() {}
@@ -509,33 +522,33 @@ MsgDataIncompatible::~MsgDataIncompatible() {}
 // MsgDataLegacy
 
 MsgDataLegacy::MsgDataLegacy() :
-	MsgDialog(nullptr, _(L("Configuration update")), _(L("Configuration update")))
+    MsgDialog(nullptr, _(L("Configuration update")), _(L("Configuration update")))
 {
     auto *text = new wxStaticText(this, wxID_ANY, format_wxstr( _L(
-			"%s now uses an updated configuration structure.\n\n"
+            "%s now uses an updated configuration structure.\n\n"
 
-			"So called 'System presets' have been introduced, which hold the built-in default settings for various "
-			"printers. These System presets cannot be modified, instead, users now may create their "
-			"own presets inheriting settings from one of the System presets.\n"
-			"An inheriting preset may either inherit a particular value from its parent or override it with a customized value.\n\n"
+            "So called 'System presets' have been introduced, which hold the built-in default settings for various "
+            "printers. These System presets cannot be modified, instead, users now may create their "
+            "own presets inheriting settings from one of the System presets.\n"
+            "An inheriting preset may either inherit a particular value from its parent or override it with a customized value.\n\n"
 
-			"Please proceed with the %s that follows to set up the new presets "
-			"and to choose whether to enable automatic preset updates."
+            "Please proceed with the %s that follows to set up the new presets "
+            "and to choose whether to enable automatic preset updates."
         )
         , SLIC3R_APP_NAME, ConfigWizard::name()));
-	text->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
-	content_sizer->Add(text);
-	content_sizer->AddSpacer(VERT_SPACING);
+    text->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
+    content_sizer->Add(text);
+    content_sizer->AddSpacer(VERT_SPACING);
 
-	auto *text2 = new wxStaticText(this, wxID_ANY, _(L("For more information please visit Prusa wiki page:")));
-	// The wiki page name is intentionally not localized:
-	// TRN %s = PrusaSlicer
-	auto *link = new wxHyperlinkCtrl(this, wxID_ANY, format_wxstr(_L("%s 1.40 configuration update"), SLIC3R_APP_NAME), CONFIG_UPDATE_WIKI_URL);
-	content_sizer->Add(text2);
-	content_sizer->Add(link);
-	content_sizer->AddSpacer(VERT_SPACING);
+    auto *text2 = new wxStaticText(this, wxID_ANY, _(L("For more information please visit Prusa wiki page:")));
+    // The wiki page name is intentionally not localized:
+    // TRN %s = PrusaSlicer
+    auto *link = new wxHyperlinkCtrl(this, wxID_ANY, format_wxstr(_L("%s 1.40 configuration update"), SLIC3R_APP_NAME), CONFIG_UPDATE_WIKI_URL);
+    content_sizer->Add(text2);
+    content_sizer->Add(link);
+    content_sizer->AddSpacer(VERT_SPACING);
 
-	finalize();
+    finalize();
 }
 
 MsgDataLegacy::~MsgDataLegacy() {}
@@ -547,32 +560,32 @@ MsgNoUpdates::MsgNoUpdates() :
     MsgDialog(nullptr, _(L("Configuration updates")), _(L("No updates available")), wxICON_ERROR | wxOK)
 {
 
-	auto* text = new wxStaticText(this, wxID_ANY, wxString::Format(
-		_(L(
+    auto* text = new wxStaticText(this, wxID_ANY, wxString::Format(
+        _(L(
             "%s has no configuration updates available."
-		)),
+        )),
         SLIC3R_APP_NAME
-	));
-	text->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
-	content_sizer->Add(text);
-	content_sizer->AddSpacer(VERT_SPACING);
+    ));
+    text->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
+    content_sizer->Add(text);
+    content_sizer->AddSpacer(VERT_SPACING);
 
-	finalize();
+    finalize();
 }
 
 MsgNoUpdates::~MsgNoUpdates() {}
 
 // MsgNoAppUpdates
 MsgNoAppUpdates::MsgNoAppUpdates() :
-	MsgDialog(nullptr, _(L("App update")), _(L("No updates available")), wxICON_ERROR | wxOK)
+    MsgDialog(nullptr, _(L("App update")), _(L("No updates available")), wxICON_ERROR | wxOK)
 {
-	//TRN %1% is PrusaSlicer
-	auto* text = new wxStaticText(this, wxID_ANY, format_wxstr(_L("Your %1% is up to date."),SLIC3R_APP_NAME));
-	text->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
-	content_sizer->Add(text);
-	content_sizer->AddSpacer(VERT_SPACING);
+    //TRN %1% is PrusaSlicer
+    auto* text = new wxStaticText(this, wxID_ANY, format_wxstr(_L("Your %1% is up to date."),SLIC3R_APP_NAME));
+    text->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
+    content_sizer->Add(text);
+    content_sizer->AddSpacer(VERT_SPACING);
 
-	finalize();
+    finalize();
 }
 
 MsgNoAppUpdates::~MsgNoAppUpdates() {}
@@ -603,7 +616,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
     ////// name //////
     wxStaticText *msg_name = new wxStaticText(parent, wxID_ANY, vendor.profile.full_name);
     msg_name->SetToolTip(vendor.profile.description);
-    versions_sizer->Add(msg_name, wxGBPosition(line_num, 1), wxGBSpan(1, 1), wxALIGN_RIGHT, 2);
+    versions_sizer->Add(msg_name, wxGBPosition(line_num, 1), wxGBSpan(1, 1), wxALIGN_RIGHT, kGridCellBorder);
 
     ////// version selector button //////
     wxString bt_version_msg;
@@ -628,7 +641,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
         }));
     }
     bt_version->SetToolTip(_L("Click this button to choose a different version from the one currently installed."));
-    versions_sizer->Add(bt_version, wxGBPosition(line_num, 2), wxGBSpan(1, 1), wxEXPAND, 2);
+    versions_sizer->Add(bt_version, wxGBPosition(line_num, kVersionColumn), wxGBSpan(1, 1), wxEXPAND, kGridCellBorder);
 
     ////// upgrade //////
     wxStaticText *msg_synch = nullptr;
@@ -643,10 +656,10 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                    "\nTo upgrade it, since it doesn't have an online repository, you need to paste the new vendor "
                    ".ini file in your configuration/cache/vendor directory. "
                    "\nA new version of the slicer may also come bundled with a new version of the profile."));
-            versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
+            versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, kUpgradeColumn), wxGBSpan(1, 1), wxEXPAND, kGridCellBorder);
             bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
                 this->wait_dialog = std::make_unique<wxBusyInfo>(_L("Installing the local preset, please wait"));
-                this->m_data.install_vendor(vendor_id, best_version, [this](std::string error_msg) {
+                this->m_data.install_vendor(vendor_id, best_version, [this](const std::string& error_msg) {
                     // end of waiting dialog (yes, it has to be called without any exception)
                     this->wait_dialog.reset();
                     this->request_show_error_msg(error_msg);
@@ -664,7 +677,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
             }
             bt_upgrade->SetToolTip(_L("Click this button to create a snapshot and upgrade this vendor bundle to the "
                                       "latest compatible version."));
-            versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
+            versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, kUpgradeColumn), wxGBSpan(1, 1), wxEXPAND, kGridCellBorder);
             bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
                                  this->wait_dialog = std::make_unique<wxBusyInfo>(_L("Upgrading the preset, please wait"));
                                  this->m_data.install_vendor(vendor_id, best_version,
@@ -698,7 +711,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
             }
             bt_upgrade->SetToolTip(_L("Click this button to create a snapshot and upgrade this vendor bundle to the "
                                       "latest compatible version."));
-            versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
+            versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, kUpgradeColumn), wxGBSpan(1, 1), wxEXPAND, kGridCellBorder);
             bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
                 this->wait_dialog = std::make_unique<wxBusyInfo>(_L("Upgrading the preset, please wait"));
                 this->m_data.install_vendor(vendor_id, best_version, [this](const std::string &error_msg) {
@@ -723,7 +736,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                 bts_green_color.push_back(bt_upgrade);
             }
             bt_upgrade->SetToolTip(_L("Click this button to create a snapshot and install this vendor bundle available in the local repository."));
-            versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
+            versions_sizer->Add(bt_upgrade, wxGBPosition(line_num, kUpgradeColumn), wxGBSpan(1, 1), wxEXPAND, kGridCellBorder);
             bt_upgrade->Bind(wxEVT_BUTTON, ([this, vendor_id, best_version](wxCommandEvent &e) {
                 this->wait_dialog = std::make_unique<wxBusyInfo>(_L("Installing the preset, please wait"));
                 this->m_data.install_vendor(vendor_id, best_version, [this](const std::string &error_msg) {
@@ -743,7 +756,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
                                  "'Check for updates' button to check."));
     }
     if (msg_synch) {
-        versions_sizer->Add(msg_synch, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxALIGN_RIGHT, 2);
+        versions_sizer->Add(msg_synch, wxGBPosition(line_num, kUpgradeColumn), wxGBSpan(1, 1), wxALIGN_RIGHT, kGridCellBorder);
     }
 
     ////// Uninstall button //////
@@ -791,7 +804,7 @@ void UpdateConfigDialog::add_vendor_in_list(wxWindow *parent, VendorSync &vendor
         "Click the button to uninstall the vendor bundle. The printer(s) will no longer be selectable in the wizard or the slicer. "
         "\nThe uninstalled bundle will be saved in a cache so you can reinstall it at any time. "
         "\nNote: If a user profile depends on a profile from this bundle, it may break. Please detach them beforehand."));
-    versions_sizer->Add(bt_uninstall, wxGBPosition(line_num, 4), wxGBSpan(1, 1), wxEXPAND, 2);
+    versions_sizer->Add(bt_uninstall, wxGBPosition(line_num, 4), wxGBSpan(1, 1), wxEXPAND, kGridCellBorder);
 }
 
 void UpdateConfigDialog::build_ui() {
@@ -808,9 +821,9 @@ void UpdateConfigDialog::build_ui() {
             "\nYou can install all vendor bundles, but doing so may significantly increase the time it takes to open the wizard."
         );
         wxBoxSizer *message_sizer = new wxBoxSizer(wxHORIZONTAL);
-        message_sizer->AddSpacer(5);
+        message_sizer->AddSpacer(kControlSpacerPixels);
         message_sizer->Add(lbl_message);
-        main_sizer->AddSpacer(5);
+        main_sizer->AddSpacer(kControlSpacerPixels);
         main_sizer->Add(message_sizer);
     }
 
@@ -826,13 +839,13 @@ void UpdateConfigDialog::build_ui() {
         }, true);
     }));
     wxBoxSizer *bt_synch_sizer = new wxBoxSizer(wxHORIZONTAL);
-    bt_synch_sizer->AddSpacer(5);
+    bt_synch_sizer->AddSpacer(kControlSpacerPixels);
     bt_synch_sizer->Add(bt_synch);
     main_sizer->AddSpacer(10);
     main_sizer->Add(bt_synch_sizer);
 
     // field to add a new repository
-    txt_new_repo = new wxTextCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(350,30));
+    txt_new_repo = new wxTextCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(350, kRepositoryFieldHeight));
     txt_new_repo->SetHint("github.com/SuperSlicer_org/Basic");
     // button to add a new repository
     wxButton *bt_add = new wxButton(this, wxID_ANY, _L("Add a new vendor"));
@@ -912,18 +925,18 @@ void UpdateConfigDialog::build_ui() {
         }
     }));
     wxBoxSizer *github_add_sizer = new wxBoxSizer(wxHORIZONTAL);
-    github_add_sizer->AddSpacer(5);
+    github_add_sizer->AddSpacer(kControlSpacerPixels);
     github_add_sizer->Add(txt_new_repo);
-    github_add_sizer->AddSpacer(5);
+    github_add_sizer->AddSpacer(kControlSpacerPixels);
     github_add_sizer->Add(bt_add);
-    github_add_sizer->AddSpacer(5);
+    github_add_sizer->AddSpacer(kControlSpacerPixels);
     github_add_sizer->Add(bt_load);
     github_add_sizer->AddSpacer(15);
-    main_sizer->AddSpacer(5);
+    main_sizer->AddSpacer(kControlSpacerPixels);
     main_sizer->Add(github_add_sizer);
 
     // "table" of all availables repositories
-    wxGridBagSizer *versions_sizer = new wxGridBagSizer(10, 30); //(int vgap, int hgap)
+    wxGridBagSizer *versions_sizer = new wxGridBagSizer(10, kVersionGridHorizontalGap); //(int vgap, int hgap)
     versions_sizer->AddGrowableCol(1);
     hscroll = new wxScrolledWindow(this);
 
@@ -934,21 +947,21 @@ void UpdateConfigDialog::build_ui() {
 
     int row_idx = 1;
     wxStaticText *msg_name = new wxStaticText(hscroll, wxID_ANY, _L("Vendor Name"));
-    versions_sizer->Add(msg_name, wxGBPosition(row_idx, 1), wxGBSpan(1, 1), wxALIGN_RIGHT, 2);
+    versions_sizer->Add(msg_name, wxGBPosition(row_idx, 1), wxGBSpan(1, 1), wxALIGN_RIGHT, kGridCellBorder);
     wxStaticText *msg_version = new wxStaticText(hscroll, wxID_ANY, _L("Installed version"));
-    versions_sizer->Add(msg_version, wxGBPosition(row_idx, 2), wxGBSpan(1, 1), wxALIGN_RIGHT, 2);
+    versions_sizer->Add(msg_version, wxGBPosition(row_idx, kVersionColumn), wxGBSpan(1, 1), wxALIGN_RIGHT, kGridCellBorder);
     wxStaticText *msg_upgrade = new wxStaticText(hscroll, wxID_ANY, _L("Upgrade"));
-    versions_sizer->Add(msg_upgrade, wxGBPosition(row_idx, 3), wxGBSpan(1, 1), wxALIGN_RIGHT, 2);
+    versions_sizer->Add(msg_upgrade, wxGBPosition(row_idx, kUpgradeColumn), wxGBSpan(1, 1), wxALIGN_RIGHT, kGridCellBorder);
     wxStaticText *msg_uninstall = new wxStaticText(hscroll, wxID_ANY, _L("Uninstall"));
-    versions_sizer->Add(msg_uninstall, wxGBPosition(row_idx, 4), wxGBSpan(1, 1), wxALIGN_RIGHT, 2);
+    versions_sizer->Add(msg_uninstall, wxGBPosition(row_idx, 4), wxGBSpan(1, 1), wxALIGN_RIGHT, kGridCellBorder);
 
     ++row_idx;
     wxButton *bt_install_all = new wxButton(hscroll, wxID_ANY, _L("Install all"));
-    versions_sizer->Add(bt_install_all, wxGBPosition(row_idx, 2), wxGBSpan(1, 1), wxEXPAND, 2);
+    versions_sizer->Add(bt_install_all, wxGBPosition(row_idx, kVersionColumn), wxGBSpan(1, 1), wxEXPAND, kGridCellBorder);
     wxButton *bt_upgrade_all = new wxButton(hscroll, wxID_ANY, _L("Upgrade all"));
-    versions_sizer->Add(bt_upgrade_all, wxGBPosition(row_idx, 3), wxGBSpan(1, 1), wxEXPAND, 2);
+    versions_sizer->Add(bt_upgrade_all, wxGBPosition(row_idx, kUpgradeColumn), wxGBSpan(1, 1), wxEXPAND, kGridCellBorder);
     wxButton *bt_uninstall_all = new wxButton(hscroll, wxID_ANY, _L("Uninstall all"));
-    versions_sizer->Add(bt_uninstall_all, wxGBPosition(row_idx, 4), wxGBSpan(1, 1), wxEXPAND, 2);
+    versions_sizer->Add(bt_uninstall_all, wxGBPosition(row_idx, 4), wxGBSpan(1, 1), wxEXPAND, kGridCellBorder);
     bt_install_all->Bind(wxEVT_BUTTON, ([this](wxCommandEvent &e) {
         this->wait_dialog = std::make_unique<wxBusyInfo>(_L("Installing the presets, please wait"));
         this->m_data.install_all_vendors([this](const std::string &error_msg) {
@@ -1010,18 +1023,18 @@ void UpdateConfigDialog::build_ui() {
         wxStaticText *msg_name = new wxStaticText(hscroll, wxID_ANY, _L("No vendor bundle available. Please add one manually or by adding a repository."));
         msg_name->SetToolTip(_L("There is no vendor bundle included with this version of the slicer. You can add a vendor bundle file using the 'Load Vendor INI File' button, "
             "or you can add a vendor repository (for example, SuperSlicer-org/Voron-Profile) by entering the URL in the text field and then clicking the 'Add' button."));
-        versions_sizer->Add(msg_name, wxGBPosition(row_idx, 1), wxGBSpan(1, 1), wxALIGN_RIGHT, 2);
+        versions_sizer->Add(msg_name, wxGBPosition(row_idx, 1), wxGBSpan(1, 1), wxALIGN_RIGHT, kGridCellBorder);
     }
 
     // scrollling: only vertical, by 30 pixels at a time.
-    hscroll->SetScrollRate(30, 30);
+    hscroll->SetScrollRate(kScrollStepPixels, kScrollStepPixels);
     hscroll->EnableScrolling(false, true); // does nothing
     //hscroll->ShowScrollbars(wxSHOW_SB_NEVER, wxSHOW_SB_DEFAULT wxSHOW_SB_ALWAYS);
     hscroll->ShowScrollbars(wxSHOW_SB_NEVER, wxSHOW_SB_DEFAULT);
     wxBoxSizer *hscrollsizer = new wxBoxSizer(wxHORIZONTAL);
-    hscrollsizer->AddSpacer(5);
+    hscrollsizer->AddSpacer(kControlSpacerPixels);
     hscrollsizer->Add(versions_sizer);
-    hscrollsizer->AddSpacer(5);
+    hscrollsizer->AddSpacer(kControlSpacerPixels);
     hscroll->SetSizer(hscrollsizer);
     hscrollsizer->Layout();
 
@@ -1032,7 +1045,7 @@ void UpdateConfigDialog::build_ui() {
 
     wxStdDialogButtonSizer* btSizer = CreateStdDialogButtonSizer(wxOK);
     main_sizer->Add(btSizer, 0, wxALL);
-    main_sizer->AddSpacer(5);
+    main_sizer->AddSpacer(kControlSpacerPixels);
 }
 
 UpdateConfigDialog::UpdateConfigDialog(wxWindow *parent, PresetUpdater &data, const wxString &message)
@@ -1085,7 +1098,7 @@ UpdateConfigDialog::UpdateConfigDialog(wxWindow *parent, PresetUpdater &data, co
                               hscroll->GetBestVirtualSize().GetHeight() + 180)));
 
     wxGetApp().UpdateDlgDarkUI(this);
-    wxColour pale_green(127,250,127);
+    wxColour pale_green(kPaleColorLowChannel, kPaleColorHighChannel, kPaleColorLowChannel);
     for (wxButton *bt : bts_green_color) {
         bt->SetBackgroundColour(pale_green);
     }
@@ -1100,7 +1113,7 @@ void UpdateConfigDialog::rebuild_ui() {
     //don't fit to not change size
 
     wxGetApp().UpdateDlgDarkUI(this);
-    wxColour pale_green(127,250,127);
+    wxColour pale_green(kPaleColorLowChannel, kPaleColorHighChannel, kPaleColorLowChannel);
     for (wxButton *bt : bts_green_color) {
         bt->SetBackgroundColour(pale_green);
     }
@@ -1166,11 +1179,11 @@ ChooseVendorVersionDialog::ChooseVendorVersionDialog(wxWindow *parent, PresetUpd
                               hscroll->GetBestVirtualSize().GetHeight() + 180)));
 
     wxGetApp().UpdateDlgDarkUI(this);
-    wxColour pale_green(127,250,127);
+    wxColour pale_green(kPaleColorLowChannel, kPaleColorHighChannel, kPaleColorLowChannel);
     for (wxWindow *bt : green_foreground_color) {
         bt->SetBackgroundColour(pale_green);
     }
-    wxColour pale_red(250,127,127);
+    wxColour pale_red(kPaleColorHighChannel, kPaleColorLowChannel, kPaleColorLowChannel);
     for (wxWindow *bt : red_foreground_color) {
         bt->SetBackgroundColour(pale_red);
     }
@@ -1190,11 +1203,11 @@ void ChooseVendorVersionDialog::rebuild_ui() {
     //don't fit to not change size
 
     wxGetApp().UpdateDlgDarkUI(this);
-    wxColour pale_green(127,250,127);
+    wxColour pale_green(kPaleColorLowChannel, kPaleColorHighChannel, kPaleColorLowChannel);
     for (wxWindow *bt : green_foreground_color) {
         bt->SetBackgroundColour(pale_green);
     }
-    wxColour pale_red(250,127,127);
+    wxColour pale_red(kPaleColorHighChannel, kPaleColorLowChannel, kPaleColorLowChannel);
     for (wxWindow *bt : red_foreground_color) {
         bt->SetBackgroundColour(pale_red);
     }
@@ -1212,12 +1225,12 @@ void ChooseVendorVersionDialog::build_ui() {
     wxStaticText *lbl_message = new wxStaticText(this, wxID_ANY,
                                                  _L("This dialog allows you to choose which version of the vendor "
                                                     "bundle you want to install from the available options."));
-    main_sizer->AddSpacer(5);
+    main_sizer->AddSpacer(kControlSpacerPixels);
     main_sizer->Add(lbl_message);
 
     // "table" of all availables versions
-    wxGridBagSizer *versions_sizer = new wxGridBagSizer(10, 30); //(int vgap, int hgap)
-    versions_sizer->AddGrowableCol(3);
+    wxGridBagSizer *versions_sizer = new wxGridBagSizer(10, kVersionGridHorizontalGap); //(int vgap, int hgap)
+    versions_sizer->AddGrowableCol(kUpgradeColumn);
     hscroll = new wxScrolledWindow(this);
 
     // each row has:
@@ -1225,19 +1238,19 @@ void ChooseVendorVersionDialog::build_ui() {
 
     int row_idx = 1;
     wxStaticText *msg_vendor_version = new wxStaticText(this, wxID_ANY, _L("Vendor bundle version"));
-    versions_sizer->Add(msg_vendor_version, wxGBPosition(row_idx, 1), wxGBSpan(1, 1), wxALIGN_RIGHT, 2);
+    versions_sizer->Add(msg_vendor_version, wxGBPosition(row_idx, 1), wxGBSpan(1, 1), wxALIGN_RIGHT, kGridCellBorder);
     wxStaticText *msg_slicer_version = new wxStaticText(this, wxID_ANY, _L("Minimum slicer version"));
     msg_slicer_version->SetToolTip(format(_L("Our slicer version: %1%"), SLIC3R_VERSION_FULL));
-    versions_sizer->Add(msg_slicer_version, wxGBPosition(row_idx, 2), wxGBSpan(1, 1), wxALIGN_RIGHT, 2);
+    versions_sizer->Add(msg_slicer_version, wxGBPosition(row_idx, kVersionColumn), wxGBSpan(1, 1), wxALIGN_RIGHT, kGridCellBorder);
     wxStaticText *msg_changelog = new wxStaticText(this, wxID_ANY, _L("Changelog"));
-    versions_sizer->Add(msg_changelog, wxGBPosition(row_idx, 3), wxGBSpan(1, 1), wxALIGN_LEFT, 2);
+    versions_sizer->Add(msg_changelog, wxGBPosition(row_idx, kUpgradeColumn), wxGBSpan(1, 1), wxALIGN_LEFT, kGridCellBorder);
 
     for (const VendorAvailable &available : m_vendor.available_profiles) {
         add_version_in_list(hscroll, available, versions_sizer, ++row_idx);
     }
 
     // scrollling: only vertical, by 30 pixels at a time.
-    hscroll->SetScrollRate(30, 30);
+    hscroll->SetScrollRate(kScrollStepPixels, kScrollStepPixels);
     hscroll->EnableScrolling(false, true); // does nothing
     hscroll->ShowScrollbars(wxSHOW_SB_NEVER, wxSHOW_SB_DEFAULT);
 
@@ -1249,7 +1262,7 @@ void ChooseVendorVersionDialog::build_ui() {
 
     wxStdDialogButtonSizer* btSizer = CreateStdDialogButtonSizer(wxOK);
     main_sizer->Add(btSizer, 0, wxALL);
-    main_sizer->AddSpacer(5);
+    main_sizer->AddSpacer(kControlSpacerPixels);
 }
 
 void ChooseVendorVersionDialog::add_version_in_list(wxWindow *parent,
@@ -1262,26 +1275,26 @@ void ChooseVendorVersionDialog::add_version_in_list(wxWindow *parent,
         (m_vendor.profile.slicer_version == Semver::zero() || m_vendor.profile.slicer_version == version.slicer_version)) {
         wxStaticText *msg_version = new wxStaticText(parent, wxID_ANY, version.config_version.to_string());
         msg_version->SetToolTip(_L("This is the version currently installed."));
-        versions_sizer->Add(msg_version, wxGBPosition(line_num, 1), wxGBSpan(1, 1), wxEXPAND | wxCENTER, 2);
+        versions_sizer->Add(msg_version, wxGBPosition(line_num, 1), wxGBSpan(1, 1), wxEXPAND, kGridCellBorder);
     } else {
         wxButton *bt_version = new wxButton(parent, wxID_ANY, version.config_version.to_string());
         bt_version->Bind(wxEVT_BUTTON, ([this, &version](wxCommandEvent &e) {
             this->wait_dialog = std::make_unique<wxBusyInfo>(_L("Installing the local preset. Please wait."));
             // install_vendor can work with copies passed as parameter, no worry.
-            this->m_data.install_vendor(m_vendor.profile.id, version, [this](std::string error_msg) {
+            this->m_data.install_vendor(m_vendor.profile.id, version, [this](const std::string& error_msg) {
                 this->wait_dialog.reset();
                 this->request_show_error_msg(error_msg);
                 this->request_rebuild_ui();
             });
         }));
         bt_version->SetToolTip(_L("Click this button to install this version of the vendor bundle."));
-        versions_sizer->Add(bt_version, wxGBPosition(line_num, 1), wxGBSpan(1, 1), wxEXPAND, 2);
+        versions_sizer->Add(bt_version, wxGBPosition(line_num, 1), wxGBSpan(1, 1), wxEXPAND, kGridCellBorder);
     }
 
     ////// slicer version //////
     wxStaticText *msg_slicer_version = new wxStaticText(parent, wxID_ANY, version.slicer_version.to_string());
     msg_slicer_version->SetToolTip(format(_L("This is the slicer version for which this bundle was built. Current version: %1%"), SLIC3R_VERSION_FULL));
-    versions_sizer->Add(msg_slicer_version, wxGBPosition(line_num, 2), wxGBSpan(1, 1), wxEXPAND, 2);
+    versions_sizer->Add(msg_slicer_version, wxGBPosition(line_num, kVersionColumn), wxGBSpan(1, 1), wxEXPAND, kGridCellBorder);
     Semver major_current = Semver::parse(SLIC3R_VERSION_FULL)->no_patch();
     Semver major_version = version.slicer_version.no_patch();
     if (major_version > major_current) {
@@ -1297,7 +1310,7 @@ void ChooseVendorVersionDialog::add_version_in_list(wxWindow *parent,
     ////// log //////
     wxStaticText *msg_changelog = new wxStaticText(parent, wxID_ANY, version.notes);
     msg_changelog->SetToolTip(_L("This message includes the GitHub commit logs between the previous version and the current one."));
-    versions_sizer->Add(msg_changelog, wxGBPosition(line_num, 3), wxGBSpan(1, 1), wxEXPAND, 2);
+    versions_sizer->Add(msg_changelog, wxGBPosition(line_num, kUpgradeColumn), wxGBSpan(1, 1), wxEXPAND, kGridCellBorder);
 
 }
 

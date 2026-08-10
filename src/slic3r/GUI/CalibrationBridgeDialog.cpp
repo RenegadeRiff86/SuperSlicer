@@ -55,7 +55,7 @@ void CalibrationBridgeDialog::create_buttons(wxStdDialogButtonSizer* buttons) {
     //buttons->Add(bt);
 }
 
-void CalibrationBridgeDialog::create_geometry(std::string setting_to_test, bool add) {
+void CalibrationBridgeDialog::create_geometry(const std::string& setting_to_test, bool add) {
     Plater* plat = this->main_frame->plater();
     Model& model = plat->model();
     if (!plat->new_project(L("Bridge calibration")))

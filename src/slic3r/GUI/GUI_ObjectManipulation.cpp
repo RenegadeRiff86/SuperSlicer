@@ -5,14 +5,11 @@
 #include "GUI_ObjectManipulation.hpp"
 #include "I18N.hpp"
 #include "format.hpp"
-#include "BitmapComboBox.hpp"
 
 #include "GLCanvas3D.hpp"
 #include "OptionsGroup.hpp"
 #include "GUI_App.hpp"
 #include "wxExtensions.hpp"
-#include "libslic3r/PresetBundle.hpp"
-#include "libslic3r/Model.hpp"
 #include "libslic3r/Geometry.hpp"
 #include "Selection.hpp"
 #include "Plater.hpp"
@@ -23,9 +20,6 @@
 #include <wx/glcanvas.h>
 
 #include <boost/algorithm/string.hpp>
-#include "slic3r/Utils/FixModelByWin10.hpp"
-
-#include "Widgets/CheckBox.hpp"
 
 // For special mirroring in manipulation gizmo
 #include "Gizmos/GLGizmosManager.hpp"
@@ -69,6 +63,13 @@ namespace GUI
 // against the current locale.
 static constexpr const char* LABEL_DROP_TO_BED     = L("Drop to bed");
 static constexpr const char* LABEL_ROTATE_RELATIVE = L("Rotate (relative)");
+static constexpr int GRID_GAP = 3;
+static constexpr int AXIS_COUNT = 3;
+static constexpr int Z_AXIS_INDEX = 2;
+static constexpr int DECIMAL_PLACES = 2;
+static constexpr int LOCAL_COORDINATE_COMBO_INDEX = 2;
+static constexpr int STRETCH_SPACER_PROPORTION = 2;
+static constexpr double PERCENT_SCALE = 100.0;
 
 const double ObjectManipulation::in_to_mm = 25.4;
 const double ObjectManipulation::mm_to_in = 1 / ObjectManipulation::in_to_mm;
@@ -259,7 +260,7 @@ ObjectManipulation::ObjectManipulation(wxWindow* parent) :
     });
     sizer->Add(m_lock_bnt, 0, wxALIGN_CENTER_VERTICAL);
 
-    auto v_sizer = new wxGridSizer(1, 3, 3);
+    auto v_sizer = new wxGridSizer(1, GRID_GAP, GRID_GAP);
 
     add_label(&m_scale_Label,   L("Scale"), v_sizer);
     wxStaticText* size_Label {nullptr};
@@ -298,7 +299,7 @@ ObjectManipulation::ObjectManipulation(wxWindow* parent) :
         btn->SetToolTip(format_wxstr(_L("Mirror along %1% axis"), label));
         m_mirror_buttons[axis_idx] = btn;
 
-        sizer->AddStretchSpacer(2);
+        sizer->AddStretchSpacer(STRETCH_SPACER_PROPORTION);
         sizer->Add(btn, 0, wxALIGN_CENTER_VERTICAL);
         
         btn->Bind(wxEVT_BUTTON, [this, axis_idx](wxCommandEvent&) {
@@ -361,7 +362,7 @@ ObjectManipulation::ObjectManipulation(wxWindow* parent) :
     // Add drop to bed button
     m_drop_to_bed_button = new ScalableButton(parent, wxID_ANY, ScalableBitmap(parent, "drop_to_bed"));
     m_drop_to_bed_button->SetToolTip(_L(LABEL_DROP_TO_BED));
-    m_drop_to_bed_button->Bind(wxEVT_BUTTON, [=](wxCommandEvent& e) {
+    m_drop_to_bed_button->Bind(wxEVT_BUTTON, [this](wxCommandEvent& e) {
         // ???
         GLCanvas3D* canvas = wxGetApp().plater()->canvas3D();
         Selection& selection = canvas->get_selection();
@@ -378,11 +379,11 @@ ObjectManipulation::ObjectManipulation(wxWindow* parent) :
                 Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L(LABEL_DROP_TO_BED));
                 change_position_value(0, diff.x());
                 change_position_value(1, diff.y());
-                change_position_value(2, diff.z());
+                change_position_value(Z_AXIS_INDEX, diff.z());
             }
             else {
                 Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L(LABEL_DROP_TO_BED));
-                change_position_value(2, m_cache.position.z() - min_z);
+                change_position_value(Z_AXIS_INDEX, m_cache.position.z() - min_z);
             }
         }
         else if (selection.is_single_full_instance()) {
@@ -394,11 +395,11 @@ ObjectManipulation::ObjectManipulation(wxWindow* parent) :
                 Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L(LABEL_DROP_TO_BED));
                 change_position_value(0, diff.x());
                 change_position_value(1, diff.y());
-                change_position_value(2, diff.z());
+                change_position_value(Z_AXIS_INDEX, diff.z());
             }
             else {
                 Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L(LABEL_DROP_TO_BED));
-                change_position_value(2, m_cache.position.z() - min_z);
+                change_position_value(Z_AXIS_INDEX, m_cache.position.z() - min_z);
             }
         }
         });
@@ -545,13 +546,13 @@ void ObjectManipulation::Show(const bool show)
                && (selection.is_single_full_instance() || selection.is_single_volume_or_modifier());
         if (selection.is_single_volume_or_modifier() && m_word_local_combo->GetCount() < 3) {
 #if 0//def __linux__
-            m_word_local_combo->Insert(coordinate_type_str(ECoordinatesType::Local), 2);
+            m_word_local_combo->Insert(coordinate_type_str(ECoordinatesType::Local), LOCAL_COORDINATE_COMBO_INDEX);
 #else
-            m_word_local_combo->Insert(coordinate_type_str(ECoordinatesType::Local), wxNullBitmap, 2);
+            m_word_local_combo->Insert(coordinate_type_str(ECoordinatesType::Local), wxNullBitmap, LOCAL_COORDINATE_COMBO_INDEX);
 #endif // __linux__
         }
-        else if (selection.is_single_full_instance() && m_word_local_combo->GetCount() > 2) {
-            m_word_local_combo->Delete(2);
+        else if (selection.is_single_full_instance() && m_word_local_combo->GetCount() > LOCAL_COORDINATE_COMBO_INDEX) {
+            m_word_local_combo->Delete(LOCAL_COORDINATE_COMBO_INDEX);
             if (coordinates_type > ECoordinatesType::Instance)
                 coordinates_type = ECoordinatesType::World;
         }
@@ -616,12 +617,12 @@ void ObjectManipulation::update_ui_from_settings()
         update_unit_text(m_imperial_units ? _L("in") : _L("mm"), m_position_unit);
         update_unit_text(m_imperial_units ? _L("in") : _L("mm"), m_size_unit);
 
-        for (int i = 0; i < 3; ++i) {
+        for (int i = 0; i < AXIS_COUNT; ++i) {
             auto update = [this, i](/*ManipulationEditorKey*/int key_id, const Vec3d& new_value) {
                 double value = new_value(i);
                 if (m_imperial_units)
                     value *= mm_to_in;
-                wxString new_text = double_to_string(value, m_imperial_units && key_id == 3/*meSize*/ ? 4 : 2);
+                wxString new_text = double_to_string(value, m_imperial_units && key_id == 3/*meSize*/ ? 4 : DECIMAL_PLACES);
                 const int id = key_id * 3 + i;
                 if (id >= 0) m_editors[id]->set_value(new_text);
             };
@@ -683,7 +684,7 @@ void ObjectManipulation::update_settings_value(const Selection& selection)
         if (is_world_coordinates()) {
             m_new_position = volume->get_instance_offset();
             m_new_size = selection.get_bounding_box_in_current_reference_system().first.size();
-            m_new_scale = m_new_size.cwiseQuotient(selection.get_unscaled_instance_bounding_box().size()) * 100.0;
+            m_new_scale = m_new_size.cwiseQuotient(selection.get_unscaled_instance_bounding_box().size()) * PERCENT_SCALE;
             m_new_rotate_label_string = LABEL_ROTATE_RELATIVE;
             m_new_rotation = Vec3d::Zero();
         }
@@ -693,7 +694,7 @@ void ObjectManipulation::update_settings_value(const Selection& selection)
             m_new_position = Vec3d::Zero();
             m_new_rotation = Vec3d::Zero();
             m_new_size = selection.get_bounding_box_in_current_reference_system().first.size();
-            m_new_scale = m_new_size.cwiseQuotient(selection.get_full_unscaled_instance_local_bounding_box().size()) * 100.0;
+            m_new_scale = m_new_size.cwiseQuotient(selection.get_full_unscaled_instance_local_bounding_box().size()) * PERCENT_SCALE;
         }
 
         m_new_enabled  = true;
@@ -702,7 +703,7 @@ void ObjectManipulation::update_settings_value(const Selection& selection)
         const BoundingBoxf3& box = selection.get_bounding_box();
         m_new_position = box.center();
         m_new_rotation = Vec3d::Zero();
-        m_new_scale    = Vec3d(100.0, 100.0, 100.0);
+        m_new_scale    = Vec3d(PERCENT_SCALE, PERCENT_SCALE, PERCENT_SCALE);
         m_new_size = selection.get_bounding_box_in_current_reference_system().first.size();
         m_new_rotate_label_string = L("Rotate");
         m_new_scale_label_string  = L("Scale");
@@ -719,7 +720,7 @@ void ObjectManipulation::update_settings_value(const Selection& selection)
             m_new_position = offset;
             m_new_rotate_label_string = LABEL_ROTATE_RELATIVE;
             m_new_scale_label_string = L("Scale");
-            m_new_scale = Vec3d(100.0, 100.0, 100.0);
+            m_new_scale = Vec3d(PERCENT_SCALE, PERCENT_SCALE, PERCENT_SCALE);
             m_new_rotation = Vec3d::Zero();
             m_new_size = selection.get_bounding_box_in_current_reference_system().first.size();
         }
@@ -728,7 +729,7 @@ void ObjectManipulation::update_settings_value(const Selection& selection)
             m_new_rotate_label_string = LABEL_ROTATE_RELATIVE;
             m_new_position = Vec3d::Zero();
             m_new_rotation = Vec3d::Zero();
-            m_new_scale = volume->get_volume_scaling_factor() * 100.0;
+            m_new_scale = volume->get_volume_scaling_factor() * PERCENT_SCALE;
             m_new_size = selection.get_bounding_box_in_current_reference_system().first.size();
         }
         else {
@@ -736,7 +737,7 @@ void ObjectManipulation::update_settings_value(const Selection& selection)
             m_new_rotate_label_string = LABEL_ROTATE_RELATIVE;
             m_new_rotation = Vec3d::Zero();
             m_new_scale_label_string = L("Scale");
-            m_new_scale = Vec3d(100.0, 100.0, 100.0);
+            m_new_scale = Vec3d(PERCENT_SCALE, PERCENT_SCALE, PERCENT_SCALE);
             m_new_size = selection.get_bounding_box_in_current_reference_system().first.size();
         }
         m_new_enabled = true;
@@ -779,9 +780,9 @@ void ObjectManipulation::update_if_dirty()
         meSize
     };
 
-    for (int i = 0; i < 3; ++ i) {
+    for (int i = 0; i < AXIS_COUNT; ++ i) {
         auto update = [this, i](Vec3d &cached, Vec3d &cached_rounded, ManipulationEditorKey key_id, const Vec3d &new_value) {
-            wxString new_text = double_to_string(new_value(i), m_imperial_units && key_id == meSize ? 4 : 2);
+            wxString new_text = double_to_string(new_value(i), m_imperial_units && key_id == meSize ? 4 : DECIMAL_PLACES);
             double new_rounded;
             new_text.ToDouble(&new_rounded);
             if (std::abs(cached_rounded(i) - new_rounded) > EPSILON) {
@@ -790,7 +791,7 @@ void ObjectManipulation::update_if_dirty()
                 if (m_imperial_units) {
                     double inch_value = new_value(i) * mm_to_in;
                     if (key_id == mePosition)
-                        new_text = double_to_string(inch_value, 2);
+                        new_text = double_to_string(inch_value, DECIMAL_PLACES);
                     if (key_id == meSize) {
                         if(std::abs(m_cache.size_inches(i) - inch_value) > EPSILON)
                             m_cache.size_inches(i) = inch_value;
@@ -1034,7 +1035,7 @@ void ObjectManipulation::change_scale_value(int axis, double value)
         ref_scale = Vec3d::Ones();
     }
     else if (selection.is_single_full_instance())
-        ref_scale = 100.0 * Vec3d::Ones();
+        ref_scale = PERCENT_SCALE * Vec3d::Ones();
 
     this->do_scale(axis, scale.cwiseQuotient(ref_scale));
 
@@ -1155,7 +1156,7 @@ void ObjectManipulation::on_change(const std::string& opt_key, int axis, double 
 bool ObjectManipulation::commit_automation_value(
     const std::string& opt_key, int axis, double value, std::string& error)
 {
-    if (axis < 0 || axis > 2) {
+    if (axis < 0 || axis > Z_AXIS_INDEX) {
         error = "transform axis must be x, y, or z";
         return false;
     }
@@ -1283,7 +1284,7 @@ void ObjectManipulation::sys_color_changed()
     m_drop_to_bed_button->sys_color_changed();
     m_lock_bnt->sys_color_changed();
 
-    for (int id = 0; id < 3; ++id) {
+    for (int id = 0; id < AXIS_COUNT; ++id) {
         m_mirror_buttons[id]->sys_color_changed();
     }
 }

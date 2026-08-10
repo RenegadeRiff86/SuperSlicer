@@ -15,7 +15,6 @@
 #include <wx/display.h>
 #include <wx/file.h>
 #include <wx/wupdlock.h>
-#include "wxExtensions.hpp"
 
 #if ENABLE_SCROLLABLE
 static wxSize get_screen_size(wxWindow* window)
@@ -29,24 +28,40 @@ static wxSize get_screen_size(wxWindow* window)
 namespace Slic3r {
 namespace GUI {
 
+static constexpr int STEP_CHOICE_COUNT = 5;
+static constexpr int DEFAULT_STEP_COUNT_SELECTION = 5;
+static constexpr int TEMPERATURE_INCREMENT = 5;
+static constexpr int TEMPERATURE_ROUNDING_OFFSET = 2;
+static constexpr int TWO_ITEM_SELECTION_INDEX = 2;
+static constexpr int FIVE_ITEM_SELECTION_INDEX = 5;
+static constexpr size_t TWO_ITEM_COUNT = 2;
+static constexpr size_t FIVE_ITEM_COUNT = 5;
+static constexpr size_t SLOWDOWN_OPTION_COUNT = 5;
+static constexpr double HALF_DIVISOR = 2.0;
+static constexpr size_t EXPECTED_VOLUME_COUNT = 2;
+static constexpr int PERIMETER_COUNT = 2;
+static constexpr int BOTTOM_SOLID_LAYER_COUNT = 2;
+static constexpr int THIN_WALL_MIN_WIDTH_PERCENT = 2;
+static constexpr int EXTRA_VOLUME_COUNT = 2;
+
 void CalibrationRetractionDialog::create_buttons(wxStdDialogButtonSizer* buttons){
     const wxSize size(6 * em_unit(), wxDefaultCoord);
     wxString choices_steps[] = { "0.1","0.2","0.5","1","2" };
     //steps = new wxComboBox(this, wxID_ANY, wxString{ "0.2" }, wxDefaultPosition, wxDefaultSize, 5, choices_steps);
-    steps = new ComboBox(this, wxID_ANY, wxString{ "0.2" }, wxDefaultPosition, size, 5, choices_steps);
+    steps = new ComboBox(this, wxID_ANY, wxString{ "0.2" }, wxDefaultPosition, size, STEP_CHOICE_COUNT, choices_steps);
     steps->SetToolTip(_L("Each militer add this value to the retraction value."));
     steps->SetSelection(1);
     wxString choices_nb[] = { "2","4","6","8","10","15","20","25" };
     //nb_steps = new wxComboBox(this, wxID_ANY, wxString{ "15" }, wxDefaultPosition, wxDefaultSize, 8, choices_nb);
     nb_steps = new ComboBox(this, wxID_ANY, wxString{ "15" }, wxDefaultPosition, size, 8, choices_nb);
     nb_steps->SetToolTip(_L("Select the number milimeters for the tower."));
-    nb_steps->SetSelection(5);
+    nb_steps->SetSelection(DEFAULT_STEP_COUNT_SELECTION);
     //wxString choices_start[] = { "current","260","250","240","230","220","210" };
     //start_step = new wxComboBox(this, wxID_ANY, wxString{ "current" }, wxDefaultPosition, wxDefaultSize, 7, choices_start);
     //start_step->SetToolTip(_(L("Select the highest temperature to test for.")));
     //start_step->SetSelection(0);
     const DynamicPrintConfig* filament_config = this->gui_app->get_tab(Preset::TYPE_FFF_FILAMENT)->get_config();
-    int temp = int((2 + filament_config->option<ConfigOptionInts>("temperature")->get_at(0)) / 5) * 5;
+    int temp = int((TEMPERATURE_ROUNDING_OFFSET + filament_config->option<ConfigOptionInts>("temperature")->get_at(0)) / TEMPERATURE_INCREMENT) * TEMPERATURE_INCREMENT;
     temp_start = new wxTextCtrl(this, wxID_ANY, std::to_string(temp), wxDefaultPosition, size);
     temp_start->SetToolTip(_L("Note that only Multiple of 5 can be engraved in the part"));
     wxString choices_decr[] = { _L("one test"),_L("2x10°"),_L("3x10°"), _L("4x10°"), _L("3x5°"), _L("5x5°") };
@@ -87,7 +102,7 @@ void CalibrationRetractionDialog::remove_slowdown(wxCommandEvent& event_args) {
     DynamicPrintConfig new_filament_config = *filament_config; //make a copy
 
     const ConfigOptionFloats *fil_conf = filament_config->option<ConfigOptionFloats>("slowdown_below_layer_time");
-    auto new_slowdown = std::make_unique<ConfigOptionFloats>(5);
+    auto new_slowdown = std::make_unique<ConfigOptionFloats>(SLOWDOWN_OPTION_COUNT);
     new_slowdown->set(*fil_conf);
     new_slowdown->set_at(0, 0);
     new_filament_config.set_key_value("slowdown_below_layer_time", std::move(new_slowdown));
@@ -125,15 +140,15 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
     }
     size_t nb_items = 1;
     if (decr_temp->GetSelection() == 1) {
-        nb_items = 2;
-    } else if (decr_temp->GetSelection() == 2 || decr_temp->GetSelection() == 4) {
+        nb_items = TWO_ITEM_COUNT;
+    } else if (decr_temp->GetSelection() == TWO_ITEM_SELECTION_INDEX || decr_temp->GetSelection() == 4) {
         nb_items = 3;
     } else if (decr_temp->GetSelection() == 3) {
         nb_items = 4;
-    } else if (decr_temp->GetSelection() == 5) {
-        nb_items = 5;
+    } else if (decr_temp->GetSelection() == FIVE_ITEM_SELECTION_INDEX) {
+        nb_items = FIVE_ITEM_COUNT;
     }
-    int temp_decr = (decr_temp->GetSelection() < 4) ? 10 : 5;
+    int temp_decr = (decr_temp->GetSelection() < 4) ? 10 : TEMPERATURE_INCREMENT;
 
 
     std::vector<std::string> items;
@@ -161,7 +176,7 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
 
     double retraction_start = 0;
     std::string str = temp_start->GetValue().ToStdString();
-    int temp = int((2 + filament_config->option<ConfigOptionInts>("temperature")->get_at(0)) / 5) * 5;
+    int temp = int((TEMPERATURE_ROUNDING_OFFSET + filament_config->option<ConfigOptionInts>("temperature")->get_at(0)) / TEMPERATURE_INCREMENT) * TEMPERATURE_INCREMENT;
     int first_layer_temp = filament_config->option<ConfigOptionInts>("first_layer_temperature")->get_at(0);
     if (str.find_first_not_of("0123456789") == std::string::npos)
         temp = std::atoi(str.c_str());
@@ -176,13 +191,11 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
     const ConfigOptionFloats* nozzle_diameter_config = printer_config->option<ConfigOptionFloats>("nozzle_diameter");
     assert(nozzle_diameter_config->size() > 0);
     float nozzle_diameter = nozzle_diameter_config->get_at(0);
-    float xyScale = nozzle_diameter / 0.4;
     //scale z to have 6 layers
     const ConfigOptionFloatOrPercent* first_layer_height_setting = print_config->option<ConfigOptionFloatOrPercent>("first_layer_height");
     double first_layer_height = first_layer_height_setting->get_abs_value(nozzle_diameter);
     // Keep a printable first layer for tiny nozzles while honouring the user's first_layer_height when larger.
-    first_layer_height = std::max(first_layer_height, nozzle_diameter / 2.);
-    double layer_height = nozzle_diameter / 2.;
+    first_layer_height = std::max(first_layer_height, nozzle_diameter / HALF_DIVISOR);
 
     float scale = nozzle_diameter / 0.4;
     //do scaling
@@ -192,18 +205,17 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
     }
 
     //add sub-part after scale
-    float zscale_number = (first_layer_height + layer_height) / 0.4;
     std::vector<std::string> filament_temp_item_name;
     for (size_t id_item = 0; id_item < nb_items; id_item++) {
         int mytemp = temp - temp_decr * id_item;
-        if (mytemp <= 285 && mytemp >= 180 && mytemp % 5 == 0) {
+        if (mytemp <= 285 && mytemp >= 180 && mytemp % TEMPERATURE_INCREMENT == 0) {
             filament_temp_item_name.push_back("t" + std::to_string(mytemp) + ".amf");
             assert(model.objects[objs_idx[id_item]]->volumes.size() == 1);
             add_part(model.objects[objs_idx[id_item]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_temp" / filament_temp_item_name.back()).string(),
                 Vec3d{ 0,0, scale * 0.0 - 4.8 }, Vec3d{ scale,scale,scale });
-            assert(model.objects[objs_idx[id_item]]->volumes.size() == 2);
-            model.objects[objs_idx[id_item]]->volumes[1]->rotate(PI / 2, Vec3d(0, 0, 1));
-            model.objects[objs_idx[id_item]]->volumes[1]->rotate(-PI / 2, Vec3d(1, 0, 0));
+            assert(model.objects[objs_idx[id_item]]->volumes.size() == EXPECTED_VOLUME_COUNT);
+            model.objects[objs_idx[id_item]]->volumes[1]->rotate(PI / HALF_DIVISOR, Vec3d(0, 0, 1));
+            model.objects[objs_idx[id_item]]->volumes[1]->rotate(-PI / HALF_DIVISOR, Vec3d(1, 0, 0));
             //model.objects[objs_idx[id_item]]->volumes[1]->rotate(Geometry::deg2rad(plat->config()->opt_float("init_z_rotate")), Axis::Z);
         } else {
             filament_temp_item_name.push_back("");
@@ -217,7 +229,6 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
 
     /// --- translate ---;
     bool has_to_arrange = true;
-    const float brim_width = std::max(print_config->option<ConfigOptionFloat>("brim_width")->value, nozzle_diameter * 5.);
 
     /// --- custom config ---
     assert(filament_temp_item_name.size() == nb_items);
@@ -229,12 +240,12 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
         double external_perimeter_speed = full_print_config.get_computed_value("external_perimeter_speed");
         //brim to have some time to build up pressure in the nozzle
         current_obj->config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(0));
-        current_obj->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(2));
+        current_obj->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(PERIMETER_COUNT));
         current_obj->config.set_key_value("external_perimeters_first", std::make_unique<ConfigOptionBool>(false));
         current_obj->config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(0));
         for(auto& volume : current_obj->volumes)
             if( volume->name == filament_temp_item_name[i] || volume->name.empty()) // if temperature patch or the main retraction patch (empty name because it's the initial volume)
-                volume->config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(2));
+                volume->config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(BOTTOM_SOLID_LAYER_COUNT));
         current_obj->config.set_key_value("top_solid_layers", std::make_unique<ConfigOptionInt>(0));
         current_obj->config.set_key_value("fill_density", std::make_unique<ConfigOptionPercent>(0));
         //current_obj->config.set_key_value("fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipRectilinear));
@@ -243,17 +254,17 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
         overhangs_width_speed->set_can_be_disabled(true);
         current_obj->config.set_key_value("overhangs_width_speed", std::move(overhangs_width_speed));
         current_obj->config.set_key_value("thin_walls", std::make_unique<ConfigOptionBool>(true));
-        current_obj->config.set_key_value("thin_walls_min_width", std::make_unique<ConfigOptionFloatOrPercent>(2,true));
+        current_obj->config.set_key_value("thin_walls_min_width", std::make_unique<ConfigOptionFloatOrPercent>(THIN_WALL_MIN_WIDTH_PERCENT, true));
         current_obj->config.set_key_value("gap_fill_enabled", std::make_unique<ConfigOptionBool>(false));
-        current_obj->config.set_key_value("first_layer_height", std::make_unique<ConfigOptionFloatOrPercent>(nozzle_diameter / 2., false));
-        current_obj->config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(nozzle_diameter / 2.));
+        current_obj->config.set_key_value("first_layer_height", std::make_unique<ConfigOptionFloatOrPercent>(nozzle_diameter / HALF_DIVISOR, false));
+        current_obj->config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(nozzle_diameter / HALF_DIVISOR));
         //temp
         current_obj->config.set_key_value("print_temperature", std::make_unique<ConfigOptionInt>(int(temp - temp_decr * i)));
         current_obj->config.set_key_value("print_first_layer_temperature", std::make_unique<ConfigOptionInt>(first_layer_temp));
         //set retraction override
         
         const int mytemp = temp - temp_decr * i;
-        const int extra_vol = (mytemp <= 285 && mytemp >= 180 && mytemp % 5 == 0) ? 2 : 1;
+        const int extra_vol = (mytemp <= 285 && mytemp >= 180 && mytemp % TEMPERATURE_INCREMENT == 0) ? EXTRA_VOLUME_COUNT : 1;
         for (size_t num_part = extra_vol; num_part < current_obj->volumes.size(); num_part++) {
             current_obj->volumes[num_part]->config.set_key_value("print_retract_length", std::make_unique<ConfigOptionFloat>(retraction_start + num_part * retraction_steps));
             current_obj->volumes[num_part]->config.set_key_value("small_perimeter_speed", std::make_unique<ConfigOptionFloatOrPercent>(external_perimeter_speed, false));

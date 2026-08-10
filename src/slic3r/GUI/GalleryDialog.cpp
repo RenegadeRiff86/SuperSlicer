@@ -44,6 +44,9 @@
 namespace Slic3r {
 namespace GUI {
 
+static constexpr int BUTTON_SPACER_WIDTH_FACTOR = 2;
+static constexpr size_t BLUE_CHANNEL_INDEX = 2;
+
 #define BORDER_W    10
 #define IMG_PX_CNT  64
 
@@ -123,7 +126,7 @@ GalleryDialog::GalleryDialog(wxWindow* parent) :
     add_btn(btn_pos++, ID_BTN_ADD_CUSTOM_SHAPE,   _L("Add"),                _L("Add one or more custom shapes"),                                                &GalleryDialog::add_custom_shapes);
     add_btn(btn_pos++, ID_BTN_DEL_CUSTOM_SHAPE,   _L("Delete"),             _L("Delete one or more custom shape. You can't delete system shapes"),              &GalleryDialog::del_custom_shapes,  [this](){ return can_delete();           });
     //add_btn(btn_pos++, ID_BTN_REPLACE_CUSTOM_PNG, _L("Change thumbnail"),   _L("Replace PNG for custom shape. You can't raplace thimbnail for system shape"),   &GalleryDialog::change_thumbnail, [this](){ return can_change_thumbnail(); });
-    buttons->InsertStretchSpacer(btn_pos, 2* BORDER_W);
+    buttons->InsertStretchSpacer(btn_pos, BUTTON_SPACER_WIDTH_FACTOR * BORDER_W);
 
     load_label_icon_list();
 
@@ -148,8 +151,6 @@ GalleryDialog::~GalleryDialog()
     // From wxWidgets docs:
     // The method void wxListCtrl::SetImageList(wxImageList* imageList, int which)
     // does not take ownership of the image list, you have to delete it yourself.
-    if (m_image_list)
-        delete m_image_list;
 }
 
 int GalleryDialog::show(bool show_from_menu) 
@@ -230,7 +231,7 @@ static void add_lock(wxImage& image, wxWindow* parent_win)
             const size_t lock_idx_rgb = (x + y * lock_width) * 3;
             px_data[idx_rgb] = lock_px_data[lock_idx_rgb];
             px_data[idx_rgb + 1] = lock_px_data[lock_idx_rgb + 1];
-            px_data[idx_rgb + 2] = lock_px_data[lock_idx_rgb + 2];
+            px_data[idx_rgb + BLUE_CHANNEL_INDEX] = lock_px_data[lock_idx_rgb + BLUE_CHANNEL_INDEX];
         }
     }
 }
@@ -321,7 +322,7 @@ static void generate_thumbnail_from_model(const std::string& filename)
         unsigned int rr = (thumbnail_data.height - 1 - r) * thumbnail_data.width;
         for (unsigned int c = 0; c < thumbnail_data.width; ++c) {
             unsigned char* px = thumbnail_data.pixels.data() + 4 * (rr + c);
-            image.SetRGB(static_cast<int>(c), static_cast<int>(r), px[0], px[1], px[2]);
+            image.SetRGB(static_cast<int>(c), static_cast<int>(r), px[0], px[1], px[BLUE_CHANNEL_INDEX]);
             image.SetAlpha(static_cast<int>(c), static_cast<int>(r), px[3]);
         }
     }
@@ -369,11 +370,11 @@ void GalleryDialog::load_label_icon_list()
     // Make an image list containing large icons
 
 #ifdef __APPLE__
-    m_image_list = new wxImageList(IMG_PX_CNT, IMG_PX_CNT);
+    m_image_list = std::make_unique<wxImageList>(IMG_PX_CNT, IMG_PX_CNT);
     int px_cnt = IMG_PX_CNT * mac_max_scaling_factor();
 #else
     int px_cnt = static_cast<int>(em_unit() * IMG_PX_CNT * 0.1f + 0.5f);
-    m_image_list = new wxImageList(px_cnt, px_cnt);
+    m_image_list = std::make_unique<wxImageList>(px_cnt, px_cnt);
 #endif
 
     for (const auto& item : list_items) {
@@ -391,7 +392,7 @@ void GalleryDialog::load_label_icon_list()
             if (can_generate_thumbnail)
                 generate_thumbnail_from_model(model_name);
             else {
-                add_default_image(m_image_list, item.is_system, this);
+                add_default_image(m_image_list.get(), item.is_system, this);
                 continue;
             }
         }
@@ -401,7 +402,7 @@ void GalleryDialog::load_label_icon_list()
         if (!image.CanRead(from_u8(img_name)) ||
             !image.LoadFile(from_u8(img_name), wxBITMAP_TYPE_PNG) ||
             image.GetWidth() == 0 || image.GetHeight() == 0) {
-            add_default_image(m_image_list, item.is_system, this);
+            add_default_image(m_image_list.get(), item.is_system, this);
             continue;
         }
         image.Rescale(px_cnt, px_cnt, wxIMAGE_QUALITY_BILINEAR);
@@ -416,7 +417,7 @@ void GalleryDialog::load_label_icon_list()
         m_image_list->Add(bmp);
     }
 
-    m_list_ctrl->SetImageList(m_image_list, wxIMAGE_LIST_NORMAL);
+    m_list_ctrl->SetImageList(m_image_list.get(), wxIMAGE_LIST_NORMAL);
 
     int img_cnt = m_image_list->GetImageCount();
     for (int i = 0; i < img_cnt; i++) {
@@ -507,7 +508,7 @@ void GalleryDialog::change_thumbnail()
         png_path.replace_extension("png");
 
         fs::path current = fs::path(into_u8(input_files.Item(0)));
-		std::string error_msg;
+        std::string error_msg;
         // copy_file_inner overwrites the destination when present.
         if (copy_file_inner(current, png_path, error_msg))
             throw FileIOError(error_msg);

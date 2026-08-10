@@ -13,10 +13,6 @@ const ExtrusionEntitiesPtr& get_island(const ExtrusionEntityCollection &coll, in
     return dynamic_cast<const ExtrusionEntityCollection*>(coll.entities()[island])->entities();
 }
 
-const ExtrusionEntitiesPtr& remove_unique_collection_(const ExtrusionEntityCollection &coll, int island) {
-    //TODO
-}
-
 SCENARIO("denser infills: ")
 {
 

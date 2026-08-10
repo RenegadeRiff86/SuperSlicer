@@ -2,16 +2,18 @@
 ///|/
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
+#ifdef _WIN32
 #include "libslic3r/Technologies.hpp"
 #include "WinRegistry.hpp"
 
-#ifdef _WIN32
 #include <shlobj.h>
 #include <wincrypt.h>
 #include <winternl.h>
 #include <sddl.h>
 
 namespace Slic3r {
+
+constexpr wchar_t USER_CHOICE_SUBKEY[] = L"UserChoice";
 
 // Helper class which automatically closes the handle when
 // going out of scope
@@ -398,19 +400,19 @@ static bool set_user_choice(const wchar_t* aExt, const wchar_t* aProgID) {
     AutoRegKey assocKey(rawAssocKey);
 
     HKEY currUserChoiceKey;
-    ls = ::RegOpenKeyExW(assocKey.get(), L"UserChoice", 0, KEY_READ, &currUserChoiceKey);
+    ls = ::RegOpenKeyExW(assocKey.get(), USER_CHOICE_SUBKEY, 0, KEY_READ, &currUserChoiceKey);
     if (ls == ERROR_SUCCESS) {
         ::RegCloseKey(currUserChoiceKey);
         // When Windows creates this key, it is read-only (Deny Set Value), so we need
         // to delete it first.
         // We don't set any similar special permissions.
-        ls = ::RegDeleteKeyW(assocKey.get(), L"UserChoice");
+        ls = ::RegDeleteKeyW(assocKey.get(), USER_CHOICE_SUBKEY);
         if (ls != ERROR_SUCCESS)
             return false;
     }
 
     HKEY rawUserChoiceKey;
-    ls = ::RegCreateKeyExW(assocKey.get(), L"UserChoice", 0, nullptr,
+    ls = ::RegCreateKeyExW(assocKey.get(), USER_CHOICE_SUBKEY, 0, nullptr,
         0 /* options */, KEY_READ | KEY_WRITE,
         0 /* security attributes */, &rawUserChoiceKey,
         nullptr);
@@ -444,12 +446,12 @@ static bool set_as_default_per_file_type(const std::wstring& extension, const st
     AutoRegKey assoc_key(rawAssocKey);
     if (res == ERROR_SUCCESS) {
         DWORD data_size_bytes = 0;
-        res = ::RegGetValueW(assoc_key.get(), L"UserChoice", L"ProgId", RRF_RT_REG_SZ, nullptr, nullptr, &data_size_bytes);
+        res = ::RegGetValueW(assoc_key.get(), USER_CHOICE_SUBKEY, L"ProgId", RRF_RT_REG_SZ, nullptr, nullptr, &data_size_bytes);
         if (res == ERROR_SUCCESS) {
             // +1 in case dataSizeBytes was odd, +1 to ensure termination
             DWORD data_size_chars = (data_size_bytes / sizeof(wchar_t)) + 2;
             std::wstring curr_prog_id(data_size_chars, L'\0');
-            res = ::RegGetValueW(assoc_key.get(), L"UserChoice", L"ProgId", RRF_RT_REG_SZ, nullptr, curr_prog_id.data(), &data_size_bytes);
+            res = ::RegGetValueW(assoc_key.get(), USER_CHOICE_SUBKEY, L"ProgId", RRF_RT_REG_SZ, nullptr, curr_prog_id.data(), &data_size_bytes);
             if (res == ERROR_SUCCESS) {
                 const std::wstring::size_type pos = curr_prog_id.find_first_of(L'\0');
                 if (pos != std::wstring::npos)

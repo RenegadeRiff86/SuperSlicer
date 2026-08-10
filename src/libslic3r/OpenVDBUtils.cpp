@@ -4,16 +4,8 @@
 ///|/
 #include "OpenVDBUtils.hpp"
 
-#ifdef _MSC_VER
-// Suppress warning C4146 in OpenVDB: unary minus operator applied to unsigned type, result still unsigned 
-#pragma warning(push)
-#pragma warning(disable : 4146)
-#endif // _MSC_VER
 #include <openvdb/openvdb.h>
 #include <openvdb/tools/MeshToVolume.h>
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif // _MSC_VER
 
 #include <openvdb/tools/VolumeToMesh.h>
 #include <openvdb/tools/Composite.h>
@@ -48,13 +40,12 @@ VoxelGridPtr make_voxelgrid_impl(T &&grid)
 VoxelGridPtr make_voxelgrid(const openvdb::FloatGrid &grid) { return make_voxelgrid_impl(grid); }
 VoxelGridPtr make_voxelgrid(openvdb::FloatGrid &&grid) { return make_voxelgrid_impl(std::move(grid)); }
 VoxelGridPtr make_voxelgrid(const VoxelGrid &grid) { return make_voxelgrid_impl(grid); }
-VoxelGridPtr make_voxelgrid(VoxelGrid &&grid) { return make_voxelgrid_impl(std::move(grid)); }
 
 } // namespace
 
 static inline Vec3f to_vec3f(const openvdb::Vec3s &v) { return Vec3f{v.x(), v.y(), v.z()}; }
 static inline Vec3d to_vec3d(const openvdb::Vec3s &v) { return to_vec3f(v).cast<double>(); }
-static inline Vec3i32 to_vec3i(const openvdb::Vec3I &v) { return Vec3i32{int32_t(v[2]), int32_t(v[1]), int32_t(v[0])}; }
+static inline Vec3i32 to_vec3i(const openvdb::Vec3I &v) { return Vec3i32{int32_t(v.z()), int32_t(v.y()), int32_t(v.x())}; }
 
 class TriangleMeshDataAdapter {
 public:
@@ -171,13 +162,14 @@ indexed_triangle_set grid_to_mesh(const VoxelGrid &vgrid,
 
     indexed_triangle_set ret;
     ret.vertices.reserve(points.size());
-    ret.indices.reserve(triangles.size() + quads.size() * 2);
+    constexpr size_t triangles_per_quad = 2;
+    ret.indices.reserve(triangles.size() + quads.size() * triangles_per_quad);
 
     for (auto &v : points) ret.vertices.emplace_back(to_vec3f(v) /*/ scale*/);
     for (auto &v : triangles) ret.indices.emplace_back(to_vec3i(v));
     for (auto &quad : quads) {
-        ret.indices.emplace_back(quad(2), quad(1), quad(0));
-        ret.indices.emplace_back(quad(3), quad(2), quad(0));
+        ret.indices.emplace_back(quad.z(), quad.y(), quad.x());
+        ret.indices.emplace_back(quad.w(), quad.z(), quad.x());
     }
 
     return ret;

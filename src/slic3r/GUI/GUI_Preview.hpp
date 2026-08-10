@@ -59,14 +59,14 @@ public:
 
 class View3D : public wxTitledPanel
 {
-    wxGLCanvas* m_canvas_widget;
+    std::unique_ptr<wxGLCanvas> m_canvas_widget;
     std::unique_ptr<GLCanvas3D> m_canvas;
 
 public:
     View3D(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig* config, BackgroundSlicingProcess* process);
     virtual ~View3D();
 
-    wxGLCanvas* get_wxglcanvas() { return m_canvas_widget; }
+    wxGLCanvas* get_wxglcanvas() { return m_canvas_widget.get(); }
     GLCanvas3D* get_canvas3d() override { return m_canvas.get(); }
 
     void set_as_dirty() override;
@@ -94,7 +94,7 @@ private:
 
 class Preview : public wxTitledPanel
 {
-    wxGLCanvas* m_canvas_widget { nullptr };
+    std::unique_ptr<wxGLCanvas> m_canvas_widget;
     std::unique_ptr<GLCanvas3D> m_canvas;
     wxBoxSizer* m_left_sizer { nullptr };
     wxBoxSizer* m_layers_slider_sizer { nullptr };
@@ -113,11 +113,8 @@ class Preview : public wxTitledPanel
     // Calling this function object forces Plater::schedule_background_process.
     std::function<void()> m_schedule_background_process;
 
-    unsigned int m_number_extruders { 1 };
     bool m_keep_current_preview_type{ false };
     //fields to see what color to display
-    bool m_has_switched_to_color = false;
-    bool m_has_switched_to_extruders = false;
 
     bool m_loaded { false };
 
@@ -151,7 +148,7 @@ Preview(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig* config, 
     GCodeProcessorResult& gcode_result, std::function<void()> schedule_background_process = []() {});
     virtual ~Preview();
 
-    wxGLCanvas* get_wxglcanvas() { return m_canvas_widget; }
+    wxGLCanvas* get_wxglcanvas() { return m_canvas_widget.get(); }
     GLCanvas3D* get_canvas3d() override { return m_canvas.get(); }
 
     void set_as_dirty();

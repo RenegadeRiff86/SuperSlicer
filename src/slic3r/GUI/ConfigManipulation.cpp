@@ -7,7 +7,6 @@
 #include "I18N.hpp"
 #include "GUI_App.hpp"
 #include "format.hpp"
-#include "libslic3r/Model.hpp"
 #include "libslic3r/PresetBundle.hpp"
 #include "MsgDialog.hpp"
 
@@ -404,7 +403,6 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
     
     toggle_field(OPT_PERIMETER_GENERATOR, have_perimeters);
     bool have_arachne = have_perimeters && config->opt_enum<PerimeterGeneratorType>(OPT_PERIMETER_GENERATOR) == PerimeterGeneratorType::Arachne;
-    bool have_perimeter_hole = !have_arachne && (config->opt_int("perimeters") == config->opt_int("perimeters_hole") || !config->is_enabled("perimeters_hole"));
     for (auto el : {"wall_transition_length", "wall_transition_filter_deviation", "wall_transition_angle",
                     "wall_distribution_count", "min_feature_size", "min_bead_width"}) {
         toggle_field(el, have_arachne);
@@ -587,7 +585,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
     const bool has_tree_supports = (support_material_style == smsOrganic || support_material_style == smsOrcaTree) && 
                                    (config->opt_bool(OPT_SUPPORT_MATERIAL) || 
                                     config->opt_int(OPT_SUPPORT_MATERIAL_ENFORCE_LAYERS) > 0);
-    for (const std::string& key : { "support_tree_angle", "support_tree_angle_slow", "support_tree_branch_diameter",
+    for (const char *key : { "support_tree_angle", "support_tree_angle_slow", "support_tree_branch_diameter",
                                     "support_tree_branch_diameter_angle", "support_tree_branch_diameter_double_wall", 
                                     "support_tree_tip_diameter", "support_tree_branch_distance", "support_tree_top_rate" })
         toggle_field(key, has_tree_supports);
@@ -596,14 +594,14 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
         toggle_field(el, have_support_material && !have_support_soluble);
 
     for (auto el : { "support_material_bottom_interface_pattern", "support_material_top_interface_pattern", "support_material_interface_spacing", OPT_SUPPORT_MATERIAL_INTERFACE_EXTRUDER,
-                    "support_material_interface_speed", "support_material_interface_contact_loops", "support_material_interface_layer_height"
+                    "support_material_interface_speed", "support_material_interface_contact_loops", "support_material_interface_layer_height",
                     "support_material_interface_angle", "support_material_interface_angle_increment"})
         toggle_field(el, have_support_material && have_support_interface);
     toggle_field(OPT_SUPPORT_MATERIAL_SYNCHRONIZE_LAYERS, have_support_soluble);
 
     // Tree supports don't use some classic support fields, force disable them.
     if (has_tree_supports) {
-        for (const std::string &key :
+        for (const char *key :
              {"support_material_interface_layer_height", "support_material_bottom_interface_pattern",
               "support_material_interface_contact_loops", "support_material_with_sheath", "support_material_pattern",
               "support_material_spacing", "support_material_angle", "support_material_angle_height", "support_material_layer_height",

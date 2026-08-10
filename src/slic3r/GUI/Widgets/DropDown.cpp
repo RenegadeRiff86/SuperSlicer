@@ -267,7 +267,13 @@ void DropDown::SetTransparentBG(wxDC& dc, wxWindow* win)
 #endif //__WXMSW__
 }
 
-constexpr int slider_width  = 12;
+constexpr int    slider_width             = 12;
+constexpr int    selector_horizontal_inset = 4;
+constexpr int    center_divisor             = 2;
+constexpr int    scrollbar_edge_inset       = 2;
+constexpr int    scrollbar_corner_radius    = 2;
+constexpr int    content_gap                = 5;
+constexpr size_t max_visible_rows           = 15;
 #ifdef __WXOSX__
 constexpr int slider_step   = 1;
 #else
@@ -320,9 +326,9 @@ void DropDown::render(wxDC &dc)
             if (selection == hover_item)
                 dc.SetBrush(wxBrush(selector_background_color.colorForStates(StateColor::Disabled)));
             dc.SetPen(wxPen(selector_border_color.colorForStates(states)));
-            rcContent.Deflate(4, 1);
+            rcContent.Deflate(selector_horizontal_inset, 1);
             dc.DrawRectangle(rcContent);
-            rcContent.Inflate(4, 1);
+            rcContent.Inflate(selector_horizontal_inset, 1);
         }
         rcContent.y = offset.y;
     }
@@ -332,11 +338,11 @@ void DropDown::render(wxDC &dc)
         if (rcContent.GetBottom() > 0 && rcContent.y < size.y) {
             dc.SetBrush(wxBrush(selector_background_color.colorForStates(StateColor::Disabled)));
             dc.SetPen(wxPen(selector_background_color.colorForStates(states)));
-            rcContent.Deflate(4, 1);
+            rcContent.Deflate(selector_horizontal_inset, 1);
             if (is_retina)
                 rc.y += 1;
             dc.DrawRectangle(rcContent);
-            rcContent.Inflate(4, 1);
+            rcContent.Inflate(selector_horizontal_inset, 1);
             if (is_retina)
                 rc.y -= 1;
         }
@@ -344,34 +350,35 @@ void DropDown::render(wxDC &dc)
     }
     dc.SetBrush(*wxTRANSPARENT_BRUSH);
     {
-        wxSize offset = (rowSize - textSize) / 2;
+        wxSize offset = (rowSize - textSize) / center_divisor;
         rcContent.Deflate(0, offset.y);
     }
 
     // draw position bar
     if (has_bar) {
         int    height = rowSize.y * text_size;
-        wxRect rect = {size.x - slider_width - 2, -offset.y * size.y / height + 2, slider_width,
-                       size.y * size.y / height - 3};
+        wxRect rect = {size.x - slider_width - scrollbar_edge_inset,
+                       -offset.y * size.y / height + scrollbar_edge_inset,
+                       slider_width, size.y * size.y / height - 3};
         dc.SetPen(wxPen(border_color.defaultColor()));
         dc.SetBrush(wxBrush(selector_background_color.colorForStates(states | StateColor::Checked)));
-        dc.DrawRoundedRectangle(rect, 2);
+        dc.DrawRoundedRectangle(rect, scrollbar_corner_radius);
     }
 
     // draw check icon
-    rcContent.x += 5;
-    rcContent.width -= 5;
+    rcContent.x += content_gap;
+    rcContent.width -= content_gap;
     if (check_bitmap.bmp().IsOk()) {
         auto szBmp = check_bitmap.GetSize();
         if (selection >= 0) {
             wxPoint pt = rcContent.GetLeftTop();
-            pt.y += (rcContent.height - szBmp.y) / 2;
+            pt.y += (rcContent.height - szBmp.y) / center_divisor;
             pt.y += rowSize.y * selection;
             if (pt.y + szBmp.y > 0 && pt.y < size.y)
                 dc.DrawBitmap(check_bitmap.get_bitmap(), pt);
         }
-        rcContent.x += szBmp.x + 5;
-        rcContent.width -= szBmp.x + 5;
+        rcContent.x += szBmp.x + content_gap;
+        rcContent.width -= szBmp.x + content_gap;
     }
     // draw texts & icons
     dc.SetTextForeground(text_color.colorForStates(states));
@@ -386,23 +393,23 @@ void DropDown::render(wxDC &dc)
         const wxSize pref_icon_sz = get_preferred_size(icon, m_parent);
         if (iconSize.x > 0) {
             if (icon.IsOk()) {
-                pt.y += (rcContent.height - pref_icon_sz.y) / 2;
+                pt.y += (rcContent.height - pref_icon_sz.y) / center_divisor;
 #ifdef __WXGTK3__
                 dc.DrawBitmap(icon.GetBitmap(pref_icon_sz), pt);
 #else
                 dc.DrawBitmap(icon.GetBitmapFor(m_parent), pt);
 #endif
             }
-            pt.x += iconSize.x + 5;
+            pt.x += iconSize.x + content_gap;
             pt.y = rcContent.y;
         } else if (icon.IsOk()) {
-            pt.y += (rcContent.height - pref_icon_sz.y) / 2;
+            pt.y += (rcContent.height - pref_icon_sz.y) / center_divisor;
 #ifdef __WXGTK3__
             dc.DrawBitmap(icon.GetBitmap(pref_icon_sz), pt);
 #else
             dc.DrawBitmap(icon.GetBitmapFor(m_parent), pt);
 #endif
-            pt.x += pref_icon_sz.GetWidth() + 5;
+            pt.x += pref_icon_sz.GetWidth() + content_gap;
             pt.y = rcContent.y;
         }
         auto text = texts[i];
@@ -412,7 +419,7 @@ void DropDown::render(wxDC &dc)
                 text = wxControl::Ellipsize(text, dc, wxELLIPSIZE_END,
                                             rcContent.GetRight() - pt.x);
             }
-            pt.y += (rcContent.height - textSize.y) / 2;
+            pt.y += (rcContent.height - textSize.y) / center_divisor;
             dc.SetFont(GetFont());
             dc.DrawText(text, pt);
         }
@@ -442,20 +449,20 @@ void DropDown::messureSize()
     szContent.x += 10;
     if (check_bitmap.bmp().IsOk()) {
         auto szBmp = check_bitmap.GetSize();
-        szContent.x += szBmp.x + 5;
+        szContent.x += szBmp.x + content_gap;
     }
     if (iconSize.x > 0) szContent.x += iconSize.x + (text_off ? 0 : 5);
     if (iconSize.y > szContent.y) szContent.y = iconSize.y;
     szContent.y += Slic3r::GUI::ThemeMetrics::combo_item_padding(GetParent() ? GetParent() : this);
-    if (texts.size() > 15) szContent.x += 6;
+    if (texts.size() > max_visible_rows) szContent.x += 6;
     if (GetParent()) {
         auto x = GetParent()->GetSize().x;
         if (!use_content_width || x > szContent.x)
             szContent.x = x;
     }
     rowSize = szContent;
-    szContent.y *= std::min((size_t)15, texts.size());
-    szContent.y += texts.size() > 15 ? rowSize.y / 2 : 0;
+    szContent.y *= std::min(max_visible_rows, texts.size());
+    szContent.y += texts.size() > max_visible_rows ? rowSize.y / center_divisor : 0;
     wxWindow::SetSize(szContent);
 #ifdef __WXGTK__
     // Gtk has a wrapper window for popup widget
@@ -473,8 +480,8 @@ void DropDown::autoPosition()
     Position(pos, {0, GetParent()->GetSize().y + 12});
     if (old != GetPosition()) {
         size = rowSize;
-        size.y *= std::min((size_t)15, texts.size());
-        size.y += texts.size() > 15 ? rowSize.y / 2 : 0;
+        size.y *= std::min(max_visible_rows, texts.size());
+        size.y += texts.size() > max_visible_rows ? rowSize.y / center_divisor : 0;
         if (size != GetSize()) {
             wxWindow::SetSize(size);
             offset = wxPoint();
@@ -485,7 +492,7 @@ void DropDown::autoPosition()
         // may exceed
         auto drect = wxDisplay(GetParent()).GetGeometry();
         if (GetPosition().y + size.y + 10 > drect.GetBottom()) {
-            if (use_content_width && texts.size() <= 15) size.x += 6;
+            if (use_content_width && texts.size() <= max_visible_rows) size.x += 6;
             size.y = drect.GetBottom() - GetPosition().y - 10;
             wxWindow::SetSize(size);
         }
@@ -508,7 +515,7 @@ void DropDown::mouseDown(wxMouseEvent& event)
 
     const wxSize size = GetSize();
     const int height = rowSize.y * int(texts.size());
-    const wxRect rect = { size.x - slider_width, -offset.y * size.y / height, slider_width - 2,
+    const wxRect rect = { size.x - slider_width, -offset.y * size.y / height, slider_width - scrollbar_edge_inset,
                       size.y * size.y / height };
     slider_grabbed = rect.Contains(event.GetPosition());
 

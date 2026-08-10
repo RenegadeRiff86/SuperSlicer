@@ -7,6 +7,10 @@
 #ifndef slic3r_GLCanvas3D_hpp_
 #define slic3r_GLCanvas3D_hpp_
 
+// This header branches on ENABLE_OPENGL_ES / ENABLE_GL_CORE_PROFILE, so it defines them itself and
+// every including translation unit agrees on the resulting declarations.
+#include "libslic3r/Technologies.hpp"
+
 #include <cfloat>
 #include <cstddef>
 #include <memory>
@@ -61,6 +65,10 @@ class SLAPrint;
 namespace CustomGCode { struct Item; }
 
 namespace GUI {
+
+inline constexpr size_t GEOMETRY_UPDATE_VALUE_COUNT = 2;
+inline constexpr size_t CLIPPING_PLANE_COUNT = 2;
+inline constexpr size_t DIMENSION_PAIR_SIZE = 2;
 
 class Bed3D;
 
@@ -172,7 +180,7 @@ wxDECLARE_EVENT(EVT_GLCANVAS_INSTANCE_SCALED, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_INSTANCE_MIRRORED, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_WIPETOWER_ROTATED, Vec3dEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_ENABLE_ACTION_BUTTONS, Event<bool>);
-wxDECLARE_EVENT(EVT_GLCANVAS_UPDATE_GEOMETRY, Vec3dsEvent<2>);
+wxDECLARE_EVENT(EVT_GLCANVAS_UPDATE_GEOMETRY, Vec3dsEvent<GEOMETRY_UPDATE_VALUE_COUNT>);
 wxDECLARE_EVENT(EVT_GLCANVAS_MOUSE_DRAGGING_STARTED, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_MOUSE_DRAGGING_FINISHED, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_UPDATE_BED_SHAPE, SimpleEvent);
@@ -293,8 +301,8 @@ class GLCanvas3D
         void render_overlay(const GLCanvas3D& canvas);
         void render_volumes(const GLCanvas3D& canvas, const GLVolumeCollection& volumes);
 
-		void adjust_layer_height_profile();
-		void accept_changes(GLCanvas3D& canvas);
+        void adjust_layer_height_profile();
+        void accept_changes(GLCanvas3D& canvas);
         void reset_layer_height_profile(GLCanvas3D& canvas);
         void adaptive_layer_height_profile(GLCanvas3D& canvas, const HeightProfileAdaptiveParams& adaptative_params);
         void smooth_layer_height_profile(GLCanvas3D& canvas, const HeightProfileSmoothingParams& smoothing_params);
@@ -523,10 +531,10 @@ private:
     GLGizmosManager m_gizmos;
     GLToolbar m_main_toolbar;
     GLToolbar m_undoredo_toolbar;
-    std::array<ClippingPlane, 2> m_clipping_planes;
+    std::array<ClippingPlane, CLIPPING_PLANE_COUNT> m_clipping_planes;
     ClippingPlane m_camera_clipping_plane;
     bool m_use_clipping_planes;
-    std::array<SlaCap, 2> m_sla_caps;
+    std::array<SlaCap, CLIPPING_PLANE_COUNT> m_sla_caps;
     std::string m_sidebar_field;
     // when true renders an extra frame by not resetting m_dirty to false
     // see request_extra_frame()
@@ -550,7 +558,7 @@ private:
     BackgroundSlicingProcess *m_process;
     bool m_requires_check_outside_state{ false };
 
-    std::array<unsigned int, 2> m_old_size{ 0, 0 };
+    std::array<unsigned int, DIMENSION_PAIR_SIZE> m_old_size{ 0, 0 };
 
     // Screen is only refreshed from the OnIdle handler if it is dirty.
     bool m_dirty;
@@ -578,7 +586,6 @@ private:
     bool m_reload_delayed;
 
 #if ENABLE_RENDER_PICKING_PASS
-    bool m_show_picking_texture;
 #endif // ENABLE_RENDER_PICKING_PASS
 
     KeyAutoRepeatFilter m_shift_kar_filter;
@@ -727,7 +734,7 @@ public:
     void set_context(wxGLContext* context) { m_context = context; }
 
     wxGLCanvas* get_wxglcanvas() { return m_canvas; }
-	const wxGLCanvas* get_wxglcanvas() const { return m_canvas; }
+    const wxGLCanvas* get_wxglcanvas() const { return m_canvas; }
 
     bool init();
     void post_event(wxEvent &&event);
@@ -804,7 +811,7 @@ public:
     }
 
     void set_clipping_plane(unsigned int id, const ClippingPlane& plane) {
-        if (id < 2) {
+        if (id < CLIPPING_PLANE_COUNT) {
             m_clipping_planes[id] = plane;
             m_sla_caps[id].reset();
         }
@@ -813,11 +820,11 @@ public:
     void set_use_clipping_planes(bool use) { m_use_clipping_planes = use; }
 
     bool                                get_use_clipping_planes() const { return m_use_clipping_planes; }
-    const std::array<ClippingPlane, 2> &get_clipping_planes() const { return m_clipping_planes; };
+    const std::array<ClippingPlane, CLIPPING_PLANE_COUNT> &get_clipping_planes() const { return m_clipping_planes; };
 
     void set_use_color_clip_plane(bool use) { m_volumes.set_use_color_clip_plane(use); }
     void set_color_clip_plane(const Vec3d& cp_normal, double offset) { m_volumes.set_color_clip_plane(cp_normal, offset); }
-    void set_color_clip_plane_colors(const std::array<ColorRGBA, 2>& colors) { m_volumes.set_color_clip_plane_colors(colors); }
+    void set_color_clip_plane_colors(const std::array<ColorRGBA, CLIPPING_PLANE_COUNT>& colors) { m_volumes.set_color_clip_plane_colors(colors); }
 
     void refresh_camera_scene_box();
 
@@ -881,7 +888,7 @@ public:
     unsigned int get_toolpath_role_visibility_flags() const { return m_gcode_viewer.get_toolpath_role_visibility_flags(); }
     void set_toolpath_role_visibility_flags(unsigned int flags);
     void set_toolpath_view_type(GCodeViewer::EViewType type);
-    void set_volumes_z_range(const std::array<double, 2>& range);
+    void set_volumes_z_range(const std::array<double, DIMENSION_PAIR_SIZE>& range);
     void set_toolpaths_z_range(const std::array<unsigned int, LayerRangeBounds>& range);
     std::vector<CustomGCode::Item>& get_custom_gcode_per_print_z() { return m_gcode_viewer.get_custom_gcode_per_print_z(); }
     size_t get_gcode_extruders_count() { return m_gcode_viewer.get_extruders_count(); }
@@ -1157,7 +1164,7 @@ private:
     void _load_wipe_tower_toolpaths(const BuildVolume &build_volume, const std::vector<std::string>& str_tool_colors);
 
     // Load SLA objects and support structures for objects, for which the slaposSliceSupports step has been finished.
-	void _load_sla_shells();
+    void _load_sla_shells();
     void _update_sla_shells_outside_state();
     void _set_warning_notification_if_needed(EWarning warning);
 

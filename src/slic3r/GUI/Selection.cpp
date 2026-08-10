@@ -482,8 +482,8 @@ void Selection::set_deserialized(EMode mode, const std::vector<std::pair<size_t,
         (m_volumes->volumes)[i].get()->selected = false;
     m_list.clear();
     for (unsigned int i = 0; i < static_cast<unsigned int>(m_volumes->volumes.size()); ++ i)
-		if (std::binary_search(volumes_and_instances.begin(), volumes_and_instances.end(), (m_volumes->volumes)[i].get()->geometry_id))
-			do_add_volume(i);
+        if (std::binary_search(volumes_and_instances.begin(), volumes_and_instances.end(), (m_volumes->volumes)[i].get()->geometry_id))
+            do_add_volume(i);
     update_type();
     set_bounding_boxes_dirty();
 }
@@ -534,7 +534,7 @@ void Selection::instances_changed(const std::vector<size_t> &instance_ids_select
             m_model->objects[volume->object_idx()]->volumes[volume->volume_idx()]->is_modifier())
             continue;
         auto it = std::lower_bound(instance_ids_selected.begin(), instance_ids_selected.end(), volume->geometry_id.second);
-		if (it != instance_ids_selected.end() && *it == volume->geometry_id.second)
+        if (it != instance_ids_selected.end() && *it == volume->geometry_id.second)
             this->do_add_volume(volume_idx);
     }
     update_type();
@@ -1799,7 +1799,7 @@ void Selection::copy_to_clipboard()
         ModelObject* dst_object = m_clipboard.add_object();
         dst_object->name                 = src_object->name;
         dst_object->input_file           = src_object->input_file;
-		dst_object->config.assign_config(src_object->config);
+        dst_object->config.assign_config(src_object->config);
         dst_object->sla_support_points   = src_object->sla_support_points;
         dst_object->sla_points_status    = src_object->sla_points_status;
         dst_object->sla_drain_holes      = src_object->sla_drain_holes;
@@ -2992,7 +2992,7 @@ void Selection::paste_volumes_from_clipboard()
 
             volumes.push_back(dst_volume);
 #ifdef _DEBUG
-		    check_model_ids_validity(*m_model);
+            check_model_ids_validity(*m_model);
 #endif /* _DEBUG */
         }
 
@@ -3033,7 +3033,7 @@ void Selection::paste_objects_from_clipboard()
 
         object_idxs.push_back(m_model->objects.size() - 1);
 #ifdef _DEBUG
-	    check_model_ids_validity(*m_model);
+        check_model_ids_validity(*m_model);
 #endif /* _DEBUG */
     }
 

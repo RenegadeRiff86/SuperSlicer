@@ -17,7 +17,6 @@
 #include "Tab.hpp"
 #include "../Utils/Http.hpp"
 #include <wx/notebook.h>
-#include "Notebook.hpp"
 
 #include "MainFrame.hpp"
 #include "wxExtensions.hpp"
@@ -86,6 +85,37 @@ constexpr int    kBluePerceptualHalf     = 2;  // blue channel weighted half as 
 constexpr int    kRoundingHalfDivisor    = 2;  // half-up residual for pixel conversion
 constexpr double kMinSeparationZMm       = 0.01;
 constexpr double kPlaceholderCubeEdgeMm  = 0.01;
+constexpr int    kPyramidVertex2          = 2;
+constexpr int    kPyramidVertex3          = 3;
+constexpr int    kPyramidVertex4          = 4;
+constexpr int    kPyramidVertex5          = 5;
+constexpr int    kPyramidVertex6          = 6;
+constexpr int    kPyramidVertex7          = 7;
+constexpr float  kGeometryCenterDivisor   = 2.0f;
+constexpr int    kGridCellBorder          = 2;
+constexpr int    kWideColumnSpan          = 2;
+constexpr int    kExpandableColumn        = 2;
+constexpr int    kBorderSideCount         = 2;
+constexpr int    kTabsColumnSpan          = 3;
+constexpr int    kCloseButtonColumn       = 3;
+constexpr int    kCanvasRowSpan           = 3;
+constexpr int    kColorSettingsRow        = 3;
+constexpr int    kExtruderCountRow        = 4;
+constexpr int    kColorConversionRow       = 4;
+constexpr int    kDefaultDay              = 5;
+constexpr int    kMaximumDay              = 6;
+constexpr double kDefaultPointCoordinate  = 5.0;
+constexpr int    kCloseButtonBorder       = 5;
+constexpr int    kButtonColumnSpan        = 6;
+constexpr int    kAcceleratorEntryCount   = 6;
+constexpr int    kHueDistanceMethod       = 2;
+constexpr int    kDialogFirstInputColumn  = 2;
+constexpr int    kDialogActionRow         = 2;
+constexpr int    kDialogShortcutCount     = 2;
+constexpr int    kOptionsColumn           = 2;
+constexpr int    kSizeOptionsRow          = 2;
+constexpr int    kCanvasStartRow          = 2;
+constexpr int    kColorPickerRow          = 2;
 } // namespace
 
     //available on https://rplace.space/combined/ the 2022/06/04 (15gio of png)
@@ -659,7 +689,7 @@ constexpr double kPlaceholderCubeEdgeMm  = 0.01;
     int color_dist(int method, wxColour col1, wxColour col2) {
         if (method == 1)
             return color_dist_not_blue(col1, col2);
-        if (method == 2)
+        if (method == kHueDistanceMethod)
             return color_dist_hue(col1, col2);
         return color_dist_std(col1,col2);
     }
@@ -735,6 +765,52 @@ constexpr double kPlaceholderCubeEdgeMm  = 0.01;
     {
     }
 
+    // Index of the used-colour entry whose printed colour best matches `color`. An exact match
+    // wins immediately; otherwise the nearest colour is taken only when use_near_color is set.
+    static int nearest_used_color_index(const std::vector<ColorEntry*>& used_colors,
+                                        const wxColour&                 color,
+                                        int                             color_algo,
+                                        bool                            use_near_color,
+                                        bool                            use_spool_colors)
+    {
+        int nearest_idx = 0;
+        for (int i = 0; i < int(used_colors.size()); i++) {
+            const wxColour candidate = used_colors[i]->get_printed_color(use_spool_colors);
+            if (candidate == color)
+                return i;
+            if (!use_near_color)
+                continue;
+            const wxColour nearest = used_colors[nearest_idx]->get_printed_color(use_spool_colors);
+            if (color_dist(color_algo, candidate, color) < color_dist(color_algo, nearest, color))
+                nearest_idx = i;
+        }
+        return nearest_idx;
+    }
+
+    // Index of `color` in `pixel_colors`, appending a new entry when the colour is not there yet.
+    static size_t pixel_color_index(std::vector<ColorEntry>& pixel_colors, const wxColour& color)
+    {
+        for (size_t i = 0; i < pixel_colors.size(); i++) {
+            if (pixel_colors[i].real_color == color)
+                return i;
+        }
+        pixel_colors.emplace_back(color);
+        return pixel_colors.size() - 1;
+    }
+
+    // Spool whose printed colour sits closest to `target`. `spools` must not be empty.
+    static ColorEntrySpool* nearest_spool(std::vector<ColorEntrySpool>& spools,
+                                          int color_algo, bool use_spool, const wxColour& target)
+    {
+        ColorEntrySpool* nearest = &spools[0];
+        for (size_t i = 1; i < spools.size(); i++) {
+            if (color_dist(color_algo, spools[i].get_printed_color(use_spool), target)
+                < color_dist(color_algo, nearest->get_printed_color(use_spool), target))
+                nearest = &spools[i];
+        }
+        return nearest;
+    }
+
     /*
      * Here we do the actual rendering. I put it in a separate
      * method so that it can work no matter what type of DC
@@ -797,21 +873,13 @@ constexpr double kPlaceholderCubeEdgeMm  = 0.01;
             if (show_original) {
                 col2nearest[c.real_color.GetRGB()] = wxTheBrushList->FindOrCreateBrush(c.real_color);
             } else {
-                int idx_extruder = 0;
                 //first check if there is an overide
                 if (use_spool_colors && c.widget_spool && !c.widget_spool->is_auto()) {
                     color = c.widget_spool->get_print_color()->get_printed_color(use_spool_colors);
                 }
                 //get nearest
-                for (int i = 0; i < int(parent->m_used_colors.size()); i++) {
-                    if (parent->m_used_colors[i]->get_printed_color(use_spool_colors) == color) {
-                        idx_extruder = i;
-                        break;
-                    } else if (use_near_color && (color_dist(color_algo, parent->m_used_colors[i]->get_printed_color(use_spool_colors), color) < color_dist(color_algo, parent->m_used_colors[idx_extruder]->get_printed_color(use_spool_colors),
-                      color))) {
-                        idx_extruder = i;
-                    }
-                }
+                const int idx_extruder = nearest_used_color_index(
+                    parent->m_used_colors, color, color_algo, use_near_color, use_spool_colors);
                 color = parent->m_used_colors[idx_extruder]->get_printed_color(use_spool_colors);
                 col2nearest[c.real_color.GetRGB()] = wxTheBrushList->FindOrCreateBrush(color);
             }
@@ -847,7 +915,7 @@ constexpr double kPlaceholderCubeEdgeMm  = 0.01;
         }
     }
 
-    void BasicDrawPane::loadImage(std::string path) {
+    void BasicDrawPane::loadImage(const std::string& path) {
         //wxImage image;
         //if (!image.LoadFile(Slic3r::GUI::from_u8(Slic3r::get_icon_file("C:/Users/VR-REMI/Downloads/1649109736.png")), wxBITMAP_TYPE_PNG) ||
         //    image.GetWidth() == 0 || image.GetHeight() == 0)
@@ -904,7 +972,7 @@ constexpr double kPlaceholderCubeEdgeMm  = 0.01;
             wxStaticText* lbl_hour = new wxStaticText(this, wxID_ANY, "Hour");
             wxStaticText* lbl_minute = new wxStaticText(this, wxID_ANY, "Minute");
             wxStaticText* lbl_second = new wxStaticText(this, wxID_ANY, "Second");
-            day = new wxSpinCtrl(this, wxID_ANY, "Day", wxDefaultPosition, wxSize(kSpinCtrlWidthPx, kSpinCtrlHeightPx), spin_options, 1, 6, 5);
+            day = new wxSpinCtrl(this, wxID_ANY, "Day", wxDefaultPosition, wxSize(kSpinCtrlWidthPx, kSpinCtrlHeightPx), spin_options, 1, kMaximumDay, kDefaultDay);
             hour = new wxSpinCtrl(this, wxID_ANY, "H", wxDefaultPosition, wxSize(kSpinCtrlWidthPx, kSpinCtrlHeightPx), spin_options, 0, kHoursPerDay, 0);
             minute = new wxSpinCtrl(this, wxID_ANY, "M", wxDefaultPosition, wxSize(kSpinCtrlWidthPx, kSpinCtrlHeightPx), spin_options, 0, kSecondsPerMinute, 47);
             second = new wxSpinCtrl(this, wxID_ANY, "S", wxDefaultPosition, wxSize(kSpinCtrlWidthPx, kSpinCtrlHeightPx), spin_options, 0, kSecondsPerMinute, 35);
@@ -926,7 +994,7 @@ constexpr double kPlaceholderCubeEdgeMm  = 0.01;
 
             wxGridBagSizer* gb_sizer = new wxGridBagSizer(1, 1); //(int vgap, int hgap)
             int x=1, y=1;
-            x = 2;
+            x = kDialogFirstInputColumn;
             gb_sizer->Add(lbl_day, wxGBPosition(y, x++), wxGBSpan(1, 1));
             gb_sizer->Add(lbl_hour, wxGBPosition(y, x++), wxGBSpan(1, 1));
             gb_sizer->Add(lbl_minute, wxGBPosition(y, x++), wxGBSpan(1, 1));
@@ -939,7 +1007,7 @@ constexpr double kPlaceholderCubeEdgeMm  = 0.01;
             gb_sizer->Add(second, wxGBPosition(y, x++), wxGBSpan(1, 1));
             gb_sizer->Add(bt_next, wxGBPosition(y, x++), wxGBSpan(1, 1));
             x = 1; y++;
-            gb_sizer->Add(buttons, wxGBPosition(y, x), wxGBSpan(1, 6));
+            gb_sizer->Add(buttons, wxGBPosition(y, x), wxGBSpan(1, kButtonColumnSpan));
             
             SetSizerAndFit(gb_sizer);
             //this->Fit();
@@ -978,27 +1046,7 @@ void CreateMMUTiledCanvas::recompute_colors()
     wxSize offset(std::min(int(offset_dbl.x()), std::max(0, bmp.GetSize().x - 1)), std::min(int(offset_dbl.y()), std::max(0, bmp.GetSize().y - 1)));
     Vec2d size_dbl = m_config.option<ConfigOptionPoint>("size")->value;
     wxSize size(std::min(int(size_dbl.x()), bmp.GetSize().x - offset.x), std::min(int(size_dbl.y()), bmp.GetSize().y - offset.y));
-    Vec2d pixel_size = m_config.option<ConfigOptionPoint>("size_px")->value;
-    double separation = m_config.opt_float(kSeparationXyKey);
 
-    //compute pixel per mm
-    double max_x_mm = (size.x * (pixel_size.x() + separation) - separation);
-    double max_y_mm = (size.y * (pixel_size.y() + separation) - separation);
-    float mm_per_pixel = std::max(max_x_mm / (GetSize().x - kCanvasBorderPx), max_y_mm / (GetSize().y - kCanvasBorderPx));
-
-    //compute pixel per tile & per separation
-    int pixels_separation = int(separation / mm_per_pixel) + (separation - int(separation / mm_per_pixel) > mm_per_pixel / kRoundingHalfDivisor ? 1 : 0);
-    int ratiox = std::min(1, int(pixel_size.x() / pixel_size.y()));
-    int ratioy = std::min(1, int(pixel_size.y() / pixel_size.x()));
-    int pixels_reste_x = (GetSize().x - kCanvasBorderPx - pixels_separation * (size.x - 1));
-    int pixels_reste_y = (GetSize().y - kCanvasBorderPx - pixels_separation * (size.y - 1));
-    double pixels_per_tile_dbl_x = (pixels_reste_x / double(size.x * (pixel_size.x() / pixel_size.y())));
-    double pixels_per_tile_dbl_y = (pixels_reste_y / double(size.y * (pixel_size.y() / pixel_size.x())));
-    double pixels_per_tile = std::min(pixels_per_tile_dbl_x, pixels_per_tile_dbl_y);
-    int pixels_per_tile_x = std::max(1, int(pixels_per_tile * ratiox));
-    int pixels_per_tile_y = std::max(1, int(pixels_per_tile * ratioy));
-
-    bool show_original = m_config.option<ConfigOptionBool>(kOriginalKey)->value;
     wxColour background_color{ wxString{ m_config.option<ConfigOptionString>(kBackgroundColorKey)->value } };
 
     for (ColorEntry& col : m_pixel_colors) {
@@ -1033,18 +1081,7 @@ void CreateMMUTiledCanvas::recompute_colors()
                 p.OffsetX(data, offset.x);
             for (int x = 0; x < size.x; x++, ++p) {
                 wxColour color(p.Red(), p.Green(), p.Blue());
-                int idx = -1;
-                for (int i = 0; i < int(m_pixel_colors.size()); i++) {
-                    if (m_pixel_colors[i].real_color == color) {
-                        idx = i;
-                        break;
-                    }
-                }
-                if (idx < 0) {
-                    idx = m_pixel_colors.size();
-                    m_pixel_colors.emplace_back(color);
-                }
-                m_pixel_colors[idx].add_pixel();
+                m_pixel_colors[pixel_color_index(m_pixel_colors, color)].add_pixel();
             }
             p = rowStart;
             p.OffsetY(data, 1);
@@ -1075,12 +1112,7 @@ void CreateMMUTiledCanvas::recompute_colors()
                 c->printing_color = c->widget_spool->get_print_color();
                 c->printing_color->nb_pixels_real += c->nb_pixels_sum;
             } else {
-                c->printing_color = &m_spools[0];
-                for (size_t i = 1; i < m_spools.size(); i++) {
-                    if ((color_dist(color_algo, m_spools[i].get_printed_color(use_spool), c->real_color) < color_dist(color_algo, c->printing_color->get_printed_color(use_spool), c->real_color))) {
-                        c->printing_color = &m_spools[i];
-                    }
-                }
+                c->printing_color = nearest_spool(m_spools, color_algo, use_spool, c->real_color);
                 c->printing_color->nb_pixels_real += c->nb_pixels_sum;
             }
         }
@@ -1156,7 +1188,11 @@ void CreateMMUTiledCanvas::save_config()
     // Rename the config atomically.
     // On Windows, the rename is likely NOT atomic, thus it may fail if PrusaSlicer crashes on another thread in the meanwhile.
     // To cope with that, we already made a backup of the config on Windows.
-    rename_file(path_temp.string(), path_ini.string());
+    if (const std::error_code error = rename_file(path_temp.string(), path_ini.string())) {
+        BOOST_LOG_TRIVIAL(error) << "Renaming " << path_temp.string() << " to " << path_ini.string()
+                                 << " failed: " << error.message();
+        return;
+    }
     m_dirty = false;
 }
 
@@ -1180,7 +1216,7 @@ void CreateMMUTiledCanvas::load_config()
         def.tooltip = L("Size in mm on x and y axis for a pixel");
         def.sidetext = L("mm");
         def.min = 0;
-        def.set_default_value(std::make_unique<ConfigOptionPoint>(ConfigOptionPoint{ Vec2d{ 5,5 } }));
+        def.set_default_value(std::make_unique<ConfigOptionPoint>(ConfigOptionPoint{ Vec2d{ kDefaultPointCoordinate, kDefaultPointCoordinate } }));
         m_config.config_def.options["size_px"] = def;
         m_config.set_key_value("size_px", def.default_value.get()->clone());
 
@@ -1462,20 +1498,20 @@ CreateMMUTiledCanvas::CreateMMUTiledCanvas(GUI_App* app, MainFrame* mainframe)
 
 
     wxGridBagSizer* main_sizer = new wxGridBagSizer(1,1);
-    main_sizer->Add(tabs, wxGBPosition(1, 1), wxGBSpan(1, 3), wxEXPAND | wxTOP | wxLEFT | wxRIGHT);
+    main_sizer->Add(tabs, wxGBPosition(1, 1), wxGBSpan(1, kTabsColumnSpan), wxEXPAND | wxTOP | wxLEFT | wxRIGHT);
 
     wxButton* bt_create_geometry = new wxButton(this, wxID_APPLY, _(L("Generate")));
     bt_create_geometry->Bind(wxEVT_BUTTON, &CreateMMUTiledCanvas::create_geometry, this);
     wxGetApp().UpdateDarkUI(bt_create_geometry);
-    main_sizer->Add(bt_create_geometry, wxGBPosition(2, 1), wxGBSpan(1, 1), wxEXPAND | wxALIGN_LEFT);
+    main_sizer->Add(bt_create_geometry, wxGBPosition(kDialogActionRow, 1), wxGBSpan(1, 1), wxEXPAND | wxALIGN_LEFT);
 
     wxButton* bt_close = new wxButton(this, wxID_CLOSE, _(L("Close")));
     bt_close->Bind(wxEVT_BUTTON, &CreateMMUTiledCanvas::close_me, this);
     SetAffirmativeId(wxID_CLOSE);
     wxGetApp().UpdateDarkUI(bt_close);
-    main_sizer->Add(bt_close, wxGBPosition(2, 3), wxGBSpan(1, 1), wxEXPAND | wxALIGN_RIGHT, 5);
+    main_sizer->Add(bt_close, wxGBPosition(kDialogActionRow, kCloseButtonColumn), wxGBSpan(1, 1), wxEXPAND | wxALIGN_RIGHT, kCloseButtonBorder);
 
-    main_sizer->AddGrowableCol(2);
+    main_sizer->AddGrowableCol(kExpandableColumn);
     main_sizer->AddGrowableRow(1);
 
     SetSizer(main_sizer);
@@ -1493,7 +1529,7 @@ CreateMMUTiledCanvas::CreateMMUTiledCanvas(GUI_App* app, MainFrame* mainframe)
         Fit();
 
     //set keyboard shortcut
-    wxAcceleratorEntry entries[2];
+    wxAcceleratorEntry entries[kDialogShortcutCount];
     //entries[0].Set(wxACCEL_CTRL, (int) 'X', bt_create_geometry->GetId());
     //entries[2].Set(wxACCEL_SHIFT, (int) 'W', wxID_FILE1);
     //entries[0].Set(wxACCEL_CTRL, WXK_ESCAPE, wxID_CLOSE);
@@ -1503,7 +1539,7 @@ CreateMMUTiledCanvas::CreateMMUTiledCanvas(GUI_App* app, MainFrame* mainframe)
     //entries[4].Set(wxACCEL_CTRL | wxACCEL_SHIFT, (int) 'S', bt_save->GetId());
     //entries[5].Set(wxACCEL_CTRL, (int) 'S', bt_quick_save->GetId());
     entries[1].Set(wxACCEL_CTRL, WXK_F4, wxID_CLOSE);
-    this->SetAcceleratorTable(wxAcceleratorTable(6, entries));
+    this->SetAcceleratorTable(wxAcceleratorTable(kAcceleratorEntryCount, entries));
 
 
     this->CenterOnParent();
@@ -1579,7 +1615,7 @@ void CreateMMUTiledCanvas::create_main_tab(wxPanel* tab)
 #endif
                 }
             }
-            catch (Exception) {}
+            catch (const Exception&) {}
         }
         }));
     m_filename_ctrl = new wxTextCtrl(tab, wxID_ANY, "");
@@ -1632,7 +1668,7 @@ void CreateMMUTiledCanvas::create_main_tab(wxPanel* tab)
 
         this->m_filename_ctrl->SetValue(object_path.string());
     }
-    main_sizer->Add(horiSizer, wxGBPosition(1, 1), wxGBSpan(1, 2), wxEXPAND | wxALL, 2);
+    main_sizer->Add(horiSizer, wxGBPosition(1, 1), wxGBSpan(1, kWideColumnSpan), wxEXPAND | wxALL, kGridCellBorder);
 
     Line line = { "", "" };
 
@@ -1677,7 +1713,7 @@ void CreateMMUTiledCanvas::create_main_tab(wxPanel* tab)
     group_size->activate([]() {}, wxALIGN_RIGHT);
     group_size->reload_config();
     group_size->update_visibility(comSimple);
-    main_sizer->Add(group_size->sizer, wxGBPosition(2, 2), wxGBSpan(1, 1), wxEXPAND | wxALL, 2);
+    main_sizer->Add(group_size->sizer, wxGBPosition(kSizeOptionsRow, kOptionsColumn), wxGBSpan(1, 1), wxEXPAND | wxALL, kGridCellBorder);
     group_size->parent()->Layout();
 
 
@@ -1724,7 +1760,7 @@ void CreateMMUTiledCanvas::create_main_tab(wxPanel* tab)
     group_colors->activate([]() {}, wxALIGN_RIGHT);
     group_colors->reload_config();
     group_colors->update_visibility(comSimple);
-    main_sizer->Add(group_colors->sizer, wxGBPosition(3, 2), wxGBSpan(1, 1), wxEXPAND | wxALL, 2);
+    main_sizer->Add(group_colors->sizer, wxGBPosition(kColorSettingsRow, kOptionsColumn), wxGBSpan(1, 1), wxEXPAND | wxALL, kGridCellBorder);
 
     //line = { "", "" };
     //line.full_width = 1;
@@ -1736,17 +1772,17 @@ void CreateMMUTiledCanvas::create_main_tab(wxPanel* tab)
     //};
     //group_colors->append_line(line);
     // Extruder count label is refreshed when printer presets change.
-    main_sizer->Add(m_txt_extruder_count, wxGBPosition(4, 2), wxGBSpan(1, 1), wxEXPAND | wxALL, 2);
+    main_sizer->Add(m_txt_extruder_count, wxGBPosition(kExtruderCountRow, kOptionsColumn), wxGBSpan(1, 1), wxEXPAND | wxALL, kGridCellBorder);
 
     // create canvas
     m_canvas = new BasicDrawPane(tab, &this->m_config);
     m_canvas->parent = this;
     this->get_canvas()->loadImage(m_filename_ctrl->GetValue().ToStdString());
-    main_sizer->Add(m_canvas, wxGBPosition(2, 1), wxGBSpan(3, 1), wxEXPAND | wxALL, 2);
+    main_sizer->Add(m_canvas, wxGBPosition(kCanvasStartRow, 1), wxGBSpan(kCanvasRowSpan, 1), wxEXPAND | wxALL, kGridCellBorder);
 
     // set growable
     main_sizer->AddGrowableCol(1);
-    main_sizer->AddGrowableRow(4);
+    main_sizer->AddGrowableRow(kExtruderCountRow);
 
     tab->SetSizer(main_sizer);
 }
@@ -1813,7 +1849,7 @@ public:
             return &m_main_app->m_spools[item - 1];
         }
     }
-    wxWindow* get_widget() {
+    wxWindow* get_widget() override {
         return this;
     }
     wxSizer* get_sizer() override {
@@ -1828,7 +1864,7 @@ public:
         is_attached = false;
     }
     void attach() override {
-        m_main_app->all_lines_conversion->Add(m_line, wxEXPAND | wxHORIZONTAL);
+        m_main_app->all_lines_conversion->Add(m_line, 0, wxEXPAND);
         is_attached = true;
     }
 
@@ -2005,7 +2041,7 @@ void CreateMMUTiledCanvas::create_color_tab(wxPanel* tab)
     }));
     first_line->Add(new wxStaticText(tab, wxID_ANY, _L("Available filament colors in your spools (right clic to delete)")), wxSizerFlags().Left());
     first_line->Add(bt_new_color, wxSizerFlags().Left());
-    color_sizer->Add(first_line, wxGBPosition(1, 1), wxGBSpan(1, 2), wxEXPAND | wxALL, 2);
+    color_sizer->Add(first_line, wxGBPosition(1, 1), wxGBSpan(1, kWideColumnSpan), wxEXPAND | wxALL, kGridCellBorder);
 
     //row of available colors
     //group_colors->append_single_option_line(group_colors->get_option(kAvailableColorsKey));
@@ -2014,18 +2050,18 @@ void CreateMMUTiledCanvas::create_color_tab(wxPanel* tab)
         MywxColourPickerCtrl::add_color_bt(available_colors->get_at(i), color_row_sizer);
     }
     tab->Refresh();
-    color_sizer->Add(color_row_sizer, wxGBPosition(2, 1), wxGBSpan(1, 2), wxEXPAND | wxALL, 2);
+    color_sizer->Add(color_row_sizer, wxGBPosition(kColorPickerRow, 1), wxGBSpan(1, kWideColumnSpan), wxEXPAND | wxALL, kGridCellBorder);
 
 
-    color_sizer->Add(new wxStaticText(tab, wxID_ANY, _L("For each needed color, chose the spool color (or let the algorithm choose)")), wxGBPosition(3, 1), wxGBSpan(1, 2), wxEXPAND | wxALL, 2);
+    color_sizer->Add(new wxStaticText(tab, wxID_ANY, _L("For each needed color, chose the spool color (or let the algorithm choose)")), wxGBPosition(kColorSettingsRow, 1), wxGBSpan(1, kWideColumnSpan), wxEXPAND | wxALL, kGridCellBorder);
 
     //color convertion
     all_lines_conversion = new wxBoxSizer(wxVERTICAL);
-    color_sizer->Add(all_lines_conversion, wxGBPosition(4, 1), wxGBSpan(1, 2), wxEXPAND | wxHORIZONTAL | wxALIGN_TOP | wxALIGN_LEFT, 2);
+    color_sizer->Add(all_lines_conversion, wxGBPosition(kColorConversionRow, 1), wxGBSpan(1, kWideColumnSpan), wxEXPAND | wxALIGN_TOP | wxALIGN_LEFT, kGridCellBorder);
 
 
-    color_sizer->AddGrowableCol(2);
-    color_sizer->AddGrowableRow(3);
+    color_sizer->AddGrowableCol(kExpandableColumn);
+    color_sizer->AddGrowableRow(kColorSettingsRow);
 
     tab->SetSizer(color_sizer);
 
@@ -2065,33 +2101,41 @@ indexed_triangle_set its_make_pyramid_inverted(double xd, double yd, double zd, 
     float y2 = y - b;
     if (x2 > b && y2 > b) {
         return {
-            { {0, 1, 2}, {0, 2, 3}, {4, 5, 6}, {4, 6, 7},
-              {0, 4, 7}, {0, 7, 1}, {1, 7, 6}, {1, 6, 2},
-              {2, 6, 5}, {2, 5, 3}, {4, 0, 3}, {4, 3, 5} },
+            { {0, 1, kPyramidVertex2}, {0, kPyramidVertex2, kPyramidVertex3},
+              {kPyramidVertex4, kPyramidVertex5, kPyramidVertex6}, {kPyramidVertex4, kPyramidVertex6, kPyramidVertex7},
+              {0, kPyramidVertex4, kPyramidVertex7}, {0, kPyramidVertex7, 1},
+              {1, kPyramidVertex7, kPyramidVertex6}, {1, kPyramidVertex6, kPyramidVertex2},
+              {kPyramidVertex2, kPyramidVertex6, kPyramidVertex5}, {kPyramidVertex2, kPyramidVertex5, kPyramidVertex3},
+              {kPyramidVertex4, 0, kPyramidVertex3}, {kPyramidVertex4, kPyramidVertex3, kPyramidVertex5} },
             { {x2,y2,0}, {x2,b, 0}, {b, b, 0}, {b,y2, 0},
               {x, y, z}, {0, y, z}, {0, 0, z}, {x, 0, z} }
         };
     } else if (x2 <= b && y2 <= b) {
         return {
-            { {0, 3, 2}, {0, 2, 1}, {0, 1, 4}, {0, 4, 3}, //4 faces
-            {1, 2, 3}, {1, 3, 4} }, //top
-            { {x / 2,y / 2,0},
+            { {0, kPyramidVertex3, kPyramidVertex2}, {0, kPyramidVertex2, 1},
+              {0, 1, kPyramidVertex4}, {0, kPyramidVertex4, kPyramidVertex3}, //4 faces
+              {1, kPyramidVertex2, kPyramidVertex3}, {1, kPyramidVertex3, kPyramidVertex4} }, //top
+            { {x / kGeometryCenterDivisor, y / kGeometryCenterDivisor, 0},
               {x, y, z}, {0, y, z}, {0, 0, z}, {x, 0, z} }
         };
     } else if (x2 <= b && y2 > b) {
         return {
-            { {0, 3, 2}, {1, 5, 4}, //2 simple faces
-             {0, 2, 5}, {0, 5, 1}, {1, 4, 3}, {1, 3, 0}, //2 double faces
-            {2, 3, 4}, {2, 4, 5} }, //top
-            { {x/2,b,0}, {x/2,y2,0},
+            { {0, kPyramidVertex3, kPyramidVertex2}, {1, kPyramidVertex5, kPyramidVertex4}, //2 simple faces
+              {0, kPyramidVertex2, kPyramidVertex5}, {0, kPyramidVertex5, 1},
+              {1, kPyramidVertex4, kPyramidVertex3}, {1, kPyramidVertex3, 0}, //2 double faces
+              {kPyramidVertex2, kPyramidVertex3, kPyramidVertex4},
+              {kPyramidVertex2, kPyramidVertex4, kPyramidVertex5} }, //top
+            { {x / kGeometryCenterDivisor, b, 0}, {x / kGeometryCenterDivisor, y2, 0},
               {0, 0, z},  {x, 0, z}, {x, y, z}, {0, y, z} }
         };
     } else /*if (x2 > b && y2 <= b)*/ {
         return {
-            { {0, 2, 5}, {1, 4, 3}, //2 simple faces
-             {0, 5, 4}, {0, 4, 1}, {1, 3, 2}, {1, 2, 0}, //2 double faces
-            {2, 3, 4}, {2, 4, 5} }, //top
-            { {b,y/2,0}, {x2,y/2,0},
+            { {0, kPyramidVertex2, kPyramidVertex5}, {1, kPyramidVertex4, kPyramidVertex3}, //2 simple faces
+              {0, kPyramidVertex5, kPyramidVertex4}, {0, kPyramidVertex4, 1},
+              {1, kPyramidVertex3, kPyramidVertex2}, {1, kPyramidVertex2, 0}, //2 double faces
+              {kPyramidVertex2, kPyramidVertex3, kPyramidVertex4},
+              {kPyramidVertex2, kPyramidVertex4, kPyramidVertex5} }, //top
+            { {b, y / kGeometryCenterDivisor, 0}, {x2, y / kGeometryCenterDivisor, 0},
               {0, 0, z}, {x, 0, z}, {x, y, z}, {0, y, z} }
         };
     }
@@ -2111,7 +2155,6 @@ void CreateMMUTiledCanvas::create_geometry(wxCommandEvent& event_args) {
     plat->set_project_filename(L("Mosaic"));
 
     const DynamicPrintConfig* print_config = this->m_gui_app->get_tab(Preset::TYPE_FFF_PRINT)->get_config();
-    const DynamicPrintConfig* filament_config = this->m_gui_app->get_tab(Preset::TYPE_FFF_FILAMENT)->get_config();
     const DynamicPrintConfig* printer_config = this->m_gui_app->get_tab(Preset::TYPE_PRINTER)->get_config();
 
     Vec2d offset_dbl = m_config.option<ConfigOptionPoint>("offset")->value;
@@ -2159,7 +2202,7 @@ void CreateMMUTiledCanvas::create_geometry(wxCommandEvent& event_args) {
             }
         }
     }
-    TriangleMesh mesh(its_make_cube(total_size.x() + (border > 0 ? 2 * separation : 0), total_size.y() + (border > 0 ? 2 * separation : 0), height - separation_z));
+    TriangleMesh mesh(its_make_cube(total_size.x() + (border > 0 ? kBorderSideCount * separation : 0), total_size.y() + (border > 0 ? kBorderSideCount * separation : 0), height - separation_z));
     if (separation_z >= height) {
         //phony volume
         mesh = TriangleMesh(its_make_cube(kPlaceholderCubeEdgeMm, kPlaceholderCubeEdgeMm, kPlaceholderCubeEdgeMm));
@@ -2168,7 +2211,6 @@ void CreateMMUTiledCanvas::create_geometry(wxCommandEvent& event_args) {
 #ifdef _DEBUG
         check_model_ids_validity(model);
 #endif /* _DEBUG */
-        auto bb = mesh.bounding_box();
         ModelObject* new_object = model.add_object();
         new_object->name = into_u8(_L("Base Tile"));
         new_object->add_instance(); // each object should have at list one instance
@@ -2195,25 +2237,25 @@ void CreateMMUTiledCanvas::create_geometry(wxCommandEvent& event_args) {
     objs_idx.push_back(0);
 
     if (border > 0) {
-        TriangleMesh mesh_N(its_make_cube(total_size.x() + border + 2 * separation, border, height));
+        TriangleMesh mesh_N(its_make_cube(total_size.x() + border + kBorderSideCount * separation, border, height));
         ModelVolume* vol_N = model.objects[0]->add_volume(std::move(mesh_N), ModelVolumeType::MODEL_PART, false);
         vol_N->name = "border_N";
         vol_N->set_offset(Vec3d{ -(border + separation) , -(border + separation) , 0 });
         vol_N->config.set_key_value(kExtruderKey, std::make_unique<ConfigOptionInt>(idx_extruder_base));
 
-        TriangleMesh mesh_E(its_make_cube(border, total_size.x() + border + 2 * separation, height));
+        TriangleMesh mesh_E(its_make_cube(border, total_size.x() + border + kBorderSideCount * separation, height));
         ModelVolume* vol_E = model.objects[0]->add_volume(std::move(mesh_E), ModelVolumeType::MODEL_PART, false);
         vol_E->name = "border_E";
         vol_E->set_offset(Vec3d{ total_size.x() + (separation) , -(border + separation) , 0 });
         vol_E->config.set_key_value(kExtruderKey, std::make_unique<ConfigOptionInt>(idx_extruder_base));
 
-        TriangleMesh mesh_S(its_make_cube(total_size.x() + border + 2*separation, border, height));
+        TriangleMesh mesh_S(its_make_cube(total_size.x() + border + kBorderSideCount * separation, border, height));
         ModelVolume* vol_S = model.objects[0]->add_volume(std::move(mesh_S), ModelVolumeType::MODEL_PART, false);
         vol_S->name = "border_S";
         vol_S->set_offset(Vec3d{ -(separation) , total_size.y() + (separation) , 0});
         vol_S->config.set_key_value(kExtruderKey, std::make_unique<ConfigOptionInt>(idx_extruder_base));
 
-        TriangleMesh mesh_W(its_make_cube(border, total_size.x() + border + 2 * separation, height));
+        TriangleMesh mesh_W(its_make_cube(border, total_size.x() + border + kBorderSideCount * separation, height));
         ModelVolume* vol_W = model.objects[0]->add_volume(std::move(mesh_W), ModelVolumeType::MODEL_PART, false);
         vol_W->name = "border_W";
         vol_W->set_offset(Vec3d{ -(border + separation) , -(separation) , 0 });

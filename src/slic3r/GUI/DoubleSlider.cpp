@@ -10,7 +10,6 @@
 #include "I18N.hpp"
 #include "ExtruderSequenceDialog.hpp"
 #include "libslic3r/AppConfig.hpp"
-#include "libslic3r/GCode.hpp"
 #include "libslic3r/GCode/GCodeWriter.hpp"
 #include "libslic3r/Print.hpp"
 #include "GUI_Utils.hpp"
@@ -47,6 +46,34 @@ namespace DoubleSlider {
 
 constexpr double min_delta_area = scale_(scale_(25));  // equal to 25 mm2
 constexpr double miscalculation = scale_(scale_(1));   // equal to 1 mm2
+constexpr int    kCenterDivisor                    = 2;
+constexpr int    kSliderSideCount                  = 2;
+constexpr int    kBorderInset                      = 2;
+constexpr int    kTickPairOffset                   = 2;
+constexpr int    kLayerHeightPrecision             = 2;
+constexpr size_t kExtruderPairCount                = 2;
+constexpr size_t kMinimumObjectLayerCount          = 2;
+constexpr double kHalfScale                        = 0.5;
+constexpr double kRoundingOffset                   = 0.5;
+constexpr int    kTwoDigitTimeThreshold            = 10;
+constexpr int    kFocusPenBlueChannel              = 10;
+constexpr int    kHorizontalMinimumEm              = 5;
+constexpr double kPhysicalTickSpacingMillimeters   = 5.0;
+constexpr double kMillimetersPerInch                = 25.4;
+constexpr int    kLongTickLength                   = 5;
+constexpr int    kAcceleratorStep                  = 5;
+constexpr int    kLabelOffset                      = 3;
+constexpr int    kHighPrecisionDigits              = 3;
+constexpr int    kSliderMarginBase                 = 4;
+constexpr int    kTickHitTolerance                 = 4;
+constexpr int    kIconGap                          = 2;
+constexpr int    kMinimumLabelPosition             = 2;
+constexpr size_t kMinimumRulerValueCount           = 2;
+constexpr int    kShortTickLength                   = 2;
+constexpr int    kLabelBaselineAdjustment           = 2;
+constexpr int    kThirdExtruderIndex                = 2;
+constexpr size_t kMinimumTickCountForDeletion       = 2;
+constexpr size_t kPreviousValueOffset                = 2;
 
 bool equivalent_areas(const double& bottom_area, const double& top_area)
 {
@@ -113,7 +140,7 @@ Control::Control( wxWindow *parent,
     m_bmp_cog                  = ScalableBitmap(this, "cog");
     m_cog_icon_dim    = m_bmp_cog.GetWidth();
 
-    m_dead_zone_height = m_lock_icon_dim / 2;
+    m_dead_zone_height = m_lock_icon_dim / kCenterDivisor;
 
     m_selection = ssUndef;
     m_ticks.set_pause_print_msg(_u8L("Place bearings in slots and resume printing"));
@@ -138,7 +165,7 @@ Control::Control( wxWindow *parent,
     });
 
     // control's view variables
-    SLIDER_MARGIN     = 4 + GUI::wxGetApp().em_unit();
+    SLIDER_MARGIN     = kSliderMarginBase + GUI::wxGetApp().em_unit();
     
     //DARK_ORANGE_PEN   = wxPen(wxColour(237, 107, 33)); // ed6b21 // 93 42 13 //SV 86 93
     //ORANGE_PEN        = wxPen(wxColour(253, 126, 66)); // fd7e42 // 99 50 26 //SV 74 100
@@ -163,7 +190,7 @@ Control::Control( wxWindow *parent,
     m_line_pens = { &DARK_GREY_PEN, &GREY_PEN, &LIGHT_GREY_PEN };
     m_segm_pens = { &DARK_COLOR_PEN, &COLOR_PEN, &LIGHT_COLOR_PEN };
 
-    FOCUS_RECT_PEN   = wxPen(wxColour(128, 128, 10), 1, wxPENSTYLE_DOT);
+    FOCUS_RECT_PEN   = wxPen(wxColour(128, 128, kFocusPenBlueChannel), 1, wxPENSTYLE_DOT);
     FOCUS_RECT_BRUSH = wxBrush(wxColour(0, 0, 0), wxBRUSHSTYLE_TRANSPARENT);
 
     m_font = GetFont();
@@ -184,8 +211,8 @@ void Control::msw_rescale()
     m_cog_icon_dim      = m_bmp_cog.GetWidth();
 
 
-    m_dead_zone_height = m_lock_icon_dim / 2;
-    SLIDER_MARGIN = 4 + GUI::wxGetApp().em_unit();
+    m_dead_zone_height = m_lock_icon_dim / kCenterDivisor;
+    SLIDER_MARGIN = kSliderMarginBase + GUI::wxGetApp().em_unit();
 
     SetMinSize(get_min_size());
     GetParent()->Layout();
@@ -211,7 +238,7 @@ void Control::sys_color_changed()
     m_bmp_revert.sys_color_changed();
     m_bmp_cog   .sys_color_changed();
 
-    m_dead_zone_height = m_lock_icon_dim / 2;}
+    m_dead_zone_height = m_lock_icon_dim / kCenterDivisor;}
 
 int Control::GetActiveValue() const
 {
@@ -222,7 +249,7 @@ int Control::GetActiveValue() const
 
 wxSize Control::get_min_size() const
 {
-    const int min_side = GUI::wxGetApp().em_unit() * ( is_horizontal() ? 5 : 11 );
+    const int min_side = GUI::wxGetApp().em_unit() * ( is_horizontal() ? kHorizontalMinimumEm : 11 );
     return wxSize(min_side, min_side);
 }
 
@@ -312,7 +339,7 @@ double Control::get_scroll_step()
 {
     const wxSize sz = get_size();
     const int& slider_len = m_style == wxSL_HORIZONTAL ? sz.x : sz.y;
-    return double(slider_len - SLIDER_MARGIN * 2) / (m_max_tick - m_min_tick);
+    return double(slider_len - SLIDER_MARGIN * kSliderSideCount) / (m_max_tick - m_min_tick);
 }
 
 // get position on the slider line from entered value
@@ -320,7 +347,7 @@ wxCoord Control::get_position_from_tick(const int tick)
 {
     const double step = get_scroll_step();
     const int val = is_horizontal() ? tick : m_max_tick - tick;
-    return wxCoord(SLIDER_MARGIN + int(val*step + 0.5));
+    return wxCoord(SLIDER_MARGIN + int(val*step + kRoundingOffset));
 }
 
 wxSize Control::get_size() const
@@ -526,12 +553,12 @@ void Control::get_lower_and_higher_position(int& lower_pos, int& higher_pos)
 {
     const double step = get_scroll_step();
     if (is_horizontal()) {
-        lower_pos = SLIDER_MARGIN + int(m_lower_tick*step + 0.5);
-        higher_pos = SLIDER_MARGIN + int(m_higher_tick*step + 0.5);
+        lower_pos = SLIDER_MARGIN + int(m_lower_tick*step + kRoundingOffset);
+        higher_pos = SLIDER_MARGIN + int(m_higher_tick*step + kRoundingOffset);
     }
     else {
-        lower_pos = SLIDER_MARGIN + int((m_max_tick - m_lower_tick)*step + 0.5);
-        higher_pos = SLIDER_MARGIN + int((m_max_tick - m_higher_tick)*step + 0.5);
+        lower_pos = SLIDER_MARGIN + int((m_max_tick - m_lower_tick)*step + kRoundingOffset);
+        higher_pos = SLIDER_MARGIN + int((m_max_tick - m_higher_tick)*step + kRoundingOffset);
     }
 }
 
@@ -541,12 +568,12 @@ void Control::draw_focus_rect(wxDC& dc)
         return;
     const wxSize sz = GetSize();
 //    wxPaintDC dc(this);
-    //const wxPen pen = wxPen(wxColour(128, 128, 10), 1, wxPENSTYLE_DOT);
+    //const wxPen pen = wxPen(wxColour(128, 128, kFocusPenBlueChannel), 1, wxPENSTYLE_DOT);
     //dc.SetPen(pen);
     //dc.SetBrush(wxBrush(wxColour(0, 0, 0), wxBRUSHSTYLE_TRANSPARENT));
     dc.SetPen(FOCUS_RECT_PEN);
     dc.SetBrush(FOCUS_RECT_BRUSH);
-    dc.DrawRectangle(1, 1, sz.x - 2, sz.y - 2);
+    dc.DrawRectangle(1, 1, sz.x - kBorderInset, sz.y - kBorderInset);
 }
 
 void Control::render()
@@ -603,8 +630,9 @@ bool Control::is_wipe_tower_layer(int tick) const
         return false;
     if (tick == 0 || (tick == static_cast<int>(m_values.size()) - 1 && m_values[tick] > m_values[tick - 1]))
         return false;
-    if (static_cast<int>(m_values.size()) > tick + 1 && (m_values[tick - 1] == m_values[tick + 1] && m_values[tick] < m_values[tick + 1]) ||
-        (tick > 0 && m_values[tick] < m_values[tick - 1]) ) // if there is just one wiping on the layer 
+    if ((static_cast<int>(m_values.size()) > tick + 1 &&
+         m_values[tick - 1] == m_values[tick + 1] && m_values[tick] < m_values[tick + 1]) ||
+        (tick > 0 && m_values[tick] < m_values[tick - 1])) // if there is just one wiping on the layer 
         return true;
 
     return false;
@@ -634,11 +662,11 @@ void Control::draw_action_icon(wxDC& dc, const wxPoint pt_beg, const wxPoint pt_
         icon = m_focus == fiActionIcon ? &m_bmp_del_tick_off : &m_bmp_del_tick_on;
 
     wxCoord x_draw, y_draw;
-    is_horizontal() ? x_draw = pt_beg.x - 0.5*m_tick_icon_dim : y_draw = pt_beg.y - 0.5*m_tick_icon_dim;
+    is_horizontal() ? x_draw = pt_beg.x - kHalfScale *m_tick_icon_dim : y_draw = pt_beg.y - kHalfScale *m_tick_icon_dim;
     if (m_selection == ssLower)
-        is_horizontal() ? y_draw = pt_end.y + 3 : x_draw = pt_beg.x - m_tick_icon_dim-2;
+        is_horizontal() ? y_draw = pt_end.y + kLabelOffset : x_draw = pt_beg.x - m_tick_icon_dim - kIconGap;
     else
-        is_horizontal() ? y_draw = pt_beg.y - m_tick_icon_dim-2 : x_draw = pt_end.x + 3;
+        is_horizontal() ? y_draw = pt_beg.y - m_tick_icon_dim - kIconGap : x_draw = pt_end.x + kLabelOffset;
 
     if (m_draw_mode == dmSequentialFffPrint) {
         wxBitmap disabled_add = get_bmp_bundle("colorchange_add")->GetBitmapFor(this).ConvertToDisabled();
@@ -685,10 +713,10 @@ void Control::draw_tick_on_mouse_position(wxDC& dc)
     auto draw_ticks = [this](wxDC& dc, wxPoint pos, int margin=0 )
     {
         wxPoint pt_beg = is_horizontal() ? wxPoint(pos.x+margin, pos.y - m_thumb_size.y) : wxPoint(pos.x - m_thumb_size.x          , pos.y+margin);
-        wxPoint pt_end = is_horizontal() ? wxPoint(pos.x+margin, pos.y + m_thumb_size.y) : wxPoint(pos.x - 0.5 * m_thumb_size.x + 1, pos.y+margin);
+        wxPoint pt_end = is_horizontal() ? wxPoint(pos.x+margin, pos.y + m_thumb_size.y) : wxPoint(pos.x - kHalfScale * m_thumb_size.x + 1, pos.y+margin);
         dc.DrawLine(pt_beg, pt_end);
 
-        pt_beg = is_horizontal() ? wxPoint(pos.x + margin, pos.y - m_thumb_size.y) : wxPoint(pos.x + 0.5 * m_thumb_size.x, pos.y+margin);
+        pt_beg = is_horizontal() ? wxPoint(pos.x + margin, pos.y - m_thumb_size.y) : wxPoint(pos.x + kRoundingOffset * m_thumb_size.x, pos.y+margin);
         pt_end = is_horizontal() ? wxPoint(pos.x + margin, pos.y + m_thumb_size.y) : wxPoint(pos.x + m_thumb_size.x + 1,   pos.y+margin);
         dc.DrawLine(pt_beg, pt_end);
     };
@@ -704,14 +732,14 @@ void Control::draw_tick_on_mouse_position(wxDC& dc)
     if (tick > 0) // this tick exists and should be marked as a focused
     {
         wxCoord new_pos = get_position_from_tick(tick);
-        const wxPoint pos = is_horizontal() ? wxPoint(new_pos, height * 0.5) : wxPoint(0.5 * width, new_pos);
+        const wxPoint pos = is_horizontal() ? wxPoint(new_pos, height * 0.5) : wxPoint(kHalfScale * width, new_pos);
 
         dc.SetPen(DARK_COLOR_PEN);
 
-        draw_ticks(dc, pos, -2);
-        draw_ticks(dc, pos, 2 );
-        draw_touch(dc, pos, 2, true);
-        draw_touch(dc, pos, 2, false);
+        draw_ticks(dc, pos, -kTickPairOffset);
+        draw_ticks(dc, pos, kTickPairOffset);
+        draw_touch(dc, pos, kTickPairOffset, true);
+        draw_touch(dc, pos, kTickPairOffset, false);
 
         return;
     }
@@ -721,7 +749,7 @@ void Control::draw_tick_on_mouse_position(wxDC& dc)
         return;
 
     wxCoord new_pos = get_position_from_tick(tick);
-    const wxPoint pos = is_horizontal() ? wxPoint(new_pos, height * 0.5) : wxPoint(0.5 * width, new_pos);
+    const wxPoint pos = is_horizontal() ? wxPoint(new_pos, height * 0.5) : wxPoint(kHalfScale * width, new_pos);
 
     //draw info line
     dc.SetPen(LIGHT_GREY_PEN);
@@ -760,16 +788,16 @@ static wxString short_and_splitted_time(const std::string& time)
     if (days > 0)
         return format_wxstr("%1%%2%\n%3%", get_d(), get_h(), get_m());
     if (hours > 0) {
-        if (hours < 10 && minutes < 10 && seconds < 10)
+        if (hours < kTwoDigitTimeThreshold && minutes < kTwoDigitTimeThreshold && seconds < kTwoDigitTimeThreshold)
             return format_wxstr("%1%%2%%3%", get_h(), get_m(), get_s());
-        if (hours > 10 && minutes > 10 && seconds > 10)
+        if (hours > kTwoDigitTimeThreshold && minutes > kTwoDigitTimeThreshold && seconds > kTwoDigitTimeThreshold)
             return format_wxstr("%1%\n%2%\n%3%", get_h(), get_m(), get_s());
-        if ((minutes < 10 && seconds > 10) || (minutes > 10 && seconds < 10))
+        if ((minutes < kTwoDigitTimeThreshold && seconds > kTwoDigitTimeThreshold) || (minutes > kTwoDigitTimeThreshold && seconds < kTwoDigitTimeThreshold))
             return format_wxstr("%1%\n%2%%3%", get_h(), get_m(), get_s());
         return format_wxstr("%1%%2%\n%3%", get_h(), get_m(), get_s());
     }
     if (minutes > 0) {
-        if (minutes > 10 && seconds > 10)
+        if (minutes > kTwoDigitTimeThreshold && seconds > kTwoDigitTimeThreshold)
             return format_wxstr("%1%\n%2%", get_m(), get_s());
         return format_wxstr("%1%%2%", get_m(), get_s());
     }
@@ -790,8 +818,8 @@ wxString Control::get_label(int tick, LabelType label_type/* = ltHeightWithLayer
         return wxString::Format("%lu", static_cast<unsigned long>(m_alternate_values[value]));
 
     wxString str = m_values.empty() ?
-        wxString::Format("%.*f", 2, m_label_koef * value) :
-        wxString::Format("%.*f", 2, m_values[value]);
+        wxString::Format("%.*f", kLayerHeightPrecision, m_label_koef * value) :
+        wxString::Format("%.*f", kLayerHeightPrecision, m_values[value]);
     if (label_type == ltHeight)
         return str;
 
@@ -828,16 +856,14 @@ wxString Control::get_label(int tick, LabelType label_type/* = ltHeightWithLayer
                 nb_lines++;
                 double layer_height = 0;
                 if (value >= m_values.size()) {
-                    const auto st1 = value;
-                    const auto st2 = m_values.size();
-                    layer_height = m_values.empty() ? m_label_koef : m_values.back() - (m_values.size() > 1 ? m_values[m_values.size() - 2] : 0);
+                    layer_height = m_values.empty() ? m_label_koef : m_values.back() - (m_values.size() > 1 ? m_values[m_values.size() - kPreviousValueOffset] : 0);
                     assert(value == m_values.size());
                 } else if (value == 0) {
                     layer_height = m_values.empty() ? m_label_koef : m_values[value];
                 } else {
                     layer_height = m_values.empty() ? m_label_koef : m_values[value] - (value > 1 ? m_values[value - 1] : 0);
                 }
-                str = str + comma + wxString::Format("%.*f", 2, layer_height);
+                str = str + comma + wxString::Format("%.*f", kLayerHeightPrecision, layer_height);
                 comma = "\n";
             }
             if (show_ltime && !m_layers_times.empty()) {
@@ -857,7 +883,7 @@ wxString Control::get_label(int tick, LabelType label_type/* = ltHeightWithLayer
                     assert(m_layers_areas.size() == m_layers_times.size() || m_layers_areas.size() == m_layers_times.size() - 1);
                     if (time_idx < m_layers_areas.size()) {
                         nb_lines++;
-                        str = str + comma + wxString::Format("%.*f", m_layers_areas[time_idx] < 1 ? 3 : m_layers_areas[time_idx] < 10 ? 2 : m_layers_areas[time_idx] < 100 ? 1 : 0, m_layers_areas[time_idx]);
+                        str = str + comma + wxString::Format("%.*f", m_layers_areas[time_idx] < 1 ? kHighPrecisionDigits : m_layers_areas[time_idx] < 10 ? kLayerHeightPrecision : m_layers_areas[time_idx] < 100 ? 1 : 0, m_layers_areas[time_idx]);
                         comma = "\n";
                     }
                 }
@@ -888,19 +914,19 @@ void Control::draw_tick_text(wxDC& dc, const wxPoint& pos, int tick, LabelType l
 
             int x_right = pos.x + 1 + text_width;
             int xx = (x_right < width) ? pos.x + 1 : pos.x - text_width - 1;
-            text_pos = wxPoint(xx, pos.y + m_thumb_size.x / 2 + 1);
+            text_pos = wxPoint(xx, pos.y + m_thumb_size.x / kCenterDivisor + 1);
         }
         else
-            text_pos = wxPoint(pos.x + m_thumb_size.x + 1, pos.y - 0.5 * text_height - 1);
+            text_pos = wxPoint(pos.x + m_thumb_size.x + 1, pos.y - kHalfScale * text_height - 1);
     }
     else {
         if (is_horizontal()) {
             int x = pos.x - text_width - 1;
             int xx = (x > 0) ? x : pos.x + 1;
-            text_pos = wxPoint(xx, pos.y - m_thumb_size.x / 2 - text_height - 1);
+            text_pos = wxPoint(xx, pos.y - m_thumb_size.x / kCenterDivisor - text_height - 1);
         }
         else
-            text_pos = wxPoint(std::max(2, pos.x - text_width - 1 - m_thumb_size.x), pos.y - 0.5 * text_height + 1);
+            text_pos = wxPoint(std::max(kMinimumLabelPosition, pos.x - text_width - 1 - m_thumb_size.x), pos.y - kHalfScale * text_height + 1);
     }
 
     wxColour old_clr = dc.GetTextForeground();
@@ -923,8 +949,8 @@ void Control::draw_thumb_text(wxDC& dc, const wxPoint& pos, const SelectedSlider
 
 void Control::draw_thumb_item(wxDC& dc, const wxPoint& pos, const SelectedSlider& selection)
 {
-    wxCoord x_draw = pos.x - int(0.5 * m_thumb_size.x);
-    wxCoord y_draw = pos.y - int(0.5 * m_thumb_size.y);
+    wxCoord x_draw = pos.x - int(kHalfScale * m_thumb_size.x);
+    wxCoord y_draw = pos.y - int(kHalfScale * m_thumb_size.y);
     dc.DrawBitmap(selection == ssLower ? m_bmp_thumb_lower.get_bitmap() : m_bmp_thumb_higher.get_bitmap(), x_draw, y_draw);
 
     // Update thumb rect
@@ -936,7 +962,7 @@ void Control::draw_thumb(wxDC& dc, const wxCoord& pos_coord, const SelectedSlide
     //calculate thumb position on slider line
     int width, height;
     get_size(&width, &height);
-    const wxPoint pos = is_horizontal() ? wxPoint(pos_coord, height*0.5) : wxPoint(0.5*width, pos_coord);
+    const wxPoint pos = is_horizontal() ? wxPoint(pos_coord, height*0.5) : wxPoint(kHalfScale *width, pos_coord);
 
     // Draw thumb
     draw_thumb_item(dc, pos, selection);
@@ -953,8 +979,8 @@ void Control::draw_thumbs(wxDC& dc, const wxCoord& lower_pos, const wxCoord& hig
     //calculate thumb position on slider line
     int width, height;
     get_size(&width, &height);
-    const wxPoint pos_l = is_horizontal() ? wxPoint(lower_pos, height*0.5) : wxPoint(0.5*width, lower_pos);
-    const wxPoint pos_h = is_horizontal() ? wxPoint(higher_pos, height*0.5) : wxPoint(0.5*width, higher_pos);
+    const wxPoint pos_l = is_horizontal() ? wxPoint(lower_pos, height*0.5) : wxPoint(kHalfScale *width, lower_pos);
+    const wxPoint pos_h = is_horizontal() ? wxPoint(higher_pos, height*0.5) : wxPoint(kHalfScale *width, higher_pos);
 
     if(m_selection != ssLower) {
         // Draw lower thumb
@@ -1007,7 +1033,7 @@ void Control::draw_ticks(wxDC& dc)
     dc.SetPen(m_draw_mode == dmRegular ? DARK_GREY_PEN : LIGHT_GREY_PEN );
     int height, width;
     get_size(&width, &height);
-    const wxCoord mid = is_horizontal() ? 0.5*height : 0.5*width;
+    const wxCoord mid = is_horizontal() ? kHalfScale *height : kHalfScale *width;
     for (const TickCode& tick : m_ticks.ticks) {
         if (size_t(tick.tick) >= m_values.size()) {
             // The case when OnPaint is called before m_ticks.ticks data are updated (specific for the vase mode)
@@ -1039,8 +1065,8 @@ void Control::draw_ticks(wxDC& dc)
         if (!icon_name.empty())  {
             wxBitmapBundle* icon = get_bmp_bundle(icon_name);
             wxCoord x_draw, y_draw;
-            is_horizontal() ? x_draw = pos - 0.5 * m_tick_icon_dim : y_draw = pos - 0.5 * m_tick_icon_dim;
-            is_horizontal() ? y_draw = mid + 22 : x_draw = mid + m_thumb_size.x + 3;
+            is_horizontal() ? x_draw = pos - kHalfScale * m_tick_icon_dim : y_draw = pos - kHalfScale * m_tick_icon_dim;
+            is_horizontal() ? y_draw = mid + 22 : x_draw = mid + m_thumb_size.x + kLabelOffset;
 
             dc.DrawBitmap(icon->GetBitmapFor(this), x_draw, y_draw);
         }
@@ -1088,13 +1114,13 @@ wxRect Control::get_colored_band_rect()
     int height, width;
     get_size(&width, &height);
 
-    const wxCoord mid = is_horizontal() ? 0.5 * height : 0.5 * width;
+    const wxCoord mid = is_horizontal() ? kHalfScale * height : kHalfScale * width;
 
     return is_horizontal() ?
            wxRect(SLIDER_MARGIN, lround(mid - 0.375 * m_thumb_size.y), 
-                  width - 2 * SLIDER_MARGIN + 1, lround(0.75 * m_thumb_size.y)) :
+                  width - kSliderSideCount * SLIDER_MARGIN + 1, lround(0.75 * m_thumb_size.y)) :
            wxRect(lround(mid - 0.375 * m_thumb_size.x), SLIDER_MARGIN, 
-                  lround(0.75 * m_thumb_size.x), height - 2 * SLIDER_MARGIN + 1);
+                  lround(0.75 * m_thumb_size.x), height - kSliderSideCount * SLIDER_MARGIN + 1);
 }
 
 void Control::draw_colored_band(wxDC& dc)
@@ -1190,13 +1216,13 @@ void Control::Ruler::update(const std::vector<double>& values, double scroll_ste
     m_scroll_step       = scroll_step;
     m_max_values_cnt    = sequences.size();
 
-    if (values.size() < 2) {
+    if (values.size() < kMinimumRulerValueCount) {
         long_step = -1.0;
         return;
     }
 
-    int pixels_per_long_step = lround(static_cast<double>(m_DPI) * 5.0/25.4);
-    int pixels_per_small_step = lround(static_cast<double>(m_DPI) * 1/25.4);
+    int pixels_per_long_step = lround(static_cast<double>(m_DPI) * kPhysicalTickSpacingMillimeters / kMillimetersPerInch);
+    int pixels_per_small_step = lround(static_cast<double>(m_DPI) * 1 / kMillimetersPerInch);
 
     //compute max number of visible steps
     if (pixels_per_long_step <= scroll_step) {
@@ -1230,7 +1256,7 @@ void Control::draw_ruler(wxDC& dc)
 
     int height, width;
     get_size(&width, &height);
-    const wxCoord mid = is_horizontal() ? 0.5 * height : 0.5 * width; 
+    const wxCoord mid = is_horizontal() ? kHalfScale * height : kHalfScale * width; 
 
     dc.SetPen(GREY_PEN);
     wxColour old_clr = dc.GetTextForeground();
@@ -1238,7 +1264,7 @@ void Control::draw_ruler(wxDC& dc)
     if (m_ruler.long_step < 0) {
         for (size_t tick = 1; tick < m_values.size(); tick++) {
             wxCoord pos = get_position_from_tick(tick);
-            draw_ticks_pair(dc, pos, mid, 5);
+            draw_ticks_pair(dc, pos, mid, kLongTickLength);
             draw_tick_text(dc, wxPoint(mid, pos), tick);
         }
     } else {
@@ -1249,10 +1275,9 @@ void Control::draw_ruler(wxDC& dc)
                 assert(current_tick < m_values.size());
                 assert(max_tick < m_values.size());
                 assert(max_tick <= m_max_tick);
-                double current_value = m_values[current_tick];
                 while (current_tick + m_ruler.short_step <= max_tick) {
                     wxCoord pos = get_position_from_tick(current_tick);
-                    draw_ticks_pair(dc, pos, mid, 2);
+                    draw_ticks_pair(dc, pos, mid, kShortTickLength);
                     // go to next value
                     current_tick += m_ruler.short_step;
                 }
@@ -1276,8 +1301,7 @@ void Control::draw_ruler(wxDC& dc)
                 }
             }
             int prev_y_pos = -1;
-            wxCoord label_height = dc.GetMultiLineTextExtent("0").y - 2;
-            int values_size = static_cast<int>(m_values.size());
+            wxCoord label_height = dc.GetMultiLineTextExtent("0").y - kLabelBaselineAdjustment;
             assert(m_values.size() > m_max_tick);
             //iterate on all layer z values
             while (tick <= m_max_tick) {
@@ -1293,7 +1317,7 @@ void Control::draw_ruler(wxDC& dc)
                 }
 
                 wxCoord pos = get_position_from_tick(tick);
-                draw_ticks_pair(dc, pos, mid, 5);
+                draw_ticks_pair(dc, pos, mid, kLongTickLength);
                 if (prev_y_pos < 0 || prev_y_pos - pos >= label_height) {
                     draw_tick_text(dc, wxPoint(mid, pos), tick);
                     prev_y_pos = pos;
@@ -1331,8 +1355,8 @@ void Control::draw_one_layer_icon(wxDC& dc)
     get_size(&width, &height);
 
     wxCoord x_draw, y_draw;
-    is_horizontal() ? x_draw = width-2 : x_draw = 0.5*width - 0.5*m_lock_icon_dim;
-    is_horizontal() ? y_draw = 0.5*height - 0.5*m_lock_icon_dim : y_draw = height-2;
+    is_horizontal() ? x_draw = width - kBorderInset : x_draw = kHalfScale *width - kHalfScale *m_lock_icon_dim;
+    is_horizontal() ? y_draw = kHalfScale *height - kHalfScale *m_lock_icon_dim : y_draw = height - kBorderInset;
 
     //add a little dead zone to ease mouse click
     y_draw += m_dead_zone_height;
@@ -1352,8 +1376,8 @@ void Control::draw_revert_icon(wxDC& dc)
     get_size(&width, &height);
 
     wxCoord x_draw, y_draw;
-    is_horizontal() ? x_draw = width-2 : x_draw = 0.25*SLIDER_MARGIN;
-    is_horizontal() ? y_draw = 0.25*SLIDER_MARGIN: y_draw = height-2;
+    is_horizontal() ? x_draw = width - kBorderInset : x_draw = 0.25*SLIDER_MARGIN;
+    is_horizontal() ? y_draw = 0.25*SLIDER_MARGIN: y_draw = height - kBorderInset;
 
     //add a little dead zone to ease mouse click
     y_draw += m_dead_zone_height;
@@ -1374,12 +1398,12 @@ void Control::draw_cog_icon(wxDC& dc)
 
     wxCoord x_draw, y_draw;
     if (m_draw_mode == dmSequentialGCodeView) {
-        is_horizontal() ? x_draw = width - 2 : x_draw = 0.5 * width - 0.5 * m_cog_icon_dim;
-        is_horizontal() ? y_draw = 0.5 * height - 0.5 * m_cog_icon_dim : y_draw = height - 2;
+        is_horizontal() ? x_draw = width - kBorderInset : x_draw = kHalfScale * width - kHalfScale * m_cog_icon_dim;
+        is_horizontal() ? y_draw = kHalfScale * height - kHalfScale * m_cog_icon_dim : y_draw = height - kBorderInset;
     }
     else {
-        is_horizontal() ? x_draw = width - 2 : x_draw = width - m_cog_icon_dim - 2;
-        is_horizontal() ? y_draw = height - m_cog_icon_dim - 2 : y_draw = height - 2;
+        is_horizontal() ? x_draw = width - kBorderInset : x_draw = width - m_cog_icon_dim - kBorderInset;
+        is_horizontal() ? y_draw = height - m_cog_icon_dim - kBorderInset : y_draw = height - kBorderInset;
     }
 
     //add a little dead zone to ease mouse click
@@ -1394,8 +1418,8 @@ void Control::draw_cog_icon(wxDC& dc)
 void Control::update_thumb_rect(const wxCoord begin_x, const wxCoord begin_y, const SelectedSlider& selection)
 {
     const wxRect rect = is_horizontal() ?
-        wxRect(begin_x + (selection == ssHigher ? m_thumb_size.x / 2 : 0), begin_y, m_thumb_size.x / 2, m_thumb_size.y) :
-        wxRect(begin_x, begin_y + (selection == ssLower ? m_thumb_size.y / 2 : 0), m_thumb_size.x, m_thumb_size.y / 2);
+        wxRect(begin_x + (selection == ssHigher ? m_thumb_size.x / kCenterDivisor : 0), begin_y, m_thumb_size.x / kCenterDivisor, m_thumb_size.y) :
+        wxRect(begin_x, begin_y + (selection == ssLower ? m_thumb_size.y / kCenterDivisor : 0), m_thumb_size.x, m_thumb_size.y / kCenterDivisor);
 
     if (selection == ssLower)
         m_rect_lower_thumb = rect;
@@ -1409,9 +1433,9 @@ int Control::get_tick_from_position(const wxCoord x, const wxCoord y)
     const double step = get_scroll_step();
     
     if (is_horizontal()) 
-        return int(double(x - SLIDER_MARGIN) / step + 0.5);
+        return int(double(x - SLIDER_MARGIN) / step + kRoundingOffset);
 
-    return int(m_min_tick + double(height - SLIDER_MARGIN - y) / step + 0.5);
+    return int(m_min_tick + double(height - SLIDER_MARGIN - y) / step + kRoundingOffset);
 }
 
 bool Control::is_lower_thumb_editable()
@@ -1444,11 +1468,11 @@ int Control::get_tick_near_point(const wxPoint& pt)
         const wxCoord pos = get_position_from_tick(tick.tick);
 
         if (is_horizontal()) {
-            if (pos - 4 <= pt.x && pt.x <= pos + 4)
+            if (pos - kTickHitTolerance <= pt.x && pt.x <= pos + kTickHitTolerance)
                 return tick.tick;
         }
         else {
-            if (pos - 4 <= pt.y && pt.y <= pos + 4) 
+            if (pos - kTickHitTolerance <= pt.y && pt.y <= pos + kTickHitTolerance) 
                 return tick.tick;
         }
     }
@@ -1491,7 +1515,7 @@ void Control::OnLeftDown(wxMouseEvent& event)
 
         // move only if not in not in motion and not in dead zone (in vertical slicer)
         if (is_horizontal() ||
-            (m_mouse == maNone && pos.y < m_rect_one_layer_icon.y - m_rect_one_layer_icon.height / 2))
+            (m_mouse == maNone && pos.y < m_rect_one_layer_icon.y - m_rect_one_layer_icon.height / kCenterDivisor))
             m_is_left_down = true;
 
         if (m_mouse == maNone)
@@ -1613,17 +1637,17 @@ wxString Control::get_tooltip(int tick/*=-1*/)
             return gcode;
         };
         tooltip +=  
-        	tick_code_it->type == ColorChange ?
-        		(m_mode == SingleExtruder ?
-                	format_wxstr(_L("Color change (\"%1%\")"), gcode(ColorChange)) :
+            tick_code_it->type == ColorChange ?
+                (m_mode == SingleExtruder ?
+                    format_wxstr(_L("Color change (\"%1%\")"), gcode(ColorChange)) :
                     format_wxstr(_L("Color change (\"%1%\") for Extruder %2%"), gcode(ColorChange), tick_code_it->extruder)) :
-	            tick_code_it->type == PausePrint ?
-	                format_wxstr(_L("Pause print (\"%1%\")"), gcode(PausePrint)) :
-	            tick_code_it->type == Template ?
-	                format_wxstr(_L("Custom template (\"%1%\")"), gcode(Template)) :
-		            tick_code_it->type == ToolChange ?
-		                format_wxstr(_L("Extruder (tool) is changed to Extruder \"%1%\""), tick_code_it->extruder) :                
-		                from_u8(format_gcode(tick_code_it->extra));// tick_code_it->type == Custom
+                tick_code_it->type == PausePrint ?
+                    format_wxstr(_L("Pause print (\"%1%\")"), gcode(PausePrint)) :
+                tick_code_it->type == Template ?
+                    format_wxstr(_L("Custom template (\"%1%\")"), gcode(Template)) :
+                    tick_code_it->type == ToolChange ?
+                        format_wxstr(_L("Extruder (tool) is changed to Extruder \"%1%\""), tick_code_it->extruder) :                
+                        from_u8(format_gcode(tick_code_it->extra));// tick_code_it->type == Custom
 
         assert(tick >= 0 && size_t(tick) < m_values.size() && !m_values.empty());
         // If tick is marked as a conflict (exclamation icon),
@@ -1755,7 +1779,7 @@ void Control::append_change_extruder_menu_item(wxMenu* menu, bool switch_current
 {
     const int extruders_cnt = GUI::wxGetApp().extruders_edited_cnt();
     if (extruders_cnt > 1) {
-        std::array<int, 2> active_extruders = get_active_extruders_for_tick(m_selection == ssLower ? m_lower_tick : m_higher_tick);
+        std::array<int, kExtruderPairCount> active_extruders = get_active_extruders_for_tick(m_selection == ssLower ? m_lower_tick : m_higher_tick);
 
         std::vector<wxBitmapBundle*> icons = get_extruder_color_icons(true);
 
@@ -1868,9 +1892,9 @@ void Control::move_current_thumb(const bool condition)
     // accelerators
     int accelerator = 0;
     if (wxGetKeyState(WXK_SHIFT))
-        accelerator += 5;
+        accelerator += kAcceleratorStep;
     if (wxGetKeyState(WXK_CONTROL))
-        accelerator += 5;
+        accelerator += kAcceleratorStep;
     if (accelerator > 0)
         delta *= accelerator;
 
@@ -2046,12 +2070,12 @@ void Control::OnRightDown(wxMouseEvent& event)
 
 // Get active extruders for tick. 
 // Means one current extruder for not existing tick OR 
-// 2 extruders - for existing tick (extruder before ToolChange and extruder of current existing tick)
+// kCenterDivisor extruders - for existing tick (extruder before ToolChange and extruder of current existing tick)
 // Use those values to disable selection of active extruders
-std::array<int, 2> Control::get_active_extruders_for_tick(int tick) const
+std::array<int, kExtruderPairCount> Control::get_active_extruders_for_tick(int tick) const
 {
     int default_initial_extruder = m_mode == MultiAsSingle ? std::max<int>(1, m_only_extruder) : 1;
-    std::array<int, 2> extruders = { default_initial_extruder, -1 };
+    std::array<int, kExtruderPairCount> extruders = { default_initial_extruder, -1 };
     if (m_ticks.empty())
         return extruders;
 
@@ -2263,12 +2287,12 @@ void Control::auto_color_change()
     }
 
     int extruders_cnt = GUI::wxGetApp().extruders_edited_cnt();
-//    int extruder = 2;
+//    int extruder = kThirdExtruderIndex;
 
     const Print& print = GUI::wxGetApp().plater()->fff_print();  
     for (auto object : print.objects()) {
         // An object should to have at least 2 layers to apply an auto color change
-        if (object->layer_count() < 2)
+        if (object->layer_count() < kMinimumObjectLayerCount)
             continue;
 
         check_color_change(object, 1, object->layers().size(), false, [this, extruders_cnt](const Layer* layer)
@@ -2280,7 +2304,7 @@ void Control::auto_color_change()
                     m_ticks.add_tick(tick, ColorChange, 1, layer->print_z);
                 }
                 else {
-                    int extruder = 2;
+                    int extruder = kThirdExtruderIndex;
                     if (!m_ticks.empty()) {
                         auto it = m_ticks.ticks.end();
                         it--;
@@ -2292,7 +2316,7 @@ void Control::auto_color_change()
                 }
             }
             // allow max 3 auto color changes
-            return m_ticks.ticks.size() > 2;
+            return m_ticks.ticks.size() > kMinimumTickCountForDeletion;
         });
     }
 

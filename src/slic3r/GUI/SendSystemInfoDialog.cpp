@@ -56,6 +56,9 @@ namespace GUI {
 
 static const std::string SEND_SYSTEM_INFO_DOMAIN = "prusa3d.com";
 static const std::string SEND_SYSTEM_INFO_URL = "https://files." + SEND_SYSTEM_INFO_DOMAIN + "/wp-json/v1/ps";
+static constexpr int DIALOG_PADDING = 10;
+static constexpr size_t SHORT_STRING_BUFFER_SIZE = 10;
+static constexpr int TENTHS_SCALE = 10;
 
 
 #if !ENABLE_GL_CORE_PROFILE
@@ -102,7 +105,7 @@ public:
         vsizer->Add(text, 1, wxEXPAND);
         vsizer->AddSpacer(5);
         vsizer->Add(btn, 0, wxALIGN_CENTER_HORIZONTAL);
-        top_sizer->Add(vsizer, 1, wxEXPAND | wxLEFT | wxTOP | wxRIGHT | wxBOTTOM, 10);
+        top_sizer->Add(vsizer, 1, wxEXPAND | wxLEFT | wxTOP | wxRIGHT | wxBOTTOM, DIALOG_PADDING);
         SetSizer(top_sizer);
         #ifdef _WIN32
             wxGetApp().UpdateDlgDarkUI(this);
@@ -131,7 +134,7 @@ public:
         vsizer->Add(text, 1, wxEXPAND);
         vsizer->AddSpacer(5);
         vsizer->Add(btn, 0, wxALIGN_CENTER_HORIZONTAL);
-        top_sizer->Add(vsizer, 1, wxEXPAND | wxLEFT | wxTOP | wxRIGHT | wxBOTTOM, 10);
+        top_sizer->Add(vsizer, 1, wxEXPAND | wxLEFT | wxTOP | wxRIGHT | wxBOTTOM, DIALOG_PADDING);
         SetSizer(top_sizer);
         #ifdef _WIN32
             wxGetApp().UpdateDlgDarkUI(this);
@@ -388,8 +391,8 @@ static std::string generate_system_info_json()
     #else // __APPLE__
         CFLocaleRef cflocale = CFLocaleCopyCurrent();
         CFStringRef value = (CFStringRef)CFLocaleGetValue(cflocale, kCFLocaleLanguageCode);
-        char temp[10] = "";
-        CFStringGetCString(value, temp, 10, kCFStringEncodingUTF8);
+        char temp[SHORT_STRING_BUFFER_SIZE] = "";
+        CFStringGetCString(value, temp, SHORT_STRING_BUFFER_SIZE, kCFStringEncodingUTF8);
         sys_language = temp;
         CFRelease(cflocale);
     #endif
@@ -439,7 +442,7 @@ static std::string generate_system_info_json()
     {
         hw_node.put("ArchName", wxPlatformInfo::Get().GetBitnessName());
         size_t num = std::round(Slic3r::total_physical_memory()/107374100.);
-        hw_node.put("RAM_GiB", std::to_string(num / 10) + "." + std::to_string(num % 10));
+        hw_node.put("RAM_GiB", std::to_string(num / TENTHS_SCALE) + "." + std::to_string(num % TENTHS_SCALE));
     }
 
     // Now get some CPU info:
@@ -635,8 +638,8 @@ SendSystemInfoDialog::SendSystemInfoDialog(wxWindow* parent)
     hsizer->Add(m_btn_send);
 
     vsizer->Add(m_btn_show_data, 0, wxALIGN_CENTER_HORIZONTAL | wxALL, 20);
-    vsizer->Add(hsizer, 0, wxALIGN_CENTER_HORIZONTAL | wxALL, 10);
-    topSizer->Add(vsizer, 1, wxEXPAND | wxLEFT | wxTOP | wxRIGHT, 10);
+    vsizer->Add(hsizer, 0, wxALIGN_CENTER_HORIZONTAL | wxALL, DIALOG_PADDING);
+    topSizer->Add(vsizer, 1, wxEXPAND | wxLEFT | wxTOP | wxRIGHT, DIALOG_PADDING);
 
     SetSizer(topSizer);
     topSizer->SetSizeHints(this);

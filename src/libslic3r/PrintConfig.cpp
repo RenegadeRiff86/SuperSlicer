@@ -24,12 +24,10 @@
 #include "PrintConfig.hpp"
 #include "Config.hpp"
 #include "Flow.hpp"
-#include "format.hpp"
 #include "I18N.hpp"
 #include "Semver.hpp"
 #include "Utils.hpp"
 
-#include "SLA/SupportTree.hpp"
 #include "GCode/Thumbnails.hpp"
 
 #include <set>
@@ -43,7 +41,6 @@
 #include <boost/nowide/iostream.hpp>
 
 #include <algorithm>
-#include <cfloat>
 
 // String constants extracted to reduce repeated string literals (BP1001).
 // Most are constexpr; the few remaining #defines are tooltip fragments glued to adjacent
@@ -171,7 +168,6 @@ static constexpr const char* KEY_WIPE_SPEED = "wipe_speed";
 // Numeric constants extracted to reduce repeated numeric literals (BP1002).
 static constexpr int    FULL_PERCENT = 100;                    // a whole quantity expressed in percent
 static constexpr double MAX_PERCENT = FULL_PERCENT;            // input-field cap for fields that cannot exceed 100%
-static constexpr double PERCENT_SCALE = FULL_PERCENT;          // ratio -> percent conversion factor
 static constexpr int    HALF_PERCENT = 50;                     // 50% of the base value
 static constexpr int    QUARTER_PERCENT = 25;                  // 25% of the base value
 static constexpr int    SIXTY_PERCENT = 60;                    // 60% of the base value
@@ -199,7 +195,6 @@ static constexpr int    MAX_BED_TEMP_C = 300;                  // bed/chamber te
 static constexpr int    DEFAULT_FIRST_LAYER_SPEED_MM_S = 30;   // first-layer speed when given literally (mm/s)
 static constexpr int    DEFAULT_MILLING_SPEED_MM_S = 30;       // milling tool speed default (mm/s)
 static constexpr int    DEFAULT_IDLE_TEMP_C = 30;              // idle extruder temperature default (degrees C)
-static constexpr int    DEFAULT_SEAM_JITTER_DEGREES = 30;      // seam preferred-direction jitter default
 static constexpr int    DEFAULT_TOOLCHANGE_TIME_S = 30;        // time added per toolchange for estimates (seconds)
 static constexpr int    MAX_PAD_DIMENSION_MM = 30;             // SLA pad wall/brim dimension cap (mm)
 static constexpr int    MAX_COMPENSATION_LAYERS = 30;          // first-layer size compensation layer cap
@@ -247,12 +242,10 @@ static constexpr double HALF_RATIO = 0.5;                      // 50% expressed 
 static constexpr double SLA_HEAD_DIAMETER_MM = 0.4;            // SLA support head front diameter default
 static constexpr double SLA_HEAD_PENETRATION_MM = 0.2;         // SLA support head penetration default
 static constexpr double SLA_HEAD_WIDTH_MM = 1.0;               // SLA support head width default
-static constexpr double SLA_PILLAR_DIAMETER_MM = 1.0;          // SLA support pillar diameter default
 static constexpr double SLA_BASE_HEIGHT_MM = 1.0;              // SLA support base height default
 static constexpr double SLA_CONNECTOR_WIDTH_MM = 0.5;          // SLA pad object-connector width default
 static constexpr double NEUTRAL_GAMMA = 1.0;                   // gamma correction that changes nothing
 static constexpr double DEFAULT_BOTTLE_WEIGHT_KG = 1.0;
-static constexpr double DEFAULT_MATERIAL_DENSITY = 1.0;        // SLA material density default (g/ml)
 static constexpr double FLOW_ROUNDING_FACTOR = 1. - 0.25 * PI; // width a rounded extrusion loses vs its bounding rectangle
 static constexpr double DEFAULT_MAX_ACCEL_MM_S2 = 1500;        // machine max acceleration default, normal mode
 static constexpr double DEFAULT_MAX_ACCEL_SILENT_MM_S2 = 1250; // machine max acceleration default, silent mode
@@ -265,9 +258,7 @@ static constexpr size_t OVERHANG_SPEED_SLOTS = 4;              // legacy overhan
 static constexpr int    HEIGHT_GCODE_BOX_TALL = 120;           // very tall multiline G-code text box (rows)
 static constexpr double NO_TOOLCHANGE_TIME_S = 0.0;            // 0 = filament load/unload not counted in estimates
 static constexpr double DEFAULT_TRAVEL_SLOPE_DEG = 0.0;
-static constexpr double NO_TRAVEL_LIFT_MM = 0.0;
 static constexpr double Z_STEP_DISABLED = 0.0;                 // 0 = do not quantize Z
-static constexpr double NO_ROTATION_DEGREES = 0.0;
 static constexpr double NO_CORRECTION_MM = 0.0;
 static constexpr double DEFAULT_BOTTLE_COST = 0.0;
 static constexpr int    MIN_BOTTLE_VOLUME_ML = 50;
@@ -305,7 +296,6 @@ static constexpr double MIN_TREE_ANGLE_DEG = 10;
 static constexpr int    DEFAULT_GCODE_BUFFER_LEN = 10;         // buffered G-code commands for the command buffer
 static constexpr int    DEFAULT_FADED_LAYERS = 10;             // SLA faded layers default
 static constexpr double DEFAULT_RAMMING_VOLUME_MM3 = 10;
-static constexpr double DEFAULT_RAMMING_FLOW_MM3_S = 10;
 static constexpr double DEFAULT_TOOLCHANGE_RETRACT_MM = 10;    // retract length on toolchange default
 static constexpr double DEFAULT_MIN_PRINT_SPEED_MM_S = 10;
 static constexpr double DEFAULT_WIPE_TOWER_BRIDGING_MM = 10;   // max bridging distance over the wipe tower
@@ -319,7 +309,6 @@ static constexpr double DEFAULT_MILLING_Z_LIFT_MM = 2;        // milling tool tr
 static constexpr int    DEFAULT_PILLAR_BRIDGES_BRANCHING = 2; // default max bridges on a pillar (branching SLA tree)
 static constexpr int    DEFAULT_PILLAR_BRIDGES_CLASSIC = 3;   // default max bridges on a pillar (classic SLA tree)
 static constexpr float  MAX_PLAUSIBLE_RATIO = 2;              // legacy ratio values at/above this are clamped to 100%
-static constexpr size_t KEY_PAIR_STRIDE = 2;                  // flat key lists storing {key, companion} pairs
 static constexpr int    DISABLED_VALUE_THRESHOLD = std::numeric_limits<int32_t>::max() / 2; // deserialized values beyond this mark a disabled option
 static constexpr int    LEGACY_SUSI_VERSION_MAJOR = 2;        // configs from SuperSlicer <= 2.6 use the legacy overhang keys
 static constexpr int    LEGACY_SUSI_VERSION_MINOR = 6;
@@ -709,11 +698,6 @@ static void assign_printer_technology_to_unknown(t_optiondef_map &options, Print
             kvp.second.printer_technology = printer_technology;
 }
 
-// Maximum extruder temperature, bumped to 1500 to support printing of glass.
-namespace {
-    const int max_temp = 1500;
-};
-
 // Pass-through decorators for a freshly built default value: mark the option as one the user can
 // disable, then hand ownership straight back to set_default_value.
 // One template instead of the previous scalar/vector overload pairs: the caller's exact option type
@@ -730,6 +714,12 @@ static std::unique_ptr<T> disable_default_option(std::unique_ptr<T> option, bool
 template<typename T>
 static std::unique_ptr<T> enable_default_option(std::unique_ptr<T> option, bool /*default_is_disabled*/ = true) {
     option->set_can_be_disabled(false);  // can be disabled by the user, but enabled by default
+    return option;
+}
+
+template<typename T>
+static std::unique_ptr<T> phony_default_option(std::unique_ptr<T> option) {
+    option->set_phony(true);
     return option;
 }
 
@@ -1973,7 +1963,7 @@ void PrintConfigDef::init_fff_params()
     def->max_literal = { CONFIRM_LITERAL_ABOVE_10, true };
     def->can_phony = true;
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value((new ConfigOptionFloatOrPercent(0, false))->set_phony(true));
+    def->set_default_value(phony_default_option(std::make_unique<ConfigOptionFloatOrPercent>(0, false)));
 
     def = this->add("external_perimeter_extrusion_change_odd_layers", coFloatOrPercent);
     def->label = L("External perimeters");
@@ -2343,7 +2333,7 @@ void PrintConfigDef::init_fff_params()
     def->max_literal = { CONFIRM_LITERAL_ABOVE_10, true };
     def->can_phony = true;
     def->mode = comExpert | comPrusa;
-    def->set_default_value((new ConfigOptionFloatOrPercent(0, false))->set_phony(true));
+    def->set_default_value(phony_default_option(std::make_unique<ConfigOptionFloatOrPercent>(0, false)));
 
     def = this->add(KEY_EXTRUSION_SPACING, coFloatOrPercent);
     def->label = L("Default extrusion spacing");
@@ -3426,7 +3416,7 @@ void PrintConfigDef::init_fff_params()
     def->max_literal = { CONFIRM_LITERAL_ABOVE_10, true };
     def->can_phony = true;
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value((new ConfigOptionFloatOrPercent(0, false))->set_phony(true));
+    def->set_default_value(phony_default_option(std::make_unique<ConfigOptionFloatOrPercent>(0, false)));
     
 
     def = this->add("first_layer_infill_extrusion_width", coFloatOrPercent);
@@ -3463,7 +3453,7 @@ void PrintConfigDef::init_fff_params()
     def->max_literal = { CONFIRM_LITERAL_ABOVE_10, true };
     def->can_phony = true;
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value((new ConfigOptionFloatOrPercent(0, false))->set_phony(true));
+    def->set_default_value(phony_default_option(std::make_unique<ConfigOptionFloatOrPercent>(0, false)));
 
     def = this->add("first_layer_height", coFloatOrPercent);
     def->label = L("First layer height");
@@ -4067,7 +4057,7 @@ void PrintConfigDef::init_fff_params()
     def->max_literal = { CONFIRM_LITERAL_ABOVE_10, true };
     def->can_phony = true;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value((new ConfigOptionFloatOrPercent(0, false))->set_phony(true));
+    def->set_default_value(phony_default_option(std::make_unique<ConfigOptionFloatOrPercent>(0, false)));
 
     def = this->add("infill_extrusion_change_odd_layers", coFloatOrPercent);
     def->label = L("Infill");
@@ -5288,7 +5278,7 @@ void PrintConfigDef::init_fff_params()
     def->max = LARGE_MAX_LIMIT;
     def->max_literal = { CONFIRM_LITERAL_ABOVE_10, true };
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value((new ConfigOptionFloatOrPercent(0, false)));
+    def->set_default_value(std::make_unique<ConfigOptionFloatOrPercent>(0, false));
 
     def = this->add("overhangs_fan_speed", coInts);
     def->label = L("Overhangs Perimeter fan speed");
@@ -5532,7 +5522,7 @@ void PrintConfigDef::init_fff_params()
     def->max_literal = { CONFIRM_LITERAL_ABOVE_10, true };
     def->can_phony = true;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value((new ConfigOptionFloatOrPercent(0, false))->set_phony(true));
+    def->set_default_value(phony_default_option(std::make_unique<ConfigOptionFloatOrPercent>(0, false)));
 
     def = this->add(KEY_PERIMETER_EXTRUSION_SPACING, coFloatOrPercent);
     def->label = L(STR_PERIMETERS_CAP);
@@ -6661,7 +6651,7 @@ void PrintConfigDef::init_fff_params()
     def->max_literal = { CONFIRM_LITERAL_ABOVE_10, true };
     def->can_phony = true;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value((new ConfigOptionFloatOrPercent(0, false))->set_phony(true));
+    def->set_default_value(phony_default_option(std::make_unique<ConfigOptionFloatOrPercent>(0, false)));
 
     def = this->add("solid_infill_extrusion_change_odd_layers", coFloatOrPercent);
     def->label = L("Infill");
@@ -7689,7 +7679,7 @@ void PrintConfigDef::init_fff_params()
     def->max_literal = { CONFIRM_LITERAL_ABOVE_10, true };
     def->can_phony = true;
     def->mode = comAdvancedE | comSuSi;
-    def->set_default_value((new ConfigOptionFloatOrPercent(0, false))->set_phony(true));
+    def->set_default_value(phony_default_option(std::make_unique<ConfigOptionFloatOrPercent>(0, false)));
 
     def = this->add("top_solid_infill_acceleration", coFloatOrPercent);
     def->label = L("Top solid ");
@@ -8403,31 +8393,23 @@ void PrintConfigDef::init_fff_params()
         // create default value with the default value is taken from the default value of the config.
         // put a disbaled value as first entry.
         switch (def->type) {
-        case coBools: {
-            ConfigOptionBools *opt = new ConfigOptionBools({it_opt->second.default_value.get()->get_bool()});
-            opt->set_can_be_disabled(true);
-            def->set_default_value(opt);
+        case coBools:
+            def->set_default_value(disable_default_option(std::make_unique<ConfigOptionBools>(
+                std::initializer_list<bool>{it_opt->second.default_value.get()->get_bool()})));
             break;
-        }
-        case coFloats: {
-            ConfigOptionFloats *opt = new ConfigOptionFloats({it_opt->second.default_value.get()->get_float()});
-            opt->set_can_be_disabled(true);
-            def->set_default_value(opt);
+        case coFloats:
+            def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(
+                std::initializer_list<double>{it_opt->second.default_value.get()->get_float()})));
             break;
-        }
-        case coPercents: {
-            ConfigOptionPercents *opt = new ConfigOptionPercents({it_opt->second.default_value.get()->get_float()});
-            opt->set_can_be_disabled(true);
-            def->set_default_value(opt);
+        case coPercents:
+            def->set_default_value(disable_default_option(std::make_unique<ConfigOptionPercents>(
+                std::initializer_list<double>{it_opt->second.default_value.get()->get_float()})));
             break;
-        }
-        case coFloatsOrPercents: {
-            ConfigOptionFloatsOrPercents*opt = new ConfigOptionFloatsOrPercents(
-                {static_cast<const ConfigOptionFloatsOrPercents*>(it_opt->second.default_value.get())->get_at(0)});
-            opt->set_can_be_disabled(true);
-            def->set_default_value(opt);
+        case coFloatsOrPercents:
+            def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloatsOrPercents>(
+                std::initializer_list<FloatOrPercent>{
+                    static_cast<const ConfigOptionFloatsOrPercents*>(it_opt->second.default_value.get())->get_at(0)})));
             break;
-        }
         default: assert(false);
         }
         assert(!def->default_value->is_enabled());
@@ -10234,7 +10216,6 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config, std::ma
     if (old && config.has(KEY_BRIDGE_ANGLE) && config.get_float(KEY_BRIDGE_ANGLE) == 0 && config.is_enabled(KEY_BRIDGE_ANGLE)) {
         config.option(KEY_BRIDGE_ANGLE)->set_enabled(false);
     }
-    bool enabled = !config.has(KEY_OVERHANGS_WIDTH_SPEED) || config.is_enabled(KEY_OVERHANGS_WIDTH_SPEED);
     if (old && config.has(KEY_OVERHANGS_WIDTH_SPEED) && config.get_float(KEY_OVERHANGS_WIDTH_SPEED) == 0 && config.is_enabled(KEY_OVERHANGS_WIDTH_SPEED)) {
         config.option(KEY_OVERHANGS_WIDTH_SPEED)->set_enabled(false);
     }
@@ -10813,7 +10794,6 @@ void _deserialize_maybe_from_prusa(const std::map<t_config_option_key, std::stri
     const ConfigDef *def = config.def();
     for (const auto &[key, pair] : dict_opt) {
         try {
-            const t_config_option_key &opt_key = key;
             const std::string &opt_value = pair.second;
             if (!pair.first.empty()) {
                 if (!def->has(pair.first) ||
@@ -11248,8 +11228,7 @@ std::map<std::string, std::string> PrintConfigDef::to_prusa(t_config_option_key&
         return new_entries;
     }
     if (!opt_key.empty() && prusa_export_to_change_keys.find(opt_key) == prusa_export_to_change_keys.end()) {
-        auto mode = all_conf.def()->get(opt_key)->mode;
-        assert( (mode & comPrusa) == comPrusa);
+        assert((all_conf.def()->get(opt_key)->mode & comPrusa) == comPrusa);
     }
     if (opt_key.find("_pattern") != std::string::npos) {
         if ("smooth" == value || "smoothtriple" == value || "smoothhilbert" == value || "rectiwithperimeter" == value || "scatteredrectilinear" == value || "rectilineargapfill" == value || "sawtooth" == value) {
@@ -11546,9 +11525,9 @@ DynamicPrintConfig::DynamicPrintConfig(const StaticPrintConfig& rhs) : DynamicCo
 
 DynamicPrintConfig* DynamicPrintConfig::new_from_defaults_keys(const std::vector<std::string> &keys)
 {
-    auto *out = new DynamicPrintConfig();
+    auto out = std::make_unique<DynamicPrintConfig>();
     out->apply_only(FullPrintConfig::defaults(), keys);
-    return out;
+    return out.release();
 }
 
 const ConfigOption *MultiPtrPrintConfig::optptr(const t_config_option_key &opt_key) const
@@ -11932,9 +11911,9 @@ const DynamicPrintConfig* DynamicPrintConfig::update_phony(const std::vector<con
             const DynamicPrintConfig* returned_value;
             if (!spacing_option->is_phony() && width_option->is_phony())
                 returned_value = value_changed(key_spacing, config_collection);
-             else
+            else
                 returned_value = value_changed(key_width, config_collection);
-             if (something_changed == nullptr)
+            if (something_changed == nullptr)
                 something_changed = returned_value;
         }
     }
@@ -12452,21 +12431,36 @@ std::string validate(const FullPrintConfig& cfg)
 }
 
 // Declare and initialize static caches of StaticPrintConfig derived classes.
-#define PRINT_CONFIG_CACHE_ELEMENT_DEFINITION(r, data, CLASS_NAME) StaticPrintConfig::StaticCache<class Slic3r::CLASS_NAME> BOOST_PP_CAT(CLASS_NAME::s_cache_, CLASS_NAME);
-#define PRINT_CONFIG_CACHE_ELEMENT_INITIALIZATION(r, data, CLASS_NAME) Slic3r::CLASS_NAME::initialize_cache();
-#define PRINT_CONFIG_CACHE_INITIALIZE(CLASSES_SEQ) \
-    BOOST_PP_SEQ_FOR_EACH(PRINT_CONFIG_CACHE_ELEMENT_DEFINITION, _, BOOST_PP_TUPLE_TO_SEQ(CLASSES_SEQ)) \
-    int print_config_static_initializer() { \
-        /* Putting a trace here to avoid the compiler to optimize out this function. */ \
-        /*BOOST_LOG_TRIVIAL(trace) << "Initializing StaticPrintConfigs";*/ \
-        /* Tamas: alternative solution through a static volatile int. Boost log pollutes stdout and prevents tests from generating clean output */ \
-        static volatile int ret = 1; \
-        BOOST_PP_SEQ_FOR_EACH(PRINT_CONFIG_CACHE_ELEMENT_INITIALIZATION, _, BOOST_PP_TUPLE_TO_SEQ(CLASSES_SEQ)) \
-        return ret; \
-    }
-PRINT_CONFIG_CACHE_INITIALIZE((
-    PrintObjectConfig, PrintRegionConfig, MachineEnvelopeConfig, GCodeConfig, PrintConfig, FullPrintConfig, 
-    SLAMaterialConfig, SLAPrintConfig, SLAPrintObjectConfig, SLAPrinterConfig, SLAFullPrintConfig))
+StaticPrintConfig::StaticCache<class Slic3r::PrintObjectConfig>     PrintObjectConfig::s_cache_PrintObjectConfig;
+StaticPrintConfig::StaticCache<class Slic3r::PrintRegionConfig>     PrintRegionConfig::s_cache_PrintRegionConfig;
+StaticPrintConfig::StaticCache<class Slic3r::MachineEnvelopeConfig> MachineEnvelopeConfig::s_cache_MachineEnvelopeConfig;
+StaticPrintConfig::StaticCache<class Slic3r::GCodeConfig>           GCodeConfig::s_cache_GCodeConfig;
+StaticPrintConfig::StaticCache<class Slic3r::PrintConfig>           PrintConfig::s_cache_PrintConfig;
+StaticPrintConfig::StaticCache<class Slic3r::FullPrintConfig>       FullPrintConfig::s_cache_FullPrintConfig;
+StaticPrintConfig::StaticCache<class Slic3r::SLAMaterialConfig>     SLAMaterialConfig::s_cache_SLAMaterialConfig;
+StaticPrintConfig::StaticCache<class Slic3r::SLAPrintConfig>        SLAPrintConfig::s_cache_SLAPrintConfig;
+StaticPrintConfig::StaticCache<class Slic3r::SLAPrintObjectConfig>  SLAPrintObjectConfig::s_cache_SLAPrintObjectConfig;
+StaticPrintConfig::StaticCache<class Slic3r::SLAPrinterConfig>      SLAPrinterConfig::s_cache_SLAPrinterConfig;
+StaticPrintConfig::StaticCache<class Slic3r::SLAFullPrintConfig>    SLAFullPrintConfig::s_cache_SLAFullPrintConfig;
+
+int print_config_static_initializer()
+{
+    // Keeping a volatile value makes the initialization entry point observable without logging.
+    static volatile int ret = 1;
+    PrintObjectConfig::initialize_cache();
+    PrintRegionConfig::initialize_cache();
+    MachineEnvelopeConfig::initialize_cache();
+    GCodeConfig::initialize_cache();
+    PrintConfig::initialize_cache();
+    FullPrintConfig::initialize_cache();
+    SLAMaterialConfig::initialize_cache();
+    SLAPrintConfig::initialize_cache();
+    SLAPrintObjectConfig::initialize_cache();
+    SLAPrinterConfig::initialize_cache();
+    SLAFullPrintConfig::initialize_cache();
+    return ret;
+}
+
 static int print_config_static_initialized = print_config_static_initializer();
 
 CLIActionsConfigDef::CLIActionsConfigDef()

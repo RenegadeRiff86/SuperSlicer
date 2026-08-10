@@ -291,13 +291,12 @@ STBRP_DEF void stbrp_init_target(stbrp_context *context, int width, int height, 
 }
 
 // find minimum y position if it starts at x1
-static int stbrp__skyline_find_min_y(stbrp_context *c, stbrp_node *first, int x0, int width, int *pwaste)
+static int stbrp__skyline_find_min_y(stbrp_node *first, int x0, int width, int *pwaste)
 {
    stbrp_node *node = first;
    int x1 = x0 + width;
    int min_y, visited_width, waste_area;
 
-   STBRP__NOTUSED(c);
 
    STBRP_ASSERT(first->x <= x0);
 
@@ -369,7 +368,7 @@ static stbrp__findresult stbrp__skyline_find_best_pos(stbrp_context *c, int widt
    prev = &c->active_head;
    while (node->x + width <= c->width) {
       int y,waste;
-      y = stbrp__skyline_find_min_y(c, node, node->x, width, &waste);
+      y = stbrp__skyline_find_min_y(node, node->x, width, &waste);
       if (c->heuristic == STBRP_HEURISTIC_Skyline_BL_sortHeight) { // actually just want to test BL
          // bottom left
          if (y < best_y) {
@@ -427,7 +426,7 @@ static stbrp__findresult stbrp__skyline_find_best_pos(stbrp_context *c, int widt
             node = node->next;
          }
          STBRP_ASSERT(node->next->x > xpos && node->x <= xpos);
-         y = stbrp__skyline_find_min_y(c, node, xpos, width, &waste);
+         y = stbrp__skyline_find_min_y(node, xpos, width, &waste);
          if (y + height <= c->height) {
             if (y <= best_y) {
                if (y < best_y || waste < best_waste || (waste==best_waste && xpos < best_x)) {

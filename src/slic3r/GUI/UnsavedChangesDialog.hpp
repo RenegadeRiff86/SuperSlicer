@@ -141,7 +141,7 @@ class DiffModel : public wxDataViewModel
                                              wxString   old_value,
                                              wxString   mod_value,
                                              wxString   new_value,
-                                             const std::string category_icon_name);
+                                             const std::string& category_icon_name);
 
 public:
     enum {
@@ -160,7 +160,7 @@ public:
 
     wxDataViewItem  AddPreset(Preset::Type type, wxString preset_name, PrinterTechnology pt, wxString new_preset_name = wxString());
     wxDataViewItem  AddOption(Preset::Type type, wxString category_name, wxString group_name, wxString option_name,
-                              wxString old_value, wxString mod_value, wxString new_value, const std::string category_icon_name);
+                              wxString old_value, wxString mod_value, wxString new_value, const std::string& category_icon_name);
 
     void            UpdateItemEnabling(wxDataViewItem item);
     bool            IsEnabledItem(const wxDataViewItem& item);
@@ -226,7 +226,7 @@ public:
     void    AppendToggleColumn_(const wxString& label, unsigned model_column, int width);
     void    Rescale(int em = 0);
     void    Append(const OptionKeyIdx& opt_key_idx, Preset::Type type, wxString category_name, wxString group_name, wxString option_name,
-                   wxString old_value, wxString mod_value, wxString new_value, const std::string category_icon_name);
+                   wxString old_value, wxString mod_value, wxString new_value, const std::string& category_icon_name);
     void    Clear();
 
     wxString    get_short_string(wxString full_string);
@@ -298,7 +298,7 @@ public:
     void build(Preset::Type type, PresetCollection* dependent_presets, const std::string& new_selected_preset, const wxString& header = "");
     void update(Preset::Type type, PresetCollection* dependent_presets, const std::string& new_selected_preset, const wxString& header);
     void update_tree(Preset::Type type, PresetCollection *presets, const std::string& new_selected_preset);
-    void show_info_line(Action action, std::string preset_name = "");
+    void show_info_line(Action action, const std::string& preset_name = "");
     void update_config(Action action);
     void close(Action action);
     // save information about saved presets and their types to names_and_types and show SavePresetDialog to set the names for new presets

@@ -4,7 +4,6 @@
 ///|/
 #include "PrintHostDialogs.hpp"
 
-#include <algorithm>
 #include <iomanip>
 
 #include <wx/frame.h>
@@ -31,7 +30,6 @@
 #include "MainFrame.hpp"
 #include "libslic3r/AppConfig.hpp"
 #include "NotificationManager.hpp"
-#include "ExtraRenderers.hpp"
 #include "format.hpp"
 
 namespace fs = boost::filesystem;
@@ -41,6 +39,7 @@ namespace GUI {
 
 // Assertion text shared by every bounds check against the job list.
 static constexpr const char* ERR_JOB_LIST_OUT_OF_BOUNDS = "Out of bounds access to job list";
+static constexpr float       BYTES_PER_MEBIBYTE          = 1024.f * 1024.f;
 
 static const char *CONFIG_KEY_PATH  = "printhost_path";
 static const char *CONFIG_KEY_GROUP = "printhost_group";
@@ -59,6 +58,7 @@ PrintHostSendDialog::PrintHostSendDialog(const fs::path &path, PrintHostPostUplo
     txt_filename->OSXDisableAllSmartSubstitutions();
 #endif
     const AppConfig *app_config = wxGetApp().app_config.get();
+    const int        double_vertical_spacing = 2 * VERT_SPACING;
 
     auto *label_dir_hint = new wxStaticText(this, wxID_ANY, _L("Use forward slashes ( / ) as a directory separator if needed."));
     label_dir_hint->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
@@ -71,7 +71,7 @@ PrintHostSendDialog::PrintHostSendDialog(const fs::path &path, PrintHostPostUplo
         // Repetier specific: Show a selection of file groups.
         auto *label_group = new wxStaticText(this, wxID_ANY, _L("Group"));
         content_sizer->Add(label_group);
-        content_sizer->Add(combo_groups, 0, wxBOTTOM, 2*VERT_SPACING);        
+        content_sizer->Add(combo_groups, 0, wxBOTTOM, double_vertical_spacing);        
         wxString recent_group = from_u8(app_config->get("recent", CONFIG_KEY_GROUP));
         if (! recent_group.empty())
             combo_groups->SetValue(recent_group);
@@ -83,7 +83,7 @@ PrintHostSendDialog::PrintHostSendDialog(const fs::path &path, PrintHostPostUplo
         // PrusaLink specific: User needs to choose a storage
         auto* label_group = new wxStaticText(this, wxID_ANY, _L("Upload to storage") + ":");
         content_sizer->Add(label_group);
-        content_sizer->Add(combo_storage, 0, wxBOTTOM, 2 * VERT_SPACING);
+        content_sizer->Add(combo_storage, 0, wxBOTTOM, double_vertical_spacing);
         combo_storage->SetValue(storage_names.front());
         wxString recent_storage = from_u8(app_config->get("recent", CONFIG_KEY_STORAGE));
         if (!recent_storage.empty())
@@ -172,10 +172,10 @@ PrintHostSendDialog::PrintHostSendDialog(const fs::path &path, PrintHostPostUplo
     }, txt_filename->GetId());
 #endif /* __linux__ */
 
-    Bind(wxEVT_SHOW, [=](const wxShowEvent &) {
+    Bind(wxEVT_SHOW, [this, recent_path_len, stem_len](const wxShowEvent &) {
         // Another similar case where the function only works with EVT_SHOW + CallAfter,
         // this time on Mac.
-        CallAfter([=]() {
+        CallAfter([this, recent_path_len, stem_len]() {
             txt_filename->SetInsertionPoint(0);
             txt_filename->SetSelection(recent_path_len, recent_path_len + stem_len);
         });
@@ -384,7 +384,7 @@ void PrintHostQueueDialog::append_job(const PrintHostJob &job)
         size_i = 0;
         BOOST_LOG_TRIVIAL(error) << ec.message();
     } else 
-        stream << std::fixed << std::setprecision(2) << (static_cast<float>(size_i) / 1024 / 1024) << "MB";
+        stream << std::fixed << std::setprecision(2) << (static_cast<float>(size_i) / BYTES_PER_MEBIBYTE) << "MB";
     fields.push_back(wxVariant(stream.str()));
     fields.push_back(wxVariant(from_path(job.upload_data.upload_path)));
     fields.push_back(wxVariant(""));

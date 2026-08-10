@@ -9,7 +9,6 @@
 #include "libslic3r/Geometry.hpp"
 #include "libslic3r/TriangleMesh.hpp"
 #include "libslic3r/AABBMesh.hpp"
-#include "libslic3r/CSGMesh/TriangleMeshAdapter.hpp"
 #include "libslic3r/CSGMesh/CSGMeshCopy.hpp"
 #include "admesh/stl.h"
 
@@ -29,7 +28,9 @@ struct Camera;
 // uses DBL_MAX as an inactive sentinel, and passes the 4-vector directly to shaders.
 class ClippingPlane
 {
-    std::array<double, 4> m_data;
+    enum Coefficient : size_t { NormalX, NormalY, NormalZ, Offset, CoefficientCount };
+
+    std::array<double, CoefficientCount> m_data;
 
 public:
     ClippingPlane() {
@@ -41,9 +42,7 @@ public:
         set_offset(offset);
     }
 
-    bool operator==(const ClippingPlane& cp) const {
-        return m_data[0]==cp.m_data[0] && m_data[1]==cp.m_data[1] && m_data[2]==cp.m_data[2] && m_data[3]==cp.m_data[3];
-    }
+    bool operator==(const ClippingPlane& cp) const { return m_data == cp.m_data; }
     bool operator!=(const ClippingPlane& cp) const { return ! (*this==cp); }
 
     double distance(const Vec3d& pt) const {
@@ -51,9 +50,9 @@ public:
         const double normal_sq = normal.squaredNorm();
         assert(normal_sq > 0.);
         if (normal_sq <= 0.)
-            return m_data[3];
+            return m_data[Offset];
         // Signed distance assumes a unit normal, but serialized coefficients may drift slightly.
-        return (-normal.dot(pt) + m_data[3]) / std::sqrt(normal_sq);
+        return (-normal.dot(pt) + m_data[Offset]) / std::sqrt(normal_sq);
     }
 
     bool is_point_clipped(const Vec3d& point) const { return distance(point) < 0.; }
@@ -63,27 +62,27 @@ public:
         if (normal_sq <= 0.) {
             m_data[0] = 0.;
             m_data[1] = 0.;
-            m_data[2] = 1.;
+            m_data[NormalZ] = 1.;
             return;
         }
         const Vec3d norm_dir = normal / std::sqrt(normal_sq);
         m_data[0] = norm_dir.x();
         m_data[1] = norm_dir.y();
-        m_data[2] = norm_dir.z();
+        m_data[NormalZ] = norm_dir.z();
     }
-    void set_offset(double offset) { m_data[3] = offset; }
-    double get_offset() const { return m_data[3]; }
-    Vec3d get_normal() const { return Vec3d(m_data[0], m_data[1], m_data[2]); }
-    void invert_normal() { m_data[0] *= -1.0; m_data[1] *= -1.0; m_data[2] *= -1.0; }
+    void set_offset(double offset) { m_data[Offset] = offset; }
+    double get_offset() const { return m_data[Offset]; }
+    Vec3d get_normal() const { return Vec3d(m_data[0], m_data[1], m_data[NormalZ]); }
+    void invert_normal() { m_data[0] *= -1.0; m_data[1] *= -1.0; m_data[NormalZ] *= -1.0; }
     ClippingPlane inverted_normal() const { return ClippingPlane(-get_normal(), get_offset()); }
-    bool is_active() const { return m_data[3] != DBL_MAX; }
+    bool is_active() const { return m_data[Offset] != DBL_MAX; }
     static ClippingPlane ClipsNothing() { return ClippingPlane(Vec3d(0., 0., 1.), DBL_MAX); }
     const std::array<double, 4>& get_data() const { return m_data; }
 
     // Serialization through cereal library
     template <class Archive>
     void serialize( Archive & ar ) {
-        ar( m_data[0], m_data[1], m_data[2], m_data[3] );
+        ar( m_data[0], m_data[1], m_data[NormalZ], m_data[Offset] );
     }
 };
 
