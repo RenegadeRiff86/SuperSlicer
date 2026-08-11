@@ -45,7 +45,7 @@ SCENARIO("Perimeter nesting", "[Perimeters]")
         ExtrusionEntityCollection loops;
         ExtrusionEntityCollection gap_fill;
         ExPolygons                fill_expolygons;
-        Flow                      flow(1., 1., 1.);
+        Flow                      flow = Flow::new_from_width(1.f, 1.f, 1.f, 1.f);
         PerimeterGenerator::Parameters perimeter_generator_params(
             1., // layer height
             -1, // layer ID

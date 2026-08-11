@@ -199,7 +199,7 @@ bool is_similar(const indexed_triangle_set &from,
         collect_distances(vertex);
     }
 
-    for (const Vec3i &t : to.indices) {
+    for (const Vec3i32 &t : to.indices) {
         Vec3f center(0,0,0);
         for (size_t i = 0; i < 3; ++i) { 
             center += to.vertices[t[i]] / 3;

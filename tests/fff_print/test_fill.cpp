@@ -129,8 +129,10 @@ TEST_CASE("Fill: Pattern Path Length", "[Fill]") {
         filler->angle = 0;
         
         Surface surface(SurfaceType::stPosTop | SurfaceType::stDensSolid, expolygon);
-        // width, height, nozzle_dmr
-        auto flow = Slic3r::Flow(0.69f, 0.4f, 0.5f);
+        // The Flow constructors are private; new_from_width takes
+        // (width, nozzle_diameter, height, spacing_ratio) - note the order differs
+        // from the old three-argument (width, height, nozzle_dmr) constructor.
+        auto flow = Slic3r::Flow::new_from_width(0.69f, 0.5f, 0.4f, 1.f);
 
         FillParams fill_params;
         for (auto density : { 0.4, 1.0 }) {
@@ -672,7 +674,9 @@ bool test_if_solid_surface_filled(const ExPolygon& expolygon, double flow_spacin
     filler->bounding_box = get_extents(expolygon.contour);
     filler->angle = float(angle);
 
-    Flow flow(float(flow_spacing), 0.4f, float(flow_spacing));
+    // Preserves the original construction: width and nozzle diameter both taken from
+    // flow_spacing, height 0.4. Only flow.spacing() is consumed below.
+    Flow flow = Flow::new_from_width(float(flow_spacing), float(flow_spacing), 0.4f, 1.f);
 
     FillParams fill_params;
     fill_params.density = float(density);
