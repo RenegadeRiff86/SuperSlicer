@@ -603,7 +603,22 @@ elseif(TARGET expat::expat)
     target_link_libraries(libexpat INTERFACE expat::expat)
 endif ()
 
+# libpng is the one dependency where CMAKE_FIND_PACKAGE_PREFER_CONFIG (set above for static
+# builds) does the opposite of what it was set for. It is there because a static dependency
+# usually ships its own export script while a Find module would locate the system copy - but
+# the bundled libpng installs no config script at all, and Debian 13 and other recent
+# distributions now ship one for the SYSTEM libpng. Config mode therefore finds the system
+# shared library and skips the static one built alongside every other dependency.
+#
+# The headers still resolve to deps/, where PNG_PREFIX renames every entry point to
+# prusaslicer_png_*, so the mismatch only surfaces at link time as ~400 undefined
+# prusaslicer_png_* symbols. Prefer module mode here so CMAKE_PREFIX_PATH - which points at the
+# deps destdir - is searched first; config mode still runs as a fallback for platforms that do
+# ship a PNG config script.
+set(SLIC3R_PNG_PREFER_CONFIG_BACKUP ${CMAKE_FIND_PACKAGE_PREFER_CONFIG})
+set(CMAKE_FIND_PACKAGE_PREFER_CONFIG OFF)
 find_package(PNG REQUIRED)
+set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ${SLIC3R_PNG_PREFER_CONFIG_BACKUP})
 
 set(OpenGL_GL_PREFERENCE "LEGACY")
 find_package(OpenGL REQUIRED)
