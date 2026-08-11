@@ -173,11 +173,7 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
     for (int16_t i = 1; size_t(i) < nb_items; i++) {
         model.custom_gcode_per_print_z.gcodes.emplace_back(CustomGCode::Item{ (i * TOWER_LAYER_INTERVAL * xyzScale), CustomGCode::Type::Custom , -1, "",
           "M104 S" + std::to_string(temperature - i * step_temp) + " ; floor " + std::to_string(i) + " of the temp tower set" });
-        //str_layer_gcode += "\n{ elsif layer_z >= " + std::to_string(i * TOWER_LAYER_INTERVAL * xyzScale) + " and layer_z <= " + std::to_string((1 + i * TOWER_LAYER_INTERVAL) * xyzScale) + " }\nM104 S" + std::to_string(temperature - (int8_t)nb_delta * 5 + i * 5);
     }
-    //str_layer_gcode += "\n{endif}\n";
-    //DynamicPrintConfig new_printer_config = *printerConfig; //make a copy
-    //new_printer_config.set_key_value("layer_gcode", std::make_unique<ConfigOptionString>(str_layer_gcode));
 
     /// --- custom config ---
     float brim_width = print_config->option<ConfigOptionFloat>("brim_width")->value;
