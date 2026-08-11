@@ -401,6 +401,12 @@ private:
     // enforce lift_min
     void            set_extra_lift(const float previous_print_z, const int layer_id, const PrintConfig& print_config, GCodeWriter & writer, int extruder_id);
     std::string     set_extruder(uint16_t extruder_id, double print_z, bool no_toolchange = false);
+    // Klipper's live Z offset for extruder_id. No-op on other firmware flavors, and on
+    // Klipper only writes when the value actually changes unless force is set.
+    std::string     set_filament_z_offset(uint16_t extruder_id, bool force = false);
+    // Clear Klipper's live Z offset. Always writes: the printer must be left at a known
+    // state regardless of what the print happened to end on.
+    std::string     clear_filament_z_offset();
     std::string     toolchange(uint16_t extruder_id, double print_z);
     bool line_distancer_is_required(const std::vector<uint16_t>& extruder_ids);
 
@@ -551,6 +557,12 @@ private:
     // overlap wiggle (e.g. 16->18->21->16) -- only meaningful changes re-emit. Reset to -1
     // when a non-overhang extrusion is printed so each overhang run starts from its true value.
     double                              m_last_emitted_overhang_fan{ -1.0 };
+    // Klipper keeps SET_GCODE_OFFSET as persistent machine state: gcode_move re-applies
+    // homing_position after a G28, and nothing clears it at the end of a job, so a stale
+    // offset silently follows the machine into the next print. Track what was last written
+    // so tool changes re-assert it and the end of the print can zero it. Empty until the
+    // first emission, so the start of a print always writes one even for a 0 offset.
+    std::optional<double>               m_emitted_filament_z_offset;
 #if ENABLE_GCODE_VIEWER_DATA_CHECKING
     double                              m_last_mm3_per_mm;
 #endif // ENABLE_GCODE_VIEWER_DATA_CHECKING

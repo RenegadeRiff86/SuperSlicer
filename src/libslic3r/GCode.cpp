@@ -1605,6 +1605,8 @@ void GCodeGenerator::_do_export_parallel_objects(const Print &print, Print::Stat
         this->m_layer = parallel_layers_to_print[0].second.back().layer();
         wipe_tower->next_layer();
         file.write(wipe_tower->tool_change(*this, tool_ordering.first_extruder(), true));
+        // The wipe tower performs its own tool changes without going through set_extruder().
+        file.write(this->set_filament_z_offset(tool_ordering.first_extruder()));
     }
     double range = std::min(print.config().parallel_objects_step, print.config().extruder_clearance_height) + EPSILON;
     if (print.config().complete_objects_sort.value == cosNearest)
@@ -1683,6 +1685,7 @@ void GCodeGenerator::_do_export_parallel_objects(const Print &print, Print::Stat
                 m_wipe_tower->next_layer();
                 this->m_layer = parallel_layers_to_print[idx].second.back().layer();
                 file.write(m_wipe_tower->tool_change(*this, extruder_id, true));
+                file.write(this->set_filament_z_offset(extruder_id));
             }
         }
         parallel_layers_to_print = {parallel_layers_to_print.begin() + idx, parallel_layers_to_print.end()};
@@ -2243,12 +2246,9 @@ void GCodeGenerator::_do_export(Print& print_mod, GCodeOutputStream &file, Thumb
 
     // Keep the filament preset as the source of truth for Klipper's live Z offset.
     // This must follow the user's start G-code so a START_PRINT macro cannot overwrite it.
-    if (initial_extruder_id != (uint16_t)-1 && this->config().gcode_flavor == gcfKlipper) {
-        const double filament_z_offset = m_config.filament_z_offset.get_at(initial_extruder_id);
-        preamble_to_put_start_layer.append("; Filament preset Z offset\nSET_GCODE_OFFSET Z=")
-            .append(Slic3r::to_string_nozero(filament_z_offset, FILAMENT_Z_OFFSET_DECIMALS))
-            .append(" MOVE=0\n");
-    }
+    // Forced: the machine may still be holding an offset left by an earlier job, so the
+    // first write of a print has to be unconditional even when this preset's offset is 0.
+    preamble_to_put_start_layer.append(this->set_filament_z_offset(initial_extruder_id, /*force*/ true));
 
     // Disable fan.
     if ((initial_extruder_id != (uint16_t) -1) && !this->config().start_gcode_manual && print.config().disable_fan_first_layers.get_at(initial_extruder_id)) {
@@ -2454,13 +2454,14 @@ void GCodeGenerator::_do_export(Print& print_mod, GCodeOutputStream &file, Thumb
                 }
             }
         }
-        if (this->config().gcode_flavor == gcfKlipper) {
-            file.write("; Restore filament preset Z offset before end G-code\nSET_GCODE_OFFSET Z=");
-            file.write(Slic3r::to_string_nozero(
-                m_config.filament_z_offset.get_at(initial_extruder_id), FILAMENT_Z_OFFSET_DECIMALS));
-            file.write(" MOVE=0\n");
-        }
+        // Re-assert the offset of the tool the print actually ended on, so the user's end
+        // G-code runs against the same Z the print used. Previously this used
+        // initial_extruder_id, which is wrong once a tool change has happened.
+        file.write(this->set_filament_z_offset(m_writer.tool()->id(), /*force*/ true));
         file.writeln(this->placeholder_parser_process("end_gcode", print.config().end_gcode, m_writer.tool()->id(), &config));
+        // Klipper would otherwise keep this offset applied indefinitely - it survives
+        // homing and the end of the job - so leave the machine at a known zero.
+        file.write(this->clear_filament_z_offset());
     } else {
         assert(false); // what is the use-case?
     }
@@ -3972,6 +3973,7 @@ LayerResult GCodeGenerator::process_layer(
         if (layer_tools.has_wipe_tower && m_wipe_tower) {
             m_wipe_tower->set_force_travel(m_new_z_target.has_value());
             gcode += m_wipe_tower->tool_change(*this, extruder_id, extruder_id == layer_tools.extruders.back());
+            gcode += this->set_filament_z_offset(extruder_id);
         } else {
             gcode += this->set_extruder(extruder_id, print_z);
         }
@@ -9289,6 +9291,39 @@ std::string GCodeGenerator::toolchange(uint16_t extruder_id, double print_z) {
     return gcode;
 }
 
+// Klipper stores the g-code offset as persistent machine state - gcode_move copies
+// homing_position back into base_position after a G28, so it survives homing, and nothing
+// clears it when a job ends. It therefore has to be re-asserted whenever the active tool
+// changes and cleared once the print is over. Writing only on change keeps this callable
+// from every tool-change path without spamming the output.
+std::string GCodeGenerator::set_filament_z_offset(uint16_t extruder_id, bool force /*=false*/)
+{
+    if (this->config().gcode_flavor != gcfKlipper || extruder_id == uint16_t(-1))
+        return "";
+
+    const double offset = m_config.filament_z_offset.get_at(extruder_id);
+    if (!force && m_emitted_filament_z_offset && is_approx(*m_emitted_filament_z_offset, offset))
+        return "";
+
+    m_emitted_filament_z_offset = offset;
+    // Absolute Z= rather than Z_ADJUST=: the adjust form accumulates onto whatever is
+    // already applied, which would drift if a macro or the user's custom g-code also
+    // touched the offset.
+    std::string gcode = "; Filament preset Z offset\nSET_GCODE_OFFSET Z=";
+    gcode += Slic3r::to_string_nozero(offset, FILAMENT_Z_OFFSET_DECIMALS);
+    gcode += " MOVE=0\n";
+    return gcode;
+}
+
+std::string GCodeGenerator::clear_filament_z_offset()
+{
+    if (this->config().gcode_flavor != gcfKlipper)
+        return "";
+
+    m_emitted_filament_z_offset = 0.;
+    return "; Clear filament preset Z offset\nSET_GCODE_OFFSET Z=0 MOVE=0\n";
+}
+
 std::string GCodeGenerator::set_extruder(uint16_t extruder_id, double print_z, bool no_toolchange /*=false*/)
 {
     assert( (print_z == 0 && m_max_layer_z == 0) || (print_z != 0 && m_max_layer_z != 0));
@@ -9327,6 +9362,8 @@ std::string GCodeGenerator::set_extruder(uint16_t extruder_id, double print_z, b
         } else {
             m_writer.toolchange(extruder_id);
         }
+        // After the filament's own start g-code, so a macro in it cannot overwrite the offset.
+        gcode += this->set_filament_z_offset(extruder_id);
         return gcode;
     }
 
@@ -9413,6 +9450,9 @@ std::string GCodeGenerator::set_extruder(uint16_t extruder_id, double print_z, b
 
     // The position is now known after the tool change.
     this->unset_last_pos();
+
+    // The new filament may carry a different Z offset than the one we came from.
+    gcode += this->set_filament_z_offset(extruder_id);
 
     return gcode;
 }
