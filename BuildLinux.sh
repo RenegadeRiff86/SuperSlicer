@@ -80,6 +80,19 @@ have_command() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Join arguments with an explicit separator. A bare "$*" cannot be used for this:
+# the script sets IFS=$'\n\t', so "$*" splices newlines into the middle of a message.
+join_by() {
+    local separator="$1"
+    shift
+    local joined=""
+    local item
+    for item in "$@"; do
+        joined+="${joined:+$separator}$item"
+    done
+    printf '%s' "$joined"
+}
+
 option_selected=0
 while (($#)); do
     case "$1" in
@@ -206,7 +219,7 @@ need_command() {
             return
         fi
     done
-    MISSING+=("$label (command: $*)")
+    MISSING+=("$label (command: $(join_by '/' "$@"))")
 }
 
 need_pkg_config() {
@@ -218,7 +231,7 @@ need_pkg_config() {
             return
         fi
     done
-    MISSING+=("$label (pkg-config: $*)")
+    MISSING+=("$label (pkg-config: $(join_by '/' "$@"))")
 }
 
 need_header() {
@@ -358,7 +371,7 @@ as_root() {
 }
 
 install_prerequisites() {
-    [[ -n "$PACKAGE_MANAGER" ]] || die "no supported package manager found; missing: ${MISSING[*]}"
+    [[ -n "$PACKAGE_MANAGER" ]] || die "no supported package manager found; missing: $(join_by '; ' "${MISSING[@]}")"
     bootstrap_packages
     (("${#BOOTSTRAP_PACKAGES[@]}" > 0)) || die "no package map for $PACKAGE_MANAGER"
 
@@ -399,7 +412,7 @@ if (("${#MISSING[@]}" > 0)); then
     fi
 fi
 
-(("${#MISSING[@]}" == 0)) || die "prerequisites are still missing after package installation: ${MISSING[*]}"
+(("${#MISSING[@]}" == 0)) || die "prerequisites are still missing after package installation: $(join_by '; ' "${MISSING[@]}")"
 printf 'Prerequisites: ready\n'
 
 if ((CHECK_ONLY)); then
