@@ -398,6 +398,30 @@ if (SLIC3R_ENABLE_AUTOMATION_API)
         xkbcommon
     )
 
+    # libei 1.6 (May 2026) added the text interface - EI_DEVICE_CAP_TEXT and
+    # ei_device_text_utf8_with_length. Debian 13 and the other current stables still ship 1.3,
+    # so probe for the symbols rather than raising the required version: on an older libei the
+    # automation API still builds, and only "text" requests report themselves unsupported.
+    # Probing the symbols rather than comparing the version also keeps working on distributions
+    # that backport the interface without bumping the pkg-config version.
+    include(CheckCXXSourceCompiles)
+    set(CMAKE_REQUIRED_INCLUDES ${SLIC3R_AUTOMATION_INPUT_INCLUDE_DIRS})
+    set(CMAKE_REQUIRED_LIBRARIES PkgConfig::SLIC3R_AUTOMATION_INPUT)
+    check_cxx_source_compiles([[
+        #include <libei.h>
+        int main() {
+            (void) EI_DEVICE_CAP_TEXT;
+            ei_device_text_utf8_with_length(nullptr, "", 0);
+            return 0;
+        }
+    ]] SLIC3R_HAVE_LIBEI_TEXT)
+    unset(CMAKE_REQUIRED_INCLUDES)
+    unset(CMAKE_REQUIRED_LIBRARIES)
+    if (NOT SLIC3R_HAVE_LIBEI_TEXT)
+        message(STATUS
+            "libei predates 1.6: automation text input will report itself unsupported at runtime")
+    endif()
+
     list(APPEND SLIC3R_GUI_SOURCES
         GUI/Automation/AutomationIds.cpp
         GUI/Automation/AutomationIds.hpp
@@ -439,6 +463,7 @@ add_library(libslic3r_gui STATIC ${SLIC3R_GUI_SOURCES})
 target_compile_definitions(libslic3r_gui PRIVATE
     $<$<BOOL:${SLIC3R_ALPHA}>:SLIC3R_ALPHA>
     $<$<BOOL:${SLIC3R_ENABLE_AUTOMATION_API}>:SLIC3R_ENABLE_AUTOMATION_API>
+    $<$<BOOL:${SLIC3R_HAVE_LIBEI_TEXT}>:SLIC3R_HAVE_LIBEI_TEXT>
 )
 
 foreach(_source IN ITEMS ${SLIC3R_GUI_SOURCES})

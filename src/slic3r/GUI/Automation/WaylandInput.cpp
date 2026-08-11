@@ -214,7 +214,9 @@ private:
             EI_DEVICE_CAP_BUTTON,
             EI_DEVICE_CAP_SCROLL,
             EI_DEVICE_CAP_KEYBOARD,
+#ifdef SLIC3R_HAVE_LIBEI_TEXT
             EI_DEVICE_CAP_TEXT,
+#endif
             nullptr);
     }
 
@@ -339,8 +341,14 @@ private:
                    device_with(EI_DEVICE_CAP_SCROLL) != nullptr;
         if (request.type == "key")
             return device_with(EI_DEVICE_CAP_KEYBOARD) != nullptr;
-        if (request.type == "text")
+        if (request.type == "text") {
+#ifdef SLIC3R_HAVE_LIBEI_TEXT
             return device_with(EI_DEVICE_CAP_TEXT) != nullptr;
+#else
+            // libei before 1.6 has no text interface, so no device can ever carry it.
+            return false;
+#endif
+        }
         return true;
     }
 
@@ -433,6 +441,7 @@ private:
 
     Result text(const Request& request)
     {
+#ifdef SLIC3R_HAVE_LIBEI_TEXT
         Device* text_device = device_with(EI_DEVICE_CAP_TEXT);
         if (text_device == nullptr)
             return input_failure(ERROR_OPERATION_FAILED, "no compositor text-input device is available");
@@ -440,6 +449,11 @@ private:
             text_device->handle, request.text.data(), request.text.size());
         frame(*text_device);
         return input_success();
+#else
+        (void) request;
+        return input_failure(ERROR_OPERATION_FAILED,
+            "text input needs libei 1.6 or newer; this build linked an older libei");
+#endif
     }
 
     void release_pressed()
