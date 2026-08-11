@@ -965,11 +965,17 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                 // Tracked in #46: odd/uneven PA value arrays can leave borders too short when
                 // the forced final end_pa value adds an extra 90-degree bend model.
 
-                double numbers_total_width = (number_pos_last.x() + (xy_scaled_number_x / kGeometryCenterDivisor)) - (number_pos_first.x() - (xy_scaled_number_x / kGeometryCenterDivisor));// scaled to include gap between end of 90_bend and first number,perfection
+                // Scaled to include the gap between the end of the 90_bend and the first number.
+                double numbers_total_width =
+                    (number_pos_last.x() + (xy_scaled_number_x / kGeometryCenterDivisor)) -
+                    (number_pos_first.x() - (xy_scaled_number_x / kGeometryCenterDivisor));
                 double total_height = (bend_pos_last.y() + (xy_scaled_90_bend_y / kGeometryCenterDivisor)) - (bend_pos_first.y() - (xy_scaled_90_bend_y / kGeometryCenterDivisor));
                 double scalred_r_border_x_mm = numbers_total_width + (nozzle_diameter * kDoubleNozzleDiameterScale);
-                double left_border_x_offset = (bend_pos_mid.x() - (xy_scaled_90_bend_x / kGeometryCenterDivisor) - nozzle_diameter + ( xy_scaled_border_x / kGeometryCenterDivisor) ) - (bend_pos_mid.x() - (xy_scaled_90_bend_x / kGeometryCenterDivisor));// left border is positioned slightly inside the 90_bend
-                    // model this is that distance.
+                // The left border sits slightly inside the 90_bend model; this is that distance.
+                double left_border_x_offset =
+                    (bend_pos_mid.x() - (xy_scaled_90_bend_x / kGeometryCenterDivisor) - nozzle_diameter +
+                        (xy_scaled_border_x / kGeometryCenterDivisor)) -
+                    (bend_pos_mid.x() - (xy_scaled_90_bend_x / kGeometryCenterDivisor));
                 double tb_total_width_mm = (xy_scaled_border_x - left_border_x_offset) + xy_scaled_90_bend_x + scalred_r_border_x_mm;
                 
                 double scaled_l_border_x_percentage  = xy_scaled_border_x / initial_border_x;
@@ -998,8 +1004,11 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
 
                 // Tracked in #46: odd increment counts can leave the bottom border disconnected.
                 add_part(model.objects[objs_idx[id_item]], (boost::filesystem::path(Slic3r::resources_dir()) / kCalibrationResourceDirectory / kFilamentPressureResourceDirectory / kPressureAdvanceBorderResource).string(),
-                    Vec3d{ tb_border_x_pos , bend_pos_first.y() - (xy_scaled_90_bend_y / kGeometryCenterDivisor) - (xy_scaled_border_y / kGeometryCenterDivisor) - nozzle_diameter, z_others_pos },                      // Border offsets/scale need shared handling with top and side
-                        // calculations.
+                    // Border offsets/scale need shared handling with the top and side calculations.
+                    Vec3d{ tb_border_x_pos,
+                           bend_pos_first.y() - (xy_scaled_90_bend_y / kGeometryCenterDivisor) -
+                               (xy_scaled_border_y / kGeometryCenterDivisor) - nozzle_diameter,
+                           z_others_pos },
                         /*scale*/Vec3d{ scaled_tb_border_x_percentage , scaled_tb_border_y_percentage, z_scale_others }, false);count_borders++;       //bottom border
                 //----------
                 add_part(model.objects[objs_idx[id_item]], (boost::filesystem::path(Slic3r::resources_dir()) / kCalibrationResourceDirectory / kFilamentPressureResourceDirectory / kPressureAdvanceBorderResource).string(),
@@ -1049,8 +1058,12 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                         double point_xpos = (right_edge_of_left_number + left_edge_of_right_number) / kGeometryCenterDivisor;
 
                         add_part(model.objects[objs_idx[id_item]],(boost::filesystem::path(Slic3r::resources_dir()) / kCalibrationResourceDirectory / kFilamentPressureResourceDirectory / "point.3mf").string(),
-                            Vec3d{ point_xpos, ypos - (xy_scaled_number_y / kGeometryCenterDivisor) + (xy_scaled_point_y / kGeometryCenterDivisor), z_scaled_model_height },// FIXED: // point gets moved to wrong position on all nozzle_sizes, guessing it's exported offset position doesn't
-                                // get scaled with the model.
+                            // FIXED: the point moved to the wrong position on every nozzle_size,
+                            // because its exported offset position is not scaled with the model.
+                            Vec3d{ point_xpos,
+                                   ypos - (xy_scaled_number_y / kGeometryCenterDivisor) +
+                                       (xy_scaled_point_y / kGeometryCenterDivisor),
+                                   z_scaled_model_height },
                                 /*scale*/Vec3d{ xyzScale * er_width_to_scale, (xyzScale + (xyzScale / kGeometryCenterDivisor)) * er_width_to_scale, z_scale_numbers }, false);
                         number_positions.push_back(Eigen::Vector3d(point_xpos, ypos - (xy_scaled_number_y / kGeometryCenterDivisor) + (xy_scaled_point_y / kGeometryCenterDivisor), z_scaled_model_height));
                         xpos -= (xy_scaled_number_x / kGeometryCenterDivisor);
