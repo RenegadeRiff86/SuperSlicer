@@ -32,7 +32,7 @@ public:
         , m_results_mode(results_mode)
     {
         create(boost::filesystem::path("calibration") / "adaptive_pressure", "adaptive_pressure.html",
-               wxSize(900, 500), m_results_mode);
+               wxSize(CalibrationConstants::kWideDialogWidthPx, CalibrationConstants::kWideDialogHeightPx), m_results_mode);
     }
     virtual ~CalibrationPressureAdvAdaptiveDialog() {}
 

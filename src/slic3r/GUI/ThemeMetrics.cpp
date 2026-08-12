@@ -13,8 +13,8 @@ namespace GUI {
 namespace ThemeMetrics {
 
 namespace {
-enum class Platform : size_t { Windows = 0, Mac = 1, Linux = 2 };
-enum class Density : size_t { Comfortable = 0, Compact = 1 };
+enum class Platform : size_t { Windows, Mac, Linux };
+enum class Density : size_t { Comfortable, Compact };
 
 struct TokenTable {
     double space_xs_em;

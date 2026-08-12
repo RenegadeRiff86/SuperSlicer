@@ -17,7 +17,12 @@ class CalibrationPressureAdvDialog : public CalibrationAbstractDialog
 
 public:
     CalibrationPressureAdvDialog(GUI_App* app, MainFrame* mainframe) : CalibrationAbstractDialog(app, mainframe, "Pressure calibration") 
-    { create(boost::filesystem::path("calibration") / "filament_pressure", "filament_pressure.html", wxSize(1600, 600), true); Centre(wxBOTH); currentTestCount = 1; } //include_close_button = true
+    {
+        create(boost::filesystem::path("calibration") / "filament_pressure", "filament_pressure.html",
+            wxSize(CalibrationConstants::kPressureDialogWidthPx, CalibrationConstants::kPressureDialogHeightPx), true);
+        Centre(wxBOTH);
+        currentTestCount = 1;
+    } //include_close_button = true
     virtual ~CalibrationPressureAdvDialog(){ }
 
     void close_me_wrapper(wxCommandEvent& event);

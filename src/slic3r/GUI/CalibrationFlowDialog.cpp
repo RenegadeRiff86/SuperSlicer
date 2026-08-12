@@ -43,6 +43,13 @@ constexpr size_t kCenterCubeIndex              = 2;
 constexpr size_t kFourthCubeIndex              = 3;
 constexpr int    kCalibrationPerimeterCount    = 3;
 constexpr int    kPerimeterOverlapPercent      = 80;
+constexpr int    kButtonRowSpacerPx            = 20;
+constexpr double kIndicatorZDeltaMm            = 0.3; // add_part vertical delta for flow glyphs
+constexpr int    kIndicatorMidpointDivisor     = 2;   // mid of two-layer tall indicator
+constexpr size_t kFifthCubeIndex               = 4;
+constexpr int    kThinWallsMinWidthPercent     = 50;
+constexpr int    kExternalInfillMarginPercent  = 100;
+constexpr int    kSolidInfillEveryLayer        = 1;
 
 boost::filesystem::path flow_resource_path(const char* filename)
 {
@@ -55,11 +62,11 @@ void CalibrationFlowDialog::create_buttons(wxStdDialogButtonSizer* buttons){
     wxButton* bt = new wxButton(this, wxID_FILE1, _L("Generate 10% intervals around current value"));
     bt->Bind(wxEVT_BUTTON, &CalibrationFlowDialog::create_geometry_10, this);
     buttons->Add(bt);
-    buttons->AddSpacer(20);
+    buttons->AddSpacer(kButtonRowSpacerPx);
     bt = new wxButton(this, wxID_FILE2, _L("Generate 2% intervals below current value"));
     bt->Bind(wxEVT_BUTTON, &CalibrationFlowDialog::create_geometry_2_5, this);
     buttons->Add(bt);
-    buttons->AddSpacer(20);
+    buttons->AddSpacer(kButtonRowSpacerPx);
     bt = new wxButton(this, wxID_FILE3, _L("Generate 2% intervals above current value"));
     bt->Bind(wxEVT_BUTTON, &CalibrationFlowDialog::create_geometry_2_5_above, this);
     buttons->Add(bt);
@@ -121,7 +128,7 @@ void CalibrationFlowDialog::create_geometry(float start, float delta) {
     const ConfigOptionFloats* nozzle_diameter_config = printerConfig->option<ConfigOptionFloats>("nozzle_diameter");
     assert(nozzle_diameter_config->size() > 0);
     float nozzle_diameter = nozzle_diameter_config->get_at(0);
-    float xyScale = nozzle_diameter / 0.4;
+    float xyScale = nozzle_diameter / CalibrationConstants::kDesignNozzleDiameterMm;
     //scale z to have 6 layers
     const ConfigOptionFloatOrPercent* first_layer_height_setting = print_config->option<ConfigOptionFloatOrPercent>("first_layer_height");
     double first_layer_height = first_layer_height_setting->get_abs_value(nozzle_diameter);
@@ -133,7 +140,7 @@ void CalibrationFlowDialog::create_geometry(float start, float delta) {
     float z_origin = 0.5f;
     float zscale = first_layer_height + kAdditionalLayerCount * layer_height;
     //do scaling
-    if (xyScale < 0.9 || 1.2 < xyScale) {
+    if (xyScale < CalibrationConstants::kXyScaleMinFactor || CalibrationConstants::kXyScaleMaxFactor < xyScale) {
         for (size_t i = 0; i < kFlowCubeCount; i++)
             model.objects[objs_idx[i]]->scale(xyScale, xyScale, zscale); // base: 10 10 1
     } else {
@@ -146,13 +153,13 @@ void CalibrationFlowDialog::create_geometry(float start, float delta) {
 
 
     //add sub-part after scale
-    float zscale_number = (first_layer_height + layer_height) / 0.4;
+    float zscale_number = (first_layer_height + layer_height) / CalibrationConstants::kDesignNozzleDiameterMm;
     /* zshift is calculated using the following:
     z_origin: we go back to 0 by removing it.
     ((first_layer_height + layer_height) / 2) represents the midpoint of our indicator tab (it is scaled to be 2 layers tall)
     The 0.3 constant is the same as the delta calculated in add_part below, this should probably be calculated per the model object
     */
-    float zshift_number = -z_origin + ((first_layer_height + layer_height) / 2) + 0.3;
+    float zshift_number = -z_origin + ((first_layer_height + layer_height) / kIndicatorMidpointDivisor) + kIndicatorZDeltaMm;
     
     // it's rotated but not around the good origin: correct that
     double init_z_rotate_angle = Geometry::deg2rad(plat->config()->opt_float("init_z_rotate"));
@@ -169,24 +176,24 @@ void CalibrationFlowDialog::create_geometry(float start, float delta) {
         add_part(model.objects[objs_idx[1]], flow_resource_path("m10.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
         add_part(model.objects[objs_idx[kCenterCubeIndex]], flow_resource_path("_0.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
         add_part(model.objects[objs_idx[kFourthCubeIndex]], flow_resource_path("p10.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
-        add_part(model.objects[objs_idx[4]], flow_resource_path("p20.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
+        add_part(model.objects[objs_idx[kFifthCubeIndex]], flow_resource_path("p20.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number });
     } else if (delta == kFineFlowStepPercent && start == kFineBelowFlowStartPercent) {
         add_part(model.objects[objs_idx[0]], flow_resource_path("m8.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
         add_part(model.objects[objs_idx[1]], flow_resource_path("m6.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
         add_part(model.objects[objs_idx[kCenterCubeIndex]], flow_resource_path("m4.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
         add_part(model.objects[objs_idx[kFourthCubeIndex]], flow_resource_path("m2.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[4]], flow_resource_path("_0.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[kFifthCubeIndex]], flow_resource_path("_0.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
     } else if (delta == kFineFlowStepPercent && start == kFineAboveFlowStartPercent) {
         add_part(model.objects[objs_idx[0]], flow_resource_path("_0.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
         add_part(model.objects[objs_idx[1]], flow_resource_path("p2.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
         add_part(model.objects[objs_idx[kCenterCubeIndex]], flow_resource_path("p4.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
         add_part(model.objects[objs_idx[kFourthCubeIndex]], flow_resource_path("p6.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
-        add_part(model.objects[objs_idx[4]], flow_resource_path("p8.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
+        add_part(model.objects[objs_idx[kFifthCubeIndex]], flow_resource_path("p8.amf").string(), Vec3d{ kIndicatorHorizontalOffset * xyScale,0,zshift_number }, Vec3d{ xyScale , xyScale, zscale_number});
     }
     for (size_t i = 0; i < kFlowCubeCount; i++) {
         translate_from_rotation(i, Vec3d{ kIndicatorHorizontalOffset * xyScale, 0, zscale / kModelHeightCenterDivisor - z_origin });
         add_part(model.objects[objs_idx[i]], flow_resource_path("O.amf").string(),
-          Vec3d{ 0,0, zscale / 2.0 + z_origin + layer_height / 2.0 }, Vec3d{xyScale , xyScale, layer_height / 0.2}); // base: 0.2mm height
+          Vec3d{ 0,0, zscale / 2.0 + z_origin + layer_height / 2.0 }, Vec3d{xyScale , xyScale, layer_height / CalibrationConstants::kDesignFirstLayerHeightMm}); // base: 0.2mm height
     }
 
     
@@ -213,13 +220,13 @@ void CalibrationFlowDialog::create_geometry(float start, float delta) {
         model.objects[objs_idx[i]]->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(kCalibrationPerimeterCount));
         model.objects[objs_idx[i]]->config.set_key_value("only_one_perimeter_top", std::make_unique<ConfigOptionBool>(true));
         model.objects[objs_idx[i]]->config.set_key_value("enforce_full_fill_volume", std::make_unique<ConfigOptionBool>(true));
-        model.objects[objs_idx[i]]->config.set_key_value("solid_infill_every_layers", std::make_unique<ConfigOptionInt>(1));
+        model.objects[objs_idx[i]]->config.set_key_value("solid_infill_every_layers", std::make_unique<ConfigOptionInt>(kSolidInfillEveryLayer));
         model.objects[objs_idx[i]]->config.set_key_value("thin_walls", std::make_unique<ConfigOptionBool>(true));
-        model.objects[objs_idx[i]]->config.set_key_value("thin_walls_min_width", std::make_unique<ConfigOptionFloatOrPercent>(50,true));
+        model.objects[objs_idx[i]]->config.set_key_value("thin_walls_min_width", std::make_unique<ConfigOptionFloatOrPercent>(kThinWallsMinWidthPercent,true));
         model.objects[objs_idx[i]]->config.set_key_value("gap_fill_enabled", std::make_unique<ConfigOptionBool>(true)); 
         model.objects[objs_idx[i]]->config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(layer_height));
         model.objects[objs_idx[i]]->config.set_key_value("first_layer_height", std::make_unique<ConfigOptionFloatOrPercent>(first_layer_height, false));
-        model.objects[objs_idx[i]]->config.set_key_value("external_infill_margin", std::make_unique<ConfigOptionFloatOrPercent>(100, true));
+        model.objects[objs_idx[i]]->config.set_key_value("external_infill_margin", std::make_unique<ConfigOptionFloatOrPercent>(kExternalInfillMarginPercent, true));
         model.objects[objs_idx[i]]->config.set_key_value("solid_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipRectilinear));
         model.objects[objs_idx[0]]->config.set_key_value("infill_filled_solid", std::make_unique<ConfigOptionBool>(true));
         model.objects[objs_idx[i]]->config.set_key_value("top_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipMonotonic));
@@ -246,7 +253,7 @@ void CalibrationFlowDialog::create_geometry(float start, float delta) {
             plat->fff_print().apply(plat->model(), *plat->config());
         Worker &ui_job_worker = plat->get_ui_job_worker();
         plat->arrange(ui_job_worker, false);
-        ui_job_worker.wait_for_current_job(20000);
+        ui_job_worker.wait_for_current_job(CalibrationConstants::kArrangeJobTimeoutMs);
     }
 
     plat->reslice();

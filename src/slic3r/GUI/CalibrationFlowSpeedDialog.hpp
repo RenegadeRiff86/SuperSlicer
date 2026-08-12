@@ -14,8 +14,12 @@ class CalibrationFlowSpeedDialog : public CalibrationAbstractDialog
 {
 
 public:
-    CalibrationFlowSpeedDialog(GUI_App* app, MainFrame* mainframe) : CalibrationAbstractDialog(app, mainframe, "Extruder flow calibration (by weight)") { create(boost::filesystem::path("calibration") / "extruder_flow","extruder_flow.html",
-      wxSize(900, 500));  }
+    CalibrationFlowSpeedDialog(GUI_App* app, MainFrame* mainframe)
+        : CalibrationAbstractDialog(app, mainframe, "Extruder flow calibration (by weight)")
+    {
+        create(boost::filesystem::path("calibration") / "extruder_flow", "extruder_flow.html",
+            wxSize(CalibrationConstants::kWideDialogWidthPx, CalibrationConstants::kWideDialogHeightPx));
+    }
     virtual ~CalibrationFlowSpeedDialog() {}
     
 protected:

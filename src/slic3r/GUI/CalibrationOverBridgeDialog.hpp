@@ -10,8 +10,12 @@ class CalibrationOverBridgeDialog : public CalibrationAbstractDialog
 {
 
 public:
-    CalibrationOverBridgeDialog(GUI_App* app, MainFrame* mainframe) : CalibrationAbstractDialog(app, mainframe, "Ironing pattern calibration") { create(boost::filesystem::path("calibration") / "over-bridge_tuning", "over-bridge_tuning.html",
-      wxSize(900, 500)); }
+    CalibrationOverBridgeDialog(GUI_App* app, MainFrame* mainframe)
+        : CalibrationAbstractDialog(app, mainframe, "Ironing pattern calibration")
+    {
+        create(boost::filesystem::path("calibration") / "over-bridge_tuning", "over-bridge_tuning.html",
+            wxSize(CalibrationConstants::kWideDialogWidthPx, CalibrationConstants::kWideDialogHeightPx));
+    }
     virtual ~CalibrationOverBridgeDialog() { }
     
 protected:

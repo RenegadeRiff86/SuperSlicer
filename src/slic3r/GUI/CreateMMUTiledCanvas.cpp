@@ -116,6 +116,24 @@ constexpr int    kOptionsColumn           = 2;
 constexpr int    kSizeOptionsRow          = 2;
 constexpr int    kCanvasStartRow          = 2;
 constexpr int    kColorPickerRow          = 2;
+constexpr int    kHueDegrees              = 360;
+constexpr int    kPercentScale            = 100;
+constexpr int    kDrawPaneMinSizePx       = 404;
+constexpr int    kDefaultTilePixels       = 32;
+constexpr int    kDefaultOffsetXPx        = 140;
+constexpr int    kDefaultOffsetYPx        = 330;
+constexpr double kDefaultSeparationZMm    = 0.6;
+constexpr int    kMediumScreenMinWidth    = 1500;
+constexpr int    kMediumScreenMinHeight   = 1000;
+constexpr int    kLargeScreenMinWidth     = 2000;
+constexpr int    kLargeScreenMinHeight    = 1400;
+constexpr int    kMediumDialogWidthPx     = 1200;
+constexpr int    kMediumDialogHeightPx    = 700;
+constexpr int    kLargeDialogWidthPx      = 1600;
+constexpr int    kLargeDialogHeightPx     = 1000;
+constexpr int    kFilenameFieldMinWidthPx = 500;
+constexpr int    kComboItemHeightPx       = 40;
+constexpr int    kComboItemWidthPx        = 120;
 } // namespace
 
     //available on https://rplace.space/combined/ the 2022/06/04 (15gio of png)
@@ -662,11 +680,11 @@ constexpr int    kColorPickerRow          = 2;
 
         int dist = 0;
         if (hsv_color1.h > hsv_color2.h)
-            dist = std::min(hsv_color1.h - hsv_color2.h, hsv_color2.h - hsv_color1.h + 360);
+            dist = std::min(hsv_color1.h - hsv_color2.h, hsv_color2.h - hsv_color1.h + kHueDegrees);
         else
-            dist = std::min(hsv_color2.h - hsv_color1.h, hsv_color1.h - hsv_color2.h + 360);
-        dist += std::abs(hsv_color1.s - hsv_color2.s) * 100;
-        dist += std::abs(hsv_color1.v - hsv_color2.v) * 100;
+            dist = std::min(hsv_color2.h - hsv_color1.h, hsv_color1.h - hsv_color2.h + kHueDegrees);
+        dist += std::abs(hsv_color1.s - hsv_color2.s) * kPercentScale;
+        dist += std::abs(hsv_color1.v - hsv_color2.v) * kPercentScale;
 
         return dist;
     }
@@ -728,7 +746,7 @@ constexpr int    kColorPickerRow          = 2;
         BasicDrawPane::BasicDrawPane(wxWindow* parent, MyDynamicConfig* config) :
         wxPanel(parent)
     {
-        SetMinSize(wxSize(404, 404));
+        SetMinSize(wxSize(kDrawPaneMinSizePx, kDrawPaneMinSizePx));
     }
 
     /*
@@ -1207,7 +1225,7 @@ void CreateMMUTiledCanvas::load_config()
         def.tooltip = L("Number of pixels in x and y axis to include in the tile.");
         def.sidetext = L("px");
         def.min = 0;
-        def.set_default_value(std::make_unique<ConfigOptionPoint>(ConfigOptionPoint{ Vec2d{ 32,32 } }));
+        def.set_default_value(std::make_unique<ConfigOptionPoint>(ConfigOptionPoint{ Vec2d{ kDefaultTilePixels, kDefaultTilePixels } }));
         m_config.config_def.options["size"] = def;
         m_config.set_key_value("size", def.default_value.get()->clone());
 
@@ -1235,7 +1253,7 @@ void CreateMMUTiledCanvas::load_config()
         def.tooltip = L("First pixel position (top left corner) in the image.");
         def.sidetext = L("mm");
         def.min = 0;
-        def.set_default_value(std::make_unique<ConfigOptionPoint>(ConfigOptionPoint{ Vec2d{ 140,330 } }));
+        def.set_default_value(std::make_unique<ConfigOptionPoint>(ConfigOptionPoint{ Vec2d{ kDefaultOffsetXPx, kDefaultOffsetYPx } }));
         m_config.config_def.options["offset"] = def;
         m_config.set_key_value("offset", def.default_value.get()->clone());
 
@@ -1257,7 +1275,7 @@ void CreateMMUTiledCanvas::load_config()
         def.sidetext = L("mm");
         def.min = kMinSeparationZMm;
         def.width = kConfigFieldWidthChars;
-        def.set_default_value(std::make_unique<ConfigOptionFloat>(ConfigOptionFloat{ 0.6 }));
+        def.set_default_value(std::make_unique<ConfigOptionFloat>(ConfigOptionFloat{ kDefaultSeparationZMm }));
         m_config.config_def.options[kSeparationZKey] = def;
         m_config.set_key_value(kSeparationZKey, def.default_value.get()->clone());
 
@@ -1402,7 +1420,9 @@ void CreateMMUTiledCanvas::load_config()
             // Compute checksum of the configuration backup file and try to load configuration from it when the checksum is correct.
             boost::nowide::ifstream backup_ifs(backup_path);
             if (const AppConfig::ConfigFileInfo config_file_info = AppConfig::check_config_file_and_verify_checksum(backup_ifs); !config_file_info.correct_checksum || config_file_info.contains_null) {
-                BOOST_LOG_TRIVIAL(error) << format(R"(Both "%1%" and "%2%" are corrupted. It isn't possible to restore configuration from the backup.)", path, backup_path);
+                BOOST_LOG_TRIVIAL(error) << format(
+                    R"(Both "%1%" and "%2%" are corrupted. It isn't possible to restore configuration from the backup.)", // format args: primary, backup
+                    path, backup_path);
                 backup_ifs.close();
                 boost::filesystem::remove(backup_path);
             } else if (std::string error_message; copy_file(backup_path, path, error_message, false) != SUCCESS) {
@@ -1521,10 +1541,10 @@ CreateMMUTiledCanvas::CreateMMUTiledCanvas(GUI_App* app, MainFrame* mainframe)
     wxRect screen = display.GetClientArea();
     //dialog_size.x = std::min(dialog_size.x, screen.width - 50);
     //dialog_size.y = std::min(dialog_size.y, screen.height - 50);
-    if (screen.width > 1500 && screen.height > 1000)
-        this->SetSize(wxSize(1200, 700));
-    else if (screen.width > 2000 && screen.height > 1400)
-        this->SetSize(wxSize(1600, 1000));
+    if (screen.width > kMediumScreenMinWidth && screen.height > kMediumScreenMinHeight)
+        this->SetSize(wxSize(kMediumDialogWidthPx, kMediumDialogHeightPx));
+    else if (screen.width > kLargeScreenMinWidth && screen.height > kLargeScreenMinHeight)
+        this->SetSize(wxSize(kLargeDialogWidthPx, kLargeDialogHeightPx));
     else
         Fit();
 
@@ -1619,7 +1639,7 @@ void CreateMMUTiledCanvas::create_main_tab(wxPanel* tab)
         }
         }));
     m_filename_ctrl = new wxTextCtrl(tab, wxID_ANY, "");
-    m_filename_ctrl->SetMinSize(wxSize(500, 0));
+    m_filename_ctrl->SetMinSize(wxSize(kFilenameFieldMinWidthPx, 0));
     horiSizer->Add(m_filename_ctrl, 0, wxEXPAND | wxALL);
     wxButton* bt_file = new wxButton(tab, wxID_ANY, _L("File") + dots);
     wxGetApp().UpdateDarkUI(bt_file);
@@ -1891,10 +1911,10 @@ public:
         }
     }
     wxCoord OnMeasureItem(size_t item) const override {
-        return wxCoord(40);
+        return wxCoord(kComboItemHeightPx);
     }
     wxCoord OnMeasureItemWidth(size_t item) const override {
-        return wxCoord(120);
+        return wxCoord(kComboItemWidthPx);
     }
 
     void refresh_auto_color() {

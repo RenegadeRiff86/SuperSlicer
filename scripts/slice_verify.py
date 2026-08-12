@@ -629,41 +629,41 @@ def _cmd_printability(args) -> int:
 
 
 def _cmd_compare(args) -> int:
-    result = compare(GCode.from_file(args.before), GCode.from_file(args.after),
-                     require=args.require)
-    print(result.report())
-    return 0 if result.ok or result.translated_only else 1
+    comparison = compare(GCode.from_file(args.before), GCode.from_file(args.after),
+                         require=args.require)
+    print(comparison.report())
+    return 0 if comparison.ok or comparison.translated_only else 1
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    sub = p.add_subparsers(dest="cmd", required=True)
+    sub = parser.add_subparsers(dest="cmd", required=True)
 
-    m = sub.add_parser("models", help="list test models and feature gates")
-    m.set_defaults(func=_cmd_models)
+    models_parser = sub.add_parser("models", help="list test models and feature gates")
+    models_parser.set_defaults(func=_cmd_models)
 
-    s = sub.add_parser("slice", help="slice one model with the gates forced on")
-    s.add_argument("--model", required=True, choices=sorted(MODELS))
-    s.add_argument("--out", required=True)
-    s.add_argument("--gates", nargs="*", default=["classic", "arcs"], choices=sorted(FEATURE_GATES))
-    s.add_argument("--center", help="x,y -- only needed to match a GUI export")
-    s.add_argument("--slice-report", type=Path)
-    s.add_argument("--config", default="RelWithDebInfo")
-    s.set_defaults(func=_cmd_slice)
+    slice_parser = sub.add_parser("slice", help="slice one model with the gates forced on")
+    slice_parser.add_argument("--model", required=True, choices=sorted(MODELS))
+    slice_parser.add_argument("--out", required=True)
+    slice_parser.add_argument("--gates", nargs="*", default=["classic", "arcs"], choices=sorted(FEATURE_GATES))
+    slice_parser.add_argument("--center", help="x,y -- only needed to match a GUI export")
+    slice_parser.add_argument("--slice-report", type=Path)
+    slice_parser.add_argument("--config", default="RelWithDebInfo")
+    slice_parser.set_defaults(func=_cmd_slice)
 
-    pr = sub.add_parser("printability", help="measure fan rate, feature speeds and support output")
-    pr.add_argument("gcode")
-    pr.set_defaults(func=_cmd_printability)
+    printability_parser = sub.add_parser("printability", help="measure fan rate, feature speeds and support output")
+    printability_parser.add_argument("gcode")
+    printability_parser.set_defaults(func=_cmd_printability)
 
-    c = sub.add_parser("compare", help="compare two G-code files")
-    c.add_argument("before")
-    c.add_argument("after")
-    c.add_argument("--require", nargs="*", default=[], choices=sorted(FINGERPRINTS),
+    compare_parser = sub.add_parser("compare", help="compare two G-code files")
+    compare_parser.add_argument("before")
+    compare_parser.add_argument("after")
+    compare_parser.add_argument("--require", nargs="*", default=[], choices=sorted(FINGERPRINTS),
                    help="fail if these features are absent (guards against a vacuous pass)")
-    c.set_defaults(func=_cmd_compare)
+    compare_parser.set_defaults(func=_cmd_compare)
 
-    args = p.parse_args(argv)
+    args = parser.parse_args(argv)
     return args.func(args)
 
 

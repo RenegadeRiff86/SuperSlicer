@@ -30,11 +30,16 @@ namespace GUI {
 
 static constexpr int STEP_CHOICE_COUNT = 5;
 static constexpr int DEFAULT_STEP_COUNT_SELECTION = 5;
+static constexpr int DEFAULT_STEP_SELECTION = 1; // "0.2" mm
 static constexpr int TEMPERATURE_INCREMENT = 5;
 static constexpr int TEMPERATURE_ROUNDING_OFFSET = 2;
 static constexpr int TWO_ITEM_SELECTION_INDEX = 2;
+static constexpr int THREE_ITEM_SELECTION_INDEX = 3;
+static constexpr int FOUR_ITEM_SELECTION_INDEX = 4;
 static constexpr int FIVE_ITEM_SELECTION_INDEX = 5;
 static constexpr size_t TWO_ITEM_COUNT = 2;
+static constexpr size_t THREE_ITEM_COUNT = 3;
+static constexpr size_t FOUR_ITEM_COUNT = 4;
 static constexpr size_t FIVE_ITEM_COUNT = 5;
 static constexpr size_t SLOWDOWN_OPTION_COUNT = 5;
 static constexpr double HALF_DIVISOR = 2.0;
@@ -43,17 +48,30 @@ static constexpr int PERIMETER_COUNT = 2;
 static constexpr int BOTTOM_SOLID_LAYER_COUNT = 2;
 static constexpr int THIN_WALL_MIN_WIDTH_PERCENT = 2;
 static constexpr int EXTRA_VOLUME_COUNT = 2;
+static constexpr int HEIGHT_CHOICE_COUNT = 8;
+static constexpr int DECR_CHOICE_COUNT = 6;
+static constexpr int SPACER_SMALL_PX = 15;
+static constexpr int SPACER_MEDIUM_PX = 20;
+static constexpr int SPACER_LARGE_PX = 30;
+static constexpr int DECR_FIELD_WIDTH_EM = 15;
+static constexpr int DEFAULT_NB_RETRACT = 15;
+static constexpr int DEFAULT_TEMP_DECR_C = 10;
+static constexpr int ENGRAVED_TEMP_MIN_C = 180;
+static constexpr int ENGRAVED_TEMP_MAX_C = 285;
+static constexpr double PILLAR_Z_BASE_OFFSET = 0.7;
+static constexpr double PILLAR_Z_BIAS = 0.3;
+static constexpr double LABEL_Z_OFFSET_SCALE = 4.8;
 
 void CalibrationRetractionDialog::create_buttons(wxStdDialogButtonSizer* buttons){
-    const wxSize size(6 * em_unit(), wxDefaultCoord);
+    const wxSize size(CalibrationConstants::kComboFieldWidthEm * em_unit(), wxDefaultCoord);
     wxString choices_steps[] = { "0.1","0.2","0.5","1","2" };
     //steps = new wxComboBox(this, wxID_ANY, wxString{ "0.2" }, wxDefaultPosition, wxDefaultSize, 5, choices_steps);
     steps = new ComboBox(this, wxID_ANY, wxString{ "0.2" }, wxDefaultPosition, size, STEP_CHOICE_COUNT, choices_steps);
     steps->SetToolTip(_L("Each militer add this value to the retraction value."));
-    steps->SetSelection(1);
+    steps->SetSelection(DEFAULT_STEP_SELECTION);
     wxString choices_nb[] = { "2","4","6","8","10","15","20","25" };
     //nb_steps = new wxComboBox(this, wxID_ANY, wxString{ "15" }, wxDefaultPosition, wxDefaultSize, 8, choices_nb);
-    nb_steps = new ComboBox(this, wxID_ANY, wxString{ "15" }, wxDefaultPosition, size, 8, choices_nb);
+    nb_steps = new ComboBox(this, wxID_ANY, wxString{ "15" }, wxDefaultPosition, size, HEIGHT_CHOICE_COUNT, choices_nb);
     nb_steps->SetToolTip(_L("Select the number milimeters for the tower."));
     nb_steps->SetSelection(DEFAULT_STEP_COUNT_SELECTION);
     //wxString choices_start[] = { "current","260","250","240","230","220","210" };
@@ -66,30 +84,30 @@ void CalibrationRetractionDialog::create_buttons(wxStdDialogButtonSizer* buttons
     temp_start->SetToolTip(_L("Note that only Multiple of 5 can be engraved in the part"));
     wxString choices_decr[] = { _L("one test"),_L("2x10°"),_L("3x10°"), _L("4x10°"), _L("3x5°"), _L("5x5°") };
     //decr_temp = new wxComboBox(this, wxID_ANY, wxString{ "current" }, wxDefaultPosition, wxDefaultSize, 6, choices_decr);
-    decr_temp = new ComboBox(this, wxID_ANY, wxString{"current"}, wxDefaultPosition, {15 * em_unit(), wxDefaultCoord}, 6, choices_decr);
+    decr_temp = new ComboBox(this, wxID_ANY, wxString{"current"}, wxDefaultPosition, {DECR_FIELD_WIDTH_EM * em_unit(), wxDefaultCoord}, DECR_CHOICE_COUNT, choices_decr);
     decr_temp->SetToolTip(_L("Select the number tower to print, and by how many degrees C to decrease each time."));
     decr_temp->SetSelection(0);
     //decr_temp->SetEditable(false);
 
     buttons->Add(new wxStaticText(this, wxID_ANY, _L("Step:")));
     buttons->Add(steps);
-    buttons->AddSpacer(15);
+    buttons->AddSpacer(SPACER_SMALL_PX);
     buttons->Add(new wxStaticText(this, wxID_ANY, _L("Height:")));
     buttons->Add(nb_steps);
-    buttons->AddSpacer(20);
+    buttons->AddSpacer(SPACER_MEDIUM_PX);
 
     buttons->Add(new wxStaticText(this, wxID_ANY, _L("Start temp:")));
     buttons->Add(temp_start);
-    buttons->AddSpacer(15);
+    buttons->AddSpacer(SPACER_SMALL_PX);
     buttons->Add(new wxStaticText(this, wxID_ANY, _L("Temp decr:")));
     buttons->Add(decr_temp);
-    buttons->AddSpacer(20);
+    buttons->AddSpacer(SPACER_MEDIUM_PX);
 
     wxButton* bt = new wxButton(this, wxID_SETUP, _L("Remove fil. slowdown"));
     bt->Bind(wxEVT_BUTTON, &CalibrationRetractionDialog::remove_slowdown, this);
     buttons->Add(bt);
 
-    buttons->AddSpacer(30);
+    buttons->AddSpacer(SPACER_LARGE_PX);
 
     bt = new wxButton(this, wxID_FILE1, _L("Generate"));
     bt->Bind(wxEVT_BUTTON, &CalibrationRetractionDialog::create_geometry, this);
@@ -136,19 +154,19 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
 
     long nb_retract = 1;
     if (!nb_steps->GetValue().ToLong(&nb_retract)) {
-        nb_retract = 15;
+        nb_retract = DEFAULT_NB_RETRACT;
     }
     size_t nb_items = 1;
     if (decr_temp->GetSelection() == 1) {
         nb_items = TWO_ITEM_COUNT;
-    } else if (decr_temp->GetSelection() == TWO_ITEM_SELECTION_INDEX || decr_temp->GetSelection() == 4) {
-        nb_items = 3;
-    } else if (decr_temp->GetSelection() == 3) {
-        nb_items = 4;
+    } else if (decr_temp->GetSelection() == TWO_ITEM_SELECTION_INDEX || decr_temp->GetSelection() == FOUR_ITEM_SELECTION_INDEX) {
+        nb_items = THREE_ITEM_COUNT;
+    } else if (decr_temp->GetSelection() == THREE_ITEM_SELECTION_INDEX) {
+        nb_items = FOUR_ITEM_COUNT;
     } else if (decr_temp->GetSelection() == FIVE_ITEM_SELECTION_INDEX) {
         nb_items = FIVE_ITEM_COUNT;
     }
-    int temp_decr = (decr_temp->GetSelection() < 4) ? 10 : TEMPERATURE_INCREMENT;
+    int temp_decr = (decr_temp->GetSelection() < FOUR_ITEM_SELECTION_INDEX) ? DEFAULT_TEMP_DECR_C : TEMPERATURE_INCREMENT;
 
 
     std::vector<std::string> items;
@@ -197,9 +215,9 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
     // Keep a printable first layer for tiny nozzles while honouring the user's first_layer_height when larger.
     first_layer_height = std::max(first_layer_height, nozzle_diameter / HALF_DIVISOR);
 
-    float scale = nozzle_diameter / 0.4;
+    float scale = nozzle_diameter / CalibrationConstants::kDesignNozzleDiameterMm;
     //do scaling
-    if (scale < 0.9 || 1.2 < scale) {
+    if (scale < CalibrationConstants::kXyScaleMinFactor || CalibrationConstants::kXyScaleMaxFactor < scale) {
         for (size_t i = 0; i < nb_items; i++)
             model.objects[objs_idx[i]]->scale(scale, scale, scale);
     }
@@ -208,12 +226,13 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
     std::vector<std::string> filament_temp_item_name;
     for (size_t id_item = 0; id_item < nb_items; id_item++) {
         int mytemp = temp - temp_decr * id_item;
-        if (mytemp <= 285 && mytemp >= 180 && mytemp % TEMPERATURE_INCREMENT == 0) {
+        if (mytemp <= ENGRAVED_TEMP_MAX_C && mytemp >= ENGRAVED_TEMP_MIN_C && mytemp % TEMPERATURE_INCREMENT == 0) {
             filament_temp_item_name.push_back("t" + std::to_string(mytemp) + ".amf");
             assert(model.objects[objs_idx[id_item]]->volumes.size() == 1);
             add_part(model.objects[objs_idx[id_item]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_temp" / filament_temp_item_name.back()).string(),
-                Vec3d{ 0,0, scale * 0.0 - 4.8 }, Vec3d{ scale,scale,scale });
-            assert(model.objects[objs_idx[id_item]]->volumes.size() == EXPECTED_VOLUME_COUNT);
+                Vec3d{ 0,0, scale * 0.0 - LABEL_Z_OFFSET_SCALE }, Vec3d{ scale,scale,scale });
+            if (model.objects[objs_idx[id_item]]->volumes.size() != EXPECTED_VOLUME_COUNT)
+                assert(false && "retraction temp label should add one volume");
             model.objects[objs_idx[id_item]]->volumes[1]->rotate(PI / HALF_DIVISOR, Vec3d(0, 0, 1));
             model.objects[objs_idx[id_item]]->volumes[1]->rotate(-PI / HALF_DIVISOR, Vec3d(1, 0, 0));
             //model.objects[objs_idx[id_item]]->volumes[1]->rotate(Geometry::deg2rad(plat->config()->opt_float("init_z_rotate")), Axis::Z);
@@ -223,7 +242,7 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
         for (int num_retract = 0; num_retract < nb_retract; num_retract++) {
             add_part(model.objects[objs_idx[id_item]], 
                 (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "retraction" / "retraction_calibration_pillar.amf").string(),
-                Vec3d{ 0,0,scale * 0.7 - 0.3 + scale * num_retract }, Vec3d{ scale,scale,scale });
+                Vec3d{ 0,0,scale * PILLAR_Z_BASE_OFFSET - PILLAR_Z_BIAS + scale * num_retract }, Vec3d{ scale,scale,scale });
         }
     }
 
@@ -305,7 +324,7 @@ void CalibrationRetractionDialog::create_geometry(wxCommandEvent& event_args) {
             plat->fff_print().apply(plat->model(), *plat->config());
         Worker &ui_job_worker = plat->get_ui_job_worker();
         plat->arrange(ui_job_worker, false);
-        ui_job_worker.wait_for_current_job(20000);
+        ui_job_worker.wait_for_current_job(CalibrationConstants::kArrangeJobTimeoutMs);
     }
 
     plat->reslice();

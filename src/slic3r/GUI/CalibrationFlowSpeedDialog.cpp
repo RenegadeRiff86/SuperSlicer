@@ -48,6 +48,39 @@ constexpr float kPercentScale = 100.f;
 constexpr float kDensityGPerCm3ToGPerMm3 = 1000.f;
 constexpr int kMaxSizeIterations = 100;
 constexpr int kDecimalPlaces = 4;
+constexpr int kSectionSpacerPx = 5;
+constexpr int kHalveSizeDivisor = 2;
+constexpr float kMaxOverlapCapPercent = 80.f;
+constexpr int kFlowAverageDivisor = 2;
+
+void append_cube_name_suffix(std::string& name, size_t i, int nb_steps,
+    float min_overlap, float max_overlap, float min_speed, float max_speed,
+    float min_flow, float max_flow)
+{
+    if (nb_steps <= 1)
+        return;
+    if (min_overlap < max_overlap) {
+        const float overlap = min_overlap + i * (max_overlap - min_overlap) / (nb_steps - 1);
+        name += std::string("_") + std::to_string(int(overlap));
+        return;
+    }
+    if (min_speed < max_speed) {
+        const float speed = min_speed + i * (max_speed - min_speed) / (nb_steps - 1);
+        name += std::string("_") + std::to_string(int(speed));
+        return;
+    }
+    if (min_flow < max_flow) {
+        const float flow = min_flow + i * (max_flow - min_flow) / (nb_steps - 1);
+        name += std::string("_") + std::to_string(int(flow * kPercentScale + EPSILON));
+    }
+}
+
+float flow_multiplier_percent(size_t i, int nb_steps, float min_flow, float max_flow, float extrusion_mult)
+{
+    if (nb_steps == 1)
+        return kPercentScale * (min_flow + max_flow) / (kFlowAverageDivisor * extrusion_mult);
+    return kPercentScale * (min_flow + i * (max_flow - min_flow) / (nb_steps - 1)) / extrusion_mult;
+}
 } // namespace
 
 void CalibrationFlowSpeedDialog::create_buttons(wxStdDialogButtonSizer* buttons){
@@ -107,10 +140,12 @@ void CalibrationFlowSpeedDialog::create_buttons(wxStdDialogButtonSizer* buttons)
     txt_max_speed = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(max_speed, kDecimalPlaces)), wxDefaultPosition, size);
     txt_max_speed->SetToolTip(_L("Speed of the first patch."));
 
-    txt_min_flow = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(0.9, kDecimalPlaces)), wxDefaultPosition, size);
+    constexpr double kDefaultMinFlowMultiplier = 0.9;
+    constexpr double kDefaultMaxFlowMultiplier = 1.3;
+    txt_min_flow = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(kDefaultMinFlowMultiplier, kDecimalPlaces)), wxDefaultPosition, size);
     txt_min_flow->SetToolTip(_L("Minimum extrusion multiplier."));
 
-    txt_max_flow = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(1.3, kDecimalPlaces)), wxDefaultPosition, size);
+    txt_max_flow = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(Slic3r::to_string_nozero(kDefaultMaxFlowMultiplier, kDecimalPlaces)), wxDefaultPosition, size);
     txt_max_flow->SetToolTip(_L("Maximum extrusion multiplier."));
 
     wxString choices_min_overlap[] = { "0","10","20","30","40","50","60","70","80","90"};
@@ -178,11 +213,11 @@ void CalibrationFlowSpeedDialog::create_buttons(wxStdDialogButtonSizer* buttons)
     hsizer_speed->Add(bt_speed);
 
     vertical->Add(hsizer_common);
-    vertical->AddSpacer(5);
+    vertical->AddSpacer(kSectionSpacerPx);
     vertical->Add(hsizer_flow);
-    vertical->AddSpacer(5);
+    vertical->AddSpacer(kSectionSpacerPx);
     vertical->Add(hsizer_overlap);
-    vertical->AddSpacer(5);
+    vertical->AddSpacer(kSectionSpacerPx);
     vertical->Add(hsizer_speed);
 
     buttons->Add(vertical);
@@ -250,10 +285,10 @@ std::tuple<float, float, Flow> CalibrationFlowSpeedDialog::get_cube_size(float o
         float spacing_diff = layer_height * float(1. - 0.25 * PI);
         size_x += spacing_diff;
 
-        if (size_x > max_height / 2)
+        if (size_x > max_height / kHalveSizeDivisor)
             return {size_x, max_height, flow};
 
-        max_height = max_height / 2;
+        max_height = max_height / kHalveSizeDivisor;
         max_height = int(max_height / layer_height) * layer_height;
     }
     assert(false);
@@ -302,7 +337,7 @@ void CalibrationFlowSpeedDialog::create_flow(wxCommandEvent &event_args)
     float filament_max_overlap = filament_config->option("filament_max_overlap")->get_float();
     overlap = std::min(overlap, filament_max_overlap);
 
-    create_geometry(min_flow, max_flow, 0, 0, std::min(80.f, overlap), std::min(80.f, overlap));
+    create_geometry(min_flow, max_flow, 0, 0, std::min(kMaxOverlapCapPercent, overlap), std::min(kMaxOverlapCapPercent, overlap));
 }
 
 void CalibrationFlowSpeedDialog::create_speed(wxCommandEvent &event_args) 
@@ -369,17 +404,7 @@ void CalibrationFlowSpeedDialog::create_geometry(
         auto [cube_xy,cube_z, flow] = get_cube_size(overlap);
         // create name
         std::string name = "cube";
-        if (nb_steps > 1) {
-            if (min_overlap < max_overlap) {
-                name += std::string("_") + std::to_string(int(overlap));
-            } else if (min_speed < max_speed && nb_steps > 1) {
-                const float speed   = min_speed + i * (max_speed - min_speed) / (nb_steps - 1);
-                name += std::string("_") + std::to_string(int(speed));
-            } else if (min_flow < max_flow && nb_steps > 1) {
-                const float flow   = min_flow + i * (max_flow - min_flow) / (nb_steps - 1);
-                name += std::string("_") + std::to_string(int(flow * kPercentScale + EPSILON));
-            }
-        }
+        append_cube_name_suffix(name, i, nb_steps, min_overlap, max_overlap, min_speed, max_speed, min_flow, max_flow);
         // create object
         objs.push_back(model.add_object(name.c_str(), "", Slic3r::make_cube(cube_xy, cube_xy, cube_z)));
         objs.back()->add_instance();
@@ -412,13 +437,8 @@ void CalibrationFlowSpeedDialog::create_geometry(
     for (size_t i = 0; i < size_t(nb_steps); i++) {
 
         if (min_flow < max_flow) {
-            if (nb_steps == 1) {
-                objs[i]->config.set_key_value("print_extrusion_multiplier",
-                    std::make_unique<ConfigOptionPercent>(kPercentScale * (min_flow + max_flow) / (2 * extrusion_mult)));
-            } else {
-                objs[i]->config.set_key_value("print_extrusion_multiplier",
-                    std::make_unique<ConfigOptionPercent>(kPercentScale * (min_flow + i * (max_flow - min_flow) / (nb_steps - 1)) / extrusion_mult));
-            }
+            objs[i]->config.set_key_value("print_extrusion_multiplier",
+                std::make_unique<ConfigOptionPercent>(flow_multiplier_percent(i, nb_steps, min_flow, max_flow, extrusion_mult)));
         }
 
         float overlap = max_overlap;
@@ -485,7 +505,7 @@ void CalibrationFlowSpeedDialog::create_geometry(
             plat->fff_print().apply(plat->model(), *plat->config());
         Worker &ui_job_worker = plat->get_ui_job_worker();
         plat->arrange(ui_job_worker, false);
-        ui_job_worker.wait_for_current_job(20000);
+        ui_job_worker.wait_for_current_job(CalibrationConstants::kArrangeJobTimeoutMs);
     }
 
     plat->reslice();

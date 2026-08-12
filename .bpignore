@@ -20,6 +20,17 @@
 /src/occt_wrapper/
 /tests/
 
+# --- Non-shipping trees (experiments / assets, not product ownership) --------
+# Sandboxes are throwaway experiments kept for local research; shader sources
+# are tabulated GPU data where renaming every float fights the medium rather
+# than clarifying intent. BP here is noise, not actionable product work.
+/sandboxes/
+/resources/shaders/
+# Localization helpers and one-off scripts (not slicer product GUI runtime).
+/resources/localization/
+/gcode_viewer_control.py
+/scripts/
+
 # --- Fork-owned code BP should still cover ---------------------------------
 # Added by this repository rather than inherited, so the coaching applies.
 !/src/slic3r/GUI/CreateMMUTiledCanvas.cpp

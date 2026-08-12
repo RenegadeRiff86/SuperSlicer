@@ -70,12 +70,22 @@ constexpr size_t kMiddleIndexDivisor                        = 2;
 constexpr int    kParityDivisor                             = 2;
 constexpr double kMaximumCalibrationNozzleDiameter          = 2.0;
 constexpr int    kActiveCalibrationLayerCount               = 5;
-constexpr double kModelPlacementOffset                      = 5.0;
 constexpr int    kControlBorder                             = 5;
 constexpr int    kRowSpacer                                 = 15;
 constexpr int    kExtrusionRoleChoiceCount                  = 15;
 constexpr double kRoundCapCount                             = 2.0;
 constexpr double kDoubleNozzleDiameterScale                 = 2.0;
+constexpr double kNozzleSnapStepMm                          = 0.1;
+constexpr double kMinimumSnappedNozzleMm                    = 0.10;
+constexpr size_t kNozzleDiameterBufSize                     = 16;
+constexpr int    kPaControlStreamPrecision                  = 4;
+constexpr int    kSolidInfillOverlapCapPercent              = 80;
+constexpr size_t kThinWallExtrusionRoleIndex                = 11;
+constexpr double kPaVolumeLayerHeightMm                     = 0.3;
+constexpr double kErWidthPercentThresholdMultiplier         = 3.0;
+constexpr int    kPanelInnerPaddingPx                       = 10;
+constexpr int    kGenerateCloseSpacerPx                     = 50;
+constexpr double kMicrosecondsPerSecond                     = 1000000.0;
 
 std::string format_pa_label_value(double value)
 {
@@ -128,7 +138,7 @@ std::string format_pa_control_value(double value)
 {
     std::ostringstream stream;
     stream.imbue(std::locale::classic());
-    stream << std::fixed << std::setprecision(4) << value;
+    stream << std::fixed << std::setprecision(kPaControlStreamPrecision) << value;
 
     std::string text = stream.str();
     const size_t decimal_pos = text.find('.');
@@ -696,10 +706,10 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
     // instead of "1.0"/"0.250" which do not exist. The mesh is still XY-scaled by
     // magical_scaling() using the real nozzle diameter, so snapping only affects the
     // starting mesh, never the final geometry.
-    double snapped_nozzle = std::round(nozzle_diameter / 0.1) * 0.1;
-    if (snapped_nozzle < 0.10) snapped_nozzle = 0.10;
+    double snapped_nozzle = std::round(nozzle_diameter / kNozzleSnapStepMm) * kNozzleSnapStepMm;
+    if (snapped_nozzle < kMinimumSnappedNozzleMm) snapped_nozzle = kMinimumSnappedNozzleMm;
     if (snapped_nozzle > kMaximumCalibrationNozzleDiameter) snapped_nozzle = kMaximumCalibrationNozzleDiameter;
-    char nozzle_diameter_buf[16];
+    char nozzle_diameter_buf[kNozzleDiameterBufSize];
     snprintf(nozzle_diameter_buf, sizeof(nozzle_diameter_buf), "%.2f", snapped_nozzle);
     std::string nozzle_diameter_str = nozzle_diameter_buf;
 
@@ -835,7 +845,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         //the 90_bend models need to be scaled correctly so there is no 'gapfill' since gapfill will effect results.
         double adjustment_factor = first_layer_flow.width() - first_layer_flow.spacing();// Tracked in #45: verify this border adjustment calculation.
 
-        double xyzScale = nozzle_diameter / 0.4;
+        double xyzScale = nozzle_diameter / CalibrationConstants::kDesignNozzleDiameterMm;
         const double selected_role_layer_height = role_layer_height(selected_extrusion_role);
         double er_width_to_scale = magical_scaling(
             nozzle_diameter, er_width, perimeter_overlap, external_perimeter_overlap, selected_role_layer_height);
@@ -1107,7 +1117,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                 base_vol->config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(0));
                 base_vol->config.set_key_value("top_solid_layers", std::make_unique<ConfigOptionInt>(0));
                 base_vol->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(1));
-                base_vol->config.set_key_value("fill_density", std::make_unique<ConfigOptionPercent>(80));
+                base_vol->config.set_key_value("fill_density", std::make_unique<ConfigOptionPercent>(kSolidInfillOverlapCapPercent));
             }
         }
     }
@@ -1305,7 +1315,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
 
                 er_role = "defaults for " + er_role + " width spacing";
             }
-            if (er_role == choice_extrusion_role[11] || er_role == ROLE_THIN_WALL){
+            if (er_role == choice_extrusion_role[kThinWallExtrusionRoleIndex] || er_role == ROLE_THIN_WALL){
                 er_width = default_er_width;// since the model gets scaled to thinwall size,it should use the default modifer? if it uses the thin_wall width modifer it fails to slice "ERROR:Layer height can't be greater than perimeter extrusion
                                             // width"
                 er_width = std::round((default_er_width * kPercentScale / nozzle_diameter) * kPercentScale) / kPercentScale;
@@ -1350,7 +1360,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                 model.objects[objs_idx[id_item]]->volumes[num_part + extra_vol]->config.set_key_value("external_perimeter_acceleration", std::make_unique<ConfigOptionFloatOrPercent>(er_accel, false));
                 model.objects[objs_idx[id_item]]->volumes[num_part + extra_vol]->config.set_key_value("gap_fill_acceleration", std::make_unique<ConfigOptionFloatOrPercent>(er_accel, false));
             }
-            model.objects[objs_idx[id_item]]->volumes[num_part + extra_vol]->config.set_key_value(kLayerHeightKey, std::make_unique<ConfigOptionFloat>(0.3));
+            model.objects[objs_idx[id_item]]->volumes[num_part + extra_vol]->config.set_key_value(kLayerHeightKey, std::make_unique<ConfigOptionFloat>(kPaVolumeLayerHeightMm));
 
             const std::string first_layer_scope_prefix = "{if layer_z <= " + std::to_string(first_layer_height) + "}" + set_first_layer_prefix + std::to_string(first_pa) + " ; first layer [layer_z]\n{endif}\n";
             const std::string next_layer_scope_prefix = "{if layer_z > " + std::to_string(first_layer_height) + "}";
@@ -1442,7 +1452,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
             plat->fff_print().apply(plat->model(), *plat->config());
         Worker &ui_job_worker = plat->get_ui_job_worker();
         plat->arrange(ui_job_worker, false);
-        ui_job_worker.wait_for_current_job(20000);
+        ui_job_worker.wait_for_current_job(CalibrationConstants::kArrangeJobTimeoutMs);
     }
 
     if (selected_extrusion_role != ROLE_CHECK_ALL) {//don't auto slice so user can manual add PA values
@@ -1467,7 +1477,7 @@ double CalibrationPressureAdvDialog::magical_scaling(
     // below converts it to an absolute mm width. A value already <= 3x the nozzle diameter is
     // treated as mm directly, as a fallback for any legacy callsite that passes mm.
     double extrusion_width = er_width;
-    if (er_width > nozzle_diameter * 3.0)
+    if (er_width > nozzle_diameter * kErWidthPercentThresholdMultiplier)
         extrusion_width = nozzle_diameter * (er_width / kPercentScale);
 
     const double model_design_width = nozzle_diameter * 4.0;
@@ -1536,16 +1546,16 @@ void CalibrationPressureAdvDialog::create_buttons(wxStdDialogButtonSizer* button
         generateButton->Bind(wxEVT_BUTTON, &CalibrationPressureAdvDialog::create_geometry, this);
         commonSizer->Add(generateButton, 0, wxALIGN_CENTER_VERTICAL | wxALL, kControlBorder);
 
-        commonSizer->AddSpacer(50);// move the close button to the right a little, or align it on the far right side?
+        commonSizer->AddSpacer(kGenerateCloseSpacerPx);// move the close button to the right a little, or align it on the far right side?
 
         wxButton* closeButton = new wxButton(mainPanel, wxID_CLOSE, _L("Close"));
         closeButton->Bind(wxEVT_BUTTON, &CalibrationPressureAdvDialog::close_me_wrapper, this);
         commonSizer->Add(closeButton, 0, wxALL, kControlBorder);
 
-        panelSizer->Add(commonSizer, 0, wxALL, 10);
+        panelSizer->Add(commonSizer, 0, wxALL, kPanelInnerPaddingPx);
         dynamicSizer = new wxBoxSizer(wxVERTICAL);
         panelSizer->Add(dynamicSizer, 1, wxEXPAND | wxALL, kControlBorder);
-        buttons->Add(mainPanel, 1, wxEXPAND | wxALL, 10);
+        buttons->Add(mainPanel, 1, wxEXPAND | wxALL, kPanelInnerPaddingPx);
 
         currentTestCount = wxAtoi(nbRuns->GetValue());
         create_row_controls(dynamicSizer, currentTestCount);
@@ -1848,7 +1858,7 @@ std::pair<std::vector<double>, int> CalibrationPressureAdvDialog::calc_PA_values
     double incremented_pa_value = start_pa;
     while (incremented_pa_value <= end_pa + pa_increment / kGeometryCenterDivisor) {
         if (incremented_pa_value <= end_pa) {
-            double rounded_pa = std::round(incremented_pa_value * 1000000.0) / 1000000.0;
+            double rounded_pa = std::round(incremented_pa_value * kMicrosecondsPerSecond) / kMicrosecondsPerSecond;
             pa_values[countincrements] = rounded_pa;
             countincrements++;
             incremented_pa_value += pa_increment;

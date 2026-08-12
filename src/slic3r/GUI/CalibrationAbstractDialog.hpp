@@ -15,6 +15,32 @@
 namespace Slic3r { 
 namespace GUI {
 
+// Shared design tokens for calibration dialogs (pad models, UI defaults, scale gates).
+namespace CalibrationConstants {
+constexpr int    kDefaultDialogWidthPx       = 850;
+constexpr int    kDefaultDialogHeightPx      = 550;
+constexpr int    kCompactDialogHeightPx      = 400;
+constexpr int    kWideDialogWidthPx          = 900;
+constexpr int    kWideDialogHeightPx         = 500;
+constexpr int    kPressureDialogWidthPx      = 1600;
+constexpr int    kPressureDialogHeightPx     = 600;
+constexpr int    kComboFieldWidthEm          = 6;
+constexpr int    kStepChoiceCount            = 3;
+constexpr int    kDefaultStepSelection       = 1;  // middle of 5/10/15 step choices
+constexpr int    kDefaultNbTestsSelection    = 4;  // "5" in the 1..6 list
+constexpr int    kSpacerAfterStepsPx         = 15;
+constexpr int    kSpacerBeforeActionPx       = 40;
+constexpr int    kDefaultStepPercent         = 10;
+constexpr double kDesignNozzleDiameterMm     = 0.4;
+constexpr double kDesignFirstLayerHeightMm   = 0.2;
+constexpr double kXyScaleMinFactor           = 0.9;
+constexpr double kXyScaleMaxFactor           = 1.2;
+constexpr double kHalfTurnDegrees            = 180.0;
+constexpr int    kArrangeJobTimeoutMs        = 20000;
+constexpr int    kPercentFull                = 100;
+constexpr int    kButtonRowSpacerPx          = 20;
+} // namespace CalibrationConstants
+
 class CalibrationAbstractDialog : public DPIDialog
 {
 
@@ -25,7 +51,9 @@ public:
 private:
     wxPanel* create_header(wxWindow* parent, const wxFont& bold_font);
 protected:
-    void create(boost::filesystem::path html_path, const std::string& html_name, wxSize dialogsize = wxSize(850, 550), bool include_close_button = false);
+    void create(boost::filesystem::path html_path, const std::string& html_name,
+        wxSize dialogsize = wxSize(CalibrationConstants::kDefaultDialogWidthPx, CalibrationConstants::kDefaultDialogHeightPx),
+        bool include_close_button = false);
     void apply_html_theme(const boost::filesystem::path& full_file_path);
     void fit_to_content();
     virtual void create_buttons(wxStdDialogButtonSizer*) = 0;

@@ -53,6 +53,33 @@ CalibrationAbstractDialog::CalibrationAbstractDialog(GUI_App* app, MainFrame* ma
 
     }
 
+namespace {
+boost::filesystem::path resolve_calibration_html_path(
+    const boost::filesystem::path& html_path, const std::string& html_name)
+{
+    const boost::filesystem::path base = boost::filesystem::path(Slic3r::resources_dir()) / html_path;
+    wxString language = wxGetApp().current_language_code();
+    if (language == "en")
+        return base / html_name;
+
+    boost::filesystem::path candidate = base / (into_u8(language) + "_" + html_name);
+    if (boost::filesystem::exists(candidate))
+        return candidate;
+
+    language = wxGetApp().current_language_code_safe();
+    candidate = base / (into_u8(language) + "_" + html_name);
+    if (boost::filesystem::exists(candidate))
+        return candidate;
+
+    language = language.IsEmpty() ? "en" : language.BeforeFirst('_');
+    candidate = base / (into_u8(language) + "_" + html_name);
+    if (boost::filesystem::exists(candidate))
+        return candidate;
+
+    return base / html_name;
+}
+} // namespace
+
 void CalibrationAbstractDialog::create(boost::filesystem::path html_path, const std::string& html_name, wxSize dialog_size, bool include_close_button){
 
     // Create a panel for the entire content
@@ -62,22 +89,8 @@ void CalibrationAbstractDialog::create(boost::filesystem::path html_path, const 
     wxBoxSizer* panel_sizer = new wxBoxSizer(wxVERTICAL);
     gui_app->app_config->set("autocenter", "1");
     
-    //language
-    wxString language = wxGetApp().current_language_code();
-    boost::filesystem::path full_file_path = (boost::filesystem::path(Slic3r::resources_dir()) / html_path/ (into_u8(language) + "_"+ html_name));
-    if (language == "en") {
-        full_file_path = (boost::filesystem::path(Slic3r::resources_dir()) / html_path / (html_name));
-    }else if (!boost::filesystem::exists(full_file_path)) {
-        language = wxGetApp().current_language_code_safe();
-        full_file_path = (boost::filesystem::path(Slic3r::resources_dir()) / html_path / (into_u8(language) + "_" + html_name));
-        if (!boost::filesystem::exists(full_file_path)) {
-            language = language.IsEmpty() ? "en" : language.BeforeFirst('_');
-            full_file_path = (boost::filesystem::path(Slic3r::resources_dir()) / html_path / (into_u8(language) + "_" + html_name));
-            if (!boost::filesystem::exists(full_file_path)) {
-                full_file_path = (boost::filesystem::path(Slic3r::resources_dir()) / html_path / (html_name));
-            }
-        }
-    }
+    //language — prefer localized HTML, then language-family, then English default.
+    boost::filesystem::path full_file_path = resolve_calibration_html_path(html_path, html_name);
 
     // Create the HTML viewer and load the page
     html_viewer = new wxHtmlWindow(main_panel, wxID_ANY,
@@ -87,13 +100,15 @@ void CalibrationAbstractDialog::create(boost::filesystem::path html_path, const 
     html_viewer->Bind(wxEVT_HTML_LINK_CLICKED, [](wxHtmlLinkEvent& evt) {
         wxLaunchDefaultBrowser(evt.GetLinkInfo().GetHref());
     });
-    panel_sizer->Add(html_viewer, 1, wxEXPAND | wxALL, 5);
+    constexpr int kHtmlPanelBorderPx = 5;
+    constexpr int kDialogScreenMarginPx = 50;
+    panel_sizer->Add(html_viewer, 1, wxEXPAND | wxALL, kHtmlPanelBorderPx);
 
     // Adjust the dialog size
     wxDisplay display(wxDisplay::GetFromWindow(main_frame));
     wxRect screen = display.GetClientArea();
-    dialog_size.x = std::min(int(dialog_size.x * this->scale_factor()), screen.width - 50);
-    dialog_size.y = std::min(int(dialog_size.y * this->scale_factor()), screen.height - 50);
+    dialog_size.x = std::min(int(dialog_size.x * this->scale_factor()), screen.width - kDialogScreenMarginPx);
+    dialog_size.y = std::min(int(dialog_size.y * this->scale_factor()), screen.height - kDialogScreenMarginPx);
 
     // Create the button sizer and configure the "Close" button
     wxStdDialogButtonSizer* buttons = new wxStdDialogButtonSizer();
@@ -109,7 +124,7 @@ void CalibrationAbstractDialog::create(boost::filesystem::path html_path, const 
     }
 
     buttons->Realize();
-    panel_sizer->Add(buttons, 0, wxEXPAND | wxALL, 5);
+    panel_sizer->Add(buttons, 0, wxEXPAND | wxALL, kHtmlPanelBorderPx);
 
     // Set the panel's sizer and add the panel to the dialog
     main_panel->SetSizer(panel_sizer);
@@ -215,8 +230,9 @@ void CalibrationAbstractDialog::fit_to_content()
     }
 
     // Keep the dialog centered over the bound and fully on-screen.
-    wxPoint pos(bound.x + (bound.width - GetSize().x) / 2,
-                bound.y + (bound.height - GetSize().y) / 2);
+    constexpr int kCenterDivisor = 2;
+    wxPoint pos(bound.x + (bound.width - GetSize().x) / kCenterDivisor,
+                bound.y + (bound.height - GetSize().y) / kCenterDivisor);
     pos.x = std::clamp(pos.x, screen.x, std::max(screen.x, screen.x + screen.width - GetSize().x));
     pos.y = std::clamp(pos.y, screen.y, std::max(screen.y, screen.y + screen.height - GetSize().y));
     SetPosition(pos);
@@ -299,9 +315,11 @@ wxPanel* CalibrationAbstractDialog::create_header(wxWindow* parent, const wxFont
 
     wxFont header_font = bold_font;
 #ifdef __WXOSX__
-    header_font.SetPointSize(14);
+    constexpr int kOsxHeaderPointSize = 14;
+    header_font.SetPointSize(kOsxHeaderPointSize);
 #else
-    header_font.SetPointSize(bold_font.GetPointSize() + 2);
+    constexpr int kHeaderPointSizeBoost = 2;
+    header_font.SetPointSize(bold_font.GetPointSize() + kHeaderPointSizeBoost);
 #endif // __WXOSX__
 
     sizer->AddStretchSpacer();

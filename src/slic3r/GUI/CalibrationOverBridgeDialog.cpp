@@ -34,6 +34,16 @@ constexpr size_t CALIBRATION_PATCH_COUNT = 6;
 constexpr double DIAMETER_DIVISOR = 2.0;
 constexpr double HALF_TURN_DIVISOR = 2.0;
 constexpr int PERIMETER_COUNT = 2;
+constexpr int kButtonRowSpacerPx = 20;
+constexpr int kFlowLabelBasePercent = 100;
+constexpr int kFlowLabelStepPercent = 5;
+constexpr double kLabelYOffsetMm = 10.0;
+constexpr int kBottomSolidLayers = 1;
+constexpr int kTopSolidLayers = 3;
+constexpr double kFillDensityPercent = 5.5;
+constexpr int kExternalInfillMarginPercent = 400;
+constexpr double kFillAngleDeg = 45.0;
+constexpr double kZShiftScaleFactor = 0.8;
 } // namespace
 
 void CalibrationOverBridgeDialog::create_buttons(wxStdDialogButtonSizer* buttons){
@@ -42,7 +52,7 @@ void CalibrationOverBridgeDialog::create_buttons(wxStdDialogButtonSizer* buttons
     bt1->Bind(wxEVT_BUTTON, &CalibrationOverBridgeDialog::create_geometry1, this);
     bt2->Bind(wxEVT_BUTTON, &CalibrationOverBridgeDialog::create_geometry2, this);
     buttons->Add(bt1);
-    buttons->AddSpacer(20);
+    buttons->AddSpacer(kButtonRowSpacerPx);
     buttons->Add(bt2);
 }
 
@@ -90,9 +100,12 @@ void CalibrationOverBridgeDialog::create_geometry(bool over_bridge) {
     const ConfigOptionFloats* nozzle_diameter_config = printer_config->option<ConfigOptionFloats>("nozzle_diameter");
     assert(nozzle_diameter_config->size() > 0);
     float nozzle_diameter = nozzle_diameter_config->get_at(0);
-    float xyz_scale = (0.2 + nozzle_diameter) / 0.6;
+    constexpr double kOverBridgeDesignLayerMm = 0.2;
+    constexpr double kOverBridgeDesignNozzleMm = 0.4;
+    constexpr double kOverBridgeDesignDenom = kOverBridgeDesignLayerMm + kOverBridgeDesignNozzleMm; // 0.6
+    float xyz_scale = (kOverBridgeDesignLayerMm + nozzle_diameter) / kOverBridgeDesignDenom;
     //do scaling
-    if (xyz_scale < 0.9 || 1.2 < xyz_scale) {
+    if (xyz_scale < CalibrationConstants::kXyScaleMinFactor || CalibrationConstants::kXyScaleMaxFactor < xyz_scale) {
     } else {
         xyz_scale = 1;
     }
@@ -111,16 +124,16 @@ void CalibrationOverBridgeDialog::create_geometry(bool over_bridge) {
 
     //add sub-part after scale
     const ConfigOptionFloatOrPercent* first_layer_height = print_config->option<ConfigOptionFloatOrPercent>("first_layer_height");
-    float patch_zscale = (first_layer_height->get_abs_value(nozzle_diameter) + nozzle_diameter / DIAMETER_DIVISOR) / 0.4;
-    float zshift =  0.8 * (1 - xyz_scale);
+    float patch_zscale = (first_layer_height->get_abs_value(nozzle_diameter) + nozzle_diameter / DIAMETER_DIVISOR) / CalibrationConstants::kDesignNozzleDiameterMm;
+    float zshift =  kZShiftScaleFactor * (1 - xyz_scale);
     const boost::filesystem::path bridge_flow_dir =
         boost::filesystem::path(Slic3r::resources_dir()) / kCalibrationResourceDirectory / "bridge_flow";
     for (size_t i = 0; i < CALIBRATION_PATCH_COUNT; i++) {
         model.objects[objs_idx[i]]->rotate(PI / HALF_TURN_DIVISOR, { 0, 0, 1 });
         add_part(model.objects[objs_idx[i]],
-                 (bridge_flow_dir / ("f" + std::to_string(100 + i * 5) + ".amf")).string(),
-                 Vec3d{ 0, 10 * xyz_scale, zshift }, Vec3d{ 1, 1, patch_zscale });
-        translate_from_rotation(i, Vec3d{ 0, 10 * xyz_scale, zshift });
+                 (bridge_flow_dir / ("f" + std::to_string(kFlowLabelBasePercent + i * kFlowLabelStepPercent) + ".amf")).string(),
+                 Vec3d{ 0, kLabelYOffsetMm * xyz_scale, zshift }, Vec3d{ 1, 1, patch_zscale });
+        translate_from_rotation(i, Vec3d{ 0, kLabelYOffsetMm * xyz_scale, zshift });
     }
 
     /// --- translate ---;
@@ -136,22 +149,25 @@ void CalibrationOverBridgeDialog::create_geometry(bool over_bridge) {
     /// --- custom config ---
     for (size_t i = 0; i < CALIBRATION_PATCH_COUNT; i++) {
         model.objects[objs_idx[i]]->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(PERIMETER_COUNT));
-        model.objects[objs_idx[i]]->config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(1)); // at least the first, to prevent adhesion issues.
-        model.objects[objs_idx[i]]->config.set_key_value("top_solid_layers", std::make_unique<ConfigOptionInt>(3));
-        model.objects[objs_idx[i]]->config.set_key_value("fill_density", std::make_unique<ConfigOptionPercent>(5.5));
+        model.objects[objs_idx[i]]->config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(kBottomSolidLayers)); // at least the first, to prevent adhesion issues.
+        model.objects[objs_idx[i]]->config.set_key_value("top_solid_layers", std::make_unique<ConfigOptionInt>(kTopSolidLayers));
+        model.objects[objs_idx[i]]->config.set_key_value("fill_density", std::make_unique<ConfigOptionPercent>(kFillDensityPercent));
         model.objects[objs_idx[i]]->config.set_key_value("fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipRectilinear));
         model.objects[objs_idx[i]]->config.set_key_value("infill_dense", std::make_unique<ConfigOptionBool>(false));
         model.objects[objs_idx[i]]->config.set_key_value("ironing", std::make_unique<ConfigOptionBool>(false));
         //calibration setting. Use 100 & 5 step as it's the numbers printed on the samples
+        const int flow_percent = kFlowLabelBasePercent + static_cast<int>(i) * kFlowLabelStepPercent;
         if (over_bridge) {
-            model.objects[objs_idx[i]]->config.set_key_value("over_bridge_flow_ratio", std::make_unique<ConfigOptionPercent>(/*print_config->option<ConfigOptionPercent>("over_bridge_flow_ratio")->get_abs_value(100)*/100 + i * 5));
+            model.objects[objs_idx[i]]->config.set_key_value("over_bridge_flow_ratio",
+                std::make_unique<ConfigOptionPercent>(flow_percent));
         } else {
-            model.objects[objs_idx[i]]->config.set_key_value("fill_top_flow_ratio", std::make_unique<ConfigOptionPercent>(/*print_config->option<ConfigOptionPercent>("fill_top_flow_ratio")->get_abs_value(100)*/100 + i * 5));
+            model.objects[objs_idx[i]]->config.set_key_value("fill_top_flow_ratio",
+                std::make_unique<ConfigOptionPercent>(flow_percent));
         }
         model.objects[objs_idx[i]]->config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(nozzle_diameter / DIAMETER_DIVISOR));
-        model.objects[objs_idx[i]]->config.set_key_value("external_infill_margin", std::make_unique<ConfigOptionFloatOrPercent>(400,true));
+        model.objects[objs_idx[i]]->config.set_key_value("external_infill_margin", std::make_unique<ConfigOptionFloatOrPercent>(kExternalInfillMarginPercent,true));
         model.objects[objs_idx[i]]->config.set_key_value("top_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipSmooth));
-        model.objects[objs_idx[i]]->config.set_key_value("fill_angle", std::make_unique<ConfigOptionFloat>(45));
+        model.objects[objs_idx[i]]->config.set_key_value("fill_angle", std::make_unique<ConfigOptionFloat>(kFillAngleDeg));
     }
 
     //update plater
@@ -170,7 +186,7 @@ void CalibrationOverBridgeDialog::create_geometry(bool over_bridge) {
             plat->fff_print().apply(plat->model(), *plat->config());
         Worker &ui_job_worker = plat->get_ui_job_worker();
         plat->arrange(ui_job_worker, false);
-        ui_job_worker.wait_for_current_job(20000);
+        ui_job_worker.wait_for_current_job(CalibrationConstants::kArrangeJobTimeoutMs);
     }
 
     plat->reslice();
