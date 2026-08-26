@@ -42,6 +42,8 @@ class wxZipStreamLink;
 #include <boost/nowide/convert.hpp>
 #include <boost/dll/runtime_symbol_info.hpp>
 
+#include <wx/debug.h>
+#include <wx/settings.h>
 #include <wx/stdpaths.h>
 #include <wx/imagpng.h>
 #include <wx/display.h>
@@ -153,18 +155,47 @@ constexpr int    kSplashIntegralScale              = 2;
 constexpr int    kBannerVerticalMarginScale        = 2;
 constexpr float  kMinimumTitleFontScale            = 2.0f;
 constexpr size_t kSameVersionChoiceMultiplier      = 2;
+#if defined(_WIN32) && !defined(_WIN64)
 constexpr size_t kArchitecturePrefixLength         = 2;
-constexpr size_t kGcodeLinePrefixLength            = 2;
+#endif
 constexpr double kSplashWidthRatioDivisor          = 3.0;
 constexpr double kMaximumSplashScaling             = 10.0;
 constexpr double kSplashScalingDecimalFactor       = 10.0;
 constexpr int    kDefaultEmUnit                    = 10;
+#ifdef __APPLE__
 constexpr int    kMacDarkModeMajorVersion          = 10;
-constexpr int    kWindows10MajorVersion            = 10;
+#endif
 constexpr int    kProgressInitialValue             = 10;
 constexpr int    kDarkTextChannel                  = 230;
 constexpr int    kWholePercent                     = 100;
 constexpr int    kOrangeBlueChannel                = 100;
+
+// GTK can hand back an empty wxColour for some SYS_COLOUR_* values. Using that
+// colour later calls Blue() and the debug wxWidgets build pops an assert loop.
+wxColour system_colour_or(wxSystemColour index, const wxColour& fallback)
+{
+    const wxColour colour = wxSystemSettings::GetColour(index);
+    return colour.IsOk() ? colour : fallback;
+}
+
+#if wxDEBUG_LEVEL
+wxAssertHandler_t g_previous_assert_handler = nullptr;
+
+void ignore_invalid_colour_assert(
+    const wxString& file, int line, const wxString& func,
+    const wxString& cond, const wxString& msg)
+{
+    const bool colour_assert =
+        func.Find(wxS("Blue")) != wxNOT_FOUND ||
+        func.Find(wxS("Red")) != wxNOT_FOUND ||
+        func.Find(wxS("Green")) != wxNOT_FOUND ||
+        msg.Find(wxS("invalid colour")) != wxNOT_FOUND;
+    if (colour_assert)
+        return;
+    if (g_previous_assert_handler != nullptr)
+        g_previous_assert_handler(file, line, func, cond, msg);
+}
+#endif
 } // namespace
 
 wxDEFINE_EVENT(EVT_CONFIG_UPDATER_SHOW_DIALOG, wxCommandEvent);
@@ -1005,6 +1036,11 @@ GUI_App::GUI_App(EAppMode mode)
     , m_other_instance_message_handler(std::make_unique<OtherInstanceMessageHandler>())
     , m_downloader(std::make_unique<Downloader>())
 {
+    // GTK debug wxWidgets asserts in Blue() when a colour is empty. That dialog
+    // loops on every paint. Swallow only that assert; leave the rest alone.
+#if wxDEBUG_LEVEL
+    g_previous_assert_handler = wxSetAssertHandler(ignore_invalid_colour_assert);
+#endif
     // all initailisation is reported into GUI_App::OnInit() to be able to have the gui set up and be abel to display messages.
 }
 
@@ -1031,7 +1067,10 @@ void GUI_App::configure_automation_api_from_preferences()
     if (app_config == nullptr)
         return;
 
-    bool enabled = app_config->get_bool("automation_api_enabled");
+    // Developer automation is a per-process opt-in. Never start it from a saved
+    // preference: callers must explicitly pass --automation-api for this launch.
+    const bool enabled = init_params != nullptr &&
+                         init_params->automation_api_enabled.value_or(false);
     int configured_port = 43127;
     try {
         configured_port = std::stoi(app_config->get("automation_api_port"));
@@ -1039,8 +1078,6 @@ void GUI_App::configure_automation_api_from_preferences()
         configured_port = 43127;
     }
 
-    if (init_params != nullptr && init_params->automation_api_enabled.has_value())
-        enabled = *init_params->automation_api_enabled;
     if (init_params != nullptr && init_params->automation_api_port.has_value())
         configured_port = *init_params->automation_api_port;
 
@@ -1059,7 +1096,7 @@ void GUI_App::configure_automation_api_from_preferences()
     if (token == nullptr || token[0] == '\0') {
         if (m_automation_server != nullptr)
             m_automation_server->stop();
-        wxLogError("Model automation API was requested, but SUPERSLICER_AUTOMATION_TOKEN is not set.");
+        wxLogError("Model automation API was explicitly requested, but SUPERSLICER_AUTOMATION_TOKEN is not set.");
         return;
     }
 
@@ -1181,8 +1218,10 @@ static void choose_app_dir(GUI_App &app) {
     if (same_version.size() + old_versions.size() == 0) {
         choice = 0;
     } else {
-        // need fonts for MessageDialog
+        // need fonts and colours for MessageDialog. Without init_ui_colours the
+        // HTML body text stays black on a dark dialog.
         app.init_fonts();
+        app.init_ui_colours();
         // else, reuse by default
         MessageDialog first_dialog(nullptr,
                                    _L("This is the first detected launch of this version. Would you like to copy the "
@@ -2056,12 +2095,14 @@ const wxColour GUI_App::get_label_default_clr_modified(bool is_dark_mode)
 
 const wxColour GUI_App::get_label_default_clr_default(bool is_dark_mode)
 {
-    return is_dark_mode ? wxColour(kDarkTextChannel, kDarkTextChannel, kDarkTextChannel) : wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);
+    return is_dark_mode ? wxColour(kDarkTextChannel, kDarkTextChannel, kDarkTextChannel)
+                        : system_colour_or(wxSYS_COLOUR_WINDOWTEXT, wxColour(0, 0, 0));
 }
 
 const wxColour GUI_App::get_label_default_clr_phony(bool is_dark_mode)
 {
-    return is_dark_mode ? wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT) : wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT);
+    return system_colour_or(wxSYS_COLOUR_GRAYTEXT,
+        is_dark_mode ? wxColour(160, 160, 160) : wxColour(128, 128, 128));
 }
 
 const wxColour &GUI_App::get_label_clr_default() const {
@@ -2112,10 +2153,13 @@ void GUI_App::init_ui_colours()
 #endif
 
     const bool is_dark_mode = dark_mode();
-    m_color_highlight_label_default = is_dark_mode ? wxColour(kDarkTextChannel, kDarkTextChannel, kDarkTextChannel) : wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);
-    m_color_highlight_default       = is_dark_mode ? wxColour(78, 78, 78) : wxSystemSettings::GetColour(wxSYS_COLOUR_3DLIGHT);
+    m_color_highlight_label_default = is_dark_mode ? wxColour(kDarkTextChannel, kDarkTextChannel, kDarkTextChannel)
+                                                  : system_colour_or(wxSYS_COLOUR_WINDOWTEXT, wxColour(0, 0, 0));
+    m_color_highlight_default       = is_dark_mode ? wxColour(78, 78, 78)
+                                                  : system_colour_or(wxSYS_COLOUR_3DLIGHT, wxColour(227, 227, 227));
     derive_semantic_ui_colours();
-    m_color_window_default          = is_dark_mode ? wxColour(43, 43, 43)   : wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
+    m_color_window_default          = is_dark_mode ? wxColour(43, 43, 43)
+                                                  : system_colour_or(wxSYS_COLOUR_WINDOW, wxColour(255, 255, 255));
 }
 
 void GUI_App::derive_semantic_ui_colours()
@@ -2146,50 +2190,34 @@ void GUI_App::derive_semantic_ui_colours()
 
 void GUI_App::update_ui_colours_from_appconfig()
 {
+    const auto assign_if_ok = [](wxColour& dest, const std::string& str) {
+        if (str.empty())
+            return;
+        const wxColour parsed(str);
+        if (parsed.IsOk())
+            dest = parsed;
+    };
+
     // load label colors
-    if (app_config->has("label_clr_sys")) {
-        auto str = app_config->get("label_clr_sys");
-        if (!str.empty())
-            m_color_label_sys = wxColour(str);
-    }
-    if (app_config->has("label_clr_dark_mode_sys")) {
-        auto str = app_config->get("label_clr_dark_mode_sys");
-        if (str != "")
-            m_color_dark_mode_label_sys = wxColour(str);
-    }
+    if (app_config->has("label_clr_sys"))
+        assign_if_ok(m_color_label_sys, app_config->get("label_clr_sys"));
+    if (app_config->has("label_clr_dark_mode_sys"))
+        assign_if_ok(m_color_dark_mode_label_sys, app_config->get("label_clr_dark_mode_sys"));
 
-    if (app_config->has("label_clr_modified")) {
-        auto str = app_config->get("label_clr_modified");
-        if (!str.empty())
-            m_color_label_modified = wxColour(str);
-    }
-    if (app_config->has("label_clr_dark_mode_modified")) {
-        auto str = app_config->get("label_clr_dark_mode_modified");
-        if (str != "")
-            m_color_dark_mode_label_modified = wxColour(str);
-    }
+    if (app_config->has("label_clr_modified"))
+        assign_if_ok(m_color_label_modified, app_config->get("label_clr_modified"));
+    if (app_config->has("label_clr_dark_mode_modified"))
+        assign_if_ok(m_color_dark_mode_label_modified, app_config->get("label_clr_dark_mode_modified"));
 
-    if (app_config->has("label_clr_default")) {
-        auto str = app_config->get("label_clr_default");
-        if (str != "")
-            m_color_label_default = wxColour(str);
-    }
-    if (app_config->has("label_clr_dark_mode_default")) {
-        auto str = app_config->get("label_clr_dark_mode_default");
-        if (str != "")
-            m_color_dark_mode_label_default = wxColour(str);
-    }
-    
-    if (app_config->has("label_clr_phony")) {
-        auto str = app_config->get("label_clr_phony");
-        if (str != "")
-            m_color_label_phony = wxColour(str);
-    }
-    if (app_config->has("label_clr_dark_mode_phony")) {
-        auto str = app_config->get("label_clr_dark_mode_phony");
-        if (str != "")
-            m_color_dark_mode_label_phony = wxColour(str);
-    }
+    if (app_config->has("label_clr_default"))
+        assign_if_ok(m_color_label_default, app_config->get("label_clr_default"));
+    if (app_config->has("label_clr_dark_mode_default"))
+        assign_if_ok(m_color_dark_mode_label_default, app_config->get("label_clr_dark_mode_default"));
+
+    if (app_config->has("label_clr_phony"))
+        assign_if_ok(m_color_label_phony, app_config->get("label_clr_phony"));
+    if (app_config->has("label_clr_dark_mode_phony"))
+        assign_if_ok(m_color_dark_mode_label_phony, app_config->get("label_clr_dark_mode_phony"));
     
 #ifdef GUI_TAG_PALETTE
     // load mode markers colors
@@ -2222,31 +2250,39 @@ void GUI_App::update_label_colours()
 
 const wxColour& GUI_App::get_style_role_color(const std::string& role) const
 {
+    const auto ok = [this](const wxColour& colour) -> const wxColour& {
+        if (colour.IsOk())
+            return colour;
+        static const wxColour kDark(kDarkTextChannel, kDarkTextChannel, kDarkTextChannel);
+        static const wxColour kLight(0, 0, 0);
+        return dark_mode() ? kDark : kLight;
+    };
+
     if (role == "tab.bg.default")
-        return m_color_highlight_default;
+        return ok(m_color_highlight_default);
     if (role == "tab.bg.hover")
-        return m_color_selected_btn_bg;
+        return ok(m_color_selected_btn_bg);
     if (role == "tab.bg.selected")
-        return m_color_selected_btn_bg;
+        return ok(m_color_selected_btn_bg);
     if (role == "tab.border.default")
-        return m_color_highlight_default;
+        return ok(m_color_highlight_default);
     if (role == "tab.border.active")
-        return m_color_hovered_btn;
+        return ok(m_color_hovered_btn);
     if (role == "tab.border.focus")
-        return m_color_default_btn_label;
+        return ok(m_color_default_btn_label);
     if (role == "tab.text.default")
-        return dark_mode() ? m_color_dark_mode_label_default : m_color_label_default;
+        return ok(dark_mode() ? m_color_dark_mode_label_default : m_color_label_default);
     // Tab captions use the theme's label colours, not the accent colours. The accent
     // belongs on the tab's background and border; painting it on the text put an
     // orange caption on the blue selected fill at 3.2:1 contrast, under the 4.5:1
     // needed to read it. m_color_highlight_label_default is what combo.text.selected
     // already uses over the same accent background.
     if (role == "tab.text.hover")
-        return dark_mode() ? m_color_dark_mode_label_default : m_color_label_default;
+        return ok(dark_mode() ? m_color_dark_mode_label_default : m_color_label_default);
     if (role == "tab.text.selected")
-        return m_color_highlight_label_default;
+        return ok(m_color_highlight_label_default);
     if (role == "combo.bg.selected")
-        return m_color_highlight_default;
+        return ok(m_color_highlight_default);
     if (role == "combo.bg.disabled") {
 #ifdef _MSW_DARK_MODE
         if (dark_mode()) {
@@ -2254,16 +2290,16 @@ const wxColour& GUI_App::get_style_role_color(const std::string& role) const
             return disabled_dark;
         }
 #endif
-        return m_color_highlight_default;
+        return ok(m_color_highlight_default);
     }
     if (role == "combo.bg.default")
-        return m_color_window_default;
+        return ok(m_color_window_default);
     if (role == "combo.text.selected")
-        return m_color_highlight_label_default;
+        return ok(m_color_highlight_label_default);
     if (role == "combo.text.default")
-        return dark_mode() ? m_color_dark_mode_label_default : m_color_label_default;
+        return ok(dark_mode() ? m_color_dark_mode_label_default : m_color_label_default);
 
-    return dark_mode() ? m_color_dark_mode_label_default : m_color_label_default;
+    return ok(dark_mode() ? m_color_dark_mode_label_default : m_color_label_default);
 }
 
 #ifdef _WIN32
@@ -2550,6 +2586,8 @@ void GUI_App::set_label_clr_phony(const wxColour& clr) {
 const std::string GUI_App::get_html_bg_color(wxWindow* html_parent) const
 {
     wxColour    bgr_clr = html_parent->GetBackgroundColour();
+    if (!bgr_clr.IsOk())
+        bgr_clr = dark_mode() ? wxColour(43, 43, 43) : wxColour(255, 255, 255);
 #ifdef __APPLE__
     // On macOS 10.13 and older the background color returned by wxWidgets
     // is wrong, which leads to https://github.com/prusa3d/PrusaSlicer/issues/7603
@@ -2557,7 +2595,7 @@ const std::string GUI_App::get_html_bg_color(wxWindow* html_parent) const
     // may not match the window background exactly, but it seems to never end up
     // as black on black.
 
-    if (wxPlatformInfo::Get().GetOSMajorVersion() == kWindows10MajorVersion
+    if (wxPlatformInfo::Get().GetOSMajorVersion() == kMacDarkModeMajorVersion
         && wxPlatformInfo::Get().GetOSMinorVersion() < 14)
         bgr_clr = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
 #endif
@@ -4305,6 +4343,7 @@ void GUI_App::show_downloader_registration_dialog() const
 #if ENABLE_THUMBNAIL_GENERATOR_DEBUG
 void GUI_App::gcode_thumbnails_debug()
 {
+    constexpr size_t kGcodeLinePrefixLength = 2;
     const std::string BEGIN_MASK = "; thumbnail begin";
     const std::string END_MASK = "; thumbnail end";
     std::string gcode_line;

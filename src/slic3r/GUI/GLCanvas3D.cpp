@@ -125,8 +125,10 @@ static constexpr int    EyeCenterZCoordinate                = 2;
 static constexpr int    LabelsStyleVarCount                 = 2;
 static constexpr int    TooltipStyleVarCount                = 2;
 static constexpr int    SlaViewStyleColorCount              = 2;
+#ifdef _WIN32
 static constexpr int    MonochromeCursorMaskHeightDivisor   = 2;
 static constexpr int    WhiteColorChannel                   = 255;
+#endif
 static constexpr size_t TriangleVertexCount                 = 3;
 static constexpr size_t TriangleMiddleVertexOffset          = 2;
 static constexpr size_t GeometryUpdateVectorCount           = 2;
@@ -135,16 +137,20 @@ static constexpr size_t ZRangeEndpointCount                 = 2;
 static constexpr double ZRangeEpsilon                       = 1e-6;
 static constexpr int    SpatialDimensionCount               = 3;
 static constexpr double ExponentialDragScaleDivisor         = 2.0;
+#if BBS_TOOLBAR_ON_TOP
 static constexpr float  CanvasCenterDivisor                 = 2.0f;
+#endif
 static constexpr size_t RgbaChannelCount                    = 4;
 static constexpr size_t BlueChannelIndex                    = 2;
 static constexpr size_t AlphaChannelIndex                   = 3;
 static constexpr size_t PlaneComponentCount                 = 4;
 static constexpr int    MsaaSampleReductionDivisor          = 2;
+#if ENABLE_RAYCAST_PICKING_DEBUG
 static constexpr int    DebugDetailColumnIndex              = 2;
 static constexpr int    HitDebugColumnCount                 = 2;
 static constexpr int    RaycasterDebugColumnCount           = 2;
 static constexpr int    GizmoDebugColumnCount               = 3;
+#endif
 static constexpr int    PickingBitsPerChannel               = 8;
 static constexpr int    PickingBlueBitShift                 = 16;
 static constexpr size_t QuadSharedDiagonalVertex           = 2;
@@ -162,7 +168,9 @@ static constexpr GLint  DefaultPackAlignment                = 4;
 static constexpr int    MaxToolpathWorkerCount              = 4;
 static constexpr size_t MinimumHexColorLength               = 6;
 static constexpr int    BlinkPhaseCount                     = 2;
+#if ENABLE_BINARIZED_GCODE_DEBUG_WINDOW
 static constexpr int    BinaryConfigColumnCount             = 2;
+#endif
 static constexpr size_t SlaStepCount                        = 3;
 static constexpr size_t ScreenSizeComponentCount            = 2;
 static constexpr float  ClipSpaceSpan                       = 2.0f;
@@ -5036,7 +5044,8 @@ void GLCanvas3D::mouse_up_cleanup()
 
 void GLCanvas3D::update_sequential_clearance(bool force_contours_generation)
 {
-    if (current_printer_technology() != ptFFF || (!fff_print()->config().complete_objects && fff_print()->config().parallel_objects_step == 0))
+    if (current_printer_technology() != ptFFF ||
+        (!fff_print()->config().complete_objects && fff_print()->config().parallel_objects_step.value == 0.0))
         return;
 
     if (m_layers_editing.is_enabled())

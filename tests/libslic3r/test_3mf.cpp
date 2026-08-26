@@ -15,7 +15,7 @@ SCENARIO("Reading 3mf file", "[3mf]") {
             std::string path = std::string(TEST_DATA_DIR) + "/test_3mf/Geräte/Büchse.3mf";
             DynamicPrintConfig config;
             ConfigSubstitutionContext ctxt{ ForwardCompatibilitySubstitutionRule::Disable };
-            bool ret = load_3mf(path.c_str(), config, ctxt, &model, false);
+            bool ret = load_3mf(path.c_str(), config, ctxt, &model, false, false);
             THEN("load should succeed") {
                 REQUIRE(ret);
             }
@@ -59,7 +59,7 @@ SCENARIO("Export+Import geometry to/from 3mf file cycle", "[3mf]") {
             DynamicPrintConfig dst_config;
             {
                 ConfigSubstitutionContext ctxt{ ForwardCompatibilitySubstitutionRule::Disable };
-                load_3mf(test_file.c_str(), dst_config, ctxt, &dst_model, false);
+                load_3mf(test_file.c_str(), dst_config, ctxt, &dst_model, false, false);
             }
             boost::filesystem::remove(test_file);
 
@@ -130,4 +130,3 @@ SCENARIO("2D convex hull of sinking object", "[3mf]") {
         }
     }
 }
-

@@ -4,7 +4,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ## Overview
 
-SuperSlicer is an open-source 3D slicer (STL/3MF → G-code) forked from PrusaSlicer, built in C++20 with wxWidgets GUI and CMake. Version 2.7.62-beta2. Licensed AGPLv3.
+SuperSlicer is an open-source 3D slicer (STL/3MF → G-code) forked from PrusaSlicer, built in C++20 with wxWidgets GUI and CMake. Version 2.7.63-fork. Licensed AGPLv3.
 
 ## Build Commands (Windows / VS2022)
 
@@ -52,6 +52,20 @@ build\tests\fff_print\RelWithDebInfo\fff_print_tests.exe "test name"   # run spe
 ```
 
 **Test suites**: `libslic3r_tests`, `superslicerlibslic3r_tests`, `fff_print_tests`, `sla_print_tests`, `arrange_tests`, `thumbnails_tests`, `slic3rutils_tests` (GUI only)
+
+## GUI automation
+
+Drive the **running SuperSlicer GUI** with `tests/automation/gui_drive.py`. Read `tests/automation/README.md` before adding a new script. Do not write one-off drivers in `/tmp`.
+
+Klipper Z-offset calibration through to a Moonraker upload:
+
+```
+export SUPERSLICER_AUTOMATION_TOKEN=$(openssl rand -hex 16)
+python3 tests/automation/gui_drive.py launch --keep-open
+python3 tests/automation/gui_drive.py --attach z-offset-workflow --export /tmp/z-offset-pads.gcode --moonraker http://HOST:7125
+```
+
+Launch stays in the terminal that started it. Do not background it. `inspect-gcode` and `send-gcode` do not need a running slicer.
 
 ## Architecture
 

@@ -38,7 +38,8 @@ double check_z_step(const double val, const double z_step) {
     if (z_step <= EPSILON) return val;
     uint64_t valint = uint64_t(val * Z_QUANTIZATION_FACTOR + HALF);
     uint64_t stepint = uint64_t(z_step * Z_QUANTIZATION_FACTOR + HALF);
-    return (((valint + (stepint/2)) / stepint) * stepint) / Z_QUANTIZATION_FACTOR;
+    const uint64_t rounded_steps = (valint + stepint / 2u) / stepint;
+    return double(rounded_steps * stepint) / Z_QUANTIZATION_FACTOR;
     //return int((val + z_step * 0.5) / z_step) * z_step;
 }
 coord_t check_z_step(const coord_t val, const coord_t z_step) {
@@ -117,14 +118,14 @@ std::shared_ptr<SlicingParameters> SlicingParameters::create_from_config(
     }
     
     first_layer_height = check_z_step(first_layer_height, print_config.z_step);
+    if (first_layer_height <= EPSILON)
+        first_layer_height = check_z_step(object_config.layer_height.value, print_config.z_step);
     assert(first_layer_height > 0);
+#ifndef NDEBUG
     for (uint16_t extruder_id : object_extruders)
         assert(first_layer_height >=
                print_config.min_layer_height.get_abs_value(extruder_id, print_config.nozzle_diameter.get_at(extruder_id)) - EPSILON);
-    if (first_layer_height <= EPSILON)
-        object_config.layer_height.value;
-    first_layer_height = check_z_step(first_layer_height, print_config.z_step);
-    assert(first_layer_height > 0);
+#endif
 
     // If object_config.support_material_extruder == 0 resp. object_config.support_material_interface_extruder == 0,
     // print_config.nozzle_diameter.get_at(size_t(-1)) returns the 0th nozzle diameter,

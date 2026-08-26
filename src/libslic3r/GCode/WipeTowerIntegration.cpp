@@ -198,7 +198,6 @@ std::string WipeTowerIntegration::post_process_wipe_tower_moves(const WipeTower:
 
     std::string extruder_letter = gcodegen.writer().extrusion_axis();
 
-    bool is_absolute_e = !gcodegen.writer().gcode_config().use_relative_e_distances.value;
     Tool* current_tool = gcodegen.writer().tool();
     assert(current_tool);
     assert(current_tool->id() == tcr.initial_tool);

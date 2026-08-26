@@ -1,6 +1,5 @@
 #include <catch2/catch.hpp>
 
-#include "libslic3r/GCodeReader.hpp"
 #include "libslic3r/Layer.hpp"
 
 #include "test_data.hpp" // get access to init_print, etc
@@ -29,14 +28,18 @@ SCENARIO("SupportMaterial: support_layers_z and contact_distance", "[SupportMate
     {
         SpanOfConstPtrs<SupportLayer> support_layers = print.objects().front()->support_layers();
 
-        first_support_layer_height_ok = support_layers.front()->print_z == print.config().first_layer_height.value;
+        first_support_layer_height_ok =
+            support_layers.front()->print_z == print.get_object_first_layer_height(*print.get_object(0));
 
         layer_height_minimum_ok = true;
         layer_height_maximum_ok = true;
-        double min_layer_height = print.config().min_layer_height.values.front();
-        double max_layer_height = print.config().nozzle_diameter.values.front();
-        if (print.config().max_layer_height.values.front() > EPSILON)
-            max_layer_height = std::min(max_layer_height, print.config().max_layer_height.values.front());
+        const double nozzle_diameter = print.config().nozzle_diameter.get_at(0);
+        double min_layer_height = print.config().min_layer_height.get_abs_value(0, nozzle_diameter);
+        double max_layer_height = nozzle_diameter;
+        const double configured_max_layer_height =
+            print.config().max_layer_height.get_abs_value(0, nozzle_diameter);
+        if (configured_max_layer_height > EPSILON)
+            max_layer_height = std::min(max_layer_height, configured_max_layer_height);
         for (size_t i = 1; i < support_layers.size(); ++ i) {
             if (support_layers[i]->print_z - support_layers[i - 1]->print_z < min_layer_height - EPSILON)
                 layer_height_minimum_ok = false;

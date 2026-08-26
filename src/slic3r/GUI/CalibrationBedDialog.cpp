@@ -5,13 +5,14 @@
 #include "libslic3r/LocalesUtils.hpp"
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/AppConfig.hpp"
+#include "libslic3r/PresetBundle.hpp"
 #include "GLCanvas3D.hpp"
 #include "GUI.hpp"
 #include "GUI_ObjectList.hpp"
 #include "Plater.hpp"
 #include "Tab.hpp"
+#include "Automation/AutomationIds.hpp"
 #include <wx/scrolwin.h>
-#include <wx/display.h>
 #include <wx/file.h>
 #include <wx/wupdlock.h>
 
@@ -20,14 +21,6 @@
 #include <string>
 #include <vector>
 
-#if ENABLE_SCROLLABLE
-static wxSize get_screen_size(wxWindow* window)
-{
-    const auto idx = wxDisplay::GetFromWindow(window);
-    wxDisplay display(idx != wxNOT_FOUND ? idx : 0u);
-    return display.GetClientArea().GetSize();
-}
-#endif // ENABLE_SCROLLABLE
 
 namespace Slic3r {
 namespace GUI {
@@ -38,6 +31,7 @@ constexpr char kBedLevelingResourceDirectory[]    = "bed_leveling";
 constexpr char kCalibrationResourceDirectory[]    = "calibration";
 constexpr char kCalibrationPatchFilename[]        = "patch.amf";
 constexpr char kFillAngleConfigKey[]              = "fill_angle";
+constexpr char kZOffsetFilamentConfigKey[]        = "z_offset_cal_filament";
 
 constexpr int    kZOffsetDecimalPlaces     = 4;   // to_string_nozero precision for Z cal values
 constexpr int    kFieldGapPx               = 5;   // horizontal sizer spacing between fields
@@ -47,6 +41,15 @@ constexpr int    kBedLevelPadCount         = 5;   // center + four corner pads f
 constexpr int    kCenterPadNumber          = 5;   // 1-based center pad label in the 3x3 Z grid
 constexpr int    kZOffsetGridSize          = 3;   // 3x3 Klipper Z-offset pad grid
 constexpr int    kZOffsetPadCount          = 9;   // total pads in the 3x3 grid
+
+// Pad labels in generated order: index 0 is the top-left pad, index 8 the bottom-right,
+// matching the row = index / 3, column = index % 3 placement used when the pads are built.
+// Shared so the generated objects and the apply dialog always name a pad the same way.
+constexpr std::array<const char*, kZOffsetPadCount> kZOffsetPadPositions = {
+    "Top left",    "Top center",    "Top right",
+    "Middle left", "Center",        "Middle right",
+    "Bottom left", "Bottom center", "Bottom right"
+};
 constexpr int    kRectangularBedCorners    = 4;
 constexpr int    kCalibPerimeters          = 2;
 constexpr int    kCalibBottomSolidLayers   = 2;
@@ -113,6 +116,34 @@ void CalibrationBedDialog::recalled_grid_parameters(std::string& center, std::st
         layer_height = Slic3r::to_string_nozero(profile_first_layer_height(), kZOffsetDecimalPlaces);
 }
 
+// Each pad's number, bed position, and the offset it was printed at, arranged the way the pads
+// sit on the plate. Returns nullptr when the recalled grid parameters will not parse, in which
+// case the dialog just omits the grid rather than showing wrong numbers.
+wxSizer* CalibrationBedDialog::create_pad_offset_grid(const std::string& center, const std::string& step)
+{
+    double center_value = 0.;
+    double step_value = 0.;
+    try {
+        center_value = parse_float_all_locale(center);
+        step_value = parse_float_all_locale(step);
+    } catch (...) {
+        return nullptr;
+    }
+
+    wxFlexGridSizer* pad_grid = new wxFlexGridSizer(kZOffsetGridSize, kZOffsetGridSize,
+        kSectionGapPx, kSectionGapPx);
+    for (int index = 0; index < kZOffsetPadCount; ++index) {
+        const double pad_offset = center_value + (index - kZOffsetCenterIndex) * step_value;
+        // Untranslated on purpose: these match the object names on the plate.
+        const wxString cell = wxString::Format("%d  %s\n%s mm",
+            index + 1,
+            wxString::FromUTF8(kZOffsetPadPositions[index]),
+            Slic3r::from_dot_to_local(Slic3r::to_string_nozero(pad_offset, kZOffsetDecimalPlaces)));
+        pad_grid->Add(new wxStaticText(this, wxID_ANY, cell), 0, wxRIGHT, kFieldGapPx);
+    }
+    return pad_grid;
+}
+
 void CalibrationBedDialog::create_buttons(wxStdDialogButtonSizer* buttons)
 {
     if (m_mode == Mode::BedLeveling) {
@@ -135,13 +166,16 @@ void CalibrationBedDialog::create_buttons(wxStdDialogButtonSizer* buttons)
     if (m_mode == Mode::ZOffsetGenerate) {
         txt_z_center = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(center),
             wxDefaultPosition, field_size, wxBORDER_SIMPLE);
-        txt_z_center->SetToolTip(_L("Z offset at the center pad. The other eight pads are spaced around it by the step value."));
+        txt_z_center->SetName(wxString::FromUTF8(AutomationIds::calibration("z_offset.center").c_str()));
+        txt_z_center->SetToolTip(_L("Z offset used for the center pad."));
         txt_z_step = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(step),
             wxDefaultPosition, field_size, wxBORDER_SIMPLE);
-        txt_z_step->SetToolTip(_L("Z offset difference between neighboring pads."));
+        txt_z_step->SetName(wxString::FromUTF8(AutomationIds::calibration("z_offset.step").c_str()));
+        txt_z_step->SetToolTip(_L("How much the offset changes from one pad to the next."));
         txt_layer_height = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(layer_height),
             wxDefaultPosition, field_size, wxBORDER_SIMPLE);
-        txt_layer_height->SetToolTip(_L("Height of the single-layer pads. Defaults to the active print profile's first-layer height for nozzle 1."));
+        txt_layer_height->SetName(wxString::FromUTF8(AutomationIds::calibration("z_offset.layer_height").c_str()));
+        txt_layer_height->SetToolTip(_L("Height of each pad. Starts as your first layer height."));
 
         wxBoxSizer* offset_fields = new wxBoxSizer(wxHORIZONTAL);
         offset_fields->Add(new wxStaticText(this, wxID_ANY, _L("Center offset:")), 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, kFieldGapPx);
@@ -157,32 +191,50 @@ void CalibrationBedDialog::create_buttons(wxStdDialogButtonSizer* buttons)
         layer_fields->Add(txt_layer_height, 0, wxRIGHT, kFieldGapPx);
         txt_outer_walls = new wxTextCtrl(this, wxID_ANY, outer_walls,
             wxDefaultPosition, field_size, wxBORDER_SIMPLE);
-        txt_outer_walls->SetToolTip(_L("Number of perimeter walls around each pad. More walls make edge thickness measurements more repeatable."));
+        txt_outer_walls->SetName(wxString::FromUTF8(AutomationIds::calibration("z_offset.outer_walls").c_str()));
+        txt_outer_walls->SetToolTip(_L("More walls make the edge easier to measure with calipers."));
         layer_fields->Add(new wxStaticText(this, wxID_ANY, _L("mm   Outer walls:")),
             0, wxALIGN_CENTER_VERTICAL | wxRIGHT, kFieldGapPx);
         layer_fields->Add(txt_outer_walls, 0);
         vertical->Add(layer_fields, 0, wxBOTTOM, kSectionGapPx);
 
-        wxButton* generate = new wxButton(this, wxID_FILE1, _L("Generate nine-pad Z offset test"),
+        wxButton* generate = new wxButton(this, wxID_FILE1, _L("Generate"),
             wxDefaultPosition, button_size);
-        generate->SetToolTip(_L("Generate a 3 by 3 single-layer Klipper test. The dialog closes after the project is created."));
+        generate->SetName(wxString::FromUTF8(AutomationIds::calibration("z_offset.generate").c_str()));
+        generate->SetToolTip(_L("Create the pad project and close this window."));
         generate->Bind(wxEVT_BUTTON, &CalibrationBedDialog::create_z_offset_geometry, this);
         vertical->Add(generate);
     } else {
         // Measurement-only dialog: the grid parameters are recalled from the last
         // generated test, so the user only reports what they measured.
         vertical->Add(new wxStaticText(this, wxID_ANY,
-            _L("Printed test grid: center offset ") + Slic3r::from_dot_to_local(center) +
+            _L("Last test: center ") + Slic3r::from_dot_to_local(center) +
             _L(" mm, step ") + Slic3r::from_dot_to_local(step) +
-            _L(" mm, target height ") + Slic3r::from_dot_to_local(layer_height) + _L(" mm")),
+            _L(" mm, target ") + Slic3r::from_dot_to_local(layer_height) + _L(" mm")),
             0, wxBOTTOM, kSectionGapPx);
+
+        // Name the filament the result will be written to. The user picked these pads off a
+        // plate they printed earlier, possibly days ago, so say which filament that was
+        // rather than letting the write target a preset they cannot see from here.
+        const std::string test_filament = gui_app->app_config->get(kZOffsetFilamentConfigKey);
+        if (!test_filament.empty())
+            vertical->Add(new wxStaticText(this, wxID_ANY,
+                _L("Printed with: ") + wxString::FromUTF8(test_filament.c_str())),
+                0, wxBOTTOM, kSectionGapPx);
+
+        // Show what offset each pad was printed at, laid out the way they sit on the bed, so
+        // the pad the user measured can be read straight off the plate.
+        if (wxSizer* pad_grid = create_pad_offset_grid(center, step))
+            vertical->Add(pad_grid, 0, wxBOTTOM, kSectionGapPx);
 
         txt_z_result_pad = new wxTextCtrl(this, wxID_ANY, std::to_string(kCenterPadNumber),
             wxDefaultPosition, field_size, wxBORDER_SIMPLE);
-        txt_z_result_pad->SetToolTip(_L("Number printed on the measured pad, from 1 through 9."));
+        txt_z_result_pad->SetName(wxString::FromUTF8(AutomationIds::calibration("z_offset.measured_pad").c_str()));
+        txt_z_result_pad->SetToolTip(_L("Pad number from the printed grid, 1 to 9."));
         txt_measured_height = new wxTextCtrl(this, wxID_ANY, Slic3r::from_dot_to_local(layer_height),
             wxDefaultPosition, field_size, wxBORDER_SIMPLE);
-        txt_measured_height->SetToolTip(_L("Measured outside-edge thickness of the selected pad."));
+        txt_measured_height->SetName(wxString::FromUTF8(AutomationIds::calibration("z_offset.measured_height").c_str()));
+        txt_measured_height->SetToolTip(_L("Caliper reading of that pad."));
 
         wxBoxSizer* result_fields = new wxBoxSizer(wxHORIZONTAL);
         result_fields->Add(new wxStaticText(this, wxID_ANY, _L("Measured pad:")),
@@ -195,11 +247,18 @@ void CalibrationBedDialog::create_buttons(wxStdDialogButtonSizer* buttons)
             0, wxALIGN_CENTER_VERTICAL);
         vertical->Add(result_fields, 0, wxBOTTOM, kSectionGapPx);
 
-        wxButton* apply_result = new wxButton(this, wxID_ANY, _L("Apply result to filament preset"),
+        wxButton* apply_result = new wxButton(this, wxID_ANY, _L("Apply to filament"),
             wxDefaultPosition, button_size);
-        apply_result->SetToolTip(_L("Calculate the corrected Z offset from the recalled test parameters and write it to the active filament preset."));
+        apply_result->SetName(wxString::FromUTF8(AutomationIds::calibration("z_offset.apply").c_str()));
+        apply_result->SetToolTip(_L("Write the new Z offset on the current filament."));
         apply_result->Bind(wxEVT_BUTTON, &CalibrationBedDialog::apply_z_offset_result, this);
         vertical->Add(apply_result);
+
+        // The apply result is reported here rather than in a message box - see
+        // apply_z_offset_result for why a modal is not usable on this path.
+        txt_apply_result = new wxStaticText(this, wxID_ANY, wxEmptyString);
+        txt_apply_result->SetName(wxString::FromUTF8(AutomationIds::calibration("z_offset.result").c_str()));
+        vertical->Add(txt_apply_result, 0, wxTOP, kSectionGapPx);
     }
 
     buttons->Add(vertical);
@@ -221,18 +280,18 @@ void CalibrationBedDialog::apply_z_offset_result(wxCommandEvent& /*event_args*/)
         target_height = parse_float_all_locale(target_str);
         measured_height = parse_float_all_locale(txt_measured_height->GetValue().ToStdString());
     } catch (...) {
-        show_error(this, _L("The recalled test parameters and the measured height must be valid numbers."));
+        show_error(this, _L("The saved test values and the measured height have to be numbers."));
         return;
     }
 
     if (!txt_z_result_pad->GetValue().ToLong(&pad_number) || pad_number < 1 || pad_number > kZOffsetPadCount) {
-        show_error(this, _L("Measured pad must be a whole number from 1 through 9."));
+        show_error(this, _L("Pad number has to be 1 to 9."));
         return;
     }
     if (!std::isfinite(center) || !std::isfinite(step) || step <= 0. ||
         !std::isfinite(target_height) || target_height <= 0. ||
         !std::isfinite(measured_height) || measured_height <= 0.) {
-        show_error(this, _L("Offsets and heights must be finite, and step and heights must be greater than zero."));
+        show_error(this, _L("Step and heights have to be greater than 0."));
         return;
     }
 
@@ -241,11 +300,24 @@ void CalibrationBedDialog::apply_z_offset_result(wxCommandEvent& /*event_args*/)
     if (std::abs(corrected_offset) < kZeroOffsetEpsilonMm)
         corrected_offset = 0.;
     if (!std::isfinite(corrected_offset) || corrected_offset < -kZOffsetAbsLimitMm || corrected_offset > kZOffsetAbsLimitMm) {
-        show_error(this, _L("The calculated filament Z offset is outside the supported -2 to 2 mm range."));
+        show_error(this, _L("That Z offset is outside the -2 to 2 mm range."));
         return;
     }
 
     Tab* filament_tab = this->gui_app->get_tab(Preset::TYPE_FFF_FILAMENT);
+
+    // The offset belongs to the filament the pads were printed with. If the user has moved
+    // on to another filament since generating the test, select the recorded one first -
+    // otherwise the measurement silently lands on whichever preset is showing now.
+    const std::string test_filament = gui_app->app_config->get(kZOffsetFilamentConfigKey);
+    if (!test_filament.empty() &&
+        test_filament != gui_app->preset_bundle->filaments.get_selected_preset_name() &&
+        !filament_tab->select_preset(test_filament)) {
+        show_error(this, _L("Could not select the filament this test was printed with: ") +
+            wxString::FromUTF8(test_filament.c_str()));
+        return;
+    }
+
     const DynamicPrintConfig* filament_config = filament_tab->get_config();
     DynamicPrintConfig new_filament_config = *filament_config;
     auto new_offsets = std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{0.});
@@ -263,11 +335,18 @@ void CalibrationBedDialog::apply_z_offset_result(wxCommandEvent& /*event_args*/)
     gui_app->app_config->set("z_offset_cal_step", Slic3r::to_string_nozero(step, kZOffsetDecimalPlaces));
     gui_app->app_config->set("z_offset_cal_layer_height", Slic3r::to_string_nozero(target_height, kZOffsetDecimalPlaces));
 
-    wxMessageBox(
-        _L("Calculated filament Z offset: ") + wxString::FromUTF8(corrected_text.c_str()) +
-            _L(" mm.\n\nThe active filament preset has been updated. Review it in Filament Settings and save the preset to keep it."),
-        _L("Z offset calibration"), wxOK | wxICON_INFORMATION, this);
-    close_dialog();
+    // Deliberately not a wxMessageBox. On GTK that is a native dialog driven by
+    // gtk_dialog_run, which spins a nested event loop: it blocks the wx event loop, never
+    // appears in the automation element tree (so the step cannot be driven or dismissed),
+    // and lets queued automation requests re-enter the GUI thread mid-handler - which
+    // segfaults. Reporting into the dialog keeps this step non-blocking and automatable.
+    if (txt_apply_result != nullptr) {
+        txt_apply_result->SetLabel(
+            _L("Filament Z offset set to ") + wxString::FromUTF8(corrected_text.c_str()) +
+            _L(" mm. Check it in Filament Settings and save the preset to keep it."));
+        this->Layout();
+        this->Fit();
+    }
 }
 
 void CalibrationBedDialog::create_geometry(wxCommandEvent& event_args) {
@@ -421,7 +500,7 @@ void CalibrationBedDialog::create_z_offset_geometry(wxCommandEvent& /*event_args
     const DynamicPrintConfig* printer_config = this->gui_app->get_tab(Preset::TYPE_PRINTER)->get_config();
 
     if (printer_config->option<ConfigOptionEnum<GCodeFlavor>>("gcode_flavor")->value != gcfKlipper) {
-        show_error(this, _L("The Z offset calibration generator requires a Klipper printer profile."));
+        show_error(this, _L("This test needs a Klipper printer profile."));
         return;
     }
 
@@ -434,29 +513,29 @@ void CalibrationBedDialog::create_z_offset_geometry(wxCommandEvent& /*event_args
         step = parse_float_all_locale(txt_z_step->GetValue().ToStdString());
         layer_height = parse_float_all_locale(txt_layer_height->GetValue().ToStdString());
     } catch (...) {
-        show_error(this, _L("Center offset, step, and layer height must be valid numbers."));
+        show_error(this, _L("Center, step and layer height have to be numbers."));
         return;
     }
 
     if (!txt_outer_walls->GetValue().ToLong(&outer_walls) || outer_walls < kCalibPerimeters || outer_walls > kMaxOuterWalls) {
-        show_error(this, _L("Outer walls must be a whole number between 2 and 20."));
+        show_error(this, _L("Outer walls has to be a whole number between 2 and 20."));
         return;
     }
 
     if (!std::isfinite(center) || !std::isfinite(step) || step <= 0. || step > kMaxZStepMm ||
         center - kZOffsetRadiusSteps * step < -kZOffsetAbsLimitMm || center + kZOffsetRadiusSteps * step > kZOffsetAbsLimitMm) {
-        show_error(this, _L("Use a positive step no greater than 0.25 mm, with all nine offsets between -2 and 2 mm."));
+        show_error(this, _L("Step has to be between 0 and 0.25 mm, and every pad offset between -2 and 2 mm."));
         return;
     }
 
     const ConfigOptionFloats* nozzle_diameters = printer_config->option<ConfigOptionFloats>("nozzle_diameter");
     if (nozzle_diameters == nullptr || nozzle_diameters->get_values().empty()) {
-        show_error(this, _L("The active printer profile does not define a nozzle diameter."));
+        show_error(this, _L("This printer profile has no nozzle diameter."));
         return;
     }
     const double nozzle_diameter = nozzle_diameters->get_at(0);
     if (!std::isfinite(layer_height) || layer_height <= 0. || layer_height > nozzle_diameter) {
-        show_error(this, _L("Layer height must be greater than zero and no greater than the active nozzle diameter."));
+        show_error(this, _L("Layer height has to be greater than 0 and not thicker than the nozzle."));
         return;
     }
 
@@ -467,15 +546,21 @@ void CalibrationBedDialog::create_z_offset_geometry(wxCommandEvent& /*event_args
 
     const ConfigOptionPoints* bed_shape = printer_config->option<ConfigOptionPoints>("bed_shape");
     if (bed_shape == nullptr || bed_shape->get_values().empty()) {
-        show_error(this, _L("The active printer profile does not define a usable bed shape."));
+        show_error(this, _L("This printer profile has no bed shape."));
         return;
     }
 
     const BoundingBoxf bed_box(bed_shape->get_values());
     if (bed_box.size().x() < grid_span || bed_box.size().y() < grid_span) {
-        show_error(this, _L("The active bed is too small for the 96 by 96 mm Z offset calibration grid."));
+        show_error(this, _L("The bed is too small for this 96 x 96 mm grid."));
         return;
     }
+
+    // The measurement taken off these pads belongs to the filament they are printed with -
+    // the job the printer's SET_CONTEXT used to do by keying its saved Z on the filament.
+    // Record it before new_project(), so applying the result later cannot land on whatever
+    // filament happens to be selected by then.
+    const std::string test_filament = gui_app->preset_bundle->filaments.get_selected_preset_name();
 
     Plater* plat = this->main_frame->plater();
     if (!plat->new_project(L("Klipper Z offset calibration")))
@@ -493,27 +578,23 @@ void CalibrationBedDialog::create_z_offset_geometry(wxCommandEvent& /*event_args
     gui_app->app_config->set("z_offset_cal_step", step_text);
     gui_app->app_config->set("z_offset_cal_layer_height", layer_height_text);
     gui_app->app_config->set("z_offset_cal_outer_walls", std::to_string(outer_walls));
+    gui_app->app_config->set(kZOffsetFilamentConfigKey, test_filament);
 
     Model& model = plat->model();
     model.clear_objects();
 
     const Vec2d bed_center = bed_box.center();
-    const std::array<const char*, 9> positions = {
-        "Top left", "Top center", "Top right",
-        "Middle left", "Center", "Middle right",
-        "Bottom left", "Bottom center", "Bottom right"
-    };
     std::vector<size_t> object_indices;
-    object_indices.reserve(positions.size());
+    object_indices.reserve(kZOffsetPadPositions.size());
 
-    for (size_t index = 0; index < positions.size(); ++index) {
+    for (size_t index = 0; index < kZOffsetPadPositions.size(); ++index) {
         const int row = int(index / kZOffsetGridSize);
         const int column = int(index % kZOffsetGridSize);
         // Center of 0..8 is index 4 (middle of 3x3).
         const double offset = center + (int(index) - kZOffsetCenterIndex) * step;
         const std::string offset_text = Slic3r::to_string_nozero(offset, kZOffsetDecimalPlaces);
         const std::string object_name = "Z" + std::to_string(index + 1) + " " +
-            positions[index] + " " + offset_text + " mm";
+            kZOffsetPadPositions[index] + " " + offset_text + " mm";
 
         ModelObject* object = model.add_object(object_name.c_str(), "",
             Slic3r::make_cube(pad_xy, pad_xy, layer_height));
@@ -540,7 +621,7 @@ void CalibrationBedDialog::create_z_offset_geometry(wxCommandEvent& /*event_args
             "; Calibration target layer height: " + layer_height_text + " mm\n" +
             "SET_GCODE_OFFSET Z=" + offset_text + " MOVE=0\n" +
             "RESPOND MSG=\"Z offset pad " + std::to_string(index + 1) + ": " +
-                positions[index] + ", offset " + offset_text + " mm, target " + layer_height_text + " mm\"\n";
+                kZOffsetPadPositions[index] + ", offset " + offset_text + " mm, target " + layer_height_text + " mm\"\n";
         object->config.set_key_value("object_gcode", std::make_unique<ConfigOptionString>(object_gcode));
         object_indices.push_back(index);
     }

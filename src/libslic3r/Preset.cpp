@@ -432,12 +432,10 @@ VendorProfile VendorProfile::from_ini(const ptree &tree, const std::string &base
 std::vector<std::string> VendorProfile::families() const
 {
     std::vector<std::string> res;
-    unsigned num_familiies = 0;
 
     for (auto &model : models) {
         if (std::find(res.begin(), res.end(), model.family) == res.end()) {
             res.push_back(model.family);
-            num_familiies++;
         }
     }
 
@@ -2026,7 +2024,6 @@ void add_correct_opts_to_diff(const t_config_option_key &opt_key,
                               const ConfigOption *option_init) {
     const T* opt_init = static_cast<const T*>(option_init);
     const T* opt_cur = static_cast<const T*>(option_cur);
-    int opt_init_max_id = opt_init->size() - 1;
     // emplace the whole vector if size changed.
     if (opt_init->size() != opt_cur->size()) {
         vec.emplace(OptionKeyIdx::scalar(opt_key), PresetCollection::DIRTY_VECTOR_CHANGE_SIZE);

@@ -1,9 +1,7 @@
 #ifndef slic3r_GUI_CreateMMUTiledCanvas_hpp_
 #define slic3r_GUI_CreateMMUTiledCanvas_hpp_
 
-#include <map>
 #include <vector>
-#include <regex>
 
 #include "OptionsGroup.hpp"
 

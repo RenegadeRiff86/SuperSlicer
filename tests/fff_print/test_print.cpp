@@ -1,6 +1,7 @@
 #include <catch2/catch.hpp>
 
 #include "libslic3r/libslic3r.h"
+#include "libslic3r/GCodeReader.hpp"
 #include "libslic3r/Print.hpp"
 #include "libslic3r/Layer.hpp"
 
@@ -53,7 +54,7 @@ SCENARIO("Print: Skirt generation", "[Print]") {
             });
             THEN("Skirt Extrusion collection has 2 loops in it") {
                 REQUIRE(print.skirt().items_count() == 2);
-                REQUIRE(print.skirt().flatten().entities.size() == 2);
+                REQUIRE(print.skirt().flatten(false).entities().size() == 2);
             }
         }
     }
@@ -172,7 +173,7 @@ SCENARIO("Ported from Perl", "[Print]") {
         WHEN("fill_density overridden") {
             print.apply(model2, config);
             THEN("region config inherits model object config") {
-                REQUIRE(print.get_print_region(0).config().fill_density == 100);
+                REQUIRE(print.get_print_region(0).config().fill_density.value == 100.0);
             }
         }
 
@@ -180,7 +181,7 @@ SCENARIO("Ported from Perl", "[Print]") {
         WHEN("fill_density resetted") {
             print.apply(model2, config);
             THEN("region config is resetted") {
-                REQUIRE(print.get_print_region(0).config().fill_density == 20);
+                REQUIRE(print.get_print_region(0).config().fill_density.value == 20.0);
             }
         }
 

@@ -106,24 +106,23 @@ TEST_CASE("Simple gcode") {
                                    0      // fan_kickstart.value));
         );
         std::string type_not_overhang;
-        SECTION("erNone") { type_not_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erNone) + "\n"; }
-        SECTION("erPerimeter") { type_not_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erPerimeter) + "\n"; }
-        SECTION("erExternalPerimeter") { type_not_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erExternalPerimeter) + "\n"; }
-        SECTION("erInternalInfill") { type_not_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erInternalInfill) + "\n"; }
-        SECTION("erSolidInfill") { type_not_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erSolidInfill) + "\n"; }
-        SECTION("erTopSolidInfill") { type_not_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erTopSolidInfill) + "\n"; }
-        SECTION("erBridgeInfill") { type_not_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erBridgeInfill) + "\n"; } //note: bridge infill isn't overhang
-        SECTION("erInternalBridgeInfill") { type_not_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erInternalBridgeInfill) + "\n"; }
-        SECTION("erThinWall") { type_not_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erThinWall) + "\n"; }
-        SECTION("erGapFill") { type_not_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erGapFill) + "\n"; }
-        SECTION("erSkirt") { type_not_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erSkirt) + "\n"; }
-        SECTION("erSupportMaterial") { type_not_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erSupportMaterial) + "\n"; }
-        SECTION("erSupportMaterialInterface") { type_not_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erSupportMaterialInterface) + "\n"; }
-        SECTION("erWipeTower") { type_not_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erWipeTower) + "\n"; }
-        SECTION("erMilling") { type_not_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erMilling) + "\n"; }
-        SECTION("erCustom") { type_not_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erCustom) + "\n"; }
-        SECTION("erMixed") { type_not_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erMixed) + "\n"; }
-        SECTION("erTravel") { type_not_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erTravel) + "\n"; }
+        SECTION("None") { type_not_overhang = std::string(";TYPE:") + gcode_extrusion_role_to_string(GCodeExtrusionRole::None) + "\n"; }
+        SECTION("Perimeter") { type_not_overhang = std::string(";TYPE:") + gcode_extrusion_role_to_string(GCodeExtrusionRole::Perimeter) + "\n"; }
+        SECTION("ExternalPerimeter") { type_not_overhang = std::string(";TYPE:") + gcode_extrusion_role_to_string(GCodeExtrusionRole::ExternalPerimeter) + "\n"; }
+        SECTION("InternalInfill") { type_not_overhang = std::string(";TYPE:") + gcode_extrusion_role_to_string(GCodeExtrusionRole::InternalInfill) + "\n"; }
+        SECTION("SolidInfill") { type_not_overhang = std::string(";TYPE:") + gcode_extrusion_role_to_string(GCodeExtrusionRole::SolidInfill) + "\n"; }
+        SECTION("TopSolidInfill") { type_not_overhang = std::string(";TYPE:") + gcode_extrusion_role_to_string(GCodeExtrusionRole::TopSolidInfill) + "\n"; }
+        SECTION("BridgeInfill") { type_not_overhang = std::string(";TYPE:") + gcode_extrusion_role_to_string(GCodeExtrusionRole::BridgeInfill) + "\n"; } // note: bridge infill isn't overhang
+        SECTION("InternalBridgeInfill") { type_not_overhang = std::string(";TYPE:") + gcode_extrusion_role_to_string(GCodeExtrusionRole::InternalBridgeInfill) + "\n"; }
+        SECTION("ThinWall") { type_not_overhang = std::string(";TYPE:") + gcode_extrusion_role_to_string(GCodeExtrusionRole::ThinWall) + "\n"; }
+        SECTION("GapFill") { type_not_overhang = std::string(";TYPE:") + gcode_extrusion_role_to_string(GCodeExtrusionRole::GapFill) + "\n"; }
+        SECTION("Skirt") { type_not_overhang = std::string(";TYPE:") + gcode_extrusion_role_to_string(GCodeExtrusionRole::Skirt) + "\n"; }
+        SECTION("SupportMaterial") { type_not_overhang = std::string(";TYPE:") + gcode_extrusion_role_to_string(GCodeExtrusionRole::SupportMaterial) + "\n"; }
+        SECTION("SupportMaterialInterface") { type_not_overhang = std::string(";TYPE:") + gcode_extrusion_role_to_string(GCodeExtrusionRole::SupportMaterialInterface) + "\n"; }
+        SECTION("WipeTower") { type_not_overhang = std::string(";TYPE:") + gcode_extrusion_role_to_string(GCodeExtrusionRole::WipeTower) + "\n"; }
+        SECTION("Milling") { type_not_overhang = std::string(";TYPE:") + gcode_extrusion_role_to_string(GCodeExtrusionRole::Milling) + "\n"; }
+        SECTION("Custom") { type_not_overhang = std::string(";TYPE:") + gcode_extrusion_role_to_string(GCodeExtrusionRole::Custom) + "\n"; }
+        SECTION("Travel") { type_not_overhang = std::string(";TYPE:") + gcode_extrusion_role_to_string(GCodeExtrusionRole::Travel) + "\n"; }
         std::string processed_gcode = fan_mover.process_gcode(type_not_overhang + gcode, true);
         REQUIRE(type_not_overhang + gcode == processed_gcode);
     }
@@ -137,7 +136,7 @@ TEST_CASE("Simple gcode") {
                                    0      // fan_kickstart.value));
         );
         std::string type_overhang;
-        SECTION("erOverhangPerimeter") { type_overhang = std::string(";TYPE:") + ExtrusionEntity::role_to_string(ExtrusionRole::erOverhangPerimeter) + "\n"; }
+        SECTION("OverhangPerimeter") { type_overhang = std::string(";TYPE:") + gcode_extrusion_role_to_string(GCodeExtrusionRole::OverhangPerimeter) + "\n"; }
         std::string processed_gcode = fan_mover.process_gcode(type_overhang + gcode, true);
         std::string wanted_gcode;
         wanted_gcode += "M107\n";

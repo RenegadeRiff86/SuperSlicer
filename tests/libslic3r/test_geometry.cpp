@@ -10,6 +10,7 @@
 #include "libslic3r/Geometry/ConvexHull.hpp"
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/ShortestPath.hpp"
+#include "libslic3r/ExtrusionEntityCollection.hpp"
 
 //#include <random>
 //#include "libnest2d/tools/benchmark.h"
@@ -25,21 +26,21 @@ using namespace Slic3r;
 // vector<ExtrusionEntity*> and frees its members itself, so the raw pointer is the
 // required return type. Building it in a unique_ptr keeps the setup below exception-safe.
 ExtrusionPath* createEP(std::initializer_list<Point> vec) {
-    auto ep = std::make_unique<ExtrusionPath>(ExtrusionRole::erNone);
-    ep->polyline = vec;
+    auto ep = std::make_unique<ExtrusionPath>(ExtrusionAttributes{ExtrusionRole::None});
+    ep->polyline = ArcPolyline{Points{vec}};
     return ep.release();
 }
 ExtrusionEntityCollection* createEC(std::initializer_list<ExtrusionEntity*> vec, bool no_sort = false) {
     auto ec = std::make_unique<ExtrusionEntityCollection>();
     ec->set_can_sort_reverse(!no_sort, !no_sort);
-    ec->entities = vec;
+    ec->set_entities() = vec;
     return ec.release();
 }
 ExtrusionLoop* createEL(std::vector<std::initializer_list<Point>> vec) {
     auto el = std::make_unique<ExtrusionLoop>();
     for (std::initializer_list<Point> &path : vec) {
-        el->paths.emplace_back(ExtrusionRole::erNone);
-        el->paths.back().polyline = path;
+        el->paths.emplace_back(ExtrusionAttributes{ExtrusionRole::None});
+        el->paths.back().polyline = ArcPolyline{Points{path}};
     }
     return el.release();
 }
@@ -588,79 +589,79 @@ SCENARIO("Path chaining", "[Geometry][!mayfail]") {
             for (size_t i = 1; i < chained.size(); ++i) {
                 const Polyline& pl1 = chained[i - 1];
                 const Polyline& pl2 = chained[i];
-                connection_length += (pl2.first_point() - pl1.last_point()).cast<double>().norm();
+                connection_length += (pl2.front() - pl1.back()).cast<double>().norm();
                 std::cout << "{ {" << chained[i].points.front().x() << ", " << chained[i].points.front().y() << "}, {" << chained[i].points.back().x() << ", " << chained[i].points.back().x() << "} },\n";
             }
             REQUIRE(connection_length < 85206000.);
         }
-        const ExtrusionPath pattern(ExtrusionRole::erPerimeter);
+        const ExtrusionPath pattern(ExtrusionAttributes{ExtrusionRole::Perimeter});
         THEN("Chained taking the shortest path with extrusionpaths") {
             ExtrusionEntityCollection coll;
             for (auto poly : polylines)
-                coll.entities.push_back(new ExtrusionPath(poly, pattern));
-            chain_and_reorder_extrusion_entities(coll.entities, &polylines[18].points.back());
+                coll.set_entities().push_back(new ExtrusionPath(ArcPolyline{poly}, pattern.attributes()));
+            chain_and_reorder_extrusion_entities(coll.set_entities(), &polylines[18].points.back());
             double connection_length = 0.;
-            std::cout << "{ {" << coll.entities[0]->as_polyline().points.front().x()
-                      << ", " << coll.entities[0]->as_polyline().points.front().y()
-                      << "}, {" << coll.entities[0]->as_polyline().points.back().x()
-                      << ", " << coll.entities[0]->as_polyline().points.back().y() << "} },\n";
-            for (size_t i = 1; i < coll.entities.size(); ++i) {
-                const Polyline& pl1 = coll.entities[i - 1]->as_polyline();
-                const Polyline& pl2 = coll.entities[i]->as_polyline();
-                connection_length += (pl2.first_point() - pl1.last_point()).cast<double>().norm();
-                std::cout << "{ {" << coll.entities[i]->as_polyline().points.front().x()
-                          << ", " << coll.entities[i]->as_polyline().points.front().y()
-                          << "}, {" << coll.entities[i]->as_polyline().points.back().x()
-                          << ", " << coll.entities[i]->as_polyline().points.back().y() << "} },\n";
+            std::cout << "{ {" << coll.entities()[0]->as_polyline().front().x()
+                      << ", " << coll.entities()[0]->as_polyline().front().y()
+                      << "}, {" << coll.entities()[0]->as_polyline().back().x()
+                      << ", " << coll.entities()[0]->as_polyline().back().y() << "} },\n";
+            for (size_t i = 1; i < coll.entities().size(); ++i) {
+                const ArcPolyline pl1 = coll.entities()[i - 1]->as_polyline();
+                const ArcPolyline pl2 = coll.entities()[i]->as_polyline();
+                connection_length += (pl2.front() - pl1.back()).cast<double>().norm();
+                std::cout << "{ {" << coll.entities()[i]->as_polyline().front().x()
+                          << ", " << coll.entities()[i]->as_polyline().front().y()
+                          << "}, {" << coll.entities()[i]->as_polyline().back().x()
+                          << ", " << coll.entities()[i]->as_polyline().back().y() << "} },\n";
             }
             REQUIRE(connection_length < 85206000.);
         }
         THEN("Chained can't unfold a eeCollection") {
             ExtrusionEntityCollection coll;
             for (auto poly : polylines)
-                coll.entities.push_back(new ExtrusionPath(poly, pattern));
+                coll.set_entities().push_back(new ExtrusionPath(ArcPolyline{poly}, pattern.attributes()));
             ExtrusionEntitiesPtr data{ &coll };
             chain_and_reorder_extrusion_entities(data, &polylines[18].points.back());
             double connection_length = 0.;
-            for (size_t i = 1; i < coll.entities.size(); ++i) {
-                const Polyline& pl1 = coll.entities[i - 1]->as_polyline();
-                const Polyline& pl2 = coll.entities[i]->as_polyline();
-                connection_length += (pl2.first_point() - pl1.last_point()).cast<double>().norm();
+            for (size_t i = 1; i < coll.entities().size(); ++i) {
+                const ArcPolyline pl1 = coll.entities()[i - 1]->as_polyline();
+                const ArcPolyline pl2 = coll.entities()[i]->as_polyline();
+                connection_length += (pl2.front() - pl1.back()).cast<double>().norm();
             }
             REQUIRE(connection_length > 85206000.);
-            REQUIRE(polylines[18].points.front() != coll.entities[18]->first_point());
+            REQUIRE(polylines[18].points.front() != coll.entities()[18]->first_point());
         }
         THEN("Chained does not take the shortest path with extrusionpaths if in an un-sortable un-reversable collection") {
             ExtrusionEntityCollection coll;
             for (auto poly : polylines)
-                coll.entities.push_back(new ExtrusionPath(poly, pattern));
+                coll.set_entities().push_back(new ExtrusionPath(ArcPolyline{poly}, pattern.attributes()));
             ExtrusionEntitiesPtr data{ &coll };
             coll.set_can_sort_reverse(false, false);
             chain_and_reorder_extrusion_entities(data, &polylines[18].points.back());
             double connection_length = 0.;
-            for (size_t i = 1; i < coll.entities.size(); ++i) {
-                const Polyline& pl1 = coll.entities[i - 1]->as_polyline();
-                const Polyline& pl2 = coll.entities[i]->as_polyline();
-                connection_length += (pl2.first_point() - pl1.last_point()).cast<double>().norm();
+            for (size_t i = 1; i < coll.entities().size(); ++i) {
+                const ArcPolyline pl1 = coll.entities()[i - 1]->as_polyline();
+                const ArcPolyline pl2 = coll.entities()[i]->as_polyline();
+                connection_length += (pl2.front() - pl1.back()).cast<double>().norm();
             }
             REQUIRE(connection_length > 85206000.);
-            REQUIRE(polylines[18].points.front() == coll.entities[18]->first_point());
+            REQUIRE(polylines[18].points.front() == coll.entities()[18]->first_point());
         }
         THEN("Chained does not take the shortest path with extrusionpaths if in an un-sortable collection") {
             ExtrusionEntityCollection coll;
             for (auto poly : polylines)
-                coll.entities.push_back(new ExtrusionPath(poly, pattern));
+                coll.set_entities().push_back(new ExtrusionPath(ArcPolyline{poly}, pattern.attributes()));
             ExtrusionEntitiesPtr data{ &coll };
             coll.set_can_sort_reverse(false, true);
             chain_and_reorder_extrusion_entities(data, &polylines[18].points.back());
             double connection_length = 0.;
-            for (size_t i = 1; i < coll.entities.size(); ++i) {
-                const Polyline& pl1 = coll.entities[i - 1]->as_polyline();
-                const Polyline& pl2 = coll.entities[i]->as_polyline();
-                connection_length += (pl2.first_point() - pl1.last_point()).cast<double>().norm();
+            for (size_t i = 1; i < coll.entities().size(); ++i) {
+                const ArcPolyline pl1 = coll.entities()[i - 1]->as_polyline();
+                const ArcPolyline pl2 = coll.entities()[i]->as_polyline();
+                connection_length += (pl2.front() - pl1.back()).cast<double>().norm();
             }
             REQUIRE(connection_length > 85206000.);
-            REQUIRE(polylines[18].points.front() != coll.entities[18]->first_point());
+            REQUIRE(polylines[18].points.front() != coll.entities()[18]->first_point());
         }
     }
     GIVEN("Loop pieces") {
@@ -717,7 +718,7 @@ SCENARIO("Calculating angles", "[Geometry]")
         THEN("Angle detected is 30 degrees")
         {
             for (auto &p : pts)
-                REQUIRE(is_approx(angle(p.first, p.second), M_PI / 6.));
+                REQUIRE(is_approx(angle_ccw(p.first, p.second), M_PI / 6.));
         }
     }
 
@@ -733,7 +734,7 @@ SCENARIO("Calculating angles", "[Geometry]")
         THEN("Angle detected is -30 degrees")
         {
             for (auto &p : pts)
-                REQUIRE(is_approx(angle(p.first, p.second), - M_PI / 6.));
+                REQUIRE(is_approx(angle_ccw(p.first, p.second), - M_PI / 6.));
         }
     }
 }
@@ -747,13 +748,13 @@ SCENARIO("Polygon convex/concave detection", "[Geometry]"){
             Point(200,200),
             Point(100,200)}));
         THEN("It has 4 convex points counterclockwise"){
-            REQUIRE(square.concave_points(angle_threshold).size() == 0);
-            REQUIRE(square.convex_points(angle_threshold).size() == 4);
+            REQUIRE(square.concave_points(angle_threshold, PI).size() == 0);
+            REQUIRE(square.convex_points(angle_threshold, PI).size() == 4);
         }
         THEN("It has 4 concave points clockwise"){
             square.make_clockwise();
-            REQUIRE(square.concave_points(angle_threshold).size() == 4);
-            REQUIRE(square.convex_points(angle_threshold).size() == 0);
+            REQUIRE(square.concave_points(angle_threshold, PI).size() == 4);
+            REQUIRE(square.convex_points(angle_threshold, PI).size() == 0);
         }
     }
     GIVEN("A Square with an extra colinearvertex"){
@@ -764,8 +765,8 @@ SCENARIO("Polygon convex/concave detection", "[Geometry]"){
             Point(100,200),
             Point(100,100)}));
         THEN("It has 4 convex points counterclockwise"){
-            REQUIRE(square.concave_points(angle_threshold).size() == 0);
-            REQUIRE(square.convex_points(angle_threshold).size() == 4);
+            REQUIRE(square.concave_points(angle_threshold, PI).size() == 0);
+            REQUIRE(square.convex_points(angle_threshold, PI).size() == 4);
         }
     }
     GIVEN("A Square with an extra collinear vertex in different order"){
@@ -776,8 +777,8 @@ SCENARIO("Polygon convex/concave detection", "[Geometry]"){
             Point(150,100),
             Point(200,100)}));
         THEN("It has 4 convex points counterclockwise"){
-            REQUIRE(square.concave_points(angle_threshold).size() == 0);
-            REQUIRE(square.convex_points(angle_threshold).size() == 4);
+            REQUIRE(square.concave_points(angle_threshold, PI).size() == 0);
+            REQUIRE(square.convex_points(angle_threshold, PI).size() == 4);
         }
     }
 
@@ -788,8 +789,8 @@ SCENARIO("Polygon convex/concave detection", "[Geometry]"){
             Point(31286371,461008)
         }));
         THEN("it has three convex vertices"){
-            REQUIRE(triangle.concave_points(angle_threshold).size() == 0);
-            REQUIRE(triangle.convex_points(angle_threshold).size() == 3);
+            REQUIRE(triangle.concave_points(angle_threshold, PI).size() == 0);
+            REQUIRE(triangle.convex_points(angle_threshold, PI).size() == 3);
         }
     }
 
@@ -801,8 +802,8 @@ SCENARIO("Polygon convex/concave detection", "[Geometry]"){
             Point(31286371,461012)
         }));
         THEN("it has three convex vertices"){
-            REQUIRE(triangle.concave_points(angle_threshold).size() == 0);
-            REQUIRE(triangle.convex_points(angle_threshold).size() == 3);
+            REQUIRE(triangle.concave_points(angle_threshold, PI).size() == 0);
+            REQUIRE(triangle.convex_points(angle_threshold, PI).size() == 3);
         }
     }
     GIVEN("A polygon with concave vertices with angles of specifically 4/3pi"){
@@ -819,8 +820,8 @@ SCENARIO("Polygon convex/concave detection", "[Geometry]"){
             Point(38092663,692699),Point(52100125,692699)
         }));
         THEN("the correct number of points are detected"){
-            REQUIRE(polygon.concave_points(angle_threshold).size() == 6);
-            REQUIRE(polygon.convex_points(angle_threshold).size() == 10);
+            REQUIRE(polygon.concave_points(angle_threshold, PI).size() == 6);
+            REQUIRE(polygon.convex_points(angle_threshold, PI).size() == 10);
         }
     }
 }

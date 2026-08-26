@@ -104,6 +104,28 @@ class ApiClient:
         return structured["result"]
 
 
+def _poll_status_result(
+    client: ApiClient,
+) -> tuple[dict[str, Any] | None, Exception | None]:
+    """Return (ready result, None) or (None, error/None) when not ready."""
+    try:
+        status, response = client.request("GET", "/api/v1/status")
+    except (ConnectionError, OSError, json.JSONDecodeError) as error:
+        return None, error
+    if status == 200 and response.get("ok"):
+        return response["result"], None
+    return None, None
+
+
+def _terminate_slicer(slicer_process: subprocess.Popen[bytes]) -> None:
+    slicer_process.terminate()
+    try:
+        slicer_process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        slicer_process.kill()
+        slicer_process.wait(timeout=5)
+
+
 def wait_for_server(
     client: ApiClient,
     slicer_process: subprocess.Popen[bytes] | None,
@@ -116,12 +138,11 @@ def wait_for_server(
                 "SuperSlicer exited during startup with code "
                 f"{slicer_process.returncode}"
             )
-        try:
-            status, response = client.request("GET", "/api/v1/status")
-            if status == 200 and response.get("ok"):
-                return response["result"]
-        except (ConnectionError, OSError, json.JSONDecodeError) as error:
+        result, error = _poll_status_result(client)
+        if error is not None:
             last_error = error
+        elif result is not None:
+            return result
         time.sleep(0.1)
     raise RuntimeError(f"automation API did not become ready: {last_error}")
 
@@ -175,8 +196,13 @@ def check_transport_and_protocol(client: ApiClient, status: dict[str, Any]) -> N
         "superslicer_set_preview",
         "superslicer_set_transform",
         "superslicer_export_gcode",
+        "superslicer_new_project",
+        "superslicer_arrange",
+        "superslicer_orient",
+        "superslicer_paint_supports_by_angle",
         "superslicer_arm_file_dialog",
         "superslicer_file_dialog_status",
+        "superslicer_quit",
     }
     assert names == expected
     assert client.mcp_tool("superslicer_status")["pid"] == status["pid"]
@@ -376,12 +402,7 @@ def main() -> int:
         return 0
     finally:
         if slicer_process is not None and slicer_process.poll() is None:
-            slicer_process.terminate()
-            try:
-                slicer_process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                slicer_process.kill()
-                slicer_process.wait(timeout=5)
+            _terminate_slicer(slicer_process)
 
 
 if __name__ == "__main__":

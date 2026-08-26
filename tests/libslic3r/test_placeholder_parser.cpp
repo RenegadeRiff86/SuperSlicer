@@ -25,8 +25,10 @@ SCENARIO("Placeholder parser scripting", "[PlaceholderParser]") {
     // a percent to what.
     config.option<ConfigOptionFloatOrPercent>("first_layer_speed")->value = 50.;
     config.option<ConfigOptionFloatOrPercent>("first_layer_speed")->percent = true;
-    ConfigOptionFloatsNullable *opt_filament_retract_length = config.option<ConfigOptionFloatsNullable>("filament_retract_length", true);
-    opt_filament_retract_length->values = { 5., ConfigOptionFloatsNullable::nil_value(), 3. };
+    ConfigOptionFloats *opt_filament_retract_length = config.option<ConfigOptionFloats>("filament_retract_length", true);
+    opt_filament_retract_length->set(std::vector<double>{5., 0., 3.});
+    opt_filament_retract_length->set_can_be_disabled();
+    opt_filament_retract_length->set_enabled(false, 1);
 
 
     config.option<ConfigOptionFloatOrPercent>("first_layer_extrusion_width")->value = 150.;

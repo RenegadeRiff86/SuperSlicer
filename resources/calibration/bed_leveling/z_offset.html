@@ -2,57 +2,48 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Klipper Z Offset Calibration</title>
+  <title>Klipper Z Offset</title>
 </head>
 <body>
-<h1 style="text-align: center;">Klipper Z Offset Calibration</h1>
-<p>This generator creates nine 30 by 30 mm pads in a 3 by 3 grid. Each pad is one
-selected layer tall and carries its own <code>SET_GCODE_OFFSET</code> command, so
-no external G-code post-processing script is needed.</p>
+<table width="100%">
+<tbody>
+<tr>
+<td style="text-align: center;">
+<h1>Klipper Z Offset</h1>
+</td>
+</tr>
+<tr>
+<td style="text-align: right;">
+    <table><tr><td>Needs:</td>
+        <td style="text-align: left;">Klipper</td>
+        <td style="text-align: left;">Bed leveling</td></tr>
+    </table>
+</td>
+</tr>
+</tbody>
+</table>
 
-<h2>Before generating</h2>
-<ul>
-  <li>Select the Klipper printer, print, and filament profiles that you intend to use.</li>
-  <li>Enter the center offset and the difference between neighboring pads.</li>
-  <li>Layer height defaults to the active print profile's first-layer height resolved for nozzle 1. You may change it for this test.</li>
-  <li>Outer walls defaults to 5 for a wider, more repeatable edge measurement area.</li>
-  <li>No calibration macro or post-processing script is required. The generated G-code uses Klipper's built-in <code>SET_GCODE_OFFSET</code> command.</li>
-</ul>
+<p>This prints nine first-layer squares. Each one uses a different Z offset so you can see which height looks right, then measure it and save that value on the filament.</p>
 
-<h2>Pad order</h2>
+<h2>How it works</h2>
+<p>Pick the printer, print and filament profiles you actually use. Center is the offset on the middle pad. Step is how much the offset changes from one pad to the next. Layer height starts as your first layer height; you can raise it a bit if you are afraid of scraping the bed.</p>
+<p>Click Generate. SuperSlicer builds the project and slices it. Send the G-code to the printer the usual way.</p>
+
+<h2>Pad numbers</h2>
 <table border="1" cellpadding="8" cellspacing="0" style="margin-left: auto; margin-right: auto; text-align: center;">
   <tr><td>1<br>Top left</td><td>2<br>Top center</td><td>3<br>Top right</td></tr>
   <tr><td>4<br>Middle left</td><td>5<br>Center</td><td>6<br>Middle right</td></tr>
   <tr><td>7<br>Bottom left</td><td>8<br>Bottom center</td><td>9<br>Bottom right</td></tr>
 </table>
-<p>Pad 5 uses the center value. Pads 1 through 9 increase by one step each, so
-pad 1 is <code>center - 4 * step</code> and pad 9 is
-<code>center + 4 * step</code>.</p>
+<p>Pad 5 uses the center value. Going from pad 1 to pad 9 adds one step each time. So pad 1 is center &minus; 4&nbsp;&times;&nbsp;step, and pad 9 is center + 4&nbsp;&times;&nbsp;step.</p>
 
-<h2>Print, measure, and save</h2>
-<p>The generator closes after creating the project so you can slice and print it normally.
-Klipper reports the pad number, position, active offset, and target height as each
-pad begins. After the print, find the most uniform pad and measure its outside edge.</p>
-<p>Open <strong>Calibration &gt; Apply Z offset calibration result</strong>. SuperSlicer
-remembers the generated center, step, and target layer height. Enter the measured pad
-number and outside-edge height, then apply the result to the active filament preset.
-SuperSlicer uses the same correction as the former Klipper macro:</p>
-<p style="text-align: center;"><code>corrected offset = tested offset - (measured height - target height)</code></p>
-<p>The active filament preset becomes dirty. Review the value under
-<strong>Filament Settings &gt; Z offset compensation</strong>, then save the preset normally.</p>
-
-<h2>Why Klipper still receives a command</h2>
-<p>SuperSlicer now owns and saves the value in the filament preset. Generated G-code
-sends that value after <code>START_PRINT</code>, so it wins over any older context macro.
-Klipper only performs the physical coordinate shift. This keeps SuperSlicer's
-travel, Z-hop, and internal position tracking coherent while removing Klipper
-saved variables as the source of truth.</p>
+<h2>After the print</h2>
+<p>Look at the first layers and pick the pad that looks best. Measure the thickness of that pad at the outer edge with calipers.</p>
+<p>Then open <strong>Calibration &gt; Apply Z offset</strong>. Type the pad number and the height you measured. SuperSlicer writes the result to the current filament. Look at Filament Settings &rarr; Z offset and save the preset if you want to keep it.</p>
+<p>If the pad is thicker than the target layer height, the nozzle was too high. If it is thinner, the nozzle was too low.</p>
 
 <h2>Notes</h2>
-<ul>
-  <li>The generated project disables skirts and brims so every pad remains independent.</li>
-  <li>If the old <code>z_offset_test_postprocess.py</code> is present in the active print profile, it is removed only from the generated project to prevent duplicate offsets. Other post-processing scripts are preserved.</li>
-  <li>Inspect the full offset range before printing. Stop the print immediately if any pad places the nozzle dangerously close to the bed.</li>
-</ul>
+<p>Watch the first pads. If the nozzle is heading into the bed, stop the print.</p>
+<p>This test turns off skirt and brim so the pads stay separate. You may want to put those back afterwards.</p>
 </body>
 </html>

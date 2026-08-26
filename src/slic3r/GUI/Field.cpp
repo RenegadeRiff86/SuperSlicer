@@ -80,7 +80,7 @@ wxString double_to_string(double const value, const int max_precision /*= 6*/)
             // Remove sign from orphaned zero.
             if (s.compare("-0") == 0)
                 s = "0";
-            if (s.Last() == '.')
+            if (s.EndsWith("."))
                 s.erase(s.length() -1);
         }
     }
@@ -578,7 +578,7 @@ wxString any_to_wxstring(const boost::any &value, const ConfigOptionDef &opt, co
 bool TextField::get_vector_value(const wxString &str, ConfigOptionVectorBase &reader)
 {
     std::string vector_str = str.ToStdString();
-    if (str.size() > ARRAY_LITERAL_MIN_LENGTH && str.at(0) == '[' && str.at(str.size() - 1) == ']') {
+    if (str.size() > ARRAY_LITERAL_MIN_LENGTH && str.StartsWith("[") && str.EndsWith("]")) {
         // validate data inside
         // first, remove all spaces
         vector_str = str.SubString(1, str.size() - 1).ToStdString();
@@ -656,9 +656,9 @@ void TextField::get_value_by_opt_type(wxString &str, const bool check_value /* =
         }
     case coPercent:
     case coFloat: {
-        if (m_opt.type == coPercent && !str.IsEmpty() && str.Last() == '%')
+        if (m_opt.type == coPercent && !str.IsEmpty() && str.EndsWith("%"))
             str.RemoveLast();
-        else if (!str.IsEmpty() && str.Last() == '%') {
+        else if (!str.IsEmpty() && str.EndsWith("%")) {
             if (!check_value) {
                 m_value.clear();
                 break;
@@ -777,7 +777,7 @@ void TextField::get_value_by_opt_type(wxString &str, const bool check_value /* =
             // Soft limit: absolute infill_overlap larger than half nozzle diameter is usually a mistake.
             if ("infill_overlap" == m_opt_key_idx.key && m_last_validated_value != str) {
                 bool bad = false;
-                if (str.Last() != '%') {
+                if (!str.EndsWith("%")) {
                     is_percent = false;
                     if (str.ToDouble(&val)) {
                         const DynamicPrintConfig &printer_config =
@@ -812,7 +812,7 @@ void TextField::get_value_by_opt_type(wxString &str, const bool check_value /* =
                     }
                     m_last_validated_value = str;
                 }
-            } else if (str.Last() != '%') {
+            } else if (!str.EndsWith("%")) {
                 is_percent             = false;
                 const char dec_sep     = is_decimal_separator_point() ? '.' : ',';
                 const char dec_sep_alt = dec_sep == '.' ? ',' : '.';

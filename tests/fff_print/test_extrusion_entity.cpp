@@ -8,8 +8,6 @@
 #include "libslic3r/ShortestPath.hpp"
 #include "libslic3r/libslic3r.h"
 
-#include "test_data.hpp"
-
 using namespace Slic3r;
 
 static inline Slic3r::Point random_point(float LO=-50, float HI=50) 
@@ -37,8 +35,9 @@ static Slic3r::ExtrusionPaths random_paths(size_t count = 10, size_t length = 20
 
 SCENARIO("ExtrusionPath", "[ExtrusionEntity]") {
     GIVEN("Simple path") {
-        Slic3r::ExtrusionPath path{ { { 100, 100 }, { 200, 100 }, { 200, 200 } },
-            ExtrusionAttributes{ ExtrusionRole::ExternalPerimeter, ExtrusionFlow{ 1., -1.f, -1.f } } };
+        Slic3r::ExtrusionPath path{
+            Polyline{{100, 100}, {200, 100}, {200, 200}},
+            ExtrusionAttributes{ExtrusionRole::ExternalPerimeter, ExtrusionFlow{1., -1.f, -1.f}}};
         THEN("first point") {
             REQUIRE(path.first_point() == path.polyline.front());
         }
@@ -91,11 +90,11 @@ SCENARIO("ExtrusionLoop", "[ExtrusionEntity]")
                 REQUIRE(loop2->paths.front().size() == 5);
             }
             THEN("expected point order") {
-                REQUIRE(loop2->paths.front().polyline[0] == square.points[2]);
-                REQUIRE(loop2->paths.front().polyline[1] == square.points[3]);
-                REQUIRE(loop2->paths.front().polyline[2] == square.points[0]);
-                REQUIRE(loop2->paths.front().polyline[3] == square.points[1]);
-                REQUIRE(loop2->paths.front().polyline[4] == square.points[2]);
+                REQUIRE(loop2->paths.front().polyline.get_point(0) == square.points[2]);
+                REQUIRE(loop2->paths.front().polyline.get_point(1) == square.points[3]);
+                REQUIRE(loop2->paths.front().polyline.get_point(2) == square.points[0]);
+                REQUIRE(loop2->paths.front().polyline.get_point(3) == square.points[1]);
+                REQUIRE(loop2->paths.front().polyline.get_point(4) == square.points[2]);
             }
         }
     }
@@ -146,8 +145,8 @@ SCENARIO("ExtrusionLoop", "[ExtrusionEntity]")
             }
             THEN("clipped path has expected length") {
                 double l = loop2->length();
-                ExtrusionPaths paths;
-                loop2->clip_end(3, &paths);
+                ExtrusionPaths paths = loop2->paths;
+                clip_end(paths, 3);
                 double l2 = 0;
                 for (const ExtrusionPath &p : paths)
                     l2 += p.length();
@@ -256,33 +255,33 @@ SCENARIO("ExtrusionEntityCollection: Basics", "[ExtrusionEntity]")
     loop.paths.emplace_back(new_extrusion_path(Polygon(polyline.points).split_at_first_point(), ExtrusionRole::InternalInfill, 1.));
     ExtrusionEntityCollection collection;
     collection.append(path);
-    THEN("no_sort is false by default") {
-        REQUIRE(! collection.no_sort);
+    THEN("sorting is enabled by default") {
+        REQUIRE(collection.can_sort());
     }
     collection.append(collection);
     THEN("append ExtrusionEntityCollection") {
-        REQUIRE(collection.entities.size() == 2);
+        REQUIRE(collection.entities().size() == 2);
     }
     collection.append(path);
     THEN("append ExtrusionPath") {
-        REQUIRE(collection.entities.size() == 3);
+        REQUIRE(collection.entities().size() == 3);
     }
     collection.append(loop);
     THEN("append ExtrusionLoop") {
-        REQUIRE(collection.entities.size() == 4);
+        REQUIRE(collection.entities().size() == 4);
     }
     THEN("appended collection was duplicated") {
-        REQUIRE(dynamic_cast<ExtrusionEntityCollection*>(collection.entities[1])->entities.size() == 1);
+        REQUIRE(dynamic_cast<ExtrusionEntityCollection*>(collection.entities()[1])->entities().size() == 1);
     }
     WHEN("cloned") {
         auto coll2 = std::unique_ptr<ExtrusionEntityCollection>(dynamic_cast<ExtrusionEntityCollection*>(collection.clone()));
-        THEN("expected no_sort value") {
-            assert(! coll2->no_sort);
+        THEN("expected sorting value") {
+            assert(coll2->can_sort());
         }
-        coll2->no_sort = true;
-        THEN("no_sort is kept after clone") {
+        coll2->set_can_sort_reverse(false, false);
+        THEN("sorting flag is kept after clone") {
             auto coll3 = std::unique_ptr<ExtrusionEntityCollection>(dynamic_cast<ExtrusionEntityCollection*>(coll2->clone()));
-            assert(coll3->no_sort);
+            assert(!coll3->can_sort());
         }
     }
 }
@@ -296,10 +295,10 @@ SCENARIO("ExtrusionEntityCollection: Polygon flattening", "[ExtrusionEntity]")
 
     Slic3r::ExtrusionEntityCollection sub_nosort;
     sub_nosort.append(nosort_path_set);
-    sub_nosort.no_sort = true;
+    sub_nosort.set_can_sort_reverse(false, false);
 
     Slic3r::ExtrusionEntityCollection sub_sort;
-    sub_sort.no_sort = false;
+    sub_sort.set_can_sort_reverse(true, true);
     sub_sort.append(random_paths());
 
     GIVEN("A Extrusion Entity Collection with a child that has one child that is marked as no-sort") {
@@ -311,26 +310,26 @@ SCENARIO("ExtrusionEntityCollection: Polygon flattening", "[ExtrusionEntity]")
         sample.append(sub_sort);
 
         WHEN("The EEC is flattened with default options (preserve_order=false)") {
-            output = sample.flatten();
+            output = sample.flatten(false);
             THEN("The output EEC contains no Extrusion Entity Collections") {
-                CHECK(std::count_if(output.entities.cbegin(), output.entities.cend(), [=](const ExtrusionEntity* e) {return e->is_collection();}) == 0);
+                CHECK(std::count_if(output.entities().cbegin(), output.entities().cend(), [=](const ExtrusionEntity* e) {return e->is_collection();}) == 0);
             }
         }
         WHEN("The EEC is flattened with preservation (preserve_order=true)") {
             output = sample.flatten(true);
             THEN("The output EECs contains one EEC.") {
-                CHECK(std::count_if(output.entities.cbegin(), output.entities.cend(), [=](const ExtrusionEntity* e) {return e->is_collection();}) == 1);
+                CHECK(std::count_if(output.entities().cbegin(), output.entities().cend(), [=](const ExtrusionEntity* e) {return e->is_collection();}) == 1);
             }
             AND_THEN("The ordered EEC contains the same order of elements than the original") {
                 // find the entity in the collection
-                for (auto e : output.entities)
+                for (auto e : output.entities())
                     if (e->is_collection()) {
                         ExtrusionEntityCollection *temp = dynamic_cast<ExtrusionEntityCollection*>(e);
                         // check each Extrusion path against nosort_path_set to see if the first and last match the same
-                        CHECK(nosort_path_set.size() == temp->entities.size());
+                        CHECK(nosort_path_set.size() == temp->entities().size());
                         for (size_t i = 0; i < nosort_path_set.size(); ++ i) {
-                            CHECK(temp->entities[i]->first_point() == nosort_path_set[i].first_point());
-                            CHECK(temp->entities[i]->last_point() == nosort_path_set[i].last_point());
+                            CHECK(temp->entities()[i]->first_point() == nosort_path_set[i].first_point());
+                            CHECK(temp->entities()[i]->last_point() == nosort_path_set[i].last_point());
                         }
                     }
             }
@@ -383,26 +382,28 @@ TEST_CASE("ExtrusionEntityCollection: Chained path", "[ExtrusionEntity]") {
         Polylines chained = chain_polylines(test.unchained, &test.initial_point);
         REQUIRE(chained == test.chained);
         ExtrusionEntityCollection unchained_extrusions;
-        extrusion_entities_append_paths(unchained_extrusions.entities, test.unchained,
-            ExtrusionAttributes{ ExtrusionRole::InternalInfill, ExtrusionFlow{ 0., 0.4f, 0.3f } });
+        extrusion_entities_append_paths(
+            unchained_extrusions,
+            Polylines(test.unchained),
+            ExtrusionAttributes{ExtrusionRole::InternalInfill, ExtrusionFlow{0., 0.4f, 0.3f}});
         THEN("Chaining works") {
             ExtrusionEntityReferences chained_extrusions = chain_extrusion_references(unchained_extrusions, &test.initial_point);
             REQUIRE(chained_extrusions.size() == test.chained.size());
             for (size_t i = 0; i < chained_extrusions.size(); ++ i) {
                 const Points &p1 = test.chained[i].points;
-                Points        p2 = chained_extrusions[i].cast<ExtrusionPath>()->polyline.points;
+                Points        p2 = chained_extrusions[i].cast<ExtrusionPath>()->polyline.to_polyline().points;
                 if (chained_extrusions[i].flipped())
                     std::reverse(p2.begin(), p2.end());
                 REQUIRE(p1 == p2);
             }
         }
         THEN("Chaining produces no change with no_sort") {
-            unchained_extrusions.no_sort = true;
+            unchained_extrusions.set_can_sort_reverse(false, false);
             ExtrusionEntityReferences chained_extrusions = chain_extrusion_references(unchained_extrusions, &test.initial_point);
             REQUIRE(chained_extrusions.size() == test.unchained.size());
             for (size_t i = 0; i < chained_extrusions.size(); ++ i) {
                 const Points &p1 = test.unchained[i].points;
-                Points        p2 = chained_extrusions[i].cast<ExtrusionPath>()->polyline.points;
+                Points        p2 = chained_extrusions[i].cast<ExtrusionPath>()->polyline.to_polyline().points;
                 if (chained_extrusions[i].flipped())
                     std::reverse(p2.begin(), p2.end());
                 REQUIRE(p1 == p2);

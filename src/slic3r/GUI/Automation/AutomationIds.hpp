@@ -28,5 +28,10 @@ std::string option(const std::string& key, int index);
 // A tab button in the main notebook: "superslicer.tab.<slug>".
 std::string tab(const wxString& caption);
 
+// A named control on a calibration dialog: "superslicer.calibration.<fragment>".
+// fragment is a stable English id, not a translated label, so scripts keep working
+// when the UI language changes.
+std::string calibration(const std::string& fragment);
+
 } // namespace AutomationIds
 } // namespace Slic3r::GUI

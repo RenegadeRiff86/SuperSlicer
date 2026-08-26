@@ -2548,7 +2548,22 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         q->Bind(EVT_PROCESS_COMPLETED, &priv::on_process_completed, this);
         q->Bind(EVT_EXPORT_BEGAN, &priv::on_export_began, this);
         q->Bind(EVT_GLVIEWTOOLBAR_3D, [q](SimpleEvent&) { q->select_view_3D("3D"); });
-        q->Bind(EVT_GLVIEWTOOLBAR_PREVIEW, [q](SimpleEvent&) { q->select_view_3D("Preview"); });
+        q->Bind(EVT_GLVIEWTOOLBAR_PREVIEW, [q](SimpleEvent&) {
+            const bool force_changed = q->get_force_preview() != Preview::ForceState::ForceExtrusions;
+            if (force_changed)
+                q->set_force_preview(Preview::ForceState::ForceExtrusions);
+            q->select_view_3D("Preview");
+            if (force_changed)
+                q->refresh_print();
+        });
+        q->Bind(EVT_GLVIEWTOOLBAR_GCODE, [q](SimpleEvent&) {
+            const bool force_changed = q->get_force_preview() != Preview::ForceState::ForceGcode;
+            if (force_changed)
+                q->set_force_preview(Preview::ForceState::ForceGcode);
+            q->select_view_3D("Preview");
+            if (force_changed)
+                q->refresh_print();
+        });
     }
 
     // Drop target:
@@ -4551,7 +4566,10 @@ void Plater::priv::set_current_panel(wxTitledPanel* panel)
         current_panel->set_as_dirty();
         // reset cached size to force a resize on next call to render() to keep imgui in synch with canvas size
         current_panel->get_canvas3d()->reset_old_size();
-        view_toolbar.select_item(current_panel->name);
+        if (current_panel == preview && preview->get_force_state() == Preview::ForceState::ForceGcode)
+            view_toolbar.select_item("Gcode");
+        else
+            view_toolbar.select_item(current_panel->name);
         if (notification_manager != nullptr)
             notification_manager->set_in_preview(current_panel == preview);
 
@@ -5209,9 +5227,17 @@ bool Plater::priv::init_view_toolbar()
 
     item.name = "Preview";
     item.icon_filename = "preview.svg";
-    item.tooltip = _u8L("Preview") + " [" + GUI::shortkey_ctrl_prefix() + "3]";
+    item.tooltip = _u8L("Preview") + " [" + GUI::shortkey_ctrl_prefix() + "2]";
     item.sprite_id = 1;
     item.left.action_callback = [this]() { if (this->q != nullptr) wxPostEvent(this->q, SimpleEvent(EVT_GLVIEWTOOLBAR_PREVIEW)); };
+    if (!view_toolbar.add_item(item))
+        return false;
+
+    item.name = "Gcode";
+    item.icon_filename = "preview_menu.svg";
+    item.tooltip = _u8L("G-code preview") + " [" + GUI::shortkey_ctrl_prefix() + "3]";
+    item.sprite_id = 2;
+    item.left.action_callback = [this]() { if (this->q != nullptr) wxPostEvent(this->q, SimpleEvent(EVT_GLVIEWTOOLBAR_GCODE)); };
     if (!view_toolbar.add_item(item))
         return false;
 

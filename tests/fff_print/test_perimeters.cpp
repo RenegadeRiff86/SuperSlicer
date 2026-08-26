@@ -1,10 +1,8 @@
 #include <catch2/catch.hpp>
 
-#include <numeric>
-#include <sstream>
-
 #include "libslic3r/Config.hpp"
 #include "libslic3r/ClipperUtils.hpp"
+#include "libslic3r/GCodeReader.hpp"
 #include "libslic3r/Layer.hpp"
 #include "libslic3r/PerimeterGenerator.hpp"
 #include "libslic3r/Print.hpp"
@@ -39,76 +37,82 @@ SCENARIO("Perimeter nesting", "[Perimeters]")
     FullPrintConfig config;
 
     auto test = [&config](const TestData &data) {
+        DynamicPrintConfig dynamic_config = DynamicPrintConfig::full_print_config();
+        dynamic_config.apply(config);
+        Print print;
+        Model model;
+        Test::init_print({ Test::TestMesh::cube_20x20x20 }, print, model, dynamic_config);
+        PrintObject *print_object = print.get_object(0);
+        print_object->slice();
+        Layer *layer = print_object->get_layer(1);
+
         SurfaceCollection slices;
-        slices.append(data.expolygons, stInternal);
-        
+        slices.append(data.expolygons, stPosInternal | stDensSparse);
+
         ExtrusionEntityCollection loops;
         ExtrusionEntityCollection gap_fill;
         ExPolygons                fill_expolygons;
+        ExPolygons                fill_no_overlap;
         Flow                      flow = Flow::new_from_width(1.f, 1.f, 1.f, 1.f);
         PerimeterGenerator::Parameters perimeter_generator_params(
-            1., // layer height
-            -1, // layer ID
+            layer,
             flow, flow, flow, flow,
             static_cast<const PrintRegionConfig&>(config),
             static_cast<const PrintObjectConfig&>(config),
             static_cast<const PrintConfig&>(config),
-            false); // spiral_vase
-        Polygons lower_layer_polygons_cache;
+            false, // spiral_vase
+            false); // Arachne
+        PerimeterGenerator::PerimeterGenerator perimeter_generator(perimeter_generator_params);
         for (const Surface &surface : slices)
-        // FIXME Lukas H.: Disable this test for Arachne because it is failing and needs more investigation.
-//        if (config.perimeter_generator == PerimeterGeneratorType::Arachne)
-//            PerimeterGenerator::process_arachne();
-//        else
-            PerimeterGenerator::process_classic(
-                // input:
-                perimeter_generator_params,
+            perimeter_generator.process(
                 surface,
                 nullptr,
-                // cache:
-                lower_layer_polygons_cache,
-                // output:
-                loops, gap_fill, fill_expolygons);
+                slices,
+                nullptr,
+                &loops,
+                &gap_fill,
+                fill_expolygons,
+                fill_no_overlap);
 
         THEN("expected number of collections") {
-            REQUIRE(loops.entities.size() == data.expolygons.size());
+            REQUIRE(loops.entities().size() == data.expolygons.size());
         }        
         
-        loops = loops.flatten();
+        loops = loops.flatten(false);
         THEN("expected number of loops") {
-            REQUIRE(loops.entities.size() == data.total);
+            REQUIRE(loops.entities().size() == size_t(data.total));
         }
         THEN("expected number of external loops") {
-            size_t num_external = std::count_if(loops.entities.begin(), loops.entities.end(), 
+            size_t num_external = std::count_if(loops.entities().begin(), loops.entities().end(), 
                 [](const ExtrusionEntity *ee){ return ee->role() == ExtrusionRole::ExternalPerimeter; });
-            REQUIRE(num_external == data.external);
+            REQUIRE(num_external == size_t(data.external));
         }
         THEN("expected external order") {
             std::vector<bool> ext_order;
-            for (auto *ee : loops.entities)
+            for (auto *ee : loops.entities())
                 ext_order.emplace_back(ee->role() == ExtrusionRole::ExternalPerimeter);
             REQUIRE(ext_order == data.ext_order);
         }
         THEN("expected number of internal contour loops") {
-            size_t cinternal = std::count_if(loops.entities.begin(), loops.entities.end(), 
-                [](const ExtrusionEntity *ee){ return dynamic_cast<const ExtrusionLoop*>(ee)->loop_role() == elrContourInternalPerimeter; });
-            REQUIRE(cinternal == data.cinternal);
+            size_t cinternal = std::count_if(loops.entities().begin(), loops.entities().end(), 
+                [](const ExtrusionEntity *ee){ return (dynamic_cast<const ExtrusionLoop*>(ee)->loop_role() & elrInternal) != 0; });
+            REQUIRE(cinternal == size_t(data.cinternal));
         }
         THEN("expected number of ccw loops") {
-            size_t ccw = std::count_if(loops.entities.begin(), loops.entities.end(), 
+            size_t ccw = std::count_if(loops.entities().begin(), loops.entities().end(), 
                 [](const ExtrusionEntity *ee){ return dynamic_cast<const ExtrusionLoop*>(ee)->polygon().is_counter_clockwise(); });
-            REQUIRE(ccw == data.ccw);
+            REQUIRE(ccw == size_t(data.ccw));
         }
         THEN("expected ccw/cw order") {
             std::vector<bool> ccw_order;
-            for (auto *ee : loops.entities)
+            for (auto *ee : loops.entities())
                 ccw_order.emplace_back(dynamic_cast<const ExtrusionLoop*>(ee)->polygon().is_counter_clockwise());
             REQUIRE(ccw_order == data.ccw_order);
         }
         THEN("expected nesting order") {
             for (const std::vector<int> &nesting : data.nesting) {
                 for (size_t i = 1; i < nesting.size(); ++ i)
-                    REQUIRE(dynamic_cast<const ExtrusionLoop*>(loops.entities[nesting[i - 1]])->polygon().contains(loops.entities[nesting[i]]->first_point()));
+                    REQUIRE(dynamic_cast<const ExtrusionLoop*>(loops.entities()[size_t(nesting[i - 1])])->polygon().contains(loops.entities()[size_t(nesting[i])]->first_point()));
             }
         }
     };
@@ -230,7 +234,7 @@ SCENARIO("Perimeters", "[Perimeters]")
         // print_z => count of external loops
         std::map<coord_t, int> external_loops;
         Polygon     current_loop;
-        const double external_perimeter_speed = config.get_abs_value("external_perimeter_speed") * 60.;
+        const double external_perimeter_speed = config.get_abs_value("external_perimeter_speed", config.opt_float("perimeter_speed")) * 60.;
         parser.parse_buffer(gcode, [&has_cw_loops, &has_outwards_move, &starts_on_convex_point, &external_loops, &current_loop, external_perimeter_speed, model]
             (Slic3r::GCodeReader &self, const Slic3r::GCodeReader::GCodeLine &line)
         {
@@ -328,12 +332,12 @@ SCENARIO("Perimeters", "[Perimeters]")
             std::map<coord_t, std::set<double>> layer_speeds;
             int          fan_speed = 0;
             const double perimeter_speed            = config.opt_float("perimeter_speed") * 60.;
-            const double external_perimeter_speed   = config.get_abs_value("external_perimeter_speed") * 60.;
+            const double external_perimeter_speed   = config.get_abs_value("external_perimeter_speed", config.opt_float("perimeter_speed")) * 60.;
             const double bridge_speed               = config.opt_float("bridge_speed") * 60.;
             const double nozzle_dmr                 = config.opt<ConfigOptionFloats>("nozzle_diameter")->get_at(0);
             const double filament_dmr               = config.opt<ConfigOptionFloats>("filament_diameter")->get_at(0);
             const double bridge_mm_per_mm           = sqr(nozzle_dmr / filament_dmr) * config.opt_float("bridge_flow_ratio");
-            parser.parse_buffer(gcode, [&layer_speeds, &fan_speed, perimeter_speed, external_perimeter_speed, bridge_speed, nozzle_dmr, filament_dmr, bridge_mm_per_mm]
+            parser.parse_buffer(gcode, [&layer_speeds, &fan_speed, perimeter_speed, external_perimeter_speed, bridge_speed, bridge_mm_per_mm]
                 (Slic3r::GCodeReader &self, const Slic3r::GCodeReader::GCodeLine &line)
             {
                 if (line.cmd_is("M107"))
@@ -470,8 +474,8 @@ SCENARIO("Some weird coverage test", "[Perimeters]")
     Layer       *layer = object->get_layer(1);
     LayerRegion *layerm = layer->get_region(0);
     layerm->m_slices.clear();
-    layerm->m_slices.append({ expolygon }, stInternal);
-    layer->lslices = { expolygon };
+    layerm->m_slices.append({ expolygon }, stPosInternal | stDensSparse);
+    layer->set_lslices() = { expolygon };
     layer->lslices_ex = { { get_extents(expolygon) } };
     
     // make perimeters
@@ -485,7 +489,7 @@ SCENARIO("Some weird coverage test", "[Perimeters]")
     {
         Polygons acc;
         for (const ExtrusionEntity *ee : layerm->perimeters())
-            for (const ExtrusionEntity *ee : dynamic_cast<const ExtrusionEntityCollection*>(ee)->entities)
+            for (const ExtrusionEntity *ee : dynamic_cast<const ExtrusionEntityCollection*>(ee)->entities())
                 append(acc, offset(dynamic_cast<const ExtrusionLoop*>(ee)->polygon().split_at_first_point(), float(pflow.scaled_width() / 2.f + SCALED_EPSILON)));
         covered_by_perimeters = union_(acc);
     }
@@ -493,8 +497,8 @@ SCENARIO("Some weird coverage test", "[Perimeters]")
         Polygons acc;
         for (const ExPolygon &expolygon : layerm->fill_expolygons())
             append(acc, to_polygons(expolygon));
-        for (const ExtrusionEntity *ee : layerm->thin_fills().entities)
-            append(acc, offset(dynamic_cast<const ExtrusionPath*>(ee)->polyline, float(iflow.scaled_width() / 2.f + SCALED_EPSILON)));
+        for (const ExtrusionEntity *ee : layerm->thin_fills().entities())
+            append(acc, offset(dynamic_cast<const ExtrusionPath*>(ee)->polyline.to_polyline(), float(iflow.scaled_width() / 2.f + SCALED_EPSILON)));
         covered_by_infill = union_(acc);
     }
     

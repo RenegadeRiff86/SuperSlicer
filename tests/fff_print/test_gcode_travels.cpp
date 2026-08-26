@@ -61,7 +61,7 @@ std::vector<double> get_distances(const std::vector<DistancedPoint>& result) {
         result.end(),
         std::back_inserter(result_distances),
         [](const DistancedPoint& point){
-            return point.distance_from_start;
+            return point.dist_from_start;
         }
     );
     return result_distances;

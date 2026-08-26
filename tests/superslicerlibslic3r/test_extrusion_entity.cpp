@@ -24,7 +24,9 @@ Slic3r::Point random_point(float LO=-50, float HI=50) {
 
 // build a sample extrusion entity collection with random start and end points.
 Slic3r::ExtrusionPath random_path(size_t length = 20, float LO=-50, float HI=50) {
-    Slic3r::ExtrusionPath t(Slic3r::ExtrusionRole::erPerimeter, 1.0, 1.0f, 1.0f, true);
+    Slic3r::ExtrusionPath t(
+        Slic3r::ExtrusionAttributes{Slic3r::ExtrusionRole::Perimeter, Slic3r::ExtrusionFlow{1.0, 1.0f, 1.0f}},
+        true);
     for (size_t j = 0; j < length; j++) {
         t.polyline.append(random_point(LO, HI));
     }
@@ -90,7 +92,7 @@ SCENARIO("ExtrusionEntityCollection: Polygon flattening") {
 }
 
 SCENARIO("ExtrusionEntityCollection: no sort") {
-    DynamicPrintConfig &config = Slic3r::DynamicPrintConfig::full_print_config();
+    DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
     config.set_key_value("gcode_comments", std::make_unique<ConfigOptionBool>(true));
     config.set_deserialize("skirts", "0");
     Model model{};
@@ -103,17 +105,17 @@ SCENARIO("ExtrusionEntityCollection: no sort") {
 
     print.process();
     //replace extrusion from sliceing by manual ones
-    print.objects_mutable()[0]->clear_layers();
-    Layer* customL_layer = print.objects_mutable()[0]->add_layer(0, 0.2, 0.2, 0.1);
+    print.get_object(0)->clear_layers();
+    Layer* customL_layer = print.get_object(0)->add_layer(0, 0.2, 0.2, 0.1);
     LayerRegion* custom_region = customL_layer->add_region(&print.get_print_region(0));
 
-    ExtrusionPath path_peri(ExtrusionRole::erPerimeter);
+    ExtrusionPath path_peri(ExtrusionAttributes{ExtrusionRole::Perimeter});
     path_peri.polyline.append(Point{ 0,0 });
     path_peri.polyline.append(Point{ scale_(1),scale_(0) });
-    ExtrusionPath path_fill1(ExtrusionRole::erInternalInfill);
+    ExtrusionPath path_fill1(ExtrusionAttributes{ExtrusionRole::InternalInfill});
     path_fill1.polyline.append(Point{ scale_(1),scale_(0) });
     path_fill1.polyline.append(Point{ scale_(2),scale_(0) });
-    ExtrusionPath path_fill2(ExtrusionRole::erInternalInfill);
+    ExtrusionPath path_fill2(ExtrusionAttributes{ExtrusionRole::InternalInfill});
     path_fill2.polyline.append(Point{ scale_(2),scale_(0) });
     path_fill2.polyline.append(Point{ scale_(3),scale_(0) });
     ExtrusionEntityCollection coll_fill;
@@ -124,8 +126,8 @@ SCENARIO("ExtrusionEntityCollection: no sort") {
 
 
     WHEN("sort") {
-        custom_region->fills.append(coll_fill);
-        custom_region->perimeters.append(coll_peri);
+        custom_region->set_fills().append(coll_fill);
+        custom_region->set_perimeters().append(coll_peri);
         coll_fill.set_can_sort_reverse(false, false);
         Slic3r::Test::gcode(gcode_filepath, print);
         auto parser{ Slic3r::GCodeReader() };
@@ -146,8 +148,8 @@ SCENARIO("ExtrusionEntityCollection: no sort") {
 
     WHEN("no sort") {
         coll_fill.set_can_sort_reverse(true, true);
-        custom_region->fills.append(coll_fill);
-        custom_region->perimeters.append(coll_peri);
+        custom_region->set_fills().append(coll_fill);
+        custom_region->set_perimeters().append(coll_peri);
         Slic3r::Test::gcode(gcode_filepath, print);
         auto parser{ Slic3r::GCodeReader() };
         std::vector<float> extrude_x;
@@ -169,7 +171,7 @@ SCENARIO("ExtrusionEntityCollection: no sort") {
 
 SCENARIO("Split perimeter roles distinguish supported paths from true overhangs")
 {
-    ExtrusionPath supported(ExtrusionRole::OverhangPerimeter);
+    ExtrusionPath supported(ExtrusionAttributes{ExtrusionRole::OverhangPerimeter});
     supported.overhang_attributes_mutable() = OverhangAttributes{0.f, 0.f, 0.f, false, false, true, true};
 
     ExtrusionProcessor::update_split_perimeter_overhang_role(supported, ExtrusionRole::OverhangPerimeter);
@@ -180,7 +182,7 @@ SCENARIO("Split perimeter roles distinguish supported paths from true overhangs"
     CHECK(supported.attributes().overhang_attributes->has_dynamic_overhangs_flow);
     CHECK(supported.attributes().overhang_attributes->has_dynamic_overhangs_speed);
 
-    ExtrusionPath unsupported(ExtrusionRole::erPerimeter);
+    ExtrusionPath unsupported(ExtrusionAttributes{ExtrusionRole::Perimeter});
     unsupported.overhang_attributes_mutable() = OverhangAttributes{0.2f, 0.2f, 0.f, false, false, true, true};
 
     ExtrusionProcessor::update_split_perimeter_overhang_role(unsupported, ExtrusionRole::OverhangPerimeter);

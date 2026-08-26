@@ -1,7 +1,5 @@
 #include <catch2/catch.hpp>
 
-#include <memory>
-
 #include "libslic3r/GCode/GCodeWriter.hpp"
 
 using namespace Slic3r;
@@ -11,23 +9,25 @@ SCENARIO("lift() is not ignored after unlift() at normal values of Z", "[GCodeWr
     GIVEN("A config from a file and a single extruder.") {
         GCodeWriter writer;
         GCodeConfig &config = writer.config;
+        config.set_defaults();
         config.load(std::string(TEST_DATA_DIR) + "/fff_print_tests/test_gcodewriter/config_lift_unlift.ini", ForwardCompatibilitySubstitutionRule::Disable);
 
         std::vector<uint16_t> extruder_ids {0};
         writer.set_extruders(extruder_ids);
         writer.set_tool(0);
+        constexpr int lift_layer_id = 1; // Retraction lift is disabled on the first layer by default.
 
         WHEN("Z is set to 203") {
             double trouble_Z = 203;
             writer.travel_to_z(trouble_Z);
             AND_WHEN("GcodeWriter::Lift() is called") {
-                REQUIRE(writer.lift().size() > 0);
+                REQUIRE(writer.lift(lift_layer_id).size() > 0);
                 AND_WHEN("Z is moved post-lift to the same delta as the config Z lift") {
-                    REQUIRE(writer.travel_to_z(trouble_Z + config.retract_lift.values[0]).size() == 0);
+                    REQUIRE(writer.travel_to_z(trouble_Z + config.retract_lift.get_values().front()).size() == 0);
                     AND_WHEN("GCodeWriter::Unlift() is called") {
                         REQUIRE(writer.unlift().size() == 0); // we're the same height so no additional move happens.
                         THEN("GCodeWriter::Lift() emits gcode.") {
-                            REQUIRE(writer.lift().size() > 0);
+                            REQUIRE(writer.lift(lift_layer_id).size() > 0);
                         }
                     }
                 }
@@ -37,13 +37,13 @@ SCENARIO("lift() is not ignored after unlift() at normal values of Z", "[GCodeWr
             double trouble_Z = 500003;
             writer.travel_to_z(trouble_Z);
             AND_WHEN("GcodeWriter::Lift() is called") {
-                REQUIRE(writer.lift().size() > 0);
+                REQUIRE(writer.lift(lift_layer_id).size() > 0);
                 AND_WHEN("Z is moved post-lift to the same delta as the config Z lift") {
-                    REQUIRE(writer.travel_to_z(trouble_Z + config.retract_lift.values[0]).size() == 0);
+                    REQUIRE(writer.travel_to_z(trouble_Z + config.retract_lift.get_values().front()).size() == 0);
                     AND_WHEN("GCodeWriter::Unlift() is called") {
                         REQUIRE(writer.unlift().size() == 0); // we're the same height so no additional move happens.
                         THEN("GCodeWriter::Lift() emits gcode.") {
-                            REQUIRE(writer.lift().size() > 0);
+                            REQUIRE(writer.lift(lift_layer_id).size() > 0);
                         }
                     }
                 }
@@ -53,13 +53,13 @@ SCENARIO("lift() is not ignored after unlift() at normal values of Z", "[GCodeWr
             double trouble_Z = 10.3;
             writer.travel_to_z(trouble_Z);
             AND_WHEN("GcodeWriter::Lift() is called") {
-                REQUIRE(writer.lift().size() > 0);
+                REQUIRE(writer.lift(lift_layer_id).size() > 0);
                 AND_WHEN("Z is moved post-lift to the same delta as the config Z lift") {
-                    REQUIRE(writer.travel_to_z(trouble_Z + config.retract_lift.values[0]).size() == 0);
+                    REQUIRE(writer.travel_to_z(trouble_Z + config.retract_lift.get_values().front()).size() == 0);
                     AND_WHEN("GCodeWriter::Unlift() is called") {
                         REQUIRE(writer.unlift().size() == 0); // we're the same height so no additional move happens.
                         THEN("GCodeWriter::Lift() emits gcode.") {
-                            REQUIRE(writer.lift().size() > 0);
+                            REQUIRE(writer.lift(lift_layer_id).size() > 0);
                         }
                     }
                 }
@@ -69,28 +69,31 @@ SCENARIO("lift() is not ignored after unlift() at normal values of Z", "[GCodeWr
     }
 }
 
-SCENARIO("set_speed emits values with floating-point output, 8 significant digits.", "[GCodeWriter]") {
+SCENARIO("set_speed_mm_s emits feed rates with floating-point output, 8 significant digits.", "[GCodeWriter]") {
 
     GIVEN("GCodeWriter instance") {
         GCodeWriter writer;
-        WHEN("set_speed is called to set speed to 12345.678") {
+        const auto set_speed_mm_min = [&writer](double speed_mm_min) {
+            return writer.set_speed_mm_s(speed_mm_min / 60.0);
+        };
+        WHEN("speed is set to 12345.678 mm/min") {
             THEN("Output string is G1 12345.678") {
-                REQUIRE_THAT(writer.set_speed(12345.678), Catch::Equals("G1 F12345.678\n"));
+                REQUIRE_THAT(set_speed_mm_min(12345.678), Catch::Equals("G1 F12345.678\n"));
             }
         }
         WHEN("set_speed is called to set speed to 1") {
             THEN("Output string is G1 F1") {
-                REQUIRE_THAT(writer.set_speed(1.0), Catch::Equals("G1 F1\n"));
+                REQUIRE_THAT(set_speed_mm_min(1.0), Catch::Equals("G1 F1\n"));
             }
         }
         WHEN("set_speed is called to set speed to 203.200022") {
             THEN("Output string is G1 F203.2") {
-                REQUIRE_THAT(writer.set_speed(203.200022), Catch::Equals("G1 F203.2\n"));
+                REQUIRE_THAT(set_speed_mm_min(203.200022), Catch::Equals("G1 F203.2\n"));
             }
         }
         WHEN("set_speed is called to set speed to 12345.200522") {
             THEN("Output string is G1 F12345.201") {
-                REQUIRE_THAT(writer.set_speed(12345.200522), Catch::Equals("G1 F12345.201\n"));
+                REQUIRE_THAT(set_speed_mm_min(12345.200522), Catch::Equals("G1 F12345.201\n"));
             }
         }
     }
@@ -157,4 +160,32 @@ SCENARIO("set_fan saves state.", "[GCode][GCodeWriter]") {
             }
         }
     }
+}
+
+TEST_CASE("Pressure advance minimum delta compares against the last emitted value", "[GCodeWriter][PressureAdvance]")
+{
+    GCodeWriter writer;
+    writer.config.set_defaults();
+    writer.config.gcode_comments.value = false;
+    writer.config.gcode_flavor.value = gcfKlipper;
+    writer.config.pressure_advance_min_delta.value = 0.005;
+
+    writer.set_pressure_advance(0.020);
+    REQUIRE(writer.write_acceleration().find("SET_PRESSURE_ADVANCE ADVANCE=0.02") != std::string::npos);
+
+    writer.set_pressure_advance(0.024);
+    REQUIRE(writer.write_acceleration().empty());
+
+    writer.set_pressure_advance(0.026);
+    REQUIRE(writer.write_acceleration().find("SET_PRESSURE_ADVANCE ADVANCE=0.026") != std::string::npos);
+
+    // The skipped request must not become the comparison baseline: changes accumulate from 0.026.
+    writer.set_pressure_advance(0.030);
+    REQUIRE(writer.write_acceleration().empty());
+    writer.set_pressure_advance(0.032);
+    REQUIRE(writer.write_acceleration().find("SET_PRESSURE_ADVANCE ADVANCE=0.032") != std::string::npos);
+
+    writer.config.pressure_advance_min_delta.value = 0.0;
+    writer.set_pressure_advance(0.0321);
+    REQUIRE_FALSE(writer.write_acceleration().empty());
 }

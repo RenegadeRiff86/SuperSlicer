@@ -3,14 +3,12 @@
 #include "libslic3r/libslic3r.h"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/ModelArrange.hpp"
+#include "libslic3r/Print.hpp"
 
 #include <boost/nowide/cstdio.hpp>
 #include <boost/filesystem.hpp>
 
-#include "test_data.hpp"
-
 using namespace Slic3r;
-using namespace Slic3r::Test;
 
 SCENARIO("Model construction", "[Model]") {
     GIVEN("A Slic3r Model") {
@@ -46,7 +44,7 @@ SCENARIO("Model construction", "[Model]") {
             arrange_objects(model,
                             arr2::to_arrange_bed(get_bed_shape(config)),
                             arr2::ArrangeSettings{}.set_distance_from_objects(
-                                min_object_distance(config)));
+                                min_object_distance(&config)));
 
             model_object->ensure_on_bed();
             print.auto_assign_extruders(model_object);

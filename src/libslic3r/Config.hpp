@@ -661,7 +661,7 @@ public:
         *this = *rhs; 
         return true;
     }
-private:
+protected:
     friend class cereal::access;
     template<class Archive> void serialize(Archive& ar) { ar(this->flags); }
 };
@@ -756,6 +756,8 @@ public:
     }
 
 private:
+    using ConfigOption::serialize;
+
     friend class cereal::access;
     template<class Archive> void serialize(Archive & ar) { ar(this->flags); ar(this->value); }
 };
@@ -798,7 +800,8 @@ public:
     
     bool is_enabled(int32_t idx = -1) const override {
         assert (m_enabled.size() == size());
-        return idx >= 0 && idx < m_enabled.size() ? m_enabled[idx] : ConfigOption::is_enabled();
+        return idx >= 0 && static_cast<size_t>(idx) < m_enabled.size() ?
+            m_enabled[static_cast<size_t>(idx)] : ConfigOption::is_enabled();
     }
     
     bool has_same_enabled(const ConfigOptionVectorBase &rhs) const
@@ -817,12 +820,13 @@ public:
             return this;
         }
         // can't enable something that doesn't exist
-        if (idx >= size()) {
+        const size_t index = static_cast<size_t>(idx);
+        if (index >= size()) {
             assert(false);
             return this;
         }
         // set our value
-        m_enabled[idx] = enabled;
+        m_enabled[index] = enabled;
         return this;
     }
 
@@ -875,7 +879,6 @@ protected:
     T default_value{};
     std::vector<T> m_values;
 public:
-
     ConfigOptionVector() {}
     explicit ConfigOptionVector(T default_val) : default_value(default_val) { assert (m_enabled.size() == size()); }
     explicit ConfigOptionVector(size_t n, const T &value) : m_values(n, value), default_value(value) { this->m_enabled.resize(m_values.size(), ConfigOption::is_enabled()); assert (m_enabled.size() == size()); }
@@ -1124,7 +1127,7 @@ public:
             throw ConfigurationError("ConfigOptionVector.overriden_by() applied to different types.");
         auto rhs_vec = static_cast<const ConfigOptionVector<T>*>(rhs);
         assert(this->size() == rhs_vec->size());
-        if (idx < 0 || idx >= size()) {
+        if (idx < 0 || static_cast<size_t>(idx) >= size()) {
             if (this->empty()) {
                 assert(false);
                 return rhs_vec->has_enabled() && (this->m_values != rhs_vec->m_values || this->m_enabled != rhs_vec->m_enabled);;
@@ -1177,6 +1180,8 @@ public:
     }
 
 private:
+    using ConfigOptionVectorBase::serialize;
+
     friend class cereal::access;
     template<class Archive> void serialize(Archive &ar) {
         ar(this->m_values);
@@ -1187,6 +1192,9 @@ private:
 class ConfigOptionFloat : public ConfigOptionSingle<double>
 {
 public:
+    using ConfigOptionSingle<double>::operator==;
+    using ConfigOptionSingle<double>::operator<;
+
     ConfigOptionFloat() : ConfigOptionSingle<double>(0) {}
     explicit ConfigOptionFloat(double _value) : ConfigOptionSingle<double>(_value) {}
 
@@ -1234,6 +1242,9 @@ private:
 class ConfigOptionFloats : public ConfigOptionVector<double>
 {
 public:
+    using ConfigOptionVector<double>::operator==;
+    using ConfigOptionVector<double>::operator<;
+
     ConfigOptionFloats() : ConfigOptionVector<double>() {}
     explicit ConfigOptionFloats(double default_value) : ConfigOptionVector<double>(default_value) { assert(valid_config_option_numeric_default(default_value)); }
     explicit ConfigOptionFloats(size_t n, double value) : ConfigOptionVector<double>(n, value) { assert(valid_config_option_numeric_default(default_value)); }
@@ -1318,6 +1329,9 @@ private:
 class ConfigOptionInt : public ConfigOptionSingle<int32_t>
 {
 public:
+    using ConfigOptionSingle<int32_t>::operator==;
+    using ConfigOptionSingle<int32_t>::operator<;
+
     ConfigOptionInt() : ConfigOptionSingle<int32_t>(0) {}
     explicit ConfigOptionInt(int32_t value) : ConfigOptionSingle<int32_t>(value) {}
     explicit ConfigOptionInt(double _value) : ConfigOptionSingle<int32_t>(int32_t(floor(_value + 0.5))) {}
@@ -1366,6 +1380,9 @@ private:
 class ConfigOptionInts : public ConfigOptionVector<int32_t>
 {
 public:
+    using ConfigOptionVector<int32_t>::operator==;
+    using ConfigOptionVector<int32_t>::operator<;
+
     ConfigOptionInts() : ConfigOptionVector<int32_t>() {}
     explicit ConfigOptionInts(int32_t default_value) : ConfigOptionVector<int32_t>(default_value) { assert(valid_config_option_numeric_default(default_value)); }
     explicit ConfigOptionInts(size_t n, int32_t value) : ConfigOptionVector<int32_t>(n, value) { assert(valid_config_option_numeric_default(default_value)); }
@@ -1444,6 +1461,9 @@ private:
 class ConfigOptionString : public ConfigOptionSingle<std::string>
 {
 public:
+    using ConfigOptionSingle<std::string>::operator==;
+    using ConfigOptionSingle<std::string>::operator<;
+
     ConfigOptionString() : ConfigOptionSingle<std::string>(std::string{}) {}
     explicit ConfigOptionString(const std::string& value) : ConfigOptionSingle<std::string>(value) {}
     explicit ConfigOptionString(std::string&& value) : ConfigOptionSingle<std::string>(std::move(value)) {}
@@ -1496,6 +1516,9 @@ public:
 class ConfigOptionStrings : public ConfigOptionVector<std::string>
 {
 public:
+    using ConfigOptionVector<std::string>::operator==;
+    using ConfigOptionVector<std::string>::operator<;
+
     ConfigOptionStrings() : ConfigOptionVector<std::string>() {}
     explicit ConfigOptionStrings(const std::string& default_value) : ConfigOptionVector<std::string>(default_value) {}
     explicit ConfigOptionStrings(size_t n, const std::string &value) : ConfigOptionVector<std::string>(n, value) {}
@@ -1552,6 +1575,9 @@ static constexpr double PERCENT_SCALE = 100.;  // percent -> fraction divisor fo
 class ConfigOptionPercent : public ConfigOptionFloat
 {
 public:
+    using ConfigOptionFloat::operator==;
+    using ConfigOptionFloat::operator<;
+
     ConfigOptionPercent() : ConfigOptionFloat(0) {}
     explicit ConfigOptionPercent(double _value) : ConfigOptionFloat(_value) {}
     
@@ -1600,6 +1626,9 @@ private:
 class ConfigOptionPercents : public ConfigOptionFloats
 {
 public:
+    using ConfigOptionFloats::operator==;
+    using ConfigOptionFloats::operator<;
+
     ConfigOptionPercents() : ConfigOptionFloats() {}
     explicit ConfigOptionPercents(double default_value) : ConfigOptionFloats(default_value) {}
     explicit ConfigOptionPercents(size_t n, double value) : ConfigOptionFloats(n, value) {}
@@ -1736,6 +1765,9 @@ private:
 class ConfigOptionFloatsOrPercents : public ConfigOptionVector<FloatOrPercent>
 {
 public:
+    using ConfigOptionVector<FloatOrPercent>::operator==;
+    using ConfigOptionVector<FloatOrPercent>::operator<;
+
     ConfigOptionFloatsOrPercents() : ConfigOptionVector<FloatOrPercent>() {}
     explicit ConfigOptionFloatsOrPercents(FloatOrPercent default_value) : ConfigOptionVector<FloatOrPercent>(default_value) { assert(valid_config_option_numeric_default(default_value.value)); }
     explicit ConfigOptionFloatsOrPercents(size_t n, FloatOrPercent value) : ConfigOptionVector<FloatOrPercent>(n, value) { assert(valid_config_option_numeric_default(default_value.value)); }
@@ -1831,6 +1863,9 @@ private:
 class ConfigOptionPoint : public ConfigOptionSingle<Vec2d>
 {
 public:
+    using ConfigOptionSingle<Vec2d>::operator==;
+    using ConfigOptionSingle<Vec2d>::operator<;
+
     ConfigOptionPoint() : ConfigOptionSingle<Vec2d>(Vec2d(0,0)) {}
     explicit ConfigOptionPoint(const Vec2d &value) : ConfigOptionSingle<Vec2d>(value) {}
     
@@ -1887,6 +1922,9 @@ private:
 class ConfigOptionPoints : public ConfigOptionVector<Vec2d>
 {
 public:
+    using ConfigOptionVector<Vec2d>::operator==;
+    using ConfigOptionVector<Vec2d>::operator<;
+
     ConfigOptionPoints() : ConfigOptionVector<Vec2d>() {}
     explicit ConfigOptionPoints(Vec2d default_value) : ConfigOptionVector<Vec2d>(default_value) {}
     explicit ConfigOptionPoints(size_t n, const Vec2d &value) : ConfigOptionVector<Vec2d>(n, value) {}
@@ -1990,6 +2028,9 @@ private:
 class ConfigOptionPoint3 : public ConfigOptionSingle<Vec3d>
 {
 public:
+    using ConfigOptionSingle<Vec3d>::operator==;
+    using ConfigOptionSingle<Vec3d>::operator<;
+
     ConfigOptionPoint3() : ConfigOptionSingle<Vec3d>(Vec3d(0,0,0)) {}
     explicit ConfigOptionPoint3(const Vec3d &value) : ConfigOptionSingle<Vec3d>(value) {}
     
@@ -2041,6 +2082,9 @@ private:
 class ConfigOptionGraph : public ConfigOptionSingle<GraphData>
 {
 public:
+    using ConfigOptionSingle<GraphData>::operator==;
+    using ConfigOptionSingle<GraphData>::operator<;
+
     ConfigOptionGraph() : ConfigOptionSingle<GraphData>(GraphData()) {}
     explicit ConfigOptionGraph(const GraphData &value) : ConfigOptionSingle<GraphData>(value) {}
     
@@ -2085,6 +2129,9 @@ private:
 class ConfigOptionGraphs : public ConfigOptionVector<GraphData>
 {
 public:
+    using ConfigOptionVector<GraphData>::operator==;
+    using ConfigOptionVector<GraphData>::operator<;
+
     ConfigOptionGraphs() : ConfigOptionVector<GraphData>() {}
     explicit ConfigOptionGraphs(const GraphData &value) : ConfigOptionVector<GraphData>(value) {}
     explicit ConfigOptionGraphs(size_t n, const GraphData& value) : ConfigOptionVector<GraphData>(n, value) {}
@@ -2185,6 +2232,9 @@ private:
 class ConfigOptionBool : public ConfigOptionSingle<bool>
 {
 public:
+    using ConfigOptionSingle<bool>::operator==;
+    using ConfigOptionSingle<bool>::operator<;
+
     ConfigOptionBool() : ConfigOptionSingle<bool>(false) {}
     explicit ConfigOptionBool(bool _value) : ConfigOptionSingle<bool>(_value) {}
     
@@ -2231,6 +2281,9 @@ private:
 class ConfigOptionBools : public ConfigOptionVector<unsigned char>
 {
 public:
+    using ConfigOptionVector<unsigned char>::operator==;
+    using ConfigOptionVector<unsigned char>::operator<;
+
     ConfigOptionBools() : ConfigOptionVector<unsigned char>() {}
     explicit ConfigOptionBools(bool default_value) : ConfigOptionVector<unsigned char>(default_value) {}
     explicit ConfigOptionBools(size_t n, bool value) : ConfigOptionVector<unsigned char>(n, static_cast<unsigned char>(value)) {}
@@ -2668,7 +2721,9 @@ public:
         switch (this->type) {
         case coFloat:           { auto opt = std::make_unique<ConfigOptionFloat>();           archive(*opt);
             assert(this->can_be_disabled == opt->can_be_disabled());
-            if (this->can_be_disabled) opt->set_can_be_disabled(); return opt; }
+            if (this->can_be_disabled)
+                opt->set_can_be_disabled();
+            return opt; }
         case coFloats:          { auto opt = std::make_unique<ConfigOptionFloats>();          archive(*opt);
             assert(this->can_be_disabled == opt->can_be_disabled());
             assert(this->is_vector_extruder == opt->is_extruder_size());

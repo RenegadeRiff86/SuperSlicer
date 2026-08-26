@@ -1,6 +1,8 @@
 // GUI-thread automation implementation included inside AutomationServer::Impl.
 // Kept separate from the HTTP/MCP transport to keep both responsibilities navigable.
 
+#if defined(SLIC3R_AUTOMATION_SERVER_GUI_IMPLEMENTATION) && __INCLUDE_LEVEL__ > 0
+
     wxWindow* active_scope() const
     {
         wxWindow* main = m_app.mainframe;
@@ -52,7 +54,7 @@
     }
 
     void collect_windows(wxWindow* window, bool include_hidden, std::vector<wxWindow*>& output,
-                         std::set<wxWindow*>& seen) const
+                         AutomationWindowSet& seen) const
     {
         if (window == nullptr || !seen.insert(window).second)
             return;
@@ -242,7 +244,7 @@
             return failure(ERROR_OPERATION_FAILED, "SuperSlicer main window is not ready");
 
         std::vector<wxWindow*> windows;
-        std::set<wxWindow*> seen;
+        AutomationWindowSet seen;
         for (wxWindow* root : snapshot_roots(scope))
             collect_windows(root, include_hidden, windows, seen);
 
@@ -1152,12 +1154,13 @@
         if (canvas->get_selection().is_empty())
             m_app.plater()->select_all();
 
-        GLGizmosManager& gizmos = canvas->get_gizmos_manager();
-        if (gizmos.get_current_type() != GLGizmosManager::EType::FdmSupports &&
-            !gizmos.open_gizmo(GLGizmosManager::EType::FdmSupports, false))
+        AutomationGizmosManager& gizmos = canvas->get_gizmos_manager();
+        if (gizmos.get_current_type() != AutomationGizmosManager::EType::FdmSupports &&
+            !gizmos.open_gizmo(AutomationGizmosManager::EType::FdmSupports, false))
             return failure(ERROR_OPERATION_FAILED, "the paint-on supports gizmo refused to open", request_id);
 
-        auto* gizmo = dynamic_cast<GLGizmoFdmSupports*>(gizmos.get_gizmo(GLGizmosManager::EType::FdmSupports));
+        auto* gizmo = dynamic_cast<AutomationFdmSupportsGizmo*>(
+            gizmos.get_gizmo(AutomationGizmosManager::EType::FdmSupports));
         if (gizmo == nullptr)
             return failure(ERROR_OPERATION_FAILED, "the paint-on supports gizmo is not available", request_id);
 
@@ -1355,6 +1358,104 @@
         }, request_id);
     }
 
+    json gui_window(const json& arguments, const std::string& request_id)
+    {
+        wxTopLevelWindow* frame = m_app.mainframe;
+        if (frame == nullptr)
+            return failure(ERROR_OPERATION_FAILED, "main window is not available", request_id);
+
+        if (arguments.contains("x") || arguments.contains("y")) {
+            wxPoint pos = frame->GetPosition();
+            if (arguments.contains("x"))
+                pos.x = arguments.value("x", pos.x);
+            if (arguments.contains("y"))
+                pos.y = arguments.value("y", pos.y);
+            frame->Move(pos);
+        }
+        if (arguments.contains("width") || arguments.contains("height")) {
+            wxSize size = frame->GetSize();
+            if (arguments.contains("width"))
+                size.x = arguments.value("width", size.x);
+            if (arguments.contains("height"))
+                size.y = arguments.value("height", size.y);
+            frame->SetSize(size);
+        }
+        frame->Raise();
+        const wxPoint pos = frame->GetPosition();
+        const wxSize size = frame->GetSize();
+        return success({
+            { "x", pos.x },
+            { "y", pos.y },
+            { "width", size.x },
+            { "height", size.y }
+        }, request_id);
+    }
+
+    json gui_scroll(const json& arguments, const std::string& request_id)
+    {
+        wxWindow* page = nullptr;
+        if (m_app.mainframe != nullptr && m_app.mainframe->m_tabpanel != nullptr)
+            page = m_app.mainframe->m_tabpanel->GetCurrentPage();
+        if (page == nullptr)
+            page = active_scope();
+        if (page == nullptr)
+            return failure(ERROR_OPERATION_FAILED, "no page is available to scroll", request_id);
+
+        const int dx = arguments.value("dx", 0);
+        const int dy = arguments.value("dy", 0);
+        const int lines = arguments.value("lines", 0);
+
+        wxScrolledWindow* scrolled = nullptr;
+        std::vector<wxWindow*> stack { page };
+        while (!stack.empty()) {
+            wxWindow* window = stack.back();
+            stack.pop_back();
+            if (auto* found = dynamic_cast<wxScrolledWindow*>(window)) {
+                scrolled = found;
+                break;
+            }
+            for (wxWindow* child : window->GetChildren())
+                stack.push_back(child);
+        }
+
+        if (scrolled != nullptr) {
+            int unit_x = 1;
+            int unit_y = 1;
+            scrolled->GetScrollPixelsPerUnit(&unit_x, &unit_y);
+            int view_x = 0;
+            int view_y = 0;
+            scrolled->GetViewStart(&view_x, &view_y);
+            if (lines != 0)
+                view_y += lines;
+            else {
+                if (unit_x > 0)
+                    view_x += dx / unit_x;
+                if (unit_y > 0)
+                    view_y += dy / unit_y;
+            }
+            scrolled->Scroll(view_x, view_y);
+            scrolled->GetViewStart(&view_x, &view_y);
+            return success({
+                { "kind", "scrolled_window" },
+                { "x", view_x },
+                { "y", view_y }
+            }, request_id);
+        }
+
+        const int rotation = lines != 0 ? -lines * 120 : (dy != 0 ? -dy : -dx);
+        wxMouseEvent wheel(wxEVT_MOUSEWHEEL);
+        const wxSize size = page->GetClientSize();
+        wheel.SetPosition(wxPoint(size.x / 2, size.y / 2));
+        wheel.m_wheelRotation = rotation == 0 ? -120 : rotation;
+        wheel.m_wheelDelta = 120;
+        wheel.SetEventObject(page);
+        page->GetEventHandler()->ProcessEvent(wheel);
+        return success({
+            { "kind", "wheel" },
+            { "rotation", wheel.m_wheelRotation }
+        }, request_id);
+    }
+
     json wait_for_operation(const json& arguments, const std::string& request_id)
     {
         const std::string operation_id = arguments.value(FIELD_OPERATION_ID, std::string());
@@ -1401,3 +1502,5 @@
         }
         return success({ { "results", std::move(results) } }, request_id);
     }
+
+#endif // SLIC3R_AUTOMATION_SERVER_GUI_IMPLEMENTATION

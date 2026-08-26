@@ -519,18 +519,16 @@ bool almost_equals(const Slic3r::Polygon &src, const Slic3r::Polygon &poly1, con
     for (size_t line_idx = 0; line_idx < lines.size(); ++line_idx) {
         for (size_t line2_idx = line_idx + 2; line2_idx < lines.size() + (line_idx == 0 ? -1 : 0);
                 ++line2_idx) {
-            if (lines[line_idx].intersection(lines[line2_idx], &pt_temp)) {
-            }
-            release_assert(!lines[line_idx].intersection(lines[line2_idx], &pt_temp));
+            if (lines[line_idx].intersection(lines[line2_idx], &pt_temp))
+                return false;
         }
     }
     lines = poly2.lines();
     for (size_t line_idx = 0; line_idx < lines.size(); ++line_idx) {
         for (size_t line2_idx = line_idx + 2; line2_idx < lines.size() + (line_idx == 0 ? -1 : 0);
                 ++line2_idx) {
-            if (lines[line_idx].intersection(lines[line2_idx], &pt_temp)) {
-            }
-            release_assert(!lines[line_idx].intersection(lines[line2_idx], &pt_temp));
+            if (lines[line_idx].intersection(lines[line2_idx], &pt_temp))
+                return false;
         }
     }
     bool is_same = (poly1.size() == poly2.size());
@@ -564,13 +562,6 @@ bool almost_equals(const Slic3r::Polygon &src, const Slic3r::Polygon &poly1, con
                         min_dist = dist;
                         poly2_start = i;
                     }
-                }
-            }
-            size_t src_start = size_t(-1);
-            for (size_t i = 0; i < src.size(); ++i) {
-                if (poly1[0].coincides_with_epsilon(src[i])) {
-                    src_start = i;
-                    break;
                 }
             }
             is_same = (poly2_start != size_t(-1));

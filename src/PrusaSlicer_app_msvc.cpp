@@ -1,3 +1,11 @@
+// Windows-only MSVC application entry (wmain / wWinMain). Not compiled on Linux;
+// keep the body behind _WIN32 so non-Windows tooling does not parse Win32 headers.
+#if !defined(_WIN32)
+
+// Intentionally empty on non-Windows hosts.
+
+#else // _WIN32
+
 // Why?
 #define _WIN32_WINNT 0x0502
 // The standard Windows includes.
@@ -58,7 +66,10 @@ public:
         wc.lpszClassName = L"slic3r_opengl_version_check";
         wc.style = CS_OWNDC;
         if (RegisterClass(&wc)) {
-            HWND hwnd = CreateWindowW(wc.lpszClassName, L"slic3r_opengl_version_check", WS_OVERLAPPEDWINDOW, 0, 0, 640, 480, 0, 0, wc.hInstance, (LPVOID)this);
+            constexpr int kOpenGlProbeWindowWidth  = 640;
+            constexpr int kOpenGlProbeWindowHeight = 480;
+            HWND hwnd = CreateWindowW(wc.lpszClassName, L"slic3r_opengl_version_check", WS_OVERLAPPEDWINDOW,
+                0, 0, kOpenGlProbeWindowWidth, kOpenGlProbeWindowHeight, 0, 0, wc.hInstance, (LPVOID)this);
             if (hwnd) {
                 message_pump_exit = false;
                 while (GetMessage(&msg, NULL, 0, 0 ) > 0 && ! message_pump_exit)
@@ -70,22 +81,20 @@ public:
 
     bool unload_opengl_dll()
     {
-        if (this->hOpenGL != nullptr) {
-            if (::FreeLibrary(this->hOpenGL) != FALSE) {
-                if (::GetModuleHandle(L"opengl32.dll") == nullptr) {
-                    printf("System OpenGL library successfully released\n");
-                    this->hOpenGL = nullptr;
-                    return true;
-                }
-            else
-                    printf("System OpenGL library released but not removed\n");
-            }
-            else
-                printf("System OpenGL library NOT released\n");
+        if (this->hOpenGL == nullptr)
+            return true;
 
+        if (::FreeLibrary(this->hOpenGL) == FALSE) {
+            printf("System OpenGL library NOT released\n");
+            return false;
+        }
+        if (::GetModuleHandle(L"opengl32.dll") != nullptr) {
+            printf("System OpenGL library released but not removed\n");
             return false;
         }
 
+        printf("System OpenGL library successfully released\n");
+        this->hOpenGL = nullptr;
         return true;
     }
 
@@ -253,11 +262,13 @@ static int slic3r_run(int argc, wchar_t** argv)
     OpenGLVersionCheck opengl_version_check;
     // Use Mesa SW renderer if: forced from CLI, running over Remote Desktop
     // without RemoteFX, or the system OpenGL driver is older than 3.2.
+    constexpr int kMinOpenGlMajor = 3;
+    constexpr int kMinOpenGlMinor = 2;
     bool load_mesa =
         force_mesa ||
         (::GetSystemMetrics(SM_REMOTESESSION) && !force_hw) ||
         !opengl_version_check.load_opengl_dll() ||
-        !opengl_version_check.is_version_greater_or_equal_to(3, 2);
+        !opengl_version_check.is_version_greater_or_equal_to(kMinOpenGlMajor, kMinOpenGlMinor);
 #endif /* SLIC3R_GUI */
 
     wchar_t path_to_exe[MAX_PATH + 1] = { 0 };
@@ -332,3 +343,5 @@ int wmain(int argc, wchar_t **argv)
 }
 #endif
 }
+
+#endif // _WIN32

@@ -2,14 +2,11 @@
 #define slic3r_GUI_CalibrationAbstractDialog_hpp_
 
 #include <wx/wx.h>
-#include <map>
-#include <vector>
 
 #include "Jobs/ProgressIndicator.hpp"
 #include "GUI_App.hpp"
 #include "GUI_Utils.hpp"
 #include "MainFrame.hpp"
-#include "wxExtensions.hpp"
 #include <wx/html/htmlwin.h>
 
 namespace Slic3r { 
@@ -35,6 +32,8 @@ constexpr double kDesignNozzleDiameterMm     = 0.4;
 constexpr double kDesignFirstLayerHeightMm   = 0.2;
 constexpr double kXyScaleMinFactor           = 0.9;
 constexpr double kXyScaleMaxFactor           = 1.2;
+constexpr int    kDarkFallbackBgChannel      = 43;
+constexpr int    kDarkFallbackTextChannel    = 230;
 constexpr double kHalfTurnDegrees            = 180.0;
 constexpr int    kArrangeJobTimeoutMs        = 20000;
 constexpr int    kPercentFull                = 100;

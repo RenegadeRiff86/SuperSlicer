@@ -21,7 +21,8 @@ class ExtrusionVolumeVisitor : public ExtrusionVisitorConst {
     double volume = 0;
 public:
     virtual void use(const ExtrusionPath &path) override { 
-        for (int i = 0; i < path.polyline.size() - 1; i++) volume += unscaled(path.polyline.get_point(i).distance_to(path.polyline.get_point(i + 1))) * path.mm3_per_mm();
+        for (size_t i = 0; i + 1 < path.polyline.size(); ++i)
+            volume += unscaled(path.polyline.get_point(i).distance_to(path.polyline.get_point(i + 1))) * path.mm3_per_mm();
     };
     virtual void use(const ExtrusionPath3D &path3D) override { std::cout << "error, not supported"; };
     virtual void use(const ExtrusionMultiPath &multipath) override {
@@ -205,7 +206,7 @@ SCENARIO("thin walls: ")
                 //Lines lines = res[0].lines();
                 double min_angle = PI*4, max_angle = -PI*4;
                 //std::cout << "first angle=" << lines[0].ccw(lines[1].b) << "\n";
-                for (int idx = 1; idx < res[0].size() - 2; idx++) {
+                for (size_t idx = 1; idx + 2 < res[0].size(); ++idx) {
                     //assert(lines[idx].a== lines[idx - 1].b);
                     Line line(res[0].points[idx], res[0].points[idx + 1]);
                     double angle = ccw_angle_for_test(res[0].points[idx], res[0].points[idx - 1], res[0].points[idx + 1]);
@@ -277,7 +278,7 @@ SCENARIO("thin walls: ")
 
             THEN("medial axis of a (bit too narrow) french cross is two lines has only strait lines (first line)"){
                 double min_angle = 1, max_angle = -1;
-                for (int idx = 1; idx < res[0].size() - 1; idx++){
+                for (size_t idx = 1; idx + 1 < res[0].size(); ++idx){
                     //double angle = lines[idx - 1].ccw(lines[idx].b);
                     double angle = ccw_angle_for_test(res[0].points[idx], res[0].points[idx - 1], res[0].points[idx + 1]);
                     min_angle = std::min(min_angle, angle);
@@ -288,7 +289,7 @@ SCENARIO("thin walls: ")
             }
             THEN("medial axis of a (bit too narrow) french cross is two lines has only strait lines (second line)"){
                 double min_angle = 1, max_angle = -1;
-                for (int idx = 1; idx < res[1].size() - 1; idx++){
+                for (size_t idx = 1; idx + 1 < res[1].size(); ++idx){
                     //double angle = lines[idx - 1].ccw(lines[idx].b);
                     double angle = ccw_angle_for_test(res[1].points[idx], res[1].points[idx - 1], res[1].points[idx + 1]);
                     min_angle = std::min(min_angle, angle);
@@ -393,8 +394,7 @@ SCENARIO("thin walls: ")
                     coord_t l2 = 0;
                     for (size_t idx = res[0].points_width.size() - 1; idx > 0 && res[0].points_width[idx] - scale_(1.2) < SCALED_EPSILON; --idx)
                         l2 += coord_t(Line(res[0].points[idx - 1], res[0].points[idx]).length());
-                    //here the taper is limited by the 0-width spacing
-                    double min_width = Flow::new_from_spacing(float(unscaled(nozzle_diam)), float(unscaled(nozzle_diam)), 0.6f, 1.f, false).scaled_width();
+                    // Here the taper is limited by the zero-width spacing.
                     REQUIRE(std::abs(l1 - l2) < SCALED_EPSILON);
                     REQUIRE(l1 < scale_t(0.6));
                     REQUIRE(l1  > scale_t(0.4));

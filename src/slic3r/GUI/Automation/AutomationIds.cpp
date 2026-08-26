@@ -47,4 +47,9 @@ std::string tab(const wxString& caption)
     return std::string(PREFIX) + "tab." + slug(caption);
 }
 
+std::string calibration(const std::string& fragment)
+{
+    return std::string(PREFIX) + "calibration." + fragment;
+}
+
 } // namespace Slic3r::GUI::AutomationIds

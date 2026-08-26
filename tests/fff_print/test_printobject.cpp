@@ -94,7 +94,7 @@ SCENARIO("PrintObject: minimum horizontal shells", "[PrintObject]") {
         TestMesh m { TestMesh::cube_20x20x20 };
         Slic3r::Model model;
 
-        config.set_deserialize({
+        config.set_deserialize_strict({
                                {"nozzle_diameter", 3},
                                {"bottom_solid_layers", 0},
                                {"top_solid_layers", 0},
@@ -113,24 +113,24 @@ SCENARIO("PrintObject: minimum horizontal shells", "[PrintObject]") {
             print.process();
             THEN("Layers 0-9 are solid (Z < 1.0) (all fill_surfaces are solid)") {
                 for (int i = 0; i < 10; i++) {
-                    CHECK(print.objects().at(0)->layers().at(i)->print_z <= (i+1 * 0.1));
-                    for (auto* r : print.objects().at(0)->layers().at(i)->regions()) {
-                        for (auto s : r->fill_surfaces) {
+                    CHECK(print.objects()[0]->layers()[size_t(i)]->print_z <= ((i + 1) * 0.1));
+                    for (auto* r : print.objects()[0]->layers()[size_t(i)]->regions()) {
+                        for (auto s : r->fill_surfaces()) {
                             REQUIRE(s.has_fill_solid());
                         }
                     }
                 }
             }
             AND_THEN("Layer 10 (Z > 1.0) is not solid.") {
-                for (auto* r : print.objects().at(0)->layers().at(10)->regions()) {
-                    for (auto s : r->fill_surfaces) {
+                for (auto* r : print.objects()[0]->layers()[10]->regions()) {
+                    for (auto s : r->fill_surfaces()) {
                         REQUIRE(!s.has_fill_solid());
                     }
                 }
             }
             AND_THEN("Top layer is not solid.") {
-                for (auto* r : print.objects().at(0)->layers().back()->regions()) {
-                    for (auto s : r->fill_surfaces) {
+                for (auto* r : print.objects()[0]->layers().back()->regions()) {
+                    for (auto s : r->fill_surfaces()) {
                         REQUIRE(!s.has_fill_solid());
                     }
                 }
@@ -144,24 +144,24 @@ SCENARIO("PrintObject: minimum horizontal shells", "[PrintObject]") {
             print.process();
             AND_THEN("Layers 0-12 are solid (bottom of layer >= 1.22) (all fill_surfaces are solid)") {
                 for (int i = 0; i < 13; i++) {
-                    CHECK(print.objects().front()->layers().at(i)->print_z <= (i+1 * 0.1));
-                    for (auto* r : print.objects().at(0)->layers().at(i)->regions()) {
-                        for (auto s : r->fill_surfaces) {
+                    CHECK(print.objects().front()->layers()[size_t(i)]->print_z <= ((i + 1) * 0.1));
+                    for (auto* r : print.objects()[0]->layers()[size_t(i)]->regions()) {
+                        for (auto s : r->fill_surfaces()) {
                             REQUIRE(s.has_fill_solid());
                         }
                     }
                 }
             }
             AND_THEN("Layer 13 (Z > 1.0) is not solid.") {
-                for (auto* r : print.objects().at(0)->layers().at(13)->regions()) {
-                    for (auto s : r->fill_surfaces) {
+                for (auto* r : print.objects()[0]->layers()[13]->regions()) {
+                    for (auto s : r->fill_surfaces()) {
                         REQUIRE(!s.has_fill_solid());
                     }
                 }
             }
             AND_THEN("Top layer is not solid.") {
-                for (auto* r : print.objects().at(0)->layers().back()->regions()) {
-                    for (auto s : r->fill_surfaces) {
+                for (auto* r : print.objects()[0]->layers().back()->regions()) {
+                    for (auto s : r->fill_surfaces()) {
                         REQUIRE(!s.has_fill_solid());
                     }
                 }
@@ -175,27 +175,27 @@ SCENARIO("PrintObject: minimum horizontal shells", "[PrintObject]") {
             Slic3r::Test::init_print({m}, print, model, config);
             print.process();
             for (int i = 0; i < 20; i++)
-                print.objects().at(0)->layers().at(i)->make_fills();
+                print.get_object(0)->get_layer(i)->make_fills(nullptr, nullptr, nullptr);
             AND_THEN("Layers 0-13 are solid (bottom of layer >= 1.22) (all fill_surfaces are solid)") {
                 for (int i = 0; i < 14; i++) {
-                    CHECK(print.objects().at(0)->layers().at(i)->print_z <= (i+1 * 0.1));
-                    for (auto* r : print.objects().at(0)->layers().at(i)->regions()) {
-                        for (auto s : r->fill_surfaces) {
+                    CHECK(print.objects()[0]->layers()[size_t(i)]->print_z <= ((i + 1) * 0.1));
+                    for (auto* r : print.objects()[0]->layers()[size_t(i)]->regions()) {
+                        for (auto s : r->fill_surfaces()) {
                             REQUIRE(s.has_fill_solid());
                         }
                     }
                 }
             }
             AND_THEN("Layer 14 is not solid.") {
-                for (auto* r : print.objects().at(0)->layers().at(14)->regions()) {
-                    for (auto s : r->fill_surfaces) {
+                for (auto* r : print.objects()[0]->layers()[14]->regions()) {
+                    for (auto s : r->fill_surfaces()) {
                         REQUIRE(!s.has_fill_solid());
                     }
                 }
             }
             AND_THEN("Top layer is not solid.") {
-                for (auto* r : print.objects().at(0)->layers().back()->regions()) {
-                    for (auto s : r->fill_surfaces) {
+                for (auto* r : print.objects()[0]->layers().back()->regions()) {
+                    for (auto s : r->fill_surfaces()) {
                         REQUIRE(!s.has_fill_solid());
                     }
                 }
@@ -208,24 +208,24 @@ SCENARIO("PrintObject: minimum horizontal shells", "[PrintObject]") {
             print.process();
             THEN("Top 9 Layers are solid (Z < 1.0) (all fill_surfaces are solid)") {
                 for (int i = 0; i < 10; i++) {
-                    CHECK(print.objects().at(0)->layers().at(i)->print_z <= (i+1 * 0.1));
-                    for (auto* r : print.objects().at(0)->layers().at(i)->regions()) {
-                        for (auto s : r->fill_surfaces) {
+                    CHECK(print.objects()[0]->layers()[size_t(i)]->print_z <= ((i + 1) * 0.1));
+                    for (auto* r : print.objects()[0]->layers()[size_t(i)]->regions()) {
+                        for (auto s : r->fill_surfaces()) {
                             REQUIRE(s.has_fill_solid());
                         }
                     }
                 }
             }
             AND_THEN("Layer 10 (Z > 1.0) is not solid.") {
-                for (auto* r : print.objects().at(0)->layers().at(10)->regions()) {
-                    for (auto s : r->fill_surfaces) {
+                for (auto* r : print.objects()[0]->layers()[10]->regions()) {
+                    for (auto s : r->fill_surfaces()) {
                         REQUIRE(!s.has_fill_solid());
                     }
                 }
             }
             AND_THEN("Top layer is not solid.") {
-                for (auto* r : print.objects().at(0)->layers().back()->regions()) {
-                    for (auto s : r->fill_surfaces) {
+                for (auto* r : print.objects()[0]->layers().back()->regions()) {
+                    for (auto s : r->fill_surfaces()) {
                         REQUIRE(!s.has_fill_solid());
                     }
                 }
@@ -239,24 +239,24 @@ SCENARIO("PrintObject: minimum horizontal shells", "[PrintObject]") {
             print.process();
             AND_THEN("Layers 0-12 are solid (bottom of layer >= 1.22) (all fill_surfaces are solid)") {
                 for (int i = 0; i < 13; i++) {
-                    CHECK(print.objects().front()->layers().at(i)->print_z <= (i+1 * 0.1));
-                    for (auto* r : print.objects().at(0)->layers().at(i)->regions()) {
-                        for (auto s : r->fill_surfaces) {
+                    CHECK(print.objects().front()->layers()[size_t(i)]->print_z <= ((i + 1) * 0.1));
+                    for (auto* r : print.objects()[0]->layers()[size_t(i)]->regions()) {
+                        for (auto s : r->fill_surfaces()) {
                             REQUIRE(s.has_fill_solid());
                         }
                     }
                 }
             }
             AND_THEN("Layer 13 (Z > 1.0) is not solid.") {
-                for (auto* r : print.objects().at(0)->layers().at(13)->regions()) {
-                    for (auto s : r->fill_surfaces) {
+                for (auto* r : print.objects()[0]->layers()[13]->regions()) {
+                    for (auto s : r->fill_surfaces()) {
                         REQUIRE(!s.has_fill_solid());
                     }
                 }
             }
             AND_THEN("Top layer is not solid.") {
-                for (auto* r : print.objects().at(0)->layers().back()->regions()) {
-                    for (auto s : r->fill_surfaces) {
+                for (auto* r : print.objects()[0]->layers().back()->regions()) {
+                    for (auto s : r->fill_surfaces()) {
                         REQUIRE(!s.has_fill_solid());
                     }
                 }
@@ -270,27 +270,27 @@ SCENARIO("PrintObject: minimum horizontal shells", "[PrintObject]") {
             Slic3r::Test::init_print({m}, print, model, config);
             print.process();
             for (int i = 0; i < 20; i++)
-                print.objects().at(0)->layers().at(i)->make_fills();
+                print.get_object(0)->get_layer(i)->make_fills(nullptr, nullptr, nullptr);
             AND_THEN("Layers 0-13 are solid (bottom of layer >= 1.22) (all fill_surfaces are solid)") {
                 for (int i = 0; i < 14; i++) {
-                    CHECK(print.objects().at(0)->layers().at(i)->print_z <= (i+1 * 0.1));
-                    for (auto* r : print.objects().at(0)->layers().at(i)->regions()) {
-                        for (auto s : r->fill_surfaces) {
+                    CHECK(print.objects()[0]->layers()[size_t(i)]->print_z <= ((i + 1) * 0.1));
+                    for (auto* r : print.objects()[0]->layers()[size_t(i)]->regions()) {
+                        for (auto s : r->fill_surfaces()) {
                             REQUIRE(s.has_fill_solid());
                         }
                     }
                 }
             }
             AND_THEN("Layer 14 is not solid.") {
-                for (auto* r : print.objects().at(0)->layers().at(14)->regions()) {
-                    for (auto s : r->fill_surfaces) {
+                for (auto* r : print.objects()[0]->layers()[14]->regions()) {
+                    for (auto s : r->fill_surfaces()) {
                         REQUIRE(!s.has_fill_solid());
                     }
                 }
             }
             AND_THEN("Top layer is not solid.") {
-                for (auto* r : print.objects().at(0)->layers().back()->regions()) {
-                    for (auto s : r->fill_surfaces) {
+                for (auto* r : print.objects()[0]->layers().back()->regions()) {
+                    for (auto s : r->fill_surfaces()) {
                         REQUIRE(!s.has_fill_solid());
                     }
                 }

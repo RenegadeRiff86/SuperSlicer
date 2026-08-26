@@ -124,9 +124,7 @@ SCENARIO("Flow: Flow math for non-bridges", "[!mayfail]") {
         auto width_1 = ConfigOptionFloatOrPercent(1.0, false);
         auto spacing_1 = ConfigOptionFloatOrPercent(1.0, false);
         spacing_1.set_phony(true);
-        float spacing {0.4f};
         float nozzle_diameter {0.4f};
-        float bridge_flow {1.0f};
         float layer_height {0.25f};
         float spacing_ratio = 1.0f;
 
@@ -202,8 +200,6 @@ SCENARIO("Flow: Flow math for bridges", "[!mayfail]") {
         auto width {ConfigOptionFloatOrPercent{1.0, false}};
         auto spacing = ConfigOptionFloatOrPercent(1.0, false);
         float nozzle_diameter {0.4f};
-        float spacing_ratio {1.0f};
-        float layer_height {0.5f};
         WHEN("via bridging_flow()") {
             auto flow {Flow::bridging_flow(nozzle_diameter, nozzle_diameter)};
             THEN("Bridge width is same as nozzle diameter") {

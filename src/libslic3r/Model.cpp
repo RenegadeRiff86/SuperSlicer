@@ -20,10 +20,7 @@
 #include "ModelArrange.hpp"
 #include "Geometry/ConvexHull.hpp"
 #include "Polygon.hpp"
-#include "ClipperUtils.hpp"
 #include "Print.hpp"
-#include "MTUtils.hpp"
-#include "TriangleMeshSlicer.hpp"
 #include "TriangleSelector.hpp"
 
 #include "Format/AMF.hpp"
@@ -43,9 +40,7 @@
 
 #include <oneapi/tbb/concurrent_vector.h>
 
-#include "SVG.hpp"
 #include <Eigen/Dense>
-#include "GCode/GCodeWriter.hpp"
 
 namespace Slic3r {
 
@@ -390,7 +385,7 @@ ModelMaterial* Model::add_material(t_model_material_id material_id, const ModelM
         this->materials.emplace(material_id, material);
     }
 
-    material_owner.release();
+    static_cast<void>(material_owner.release());
     return material;
 }
 

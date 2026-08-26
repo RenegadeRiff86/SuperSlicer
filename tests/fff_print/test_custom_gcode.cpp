@@ -1,15 +1,11 @@
 #include <catch2/catch.hpp>
 
-#include <exception>
-#include <numeric>
-#include <sstream>
-
 #include <boost/regex.hpp>
 
 #include "libslic3r/Config.hpp"
+#include "libslic3r/GCodeReader.hpp"
 #include "libslic3r/Print.hpp"
 #include "libslic3r/PrintConfig.hpp"
-#include "libslic3r/libslic3r.h"
 
 #include "test_data.hpp"
 

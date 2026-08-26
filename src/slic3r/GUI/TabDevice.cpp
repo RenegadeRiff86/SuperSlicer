@@ -102,15 +102,15 @@ TabDevice::TabDevice(wxWindow* parent)
 
 void TabDevice::load_printer_url()
 {
-    clear_printer_url();
-
     if (!wxGetApp().preset_bundle) {
+        clear_printer_url();
         show_message(_L("Printer configuration is not available yet."));
         return;
     }
 
     DynamicPrintConfig* cfg = wxGetApp().preset_bundle->physical_printers.get_selected_printer_config();
     if (!cfg) {
+        clear_printer_url();
         show_message(_L("No physical printer is selected.\nGo to Printer Settings and select a physical printer with a host address."));
         return;
     }
@@ -118,6 +118,7 @@ void TabDevice::load_printer_url()
     wxString url = wxString::FromUTF8(cfg->opt_string("print_host"));
     url.Trim(true).Trim(false);
     if (url.empty()) {
+        clear_printer_url();
         show_message(_L("The selected physical printer has no host address configured.\nEdit the physical printer and set the hostname or IP address."));
         return;
     }
@@ -130,6 +131,11 @@ void TabDevice::load_printer_url()
 
 #if wxUSE_WEBVIEW
     if (m_webview) {
+        // Switching to this tab re-enters here. Reloading the same host cancels the
+        // in-flight request and WebKit reports that as a connection failure.
+        if (m_target_url == url && m_webview->IsShown())
+            return;
+        m_target_url = url;
         show_webview();
         m_webview->LoadURL(url);
         return;
@@ -143,6 +149,9 @@ void TabDevice::clear_printer_url()
 {
     m_url_bar->Clear();
     m_open_browser_button->Disable();
+#if wxUSE_WEBVIEW
+    m_target_url.clear();
+#endif
 }
 
 void TabDevice::open_in_browser()
@@ -160,15 +169,31 @@ void TabDevice::open_in_browser()
 #if wxUSE_WEBVIEW
 void TabDevice::on_webview_error(wxWebViewEvent& evt)
 {
+    const wxString url = evt.GetURL();
+    const wxString detail = evt.GetString();
+    // The view is created on about:blank. Replacing that URL, or calling LoadURL
+    // again, cancels the previous request. WebKit reports the destination URL
+    // with "Load request cancelled" — that is not a failed connection.
+    if (url.empty() || url == "about:blank")
+        return;
+    if (detail.Lower().Find("cancel") != wxNOT_FOUND)
+        return;
+#ifdef wxWEBVIEW_NAV_ERR_USER_CANCELLED
+    if (evt.GetInt() == wxWEBVIEW_NAV_ERR_USER_CANCELLED)
+        return;
+#endif
     wxString msg = wxString::Format(
         _L("Failed to connect to printer web interface.\n\nURL: %s\nError: %s\n\nYou can also use Open in Browser."),
-        evt.GetURL(), evt.GetString());
+        url, detail);
     show_message(msg);
 }
 
 void TabDevice::on_webview_navigated(wxWebViewEvent& evt)
 {
-    m_url_bar->SetValue(evt.GetURL());
+    const wxString url = evt.GetURL();
+    if (url.empty() || url == "about:blank")
+        return;
+    m_url_bar->SetValue(url);
     m_open_browser_button->Enable();
 }
 #endif

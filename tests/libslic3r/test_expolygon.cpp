@@ -72,13 +72,13 @@ SCENARIO("Basics", "[ExPolygon]") {
 #include "libslic3r/ExPolygonSerialize.hpp"
 TEST_CASE("Serialization of expolygons", "[ExPolygon, Cereal, serialization]")
 {
-    ExPolygons expolys{{
+    ExPolygons expolys{
         // expolygon 1 - without holes
-        {{0,0}, {10,0}, {10,10}, {0,10}}, // contour
+        ExPolygon{{0,0}, {10,0}, {10,10}, {0,10}},
         // expolygon 2 - with rect 1px hole
-        {{{0,0}, {10,0}, {10,10}, {0,10}},
-        {{5, 5}, {6, 5}, {6, 6}, {5, 6}}}
-    }};
+        ExPolygon{{{0,0}, {10,0}, {10,10}, {0,10}},
+                  {{5, 5}, {6, 5}, {6, 6}, {5, 6}}}
+    };
 
     std::stringstream ss; // any stream can be used
     {
@@ -103,13 +103,13 @@ TEST_CASE("Serialization of expolygons", "[ExPolygon, Cereal, serialization]")
 // It is used to serialize expolygons into 3mf.
 TEST_CASE("Serialization of expolygons to string", "[ExPolygon, Cereal, serialization]")
 {
-    ExPolygons expolys{{
+    ExPolygons expolys{
         // expolygon 1 - without holes
-        {{0,0}, {10,0}, {10,10}, {0,10}}, // contour
+        ExPolygon{{0,0}, {10,0}, {10,10}, {0,10}},
         // expolygon 2 - with rect 1px hole
-        {{{0,0}, {10,0}, {10,10}, {0,10}},
-        {{5, 5}, {6, 5}, {6, 6}, {5, 6}}} 
-    }};
+        ExPolygon{{{0,0}, {10,0}, {10,10}, {0,10}},
+                  {{5, 5}, {6, 5}, {6, 6}, {5, 6}}}
+    };
 
     std::stringstream ss_out; // any stream can be used
     {

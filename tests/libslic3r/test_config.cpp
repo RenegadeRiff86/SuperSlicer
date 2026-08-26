@@ -2,7 +2,8 @@
 
 #include "libslic3r/Config.hpp"
 #include "libslic3r/PrintConfig.hpp"
-#include "libslic3r/LocalesUtils.hpp"#include "libslic3r/Model.hpp"
+#include "libslic3r/LocalesUtils.hpp"
+#include "libslic3r/Model.hpp"
 #include "libslic3r/Print.hpp"
 #include <test_data.hpp>
 
@@ -52,46 +53,46 @@ TEST_CASE("Dynamic config serialization - tests ConfigBase", "[Config]"){
     CHECK(config.opt_serialize("extruder_offset") == "10x20,30x45");
     INFO("Deserialize points");
     config.set_deserialize_strict("extruder_offset", "20x10");
-    CHECK(config.option<ConfigOptionPoints>("extruder_offset")->values == std::vector{Vec2d{20, 10}});
+    CHECK(config.option<ConfigOptionPoints>("extruder_offset")->get_values() == std::vector{Vec2d{20, 10}});
 
     INFO("Serialize floats");
     config.set_key_value("nozzle_diameter", std::make_unique<ConfigOptionFloats>(ConfigOptionFloats{0.2, 3}));
     CHECK(config.opt_serialize("nozzle_diameter") == "0.2,3");
     INFO("Deserialize floats");
     config.set_deserialize_strict("nozzle_diameter", "0.1,0.4");
-    CHECK_THAT(config.option<ConfigOptionFloats>("nozzle_diameter")->values, Catch::Matchers::Approx(std::vector{0.1, 0.4}));
+    CHECK_THAT(config.option<ConfigOptionFloats>("nozzle_diameter")->get_values(), Catch::Matchers::Approx(std::vector{0.1, 0.4}));
     INFO("Deserialize floats from one value");
     config.set_deserialize_strict("nozzle_diameter", "3");
-    CHECK_THAT(config.option<ConfigOptionFloats>("nozzle_diameter")->values, Catch::Matchers::Approx(std::vector{3.0}));
+    CHECK_THAT(config.option<ConfigOptionFloats>("nozzle_diameter")->get_values(), Catch::Matchers::Approx(std::vector{3.0}));
 
     INFO("Serialize ints");
     config.set_key_value("temperature", std::make_unique<ConfigOptionInts>(ConfigOptionInts{180, 210}));
     CHECK(config.opt_serialize("temperature") == "180,210");
     INFO("Deserialize ints");
     config.set_deserialize_strict("temperature", "195,220");
-    CHECK(config.option<ConfigOptionInts>("temperature")->values == std::vector{195,220});
+    CHECK(config.option<ConfigOptionInts>("temperature")->get_values() == std::vector{195,220});
 
     INFO("Serialize bools");
     config.set_key_value("wipe", std::make_unique<ConfigOptionBools>(ConfigOptionBools{true, false}));
     CHECK(config.opt_serialize("wipe") == "1,0");
     INFO("Deserialize bools");
     config.set_deserialize_strict("wipe", "0,1,1");
-    CHECK(config.option<ConfigOptionBools>("wipe")->values == std::vector<unsigned char>{false, true, true});
+    CHECK(config.option<ConfigOptionBools>("wipe")->get_values() == std::vector<unsigned char>{false, true, true});
 
     INFO("Deserialize bools from empty stirng");
     config.set_deserialize_strict("wipe", "");
-    CHECK(config.option<ConfigOptionBools>("wipe")->values == std::vector<unsigned char>{});
+    CHECK(config.option<ConfigOptionBools>("wipe")->get_values() == std::vector<unsigned char>{});
 
     INFO("Deserialize bools from value");
     config.set_deserialize_strict({{"wipe", 1}});
-    CHECK(config.option<ConfigOptionBools>("wipe")->values == std::vector<unsigned char>{true});
+    CHECK(config.option<ConfigOptionBools>("wipe")->get_values() == std::vector<unsigned char>{true});
 
     INFO("Serialize strings");
     config.set_key_value("post_process", std::make_unique<ConfigOptionStrings>(ConfigOptionStrings{"foo", "bar"}));
     CHECK(config.opt_serialize("post_process") == "foo;bar");
     INFO("Deserialize strings");
     config.set_deserialize_strict("post_process", "bar;baz");
-    CHECK(config.option<ConfigOptionStrings>("post_process")->values == std::vector<std::string>{"bar", "baz"});
+    CHECK(config.option<ConfigOptionStrings>("post_process")->get_values() == std::vector<std::string>{"bar", "baz"});
 }
 
 TEST_CASE("Get keys", "[Config]"){
@@ -139,7 +140,7 @@ TEST_CASE("Config apply dynamic to dynamic", "[Config]") {
     config2.apply(config, true);
 
     CHECK(
-        config2.option<ConfigOptionPoints>("extruder_offset")->values ==
+        config2.option<ConfigOptionPoints>("extruder_offset")->get_values() ==
         std::vector<Vec2d>{{0, 0}, {20, 0}, {0, 20}}
     );
 }
@@ -150,7 +151,7 @@ TEST_CASE("Get abs value on percent", "[Config]") {
 
     config->set_deserialize_strict("solid_infill_speed", "60");
     config->set_deserialize_strict("top_solid_infill_speed", "10%");
-    CHECK(config->get_abs_value("top_solid_infill_speed") == 6);
+    CHECK(config->get_abs_value("top_solid_infill_speed", 60.) == 6);
 }
 
 TEST_CASE("No interference between DynamicConfig objects", "[Config]") {
@@ -187,7 +188,7 @@ TEST_CASE("Normalize fdm retract layer change", "[Config]") {
     config.set("spiral_vase", true, true);
     config.set_key_value("retract_layer_change", std::make_unique<ConfigOptionBools>(ConfigOptionBools{true, false}));
     config.normalize_fdm();
-    CHECK(config.option<ConfigOptionBools>("retract_layer_change")->values == std::vector<unsigned char>{0, 0});
+    CHECK(config.option<ConfigOptionBools>("retract_layer_change")->get_values() == std::vector<unsigned char>{0, 0});
 }
 
 TEST_CASE("Can read ini with invalid items", "[Config]") {
@@ -244,10 +245,10 @@ TEST_CASE("Config serialization of multiple values", "[Config]"){
         CHECK(config.opt_serialize("filament_notes") == data.serialized);
 
         config.set_deserialize_strict("filament_notes", "");
-        CHECK(config.option<ConfigOptionStrings>("filament_notes")->values == std::vector<std::string>{});
+        CHECK(config.option<ConfigOptionStrings>("filament_notes")->get_values() == std::vector<std::string>{});
 
         config.set_deserialize_strict("filament_notes", data.serialized);
-        CHECK(config.option<ConfigOptionStrings>("filament_notes")->values == data.values);
+        CHECK(config.option<ConfigOptionStrings>("filament_notes")->get_values() == data.values);
     }
 }
 
@@ -281,13 +282,13 @@ SCENARIO("Config accessor functions perform as expected.", "[Config]") {
         WHEN("A boolean option is set to a boolean value") {
             REQUIRE_NOTHROW(config.set("gcode_comments", true));
             THEN("The underlying value is set correctly.") {
-                REQUIRE(config.opt<ConfigOptionBool>("gcode_comments")->getBool() == true);
+                REQUIRE(config.opt<ConfigOptionBool>("gcode_comments")->get_bool() == true);
             }
         }
         WHEN("A boolean option is set to a string value representing a 0 or 1") {
             CHECK_NOTHROW(config.set_deserialize_strict("gcode_comments", "1"));
             THEN("The underlying value is set correctly.") {
-                REQUIRE(config.opt<ConfigOptionBool>("gcode_comments")->getBool() == true);
+                REQUIRE(config.opt<ConfigOptionBool>("gcode_comments")->get_bool() == true);
             }
         }
         WHEN("A boolean option is set to a string value representing something other than 0 or 1") {
@@ -295,7 +296,7 @@ SCENARIO("Config accessor functions perform as expected.", "[Config]") {
                 REQUIRE_THROWS_AS(config.set("gcode_comments", "Z"), BadOptionTypeException);
             }
             AND_THEN("Value is unchanged.") {
-                REQUIRE(config.opt<ConfigOptionBool>("gcode_comments")->getBool() == false);
+                REQUIRE(config.opt<ConfigOptionBool>("gcode_comments")->get_bool() == false);
             }
         }
         WHEN("A boolean option is set to an int value") {
@@ -312,13 +313,13 @@ SCENARIO("Config accessor functions perform as expected.", "[Config]") {
         WHEN("An floating-point option is set through the integer interface") {
             config.set("perimeter_speed", 10);
             THEN("The underlying value is set correctly.") {
-                REQUIRE(config.opt<ConfigOptionFloat>("perimeter_speed")->getFloat() == 10.0);
+                REQUIRE(config.opt<ConfigOptionFloat>("perimeter_speed")->get_float() == 10.0);
             }
         }
         WHEN("A floating-point option is set through the double interface") {
             config.set("perimeter_speed", 5.5);
             THEN("The underlying value is set correctly.") {
-                REQUIRE(config.opt<ConfigOptionFloat>("perimeter_speed")->getFloat() == 5.5);
+                REQUIRE(config.opt<ConfigOptionFloat>("perimeter_speed")->get_float() == 5.5);
             }
         }
         WHEN("An integer-based option is set through the double interface") {
@@ -331,7 +332,7 @@ SCENARIO("Config accessor functions perform as expected.", "[Config]") {
                 REQUIRE_THROWS_AS(config.set_deserialize_strict("perimeter_speed", "zzzz"), BadOptionValueException);
             }
             THEN("The value does not change.") {
-                REQUIRE(config.opt<ConfigOptionFloat>("perimeter_speed")->getFloat() == 60.0);
+                REQUIRE(config.opt<ConfigOptionFloat>("perimeter_speed")->get_float() == 60.0);
             }
         }
         WHEN("A string option is set through the string interface") {
@@ -441,8 +442,8 @@ SCENARIO("Config ini load/save interface", "[Config]") {
         std::string path = std::string(TEST_DATA_DIR) + "/test_config/new_from_ini.ini";
         config.load_from_ini(path, ForwardCompatibilitySubstitutionRule::Disable);
         THEN("Config object contains ini file options.") {
-            REQUIRE(config.option_throw<ConfigOptionStrings>("filament_colour", false)->values.size() == 1);
-            REQUIRE(config.option_throw<ConfigOptionStrings>("filament_colour", false)->values.front() == "#ABCD");
+            REQUIRE(config.option_throw<ConfigOptionStrings>("filament_colour", false)->get_values().size() == 1);
+            REQUIRE(config.option_throw<ConfigOptionStrings>("filament_colour", false)->get_values().front() == "#ABCD");
         }
     }
 }

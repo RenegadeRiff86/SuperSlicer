@@ -104,7 +104,6 @@ Flow LayerRegion::bridging_flow(FlowRole role, BridgeType force_type) const
 // Fill in layerm->m_fill_surfaces by trimming the layerm->slices by layerm->fill_expolygons.
 void LayerRegion::slices_to_fill_surfaces_clipped(coord_t opening_offset)
 {
-    const coord_t scaled_resolution = std::max(SCALED_EPSILON, scale_t(this->layer()->object()->print()->config().resolution.value));
     // Collect polygons per surface type.
     std::map<SurfaceType, ExPolygons> polygons_by_surface;
     for (const Surface &surface : this->slices().surfaces) {
@@ -237,7 +236,10 @@ void LayerRegion::make_perimeters(
             m_fill_no_overlap_expolygons
         );
 
-        for(auto *peri : this->m_perimeters.entities()) assert(!peri->empty());
+#ifndef NDEBUG
+        for (const auto *peri : this->m_perimeters.entities())
+            assert(!peri->empty());
+#endif
 
         perimeter_and_gapfill_ranges.emplace_back(
             ExtrusionRange{ uint32_t(perimeters_begin), uint32_t(m_perimeters.size()) }, 
@@ -802,7 +804,6 @@ void LayerRegion::process_external_surfaces_old(const Layer *lower_layer, const 
         max_margin = (this->flow(frExternalPerimeter).scaled_width() + this->flow(frPerimeter).scaled_spacing()) /2 +
             this->flow(frPerimeter).scaled_spacing() * (this->region().config().perimeters.value - 1);
     }
-    const Surfaces &surfaces = this->m_fill_surfaces.surfaces;
     const bool has_infill = this->region().config().fill_density.value > 0.;
     coord_t margin = scale_t(this->region().config().external_infill_margin.get_abs_value(unscaled(max_margin)));
     coord_t margin_bridged = scale_t(this->region().config().bridged_infill_margin.get_abs_value(this->flow(frExternalPerimeter).width()));
@@ -849,10 +850,10 @@ void LayerRegion::process_external_surfaces_old(const Layer *lower_layer, const 
                     // This gives the priority to bottom surfaces.
                     // collapse & grow
                     ExPolygons shrunk_expoly = offset_ex({surface.expolygon},
-                                                         double(-min_half_width / 10),
+                                                         -double(min_half_width) / 10.,
                                                          EXTERNAL_SURFACES_OFFSET_PARAMETERS);
                     if (!shrunk_expoly.empty()) {
-                        ExPolygons grown_expoly = offset_ex(shrunk_expoly, double(margin + min_half_width / 10),
+                        ExPolygons grown_expoly = offset_ex(shrunk_expoly, double(margin) + double(min_half_width) / 10.,
                                                             EXTERNAL_SURFACES_OFFSET_PARAMETERS);
                         // ensure it's printable.
                         if (margin < min_half_width) {
@@ -872,10 +873,10 @@ void LayerRegion::process_external_surfaces_old(const Layer *lower_layer, const 
                 } else if (surface.has_pos_bottom() && (!surface.has_mod_bridge() || lower_layer == nullptr)) {
                     // collapse & grow
                     ExPolygons shrunk_expoly = offset_ex({surface.expolygon},
-                                                         double(-min_half_width / 10),
+                                                         -double(min_half_width) / 10.,
                                                          EXTERNAL_SURFACES_OFFSET_PARAMETERS);
                     if (!shrunk_expoly.empty()) {
-                        ExPolygons grown_expoly = offset_ex(shrunk_expoly, double(margin + min_half_width / 10),
+                        ExPolygons grown_expoly = offset_ex(shrunk_expoly, double(margin) + double(min_half_width) / 10.,
                                                             EXTERNAL_SURFACES_OFFSET_PARAMETERS);
                         // ensure it's printable.
                         if (margin < min_half_width) {
@@ -1162,7 +1163,6 @@ void LayerRegion::process_external_surfaces_old(const Layer *lower_layer, const 
     }
 
     Surfaces new_surfaces;
-    const coord_t scaled_resolution = std::max(SCALED_EPSILON, scale_t(this->layer()->object()->print()->config().resolution.value));
     {
         // Intersect the grown surfaces with the actual fill boundaries.
         Polygons bottom_polygons = to_polygons(bottom);
@@ -1233,7 +1233,6 @@ void LayerRegion::prepare_fill_surfaces()
         the only meaningful information returned by psPerimeters. */
     
     bool spiral_vase = this->layer()->object()->print()->config().spiral_vase;
-    coordf_t scaled_resolution = std::max(SCALED_EPSILON, scale_t(this->layer()->object()->print()->config().resolution.value));
 
     // if no solid layers are requested, turn top/bottom surfaces to internal
     // For Lightning infill, infill_only_where_needed is ignored because both
@@ -1329,7 +1328,6 @@ void LayerRegion::trim_surfaces(const Polygons &trimming_polygons)
         surface.expolygon.assert_valid();
     }
 #endif /* NDEBUG */
-    coordf_t scaled_resolution = std::max(SCALED_EPSILON, scale_t(this->layer()->object()->print()->config().resolution.value));
     this->m_slices.set(ensure_valid(intersection_ex(this->slices().surfaces, trimming_polygons)/*, scaled_resolution*/), stPosInternal | stDensSparse);
     for(auto &srf : this->m_slices) srf.expolygon.assert_valid();
 }

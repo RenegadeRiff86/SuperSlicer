@@ -77,8 +77,8 @@ SCENARIO("Region expansion basics", "[RegionExpansion]") {
                 REQUIRE(expanded.front().size() == 2);
             }
             THEN("The area of each anchor is 100mm2") {
-                REQUIRE(area(expanded.front().front()) == Approx(sqr<double>(ten)));
-                REQUIRE(area(expanded.front().back()) == Approx(sqr<double>(ten)));
+                REQUIRE(area(expanded.front().front()) == Approx(sqr(double(ten))));
+                REQUIRE(area(expanded.front().back()) == Approx(sqr(double(ten))));
             }
         }
     }

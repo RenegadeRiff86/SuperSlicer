@@ -153,6 +153,8 @@ static void add_msg_content(MsgDialog* parent, wxBoxSizer* content_sizer, const 
     wxFont      font = wxGetApp().normal_font();//wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT);
     wxFont      monospace = wxGetApp().code_font();
     wxColour    text_clr = wxGetApp().get_label_clr_default();
+    if (!text_clr.IsOk())
+        text_clr = GUI_App::dark_mode() ? wxColour(230, 230, 230) : wxColour(0, 0, 0);
     auto        text_clr_str = encode_color(ColorRGB(text_clr.Red(), text_clr.Green(), text_clr.Blue()));
     auto        bgr_clr_str = wxGetApp().get_html_bg_color(parent);
     const int   font_size = font.GetPointSize();

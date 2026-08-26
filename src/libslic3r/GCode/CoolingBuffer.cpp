@@ -1059,8 +1059,6 @@ std::string CoolingBuffer::apply_layer_cooldown(
     {
         std::pair<int, int> custom_fan_speed_limits{fan_speeds[0], 100 }; // min is current layer base fan; max is 100 to allow full dynamic overhang override range
         int disable_fan_first_layers = EXTRUDER_CONFIG(disable_fan_first_layers);
-        // Is the fan speed ramp enabled?
-        int full_fan_speed_layer = EXTRUDER_CONFIG(full_fan_speed_layer);
         if (int(layer_id) >= disable_fan_first_layers) {
             int   max_fan_speed             = EXTRUDER_CONFIG(max_fan_speed);
             float slowdown_below_layer_time = float(EXTRUDER_CONFIG(slowdown_below_layer_time));

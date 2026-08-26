@@ -2,7 +2,6 @@
 ///|/ SuperSlicer is released under the terms of the AGPLv3 or higher.
 
 #include "AutomationServer.hpp"
-#include "AutomationFileDialog.hpp"
 #include "AutomationIds.hpp"
 #include "AutomationSecurity.hpp"
 #include "WaylandInput.hpp"
@@ -43,6 +42,7 @@
 #include <wx/menuitem.h>
 #include <wx/mstream.h>
 #include <wx/utils.h>
+#include <wx/scrolwin.h>
 #include <wx/slider.h>
 #include <wx/spinctrl.h>
 #include <wx/stdpaths.h>
@@ -74,8 +74,11 @@ namespace asio  = boost::asio;
 namespace beast = boost::beast;
 namespace http  = beast::http;
 using tcp       = asio::ip::tcp;
-using json      = nlohmann::json;
-using Clock     = std::chrono::steady_clock;
+using json                         = nlohmann::json;
+using Clock                        = std::chrono::steady_clock;
+using AutomationWindowSet          = std::set<wxWindow*>;
+using AutomationGizmosManager      = GLGizmosManager;
+using AutomationFdmSupportsGizmo   = GLGizmoFdmSupports;
 
 namespace {
 
@@ -709,6 +712,8 @@ private:
             { "paint_supports_by_angle", "superslicer_paint_supports_by_angle" },
             { "arm_file_dialog", "superslicer_arm_file_dialog" },
             { "file_dialog_status", "superslicer_file_dialog_status" },
+            { "window", "superslicer_window" },
+            { "scroll", "superslicer_scroll" },
             { "quit", "superslicer_quit" }
         };
         const auto found = tools.find(operation);
@@ -737,6 +742,8 @@ private:
             "superslicer_paint_supports_by_angle",
             TOOL_ARM_FILE_DIALOG,
             TOOL_FILE_DIALOG_STATUS,
+            "superslicer_window",
+            "superslicer_scroll",
             "superslicer_quit"
         };
         return std::find(names.begin(), names.end(), name) != names.end();
@@ -785,6 +792,8 @@ private:
             tool("superslicer_paint_supports_by_angle", "Paint support enforcers or blockers on facets steeper than an angle, and report how many facets each volume ended up with."),
             tool("superslicer_arm_file_dialog", "Queue the answer for the next file dialog, so an action that opens one can run unattended. Arm before triggering it."),
             tool("superslicer_file_dialog_status", "Report the file dialog the app raised most recently: title, wildcard, save or open, and the paths returned."),
+            tool("superslicer_window", "Read or move the SuperSlicer main window. Optional x, y, width, height in screen pixels."),
+            tool("superslicer_scroll", "Scroll the current settings page. Pass dy/dx in pixels or lines for wxScrolledWindow units."),
             tool("superslicer_quit", "Close the main window and exit. Forced by default, because every prompt on the way out is skipped only when the close cannot be vetoed.")
         });
     }
@@ -946,6 +955,10 @@ private:
             return gui_arm_file_dialog(arguments, request_id);
         if (tool == TOOL_FILE_DIALOG_STATUS)
             return gui_file_dialog_status(request_id);
+        if (tool == "superslicer_window")
+            return gui_window(arguments, request_id);
+        if (tool == "superslicer_scroll")
+            return gui_scroll(arguments, request_id);
         if (tool == "superslicer_quit")
             return gui_quit(arguments, request_id);
         if (tool == "__operation_status")
@@ -977,10 +990,22 @@ private:
             { "job_running", plater != nullptr && !plater->get_ui_job_worker().is_idle() },
             { "last_network_error", m_last_network_error }
         };
+        if (m_app.mainframe != nullptr) {
+            const wxPoint pos = m_app.mainframe->GetPosition();
+            const wxSize size = m_app.mainframe->GetSize();
+            status["window"] = {
+                { "x", pos.x },
+                { "y", pos.y },
+                { "width", size.x },
+                { "height", size.y }
+            };
+        }
         return success(std::move(status), request_id);
     }
 
+    #define SLIC3R_AUTOMATION_SERVER_GUI_IMPLEMENTATION
     #include "AutomationServerGui.inl"
+    #undef SLIC3R_AUTOMATION_SERVER_GUI_IMPLEMENTATION
 
 private:
     GUI_App& m_app;

@@ -7,7 +7,6 @@
 #include "Plater.hpp"
 
 #include <wx/scrolwin.h>
-#include <wx/display.h>
 #include <wx/file.h>
 
 #include <algorithm>
@@ -15,18 +14,12 @@
 #include <sstream>
 
 #include <boost/algorithm/string/case_conv.hpp>
+#include <boost/algorithm/string/replace.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/nowide/fstream.hpp>
+#include <boost/system/error_code.hpp>
 
-#if ENABLE_SCROLLABLE
-static wxSize get_screen_size(wxWindow* window)
-{
-    const auto idx = wxDisplay::GetFromWindow(window);
-    wxDisplay display(idx != wxNOT_FOUND ? idx : 0u);
-    return display.GetClientArea().GetSize();
-}
-#endif // ENABLE_SCROLLABLE
 
 namespace Slic3r {
 namespace GUI {
@@ -78,9 +71,63 @@ boost::filesystem::path resolve_calibration_html_path(
 
     return base / html_name;
 }
+
+bool html_has_jpeg_ref(const std::string& source)
+{
+    return source.find(".jpg") != std::string::npos
+        || source.find(".jpeg") != std::string::npos
+        || source.find(".JPG") != std::string::npos
+        || source.find(".JPEG") != std::string::npos;
+}
+
+// wxHtmlWindow decodes JPEG through whatever libjpeg is already mapped in the
+// process. SuperSlicer/wx is built against JPEG 62; GTK may have loaded JPEG 80.
+// jpeg_CreateDecompress then aborts: "Wrong JPEG library version: library is 80,
+// caller expects 62". Help images ship as PNG; leftover .jpg/.jpeg refs are
+// rewritten so a stale resource copy cannot take that path.
+void rewrite_jpeg_image_refs(std::string& source)
+{
+    boost::algorithm::replace_all(source, ".jpeg", ".png");
+    boost::algorithm::replace_all(source, ".JPEG", ".png");
+    boost::algorithm::replace_all(source, ".jpg", ".png");
+    boost::algorithm::replace_all(source, ".JPG", ".png");
+}
+
+void load_calibration_html(wxHtmlWindow* viewer, const boost::filesystem::path& full_file_path)
+{
+    boost::nowide::ifstream file(full_file_path.string().c_str());
+    std::string source;
+    if (file.good()) {
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        source = buffer.str();
+    }
+    const bool had_jpeg = html_has_jpeg_ref(source);
+    rewrite_jpeg_image_refs(source);
+    if (!had_jpeg || source.empty()) {
+        viewer->LoadPage(GUI::from_u8(full_file_path.string()));
+        return;
+    }
+    const boost::filesystem::path tmp =
+        full_file_path.parent_path() / (full_file_path.stem().string() + ".ss-htmlwin.html");
+    {
+        boost::nowide::ofstream out(tmp.string().c_str());
+        if (!out.good()) {
+            viewer->SetPage(GUI::from_u8(source));
+            return;
+        }
+        out << source;
+    }
+    viewer->LoadPage(GUI::from_u8(tmp.string()));
+    boost::system::error_code ec;
+    boost::filesystem::remove(tmp, ec);
+}
 } // namespace
 
 void CalibrationAbstractDialog::create(boost::filesystem::path html_path, const std::string& html_name, wxSize dialog_size, bool include_close_button){
+    // include_close_button is leftover from when these dialogs added their own Close.
+    // The window chrome is the closer now.
+    static_cast<void>(include_close_button);
 
     // Create a panel for the entire content
     wxPanel* main_panel = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxFULL_REPAINT_ON_RESIZE);
@@ -95,7 +142,7 @@ void CalibrationAbstractDialog::create(boost::filesystem::path html_path, const 
     // Create the HTML viewer and load the page
     html_viewer = new wxHtmlWindow(main_panel, wxID_ANY,
         wxDefaultPosition, wxDefaultSize, wxHW_SCROLLBAR_AUTO);
-    html_viewer->LoadPage(GUI::from_u8(full_file_path.string()));
+    load_calibration_html(html_viewer, full_file_path);
     // when using hyperlink, open the browser.
     html_viewer->Bind(wxEVT_HTML_LINK_CLICKED, [](wxHtmlLinkEvent& evt) {
         wxLaunchDefaultBrowser(evt.GetLinkInfo().GetHref());
@@ -110,21 +157,14 @@ void CalibrationAbstractDialog::create(boost::filesystem::path html_path, const 
     dialog_size.x = std::min(int(dialog_size.x * this->scale_factor()), screen.width - kDialogScreenMarginPx);
     dialog_size.y = std::min(int(dialog_size.y * this->scale_factor()), screen.height - kDialogScreenMarginPx);
 
-    // Create the button sizer and configure the "Close" button
+    // Action buttons only (Generate, Apply, ...). There is no Close button;
+    // the window chrome already has one.
     wxStdDialogButtonSizer* buttons = new wxStdDialogButtonSizer();
     create_buttons(buttons);
-
-    if (!include_close_button) {//if you want to define a custom location for the close button
-        wxButton* close = new wxButton(main_panel, wxID_CLOSE , _L("Close"));
-        close->Bind(wxEVT_BUTTON, &CalibrationAbstractDialog::close_me, this);
-        buttons->AddButton(close);
-        close->SetDefault();
-        close->SetFocus();
-        SetAffirmativeId(wxID_CLOSE);
+    if (buttons->GetItemCount() > 0) {
+        buttons->Realize();
+        panel_sizer->Add(buttons, 0, wxEXPAND | wxALL, kHtmlPanelBorderPx);
     }
-
-    buttons->Realize();
-    panel_sizer->Add(buttons, 0, wxEXPAND | wxALL, kHtmlPanelBorderPx);
 
     // Set the panel's sizer and add the panel to the dialog
     main_panel->SetSizer(panel_sizer);
@@ -138,7 +178,15 @@ void CalibrationAbstractDialog::create(boost::filesystem::path html_path, const 
 
     wxGetApp().UpdateDlgDarkUI(this);
     // The surface follows the system window colour, which is dark under a dark theme.
-    html_viewer->SetHTMLBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
+    {
+        wxColour window_colour = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
+        if (!window_colour.IsOk())
+            window_colour = wxColour(
+                CalibrationConstants::kDarkFallbackBgChannel,
+                CalibrationConstants::kDarkFallbackBgChannel,
+                CalibrationConstants::kDarkFallbackBgChannel);
+        html_viewer->SetHTMLBackgroundColour(window_colour);
+    }
     apply_html_theme(full_file_path);
 
     fit_to_content();
@@ -161,14 +209,25 @@ void CalibrationAbstractDialog::apply_html_theme(const boost::filesystem::path& 
     std::stringstream buffer;
     buffer << file.rdbuf();
     std::string source = buffer.str();
+    rewrite_jpeg_image_refs(source);
 
     const std::string lowered = boost::algorithm::to_lower_copy(source);
     const std::size_t body_tag = lowered.find("<body");
     if (body_tag == std::string::npos)
         return;
 
-    const wxColour& text = wxGetApp().get_style_role_color("tab.text.default");
-    const wxColour background = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
+    wxColour text = wxGetApp().get_style_role_color("tab.text.default");
+    wxColour background = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
+    if (!text.IsOk())
+        text = wxColour(
+            CalibrationConstants::kDarkFallbackTextChannel,
+            CalibrationConstants::kDarkFallbackTextChannel,
+            CalibrationConstants::kDarkFallbackTextChannel);
+    if (!background.IsOk())
+        background = wxColour(
+            CalibrationConstants::kDarkFallbackBgChannel,
+            CalibrationConstants::kDarkFallbackBgChannel,
+            CalibrationConstants::kDarkFallbackBgChannel);
     const std::string attributes =
         " text=\"" + into_u8(text.GetAsString(wxC2S_HTML_SYNTAX)) + "\"" +
         " bgcolor=\"" + into_u8(background.GetAsString(wxC2S_HTML_SYNTAX)) + "\"";

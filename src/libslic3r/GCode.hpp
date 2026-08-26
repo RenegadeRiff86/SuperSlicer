@@ -17,17 +17,14 @@
 #define slic3r_GCode_hpp_
 
 #include "GCode/AdaptivePressureAdvance.hpp"
-#include "GCode/ExtrusionProcessor.hpp"
 #include "JumpPointSearch.hpp"
 #include "libslic3r.h"
-#include "EdgeGrid.hpp"
 #include "ExPolygon.hpp"
 #include "Layer.hpp"
 #include "Point.hpp"
 #include "Print.hpp"
 #include "PlaceholderParser.hpp"
 #include "PrintConfig.hpp"
-#include "Geometry/ArcWelder.hpp"
 #include "GCode/AvoidCrossingPerimeters.hpp"
 #include "GCode/CoolingBuffer.hpp"
 #include "GCode/FanMover.hpp"
@@ -45,13 +42,10 @@
 #include "GCode/GCodeProcessor.hpp"
 #include "GCode/ThumbnailData.hpp"
 #include "GCode/Travels.hpp"
-#include "EdgeGrid.hpp"
-#include "tcbspan/span.hpp"
 
 #include <memory>
 #include <map>
 #include <string>
-#include <chrono>
 
 //#include "GCode/PressureEqualizer.hpp"
 
@@ -102,9 +96,8 @@ namespace GCode {
 // public, so that it could be accessed by free helper functions from GCode.cpp
 struct ObjectLayerToPrint
 {
-    ObjectLayerToPrint() : object_layer(nullptr), support_layer(nullptr) {}
-    const Layer* 		object_layer;
-    const SupportLayer* support_layer;
+    const Layer* 		object_layer  { nullptr };
+    const SupportLayer* support_layer { nullptr };
     const Layer* 		layer()   const { return (object_layer != nullptr) ? object_layer : support_layer; }
     const PrintObject* 	object()  const { return (this->layer() != nullptr) ? this->layer()->object() : nullptr; }
     coordf_t            print_z() const { return (object_layer != nullptr && support_layer != nullptr) ? 0.5 * (object_layer->print_z + support_layer->print_z) : this->layer()->print_z; }
@@ -189,7 +182,7 @@ public:
     // For Perl bindings, to be used exclusively by unit tests.
     unsigned int    layer_count() const { return m_layer_with_support_count; }
     unsigned int    object_layer_count() const { return m_layer_count; }
-    //void            set_layer_count(unsigned int value) { m_layer_count = value; }
+    void            set_layer_count(unsigned int value) { m_layer_count = value; }
     void            apply_print_configs(const Print &print);
 
     // append full config to the given string

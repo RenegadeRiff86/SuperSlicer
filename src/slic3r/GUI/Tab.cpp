@@ -316,28 +316,29 @@ void Tab::create_preset_tab()
     m_top_hsizer->AddSpacer(int(HEADER_SPACING * scale_factor));
 
     m_h_buttons_sizer = new wxBoxSizer(wxHORIZONTAL);
-    m_h_buttons_sizer->Add(m_btn_save_preset, 0, wxALIGN_CENTER_VERTICAL);
-    m_h_buttons_sizer->AddSpacer(int(HEADER_SPACING * scale_factor));
-    m_h_buttons_sizer->Add(m_btn_save_as_preset, 0, wxALIGN_CENTER_VERTICAL);
-    m_h_buttons_sizer->AddSpacer(int(HEADER_SPACING * scale_factor));
-    m_h_buttons_sizer->Add(m_btn_rename_preset, 0, wxALIGN_CENTER_VERTICAL);
-    m_h_buttons_sizer->AddSpacer(int(HEADER_SPACING * scale_factor));
-    m_h_buttons_sizer->Add(m_btn_delete_preset, 0, wxALIGN_CENTER_VERTICAL);
-    if (m_btn_edit_ph_printer) {
-        m_h_buttons_sizer->AddSpacer(int(HEADER_SPACING * scale_factor));
-        m_h_buttons_sizer->Add(m_btn_edit_ph_printer, 0, wxALIGN_CENTER_VERTICAL);
-    }
-    m_h_buttons_sizer->AddSpacer(int(/*16*/8 * scale_factor));
-    m_h_buttons_sizer->Add(m_btn_hide_incompatible_presets, 0, wxALIGN_CENTER_VERTICAL);
-    m_h_buttons_sizer->AddSpacer(int(8 * scale_factor));
-    m_h_buttons_sizer->Add(m_question_btn, 0, wxALIGN_CENTER_VERTICAL);
-    m_h_buttons_sizer->AddSpacer(int(32 * scale_factor));
-    m_h_buttons_sizer->Add(m_undo_to_sys_btn, 0, wxALIGN_CENTER_VERTICAL);
-    m_h_buttons_sizer->Add(m_undo_btn, 0, wxALIGN_CENTER_VERTICAL);
-    m_h_buttons_sizer->AddSpacer(int(32 * scale_factor));
-    m_h_buttons_sizer->Add(m_search_btn, 0, wxALIGN_CENTER_VERTICAL);
-    m_h_buttons_sizer->AddSpacer(int(8*scale_factor));
-    m_h_buttons_sizer->Add(m_btn_compare_preset, 0, wxALIGN_CENTER_VERTICAL);
+    // One gap for every visible button. The old 8/32 spacers plus a hidden
+    // incompatible-preset flag looked like missing icons between the cog, help, and lock.
+    const int icon_px = settings_toolbar_icon_px();
+    const int toolbar_gap = icon_px / 4 > 4 ? icon_px / 4 : 4;
+    const auto add_toolbar_btn = [this, toolbar_gap](wxWindow* btn) {
+        if (btn == nullptr)
+            return;
+        if (m_h_buttons_sizer->IsEmpty())
+            m_h_buttons_sizer->Add(btn, 0, wxALIGN_CENTER_VERTICAL);
+        else
+            m_h_buttons_sizer->Add(btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, toolbar_gap);
+    };
+    add_toolbar_btn(m_btn_save_preset);
+    add_toolbar_btn(m_btn_save_as_preset);
+    add_toolbar_btn(m_btn_rename_preset);
+    add_toolbar_btn(m_btn_delete_preset);
+    add_toolbar_btn(m_btn_edit_ph_printer);
+    add_toolbar_btn(m_btn_hide_incompatible_presets);
+    add_toolbar_btn(m_question_btn);
+    add_toolbar_btn(m_undo_to_sys_btn);
+    add_toolbar_btn(m_undo_btn);
+    add_toolbar_btn(m_search_btn);
+    add_toolbar_btn(m_btn_compare_preset);
 
     m_top_hsizer->Add(m_h_buttons_sizer, 1, wxEXPAND);
     m_top_hsizer->AddSpacer(int(16*scale_factor));
@@ -487,7 +488,8 @@ void Tab::add_scaled_button(wxWindow* parent,
                             const wxString& label/* = wxEmptyString*/,
                             long style /*= wxBU_EXACTFIT | wxNO_BORDER*/)
 {
-    *btn = new ScalableButton(parent, wxID_ANY, icon_name, label, wxDefaultSize, wxDefaultPosition, style);
+    const int icon_px = settings_toolbar_icon_px();
+    *btn = new ScalableButton(parent, wxID_ANY, icon_name, label, wxDefaultSize, wxDefaultPosition, style, icon_px);
     m_scaled_buttons.push_back(*btn);
 }
 
@@ -1084,8 +1086,9 @@ void Tab::update_changed_tree_ui()
 
 void Tab::update_undo_buttons()
 {
-    m_undo_btn->        SetBitmap_(m_is_modified_values ? m_bmp_value_revert.name(): m_bmp_white_bullet.name());
-    m_undo_to_sys_btn-> SetBitmap_(m_is_nonsys_values   ? m_bmp_non_system->name() : m_bmp_value_lock.name());
+    const int toolbar_px = settings_toolbar_icon_px();
+    m_undo_btn->        SetBitmap_(m_is_modified_values ? m_bmp_value_revert.name(): m_bmp_white_bullet.name(), toolbar_px);
+    m_undo_to_sys_btn-> SetBitmap_(m_is_nonsys_values   ? m_bmp_non_system->name() : m_bmp_value_lock.name(), toolbar_px);
 
     //m_undo_btn->        SetBitmap_(m_is_modified_values ? m_bmp_value_revert: m_bmp_white_bullet);
     //m_undo_to_sys_btn-> SetBitmap_(m_is_nonsys_values   ? *m_bmp_non_system : m_bmp_value_lock);
@@ -1323,7 +1326,8 @@ void Tab::sys_color_changed()
     if (m_detach_preset_btn)
         m_detach_preset_btn->sys_color_changed();
 
-    m_btn_hide_incompatible_presets->SetBitmap(*get_bmp_bundle(m_show_incompatible_presets ? "flag_red" : "flag_green"));
+    m_btn_hide_incompatible_presets->SetBitmap(*get_bmp_bundle(
+        m_show_incompatible_presets ? "flag_red" : "flag_green", settings_toolbar_icon_px()));
 
     // update icons for tree_ctrl
     wxVector <wxBitmapBundle> img_bundles;
@@ -5102,7 +5106,8 @@ void Tab::toggle_show_hide_incompatible()
 
 void Tab::update_compatibility_ui()
 {
-    m_btn_hide_incompatible_presets->SetBitmap(*get_bmp_bundle(m_show_incompatible_presets ? "flag_red" : "flag_green"));
+    m_btn_hide_incompatible_presets->SetBitmap(*get_bmp_bundle(
+        m_show_incompatible_presets ? "flag_red" : "flag_green", settings_toolbar_icon_px()));
     m_btn_hide_incompatible_presets->SetToolTip(m_show_incompatible_presets ?
         _L("Both compatible and incompatible presets are shown. Click to hide presets not compatible with the current printer.") :
         _L("Only compatible presets are shown. Click to show both the presets compatible and not compatible with the current printer."));

@@ -554,19 +554,13 @@ void PreferencesDialog::build()
     bool is_editor = wxGetApp().is_editor();
 
 #if defined(SLIC3R_ENABLE_AUTOMATION_API) && defined(__linux__)
-    m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Automation"), tabs, 0));
-    append_bool_option(
-        m_tabid_2_optgroups.back().back(),
-        "automation_api_enabled",
-        L("Enable model automation API"),
-        L("Start an authenticated API on the local machine for model-driven GUI testing. "
-          "The SUPERSLICER_AUTOMATION_TOKEN environment variable must be set."),
-        app_config->get_bool("automation_api_enabled"));
+    m_tabid_2_optgroups.back().emplace_back(create_options_group(_L("Automation debugging"), tabs, 0));
     append_int_option(
         m_tabid_2_optgroups.back().back(),
         "automation_api_port",
         L("Model automation API port"),
-        L("Fixed loopback port for the automation API. The default is 43127."),
+        L("Fixed loopback port used only when SuperSlicer is explicitly launched with --automation-api. "
+          "The default is 43127."),
         8,
         std::atoi(app_config->get("automation_api_port").c_str()),
         ConfigOptionMode::comNone,
@@ -1025,7 +1019,7 @@ void PreferencesDialog::build()
         
         append_int_option(m_tabid_2_optgroups.back().back(), "tab_icon_size",
             L("Tab icon size"),
-            L("Size of the tab icons, in pixels. Set to 0 to remove icons."),
+            L("Size of the tab icons and the settings toolbar buttons (save, edit, cog), in pixels. Set to 0 to hide tab icons only; toolbar buttons stay at 32 px."),
             kStandardIntegerFieldWidth,
             app_config->get_int("tab_icon_size"));
         m_values_need_restart.push_back("tab_icon_size");
@@ -1464,8 +1458,7 @@ void PreferencesDialog::accept(wxEvent&)
 
     wxGetApp().update_ui_from_settings();
 #if defined(SLIC3R_ENABLE_AUTOMATION_API) && defined(__linux__)
-    if (m_values.find("automation_api_enabled") != m_values.end() ||
-        m_values.find("automation_api_port") != m_values.end())
+    if (m_values.find("automation_api_port") != m_values.end())
         wxGetApp().configure_automation_api_from_preferences();
 #endif
     clear_cache();

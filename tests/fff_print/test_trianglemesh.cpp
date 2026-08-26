@@ -3,16 +3,10 @@
 #include "libslic3r/TriangleMesh.hpp"
 #include "libslic3r/TriangleMeshSlicer.hpp"
 #include "libslic3r/Point.hpp"
-#include "libslic3r/Config.hpp"
-#include "libslic3r/Model.hpp"
 #include "libslic3r/libslic3r.h"
 
 #include <algorithm>
-#include <future>
-#include <chrono>
 
-//#include "test_options.hpp"
-#include "test_data.hpp"
 
 using namespace Slic3r;
 using namespace std;
@@ -70,11 +64,10 @@ SCENARIO( "TriangleMesh: Basic mesh statistics") {
 
     }
     GIVEN( "A 20mm cube with one corner on the origin") {
-        const std::vector<Vec3d> vertices { {20,20,0}, {20,0,0}, {0,0,0}, {0,20,0}, {20,20,20}, {0,20,20}, {0,0,20}, {20,0,20} };
+        const std::vector<Vec3f> vertices { {20,20,0}, {20,0,0}, {0,0,0}, {0,20,0}, {20,20,20}, {0,20,20}, {0,0,20}, {20,0,20} };
         const std::vector<Vec3i32> facets { {0,1,2}, {0,2,3}, {4,5,6}, {4,6,7}, {0,4,7}, {0,7,1}, {1,7,6}, {1,6,2}, {2,6,5}, {2,5,3}, {4,0,3}, {4,3,5} };
 
         TriangleMesh cube(vertices, facets);
-        cube.repair();
 
         THEN( "Volume is appropriate for 20mm square cube.") {
             REQUIRE(abs(cube.volume() - 20.0*20.0*20.0) < 1e-2);

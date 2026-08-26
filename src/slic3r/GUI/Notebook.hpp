@@ -263,6 +263,14 @@ public:
 
     }
 
+    void RemoveFakeBtPage(size_t n)
+    {
+        if (n >= btidx_to_tabpage.size())
+            return;
+        GetBtnsListCtrl()->RemovePage(n);
+        btidx_to_tabpage.erase(btidx_to_tabpage.begin() + n);
+    }
+
     //// get number of pages in the dialog
     //virtual size_t GetPageCount() const override {
     //    return btidx_to_tabpage.size();

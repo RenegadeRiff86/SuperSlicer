@@ -80,6 +80,8 @@ constexpr int kPrinterSettingsShortcut        = 6;
 constexpr int kTabAcceleratorCount            = kPrinterSettingsShortcut;
 constexpr int kPlaterGcodePage                = 2;
 constexpr int kPlaterPageCount                = 3;
+constexpr int kOldGcodeButtonIndex            = 1;
+constexpr int kOldSettingsButtonOffset        = 2; // Platter + G-code
 constexpr int kLastSettingsTabIndex           = 2;
 constexpr int kCombinedTabsPageCount          = 6;
 constexpr int kCompactLayoutPageCount         = 4;
@@ -635,6 +637,10 @@ void MainFrame::update_layout()
         // On Linux m_plater needs to be removed from m_tabpanel before to reparent it
         //clear if previous was old
         m_tabpanel_stop_event = true;
+#ifdef _USE_CUSTOM_NOTEBOOK
+        if (!wxGetApp().tabs_as_menu() && m_layout == ESettingsLayout::Old)
+            static_cast<Notebook*>(m_tabpanel)->RemoveFakeBtPage(kOldGcodeButtonIndex);
+#endif
         int plater_page_id = m_tabpanel->FindPage(m_plater);
         if (plater_page_id != wxNOT_FOUND)
             m_tabpanel->RemovePage(plater_page_id);
@@ -792,7 +798,12 @@ void MainFrame::update_layout()
         if (!wxGetApp().tabs_as_menu()) {
             Notebook* notebook = dynamic_cast<Notebook*>(m_tabpanel);
             notebook->InsertBtPage(0, m_plater, _L("Platter"), std::string("plater"), icon_size, true);
-            notebook->GetBtnsListCtrl()->InsertSpacer(1, kNotebookTabSpacerWidthPx);
+            notebook->InsertFakeBtPage(kOldGcodeButtonIndex, 0, _L("G-code"), std::string("preview_menu"), icon_size, false);
+            notebook->GetBtnsListCtrl()->InsertSpacer(kOldSettingsButtonOffset, kNotebookTabSpacerWidthPx);
+            if (ScalableButton* platter_btn = notebook->GetBtnsListCtrl()->GetPageButton(0))
+                platter_btn->Bind(wxCUSTOMEVT_NOTEBOOK_BT_PRESSED, select_editor_view);
+            if (ScalableButton* gcode_btn = notebook->GetBtnsListCtrl()->GetPageButton(kOldGcodeButtonIndex))
+                gcode_btn->Bind(wxCUSTOMEVT_NOTEBOOK_BT_PRESSED, select_gcode_preview);
         } else {
             m_tabpanel->InsertPage(0, m_plater, _L("Platter"));
         }
@@ -2103,9 +2114,9 @@ void MainFrame::init_menubar_as_editor()
         m_calibration_menu->AppendSeparator();
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Bed/Extruder leveling")), _(L("Create a test print to help you to level your printer bed.")),
             [](wxCommandEvent&) { wxGetApp().bed_leveling_dialog(); });
-        append_menu_item(m_calibration_menu, wxID_ANY, _(L("Klipper Z offset calibration")), _(L("Generate a nine-pad first-layer test with a different Klipper Z offset on each pad.")),
+        append_menu_item(m_calibration_menu, wxID_ANY, _(L("Klipper Z offset")), _(L("Create a first-layer test with a different Z offset on each pad.")),
             [](wxCommandEvent&) { wxGetApp().z_offset_calibration_dialog(); });
-        append_menu_item(m_calibration_menu, wxID_ANY, _(L("Apply Z offset calibration result")), _(L("Calculate and save a filament Z offset from a printed nine-pad calibration test.")),
+        append_menu_item(m_calibration_menu, wxID_ANY, _(L("Apply Z offset")), _(L("Save a filament Z offset from a printed pad test.")),
             [](wxCommandEvent&) { wxGetApp().z_offset_result_dialog(); });
         m_calibration_menu->AppendSeparator();
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Filament Flow calibration")), _(L("Create a test print to help you to set your filament extrusion multiplier (visual inspection).")),
@@ -2680,7 +2691,11 @@ void MainFrame::select_tab(ETabType tab /* = Any*/, bool keep_tab_type)
             new_selection = static_cast<size_t>(tab);
             if (tab == ETabType::LastPlater)
                 new_selection = m_last_selected_plater_tab > kPlaterGcodePage ? 0 : m_last_selected_plater_tab;
-            if (m_layout != ESettingsLayout::Tabs)
+            if (m_layout == ESettingsLayout::Old)
+                new_selection = (tab == ETabType::PlaterGcode ||
+                    (tab == ETabType::LastPlater && m_last_selected_plater_tab == kPlaterGcodePage)) ?
+                    kOldGcodeButtonIndex : 0;
+            else if (m_layout != ESettingsLayout::Tabs)
                 new_selection = 0;
 
         } else if (tab <= ETabType::LastSettings) {
@@ -2691,6 +2706,8 @@ void MainFrame::select_tab(ETabType tab /* = Any*/, bool keep_tab_type)
             //push to the correct position
             if (m_layout == ESettingsLayout::Tabs)
                 new_selection = new_selection + kPlaterPageCount;
+            else if (m_layout == ESettingsLayout::Old)
+                new_selection = new_selection + kOldSettingsButtonOffset;
             else if (m_layout != ESettingsLayout::Dlg)
                 new_selection = new_selection + 1;
         }
@@ -2774,7 +2791,12 @@ void MainFrame::select_tab(ETabType tab /* = Any*/, bool keep_tab_type)
         } else if (tab == ETabType::PlaterPreview || (tab == ETabType::LastPlater && m_last_selected_plater_tab == 1)) {
             m_plater->select_view_3D("Preview");
         } else if (tab == ETabType::PlaterGcode || (tab == ETabType::LastPlater && m_last_selected_plater_tab == kPlaterGcodePage)) {
+            const bool force_changed = m_plater->get_force_preview() != Preview::ForceState::ForceGcode;
+            if (force_changed)
+                m_plater->set_force_preview(Preview::ForceState::ForceGcode);
             m_plater->select_view_3D("Preview");
+            if (force_changed)
+                m_plater->refresh_print();
         }
     }
 

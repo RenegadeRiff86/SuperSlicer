@@ -49,7 +49,7 @@ SCENARIO("Shells", "[Shells]") {
             }
             THEN("correct number of top solid layers") {
                 // NOTE: there is one additional layer with enusring line under the bridge layer, bridges would be otherwise anchored weakly to the perimeter.
-                size_t additional_ensuring_anchors = top_solid_layers > 0 ? 1 : 0;
+                const int additional_ensuring_anchors = top_solid_layers > 0 ? 1 : 0;
                 for (int i = 0; i < top_solid_layers + additional_ensuring_anchors; ++ i)
                     REQUIRE(has_shells(int(zs.size()) - i - 1));
                 for (int i = top_solid_layers + additional_ensuring_anchors; i < int(zs.size() / 2); ++ i)

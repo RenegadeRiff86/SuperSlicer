@@ -141,6 +141,7 @@ public:
     // ordered collection of extrusion paths/loops to build all perimeters
     // (this collection contains only ExtrusionEntityCollection objects)
     [[nodiscard]] const ExtrusionEntityCollection&  perimeters() const { return m_perimeters; }
+    [[nodiscard]] ExtrusionEntityCollection&        set_perimeters() { return m_perimeters; }
     [[nodiscard]] const std::set<LayerRegion *> &perimeters_regions() const { return m_perimeters_regions; }
 
     // collection of expolygons representing the milling path of the first milling cutter

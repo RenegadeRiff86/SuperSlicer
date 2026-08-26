@@ -9,12 +9,9 @@
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 #include "AABBTreeLines.hpp"
-#include "BridgeDetector.hpp"
 #include "ExPolygon.hpp"
-#include "Exception.hpp"
 #include "Flow.hpp"
 #include "GCode/ExtrusionProcessor.hpp"
-#include "KDTreeIndirect.hpp"
 #include "Line.hpp"
 #include "Point.hpp"
 #include "Polygon.hpp"
@@ -26,7 +23,6 @@
 #include "Geometry.hpp"
 #include "I18N.hpp"
 #include "Layer.hpp"
-#include "MutablePolygon.hpp"
 #include "PrintBase.hpp"
 #include "PrintConfig.hpp"
 #include "Support/OrcaTreeSupport.hpp"
@@ -44,13 +40,10 @@
 #include "Format/STL.hpp"
 #include "Support/SupportMaterial.hpp"
 #include "SupportSpotsGenerator.hpp"
-#include "TriangleSelectorWrapper.hpp"
-#include "format.hpp"
 #include "libslic3r.h"
 
 #include <algorithm>
 #include <atomic>
-#include <cfloat>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -59,7 +52,6 @@
 #include <map>
 #include <string>
 #include <string_view>
-#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -101,13 +93,10 @@ using namespace std::literals;
 #undef NDEBUG
 #define DEBUG
 #define _DEBUG
-#include "SVG.hpp"
 #undef assert 
 #include <cassert>
 #endif
 #endif
-
-    #include "SVG.hpp"
 
 namespace Slic3r {
 
@@ -230,7 +219,7 @@ void PrintObject::make_perimeters()
     for (size_t region_id = 0; region_id < this->num_printing_regions(); ++ region_id) {
         const PrintRegion &region = this->printing_region(region_id);
         if (!region.config().extra_perimeters || region.config().perimeters == 0 ||
-            region.config().fill_density == 0 || this->layer_count() < 2) {  // need at least 2 layers for extra-perimeter logic to apply
+            region.config().fill_density.value == 0 || this->layer_count() < 2) {  // need at least 2 layers for extra-perimeter logic to apply
             continue;
         }
         // use an antomic idx instead of the range, to avoid a thread being very late because it's on the difficult layers.
@@ -880,7 +869,6 @@ void PrintObject::infill()
                                     {std::to_string(nb_layers_done), std::to_string(m_print->secondary_status_counter_get_max())},
                         PrintBase::SlicingStatus::SECONDARY_STATE);
 
-                    std::chrono::time_point<std::chrono::system_clock> start_make_fill = std::chrono::system_clock::now();
                     m_print->throw_if_canceled();
                     m_layers[layer_idx]->make_fills(adaptive_fill_octree.get(), support_fill_octree.get(), this->m_lightning_generator.get());
             }
@@ -1037,7 +1025,7 @@ void PrintObject::simplify_extrusion_path()
             this->m_brim.visit(visitor);
             tbb::parallel_for(
                 tbb::blocked_range<size_t>(0, visitor.paths.size() + visitor.paths3D.size()),
-                [this, &visitor, scaled_resolution, &arc_fitting_tolerance, &print_config](const tbb::blocked_range<size_t>& range) {
+                [&visitor, scaled_resolution, &arc_fitting_tolerance, &print_config](const tbb::blocked_range<size_t>& range) {
                     size_t path_idx = range.begin();
                     for (; path_idx < range.end() && path_idx < visitor.paths.size(); ++path_idx) {
                         visitor.paths[path_idx]->simplify(scaled_resolution, print_config.arc_fitting, arc_fitting_tolerance.get_abs_value(visitor.paths[path_idx]->width()));
@@ -1587,9 +1575,6 @@ bool PrintObject::invalidate_state_by_config_options(
         } else if (opt_key == "fill_pattern") {
             steps.emplace_back(posInfill);
 
-            const auto *old_fill_pattern = old_config.option<ConfigOptionEnum<InfillPattern>>(opt_key);
-            const auto *new_fill_pattern = new_config.option<ConfigOptionEnum<InfillPattern>>(opt_key);
-            assert(old_fill_pattern && new_fill_pattern);
             // We need to recalculate infill surfaces when infill_only_where_needed is enabled, and we are switching from
             // the Lightning infill to another infill or vice versa.
             //if (m_config.infill_only_where_needed && (new_fill_pattern->value == ipLightning || old_fill_pattern->value == ipLightning))
@@ -1810,7 +1795,9 @@ bool PrintObject::invalidate_step(PrintObjectStep step)
 bool PrintObject::invalidate_all_steps()
 {
     // First call the "invalidate" functions, which may cancel background processing.
-    bool result = Inherited::invalidate_all_steps() | m_print->invalidate_all_steps();
+    const bool inherited_invalidated = Inherited::invalidate_all_steps();
+    const bool print_invalidated = m_print->invalidate_all_steps();
+    bool result = inherited_invalidated || print_invalidated;
     // Then reset some of the depending values.
     m_slicing_params->valid = false;
     return result;
@@ -1988,13 +1975,12 @@ ExPolygons dense_fill_fit_to_size(const ExPolygon& bad_polygon_to_cover,
 }
 
 void PrintObject::tag_under_bridge() {
-    const float COEFF_SPLIT = 1.5;
     coord_t scaled_resolution = std::max(SCALED_EPSILON, scale_t(this->print()->config().resolution.value));
 
     for (size_t region_idx = 0; region_idx < this->print()->num_print_regions(); ++ region_idx) {
         const PrintRegion* region = &this->print()->get_print_region(region_idx);
         //count how many surface there are on each one
-        if (region->config().infill_dense.get_bool() && region->config().fill_density < 40) {
+        if (region->config().infill_dense.get_bool() && region->config().fill_density.value < 40) {
             std::vector<LayerRegion*> layeridx2lregion;
             std::vector<Surfaces> new_surfaces; //surface store, as you can't modify them when working in //
             // store the LayerRegion on which we are working
@@ -2013,7 +1999,7 @@ void PrintObject::tag_under_bridge() {
             }
             // run in parallel, it's a costly thing.
             Slic3r::parallel_for(size_t(0), this->layers().size() - 1,
-                [this, &layeridx2lregion, &new_surfaces, region, COEFF_SPLIT, scaled_resolution](const size_t idx_layer) {
+                [this, &layeridx2lregion, &new_surfaces, region, scaled_resolution](const size_t idx_layer) {
                 // we our LayerRegion and the one on top
                 LayerRegion* layerm = layeridx2lregion[idx_layer];
                 const LayerRegion* previousOne = nullptr;
@@ -2283,7 +2269,7 @@ void PrintObject::detect_surfaces_type()
                     ((num_layers > 1) ? num_layers - 1 : num_layers) :
                     // In non-spiral vase mode, go over all layers.
                     m_layers.size(),
-            [this, region_id, interface_shells, &surfaces_new, has_bridges, surface_type_bottom_other, scaled_resolution]
+            [this, region_id, interface_shells, &surfaces_new, surface_type_bottom_other, scaled_resolution]
                 (const size_t idx_layer) {
                     PRINT_OBJECT_TIME_LIMIT_MILLIS(PRINT_OBJECT_TIME_LIMIT_DEFAULT);
                     m_print->throw_if_canceled();
@@ -2529,7 +2515,7 @@ void PrintObject::process_external_surfaces(bool old)
     // over voids, which are supported by the layer below.
     bool                   has_voids = false;
     for (size_t region_id = 0; region_id < this->num_printing_regions(); ++ region_id)
-        if (this->printing_region(region_id).config().fill_density == 0) {
+        if (this->printing_region(region_id).config().fill_density.value == 0) {
             has_voids = true;
             break;
         }
@@ -2692,8 +2678,6 @@ void PrintObject::discover_vertical_shells()
 #endif /* SLIC3R_DEBUG_SLICE_PROCESSING */
                 for (size_t region_id = 0; region_id < num_regions; ++ region_id) {
                     LayerRegion &layerm                       = *layer.m_regions[region_id];
-                    coord_t expansion_solid = 0;
-                    coord_t expansion_bottom_bridge = 0;
                     // Calculate the maximum perimeter offset as if the slice was extruded with a single extruder only.
                     // First find the maxium number of perimeters per region slice.
                     unsigned int perimeters = 0;
@@ -2707,17 +2691,6 @@ void PrintObject::discover_vertical_shells()
                         coord_t current_shell_width = (extflow.scaled_width() + extflow.scaled_spacing()) / 2 + (perimeters - 1) * flow.scaled_spacing();  // half-width offset to the perimeter centerline
                         perimeter_offset_for_holes = std::max(perimeter_offset_for_holes, current_shell_width);
                         perimeter_min_spacing = std::min(perimeter_min_spacing, std::min(extflow.scaled_spacing(), flow.scaled_spacing()));
-                        const bool has_infill = layerm.region().config().fill_density.value > 0.;
-                        //if no infill, reduce the margin for everything to only the perimeter
-                        if (!has_infill) {
-                            coord_t margin = scale_t(layerm.region().config().external_infill_margin.get_abs_value(unscaled(current_shell_width)));
-                            coord_t margin_bridged = scale_t(layerm.region().config().bridged_infill_margin.get_abs_value(extflow.width()));
-                            expansion_solid = std::min(margin, current_shell_width);
-                            expansion_bottom_bridge = std::min(margin_bridged, current_shell_width);
-                        } else {
-                            expansion_solid = scale_t(layerm.region().config().external_infill_margin.get_abs_value(unscaled(current_shell_width)));
-                            expansion_bottom_bridge = scale_t(layerm.region().config().bridged_infill_margin.get_abs_value(extflow.width()));
-                        }
                     }
                     // I'm not sure of what I want to do here. this doesn't really grow the resulting surface, it just helps with merging. 
                     //coord_t        top_bottom_expansion = std::max(expansion_solid, coord_t(layerm.flow(frSolidInfill).scaled_spacing() * top_bottom_expansion_coeff));
@@ -2777,15 +2750,13 @@ void PrintObject::discover_vertical_shells()
 
         //solid_over_perimeters value, to remove solid fill where there's only perimeters on multiple layers
         const int nb_perimeter_layers_for_solid_fill = region.config().solid_over_perimeters.value;
-        const int min_layer_no_solid = region.config().bottom_solid_layers.value - 1;
-        const int min_z_no_solid = region.config().bottom_solid_min_thickness;
 
         if (!top_bottom_surfaces_all_regions) {
             // This is either a single material print, or a multi-material print and interface_shells are enabled, meaning that the vertical shell thickness
             // is calculated over a single material.
             BOOST_LOG_TRIVIAL(debug) << "Discovering vertical shells for region " << region_id << " in parallel - start : cache top / bottom";
             Slic3r::parallel_for(size_t(0), num_layers,
-                [this, region_id, &cache_top_botom_regions, nb_perimeter_layers_for_solid_fill, min_layer_no_solid, min_z_no_solid]
+                [this, region_id, &cache_top_botom_regions, nb_perimeter_layers_for_solid_fill]
                 (const size_t idx_layer) {
                         PRINT_OBJECT_TIME_LIMIT_MILLIS(PRINT_OBJECT_TIME_LIMIT_DEFAULT);
                         m_print->throw_if_canceled();
@@ -4697,13 +4668,11 @@ void PrintObject::clean_surfaces() {
                 coord_t extrusion_width = lregion->flow(frInfill).scaled_width();
                 merge_surfaces(lregion);
                 // collapse too thin solid surfaces.
-                bool changed_type = false;
                 for (Surface& surface : lregion->set_fill_surfaces().surfaces) {
                     if (surface.has_fill_solid() && surface.has_pos_internal()) {
-                        if (offset2_ex(ExPolygons{ surface.expolygon }, -extrusion_width / 2, extrusion_width / 2).empty()) {  // half extrusion-width shrink/grow round-trip
+                        if (offset2_ex(ExPolygons{ surface.expolygon }, -0.5 * extrusion_width, 0.5 * extrusion_width).empty()) {  // half extrusion-width shrink/grow round-trip
                             //convert to sparse
                             surface.surface_type = (surface.surface_type ^ SurfaceType::stDensSolid) | SurfaceType::stDensSparse;
-                            changed_type = true;
                         }
                     }
                 }

@@ -1,6 +1,7 @@
 #include <catch2/catch.hpp>
 
 #include <libslic3r/BridgeDetector.hpp>
+#include <libslic3r/GCodeReader.hpp>
 #include <libslic3r/Geometry.hpp>
 
 #include "test_data.hpp"
@@ -14,7 +15,8 @@ SCENARIO("Bridge detector", "[Bridging]")
         if (expected_coverage < 0)
             expected_coverage = bridge.area();
         
-        BridgeDetector bridge_detector(bridge, lower, scaled<coord_t>(0.5)); // extrusion width
+        const coord_t extrusion_spacing = scaled<coord_t>(0.5);
+        BridgeDetector bridge_detector(bridge, lower, extrusion_spacing, extrusion_spacing, -1);
         if (tolerance < 0)
             tolerance = Geometry::rad2deg(bridge_detector.resolution) + EPSILON;
 

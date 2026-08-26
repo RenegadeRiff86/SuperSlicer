@@ -24,7 +24,6 @@
 #include <wx/snglinst.h>
 
 #include <mutex>
-#include <stack>
 
 class wxMenuItem;
 class wxMenuBar;

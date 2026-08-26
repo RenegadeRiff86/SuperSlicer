@@ -108,11 +108,7 @@ def sim_peak(speed, a, K, Ts, dt=1e-4):
         tent_weights = [x / weight_sum for x in tent_weights]
         peak = 0.0
         for i in range(len(v_raw)):
-            acc = 0.0
-            for j, wj in enumerate(tent_weights):
-                k = i - j
-                acc += wj * (v_raw[k] if k >= 0 else 0.0)
-            peak = max(peak, acc)
+            peak = max(peak, _convolve_tent_at(v_raw, tent_weights, i))
         return peak
 
     velocity = np.asarray(v_raw, dtype=float)
@@ -123,6 +119,42 @@ def sim_peak(speed, a, K, Ts, dt=1e-4):
     tent_weights = tent_weights / tent_weights.sum()
     sm = np.convolve(velocity, tent_weights, mode="full")[: len(velocity)]
     return float(sm.max())
+
+
+def _convolve_tent_at(v_raw, tent_weights, i):
+    acc = 0.0
+    for j, wj in enumerate(tent_weights):
+        k = i - j
+        acc += wj * (v_raw[k] if k >= 0 else 0.0)
+    return acc
+
+
+def _check_speed_and_accel_inverse(budget, a, K, Ts, recovered_speed):
+    peak = pa_peak(recovered_speed, a, K, Ts)
+    check(
+        f"speed-inv b={budget} Ts={Ts}",
+        abs(peak - budget) / budget < 1e-5 or peak <= budget + 1e-6,
+        (recovered_speed, peak),
+    )
+    a2 = pa_accel(budget, recovered_speed, K, Ts)
+    if not math.isfinite(a2) or a2 <= 0:
+        return
+    peak2 = pa_peak(recovered_speed, a2, K, Ts)
+    check(
+        f"accel-inv b={budget}",
+        abs(peak2 - budget) / budget < 1e-4 or peak2 <= budget + 1e-5,
+        (a2, peak2),
+    )
+
+
+def _speed_is_monotonic(a, K, Ts):
+    prev = -1.0
+    for speed in [5, 10, 20, 40, 80, 120, 200]:
+        peak = pa_peak(speed, a, K, Ts)
+        if peak + 1e-12 < prev:
+            return False
+        prev = peak
+    return True
 
 
 # Adaptive PA bilinear model (AdaptivePressureAdvance.cpp). Kept at module scope rather than
@@ -176,15 +208,7 @@ class Model:
         return pa_value
 
 
-def main() -> int:
-    # 1) Unsmoothed identity
-    for speed, a, K in [(50, 1000, 0.05), (100, 3000, 0.04), (20, 500, 0.1)]:
-        unsmoothed_peak = pa_peak(speed, a, K, 0.0)
-        check(f"unsmoothed formula {speed}", abs(unsmoothed_peak - (speed + K * a)) < 1e-12, unsmoothed_peak)
-        s = sim_peak(speed, a, K, 0.0)
-        check(f"unsmoothed sim {speed}", abs(s - (speed + K * a)) < 1e-9, s)
-
-    # 2) Bound vs tent simulation
+def _check_bound_against_simulation():
     underrun = 0
     max_oh = 0.0
     ohs = []
@@ -206,10 +230,10 @@ def main() -> int:
             )
         )
 
+    global n_checks
     for speed, a, K, Ts in cases:
         bound = pa_peak(speed, a, K, Ts)
         sim = sim_peak(speed, a, K, Ts)
-        global n_checks
         n_checks += 1
         if bound + 1e-4 < sim:
             underrun += 1
@@ -227,6 +251,19 @@ def main() -> int:
     # Comment in GCode.cpp claims <=21% vs a specific integration; our tent-on-velocity
     # proxy is looser. Still require the bound never under-predict, and stay <50% high.
     check("max overhang < 0.50 (conservative bound)", max_oh < 0.50, max_oh)
+    return cases, underrun, max_oh, ohs
+
+
+def main() -> int:
+    # 1) Unsmoothed identity
+    for speed, a, K in [(50, 1000, 0.05), (100, 3000, 0.04), (20, 500, 0.1)]:
+        unsmoothed_peak = pa_peak(speed, a, K, 0.0)
+        check(f"unsmoothed formula {speed}", abs(unsmoothed_peak - (speed + K * a)) < 1e-12, unsmoothed_peak)
+        s = sim_peak(speed, a, K, 0.0)
+        check(f"unsmoothed sim {speed}", abs(s - (speed + K * a)) < 1e-9, s)
+
+    # 2) Bound vs tent simulation
+    cases, underrun, max_oh, ohs = _check_bound_against_simulation()
 
     # 3) large-a asymptote: r->0 => speed + 2*K*speed/Ts
     for speed, K, Ts in [(50, 0.05, 0.04), (100, 0.04, 0.1)]:
@@ -245,31 +282,11 @@ def main() -> int:
     ]:
         recovered_speed = pa_speed(budget, a, K, Ts)
         if recovered_speed > 0:
-            peak = pa_peak(recovered_speed, a, K, Ts)
-            check(
-                f"speed-inv b={budget} Ts={Ts}",
-                abs(peak - budget) / budget < 1e-5 or peak <= budget + 1e-6,
-                (recovered_speed, peak),
-            )
-            a2 = pa_accel(budget, recovered_speed, K, Ts)
-            if math.isfinite(a2) and a2 > 0:
-                peak2 = pa_peak(recovered_speed, a2, K, Ts)
-                check(
-                    f"accel-inv b={budget}",
-                    abs(peak2 - budget) / budget < 1e-4 or peak2 <= budget + 1e-5,
-                    (a2, peak2),
-                )
+            _check_speed_and_accel_inverse(budget, a, K, Ts, recovered_speed)
 
     # 5) monotonicity in speed
     for a, K, Ts in [(2000, 0.05, 0.04), (5000, 0.04, 0.0), (1000, 0.1, 0.2)]:
-        prev = -1.0
-        ok = True
-        for speed in [5, 10, 20, 40, 80, 120, 200]:
-            peak = pa_peak(speed, a, K, Ts)
-            if peak + 1e-12 < prev:
-                ok = False
-            prev = peak
-        check(f"mono-v a={a} Ts={Ts}", ok)
+        check(f"mono-v a={a} Ts={Ts}", _speed_is_monotonic(a, K, Ts))
 
     # 6) Adaptive PA bilinear (AdaptivePressureAdvance.cpp)
     m = Model(

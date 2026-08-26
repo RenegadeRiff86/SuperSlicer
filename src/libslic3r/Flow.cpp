@@ -86,7 +86,7 @@ static inline FlowRole opt_key_to_flow_role(const std::string &opt_key)
         return frTopSolidInfill;
     else if (opt_key == OPT_SUPPORT_MATERIAL_EXTRUSION_WIDTH)
         return frSupportMaterial;
-     else 
+    else
         throw Slic3r::RuntimeError("opt_key_to_flow_role: invalid argument");
 };
 

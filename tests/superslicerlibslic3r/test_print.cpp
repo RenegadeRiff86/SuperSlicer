@@ -16,7 +16,7 @@ using namespace std::literals;
 
 SCENARIO("PrintObject: Perimeter generation") {
     GIVEN("20mm cube and default config & 0.3 layer height") {
-        DynamicPrintConfig &config = Slic3r::DynamicPrintConfig::full_print_config();
+        DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
         TestMesh m = TestMesh::cube_20x20x20;
         Model model{};
         config.set_key_value("fill_density", std::make_unique<ConfigOptionPercent>(0));
@@ -26,7 +26,7 @@ SCENARIO("PrintObject: Perimeter generation") {
         WHEN("make_perimeters() is called")  {
             Print print{};
             Slic3r::Test::init_print(print, { m }, model, &config);
-            PrintObject& object = *print.objects_mutable().at(0);
+            PrintObject& object = *print.get_object(0);
             print.process();
             // there are 66.66666.... layers for 0.3mm in 20mm
             //slic3r is rounded (slice at half-layer), slic3rPE is less?
@@ -36,17 +36,17 @@ SCENARIO("PrintObject: Perimeter generation") {
             }
             THEN("Every layer in region 0 has 1 island of perimeters") {
                 for(Layer* layer : object.layers()) {
-                    REQUIRE(layer->regions()[0]->perimeters.entities().size() == 1);
+                    REQUIRE(layer->regions()[0]->perimeters().entities().size() == 1);
                 }
             }
             THEN("Every layer (but top) in region 0 has 3 paths in its perimeters list.") {
                 LayerPtrs layers = object.layers();
                 for (auto it_layer = layers.begin(); it_layer != layers.end() - 1; ++it_layer) {
-                    REQUIRE((*it_layer)->regions()[0]->perimeters.items_count() == 3);
+                    REQUIRE((*it_layer)->regions()[0]->perimeters().items_count() == 3);
                 }
             }
             THEN("Top layer in region 0 has 1 path in its perimeters list (only 1 perimeter on top).") {
-                REQUIRE(object.layers().back()->regions()[0]->perimeters.items_count() == 1);
+                REQUIRE(object.layers().back()->regions()[0]->perimeters().items_count() == 1);
             }
         }
     }
@@ -54,7 +54,7 @@ SCENARIO("PrintObject: Perimeter generation") {
 
 SCENARIO("Print: Skirt generation") {
     GIVEN("20mm cube and default config") {
-        DynamicPrintConfig &config = Slic3r::DynamicPrintConfig::full_print_config();
+        DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
         TestMesh m = TestMesh::cube_20x20x20;
         Slic3r::Model model{};
         config.set_key_value("skirt_height", std::make_unique<ConfigOptionInt>(1));
@@ -66,20 +66,20 @@ SCENARIO("Print: Skirt generation") {
             print.process();
             THEN("Skirt Extrusion collection has 2 loops in it") {
                 REQUIRE(print.skirt().items_count() == 2);
-                REQUIRE(print.skirt().flatten().entities().size() == 2);
+                REQUIRE(print.skirt().flatten(false).entities().size() == 2);
             }
         }
     }
 }
 
 void test_is_solid_infill(Print &p, size_t obj_id, size_t layer_id, bool check = true ) {
-    const PrintObject& obj { *(p.objects().at(obj_id)) };
+    const PrintObject& obj {*p.get_object(obj_id)};
     const Layer& layer { *(obj.get_layer(static_cast<int>(layer_id))) };
 
     // iterate over all of the regions in the layer
     for (const LayerRegion* reg : layer.regions()) {
         // for each region, iterate over the fill surfaces
-        for (const Surface& su : reg->fill_surfaces.surfaces) {
+        for (const Surface& su : reg->fill_surfaces().surfaces) {
             CHECK(su.has_fill_solid() == check);
         }
     }
@@ -87,7 +87,7 @@ void test_is_solid_infill(Print &p, size_t obj_id, size_t layer_id, bool check =
 
 SCENARIO("Print: Changing number of solid surfaces does not cause all surfaces to become internal.") {
     GIVEN("sliced 20mm cube and config with top_solid_surfaces = 2 and bottom_solid_surfaces = 1") {
-        DynamicPrintConfig &config = Slic3r::DynamicPrintConfig::full_print_config();
+        DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
         TestMesh m { TestMesh::cube_20x20x20 };
         config.set_key_value("top_solid_layers", std::make_unique<ConfigOptionInt>(2));
         config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(1));
@@ -96,7 +96,6 @@ SCENARIO("Print: Changing number of solid surfaces does not cause all surfaces t
         config.set_key_value("nozzle_diameter", std::make_unique<ConfigOptionFloats>(ConfigOptionFloats{1})); // has to be large enough for 0.5 layer height, the min/max lh depends on it
         config.set_key_value("enforce_full_fill_volume", std::make_unique<ConfigOptionBool>(true)); 
         Slic3r::Model model;
-        auto event_counter {0U};
         std::string stage;
         Print print{};
         Slic3r::Test::init_print(print, { m }, model, &config);
@@ -139,7 +138,7 @@ SCENARIO("Print: Changing number of solid surfaces does not cause all surfaces t
 
 SCENARIO("Print: Brim generation") {
     GIVEN("20mm cube and default config, 1mm first layer width") {
-        DynamicPrintConfig &config = Slic3r::DynamicPrintConfig::full_print_config();
+        DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
         TestMesh m{ TestMesh::cube_20x20x20 };
         Slic3r::Model model{};
         config.set_key_value("first_layer_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(1, false));
@@ -199,7 +198,7 @@ SCENARIO("Print: Brim generation") {
             Print print{};
             Slic3r::Test::init_print(print, { m }, model, &config);
             print.process();
-            Flow brim_flow = print.brim_flow(0, print.objects().at(0)->config());
+            Flow brim_flow = print.brim_flow(0, print.get_object(0)->config());
             THEN("First Brim Extrusion has a length of ~80") {
                 REQUIRE(print.brim().entities().size() > 0);
                 double dist = unscaled(ExtrusionLength{}.length(*print.brim().entities().front()));
@@ -213,9 +212,9 @@ SCENARIO("Print: Brim generation") {
             Print print{};
             Slic3r::Test::init_print(print, { m }, model, &config);
             print.process();
-            double nbLoops = 6.0 / print.brim_flow(*print.extruders().begin(), print.objects().at(0)->config()).spacing();
+            double nbLoops = 6.0 / print.brim_flow(*print.extruders().begin(), print.get_object(0)->config()).spacing();
             THEN("Brim Extrusion collection has " + std::to_string(nbLoops) + " loops in it (flow=" +
-                 std::to_string(print.brim_flow(*print.extruders().begin(), print.objects().at(0)->config()).spacing()) + ")")
+                 std::to_string(print.brim_flow(*print.extruders().begin(), print.get_object(0)->config()).spacing()) + ")")
             {
                 REQUIRE(print.brim().items_count() == floor(nbLoops));
             }
@@ -233,18 +232,18 @@ SCENARIO("Print: Brim generation") {
     }
 }
 
-struct GetFirst : ExtrusionVisitorRecursive
+struct GetFirst : ExtrusionVisitorRecursiveConst
 {
-    ExtrusionLoop* first = nullptr;
-    ExtrusionLoop* previous_last = nullptr;
-    ExtrusionLoop* last = nullptr;
-    void default_use(ExtrusionEntity &entity) override { assert(false); };
-    void use(ExtrusionLoop& loop) override { if(!first) first = &loop; previous_last = last; last = &loop; }
+    const ExtrusionLoop* first = nullptr;
+    const ExtrusionLoop* previous_last = nullptr;
+    const ExtrusionLoop* last = nullptr;
+    void default_use(const ExtrusionEntity &entity) override { assert(false); }
+    void use(const ExtrusionLoop &loop) override { if (!first) first = &loop; previous_last = last; last = &loop; }
 };
 
 SCENARIO("Print: perimeter generation : cube with hole, just enough space for two loops at a point")
 {
-    DynamicPrintConfig &config = Slic3r::DynamicPrintConfig::full_print_config();
+    DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
     Slic3r::Model       model{};
     config.set_key_value("first_layer_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.42, false));
     config.set_deserialize("nozzle_diameter", "0.4");
@@ -280,7 +279,7 @@ SCENARIO("Print: perimeter generation : cube with hole, just enough space for tw
         print.process();
         ExtrusionPrinter printer(/*mult=*/0.000001, /*trunc=*/100, /*json=*/true);
         //std::cout << "\n\n\nNO BRIM EXTUSIONS:\n";
-        //print.objects()[0]->layers()[0]->regions()[0]->perimeters.visit(printer);
+        //print.objects()[0]->layers()[0]->regions()[0]->perimeters().visit(printer);
         //std::cout << "{" << printer.str() << "}";
         //Model model = print.model();
         //Slic3r::store_3mf("test_without_brim.3mf", &model, &print.full_print_config(), OptionStore3mf{});
@@ -288,20 +287,20 @@ SCENARIO("Print: perimeter generation : cube with hole, just enough space for tw
         THEN("hole perimeter should not be printed first, but still before external one")
         {
             GetFirst get_first_visitor;
-            print.objects()[0]->layers()[0]->regions()[0]->perimeters.visit(get_first_visitor);
+            print.objects()[0]->layers()[0]->regions()[0]->perimeters().visit(get_first_visitor);
             REQUIRE(get_first_visitor.first != nullptr);
             REQUIRE(get_first_visitor.first->is_loop());
             // first inner contour peri
             REQUIRE((get_first_visitor.first->loop_role() & ExtrusionLoopRole::elrHole) == 0);
-            REQUIRE(get_first_visitor.first->role() == ExtrusionRole::erPerimeter);
+            REQUIRE(get_first_visitor.first->role() == ExtrusionRole::Perimeter);
             // the external hole perimeter (because it's alone without inner ones, we don't want it to be used as a skirt)
             // note: here we may want to have the seam of this one near the next one instead of near our current pos,
             // if it's an external one, to avoid oozing before external.
             REQUIRE((get_first_visitor.previous_last->loop_role() & ExtrusionLoopRole::elrHole) != 0);
-            REQUIRE(get_first_visitor.previous_last->role() == ExtrusionRole::erExternalPerimeter);
+            REQUIRE(get_first_visitor.previous_last->role() == ExtrusionRole::ExternalPerimeter);
             // the external contour perimeter
             REQUIRE((get_first_visitor.last->loop_role() & ExtrusionLoopRole::elrHole) == 0);
-            REQUIRE(get_first_visitor.last->role() == ExtrusionRole::erExternalPerimeter);
+            REQUIRE(get_first_visitor.last->role() == ExtrusionRole::ExternalPerimeter);
         }
     }
     GIVEN("brim")
@@ -313,29 +312,29 @@ SCENARIO("Print: perimeter generation : cube with hole, just enough space for tw
         THEN("hole perimeter should not be printed first")
         {
             GetFirst get_first_visitor;
-            print.objects()[0]->layers()[0]->regions()[0]->perimeters.visit(get_first_visitor);
+            print.objects()[0]->layers()[0]->regions()[0]->perimeters().visit(get_first_visitor);
             // the external contour perimeter
             REQUIRE((get_first_visitor.first->loop_role() & ExtrusionLoopRole::elrHole) == 0);
-            REQUIRE(get_first_visitor.first->role() == ExtrusionRole::erExternalPerimeter);
+            REQUIRE(get_first_visitor.first->role() == ExtrusionRole::ExternalPerimeter);
             // first inner contour peri
             REQUIRE((get_first_visitor.previous_last->loop_role() & ExtrusionLoopRole::elrHole) == 0);
-            REQUIRE(get_first_visitor.previous_last->role() == ExtrusionRole::erPerimeter);
+            REQUIRE(get_first_visitor.previous_last->role() == ExtrusionRole::Perimeter);
             // the external hole perimeter
             REQUIRE((get_first_visitor.last->loop_role() & ExtrusionLoopRole::elrHole) == ExtrusionLoopRole::elrHole);
-            REQUIRE(get_first_visitor.last->role() == ExtrusionRole::erExternalPerimeter);
+            REQUIRE(get_first_visitor.last->role() == ExtrusionRole::ExternalPerimeter);
         }
     }
 }
 
 
-struct GetAll : ExtrusionVisitorRecursive
+struct GetAll : ExtrusionVisitorRecursiveConst
 {
-    std::vector<ExtrusionLoop*> loops;
-    void default_use(ExtrusionEntity &entity) override { assert(false); };
-    void use(ExtrusionLoop& loop) override { loops.push_back(&loop); }
+    std::vector<const ExtrusionLoop*> loops;
+    void default_use(const ExtrusionEntity &entity) override { assert(false); }
+    void use(const ExtrusionLoop &loop) override { loops.push_back(&loop); }
 };
 SCENARIO("Print: perimeter generation : cube with hole in center") {
-    DynamicPrintConfig& config = Slic3r::DynamicPrintConfig::full_print_config();
+    DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
     Slic3r::Model model{};
     config.set_key_value("first_layer_extrusion_width", std::make_unique<ConfigOptionFloatOrPercent>(0.42, false));
     config.set_deserialize("nozzle_diameter", "0.4");
@@ -364,24 +363,24 @@ SCENARIO("Print: perimeter generation : cube with hole in center") {
         print.process();
         // see https://github.com/supermerill/SuperSlicer/issues/242, why the hole is after the contour inner
         GetAll get_all_visitor;
-        print.objects()[0]->layers()[0]->regions()[0]->perimeters.visit(get_all_visitor);
+        print.objects()[0]->layers()[0]->regions()[0]->perimeters().visit(get_all_visitor);
         auto &loops = get_all_visitor.loops;
         THEN("hole printed first, external last")
         {
             REQUIRE(loops.size() == 6);
             // first holes
             REQUIRE((loops[0]->loop_role() & ExtrusionLoopRole::elrHole) == ExtrusionLoopRole::elrHole);
-            REQUIRE(loops[0]->role() == ExtrusionRole::erPerimeter);
+            REQUIRE(loops[0]->role() == ExtrusionRole::Perimeter);
             REQUIRE((loops[2]->loop_role() & ExtrusionLoopRole::elrHole) == ExtrusionLoopRole::elrHole);
-            REQUIRE(loops[2]->role() == ExtrusionRole::erExternalPerimeter);
+            REQUIRE(loops[2]->role() == ExtrusionRole::ExternalPerimeter);
         }
         THEN("contour printed last, external last")
         {
             //then contour
             REQUIRE( (loops[3]->loop_role() & ExtrusionLoopRole::elrHole) == 0);
-            REQUIRE( loops[3]->role() == ExtrusionRole::erPerimeter);
+            REQUIRE( loops[3]->role() == ExtrusionRole::Perimeter);
             REQUIRE( (loops[5]->loop_role() & ExtrusionLoopRole::elrHole) == 0);
-            REQUIRE( loops[5]->role() == ExtrusionRole::erExternalPerimeter);
+            REQUIRE( loops[5]->role() == ExtrusionRole::ExternalPerimeter);
         }
     }
     GIVEN("contour brim")
@@ -393,24 +392,24 @@ SCENARIO("Print: perimeter generation : cube with hole in center") {
         print.process();
         ExtrusionPrinter printer(/*mult=*/0.000001, /*trunc=*/100, /*json=*/true);
         GetAll get_all_visitor;
-        print.objects()[0]->layers()[0]->regions()[0]->perimeters.visit(get_all_visitor);
+        print.objects()[0]->layers()[0]->regions()[0]->perimeters().visit(get_all_visitor);
         auto &loops = get_all_visitor.loops;
         REQUIRE(loops.size() == 6);
         THEN("contour printed first, external first")
         {
             //then contour
             REQUIRE( (loops[0]->loop_role() & ExtrusionLoopRole::elrHole) == 0);
-            REQUIRE( loops[0]->role() == ExtrusionRole::erExternalPerimeter);
+            REQUIRE( loops[0]->role() == ExtrusionRole::ExternalPerimeter);
             REQUIRE( (loops[2]->loop_role() & ExtrusionLoopRole::elrHole) == 0);
-            REQUIRE( loops[2]->role() == ExtrusionRole::erPerimeter);
+            REQUIRE( loops[2]->role() == ExtrusionRole::Perimeter);
         }
         THEN("hole printed last, external last as there is no hole brim")
         {
             // first holes
             REQUIRE((loops[3]->loop_role() & ExtrusionLoopRole::elrHole) == ExtrusionLoopRole::elrHole);
-            REQUIRE(loops[3]->role() == ExtrusionRole::erPerimeter);
+            REQUIRE(loops[3]->role() == ExtrusionRole::Perimeter);
             REQUIRE((loops[5]->loop_role() & ExtrusionLoopRole::elrHole) == ExtrusionLoopRole::elrHole);
-            REQUIRE(loops[5]->role() == ExtrusionRole::erExternalPerimeter);
+            REQUIRE(loops[5]->role() == ExtrusionRole::ExternalPerimeter);
         }
         //TODO: thinwall after evrything
     }
@@ -423,24 +422,24 @@ SCENARIO("Print: perimeter generation : cube with hole in center") {
         print.process();
         ExtrusionPrinter printer(/*mult=*/0.000001, /*trunc=*/100, /*json=*/true);
         GetAll get_all_visitor;
-        print.objects()[0]->layers()[0]->regions()[0]->perimeters.visit(get_all_visitor);
+        print.objects()[0]->layers()[0]->regions()[0]->perimeters().visit(get_all_visitor);
         auto &loops = get_all_visitor.loops;
         REQUIRE(loops.size() == 6);
         THEN("hole printed first, external first")
         {
             // first holes
             REQUIRE((loops[0]->loop_role() & ExtrusionLoopRole::elrHole) == ExtrusionLoopRole::elrHole);
-            REQUIRE(loops[0]->role() == ExtrusionRole::erExternalPerimeter);
+            REQUIRE(loops[0]->role() == ExtrusionRole::ExternalPerimeter);
             REQUIRE((loops[2]->loop_role() & ExtrusionLoopRole::elrHole) == ExtrusionLoopRole::elrHole);
-            REQUIRE(loops[2]->role() == ExtrusionRole::erPerimeter);
+            REQUIRE(loops[2]->role() == ExtrusionRole::Perimeter);
         }
         THEN("contour printed last, external last")
         {
             //then contour
             REQUIRE( (loops[3]->loop_role() & ExtrusionLoopRole::elrHole) == 0);
-            REQUIRE( loops[3]->role() == ExtrusionRole::erPerimeter);
+            REQUIRE( loops[3]->role() == ExtrusionRole::Perimeter);
             REQUIRE( (loops[5]->loop_role() & ExtrusionLoopRole::elrHole) == 0);
-            REQUIRE( loops[5]->role() == ExtrusionRole::erExternalPerimeter);
+            REQUIRE( loops[5]->role() == ExtrusionRole::ExternalPerimeter);
         }
         //TODO: thinwall after evrything
     }
@@ -453,24 +452,24 @@ SCENARIO("Print: perimeter generation : cube with hole in center") {
         print.process();
         ExtrusionPrinter printer(/*mult=*/0.000001, /*trunc=*/100, /*json=*/true);
         GetAll get_all_visitor;
-        print.objects()[0]->layers()[0]->regions()[0]->perimeters.visit(get_all_visitor);
+        print.objects()[0]->layers()[0]->regions()[0]->perimeters().visit(get_all_visitor);
         auto &loops = get_all_visitor.loops;
         REQUIRE(loops.size() == 6);
         THEN("contour printed first, external first")
         {
             //then contour
             REQUIRE( (loops[0]->loop_role() & ExtrusionLoopRole::elrHole) == 0);
-            REQUIRE( loops[0]->role() == ExtrusionRole::erExternalPerimeter);
+            REQUIRE( loops[0]->role() == ExtrusionRole::ExternalPerimeter);
             REQUIRE( (loops[2]->loop_role() & ExtrusionLoopRole::elrHole) == 0);
-            REQUIRE( loops[2]->role() == ExtrusionRole::erPerimeter);
+            REQUIRE( loops[2]->role() == ExtrusionRole::Perimeter);
         }
         THEN("hole printed last, external first")
         {
             // first holes
             REQUIRE((loops[3]->loop_role() & ExtrusionLoopRole::elrHole) == ExtrusionLoopRole::elrHole);
-            REQUIRE(loops[3]->role() == ExtrusionRole::erExternalPerimeter);
+            REQUIRE(loops[3]->role() == ExtrusionRole::ExternalPerimeter);
             REQUIRE((loops[5]->loop_role() & ExtrusionLoopRole::elrHole) == ExtrusionLoopRole::elrHole);
-            REQUIRE(loops[5]->role() == ExtrusionRole::erPerimeter);
+            REQUIRE(loops[5]->role() == ExtrusionRole::Perimeter);
         }
         //TODO: thinwall after evrything
     }

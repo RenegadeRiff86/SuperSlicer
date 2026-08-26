@@ -1,8 +1,5 @@
 #include <catch2/catch.hpp>
 
-#include <numeric>
-#include <sstream>
-
 #include "test_data.hpp" // get access to init_print, etc
 
 #include "libslic3r/Config.hpp"
@@ -15,15 +12,14 @@ using namespace Slic3r;
 
 std::unique_ptr<CoolingBuffer> make_cooling_buffer(
     GCodeGenerator                  &gcode,
-    const DynamicPrintConfig        &config         = DynamicPrintConfig{}, 
-    const std::vector<unsigned int> &extruder_ids   = { 0 })
+    const DynamicPrintConfig  &config       = DynamicPrintConfig{},
+    const std::vector<uint16_t> &extruder_ids = {0})
 {
-    PrintConfig print_config;
-    print_config.apply(config, true); // ignore_nonexistent
-    gcode.apply_print_config(print_config);
+    gcode.m_config.apply(config, true); // ignore_nonexistent
+    gcode.writer().apply_print_config(gcode.m_config);
     gcode.set_layer_count(10);
     gcode.writer().set_extruders(extruder_ids);
-    gcode.writer().set_extruder(0);
+    gcode.writer().set_tool(0);
     return std::make_unique<CoolingBuffer>(gcode);
 }
 
@@ -260,7 +256,7 @@ SCENARIO("Cooling integration tests", "[Cooling]") {
         });            
         THEN("slowdown_below_layer_time is honored") {
             // Account for some inaccuracies.
-            const double slowdown_below_layer_time = config.opt<ConfigOptionInts>("slowdown_below_layer_time")->values.front() - 0.5;
+            const double slowdown_below_layer_time = config.opt<ConfigOptionInts>("slowdown_below_layer_time")->get_values().front() - 0.5;
             size_t minimum_time_honored = std::count_if(layer_times.begin(), layer_times.end(), 
                 [slowdown_below_layer_time](double t){ return t > slowdown_below_layer_time; });
             REQUIRE(minimum_time_honored == layer_times.size());

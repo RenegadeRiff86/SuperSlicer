@@ -111,7 +111,7 @@ struct FirstIntersectionVisitor
         for (auto it_contour_and_segment = cell_data_range.first; it_contour_and_segment != cell_data_range.second; ++it_contour_and_segment) {
             // End points of the line segment and their vector.
             auto segment = grid.segment(*it_contour_and_segment);
-            if (segment.first == *pt_current | segment.first == *pt_next | Geometry::segments_intersect(segment.first, segment.second, *pt_current, *pt_next)) {
+            if ((segment.first == *pt_current) || (segment.first == *pt_next) || Geometry::segments_intersect(segment.first, segment.second, *pt_current, *pt_next)) {
                 this->intersect = true;
                 intersection_contour_idx = it_contour_and_segment->first;
                 intersection_line_idx = it_contour_and_segment->second;
@@ -149,7 +149,6 @@ struct FirstEpsilonIntersectionVisitor
 
     bool operator()(coord_t iy, coord_t ix)
     {
-        static int aiuhaiod = 0;
         // Called with a row and column of the grid cell, which is intersected by a line.
         auto cell_data_range = grid.cell_data_range(iy, ix);
         this->intersect      = false;
@@ -745,7 +744,7 @@ static float get_external_perimeter_width(const Layer &layer)
     return perimeter_width;
 }
 
-static float get_external_perimeter_overlap(const Layer &layer)
+[[maybe_unused]] static float get_external_perimeter_overlap(const Layer &layer)
 {
     size_t regions_count     = 0;
     float  ext_perimeter_overlap   = 0.f;
@@ -1113,7 +1112,6 @@ static void jump_between_island(AvoidCrossingPerimeters::Boundary &boundary, // 
         const Polygon &contour_start = boundary.boundaries[start_island];
         const Polygon &contour_end = boundary.boundaries[end_island];
 
-        auto time_start = std::chrono::high_resolution_clock::now();
 
         Intersection best_intersection_start;
         best_intersection_start.border_idx = start_island;
@@ -1274,8 +1272,8 @@ static void jump_between_island(AvoidCrossingPerimeters::Boundary &boundary, // 
             assert(best_intersection_start.line_idx < contour_start.size());
             assert(best_intersection_end.line_idx < contour_end.size());
             // line-line
-            distf_t s1, s2, s3;
-            distf_t e1, e2, e3;
+            [[maybe_unused]] distf_t s1, s2, s3;
+            [[maybe_unused]] distf_t e1, e2, e3;
             Point res_end;
             {
                 Point res_start;
@@ -1742,7 +1740,6 @@ static size_t avoid_perimeters_inner(      AvoidCrossingPerimeters::Boundary &bo
         }
     }
 
-    size_t iprocess=0;
     for (auto it_first = intersections.begin(); it_first != intersections.end(); ++it_first) {
         // The entry point to the boundary polygon
         const Intersection &intersection_first = *it_first;
@@ -1918,7 +1915,7 @@ static bool any_expolygon_contains(const ExPolygons &ex_polygons, const std::vec
     return false;
 }
 
-static bool need_wipe(const GCodeGenerator           &gcodegen,
+[[maybe_unused]] static bool need_wipe(const GCodeGenerator           &gcodegen,
                       const ExPolygons               &lslices_offset,
                       const std::vector<BoundingBox> &lslices_offset_bboxes,
                       const EdgeGrid::Grid           &grid_lslices_offset,
@@ -1992,7 +1989,7 @@ static void resample_expolygon(ExPolygon &ex_polygon, double dist_from_vertex, d
         resample_polygon(polygon, dist_from_vertex, max_allowed_distance);
 }
 
-static void resample_expolygons(ExPolygons &ex_polygons, double dist_from_vertex, double max_allowed_distance)
+[[maybe_unused]] static void resample_expolygons(ExPolygons &ex_polygons, double dist_from_vertex, double max_allowed_distance)
 {
     for (ExPolygon &ex_poly : ex_polygons)
         resample_expolygon(ex_poly, dist_from_vertex, max_allowed_distance);
@@ -2511,7 +2508,6 @@ Polyline AvoidCrossingPerimeters::travel_to(const GCodeGenerator &gcodegen, cons
     const Line  travel(start, end);
 
     Polyline result_pl;
-    size_t   travel_intersection_count = 0;
     Vec2d startf = start.cast<double>();
     Vec2d endf   = end  .cast<double>();
 
@@ -2542,7 +2538,7 @@ Polyline AvoidCrossingPerimeters::travel_to(const GCodeGenerator &gcodegen, cons
                 BoundingBox bb_coord_t(m_internal.bbox.min.cast<coord_t>(), m_internal.bbox.max.cast<coord_t>());
                 nearest_end = bb_coord_t.nearest_point(nearest_end);
             }
-            travel_intersection_count = avoid_perimeters(m_internal, nearest_start/*startf.cast<coord_t>()*/, nearest_end/*endf.cast<coord_t>()*/, perimeter_spacing, *gcodegen.layer(), result_pl);
+            avoid_perimeters(m_internal, nearest_start/*startf.cast<coord_t>()*/, nearest_end/*endf.cast<coord_t>()*/, perimeter_spacing, *gcodegen.layer(), result_pl);
             result_pl.points.front()  = start;
             result_pl.points.back()   = end;
         }
@@ -2564,7 +2560,7 @@ Polyline AvoidCrossingPerimeters::travel_to(const GCodeGenerator &gcodegen, cons
                 BoundingBox bb_coord_t(m_external.bbox.min.cast<coord_t>(), m_external.bbox.max.cast<coord_t>());
                 nearest_end = bb_coord_t.nearest_point(nearest_end);
             }
-            travel_intersection_count = avoid_perimeters(m_external, nearest_start/*startf.cast<coord_t>()*/, nearest_end/*endf.cast<coord_t>()*/, 0, *gcodegen.layer(), result_pl);
+            avoid_perimeters(m_external, nearest_start/*startf.cast<coord_t>()*/, nearest_end/*endf.cast<coord_t>()*/, 0, *gcodegen.layer(), result_pl);
             result_pl.points.front()  = start;
             result_pl.points.back()   = end;
         }
@@ -2573,7 +2569,6 @@ Polyline AvoidCrossingPerimeters::travel_to(const GCodeGenerator &gcodegen, cons
     if(result_pl.empty()) {
         // Travel line is completely outside the bounding box.
         result_pl                 = {start, end};
-        travel_intersection_count = 0;
     }
 
     const ConfigOptionFloatOrPercent &opt_max_detour             = gcodegen.config().avoid_crossing_perimeters_max_detour;

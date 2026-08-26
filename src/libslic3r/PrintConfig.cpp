@@ -1038,17 +1038,14 @@ void PrintConfigDef::init_fff_params()
         " extruder overshoot that flow every time it accelerates: it must push an extra amount proportional to"
         " the pressure advance factor and the acceleration."
         "\nWith this enabled, the volumetric caps reserve room for that overshoot, so the peak flow stays inside"
-        " the limit instead of only the average. The cost is a constant reduction of PA x acceleration mm/s"
-        " (e.g. 0.04s x 2000mm/s2 = 80mm/s), which does not depend on the extrusion width."
+        " the limit instead of only the average. Speed is reduced first, but never below the minimum print speed;"
+        " if the transient still does not fit, acceleration is lowered instead of aborting the slice."
         "\nDisable to get the previous behaviour, where the limit was only respected while running at constant"
         " speed. Has no effect if no pressure advance is configured.");
     def->mode = comAdvancedE | comSuSi;
-    // OFF by default. Measured on a real profile: filament_first_layer_pa 0.12 x
-    // default_acceleration 3100 = 372 mm/s of headroom against a 147 mm/s budget, so the first
-    // layer becomes infeasible and the slice aborts with "Impossible extrusion flow". The model is
-    // right - you cannot accelerate that hard at that flow - but refusing to slice is the wrong
-    // remedy. The correct fix is to lower ACCELERATION when the headroom exceeds the budget rather
-    // than drive the speed to zero; until that exists this stays opt-in.
+    // OFF by default: enabling it changes speeds and accelerations on existing profiles.
+    // The acceleration-lowering path is implemented (see _pressure_advance_acceleration);
+    // this stays opt-in so a profile that already prints inside its flow budget is unchanged.
     def->set_default_value(std::make_unique<ConfigOptionBool>(false));
 
     def = this->add("avoid_crossing_curled_overhangs", coBool);
@@ -12315,9 +12312,9 @@ std::string validate(const FullPrintConfig& cfg)
         return "Invalid value for --skirt-height";
     
     // extruder clearance
-    if (cfg.extruder_clearance_radius < 0)
+    if (cfg.extruder_clearance_radius < 0.0)
         return "Invalid value for --extruder-clearance-radius";
-    if (cfg.extruder_clearance_height < 0)
+    if (cfg.extruder_clearance_height < 0.0)
         return "Invalid value for --extruder-clearance-height";
 
     // --extrusion-multiplier
@@ -12759,7 +12756,7 @@ CLIMiscConfigDef::CLIMiscConfigDef()
 
     def = this->add("no_automation_api", coBool);
     def->label = L("Disable model automation API");
-    def->tooltip = L("Disable the GUI automation API for this launch, overriding the saved preference.");
+    def->tooltip = L("Explicitly keep the GUI automation API disabled for this launch.");
     def->cli = "no-automation-api";
     def->set_default_value(std::make_unique<ConfigOptionBool>(false));
 

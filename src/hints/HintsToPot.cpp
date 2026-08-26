@@ -8,6 +8,10 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/filesystem.hpp>
 
+static void append_hint_text_if_present(
+    const boost::property_tree::ptree::value_type& section,
+    std::vector<std::pair<std::string, std::string>>& pot_elements);
+
 bool write_to_pot(boost::filesystem::path path, const std::vector<std::pair<std::string, std::string>>& data)
 {
     boost::nowide::ofstream file(path.string(), std::ios_base::app);
@@ -36,17 +40,23 @@ bool read_hints_ini(boost::filesystem::path path, std::vector<std::pair<std::str
         return false;
     }
     for (const auto& section : tree) {
-        if (boost::starts_with(section.first, "hint:")) {
-            for (const auto& data : section.second) {
-                if (data.first == "text")
-                {
-                    pot_elements.emplace_back(section.first, data.second.data());
-                    break;
-                }
-            }
-        }
+        if (!boost::starts_with(section.first, "hint:"))
+            continue;
+        append_hint_text_if_present(section, pot_elements);
     }
     return true;
+}
+
+static void append_hint_text_if_present(
+    const boost::property_tree::ptree::value_type& section,
+    std::vector<std::pair<std::string, std::string>>& pot_elements)
+{
+    for (const auto& data : section.second) {
+        if (data.first != "text")
+            continue;
+        pot_elements.emplace_back(section.first, data.second.data());
+        return;
+    }
 }
 
 int main(int argc, char* argv[])
@@ -54,7 +64,8 @@ int main(int argc, char* argv[])
     std::vector<std::pair<std::string, std::string>> data;
     boost::filesystem::path path_to_ini;
     boost::filesystem::path path_to_pot;
-    if (argc != 3)
+    constexpr int kExpectedArgc = 3; // program name + ini root + pot root
+    if (argc != kExpectedArgc)
     {
         std::cout << "HINTS_TO_POT FAILED: WRONG NUM OF ARGS" << std::endl;
         return -1;

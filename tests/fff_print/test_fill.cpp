@@ -1,18 +1,14 @@
 #include <catch2/catch.hpp>
 
-#include <numeric>
-#include <sstream>
-
 #include "libslic3r/libslic3r.h"
 
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/Flow.hpp"
+#include "libslic3r/GCodeReader.hpp"
 #include "libslic3r/Layer.hpp"
-#include "libslic3r/Geometry.hpp"
 #include "libslic3r/Geometry/ConvexHull.hpp"
 #include "libslic3r/Point.hpp"
 #include "libslic3r/Print.hpp"
-#include "libslic3r/SVG.hpp"
 
 #include "test_data.hpp"
 
@@ -241,7 +237,7 @@ SCENARIO("Infill does not exceed perimeters", "[Fill]")
                     }
                 });
                 auto convex_hull = Geometry::convex_hull(perimeter_points);
-                int num_inside = std::count_if(infill_points.begin(), infill_points.end(), [&convex_hull](const Point &pt){ return convex_hull.contains(pt); });
+                const size_t num_inside = size_t(std::count_if(infill_points.begin(), infill_points.end(), [&convex_hull](const Point &pt){ return convex_hull.contains(pt); }));
                 REQUIRE(num_inside == infill_points.size());
             }
         }
@@ -375,8 +371,9 @@ SCENARIO("Combine infill", "[Fill]")
             auto layers_with_perimeters = int(layer_infill.size());
             auto layers_with_infill     = int(std::count_if(layer_infill.begin(), layer_infill.end(), [](auto &v){ return v.second; }));
             THEN("expected number of layers") {
-                REQUIRE(layers.size() == layers_with_perimeters + config.opt_int("raft_layers"));
-                        }
+                const size_t expected_layers = size_t(layers_with_perimeters + config.opt_int("raft_layers"));
+                REQUIRE(layers.size() == expected_layers);
+            }
             
             if (config.opt_int("raft_layers") == 0) {
                 // first infill layer printed directly on print bed is not combined, so we don't consider it.
@@ -427,7 +424,7 @@ SCENARIO("Combine infill", "[Fill]")
         THEN("infill combination produces internal void surfaces") {
             bool has_void = false;
             for (const Layer *layer : print.get_object(0)->layers())
-                if (layer->get_region(0)->fill_surfaces().filter_by_type(stInternalVoid).size() > 0) {
+                if (! layer->get_region(0)->fill_surfaces().filter_by_type(stPosInternal | stDensVoid).empty()) {
                     has_void = true;
                     break;
                 }

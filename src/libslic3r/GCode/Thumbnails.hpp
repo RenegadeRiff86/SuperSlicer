@@ -173,6 +173,7 @@ inline void generate_binary_thumbnails(ThumbnailsGeneratorCallback& thumbnail_cb
             case GCodeThumbnailsFormat::PNG: { block.params.format = static_cast<uint16_t>(bgcode::core::EThumbnailFormat::PNG); break; }
             case GCodeThumbnailsFormat::JPG: { block.params.format = static_cast<uint16_t>(bgcode::core::EThumbnailFormat::JPG); break; }
             case GCodeThumbnailsFormat::QOI: { block.params.format = static_cast<uint16_t>(bgcode::core::EThumbnailFormat::QOI); break; }
+            case GCodeThumbnailsFormat::BIQU: { continue; }
             }
             block.data.resize(compressed->size);
             memcpy(block.data.data(), compressed->data, compressed->size);

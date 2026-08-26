@@ -839,7 +839,7 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
         }
 
         // we then loop again the entries to read other files stored in the archive
-        bool print_config_parsed = false, model_config_parsed = false;
+        bool print_config_parsed = false;
         bool read_SLIC3R_LAYER_CONFIG_RANGES_FILE = false;
         for (mz_uint i = 0; i < num_entries; ++i) {
             if (!mz_zip_reader_file_stat(&archive, i, &stat))
@@ -1129,12 +1129,12 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
                 ModelVolume* v = o->volumes[vol_id];
                 if (v->source.input_file.empty())
                     v->source.input_file = filename;
-                    if (v->source.volume_idx == -1)
+                if (v->source.volume_idx == -1)
                     v->source.volume_idx = vol_id;
-                    if (v->source.object_idx == -1)
+                if (v->source.object_idx == -1)
                     v->source.object_idx = obj_id;
-                }
             }
+        }
 
 //        // fixes the min z of the model if negative
 //        model.adjust_min_z();
@@ -3499,10 +3499,10 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
             try {
                 def = globalConfig.get_option_def(opt_key);
             }
-            catch (Exception) {}
+            catch (const Exception&) {}
             if (def != nullptr) {
                 log << "map : " << "\n";
-                for (int i = 0; i < def->enum_def->values().size(); ++i) {
+                for (size_t i = 0; i < def->enum_def->values().size(); ++i) {
                     log << "\t" << i << " : " << def->enum_def->label(i) << "->" << def->enum_def->value(i) << "\n";
                 }
             }
@@ -3750,17 +3750,17 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
         if (option != nullptr && option->type() == ConfigOptionType::coEnum) {
             try {
                 log << "raw_int_value : " << option->get_int() << "\n";
-            } catch (std::exception ex) {}
+            } catch (const std::exception&) {}
             log << "enum : " << option->get_int();
             log << "\n";
             const ConfigOptionDef* def = nullptr;
             try {
                 def = print_config.get_option_def(key);
             }
-            catch (Exception) {}
+            catch (const Exception&) {}
             if (def != nullptr) {
                 log << "map : " << "\n";
-                for (int i = 0; i < def->enum_def->values().size(); ++i) {
+                for (size_t i = 0; i < def->enum_def->values().size(); ++i) {
                     log << "\t" << i << " : " << def->enum_def->label(i) << "->" << def->enum_def->value(i) << "\n";
                 }
             }
@@ -3793,17 +3793,17 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
         if (option != nullptr && option->type() == ConfigOptionType::coEnum) {
             try {
                 log << "raw_int_value : " << option->get_int() << "\n";
-            } catch (std::exception ex) {}
+            } catch (const std::exception&) {}
             log << "enum : " << option->get_int();
             log << "\n";
             const ConfigOptionDef *def = nullptr;
             try {
                 def = print_config.get_option_def(key);
-            } catch (Exception) {}
+            } catch (const Exception&) {}
             if (def != nullptr) {
                 log << "map : "
                     << "\n";
-                for (int i = 0; i < def->enum_def->values().size(); ++i) {
+                for (size_t i = 0; i < def->enum_def->values().size(); ++i) {
                     log << "\t" << i << " : " << def->enum_def->label(i) << "->"
                         << def->enum_def->value(i) << "\n";
                 }
@@ -3885,15 +3885,15 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
         for (const IdToObjectDataMap::value_type& obj_metadata : objects_data) {
             const ModelObject* obj = obj_metadata.second.object;
             if (obj == nullptr) continue;
-                DynamicPrintConfig obj_config_wparent; // part of the chain of config, used as reference to convert configs to prusa config
-                // Output of instances count added because of github #3435, currently not used by PrusaSlicer
-                stream << " <" << OBJECT_TAG << " " << ID_ATTR << "=\"" << obj_metadata.first << "\" " << INSTANCESCOUNT_ATTR << "=\"" << obj->instances.size() << "\">\n";
+            DynamicPrintConfig obj_config_wparent; // part of the chain of config, used as reference to convert configs to prusa config
+            // Output of instances count added because of github #3435, currently not used by PrusaSlicer
+            stream << " <" << OBJECT_TAG << " " << ID_ATTR << "=\"" << obj_metadata.first << "\" " << INSTANCESCOUNT_ATTR << "=\"" << obj->instances.size() << "\">\n";
 
-                // stores object's name
-            if (!obj->name.empty())                    
+            // stores object's name
+            if (!obj->name.empty())
                 add_metadata(stream, 2, MetadataType::object, "name", obj->name);
-                // stores object's config data
-                if (file_path == PRUSA_MODEL_CONFIG_FILE) {
+            // stores object's config data
+            if (file_path == PRUSA_MODEL_CONFIG_FILE) {
                     assert(obj->config.get().parent == nullptr);
                     obj_config_wparent = obj->config.get();
                     obj_config_wparent.parent = &print_config;
@@ -3928,9 +3928,9 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
                         continue;
 
                     // stores volume's offsets
-                        stream << "  <" << VOLUME_TAG << " ";
-                        stream << FIRST_TRIANGLE_ID_ATTR << "=\"" << it->second.first_triangle_id << "\" ";
-                        stream << LAST_TRIANGLE_ID_ATTR << "=\"" << it->second.last_triangle_id << "\">\n";
+                    stream << "  <" << VOLUME_TAG << " ";
+                    stream << FIRST_TRIANGLE_ID_ATTR << "=\"" << it->second.first_triangle_id << "\" ";
+                    stream << LAST_TRIANGLE_ID_ATTR << "=\"" << it->second.last_triangle_id << "\">\n";
 
                         // stores volume's name
                         if (!volume->name.empty()) {

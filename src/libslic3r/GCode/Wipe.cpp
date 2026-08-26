@@ -285,7 +285,7 @@ std::string Wipe::wipe(GCodeGenerator &gcodegen, bool toolchange)
                 center = Geometry::ArcWelder::arc_center(prev_quantized.cast<double>(), p.cast<double>(), double(radius), ccw);
                 angle = Geometry::ArcWelder::arc_angle(prev_quantized.cast<double>(), p.cast<double>(), double(radius));
                 segment_length = angle * std::abs(radius);
-                Vec2d new_p_quantized = gcodegen.writer().get_default_gcode_formatter().quantize(
+                p_quantized = gcodegen.writer().get_default_gcode_formatter().quantize(
                         Vec2d(center + Eigen::Rotation2D((ccw ? angle : -angle) * (no_lift_length / segment_length)) * (prev_quantized - center)));
                 segment_length = no_lift_length;
                 no_lift_length = EPSILON *2;
@@ -297,7 +297,7 @@ std::string Wipe::wipe(GCodeGenerator &gcodegen, bool toolchange)
                 center = Geometry::ArcWelder::arc_center(prev_quantized.cast<double>(), p.cast<double>(), double(radius), ccw);
                 angle = Geometry::ArcWelder::arc_angle(prev_quantized.cast<double>(), p.cast<double>(), double(radius));
                 segment_length = angle * std::abs(radius);
-                Vec2d new_p_quantized = gcodegen.writer().get_default_gcode_formatter().quantize(
+                p_quantized = gcodegen.writer().get_default_gcode_formatter().quantize(
                         Vec2d(center + Eigen::Rotation2D((ccw ? angle : -angle) * (wipe_length / segment_length)) * (prev_quantized - center)));
                 segment_length = wipe_length;
                 partial_segment = true;
@@ -363,7 +363,6 @@ std::string Wipe::wipe(GCodeGenerator &gcodegen, bool toolchange)
             wiped.append(pt_prev);
             Vec2d p;
             auto end = this->path().end();
-            size_t idx = 0;
             for (auto it = this->path().begin(); it != end; ++it) {
                 p = gcodegen.point_to_gcode(it->point + m_offset);
                 // wipe_xxx check itself if prev == p (with quantization)
@@ -379,7 +378,6 @@ std::string Wipe::wipe(GCodeGenerator &gcodegen, bool toolchange)
                 // wipe has updated p into quantized-prev point for next loop
                 prev = p;
                 if(done) return;
-                idx++;
             }
         };
         ArcPolyline arcpoly(this->path());
@@ -544,7 +542,6 @@ std::string Wipe::wipe(GCodeGenerator &gcodegen, bool toolchange)
         }
 
         // set new current point in gcodegen
-        auto pq = gcodegen.writer().get_default_gcode_formatter().quantize(prev);
         assert(prev == gcodegen.writer().get_default_gcode_formatter().quantize(prev));
         gcodegen.set_last_pos(gcodegen.gcode_to_point(prev));
 

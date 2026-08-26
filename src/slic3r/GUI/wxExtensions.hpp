@@ -57,6 +57,10 @@ wxMenuItem* append_menu_check_item(wxMenu* menu, int id, const wxString& string,
 void enable_menu_item(wxUpdateUIEvent& evt, std::function<bool()> const cb_condition, wxMenuItem* item, wxWindow* win);
 
 inline constexpr int DEFAULT_BITMAP_SIZE = 16;
+// Settings-tab toolbar buttons (save, edit, cog) follow Preferences > Tab icon size.
+// Tab icon size 0 hides tab images only; these buttons stay at 32 px.
+// Per-field lock/undo/check decorations stay at DEFAULT_BITMAP_SIZE.
+int settings_toolbar_icon_px();
 
 uint32_t color_from_hex(const std::string& hex);
 wxColour color_from_int(uint32_t colour);
@@ -278,7 +282,7 @@ public:
 
     void SetBitmap_(const ScalableBitmap& bmp);
     void SetBitmap_(const wxBitmap& bmp);
-    bool SetBitmap_(const std::string& bmp_name, int bmp_width = DEFAULT_BITMAP_SIZE);
+    bool SetBitmap_(const std::string& bmp_name, int bmp_width = -1);
     void SetBitmapDisabled_(const ScalableBitmap &bmp);
     int  GetBitmapHeight();
 

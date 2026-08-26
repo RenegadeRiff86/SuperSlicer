@@ -9,7 +9,6 @@
 #include "libslic3r/Model.hpp"
 #include "libslic3r/BoundingBox.hpp"
 #include "libslic3r/Flow.hpp"
-#include "libslic3r/Utils.hpp"
 #include "Jobs/ArrangeJob.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"
@@ -437,11 +436,8 @@ void CalibrationPressureAdvAdaptiveDialog::show_results_grid(wxCommandEvent& /*e
     wxBoxSizer* btns   = new wxBoxSizer(wxHORIZONTAL);
     wxButton*   bt_copy  = new wxButton(&dlg, wxID_ANY, _L("Copy model rows"));
     wxButton*   bt_apply = new wxButton(&dlg, wxID_ANY, _L("Write to filament model"));
-    wxButton*   bt_close = new wxButton(&dlg, wxID_OK, _L("Close"));
     btns->Add(bt_copy, 0, wxRIGHT, kButtonSpacing);
     btns->Add(bt_apply, 0, wxRIGHT, kButtonSpacing);
-    btns->AddStretchSpacer();
-    btns->Add(bt_close);
     root->Add(btns, 0, wxEXPAND | wxALL, kDialogPadding);
 
     bt_copy->Bind(wxEVT_BUTTON, [&](wxCommandEvent&) {

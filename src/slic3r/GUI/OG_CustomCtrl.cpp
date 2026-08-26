@@ -766,8 +766,8 @@ void OG_CustomCtrl::CtrlLine::render(wxDC& dc, wxCoord v_pos)
         const wxColour* text_clr = ((option_set.front().opt.label.empty() || option_set.front().opt.label == "_") && front_field ?
             front_field->label_color() : og_line.label_color());
         is_url_string = !suppress_hyperlinks && !og_line.label_path.empty();
-        wxString opt_label = (og_line.label.empty() || og_line.label.Last() != '_') ? og_line.label : og_line.label.substr(0, og_line.label.size() - 1);
-        bool no_dots = og_line.label.empty() || og_line.label.Last() == '_' || is_multiline;
+        wxString opt_label = (og_line.label.empty() || !og_line.label.EndsWith("_")) ? og_line.label : og_line.label.substr(0, og_line.label.size() - 1);
+        bool no_dots = og_line.label.empty() || og_line.label.EndsWith("_") || is_multiline;
         h_pos = draw_text(dc, wxPoint(h_pos, v_pos), (no_dots ? opt_label : opt_label + ':'), og_line.label_tooltip , text_clr, ctrl->opt_group->title_width * ctrl->m_em_unit, is_url_string);
     }
 
@@ -913,22 +913,22 @@ wxCoord    OG_CustomCtrl::CtrlLine::draw_text(wxDC& dc, wxPoint pos, const wxStr
         size_t idx = size_t(-1);
         for (size_t i = 0; i < multiline_text.Len(); i++)
         {
-            if (multiline_text[i] == ' ')
+            if (multiline_text.Mid(i, 1) == " ")
             {
                 if (dc.GetTextExtent(multiline_text.SubString(0, i)).x < width)
                     idx = i;
                 else {
                     if (idx != size_t(-1))
-                        multiline_text[idx] = '\n';
+                        multiline_text.replace(idx, 1, "\n");
                     else
-                        multiline_text[i] = '\n';
+                        multiline_text.replace(i, 1, "\n");
                     break;
                 }
             }
         }
 
         if (idx != size_t(-1))
-            multiline_text[idx] = '\n';
+            multiline_text.replace(idx, 1, "\n");
     }
 
     if (!text.IsEmpty()) {

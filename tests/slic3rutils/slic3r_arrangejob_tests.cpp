@@ -33,6 +33,7 @@ public:
     explicit RandomArrangeSettings() : m_rng(std::random_device{} ()) {}
 
     float get_distance_from_objects() const override { return m_v.d_obj; }
+    float get_previous_distance_from_objects() const override { return m_v.d_obj_prev; }
     float get_distance_from_bed() const override { return m_v.d_bed; }
     bool  is_rotation_enabled() const override { return m_v.rotations; }
     XLPivots get_xl_alignment() const override { return m_v.xl_align; }

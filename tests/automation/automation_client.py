@@ -296,6 +296,31 @@ class ApiClient:
     def file_dialog_status(self) -> dict[str, Any]:
         return self.rest("POST", "/api/v1/workflows/file_dialog_status", {})
 
+    def window(
+        self,
+        x: int | None = None,
+        y: int | None = None,
+        width: int | None = None,
+        height: int | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if x is not None:
+            payload["x"] = x
+        if y is not None:
+            payload["y"] = y
+        if width is not None:
+            payload["width"] = width
+        if height is not None:
+            payload["height"] = height
+        return self.rest("POST", "/api/v1/workflows/window", payload)
+
+    def scroll(self, dx: int = 0, dy: int = 0, lines: int = 0) -> dict[str, Any]:
+        return self.rest(
+            "POST",
+            "/api/v1/workflows/scroll",
+            {"dx": dx, "dy": dy, "lines": lines},
+        )
+
     def wait_operation(self, operation_id: str, timeout_ms: int = 60000) -> dict[str, Any]:
         state = self.rest(
             "POST",

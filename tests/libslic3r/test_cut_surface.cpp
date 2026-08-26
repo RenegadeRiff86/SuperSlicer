@@ -124,7 +124,7 @@ TEST_CASE("CutSurface in 3mf", "[Emboss]")
     Model model;
     DynamicPrintConfig config;
     ConfigSubstitutionContext ctxt{ForwardCompatibilitySubstitutionRule::Disable};
-    CHECK(load_3mf(path_to_3mf.c_str(), config, ctxt, &model, false));
+    CHECK(load_3mf(path_to_3mf.c_str(), config, ctxt, &model, false, false));
     CHECK(object_id >= 0);
     CHECK(static_cast<size_t>(object_id) < model.objects.size());
     ModelObject* mo = model.objects[object_id];

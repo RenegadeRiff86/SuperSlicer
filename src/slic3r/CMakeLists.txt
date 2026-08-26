@@ -53,12 +53,21 @@ set(SLIC3R_GUI_SOURCES
     GUI/CalibrationRetractionDialog.hpp
     GUI/CalibrationPressureAdvDialog.cpp
     GUI/CalibrationPressureAdvDialog.hpp
+    GUI/CalibrationPressureAdvGeometry.cpp
+    GUI/CalibrationPressureAdvShared.hpp
     GUI/CalibrationPressureAdvAdaptiveDialog.cpp
     GUI/CalibrationPressureAdvAdaptiveDialog.hpp
     GUI/ConfigSnapshotDialog.cpp
     GUI/ConfigSnapshotDialog.hpp
     GUI/CreateMMUTiledCanvas.cpp
     GUI/CreateMMUTiledCanvas.hpp
+    GUI/CreateMMUTiledCanvasConfig.cpp
+    GUI/CreateMMUTiledCanvasGeometry.cpp
+    GUI/CreateMMUTiledCanvasRPlaceData.cpp
+    GUI/CreateMMUTiledCanvasRPlaceData.hpp
+    GUI/CreateMMUTiledCanvasRPlaceDialog.hpp
+    GUI/CreateMMUTiledCanvasShared.hpp
+    GUI/CreateMMUTiledCanvasUi.cpp
     GUI/3DScene.cpp
     GUI/3DScene.hpp
     GUI/format.hpp

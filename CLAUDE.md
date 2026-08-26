@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-SuperSlicer is an open-source 3D slicer (STL/3MF → G-code) forked from PrusaSlicer, built in C++20 with wxWidgets GUI and CMake. Version 2.7.62-beta2. Licensed AGPLv3.
+SuperSlicer is an open-source 3D slicer (STL/3MF → G-code) forked from PrusaSlicer, built in C++20 with wxWidgets GUI and CMake. Version 2.7.63-fork. Licensed AGPLv3.
 
 ## Build Commands (Windows / VS2022)
 

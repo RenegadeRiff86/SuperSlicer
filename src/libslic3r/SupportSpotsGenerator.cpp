@@ -811,6 +811,35 @@ static bool has_brim(const Layer* layer, const Params& params) {
 }
 
 
+Polygons get_brim(const ExPolygon &slice_polygon, const BrimType brim_type, const float brim_width)
+{
+    if (brim_width <= 0.f || brim_type == btNoBrim)
+        return {};
+
+    ExPolygons brim;
+    if (brim_type == btOuterOnly || brim_type == btOuterAndInner) {
+        Polygon brim_hole = slice_polygon.contour;
+        brim_hole.reverse();
+        Polygons expanded = expand(slice_polygon.contour, scale_t(brim_width));
+        if (!expanded.empty())
+            brim.emplace_back(expanded.front(), brim_hole);
+    }
+
+    if (brim_type == btInnerOnly || brim_type == btOuterAndInner) {
+        Polygons brim_contours = slice_polygon.holes;
+        polygons_reverse(brim_contours);
+        for (const Polygon &brim_contour : brim_contours) {
+            Polygons brim_holes = shrink({brim_contour}, scale_t(brim_width));
+            polygons_reverse(brim_holes);
+            ExPolygon inner_brim{brim_contour};
+            inner_brim.holes = std::move(brim_holes);
+            brim.emplace_back(std::move(inner_brim));
+        }
+    }
+
+    return to_polygons(brim);
+}
+
 static Polygons get_brim(const Layer* layer, const size_t slice_idx, const float brim_width_outer, const float brim_width_inner) {
     const ExPolygon& slice_polygon = layer->lslices()[slice_idx];
     // This per-slice estimate does not model brim overlap with neighboring slices,

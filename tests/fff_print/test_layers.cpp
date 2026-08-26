@@ -3,6 +3,7 @@
 */
 
 #include <catch2/catch.hpp>
+#include "libslic3r/GCodeReader.hpp"
 #include "test_data.hpp"
 
 using namespace Slic3r;

@@ -2,13 +2,28 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "SuperSlicer: Temporary automation verification",
+      "name": "SuperSlicer: Build and run normally",
       "type": "lldb",
       "request": "launch",
-      "program": "${workspaceFolder}/build-linux-current-release/bin/superslicer",
+      "program": "${workspaceFolder}/build-linux-x86_64-release/bin/superslicer",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "SuperSlicer: Build VS Code release",
+      "terminal": "integrated",
+      "stopOnEntry": false
+    },
+    {
+      "name": "SuperSlicer: Debug automation (explicit opt-in)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build-linux-x86_64-release/bin/superslicer",
       "args": ["--automation-api"],
       "envFile": "/tmp/superslicer-automation-session.env",
-      "cwd": "${workspaceFolder}"
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "SuperSlicer: Prepare automation debug token",
+      "postDebugTask": "SuperSlicer: Remove automation debug token",
+      "terminal": "integrated",
+      "stopOnEntry": false
     }
   ]
 }

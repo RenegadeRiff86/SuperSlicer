@@ -72,14 +72,16 @@ uint16_t LayerTools::extruder(const ExtrusionEntityCollection &extrusions, const
     assert(region.config().solid_infill_extruder.value > 0);
     // 1 based extruder ID.
     uint16_t extruder = this->extruder_override;
-    if (this->extruder_override == 0)
-        if (HasRoleVisitor::search(extrusions, HasInfillVisitor{}))
+    if (this->extruder_override == 0) {
+        if (HasRoleVisitor::search(extrusions, HasInfillVisitor{})) {
             if (HasRoleVisitor::search(extrusions, HasSolidInfillVisitor{}))
                 extruder = region.config().solid_infill_extruder;
             else
                 extruder = region.config().infill_extruder;
-        else
+        } else {
             extruder = region.config().perimeter_extruder.value;
+        }
+    }
     return (extruder == 0) ? 0 : extruder - 1;
 }
 

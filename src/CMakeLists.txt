@@ -142,11 +142,25 @@ if (NOT WIN32 AND NOT APPLE)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/platform/unix/BuildLinuxImage.sh.in ${CMAKE_CURRENT_BINARY_DIR}/BuildLinuxImage.sh @ONLY)
 endif ()
 
+set(SLIC3R_CLI_SOURCES
+    PrusaSlicer.cpp
+    PrusaSlicer.hpp
+    PrusaSlicerCliRun.cpp
+    PrusaSlicerCliSetup.cpp
+    PrusaSlicerCliSupport.cpp
+    PrusaSlicerCliSupport.hpp
+)
+
 if (WIN32)
-    add_library(Slic3r SHARED PrusaSlicer.cpp PrusaSlicer.hpp)
+    add_library(Slic3r SHARED ${SLIC3R_CLI_SOURCES})
 else ()
-    add_executable(Slic3r PrusaSlicer.cpp PrusaSlicer.hpp)
+    add_executable(Slic3r ${SLIC3R_CLI_SOURCES})
     target_compile_options(Slic3r PRIVATE ${_CC_DEBUG_FLAGS})
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        # Some static dependencies contain GCC LTO objects. Let GCC parallelize
+        # their Release link instead of emitting a serial-LTRANS warning.
+        target_link_options(Slic3r PRIVATE $<$<CONFIG:Release>:-flto=auto>)
+    endif ()
 endif ()
 
 if (MINGW)

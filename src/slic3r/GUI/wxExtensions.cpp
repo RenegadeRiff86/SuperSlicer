@@ -33,6 +33,17 @@ constexpr size_t   HEX_COLOR_WITH_HASH_LENGTH   = 7;
 constexpr size_t   HEX_COLOR_WITHOUT_HASH_LENGTH = 6;
 }
 
+int settings_toolbar_icon_px()
+{
+    int px = 32;
+    if (Slic3r::GUI::wxGetApp().app_config) {
+        const int tab_px = Slic3r::GUI::wxGetApp().app_config->get_int("tab_icon_size");
+        if (tab_px > 0)
+            px = tab_px;
+    }
+    return px;
+}
+
 #ifndef __linux__
 // msw_menuitem_bitmaps is used for MSW and OSX
 static std::map<int, std::string> msw_menuitem_bitmaps;
@@ -802,7 +813,9 @@ bool ScalableButton::SetBitmap_(const std::string& bmp_name, int bmp_width)
     if (m_current_icon_name.empty())
         return false;
 
-    m_bmp_width = bmp_width;
+    // Keep the size the button was created with unless the caller asks for another.
+    if (bmp_width > 0)
+        m_bmp_width = bmp_width;
 
     wxBitmapBundle bmp = *get_bmp_bundle(m_current_icon_name, m_bmp_width, m_bmp_height);
     SetBitmap(bmp);

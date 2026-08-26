@@ -619,7 +619,7 @@ bool Print::has_brim() const
 
 bool Print::sequential_print_horizontal_clearance_valid(const Print &print, Polygons* polygons)
 {
-    if (print.config().extruder_clearance_radius == 0) {
+    if (print.config().extruder_clearance_radius.value == 0) {
         return true;
     }
     Polygons convex_hulls_other;
@@ -1294,7 +1294,6 @@ void Print::process()
     secondary_status_counter_reset();
     Slic3r::parallel_for(size_t(0), m_objects.size(),
         [this](const size_t idx) {
-            PrintObject &obj = *m_objects[idx];
             m_objects[idx]->estimate_curled_extrusions();
         }
     );

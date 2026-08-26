@@ -142,10 +142,7 @@ std::pair<AABBTreeLines::LinesDistancer<ObjectOrExtrusionLinef>, size_t> TravelO
                             const auto *eec = static_cast<const ExtrusionEntityCollection *>(layerm.perimeters().entities()[perimeter_id]);
                             if (eec) {
                                 for (const ExtrusionEntity *ee : *eec) {
-                                    const LayerRegion &layerm = *layer->get_region(island.perimeters.region());
-                                    for (uint32_t perimeter_id : island.perimeters) {
-                                        visitor.process(ee);
-                                    }
+                                    visitor.process(ee);
                                     ++extrusion_entity_cnt;
                                 }
                             }

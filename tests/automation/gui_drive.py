@@ -1,28 +1,24 @@
 #!/usr/bin/env python3
 """Drive a running SuperSlicer through its embedded automation API.
 
-Typical session - start the slicer once, then attach for each step:
+Typical session - start the slicer once in this terminal, then attach for each step.
+Do not background launch. Klipper Z-offset through to a print host is
+`z-offset-workflow` (see tests/automation/README.md).
 
     export SUPERSLICER_AUTOMATION_TOKEN=$(openssl rand -hex 16)
-    ./tests/automation/gui_drive.py launch        # stays running
+    ./tests/automation/gui_drive.py launch        # stays in this terminal
     ./tests/automation/gui_drive.py --attach menus
     ./tests/automation/gui_drive.py --attach tab print_settings
     ./tests/automation/gui_drive.py --attach options --filter perimeter
     ./tests/automation/gui_drive.py --attach set superslicer.option.perimeters 4
     ./tests/automation/gui_drive.py --attach menu superslicer.menu.calibration... --wait-modal
 
-Comparing what the canvas draws before and after a change. The preview hides most move
-types by default, so switch the one under test on first - a capture of a move type that
-is not drawn holds nothing to compare, and the diff comes back clean whatever the change
-did:
+Preview hides most move types; enable the one under test before a screenshot compare.
 
-    ./tests/automation/gui_drive.py --attach load model.stl
     ./tests/automation/gui_drive.py --attach slice
     ./tests/automation/gui_drive.py --attach view preview
     ./tests/automation/gui_drive.py --attach preview-options wipe=true
     ./tests/automation/gui_drive.py --attach screenshot before.png --ref superslicer.canvas.preview
-    # rebuild, relaunch, repeat the steps above, then:
-    ./tests/automation/gui_drive.py --attach screenshot --ref superslicer.canvas.preview --compare before.png
 
 Every command prints plain lines rather than JSON so the output is readable in a
 terminal and greppable in a script.
@@ -50,6 +46,19 @@ from automation_client import (  # noqa: E402  (path set up above)
     wait_closed,
     wait_process_gone,
     wait_ready,
+)
+from flow_calibration_workflow import (  # noqa: E402
+    apply_result as apply_flow_result,
+    generate_test as generate_flow_test,
+    open_dialog as open_flow_dialog,
+)
+from z_offset_workflow import (  # noqa: E402
+    apply_result,
+    generate_test,
+    inspect_gcode,
+    regression_check,
+    run_workflow,
+    send_gcode,
 )
 
 MENU_PREFIX = "superslicer.menu."
@@ -356,14 +365,14 @@ def command_export_plate(client: ApiClient, args: argparse.Namespace) -> int:
     written: list[Path] = []
     while time.monotonic() < deadline:
         changed = [path for path in candidates if stamp(path) != before[path]]
-        if changed:
-            settled = {path: stamp(path) for path in changed}
+        if not changed:
             time.sleep(0.1)
-            if all(stamp(path) == settled[path] for path in changed):
-                written = changed
-                break
-        else:
-            time.sleep(0.1)
+            continue
+        settled = {path: stamp(path) for path in changed}
+        time.sleep(0.1)
+        if all(stamp(path) == settled[path] for path in changed):
+            written = changed
+            break
 
     if not written:
         print(f"asked for {args.format}: nothing was written to {requested}")
@@ -389,6 +398,124 @@ def command_arrange(client: ApiClient, args: argparse.Namespace) -> None:
 
 def command_orient(client: ApiClient, args: argparse.Namespace) -> None:
     print(client.orient())
+
+
+def _print_mapping(prefix: str, value: object) -> None:
+    if not isinstance(value, dict):
+        print(f"{prefix}: {value}")
+        return
+    for key, item in value.items():
+        _print_mapping(f"{prefix}.{key}" if prefix else str(key), item)
+
+
+def command_flow_calibration(client: ApiClient, args: argparse.Namespace) -> None:
+    if args.generate:
+        _print_mapping(
+            "flow-calibration",
+            generate_flow_test(client, interval=args.generate, timeout=args.timeout),
+        )
+        return
+    if args.apply:
+        _print_mapping(
+            "flow-calibration",
+            apply_flow_result(client, tile=args.tile, timeout=args.timeout),
+        )
+        return
+    _print_mapping("flow-calibration", open_flow_dialog(client, timeout=args.timeout))
+
+
+def command_z_offset_generate(client: ApiClient, args: argparse.Namespace) -> None:
+    _print_mapping(
+        "z-offset-generate",
+        generate_test(
+            client,
+            center=args.center,
+            step=args.step,
+            layer_height=args.layer_height,
+            outer_walls=args.outer_walls,
+            export_path=args.export,
+            timeout=args.timeout,
+        ),
+    )
+
+
+def command_z_offset_apply(client: ApiClient, args: argparse.Namespace) -> None:
+    _print_mapping(
+        "z-offset-apply",
+        apply_result(
+            client,
+            pad=args.pad,
+            measured_height=args.measured,
+            timeout=args.timeout,
+        ),
+    )
+
+
+def command_z_offset_workflow(client: ApiClient, args: argparse.Namespace) -> None:
+    _print_mapping(
+        "z-offset-workflow",
+        run_workflow(
+            client,
+            export_path=args.export,
+            center=args.center,
+            step=args.step,
+            layer_height=args.layer_height,
+            outer_walls=args.outer_walls,
+            moonraker=args.moonraker,
+            start_print=args.start_print,
+            timeout=args.timeout,
+        ),
+    )
+
+
+def command_send_gcode(client: ApiClient, args: argparse.Namespace) -> None:
+    del client
+    _print_mapping(
+        "send-gcode",
+        send_gcode(
+            args.path,
+            args.moonraker,
+            start=args.start_print,
+            remote_name=args.remote_name,
+        ),
+    )
+
+
+def command_inspect_gcode(client: ApiClient, args: argparse.Namespace) -> None:
+    del client
+    _print_mapping("inspect-gcode", inspect_gcode(args.path))
+
+
+def command_z_offset_regression(client: ApiClient, args: argparse.Namespace) -> None:
+    del client
+    outcome = regression_check(
+        args.moonraker,
+        filament=args.filament,
+        nozzle=args.nozzle,
+        surface=args.surface,
+        measured=args.measured,
+        preset_offset=args.preset_offset,
+    )
+    _print_mapping("z-offset-regression", outcome)
+    if not outcome["passed"]:
+        raise AutomationError(
+            f"END_PRINT overwrote {outcome['context']}: measured "
+            f"{outcome['measured_bias']} is now {outcome['saved_after_print']}"
+        )
+
+
+def command_window(client: ApiClient, args: argparse.Namespace) -> None:
+    _print_mapping(
+        "window",
+        client.window(x=args.x, y=args.y, width=args.width, height=args.height),
+    )
+
+
+def command_scroll(client: ApiClient, args: argparse.Namespace) -> None:
+    _print_mapping(
+        "scroll",
+        client.scroll(dx=args.dx, dy=args.dy, lines=args.lines),
+    )
 
 
 def command_paint_supports(client: ApiClient, args: argparse.Namespace) -> None:
@@ -672,6 +799,120 @@ def add_workflow_commands(commands) -> None:
     )
     paint_parser.set_defaults(handler=command_paint_supports)
 
+    add_z_offset_commands(commands)
+    add_flow_calibration_commands(commands)
+
+    window_parser = commands.add_parser(
+        "window", help="print or move the SuperSlicer window in screen pixels"
+    )
+    window_parser.add_argument("x", type=int, nargs="?")
+    window_parser.add_argument("y", type=int, nargs="?")
+    window_parser.add_argument("--width", type=int)
+    window_parser.add_argument("--height", type=int)
+    window_parser.set_defaults(handler=command_window)
+
+    scroll_parser = commands.add_parser(
+        "scroll", help="scroll the current settings page"
+    )
+    scroll_parser.add_argument("--dx", type=int, default=0, help="horizontal pixels")
+    scroll_parser.add_argument("--dy", type=int, default=0, help="vertical pixels; positive shows content below")
+    scroll_parser.add_argument("--lines", type=int, default=0, help="wxScrolledWindow units; overrides --dy")
+    scroll_parser.set_defaults(handler=command_scroll)
+
+
+def add_flow_calibration_commands(commands) -> None:
+    flow_parser = commands.add_parser(
+        "flow-calibration",
+        help="open Calibration > Filament Flow calibration and optionally generate cubes",
+    )
+    flow_parser.add_argument(
+        "--generate",
+        choices=("recommended", "fine"),
+        help="click Generate recommended or Generate fine after the dialog opens",
+    )
+    flow_parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="select a printed chip and write the new extrusion multiplier",
+    )
+    flow_parser.add_argument(
+        "--tile",
+        type=int,
+        default=5,
+        help="0-based chip index to apply (default 5, the 0.000 modifier on the recommended set)",
+    )
+    flow_parser.set_defaults(handler=command_flow_calibration)
+
+
+def add_z_offset_commands(commands) -> None:
+    """The Klipper Z-offset family: generate the pads, apply a measurement, and
+    ship or check the resulting G-code."""
+    generate_parser = commands.add_parser(
+        "z-offset-generate",
+        help="open Calibration > Klipper Z offset calibration and generate the nine pads",
+    )
+    generate_parser.add_argument("--center", type=float)
+    generate_parser.add_argument("--step", type=float)
+    generate_parser.add_argument("--layer-height", type=float)
+    generate_parser.add_argument("--outer-walls", type=int)
+    generate_parser.add_argument("--export", type=Path, help="export G-code after generate")
+    generate_parser.set_defaults(handler=command_z_offset_generate)
+
+    apply_parser = commands.add_parser(
+        "z-offset-apply",
+        help="open Apply Z offset and write the filament preset",
+    )
+    apply_parser.add_argument("--pad", type=int, required=True)
+    apply_parser.add_argument("--measured", type=float, required=True)
+    apply_parser.set_defaults(handler=command_z_offset_apply)
+
+    workflow_parser = commands.add_parser(
+        "z-offset-workflow",
+        help="generate the nine-pad test, export G-code, and optionally upload to Moonraker",
+    )
+    workflow_parser.add_argument("--export", type=Path, required=True)
+    workflow_parser.add_argument("--center", type=float)
+    workflow_parser.add_argument("--step", type=float)
+    workflow_parser.add_argument("--layer-height", type=float)
+    workflow_parser.add_argument("--outer-walls", type=int)
+    workflow_parser.add_argument("--moonraker", help="Moonraker base URL, e.g. http://192.168.122.147:7125")
+    workflow_parser.add_argument(
+        "--start-print", action="store_true", help="start the uploaded file on the printer"
+    )
+    workflow_parser.set_defaults(handler=command_z_offset_workflow)
+
+    send_parser = commands.add_parser(
+        "send-gcode", help="upload an already-exported G-code file to Moonraker"
+    )
+    send_parser.add_argument("path", type=Path)
+    send_parser.add_argument("--moonraker", required=True)
+    send_parser.add_argument("--start-print", action="store_true")
+    send_parser.add_argument("--remote-name")
+    send_parser.set_defaults(handler=command_send_gcode, skip_slicer=True)
+
+    inspect_parser = commands.add_parser(
+        "inspect-gcode",
+        help="report START_PRINT / SET_GCODE_OFFSET order in an exported file",
+    )
+    inspect_parser.add_argument("path", type=Path)
+    inspect_parser.set_defaults(handler=command_inspect_gcode, skip_slicer=True)
+
+    regression_parser = commands.add_parser(
+        "z-offset-regression",
+        help="prove a measured per-context Z offset survives a print (needs the real macros)",
+    )
+    regression_parser.add_argument("--moonraker", required=True)
+    regression_parser.add_argument("--filament", default="Regression Test Filament")
+    regression_parser.add_argument("--nozzle", default="0.6")
+    regression_parser.add_argument("--surface", default="Textured_PEI")
+    regression_parser.add_argument(
+        "--measured", type=float, default=-0.057, help="bias the user measured by hand"
+    )
+    regression_parser.add_argument(
+        "--preset-offset", type=float, default=0.0, help="filament_z_offset the slicer emits"
+    )
+    regression_parser.set_defaults(handler=command_z_offset_regression, skip_slicer=True)
+
 
 def add_file_dialog_commands(commands) -> None:
     arm_parser = commands.add_parser(
@@ -719,6 +960,8 @@ def add_wait_flags(parser: argparse.ArgumentParser) -> None:
 
 def main() -> int:
     args = build_parser().parse_args()
+    if getattr(args, "skip_slicer", False):
+        return args.handler(None, args) or 0
     slicer_process = None
     # An --executable given while attaching is a claim about what should already be on the
     # port, and wait_ready refuses to talk to anything else. Launching has no one to check

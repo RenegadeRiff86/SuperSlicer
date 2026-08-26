@@ -2,7 +2,6 @@
 
 #include "libslic3r/GCodeReader.hpp"
 #include "libslic3r/Config.hpp"
-#include "libslic3r/Geometry.hpp"
 
 #include <boost/algorithm/string.hpp>
 
@@ -12,7 +11,7 @@ using namespace Slic3r::Test;
 using namespace Slic3r;
 
 /// Helper method to find the tool used for the brim (always the first extrusion)
-static int get_brim_tool(const std::string &gcode)
+[[maybe_unused]] static int get_brim_tool(const std::string &gcode)
 {
     int brim_tool	= -1;
     int tool		= -1;
@@ -58,7 +57,7 @@ TEST_CASE("Skirt height is honored", "[Skirt]") {
             layers_with_skirt[self.z()] = 1;
         }
     });
-    REQUIRE(layers_with_skirt.size() == static_cast<size_t>(c)onfig.opt_int("skirt_height"));
+    REQUIRE(layers_with_skirt.size() == static_cast<size_t>(config.opt_int("skirt_height")));
 }
 
 SCENARIO("Original Slic3r Skirt/Brim tests", "[SkirtBrim]") {
@@ -162,7 +161,7 @@ SCENARIO("Original Slic3r Skirt/Brim tests", "[SkirtBrim]") {
             THEN("2 brim lines") {
                 Slic3r::Print print;
                 Slic3r::Test::init_and_process_print({TestMesh::cube_20x20x20}, print, config);
-                REQUIRE(print.brim().entities.size() == 2);
+                REQUIRE(print.brim().entities().size() == 2);
             }
         }
 
