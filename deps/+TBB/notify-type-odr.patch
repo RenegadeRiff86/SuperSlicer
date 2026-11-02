@@ -1,0 +1,25 @@
+diff --git a/src/tbbmalloc/Customize.h b/src/tbbmalloc/Customize.h
+--- a/src/tbbmalloc/Customize.h
++++ b/src/tbbmalloc/Customize.h
+@@ -92,10 +92,10 @@ namespace tbb {
+ namespace detail {
+ namespace d1 {
+ 
+-    enum notify_type {prepare=0, cancel, acquired, releasing};
++    enum malloc_notify_type {prepare=0, cancel, acquired, releasing};
+ 
+ #if TBB_USE_PROFILING_TOOLS
+-    inline void call_itt_notify(notify_type t, void *ptr) {
++    inline void call_itt_notify(malloc_notify_type t, void *ptr) {
+         // unreferenced formal parameter warning
+         detail::suppress_unused_warning(ptr);
+         switch ( t ) {
+@@ -114,7 +114,7 @@ namespace d1 {
+         }
+     }
+ #else
+-    inline void call_itt_notify(notify_type /*t*/, void * /*ptr*/) {}
++    inline void call_itt_notify(malloc_notify_type /*t*/, void * /*ptr*/) {}
+ #endif // TBB_USE_PROFILING_TOOLS
+ 
+ } // namespace d1

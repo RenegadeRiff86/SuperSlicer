@@ -21,6 +21,10 @@ namespace GUI {
 
 static const Slic3r::ColorRGBA DEFAULT_PLANE_COLOR       = { 0.9f, 0.9f, 0.9f, 0.5f };
 static const Slic3r::ColorRGBA DEFAULT_HOVER_PLANE_COLOR = { 0.9f, 0.9f, 0.9f, 0.75f };
+static constexpr int POLYGON_SIDE_FACTOR = 2;
+static constexpr int Z_COMPONENT_INDEX = 2;
+static constexpr int SPATIAL_DIMENSIONS = 3;
+static constexpr size_t TRIANGLE_VERTEX_COUNT = 3;
 
 GLGizmoFlatten::GLGizmoFlatten(GLCanvas3D& parent, const std::string& icon_filename, unsigned int sprite_id)
     : GLGizmoBase(parent, icon_filename, sprite_id)
@@ -107,11 +111,11 @@ void GLGizmoFlatten::on_render()
         const Transform3d model_matrix = Geometry::translation_transform(selection.get_first_volume()->get_sla_shift_z() * Vec3d::UnitZ()) * inst_matrix;
         const Transform3d view_model_matrix = camera.get_view_matrix() * model_matrix;
 
-        shader->set_uniform("view_model_matrix", view_model_matrix);
-        shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_model_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
         if (this->is_plane_update_necessary())
             update_planes();
-        for (int i = 0; i < (int)m_planes.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(m_planes.size()); ++i) {
             m_planes[i].vbo.model.set_color(i == m_hover_id ? DEFAULT_HOVER_PLANE_COLOR : DEFAULT_PLANE_COLOR);
             m_planes[i].vbo.model.render();
         }
@@ -135,7 +139,7 @@ void GLGizmoFlatten::on_register_raycasters_for_picking()
         const Transform3d matrix = Geometry::translation_transform(selection.get_first_volume()->get_sla_shift_z() * Vec3d::UnitZ()) *
             selection.get_first_volume()->get_instance_transformation().get_matrix();
 
-        for (int i = 0; i < (int)m_planes.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(m_planes.size()); ++i) {
             m_planes_casters.emplace_back(m_parent.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, i, *m_planes[i].vbo.mesh_raycaster, matrix));
         }
     }
@@ -202,13 +206,13 @@ void GLGizmoFlatten::update_planes()
         while (facet_queue_cnt > 0) {
             int facet_idx = facet_queue[-- facet_queue_cnt];
             const stl_normal& this_normal = face_normals[facet_idx];
-            if (std::abs(this_normal(0) - (*normal_ptr)(0)) < 0.001 && std::abs(this_normal(1) - (*normal_ptr)(1)) < 0.001 && std::abs(this_normal(2) - (*normal_ptr)(2)) < 0.001) {
+            if (std::abs(this_normal(0) - (*normal_ptr)(0)) < 0.001 && std::abs(this_normal(1) - (*normal_ptr)(1)) < 0.001 && std::abs(this_normal(Z_COMPONENT_INDEX) - (*normal_ptr)(Z_COMPONENT_INDEX)) < 0.001) {
                 const Vec3i32 face = ch.its.indices[facet_idx];
-                for (int j=0; j<3; ++j)
+                for (int j=0; j < SPATIAL_DIMENSIONS; ++j)
                     m_planes.back().vertices.emplace_back(ch.its.vertices[face[j]].cast<double>());
 
                 facet_visited[facet_idx] = true;
-                for (int j = 0; j < 3; ++ j)
+                for (int j = 0; j < SPATIAL_DIMENSIONS; ++ j)
                     if (int neighbor_idx = face_neighbors[facet_idx][j]; neighbor_idx >= 0 && ! facet_visited[neighbor_idx])
                         facet_queue[facet_queue_cnt ++] = neighbor_idx;
             }
@@ -221,15 +225,15 @@ void GLGizmoFlatten::update_planes()
         verts = transform(verts, inst_matrix);
 
         // if this is a just a very small triangle, remove it to speed up further calculations (it would be rejected later anyway):
-        if (verts.size() == 3 &&
+        if (verts.size() == TRIANGLE_VERTEX_COUNT &&
             ((verts[0] - verts[1]).norm() < minimal_side
-            || (verts[0] - verts[2]).norm() < minimal_side
-            || (verts[1] - verts[2]).norm() < minimal_side))
+            || (verts[0] - verts[Z_COMPONENT_INDEX]).norm() < minimal_side
+            || (verts[1] - verts[Z_COMPONENT_INDEX]).norm() < minimal_side))
             m_planes.pop_back();
     }
 
     // Let's prepare transformation of the normal vector from mesh to instance coordinates.
-    const Matrix3d normal_matrix = inst_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
+    const Matrix3d normal_matrix = Geometry::normal_matrix(inst_matrix);
 
     // Now we'll go through all the polygons, transform the points into xy plane to process them:
     for (unsigned int polygon_id=0; polygon_id < m_planes.size(); ++polygon_id) {
@@ -242,7 +246,7 @@ void GLGizmoFlatten::update_planes()
         // We are going to rotate about z and y to flatten the plane
         Eigen::Quaterniond q;
         Transform3d m = Transform3d::Identity();
-        m.matrix().block(0, 0, 3, 3) = q.setFromTwoVectors(normal_transformed, Vec3d::UnitZ()).toRotationMatrix();
+        m.matrix().block(0, 0, SPATIAL_DIMENSIONS, SPATIAL_DIMENSIONS) = q.setFromTwoVectors(normal_transformed, Vec3d::UnitZ()).toRotationMatrix();
         polygon = transform(polygon, m);
 
         // Now to remove the inner points. We'll misuse Geometry::convex_hull for that, but since
@@ -267,7 +271,7 @@ void GLGizmoFlatten::update_planes()
             discard = true;
         else {
             // We also check the inner angles and discard polygons with angles smaller than the following threshold
-            const double angle_threshold = ::cos(10.0 * (double)PI / 180.0);
+            const double angle_threshold = ::cos(10.0 * static_cast<double>(PI) / 180.0);
 
             for (unsigned int i = 0; i < polygon.size(); ++i) {
                 const Vec3d& prec = polygon[(i == 0) ? polygon.size() - 1 : i - 1];
@@ -289,7 +293,7 @@ void GLGizmoFlatten::update_planes()
 
         // We will shrink the polygon a little bit so it does not touch the object edges:
         Vec3d centroid = std::accumulate(polygon.begin(), polygon.end(), Vec3d(0.0, 0.0, 0.0));
-        centroid /= (double)polygon.size();
+        centroid /= static_cast<double>(polygon.size());
         for (auto& vertex : polygon)
             vertex = 0.9f*vertex + 0.1f*centroid;
 
@@ -303,25 +307,25 @@ void GLGizmoFlatten::update_planes()
         const unsigned int N = polygon.size();
         std::vector<std::pair<unsigned int, unsigned int>> neighbours;
         if (k != 0) {
-            Pointf3s points_out(2*k*N); // vector long enough to store the future vertices
+            Pointf3s points_out(POLYGON_SIDE_FACTOR * k*N); // vector long enough to store the future vertices
             for (unsigned int j=0; j<N; ++j) {
-                points_out[j*2*k] = polygon[j];
-                neighbours.push_back(std::make_pair((int)(j*2*k-k) < 0 ? (N-1)*2*k+k : j*2*k-k, j*2*k+k));
+                points_out[j*POLYGON_SIDE_FACTOR * k] = polygon[j];
+                neighbours.push_back(std::make_pair(static_cast<int>(j*POLYGON_SIDE_FACTOR * k-k) < 0 ? (N-1)*POLYGON_SIDE_FACTOR * k+k : j*POLYGON_SIDE_FACTOR * k-k, j*POLYGON_SIDE_FACTOR * k+k));
             }
 
             for (unsigned int i=0; i<k; ++i) {
                 // Calculate middle of each edge so that neighbours points to something useful:
                 for (unsigned int j=0; j<N; ++j)
                     if (i==0)
-                        points_out[j*2*k+k] = 0.5f * (points_out[j*2*k] + points_out[j==N-1 ? 0 : (j+1)*2*k]);
+                        points_out[j*POLYGON_SIDE_FACTOR * k+k] = 0.5f * (points_out[j*POLYGON_SIDE_FACTOR * k] + points_out[j==N-1 ? 0 : (j+1)*POLYGON_SIDE_FACTOR * k]);
                     else {
                         float r = 0.2+0.3/(k-1)*i; // the neighbours are not always taken in the middle
-                        points_out[neighbours[j].first] = r*points_out[j*2*k] + (1-r) * points_out[neighbours[j].first-1];
-                        points_out[neighbours[j].second] = r*points_out[j*2*k] + (1-r) * points_out[neighbours[j].second+1];
+                        points_out[neighbours[j].first] = r*points_out[j*POLYGON_SIDE_FACTOR * k] + (1-r) * points_out[neighbours[j].first-1];
+                        points_out[neighbours[j].second] = r*points_out[j*POLYGON_SIDE_FACTOR * k] + (1-r) * points_out[neighbours[j].second+1];
                     }
                 // Now we have a triangle and valid neighbours, we can do an iteration:
                 for (unsigned int j=0; j<N; ++j)
-                    points_out[2*k*j] = (1-aggressivity) * points_out[2*k*j] +
+                    points_out[POLYGON_SIDE_FACTOR * k*j] = (1-aggressivity) * points_out[POLYGON_SIDE_FACTOR * k*j] +
                                         aggressivity*0.5f*(points_out[neighbours[j].first] + points_out[neighbours[j].second]);
 
                 for (auto& n : neighbours) {
@@ -335,7 +339,7 @@ void GLGizmoFlatten::update_planes()
 
         // Raise a bit above the object surface to avoid flickering:
         for (auto& b : polygon)
-            b(2) += 0.1f;
+            b(Z_COMPONENT_INDEX) += 0.1f;
 
         // Transform back to 3D (and also back to mesh coordinates)
         polygon = transform(polygon, inst_matrix.inverse() * m.inverse());
@@ -343,7 +347,7 @@ void GLGizmoFlatten::update_planes()
 
     // We'll sort the planes by area and only keep the 254 largest ones (because of the picking pass limitations):
     std::sort(m_planes.rbegin(), m_planes.rend(), [](const PlaneData& a, const PlaneData& b) { return a.area < b.area; });
-    m_planes.resize(std::min((int)m_planes.size(), 254));
+    m_planes.resize(std::min(static_cast<int>(m_planes.size()), 254));
 
     // Planes are finished - let's save what we calculated it from:
     m_volumes_matrices.clear();
@@ -362,7 +366,7 @@ void GLGizmoFlatten::update_planes()
     for (auto& plane : m_planes) {
         indexed_triangle_set its;
         its.vertices.reserve(plane.vertices.size());
-        its.indices.reserve(plane.vertices.size() / 3);
+        its.indices.reserve(plane.vertices.size() / TRIANGLE_VERTEX_COUNT);
         for (size_t i = 0; i < plane.vertices.size(); ++i) {
             its.vertices.emplace_back((Vec3f)plane.vertices[i].cast<float>());
         }
@@ -376,7 +380,7 @@ void GLGizmoFlatten::update_planes()
             // for the raycaster to work properly
             for (stl_triangle_vertex_indices& face : its.indices) {
                 if (its_face_normal(its, face).cast<double>().dot(plane.normal) < 0.0)
-                    std::swap(face[1], face[2]);
+                    std::swap(face[1], face[Z_COMPONENT_INDEX]);
             }
         }
         plane.vbo.mesh_raycaster = std::make_unique<MeshRaycaster>(std::make_shared<const TriangleMesh>(std::move(its)));

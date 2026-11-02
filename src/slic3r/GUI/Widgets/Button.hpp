@@ -18,15 +18,13 @@ class Button : public StaticBox
     bool m_selected  = true;
     bool canFocus  = true;
 
-    static const int buttonWidth = 200;
-    static const int buttonHeight = 50;
 
 public:
     Button();
 
-    Button(wxWindow* parent, wxString text, wxString icon = "", long style = 0, wxSize iconSize = wxSize(16, 16));
+    Button(wxWindow* parent, wxString text, wxString icon = "", long style = 0, wxSize iconSize = wxSize(DEFAULT_BITMAP_SIZE, DEFAULT_BITMAP_SIZE));
 
-    bool Create(wxWindow* parent, wxString text, wxString icon = "", long style = 0, wxSize iconSize = wxSize(16, 16));
+    bool Create(wxWindow* parent, wxString text, wxString icon = "", long style = 0, wxSize iconSize = wxSize(DEFAULT_BITMAP_SIZE, DEFAULT_BITMAP_SIZE));
 
     void SetLabel(const wxString& label) override;
 

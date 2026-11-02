@@ -38,6 +38,16 @@
 
 namespace Slic3r {
 
+// Named literals for BP1002; values unchanged from the prior inline literals.
+static constexpr double SHORT_LINE_MERGE_THRESHOLD_MM = 0.2;
+static constexpr size_t MIN_SEGMENTS_FOR_COMPARISON   = 2;
+static constexpr size_t MIN_SEGMENTS_FOR_TRIPLE        = 3;
+static constexpr int    TOP_BOTTOM_LAYER_CAP           = 100000; // effectively unlimited: solid infill covers every layer
+static constexpr size_t DOUBLE_LAYER_SLOTS             = 2;      // two half-layer triangle slots per layer
+static constexpr int    NUM_FACET_VERTICES             = 3;
+static constexpr int    LAST_FACET_VERTEX_IDX          = NUM_FACET_VERTICES - 1;
+[[maybe_unused]] static constexpr double DEBUG_SVG_STROKE_MM = 0.05;
+
 // Assumes that is at most same projected_l length or below than projection_l
 static bool project_line_on_line(const Line &projection_l, const Line &projected_l, Line *new_projected)
 {
@@ -99,27 +109,30 @@ struct PaintedLineVisitor
                 (grid_line.a - line_to_test.b).cast<double>().squaredNorm() > heuristic_thr_sqr ||
                 (grid_line.b - line_to_test.b).cast<double>().squaredNorm() > heuristic_thr_sqr)
                 continue;
-            // When lines have too different length, it is necessary to normalize them
-            if (Slic3r::sqr(v1.dot(v2)) > cos_threshold2 * v1_sqr_norm * v2.squaredNorm()) {
-                // The two vectors are nearly collinear (their mutual angle is lower than 30 degrees)
-                if (painted_lines_set.find(*it_contour_and_segment) == painted_lines_set.end()) {
-                    if (grid_line.distance_to_squared(line_to_test.a) < min_res ||
-                        grid_line.distance_to_squared(line_to_test.b) < min_res ||
-                        line_to_test.distance_to_squared(grid_line.a) < min_res ||
-                        line_to_test.distance_to_squared(grid_line.b) < min_res) {
-                        Line line_to_test_projected;
-                        project_line_on_line(grid_line, line_to_test, &line_to_test_projected);
+            // When lines have too different length, it is necessary to normalize them.
+            // Keep only vectors that are nearly collinear (their mutual angle is lower than 30 degrees).
+            if (Slic3r::sqr(v1.dot(v2)) <= cos_threshold2 * v1_sqr_norm * v2.squaredNorm())
+                continue;
+            if (painted_lines_set.find(*it_contour_and_segment) != painted_lines_set.end())
+                continue;
 
-                        if ((line_to_test_projected.a - grid_line.a).cast<double>().squaredNorm() > (line_to_test_projected.b - grid_line.a).cast<double>().squaredNorm())
-                            line_to_test_projected.reverse();
+            const bool lines_are_close = grid_line.distance_to_squared(line_to_test.a) < min_res ||
+                                         grid_line.distance_to_squared(line_to_test.b) < min_res ||
+                                         line_to_test.distance_to_squared(grid_line.a) < min_res ||
+                                         line_to_test.distance_to_squared(grid_line.b) < min_res;
+            if (!lines_are_close)
+                continue;
 
-                        painted_lines_set.insert(*it_contour_and_segment);
-                        {
-                            boost::lock_guard<std::mutex> lock(painted_lines_mutex);
-                            painted_lines.push_back({it_contour_and_segment->first, it_contour_and_segment->second, line_to_test_projected, this->color});
-                        }
-                    }
-                }
+            Line line_to_test_projected;
+            project_line_on_line(grid_line, line_to_test, &line_to_test_projected);
+
+            if ((line_to_test_projected.a - grid_line.a).cast<double>().squaredNorm() > (line_to_test_projected.b - grid_line.a).cast<double>().squaredNorm())
+                line_to_test_projected.reverse();
+
+            painted_lines_set.insert(*it_contour_and_segment);
+            {
+                boost::lock_guard<std::mutex> lock(painted_lines_mutex);
+                painted_lines.push_back({it_contour_and_segment->first, it_contour_and_segment->second, line_to_test_projected, this->color});
             }
         }
         // Continue traversing the grid along the edge.
@@ -318,13 +331,13 @@ static ColoredLines colorize_line(const Line &line_to_process,
     // Make sure all the lines are connected.
     assert(are_lines_connected(final_lines));
 
-    for (size_t line_idx = 2; line_idx < final_lines.size(); ++line_idx) {
-        const ColoredLine &line_0 = final_lines[line_idx - 2];
+    for (size_t line_idx = 2; line_idx < final_lines.size(); ++line_idx) {  // need 2 lines of history for a 3-line window
+        const ColoredLine &line_0 = final_lines[line_idx - 2];  // oldest line in the 3-line window
         ColoredLine       &line_1 = final_lines[line_idx - 1];
         const ColoredLine &line_2 = final_lines[line_idx - 0];
 
         if (line_0.color == line_2.color && line_0.color != line_1.color)
-            if (line_1.line.length() <= scale_(0.2)) line_1.color = line_0.color;
+            if (line_1.line.length() <= scale_(SHORT_LINE_MERGE_THRESHOLD_MM)) line_1.color = line_0.color;
     }
 
     ColoredLines colored_lines_simple;
@@ -341,13 +354,13 @@ static ColoredLines colorize_line(const Line &line_to_process,
     final_lines = colored_lines_simple;
 
     if (final_lines.size() > 1)
-        if (final_lines.front().color != final_lines[1].color && final_lines.front().line.length() <= scale_(0.2)) {
+        if (final_lines.front().color != final_lines[1].color && final_lines.front().line.length() <= scale_(SHORT_LINE_MERGE_THRESHOLD_MM)) {
             final_lines[1].line.a = final_lines.front().line.a;
             final_lines.erase(final_lines.begin());
         }
 
     if (final_lines.size() > 1)
-        if (final_lines.back().color != final_lines[final_lines.size() - 2].color && final_lines.back().line.length() <= scale_(0.2)) {
+        if (final_lines.back().color != final_lines[final_lines.size() - 2].color && final_lines.back().line.length() <= scale_(SHORT_LINE_MERGE_THRESHOLD_MM)) {
             final_lines[final_lines.size() - 2].line.b = final_lines.back().line.b;
             final_lines.pop_back();
         }
@@ -356,8 +369,8 @@ static ColoredLines colorize_line(const Line &line_to_process,
 }
 
 static ColoredLines filter_colorized_polygon(ColoredLines &&new_lines) {
-    for (size_t line_idx = 2; line_idx < new_lines.size(); ++line_idx) {
-        const ColoredLine &line_0 = new_lines[line_idx - 2];
+    for (size_t line_idx = 2; line_idx < new_lines.size(); ++line_idx) {  // need 2 lines of history for a 3-line window
+        const ColoredLine &line_0 = new_lines[line_idx - 2];  // oldest line in the 3-line window
         ColoredLine       &line_1 = new_lines[line_idx - 1];
         const ColoredLine &line_2 = new_lines[line_idx - 0];
 
@@ -366,9 +379,9 @@ static ColoredLines filter_colorized_polygon(ColoredLines &&new_lines) {
         }
     }
 
-    for (size_t line_idx = 3; line_idx < new_lines.size(); ++line_idx) {
-        const ColoredLine &line_0 = new_lines[line_idx - 3];
-        ColoredLine       &line_1 = new_lines[line_idx - 2];
+    for (size_t line_idx = 3; line_idx < new_lines.size(); ++line_idx) {  // need 3 lines of history for a 4-line window
+        const ColoredLine &line_0 = new_lines[line_idx - 3];  // oldest line in the 4-line window
+        ColoredLine       &line_1 = new_lines[line_idx - 2];  // second-oldest line in the 4-line window
         ColoredLine       &line_2 = new_lines[line_idx - 1];
         const ColoredLine &line_3 = new_lines[line_idx - 0];
 
@@ -389,7 +402,7 @@ static ColoredLines filter_colorized_polygon(ColoredLines &&new_lines) {
         return total_length;
     };
 
-    if (segments.size() >= 2)
+    if (segments.size() >= MIN_SEGMENTS_FOR_COMPARISON)
         for (size_t curr_idx = 0; curr_idx < segments.size(); ++curr_idx) {
             size_t next_idx = next_idx_modulo(curr_idx, segments.size());
             assert(curr_idx != next_idx);
@@ -400,7 +413,7 @@ static ColoredLines filter_colorized_polygon(ColoredLines &&new_lines) {
             double seg0l = segment_length(segments[curr_idx]);
             double seg1l = segment_length(segments[next_idx]);
 
-            if (color0 != color1 && seg0l >= scale_(0.1) && seg1l <= scale_(0.2)) {
+            if (color0 != color1 && seg0l >= scale_(0.1) && seg1l <= scale_(SHORT_LINE_MERGE_THRESHOLD_MM)) {
                 for (size_t seg_start_idx = segments[next_idx].first; seg_start_idx != segments[next_idx].second; seg_start_idx = (seg_start_idx + 1 < new_lines.size()) ? seg_start_idx + 1 : 0)
                     new_lines[seg_start_idx].color = color0;
                 new_lines[segments[next_idx].second].color = color0;
@@ -408,7 +421,7 @@ static ColoredLines filter_colorized_polygon(ColoredLines &&new_lines) {
         }
 
     segments = get_segments(new_lines);
-    if (segments.size() >= 2)
+    if (segments.size() >= MIN_SEGMENTS_FOR_COMPARISON)
         for (size_t curr_idx = 0; curr_idx < segments.size(); ++curr_idx) {
             size_t next_idx = next_idx_modulo(curr_idx, segments.size());
             assert(curr_idx != next_idx);
@@ -417,7 +430,7 @@ static ColoredLines filter_colorized_polygon(ColoredLines &&new_lines) {
             int    color1 = new_lines[segments[next_idx].first].color;
             double seg1l  = segment_length(segments[next_idx]);
 
-            if (color0 >= 1 && color0 != color1 && seg1l <= scale_(0.2)) {
+            if (color0 >= 1 && color0 != color1 && seg1l <= scale_(SHORT_LINE_MERGE_THRESHOLD_MM)) {
                 for (size_t seg_start_idx = segments[next_idx].first; seg_start_idx != segments[next_idx].second; seg_start_idx = (seg_start_idx + 1 < new_lines.size()) ? seg_start_idx + 1 : 0)
                     new_lines[seg_start_idx].color = color0;
                 new_lines[segments[next_idx].second].color = color0;
@@ -425,7 +438,7 @@ static ColoredLines filter_colorized_polygon(ColoredLines &&new_lines) {
         }
 
     segments = get_segments(new_lines);
-    if (segments.size() >= 3)
+    if (segments.size() >= MIN_SEGMENTS_FOR_TRIPLE)
         for (size_t curr_idx = 0; curr_idx < segments.size(); ++curr_idx) {
             size_t next_idx      = next_idx_modulo(curr_idx, segments.size());
             size_t next_next_idx = next_idx_modulo(next_idx, segments.size());
@@ -497,8 +510,8 @@ static std::vector<ColoredLines> colorize_contours(const std::vector<EdgeGrid::C
     for (ColoredLines &color_lines : colorized_contours) {
         size_t line_idx = 0;
         for (size_t color_line_idx = 0; color_line_idx < color_lines.size(); ++color_line_idx) {
-            color_lines[color_line_idx].poly_idx       = int(poly_idx);
-            color_lines[color_line_idx].local_line_idx = int(line_idx);
+            color_lines[color_line_idx].poly_idx       = poly_idx;
+            color_lines[color_line_idx].local_line_idx = line_idx;
             ++line_idx;
         }
         ++poly_idx;
@@ -510,7 +523,7 @@ static std::vector<ColoredLines> colorize_contours(const std::vector<EdgeGrid::C
 // Determines if the line points from the point between two contour lines is pointing inside polygon or outside.
 static inline bool points_inside(const Line &contour_first, const Line &contour_second, const Point &new_point)
 {
-    // TODO: Used in points_inside for decision if line leading thought the common point of two lines is pointing inside polygon or outside
+    // Used in points_inside for the decision if a line leading through the common point of two lines is pointing inside the polygon or outside.
     auto three_points_inward_normal = [](const Point &left, const Point &middle, const Point &right) -> Vec2d {
         assert(left != middle);
         assert(middle != right);
@@ -527,7 +540,7 @@ static inline bool points_inside(const Line &contour_first, const Line &contour_
 
 enum VD_ANNOTATION : Voronoi::VD::cell_type::color_type {
     VERTEX_ON_CONTOUR = 1,
-    DELETED           = 2
+    DELETED           = 2  // Voronoi cell/edge marked for removal
 };
 
 #ifdef MM_SEGMENTATION_DEBUG_GRAPH
@@ -629,7 +642,7 @@ static inline double calc_total_edge_length(const VD::edge_type &starting_edge)
     double               total_edge_length = edge_length(starting_edge);
     const VD::edge_type *prev              = &starting_edge;
     do {
-        if (prev->is_finite() && non_deleted_edge_count(*prev->vertex1()) > 2)
+        if (prev->is_finite() && non_deleted_edge_count(*prev->vertex1()) > 2)  // branching vertex: connects to more than 2 edges
             break;
 
         bool                 found_next_edge = false;
@@ -705,8 +718,10 @@ static std::vector<ExPolygons> extract_colored_segments(const std::vector<Colore
     const BoundingBox  bbox          = get_extents(colored_polygons);
 
     auto get_next_contour_line = [&colored_polygons](const ColoredLine &line) -> const ColoredLine & {
-        size_t contour_line_size = colored_polygons[line.poly_idx].size();
-        size_t contour_next_idx  = (line.local_line_idx + 1) % contour_line_size;
+        const size_t contour_line_size = colored_polygons[line.poly_idx].size();
+        assert(contour_line_size > 0);
+        assert(line.local_line_idx < contour_line_size);
+        const size_t contour_next_idx = line.local_line_idx == contour_line_size - 1 ? 0 : line.local_line_idx + 1;
         return colored_polygons[line.poly_idx][contour_next_idx];
     };
 
@@ -841,7 +856,7 @@ static void cut_segmented_layers(const std::vector<ExPolygons>        &input_exp
     tbb::parallel_for(tbb::blocked_range<size_t>(0, segmented_regions.size()),[&segmented_regions, &input_expolygons, &cut_width, &interlocking_cut_width, &throw_on_cancel_callback](const tbb::blocked_range<size_t>& range) {
         for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
             throw_on_cancel_callback();
-            const float  region_cut_width       = (layer_idx % 2 == 0 && interlocking_cut_width > 0.f) ? interlocking_cut_width : cut_width;
+            const float  region_cut_width       = (layer_idx % 2 == 0 && interlocking_cut_width > 0.f) ? interlocking_cut_width : cut_width;  // alternate the cut direction every other layer
             const size_t num_extruders_plus_one = segmented_regions[layer_idx].size();
             if (region_cut_width > 0.f) {
                 std::vector<ExPolygons> segmented_regions_cuts(num_extruders_plus_one); // Indexed by extruder_id
@@ -863,6 +878,98 @@ static bool is_volume_sinking(const indexed_triangle_set &its, const Transform3d
     return false;
 }
 
+static void merge_polygon_layers(std::vector<Polygons> &&src, std::vector<Polygons> &dst)
+{
+    auto it_src = find_if(src.begin(), src.end(), [](const Polygons &polygons) { return !polygons.empty(); });
+    if (it_src == src.end())
+        return;
+    if (dst.empty()) {
+        dst = std::move(src);
+        return;
+    }
+
+    assert(src.size() == dst.size());
+    auto it_dst = dst.begin() + (it_src - src.begin());
+    for (; it_src != src.end(); ++it_src, ++it_dst) {
+        if (it_src->empty())
+            continue;
+        if (it_dst->empty())
+            *it_dst = std::move(*it_src);
+        else
+            append(*it_dst, std::move(*it_src));
+    }
+}
+
+struct LayerColorStat
+{
+    int      num_regions            {0};
+    coordf_t extrusion_width        {0.f};
+    coordf_t small_region_threshold {0.f};
+    int      top_solid_layers       {0};
+    int      bottom_solid_layers    {0};
+};
+
+static void project_top_layers(const std::vector<Polygons> &top, const size_t layer_idx, const size_t layer_idx_offset,
+                               const std::vector<ExPolygons> &input_expolygons, const LayerColorStat &stat,
+                               std::vector<ExPolygons> &triangles_by_layer)
+{
+    if (top.empty() || top[layer_idx].empty())
+        return;
+
+    ExPolygons top_ex = union_ex(top[layer_idx]);
+    if (stat.small_region_threshold > 0)
+        top_ex = opening_ex(top_ex, stat.small_region_threshold);
+    if (top_ex.empty())
+        return;
+
+    append(triangles_by_layer[layer_idx + layer_idx_offset], top_ex);
+    float      offset               = 0.f;
+    ExPolygons layer_slices_trimmed = input_expolygons[layer_idx];
+    const size_t top_layer_count    = static_cast<size_t>(std::max(stat.top_solid_layers, 0));
+    const size_t first_layer_idx    = layer_idx > top_layer_count ? layer_idx - top_layer_count : 0;
+    for (size_t last_idx = layer_idx; last_idx > first_layer_idx;) {
+        --last_idx;
+        offset -= stat.extrusion_width;
+        layer_slices_trimmed = intersection_ex(layer_slices_trimmed, input_expolygons[last_idx]);
+        ExPolygons last = intersection_ex(top_ex, offset_ex(layer_slices_trimmed, offset));
+        if (stat.small_region_threshold > 0)
+            last = opening_ex(last, stat.small_region_threshold);
+        if (last.empty())
+            break;
+        append(triangles_by_layer[last_idx + layer_idx_offset], std::move(last));
+    }
+}
+
+static void project_bottom_layers(const std::vector<Polygons> &bottom, const size_t layer_idx, const size_t layer_idx_offset,
+                                  const std::vector<ExPolygons> &input_expolygons, const LayerColorStat &stat,
+                                  std::vector<ExPolygons> &triangles_by_layer)
+{
+    if (bottom.empty() || bottom[layer_idx].empty())
+        return;
+
+    ExPolygons bottom_ex = union_ex(bottom[layer_idx]);
+    if (stat.small_region_threshold > 0)
+        bottom_ex = opening_ex(bottom_ex, stat.small_region_threshold);
+    if (bottom_ex.empty())
+        return;
+
+    append(triangles_by_layer[layer_idx + layer_idx_offset], bottom_ex);
+    float      offset               = 0.f;
+    ExPolygons layer_slices_trimmed = input_expolygons[layer_idx];
+    const size_t bottom_layer_count = static_cast<size_t>(std::max(stat.bottom_solid_layers, 0));
+    const size_t layer_limit = layer_idx + std::min(bottom_layer_count, input_expolygons.size() - layer_idx);
+    for (size_t last_idx = layer_idx + 1; last_idx < layer_limit; ++last_idx) {
+        offset -= stat.extrusion_width;
+        layer_slices_trimmed = intersection_ex(layer_slices_trimmed, input_expolygons[last_idx]);
+        ExPolygons last = intersection_ex(bottom_ex, offset_ex(layer_slices_trimmed, offset));
+        if (stat.small_region_threshold > 0)
+            last = opening_ex(last, stat.small_region_threshold);
+        if (last.empty())
+            break;
+        append(triangles_by_layer[last_idx + layer_idx_offset], std::move(last));
+    }
+}
+
 // Returns MM segmentation of top and bottom layers based on painting in MM segmentation gizmo
 static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_bottom_layers(const PrintObject             &print_object,
                                                                                          const std::vector<ExPolygons> &input_expolygons,
@@ -881,8 +988,8 @@ static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_botto
         max_top_layers    = std::max(max_top_layers, config.top_solid_layers.value);
         max_bottom_layers = std::max(max_bottom_layers, config.bottom_solid_layers.value);
         if (config.solid_infill_every_layers == 1  && config.fill_density.value > 0) {
-            max_top_layers = 100000;
-            max_bottom_layers = 100000;
+            max_top_layers = TOP_BOTTOM_LAYER_CAP;
+            max_bottom_layers = TOP_BOTTOM_LAYER_CAP;
         }
         granularity       = std::max(granularity, std::max(config.top_solid_layers.value, config.bottom_solid_layers.value) - 1);
     }
@@ -898,57 +1005,42 @@ static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_botto
 #endif // MM_SEGMENTATION_DEBUG_TOP_BOTTOM
 
     if (max_top_layers > 0 || max_bottom_layers > 0) {
-        for (const ModelVolume *mv : print_object.model_object()->volumes)
-            if (mv->is_model_part()) {
-                const Transform3d volume_trafo = object_trafo * mv->get_matrix();
-                for (size_t extruder_idx = 0; extruder_idx < num_extruders; ++ extruder_idx) {
-                    const indexed_triangle_set painted = mv->mm_segmentation_facets.get_facets_strict(*mv, EnforcerBlockerType(extruder_idx));
+        for (const ModelVolume *mv : print_object.model_object()->volumes) {
+            if (!mv->is_model_part())
+                continue;
+
+            const Transform3d volume_trafo = object_trafo * mv->get_matrix();
+            for (size_t extruder_idx = 0; extruder_idx < num_extruders; ++ extruder_idx) {
+                const indexed_triangle_set painted = mv->mm_segmentation_facets.get_facets_strict(*mv, EnforcerBlockerType(extruder_idx));
 #ifdef MM_SEGMENTATION_DEBUG_TOP_BOTTOM
-                    {
-                        static int iRun = 0;
-                        its_write_obj(painted, debug_out_path("mm-painted-patch-%d-%d.obj", iRun ++, extruder_idx).c_str());
-                    }
-#endif // MM_SEGMENTATION_DEBUG_TOP_BOTTOM
-                    if (! painted.indices.empty()) {
-                        std::vector<Polygons> top, bottom;
-                        if (!zs.empty() && is_volume_sinking(painted, volume_trafo)) {
-                            std::vector<float> zs_sinking = {0.f};
-                            Slic3r::append(zs_sinking, zs);
-                            slice_mesh_slabs(painted, zs_sinking, volume_trafo, max_top_layers > 0 ? &top : nullptr, max_bottom_layers > 0 ? &bottom : nullptr, throw_on_cancel_callback);
-
-                            MeshSlicingParams slicing_params;
-                            slicing_params.trafo = volume_trafo;
-                            Polygons bottom_slice = slice_mesh(painted, zs[0], slicing_params);
-
-                            top.erase(top.begin());
-                            bottom.erase(bottom.begin());
-
-                            bottom[0] = union_(bottom[0], bottom_slice);
-                        } else
-                            slice_mesh_slabs(painted, zs, volume_trafo, max_top_layers > 0 ? &top : nullptr, max_bottom_layers > 0 ? &bottom : nullptr, throw_on_cancel_callback);
-                        auto merge = [](std::vector<Polygons> &&src, std::vector<Polygons> &dst) {
-                            auto it_src = find_if(src.begin(), src.end(), [](const Polygons &p){ return ! p.empty(); });
-                            if (it_src != src.end()) {
-                                if (dst.empty()) {
-                                    dst = std::move(src);
-                                } else {
-                                    assert(src.size() == dst.size());
-                                    auto it_dst = dst.begin() + (it_src - src.begin());
-                                    for (; it_src != src.end(); ++ it_src, ++ it_dst)
-                                        if (! it_src->empty()) {
-                                            if (it_dst->empty())
-                                                *it_dst = std::move(*it_src);
-                                            else
-                                                append(*it_dst, std::move(*it_src));
-                                        }
-                                }
-                            }
-                        };
-                        merge(std::move(top),    top_raw[extruder_idx]);
-                        merge(std::move(bottom), bottom_raw[extruder_idx]);
-                    }
+                {
+                    static int iRun = 0;
+                    its_write_obj(painted, debug_out_path("mm-painted-patch-%d-%d.obj", iRun ++, extruder_idx).c_str());
                 }
+#endif // MM_SEGMENTATION_DEBUG_TOP_BOTTOM
+                if (painted.indices.empty())
+                    continue;
+
+                std::vector<Polygons> top, bottom;
+                if (!zs.empty() && is_volume_sinking(painted, volume_trafo)) {
+                    std::vector<float> zs_sinking = {0.f};
+                    Slic3r::append(zs_sinking, zs);
+                    slice_mesh_slabs(painted, zs_sinking, volume_trafo, max_top_layers > 0 ? &top : nullptr, max_bottom_layers > 0 ? &bottom : nullptr, throw_on_cancel_callback);
+
+                    MeshSlicingParams slicing_params;
+                    slicing_params.trafo = volume_trafo;
+                    Polygons bottom_slice = slice_mesh(painted, zs[0], slicing_params);
+
+                    top.erase(top.begin());
+                    bottom.erase(bottom.begin());
+
+                    bottom[0] = union_(bottom[0], bottom_slice);
+                } else
+                    slice_mesh_slabs(painted, zs, volume_trafo, max_top_layers > 0 ? &top : nullptr, max_bottom_layers > 0 ? &bottom : nullptr, throw_on_cancel_callback);
+                merge_polygon_layers(std::move(top), top_raw[extruder_idx]);
+                merge_polygon_layers(std::move(bottom), bottom_raw[extruder_idx]);
             }
+        }
     }
 
     auto filter_out_small_polygons = [&num_extruders, &num_layers](std::vector<std::vector<Polygons>> &raw_surfaces, double min_area) -> void {
@@ -989,21 +1081,9 @@ static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_botto
 
     std::vector<std::vector<ExPolygons>> triangles_by_color_bottom(num_extruders);
     std::vector<std::vector<ExPolygons>> triangles_by_color_top(num_extruders);
-    triangles_by_color_bottom.assign(num_extruders, std::vector<ExPolygons>(num_layers * 2));
-    triangles_by_color_top.assign(num_extruders, std::vector<ExPolygons>(num_layers * 2));
+    triangles_by_color_bottom.assign(num_extruders, std::vector<ExPolygons>(num_layers * DOUBLE_LAYER_SLOTS));
+    triangles_by_color_top.assign(num_extruders, std::vector<ExPolygons>(num_layers * DOUBLE_LAYER_SLOTS));
 
-    struct LayerColorStat {
-        // Number of regions for a queried color.
-        int     num_regions             { 0 };
-        // Maximum perimeter extrusion width for a queried color.
-        coordf_t extrusion_width         { 0.f };
-        // Minimum radius of a region to be printable. Used to filter regions by morphological opening.
-        coordf_t small_region_threshold  { 0.f };
-        // Maximum number of top layers for a queried color.
-        int     top_solid_layers        { 0 };
-        // Maximum number of bottom layers for a queried color.
-        int     bottom_solid_layers     { 0 };
-    };
     auto layer_color_stat = [&layers = std::as_const(layers)](const size_t layer_idx, const size_t color_idx) -> LayerColorStat {
         LayerColorStat out;
         const Layer &layer = *layers[layer_idx];
@@ -1018,8 +1098,8 @@ static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_botto
                 out.top_solid_layers    = std::max<int>(out.top_solid_layers, config.top_solid_layers);
                 out.bottom_solid_layers = std::max<int>(out.bottom_solid_layers, config.bottom_solid_layers);
                 if (config.solid_infill_every_layers.value == 1 && config.fill_density.value > 0) {
-                    out.top_solid_layers = 100000;
-                    out.bottom_solid_layers = 100000;
+                    out.top_solid_layers = TOP_BOTTOM_LAYER_CAP;
+                    out.bottom_solid_layers = TOP_BOTTOM_LAYER_CAP;
                 }
                 out.small_region_threshold = config.gap_fill_enabled.value ?
                                              // Gap fill enabled. Enable a single line of 1/2 extrusion width.
@@ -1042,48 +1122,10 @@ static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_botto
             for (size_t color_idx = 0; color_idx < num_extruders; ++ color_idx) {
                 throw_on_cancel_callback();
                 LayerColorStat stat = layer_color_stat(layer_idx, color_idx);
-                if (std::vector<Polygons> &top = top_raw[color_idx]; ! top.empty() && ! top[layer_idx].empty())
-                    if (ExPolygons top_ex = union_ex(top[layer_idx]); ! top_ex.empty()) {
-                        // Clean up thin projections. They are not printable anyways.
-                        if (stat.small_region_threshold > 0)
-                            top_ex = opening_ex(top_ex, stat.small_region_threshold);
-                        if (! top_ex.empty()) {
-                            append(triangles_by_color_top[color_idx][layer_idx + layer_idx_offset], top_ex);
-                            float offset = 0.f;
-                            ExPolygons layer_slices_trimmed = input_expolygons[layer_idx];
-                            for (int last_idx = int(layer_idx) - 1; last_idx >= std::max(int(layer_idx - stat.top_solid_layers), int(0)); --last_idx) {
-                                offset -= stat.extrusion_width;
-                                layer_slices_trimmed = intersection_ex(layer_slices_trimmed, input_expolygons[last_idx]);
-                                ExPolygons last = intersection_ex(top_ex, offset_ex(layer_slices_trimmed, offset));
-                                if (stat.small_region_threshold > 0)
-                                    last = opening_ex(last, stat.small_region_threshold);
-                                if (last.empty())
-                                    break;
-                                append(triangles_by_color_top[color_idx][last_idx + layer_idx_offset], std::move(last));
-                            }
-                        }
-                    }
-                if (std::vector<Polygons> &bottom = bottom_raw[color_idx]; ! bottom.empty() && ! bottom[layer_idx].empty())
-                    if (ExPolygons bottom_ex = union_ex(bottom[layer_idx]); ! bottom_ex.empty()) {
-                        // Clean up thin projections. They are not printable anyways.
-                        if (stat.small_region_threshold > 0)
-                            bottom_ex = opening_ex(bottom_ex, stat.small_region_threshold);
-                        if (! bottom_ex.empty()) {
-                            append(triangles_by_color_bottom[color_idx][layer_idx + layer_idx_offset], bottom_ex);
-                            float offset = 0.f;
-                            ExPolygons layer_slices_trimmed = input_expolygons[layer_idx];
-                            for (size_t last_idx = layer_idx + 1; last_idx < std::min(layer_idx + stat.bottom_solid_layers, num_layers); ++last_idx) {
-                                offset -= stat.extrusion_width;
-                                layer_slices_trimmed = intersection_ex(layer_slices_trimmed, input_expolygons[last_idx]);
-                                ExPolygons last = intersection_ex(bottom_ex, offset_ex(layer_slices_trimmed, offset));
-                                if (stat.small_region_threshold > 0)
-                                    last = opening_ex(last, stat.small_region_threshold);
-                                if (last.empty())
-                                    break;
-                                append(triangles_by_color_bottom[color_idx][last_idx + layer_idx_offset], std::move(last));
-                            }
-                        }
-                    }
+                project_top_layers(top_raw[color_idx], layer_idx, layer_idx_offset, input_expolygons, stat,
+                                   triangles_by_color_top[color_idx]);
+                project_bottom_layers(bottom_raw[color_idx], layer_idx, layer_idx_offset, input_expolygons, stat,
+                                      triangles_by_color_bottom[color_idx]);
             }
         }
     });
@@ -1158,7 +1200,7 @@ static std::vector<std::vector<ExPolygons>> merge_segmented_layers(
 static void export_regions_to_svg(const std::string &path, const std::vector<ExPolygons> &regions, const ExPolygons &lslices)
 {
     const std::vector<std::string> colors       = {"blue", "cyan", "red", "orange", "magenta", "pink", "purple", "yellow"};
-    coordf_t                       stroke_width = scale_(0.05);
+    coordf_t                       stroke_width = scale_(DEBUG_SVG_STROKE_MM);
     BoundingBox                    bbox         = get_extents(lslices);
     bbox.offset(scale_(1.));
     ::Slic3r::SVG svg(path.c_str(), bbox);
@@ -1175,9 +1217,9 @@ static void export_regions_to_svg(const std::string &path, const std::vector<ExP
 #endif // MM_SEGMENTATION_DEBUG_REGIONS
 
 #ifdef MM_SEGMENTATION_DEBUG_INPUT
-void export_processed_input_expolygons_to_svg(const std::string &path, const LayerRegionPtrs &regions, const ExPolygons &processed_input_expolygons)
+static void export_processed_input_expolygons_to_svg(const std::string &path, const LayerRegionPtrs &regions, const ExPolygons &processed_input_expolygons)
 {
-    coordf_t    stroke_width = scale_(0.05);
+    coordf_t    stroke_width = scale_(DEBUG_SVG_STROKE_MM);
     BoundingBox bbox         = get_extents(regions);
     bbox.merge(get_extents(processed_input_expolygons));
     bbox.offset(scale_(1.));
@@ -1195,7 +1237,7 @@ void export_processed_input_expolygons_to_svg(const std::string &path, const Lay
 static void export_painted_lines_to_svg(const std::string &path, const std::vector<std::vector<PaintedLine>> &all_painted_lines, const ExPolygons &lslices)
 {
     const std::vector<std::string> colors       = {"blue", "cyan", "red", "orange", "magenta", "pink", "purple", "yellow"};
-    coordf_t                       stroke_width = scale_(0.05);
+    coordf_t                       stroke_width = scale_(DEBUG_SVG_STROKE_MM);
     BoundingBox                    bbox         = get_extents(lslices);
     bbox.offset(scale_(1.));
     ::Slic3r::SVG svg(path.c_str(), bbox);
@@ -1213,7 +1255,7 @@ static void export_painted_lines_to_svg(const std::string &path, const std::vect
 static void export_colorized_polygons_to_svg(const std::string &path, const std::vector<ColoredLines> &colorized_polygons, const ExPolygons &lslices)
 {
     const std::vector<std::string> colors       = {"blue", "cyan", "red", "orange", "magenta", "pink", "purple", "green", "yellow"};
-    coordf_t                       stroke_width = scale_(0.05);
+    coordf_t                       stroke_width = scale_(DEBUG_SVG_STROKE_MM);
     BoundingBox                    bbox         = get_extents(lslices);
     bbox.offset(scale_(1.));
     ::Slic3r::SVG svg(path.c_str(), bbox);
@@ -1238,6 +1280,179 @@ static bool has_layer_only_one_color(const std::vector<ColoredLines> &colored_po
     return true;
 }
 
+static void project_painted_facet(const size_t facet_idx, const size_t extruder_idx, const Transform3f &transform,
+                                  const indexed_triangle_set &custom_facets, const PrintObject &print_object,
+                                  const SpanOfConstPtrs<Layer> &layers, std::vector<EdgeGrid::Grid> &edge_grids,
+                                  const std::vector<ExPolygons> &input_expolygons,
+                                  std::vector<std::vector<PaintedLine>> &painted_lines,
+                                  std::array<std::mutex, 64> &painted_lines_mutex, const coordf_t resolution)
+{
+    float min_z = std::numeric_limits<float>::max();
+    float max_z = std::numeric_limits<float>::lowest();
+
+    std::array<Vec3f, NUM_FACET_VERTICES> facet;
+    for (int point_idx = 0; point_idx < NUM_FACET_VERTICES; ++point_idx) {
+        facet[point_idx] = transform * custom_facets.vertices[custom_facets.indices[facet_idx](point_idx)];
+        max_z            = std::max(max_z, facet[point_idx].z());
+        min_z            = std::min(min_z, facet[point_idx].z());
+    }
+
+    // Sort the vertices by z-axis for simplification of projected_facet on slices.
+    std::sort(facet.begin(), facet.end(), [](const Vec3f &left, const Vec3f &right) { return left.z() < right.z(); });
+
+    const auto first_layer = std::upper_bound(layers.begin(), layers.end(), float(min_z - EPSILON),
+                                              [](float z, const Layer *layer) { return z < layer->slice_z; });
+    const auto layer_end   = std::upper_bound(layers.begin(), layers.end(), float(max_z + EPSILON),
+                                              [](float z, const Layer *layer) { return z < layer->slice_z; });
+    for (auto layer_it = first_layer; layer_it != layer_end; ++layer_it) {
+        const Layer *layer     = *layer_it;
+        const size_t layer_idx = layer_it - layers.begin();
+        if (input_expolygons[layer_idx].empty() || facet[0].z() > layer->slice_z || layer->slice_z > facet[LAST_FACET_VERTEX_IDX].z())
+            continue;
+
+        // https://kandepet.com/3d-printing-slicing-3d-objects/
+        const float interpolation = (float(layer->slice_z) - facet[0].z()) / (facet[LAST_FACET_VERTEX_IDX].z() - facet[0].z());
+        const Vec3f line_start_f  = facet[0] + interpolation * (facet[LAST_FACET_VERTEX_IDX] - facet[0]);
+        Vec3f       line_end_f;
+
+        if (facet[1].z() > layer->slice_z) {
+            // [P0, P2] and [P0, P1]
+            const float interpolation_end = (float(layer->slice_z) - facet[0].z()) / (facet[1].z() - facet[0].z());
+            line_end_f = facet[0] + interpolation_end * (facet[1] - facet[0]);
+        } else {
+            // [P0, P2] and [P1, P2]
+            const float interpolation_end = (float(layer->slice_z) - facet[1].z()) / (facet[LAST_FACET_VERTEX_IDX].z() - facet[1].z());
+            line_end_f = facet[1] + interpolation_end * (facet[LAST_FACET_VERTEX_IDX] - facet[1]);
+        }
+
+        Line line_to_test(Point(scale_(line_start_f.x()), scale_(line_start_f.y())),
+                          Point(scale_(line_end_f.x()), scale_(line_end_f.y())));
+        line_to_test.translate(-print_object.center_offset());
+
+        // A painted line may exceed a grid built from printable regions, for example around a negative volume.
+        const BoundingBox &edge_grid_bbox = edge_grids[layer_idx].bbox();
+        if ((!edge_grid_bbox.contains(line_to_test.a) || !edge_grid_bbox.contains(line_to_test.b)) &&
+            (!edge_grid_bbox.overlap(BoundingBox(Points{line_to_test.a, line_to_test.b})) || !line_to_test.clip_with_bbox(edge_grid_bbox)))
+            continue;
+
+        const size_t mutex_idx = layer_idx & 0x3F;
+        assert(mutex_idx < painted_lines_mutex.size());
+
+        PaintedLineVisitor visitor(edge_grids[layer_idx], painted_lines[layer_idx], painted_lines_mutex[mutex_idx], 16);
+        visitor.resolution   = resolution;
+        visitor.line_to_test = line_to_test;
+        visitor.color        = int(extruder_idx);
+        edge_grids[layer_idx].visit_cells_intersecting_line(line_to_test.a, line_to_test.b, visitor);
+    }
+}
+
+static void prepare_input_expolygons(const SpanOfConstPtrs<Layer> &layers, std::vector<ExPolygons> &input_expolygons,
+                                     const std::function<void()> &throw_on_cancel_callback)
+{
+#ifdef MM_SEGMENTATION_DEBUG_INPUT
+    static int input_run = 0;
+#endif
+
+    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - slices preparation in parallel - begin";
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, layers.size()),
+                      [&layers, &input_expolygons, &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {
+        for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
+            throw_on_cancel_callback();
+            ExPolygons ex_polygons;
+            for (LayerRegion *region : layers[layer_idx]->regions())
+                for (const Surface &surface : region->slices())
+                    Slic3r::append(ex_polygons, offset_ex(surface.expolygon, float(10 * SCALED_EPSILON)));
+
+            // Merge almost-touching polygons, then remove tiny regions and holes.
+            ex_polygons = union_ex(ex_polygons);
+            remove_small_and_small_holes(ex_polygons, Slic3r::sqr(scale_d(0.1f)));
+
+            // Simplification removes self-intersections and nearly duplicate points that destabilize the Voronoi diagram.
+            input_expolygons[layer_idx] = offset_ex(ex_polygons, -10.f * float(SCALED_EPSILON));
+            expolygons_simplify(input_expolygons[layer_idx], 5 * SCALED_EPSILON);
+            input_expolygons[layer_idx] = remove_duplicates(input_expolygons[layer_idx], scaled<coord_t>(0.01), PI / 6);
+
+#ifdef MM_SEGMENTATION_DEBUG_INPUT
+            export_processed_input_expolygons_to_svg(debug_out_path("mm-input-%d-%d.svg", layer_idx, input_run),
+                                                     layers[layer_idx]->regions(), input_expolygons[layer_idx]);
+#endif
+        }
+    });
+    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - slices preparation in parallel - end";
+
+#ifdef MM_SEGMENTATION_DEBUG_INPUT
+    ++input_run;
+#endif
+}
+
+static void initialize_edge_grids(const SpanOfConstPtrs<Layer> &layers, const std::vector<ExPolygons> &input_expolygons,
+                                  std::vector<EdgeGrid::Grid> &edge_grids,
+                                  const std::function<void()> &throw_on_cancel_callback)
+{
+    std::vector<BoundingBox> layer_bboxes(layers.size());
+    for (size_t layer_idx = 0; layer_idx < layers.size(); ++layer_idx) {
+        throw_on_cancel_callback();
+        layer_bboxes[layer_idx] = get_extents(layers[layer_idx]->regions());
+        layer_bboxes[layer_idx].merge(get_extents(input_expolygons[layer_idx]));
+    }
+
+    for (size_t layer_idx = 0; layer_idx < layers.size(); ++layer_idx) {
+        throw_on_cancel_callback();
+        BoundingBox bbox = layer_bboxes[layer_idx];
+        // Include adjacent layers because projected triangles may land just outside the current layer (GH #7299).
+        if (layer_idx > 0)
+            bbox.merge(layer_bboxes[layer_idx - 1]);
+        if (layer_idx + 1 < layers.size())
+            bbox.merge(layer_bboxes[layer_idx + 1]);
+
+        bbox.offset(20 * SCALED_EPSILON);
+        edge_grids[layer_idx].set_bbox(bbox);
+        edge_grids[layer_idx].create(input_expolygons[layer_idx], coord_t(scale_(10.)));
+    }
+}
+
+static void project_painted_triangles(const PrintObject &print_object, const size_t num_extruders,
+                                      const SpanOfConstPtrs<Layer> &layers, std::vector<EdgeGrid::Grid> &edge_grids,
+                                      const std::vector<ExPolygons> &input_expolygons,
+                                      std::vector<std::vector<PaintedLine>> &painted_lines,
+                                      std::array<std::mutex, 64> &painted_lines_mutex, const coordf_t resolution,
+                                      const std::function<void()> &throw_on_cancel_callback)
+{
+    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - projection of painted triangles - begin";
+    for (const ModelVolume *mv : print_object.model_object()->volumes) {
+        if (!mv->is_model_part())
+            continue;
+
+        TriangleSelector tri_selector(mv->mesh());
+        mv->mm_segmentation_facets.set_facets_selector(tri_selector);
+        tbb::parallel_for(tbb::blocked_range<size_t>(1, num_extruders + 1),
+                          [&mv, &print_object, &layers, &edge_grids, &painted_lines, &painted_lines_mutex,
+                           &input_expolygons, &tri_selector, &throw_on_cancel_callback,
+                           resolution](const tbb::blocked_range<size_t> &range) {
+            for (size_t extruder_idx = range.begin(); extruder_idx < range.end(); ++extruder_idx) {
+                throw_on_cancel_callback();
+                const indexed_triangle_set custom_facets = tri_selector.get_facets(EnforcerBlockerType(extruder_idx));
+                if (custom_facets.indices.empty())
+                    continue;
+
+                const Transform3f transform = print_object.trafo().cast<float>() * mv->get_matrix().cast<float>();
+                tbb::parallel_for(tbb::blocked_range<size_t>(0, custom_facets.indices.size()),
+                                  [&transform, &custom_facets, &print_object, &layers, &edge_grids, &input_expolygons,
+                                   &painted_lines, &painted_lines_mutex, extruder_idx,
+                                   resolution](const tbb::blocked_range<size_t> &facet_range) {
+                    for (size_t facet_idx = facet_range.begin(); facet_idx < facet_range.end(); ++facet_idx)
+                        project_painted_facet(facet_idx, extruder_idx, transform, custom_facets, print_object, layers,
+                                              edge_grids, input_expolygons, painted_lines, painted_lines_mutex, resolution);
+                });
+            }
+        });
+    }
+    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - projection of painted triangles - end";
+    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - painted layers count: "
+                             << std::count_if(painted_lines.begin(), painted_lines.end(),
+                                              [](const std::vector<PaintedLine> &lines) { return !lines.empty(); });
+}
+
 std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(const PrintObject &print_object, const std::function<void()> &throw_on_cancel_callback)
 {
     const size_t                          num_extruders = print_object.print()->config().nozzle_diameter.size();
@@ -1257,149 +1472,12 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
     static int iRun = 0;
 #endif // MM_SEGMENTATION_DEBUG
 
-    // Merge all regions and remove small holes
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - slices preparation in parallel - begin";
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_layers), [&layers, &input_expolygons, &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {
-        for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
-            throw_on_cancel_callback();
-            ExPolygons ex_polygons;
-            for (LayerRegion *region : layers[layer_idx]->regions())
-                for (const Surface &surface : region->slices())
-                    Slic3r::append(ex_polygons, offset_ex(surface.expolygon, float(10 * SCALED_EPSILON)));
-            // All expolygons are expanded by SCALED_EPSILON, merged, and then shrunk again by SCALED_EPSILON
-            // to ensure that very close polygons will be merged.
-            ex_polygons = union_ex(ex_polygons);
-            // Remove all expolygons and holes with an area less than 0.1mm^2
-            remove_small_and_small_holes(ex_polygons, Slic3r::sqr(scale_d(0.1f)));
-            // Occasionally, some input polygons contained self-intersections that caused problems with Voronoi diagrams
-            // and consequently with the extraction of colored segments by function extract_colored_segments.
-            // Calling simplify_polygons removes these self-intersections.
-            // Also, occasionally input polygons contained several points very close together (distance between points is 1 or so).
-            // Such close points sometimes caused that the Voronoi diagram has self-intersecting edges around these vertices.
-            // This consequently leads to issues with the extraction of colored segments by function extract_colored_segments.
-            // Calling expolygons_simplify fixed these issues.
-            input_expolygons[layer_idx] = offset_ex(ex_polygons, -10.f * float(SCALED_EPSILON));
-            expolygons_simplify(input_expolygons[layer_idx], 5 * SCALED_EPSILON);
-            input_expolygons[layer_idx] = remove_duplicates(input_expolygons[layer_idx], scaled<coord_t>(0.01), PI/6);
+    prepare_input_expolygons(layers, input_expolygons, throw_on_cancel_callback);
 
-#ifdef MM_SEGMENTATION_DEBUG_INPUT
-            export_processed_input_expolygons_to_svg(debug_out_path("mm-input-%d-%d.svg", layer_idx, iRun), layers[layer_idx]->regions(), input_expolygons[layer_idx]);
-#endif // MM_SEGMENTATION_DEBUG_INPUT
-        }
-    }); // end of parallel_for
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - slices preparation in parallel - end";
+    initialize_edge_grids(layers, input_expolygons, edge_grids, throw_on_cancel_callback);
 
-    std::vector<BoundingBox> layer_bboxes(num_layers);
-    for (size_t layer_idx = 0; layer_idx < num_layers; ++layer_idx) {
-        throw_on_cancel_callback();
-        layer_bboxes[layer_idx] = get_extents(layers[layer_idx]->regions());
-        layer_bboxes[layer_idx].merge(get_extents(input_expolygons[layer_idx]));
-    }
-
-    for (size_t layer_idx = 0; layer_idx < num_layers; ++layer_idx) {
-        throw_on_cancel_callback();
-        BoundingBox bbox = layer_bboxes[layer_idx];
-        // Projected triangles could, in rare cases (as in GH issue #7299), belongs to polygons printed in the previous or the next layer.
-        // Let's merge the bounding box of the current layer with bounding boxes of the previous and the next layer to ensure that
-        // every projected triangle will be inside the resulting bounding box.
-        if (layer_idx > 1) bbox.merge(layer_bboxes[layer_idx - 1]);
-        if (layer_idx < num_layers - 1) bbox.merge(layer_bboxes[layer_idx + 1]);
-        // Projected triangles may slightly exceed the input polygons.
-        bbox.offset(20 * SCALED_EPSILON);
-        edge_grids[layer_idx].set_bbox(bbox);
-        edge_grids[layer_idx].create(input_expolygons[layer_idx], coord_t(scale_(10.)));
-    }
-
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - projection of painted triangles - begin";
-    for (const ModelVolume *mv : print_object.model_object()->volumes) {
-        //can reuse the TriangleSelector for each extruder_idx
-        TriangleSelector tri_selector(mv->mesh());
-        mv->mm_segmentation_facets.set_facets_selector(tri_selector);
-        tbb::parallel_for(tbb::blocked_range<size_t>(1, num_extruders + 1), [&mv, &print_object, &layers, &edge_grids, &painted_lines, &painted_lines_mutex, &input_expolygons, &resolution,
-            &tri_selector , &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {
-            for (size_t extruder_idx = range.begin(); extruder_idx < range.end(); ++extruder_idx) {
-                throw_on_cancel_callback();
-                const indexed_triangle_set custom_facets = tri_selector.get_facets(EnforcerBlockerType(extruder_idx));
-                if (!mv->is_model_part() || custom_facets.indices.empty())
-                    continue;
-
-                const Transform3f tr = print_object.trafo().cast<float>() * mv->get_matrix().cast<float>();
-                tbb::parallel_for(tbb::blocked_range<size_t>(0, custom_facets.indices.size()), [&tr, &custom_facets, &print_object, &layers, &edge_grids, &input_expolygons, &painted_lines,
-                    &painted_lines_mutex, &extruder_idx, &resolution](const tbb::blocked_range<size_t> &range) {
-                    for (size_t facet_idx = range.begin(); facet_idx < range.end(); ++facet_idx) {
-                        float min_z = std::numeric_limits<float>::max();
-                        float max_z = std::numeric_limits<float>::lowest();
-
-                        std::array<Vec3f, 3> facet;
-                        for (int p_idx = 0; p_idx < 3; ++p_idx) {
-                            facet[p_idx] = tr * custom_facets.vertices[custom_facets.indices[facet_idx](p_idx)];
-                            max_z        = std::max(max_z, facet[p_idx].z());
-                            min_z        = std::min(min_z, facet[p_idx].z());
-                        }
-
-                        // Sort the vertices by z-axis for simplification of projected_facet on slices
-                        std::sort(facet.begin(), facet.end(), [](const Vec3f &p1, const Vec3f &p2) { return p1.z() < p2.z(); });
-
-                        // Find lowest slice not below the triangle.
-                        auto first_layer = std::upper_bound(layers.begin(), layers.end(), float(min_z - EPSILON),
-                                                            [](float z, const Layer *l1) { return z < l1->slice_z; });
-                        auto last_layer  = std::upper_bound(layers.begin(), layers.end(), float(max_z + EPSILON),
-                                                           [](float z, const Layer *l1) { return z < l1->slice_z; });
-                        --last_layer;
-
-                        for (auto layer_it = first_layer; layer_it != (last_layer + 1); ++layer_it) {
-                            const Layer *layer     = *layer_it;
-                            size_t       layer_idx = layer_it - layers.begin();
-                            if (input_expolygons[layer_idx].empty() || facet[0].z() > layer->slice_z || layer->slice_z > facet[2].z())
-                                continue;
-
-                            // https://kandepet.com/3d-printing-slicing-3d-objects/
-                            float t            = (float(layer->slice_z) - facet[0].z()) / (facet[2].z() - facet[0].z());
-                            Vec3f line_start_f = facet[0] + t * (facet[2] - facet[0]);
-                            Vec3f line_end_f;
-
-                            if (facet[1].z() > layer->slice_z) {
-                                // [P0, P2] and [P0, P1]
-                                float t1   = (float(layer->slice_z) - facet[0].z()) / (facet[1].z() - facet[0].z());
-                                line_end_f = facet[0] + t1 * (facet[1] - facet[0]);
-                            } else {
-                                // [P0, P2] and [P1, P2]
-                                float t2   = (float(layer->slice_z) - facet[1].z()) / (facet[2].z() - facet[1].z());
-                                line_end_f = facet[1] + t2 * (facet[2] - facet[1]);
-                            }
-
-                            Line line_to_test(Point(scale_(line_start_f.x()), scale_(line_start_f.y())),
-                                              Point(scale_(line_end_f.x()), scale_(line_end_f.y())));
-                            line_to_test.translate(-print_object.center_offset());
-
-                            // BoundingBoxes for EdgeGrids are computed from printable regions. It is possible that the painted line (line_to_test) could
-                            // be outside EdgeGrid's BoundingBox, for example, when the negative volume is used on the painted area (GH #7618).
-                            // To ensure that the painted line is always inside EdgeGrid's BoundingBox, it is clipped by EdgeGrid's BoundingBox in cases
-                            // when any of the endpoints of the line are outside the EdgeGrid's BoundingBox.
-                            if (const BoundingBox &edge_grid_bbox = edge_grids[layer_idx].bbox(); !edge_grid_bbox.contains(line_to_test.a) || !edge_grid_bbox.contains(line_to_test.b)) {
-                                // If the painted line (line_to_test) is entirely outside EdgeGrid's BoundingBox, skip this painted line.
-                                if (!edge_grid_bbox.overlap(BoundingBox(Points{line_to_test.a, line_to_test.b})) ||
-                                    !line_to_test.clip_with_bbox(edge_grid_bbox))
-                                    continue;
-                            }
-
-                            size_t mutex_idx = layer_idx & 0x3F;
-                            assert(mutex_idx < painted_lines_mutex.size());
-
-                            PaintedLineVisitor visitor(edge_grids[layer_idx], painted_lines[layer_idx], painted_lines_mutex[mutex_idx], 16);
-                            visitor.resolution = resolution; // note: multiply that if there is still problem with artifact on mmu paint with low resolution (high resolution value).
-                            visitor.line_to_test = line_to_test;
-                            visitor.color        = int(extruder_idx);
-                            edge_grids[layer_idx].visit_cells_intersecting_line(line_to_test.a, line_to_test.b, visitor);
-                        }
-                    }
-                }); // end of parallel_for 
-            }
-        }); // end of parallel_for
-    }
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - projection of painted triangles - end";
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - painted layers count: "
-                             << std::count_if(painted_lines.begin(), painted_lines.end(), [](const std::vector<PaintedLine> &pl) { return !pl.empty(); });
+    project_painted_triangles(print_object, num_extruders, layers, edge_grids, input_expolygons, painted_lines,
+                              painted_lines_mutex, resolution, throw_on_cancel_callback);
 
     BOOST_LOG_TRIVIAL(debug) << "MM segmentation - layers segmentation in parallel - begin";
     tbb::parallel_for(tbb::blocked_range<size_t>(0, num_layers), [&edge_grids, &input_expolygons, &painted_lines, &segmented_regions, &num_extruders, &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {

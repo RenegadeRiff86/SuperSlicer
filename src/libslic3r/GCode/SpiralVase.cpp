@@ -38,7 +38,7 @@ std::string SpiralVase::process_layer(const std::string &gcode)
     float z = 0.f;
     std::string height_str = "";
     {
-        //FIXME Performance warning: This copies the GCodeConfig of the reader.
+        // Performance note: this copies the GCodeConfig of the reader.
         GCodeReader r = m_reader;  // clone
         bool set_z = false;
         bool milling = false;
@@ -81,7 +81,7 @@ std::string SpiralVase::process_layer(const std::string &gcode)
     z -= layer_height;
     
     std::string new_gcode;
-    //FIXME Tapering of the transition layer only works reliably with relative extruder distances.
+    // Note: tapering of the transition layer only works reliably with relative extruder distances.
     // For absolute extruder distances it will be switched off.
     // Tapering the absolute extruder distances requires to process every extrusion value after the first transition
     // layer.

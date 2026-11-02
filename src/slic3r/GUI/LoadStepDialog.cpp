@@ -1,4 +1,5 @@
-///|/ Copyright (c) Prusa Research 2018 - 2023 Vojtěch Bubník @bubnikv, Lukáš Matěna @lukasmatena, Oleksandra Iushchenko @YuSanka, Enrico Turri @enricoturri1966, Tomáš Mészáros @tamasmeszaros, David Kocík @kocikdav, Lukáš Hejl @hejllukas, Pavel Mikuš @Godrak, Filip Sykala @Jony01, Vojtěch Král @vojtechkral
+// |/ Copyright (c) Prusa Research 2018 - 2023 Vojtěch Bubník @bubnikv, Lukáš Matěna @lukasmatena, Oleksandra Iushchenko @YuSanka, Enrico Turri @enricoturri1966, Tomáš Mészáros @tamasmeszaros, David Kocík @kocikdav, Lukáš Hejl @hejllukas, Pavel Mikuš
+// @Godrak, Filip Sykala @Jony01, Vojtěch Král @vojtechkral
 ///|/ Copyright (c) 2022 Michael Kirsch
 ///|/ Copyright (c) 2021 Boleslaw Ciesielski
 ///|/ Copyright (c) 2019 John Drake @foxox
@@ -64,7 +65,8 @@ LoadStepDialog::LoadStepDialog(wxWindow* parent, const std::string& filename, do
     wxBoxSizer* bottom_sizer = new wxBoxSizer(wxHORIZONTAL);
     m_remember_chb = new ::CheckBox(this, _L("Remember my choice"));
 
-    bottom_sizer->Add(m_remember_chb, 0, wxEXPAND | wxRIGHT, 5);
+    constexpr int control_gap = 5;
+    bottom_sizer->Add(m_remember_chb, 0, wxEXPAND | wxRIGHT, control_gap);
     bottom_sizer->AddStretchSpacer();
 
     auto buttons_sizer = CreateStdDialogButtonSizer(wxOK | wxCANCEL);
@@ -75,10 +77,10 @@ LoadStepDialog::LoadStepDialog(wxWindow* parent, const std::string& filename, do
             m_apply_to_all = true;
             EndModal(wxID_OK);
         });
-        buttons_sizer->Insert(0, apply_btn, 0, wxRIGHT, 5);
+        buttons_sizer->Insert(0, apply_btn, 0, wxRIGHT, control_gap);
     }
 
-    bottom_sizer->Add(buttons_sizer, 0, wxEXPAND | wxLEFT, 5);
+    bottom_sizer->Add(buttons_sizer, 0, wxEXPAND | wxLEFT, control_gap);
     main_sizer->Add(bottom_sizer, 0, wxEXPAND | wxALL, 10);
 
     SetSizer(main_sizer);

@@ -78,7 +78,7 @@ GLdouble	__gl_transEval( GLUvertex *u, GLUvertex *v, GLUvertex *w );
 GLdouble	__gl_transSign( GLUvertex *u, GLUvertex *v, GLUvertex *w );
 int		__gl_vertCCW( GLUvertex *u, GLUvertex *v, GLUvertex *w );
 void		__gl_edgeIntersect( GLUvertex *o1, GLUvertex *d1,
-				    GLUvertex *o2, GLUvertex *d2,
-				    GLUvertex *v );
+                    GLUvertex *o2, GLUvertex *d2,
+                    GLUvertex *v );
 
 #endif

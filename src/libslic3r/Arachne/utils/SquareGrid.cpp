@@ -100,7 +100,7 @@ bool SquareGrid::processLineCells(const std::pair<Point, Point> line, const std:
                 return true;
             }
         }
-        // TODO: this causes at least a one cell overlap for each row, which
+        // Note: this causes at least a one cell overlap for each row, which
         // includes extra cells when crossing precisely on the corners
         // where positive slope where x > 0 and negative slope where x < 0
         x_cell_start = x_cell_end;

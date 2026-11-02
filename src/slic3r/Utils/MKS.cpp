@@ -80,7 +80,7 @@ bool MKS::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, ErrorFn er
 	auto http = Http::post(std::move(upload_cmd));
 	http.set_post_body(upload_data.source_path);
 
-	http.on_complete([&](std::string body, unsigned status) {
+	http.on_complete([&](const std::string& body, unsigned status) {
 		BOOST_LOG_TRIVIAL(debug) << boost::format("MKS: File uploaded: HTTP %1%: %2%") % status % body;
 
 		int err_code = get_err_code_from_body(body);
@@ -97,7 +97,7 @@ bool MKS::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, ErrorFn er
 			}
 		}
 		})
-		.on_error([&](std::string body, std::string error, unsigned status) {
+		.on_error([&](const std::string& body, const std::string& error, unsigned status) {
 			BOOST_LOG_TRIVIAL(error) << boost::format("MKS: Error uploading file: %1%, HTTP %2%, body: `%3%`") % error % status % body;
 			error_fn(format_error(body, error, status));
 			res = false;
@@ -124,10 +124,11 @@ std::string MKS::get_upload_url(const std::string& filename) const
 
 bool MKS::start_print(wxString& msg, const std::string& filename) const
 {
-	// For some reason printer firmware does not want to respond on gcode commands immediately after file upload.
-	// So we just introduce artificial delay to workaround it.
-	// TODO: Inspect reasons
-	std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+	// MKS firmware often ignores G-code on the serial console for a short window after HTTP
+	// upload finishes (busy writing the file). Wait before M23/M24 so the start-print path
+	// does not race the filesystem. 1500 ms is the smallest delay that was reliable in practice.
+	static constexpr auto kPostUploadConsoleSettle = std::chrono::milliseconds(1500);
+	std::this_thread::sleep_for(kPostUploadConsoleSettle);
 
 	Utils::TCPConsole console(m_host, m_console_port);
 

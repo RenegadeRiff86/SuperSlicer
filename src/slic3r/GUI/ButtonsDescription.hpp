@@ -33,9 +33,9 @@ class ModePaletteComboBox : public BitmapComboBox
 {
 public:
     ModePaletteComboBox(wxWindow* parent);
-	~ModePaletteComboBox() = default;
+    ~ModePaletteComboBox() = default;
 
-	void UpdateSelection(const std::vector<wxColour>& palette_in);
+    void UpdateSelection(const std::vector<wxColour>& palette_in);
 
 protected:
     // Caching bitmaps for the all bitmaps, used in preset comboboxes
@@ -46,36 +46,36 @@ protected:
 namespace GUI_Descriptions {
 
 struct ButtonEntry {
-	ButtonEntry(ScalableBitmap *bitmap, const std::string &symbol, const std::string &explanation) : bitmap(bitmap), symbol(symbol), explanation(explanation) {}
+    ButtonEntry(ScalableBitmap *bitmap, const std::string &symbol, const std::string &explanation) : bitmap(bitmap), symbol(symbol), explanation(explanation) {}
 
-	ScalableBitmap *bitmap;
-	std::string     symbol;
-	std::string   	explanation;
+    ScalableBitmap *bitmap;
+    std::string     symbol;
+    std::string   	explanation;
 };
 
 class Dialog : public wxDialog
 {
-	std::vector<ButtonEntry> m_entries;
-	wxColourPickerCtrl* default_colour{ nullptr };
-	wxColourPickerCtrl* sys_colour{ nullptr };
-	wxColourPickerCtrl* mod_colour{ nullptr };
-	wxColourPickerCtrl* phony_colour{ nullptr };
+    std::vector<ButtonEntry> m_entries;
+    wxColourPickerCtrl* default_colour{ nullptr };
+    wxColourPickerCtrl* sys_colour{ nullptr };
+    wxColourPickerCtrl* mod_colour{ nullptr };
+    wxColourPickerCtrl* phony_colour{ nullptr };
 
-	//note: not thread-safe, dangerous container.
-	std::map<ConfigOptionMode, wxColourPickerCtrl*> tags;
+    //note: not thread-safe, dangerous container.
+    std::map<ConfigOptionMode, wxColourPickerCtrl*> tags;
 #ifdef GUI_TAG_PALETTE
-	std::vector<wxColour> mode_palette;
+    std::vector<wxColour> mode_palette;
 #endif
 public:
 
-	Dialog(wxWindow* parent, const std::vector<ButtonEntry> &entries);
-	~Dialog() {}
+    Dialog(wxWindow* parent, const std::vector<ButtonEntry> &entries);
+    ~Dialog() {}
 };
 
 extern void FillSizerWithTextColorDescriptions(wxSizer* sizer, wxWindow* parent, 
     wxColourPickerCtrl** default_colour, wxColourPickerCtrl** sys_colour, wxColourPickerCtrl** mod_colour, wxColourPickerCtrl** phony_colour);
 extern void FillSizerWithModeColorDescriptions(wxSizer* sizer, wxWindow* parent,
-		                                       std::vector<std::pair<wxColourPickerCtrl**, AppConfig::Tag>> clr_pickers_2_color);
+                                               std::vector<std::pair<wxColourPickerCtrl**, AppConfig::Tag>> clr_pickers_2_color);
 } // GUI_Descriptions
 
 } // GUI

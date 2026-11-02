@@ -142,13 +142,13 @@ bool ComboBox::SetBackgroundColour(const wxColour& colour)
     TextInput::SetBackgroundColour(colour);
 
     drop.SetBackgroundColour(colour);
-    StateColor selector_colors( std::make_pair(Slic3r::GUI::Widget::get_clr_background_focused(),          (int)StateColor::Checked),
+    StateColor selector_colors( std::make_pair(Slic3r::GUI::Widget::get_clr_background_focused(),          static_cast<int>(StateColor::Checked)),
         Slic3r::GUI::wxGetApp().dark_mode() ?
-                                std::make_pair(Slic3r::GUI::Widget::clr_background_disabled_dark,    (int)StateColor::Disabled) :
-                                std::make_pair(Slic3r::GUI::Widget::clr_background_disabled_light,   (int)StateColor::Disabled),
+                                std::make_pair(Slic3r::GUI::Widget::clr_background_disabled_dark,    static_cast<int>(StateColor::Disabled)) :
+                                std::make_pair(Slic3r::GUI::Widget::clr_background_disabled_light,   static_cast<int>(StateColor::Disabled)),
         Slic3r::GUI::wxGetApp().dark_mode() ?
-                                std::make_pair(Slic3r::GUI::Widget::clr_background_normal_dark,      (int)StateColor::Normal) :
-                                std::make_pair(Slic3r::GUI::Widget::clr_background_normal_light,     (int)StateColor::Normal));
+                                std::make_pair(Slic3r::GUI::Widget::clr_background_normal_dark,      static_cast<int>(StateColor::Normal)) :
+                                std::make_pair(Slic3r::GUI::Widget::clr_background_normal_light,     static_cast<int>(StateColor::Normal)));
     drop.SetSelectorBackgroundColor(selector_colors);
 
     return true;
@@ -298,7 +298,7 @@ void ComboBox::mouseWheelMoved(wxMouseEvent &event)
     auto delta = ((event.GetWheelRotation() < 0) == event.IsWheelInverted()) ? -1 : 1;
     unsigned int n = GetSelection() + delta;
     if (n < GetCount()) {
-        SetSelection((int) n);
+        SetSelection(static_cast<int>(n));
         sendComboBoxEvent();
     }
 }

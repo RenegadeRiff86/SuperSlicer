@@ -29,6 +29,13 @@ protected:
     std::string get_gizmo_leaving_text() const override { return _u8L("Leaving Paint-on supports"); }
     std::string get_action_snapshot_name() const override { return _u8L("Paint-on supports editing"); }
 
+public:
+    // Both of these back the automation API. The gizmo's panel is drawn by ImGui straight onto
+    // the canvas, so it owns no window and exposes no element to click - without these the
+    // angle threshold cannot be exercised or checked from outside the GUI at all.
+    void select_facets_by_angle(float threshold, bool block);
+    // Facets currently in the given state, one count per model-part volume.
+    std::vector<int> facet_counts(EnforcerBlockerType state) const;
 
 private:
     bool on_init() override;
@@ -40,8 +47,6 @@ private:
     void on_opening() override {}
     void on_shutdown() override;
     PainterGizmoType get_painter_type() const override;
-
-    void select_facets_by_angle(float threshold, bool block);
 
     // This map holds all translated description texts, so they can be easily referenced during layout calculations
     // etc. When language changes, GUI is recreated and this class constructed again, so the change takes effect.

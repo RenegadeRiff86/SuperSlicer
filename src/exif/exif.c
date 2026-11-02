@@ -38,6 +38,7 @@
 #include <string.h>
 #include <memory.h>
 #include <ctype.h>
+#include <limits.h>
 
 #ifdef _MSC_VER
 #ifdef __cplusplus
@@ -46,7 +47,21 @@ extern "C" {
 #endif
 
 
-#pragma pack(2)
+#define EXIF_TIFF_PACK_ALIGNMENT 2
+#define EXIF_MPF_ID_SIZE (sizeof("MPF"))
+#define EXIF_IFD_TABLE_ARRAY_SIZE 32
+#define EXIF_FILE_COPY_BUFFER_SIZE 8192
+#define EXIF_RATIONAL_COMPONENT_COUNT EXIF_TIFF_PACK_ALIGNMENT
+#define EXIF_EXTRA_IFD_ARRAY_ENTRIES EXIF_TIFF_PACK_ALIGNMENT
+#define EXIF_VALUE_OFFSET_FIELD_SIZE (sizeof(unsigned int))
+#define EXIF_SHORT_VALUES_IN_OFFSET_FIELD (EXIF_VALUE_OFFSET_FIELD_SIZE / sizeof(uint16_t))
+#define EXIF_BITS_PER_BYTE CHAR_BIT
+#define EXIF_SWAB32_EDGE_BYTE_SHIFT (EXIF_BITS_PER_BYTE * (sizeof(uint32_t) - 1))
+#define EXIF_APP_ID_PREVIEW_SIZE EXIF_VALUE_OFFSET_FIELD_SIZE
+#define EXIF_VERBOSE_ID_THIRD_BYTE EXIF_TIFF_PACK_ALIGNMENT
+#define EXIF_VERBOSE_ID_FOURTH_BYTE (EXIF_VERBOSE_ID_THIRD_BYTE + 1)
+
+#pragma pack(EXIF_TIFF_PACK_ALIGNMENT)
 
 #define VERSION  "1.0.1"
 
@@ -71,10 +86,10 @@ typedef struct _App_Header {
 
 // MPF Segment Header
 typedef struct _MPF_Header {
-	uint16_t marker;
-	uint16_t length;
-	char id[4]; // "MPF\0"
-	TIFF_HEADER tiff;
+    uint16_t marker;
+    uint16_t length;
+    char id[EXIF_MPF_ID_SIZE]; // "MPF\0"
+    TIFF_HEADER tiff;
 } MPF_HEADER;
 
 // tag field in IFD
@@ -148,79 +163,79 @@ static MPF_HEADER MPFHeader;
 
 static int dataIsLittleEndian()
 {
-	return (App1Header.tiff.byteOrder == 0x4949) ? 1 : 0;
+    return (App1Header.tiff.byteOrder == 0x4949) ? 1 : 0;
 }
 
 static int systemIsLittleEndian()
 {
-	static const union {
-		int value;
-		unsigned char bytes[sizeof(int)];
-	} endian = { 1 };
-	return endian.bytes[0];
+    static const union {
+        int value;
+        unsigned char bytes[sizeof(int)];
+    } endian = { 1 };
+    return endian.bytes[0];
 }
 
 static uint16_t swab16(uint16_t us)
 {
-	return (us << 8) | ((us >> 8) & 0x00FF);
+    return (us << EXIF_BITS_PER_BYTE) | ((us >> EXIF_BITS_PER_BYTE) & 0x00FF);
 }
 
 static unsigned int swab32(unsigned int ui)
 {
-	return
-		((ui << 24) & 0xFF000000) | ((ui << 8) & 0x00FF0000) |
-		((ui >> 8) & 0x0000FF00) | ((ui >> 24) & 0x000000FF);
+    return
+        ((ui << EXIF_SWAB32_EDGE_BYTE_SHIFT) & 0xFF000000) | ((ui << EXIF_BITS_PER_BYTE) & 0x00FF0000) |
+        ((ui >> EXIF_BITS_PER_BYTE) & 0x0000FF00) | ((ui >> EXIF_SWAB32_EDGE_BYTE_SHIFT) & 0x000000FF);
 }
 
 static uint16_t fix_short(uint16_t us)
 {
-	return (dataIsLittleEndian() !=
-		systemIsLittleEndian()) ? swab16(us) : us;
+    return (dataIsLittleEndian() !=
+        systemIsLittleEndian()) ? swab16(us) : us;
 }
 
 static unsigned int fix_int(unsigned int ui)
 {
-	return (dataIsLittleEndian() !=
-		systemIsLittleEndian()) ? swab32(ui) : ui;
+    return (dataIsLittleEndian() !=
+        systemIsLittleEndian()) ? swab32(ui) : ui;
 }
 
 static unsigned int uint8_from_uint(unsigned int value)
 {
-	return value & 0xFFu;
+    return value & 0xFFu;
 }
 
 static unsigned int uint16_from_uint(unsigned int value)
 {
-	return value & 0xFFFFu;
+    return value & 0xFFFFu;
 }
 
 static int int8_from_uint(unsigned int value)
 {
-	int signedValue = value & 0xFFu;
-	return (signedValue < 0x80) ? signedValue : signedValue - 0x100;
+    int signedValue = value & 0xFFu;
+    return (signedValue < 0x80) ? signedValue : signedValue - 0x100;
 }
 
 static int int16_from_uint(unsigned int value)
 {
-	int signedValue = value & 0xFFFFu;
-	return (signedValue < 0x8000) ? signedValue : signedValue - 0x10000;
+    int signedValue = value & 0xFFFFu;
+    return (signedValue < 0x8000) ? signedValue : signedValue - 0x10000;
 }
 
 static int int32_from_uint_bits(unsigned int value)
 {
-	int signedValue = 0;
-	memcpy(&signedValue, &value, sizeof(signedValue));
-	return signedValue;
+    int signedValue = 0;
+    memcpy(&signedValue, &value, sizeof(signedValue));
+    return signedValue;
 }
 
 static void print_ascii_bytes(char **p, const uint8_t *text)
 {
-	PRINTF(p, "[");
-	while (*text != '\0') {
-		PRINTF(p, "%c", *text);
-		++text;
-	}
-	PRINTF(p, "]");
+    PRINTF(p, "[");
+    while (*text != '\0') {
+        PRINTF(p, "%c", *text);
+        ++text;
+    }
+    PRINTF(p, "]");
 }
 
 // public funtions
@@ -262,7 +277,7 @@ int exif_removeExifSegmentFromJPEGFile(const char *inJPEGFileName,
     int ofs;
     int i, sts = 1;
     size_t readLen, writeLen, app1StartOffset = 0;
-    uint8_t buf[8192] = { 0 }, *p = NULL;
+    uint8_t buf[EXIF_FILE_COPY_BUFFER_SIZE] = { 0 }, *p = NULL;
     FILE *fpr = NULL, *fpw = NULL;
 
     fpr = fopen(inJPEGFileName, "rb");
@@ -350,7 +365,7 @@ DONE:
  *
  * parameters
  *  [in] JPEGFileName : target JPEG file
- *  [out] ifdArray[32] : array of IfdTable pointers
+ *  [out] ifdArray[EXIF_IFD_TABLE_ARRAY_SIZE] : array of IfdTable pointers
  *
  * return
  *   n: number of IFD tables
@@ -361,7 +376,7 @@ DONE:
  *      EXIF_ERR_INVALID_APP1HEADER
  *      EXIF_ERR_INVALID_IFD
  */
-int exif_fillIfdTableArray(const char *JPEGFileName, void* ifdArray[32])
+int exif_fillIfdTableArray(const char *JPEGFileName, void* ifdArray[EXIF_IFD_TABLE_ARRAY_SIZE])
 {
     #define FMT_ERR "critical error in %s IFD\n"
 
@@ -369,10 +384,10 @@ int exif_fillIfdTableArray(const char *JPEGFileName, void* ifdArray[32])
     unsigned int ifdOffset;
     FILE *fp = NULL;
     TagNode *tag;
-	IfdTable *IFD_0th, *IFD_exif, *IFD_gps, *IFD_io, *IFD_1st, *mpf_ifd;
+    IfdTable *IFD_0th, *IFD_exif, *IFD_gps, *IFD_io, *IFD_1st, *mpf_ifd;
 
     IFD_0th = IFD_exif = IFD_gps = IFD_io = IFD_1st = NULL;
-    memset(ifdArray, 0, sizeof(void*) * 32);
+    memset(ifdArray, 0, sizeof(void*) * EXIF_IFD_TABLE_ARRAY_SIZE);
 
     fp = fopen(JPEGFileName, "rb");
     if (!fp) {
@@ -390,7 +405,7 @@ int exif_fillIfdTableArray(const char *JPEGFileName, void* ifdArray[32])
     }
 
     // for 0th IFD
-	IFD_0th = parseIFD(fp, App1StartOffset + offsetof(APP_HEADER, tiff), App1Header.tiff.Ifd0thOffset, IFD_0TH);
+    IFD_0th = parseIFD(fp, App1StartOffset + offsetof(APP_HEADER, tiff), App1Header.tiff.Ifd0thOffset, IFD_0TH);
     if (!IFD_0th) {
         if (Verbose) {
             printf(FMT_ERR, "0th");
@@ -400,17 +415,17 @@ int exif_fillIfdTableArray(const char *JPEGFileName, void* ifdArray[32])
     }
     ifdArray[ifdCount++] = IFD_0th;
 
-	if (MPFStartOffset > 0) {
-		mpf_ifd = parseIFD(fp, MPFStartOffset + offsetof(MPF_HEADER, tiff), MPFHeader.tiff.Ifd0thOffset, IFD_MPF);
-		ifdArray[ifdCount++] = mpf_ifd;
-	}
+    if (MPFStartOffset > 0) {
+        mpf_ifd = parseIFD(fp, MPFStartOffset + offsetof(MPF_HEADER, tiff), MPFHeader.tiff.Ifd0thOffset, IFD_MPF);
+        ifdArray[ifdCount++] = mpf_ifd;
+    }
 
     // for Exif IFD 
     tag = getTagNodePtrFromIfd(IFD_0th, TAG_ExifIFDPointer);
     if (tag && !tag->error) {
         ifdOffset = tag->numData[0];
         if (ifdOffset != 0) {
-			IFD_exif = parseIFD(fp, App1StartOffset + offsetof(APP_HEADER, tiff), ifdOffset, IFD_EXIF);
+            IFD_exif = parseIFD(fp, App1StartOffset + offsetof(APP_HEADER, tiff), ifdOffset, IFD_EXIF);
             if (IFD_exif) {
                 ifdArray[ifdCount++] = IFD_exif;
                 // for InteroperabilityIFDPointer IFD
@@ -418,7 +433,7 @@ int exif_fillIfdTableArray(const char *JPEGFileName, void* ifdArray[32])
                 if (tag && !tag->error) {
                     ifdOffset = tag->numData[0];
                     if (ifdOffset != 0) {
-						IFD_io = parseIFD(fp, App1StartOffset + offsetof(APP_HEADER, tiff), ifdOffset, IFD_IO);
+                        IFD_io = parseIFD(fp, App1StartOffset + offsetof(APP_HEADER, tiff), ifdOffset, IFD_IO);
                         if (IFD_io) {
                             ifdArray[ifdCount++] = IFD_io;
                         } else {
@@ -443,7 +458,7 @@ int exif_fillIfdTableArray(const char *JPEGFileName, void* ifdArray[32])
     if (tag && !tag->error) {
         ifdOffset = tag->numData[0];
         if (ifdOffset != 0) {
-			IFD_gps = parseIFD(fp, App1StartOffset + offsetof(APP_HEADER, tiff), ifdOffset, IFD_GPS);
+            IFD_gps = parseIFD(fp, App1StartOffset + offsetof(APP_HEADER, tiff), ifdOffset, IFD_GPS);
             if (IFD_gps) {
                 ifdArray[ifdCount++] = IFD_gps;
             } else {
@@ -461,7 +476,7 @@ int exif_fillIfdTableArray(const char *JPEGFileName, void* ifdArray[32])
         printf("1st IFD ifdOffset=%u\n", ifdOffset);
     }
     if (ifdOffset != 0) {
-		IFD_1st = parseIFD(fp, App1StartOffset + offsetof(APP_HEADER, tiff), ifdOffset, IFD_1ST);
+        IFD_1st = parseIFD(fp, App1StartOffset + offsetof(APP_HEADER, tiff), ifdOffset, IFD_1ST);
         if (IFD_1st) {
             ifdArray[ifdCount++] = IFD_1st;
         } else {
@@ -501,7 +516,7 @@ DONE:
  */
 void ** exif_createIfdTableArray(const char *JPEGFileName, int *result)
 {
-    void* ifdTable[32];
+    void* ifdTable[EXIF_IFD_TABLE_ARRAY_SIZE];
     void** ppIfdArray = NULL;
     int i, count = exif_fillIfdTableArray(JPEGFileName, ifdTable);
     *result = count;
@@ -526,7 +541,7 @@ void ** exif_createIfdTableArray(const char *JPEGFileName, int *result)
  * parameters
  *  [in] ifdArray : address of the IFD array
  */
-void exif_freeIfdTables(void* ifdArray[32])
+void exif_freeIfdTables(void* ifdArray[EXIF_IFD_TABLE_ARRAY_SIZE])
 {
     int i;
     for (i = 0; ifdArray[i] != NULL; i++) {
@@ -610,7 +625,7 @@ static void _dumpIfdTable(void *pIfd, char **p)
         (ifd->ifdType == IFD_EXIF) ? "EXIF" :
         (ifd->ifdType == IFD_GPS)  ? "GPS" :
         (ifd->ifdType == IFD_IO)   ? "Interoperability" :
-		(ifd->ifdType == IFD_MPF)  ? "MPF" : "");
+        (ifd->ifdType == IFD_MPF)  ? "MPF" : "");
 
     if (Verbose) {
         PRINTF(p, " tags=%u\n", ifd->tagCount);
@@ -657,7 +672,7 @@ static void _dumpIfdTable(void *pIfd, char **p)
 
             case TYPE_RATIONAL:
                 for (i = 0; i < tag->count; i++) {
-                    PRINTF(p, "%u/%u ", tag->numData[i*2], tag->numData[i*2+1]);
+                    PRINTF(p, "%u/%u ", tag->numData[i * EXIF_RATIONAL_COMPONENT_COUNT], tag->numData[i * EXIF_RATIONAL_COMPONENT_COUNT + 1]);
                 }
                 break;
 
@@ -700,7 +715,7 @@ static void _dumpIfdTable(void *pIfd, char **p)
 
             case TYPE_SRATIONAL:
                 for (i = 0; i < tag->count; i++) {
-                    PRINTF(p, "%d/%d ", int32_from_uint_bits(tag->numData[i*2]), int32_from_uint_bits(tag->numData[i*2+1]));
+                    PRINTF(p, "%d/%d ", int32_from_uint_bits(tag->numData[i * EXIF_RATIONAL_COMPONENT_COUNT]), int32_from_uint_bits(tag->numData[i * EXIF_RATIONAL_COMPONENT_COUNT + 1]));
                 }
                 break;
 
@@ -900,7 +915,7 @@ ExifTagNodeInfo * exif_createTagInfo(uint16_t tagId,
     }
     else if (type == TYPE_RATIONAL ||
              type == TYPE_SRATIONAL) {
-        elementCount *= 2;
+        elementCount *= EXIF_RATIONAL_COMPONENT_COUNT;
         tag->numData = malloc(elementCount * sizeof(*tag->numData));
     }
     if (pResult) {
@@ -1004,7 +1019,7 @@ void ** exif_insertIfdTableToIfdTableArray(void **ifdTableArray,
     // copy existing IFD tables to the new array
     {
         size_t newIfdTableCount = num;
-        newIfdTableCount += 2;
+        newIfdTableCount += EXIF_EXTRA_IFD_ARRAY_ENTRIES;
         newIfdTableArray = malloc(sizeof(*newIfdTableArray) * newIfdTableCount);
         if (!newIfdTableArray) {
             if (pResult) {
@@ -1277,7 +1292,7 @@ int exif_updateExifSegmentInJPEGFile(const char *inJPEGFileName,
     int ofs;
     int i, sts = 1, hasExifSegment;
     size_t readLen, writeLen, copyLength = 0;
-    uint8_t buf[8192] = { 0 }, *p = NULL;
+    uint8_t buf[EXIF_FILE_COPY_BUFFER_SIZE] = { 0 }, *p = NULL;
     FILE *fpr = NULL, *fpw = NULL;
 
     // refresh the length and offset variables in the IFD table
@@ -1412,7 +1427,7 @@ int exif_removeAdobeMetadataSegmentFromJPEGFile(const char *inJPEGFileName,
     int sts = 1;
     size_t readLen, writeLen;
     unsigned int ofs;
-    uint8_t buf[8192] = { 0 }, *p = NULL;
+    uint8_t buf[EXIF_FILE_COPY_BUFFER_SIZE] = { 0 }, *p = NULL;
     FILE *fpr = NULL, *fpw = NULL;
 
     fpr = fopen(inJPEGFileName, "rb");
@@ -1420,7 +1435,7 @@ int exif_removeAdobeMetadataSegmentFromJPEGFile(const char *inJPEGFileName,
         sts = EXIF_ERR_READ_FILE;
         goto DONE;
     }
-	sts = getAppNStartOffset(fpr, APP1_MARKER, ADOBE_METADATA_ID, ADOBE_METADATA_ID_LEN, NULL);
+    sts = getAppNStartOffset(fpr, APP1_MARKER, ADOBE_METADATA_ID, ADOBE_METADATA_ID_LEN, NULL);
     if (sts <= 0) { // target segment is not exist or something error
         goto DONE;
     }
@@ -1539,7 +1554,7 @@ static const char *getTagName(int ifdType, uint16_t tagId)
             case TAG_Artist: return "Artist";
             case TAG_Copyright: return "Copyright";
             case TAG_ExifIFDPointer: return "ExifIFDPointer";
-			case TAG_GPSInfoIFDPointer: return "GPSInfoIFDPointer";
+            case TAG_GPSInfoIFDPointer: return "GPSInfoIFDPointer";
             case TAG_InteroperabilityIFDPointer: return "InteroperabilityIFDPointer";
 
             case TAG_Rating: return "Rating";
@@ -1671,32 +1686,32 @@ static const char *getTagName(int ifdType, uint16_t tagId)
             case TAG_RelatedImageHeight: return "RelatedImageHeight";
             default: ;
         }
-	} else if (ifdType == IFD_MPF) {
-		switch (tagId) {
-			case TAG_MPFVersion: return "MPFVersion";
-			case TAG_NumberOfImage: return "NumberOfImage";
-			case TAG_MPImageList: return "MPImageList";
-			case TAG_ImageUIDList: return "ImageUIDList";
-			case TAG_TotalFrames: return "TotalFrames";
+    } else if (ifdType == IFD_MPF) {
+        switch (tagId) {
+            case TAG_MPFVersion: return "MPFVersion";
+            case TAG_NumberOfImage: return "NumberOfImage";
+            case TAG_MPImageList: return "MPImageList";
+            case TAG_ImageUIDList: return "ImageUIDList";
+            case TAG_TotalFrames: return "TotalFrames";
 
-			case TAG_MPIndividualNum: return "MPIndividualNum";
-			case TAG_PanOrientation: return "PanOrientation";
-			case TAG_PanOverlapH: return "PanOverlapH";
-			case TAG_PanOverlapV: return "PanOverlapV";
-			case TAG_BaseViewpointNum: return "BaseViewpointNum";
-			case TAG_ConvergenceAngle: return "ConvergenceAngle";
-			case TAG_BaselineLength: return "BaseLineLength";
-			case TAG_VerticalDivergence: return "VerticalDivergence";
-			case TAG_AxisDistanceX: return "AxisDistanceX";
-			case TAG_AxisDistanceY: return "AxisDistanceY";
-			case TAG_AxisDistanceZ: return "AxisDistanceZ";
-			case TAG_YawAngle: return "YawAngle";
-			case TAG_PitchAngle: return "PitchAngle";
-			case TAG_RollAngle: return "RollAngle";
-			default:;
-		}
-		return "(Unknown)";
-	}
+            case TAG_MPIndividualNum: return "MPIndividualNum";
+            case TAG_PanOrientation: return "PanOrientation";
+            case TAG_PanOverlapH: return "PanOverlapH";
+            case TAG_PanOverlapV: return "PanOverlapV";
+            case TAG_BaseViewpointNum: return "BaseViewpointNum";
+            case TAG_ConvergenceAngle: return "ConvergenceAngle";
+            case TAG_BaselineLength: return "BaseLineLength";
+            case TAG_VerticalDivergence: return "VerticalDivergence";
+            case TAG_AxisDistanceX: return "AxisDistanceX";
+            case TAG_AxisDistanceY: return "AxisDistanceY";
+            case TAG_AxisDistanceZ: return "AxisDistanceZ";
+            case TAG_YawAngle: return "YawAngle";
+            case TAG_PitchAngle: return "PitchAngle";
+            case TAG_RollAngle: return "RollAngle";
+            default:;
+        }
+        return "(Unknown)";
+    }
     return "(Unknown)";
 }
 
@@ -1729,6 +1744,9 @@ static void *addTagNodeToIfd(void *pIfd,
         return NULL;
     }
     tag = malloc(sizeof(*tag));
+    if (!tag) {
+        return NULL;
+    }
     memset(tag, 0, sizeof(*tag));
     tag->tagId = tagId;
     tag->type = type;
@@ -1739,15 +1757,23 @@ static void *addTagNodeToIfd(void *pIfd,
             int num = count;
             if (type == TYPE_RATIONAL ||
                 type == TYPE_SRATIONAL) {
-                num *= 2;
+                num *= EXIF_RATIONAL_COMPONENT_COUNT;
             }
             tag->numData = malloc(sizeof(*tag->numData) * num);
-            for (i = 0; i < num; i++) {
-                tag->numData[i] = numData[i];
+            if (tag->numData) {
+                for (i = 0; i < num; i++) {
+                    tag->numData[i] = numData[i];
+                }
+            } else {
+                tag->error = 1;
             }
         } else if (byteData != NULL) {
             tag->byteData = malloc(count);
-            memcpy(tag->byteData, byteData, count);
+            if (tag->byteData) {
+                memcpy(tag->byteData, byteData, count);
+            } else {
+                tag->error = 1;
+            }
         } else {
             tag->error = 1;
         }
@@ -1779,6 +1805,9 @@ static TagNode *duplicateTagNode(TagNode *src)
         return NULL;
     }
     dup = malloc(sizeof(*dup));
+    if (!dup) {
+        return NULL;
+    }
     memset(dup, 0, sizeof(*dup));
     dup->tagId = src->tagId;
     dup->type = src->type;
@@ -1788,14 +1817,18 @@ static TagNode *duplicateTagNode(TagNode *src)
         len = sizeof(*dup->numData) * src->count;
         if (src->type == TYPE_RATIONAL ||
             src->type == TYPE_SRATIONAL) {
-            len *= 2;
+            len *= EXIF_RATIONAL_COMPONENT_COUNT;
         }
         dup->numData = malloc(len);
-        memcpy(dup->numData, src->numData, len);
+        if (dup->numData) {
+            memcpy(dup->numData, src->numData, len);
+        }
     } else if (src->byteData) {
         len = sizeof(*dup->byteData) * src->count;
         dup->byteData = malloc(len);
-        memcpy(dup->byteData, src->byteData, len);
+        if (dup->byteData) {
+            memcpy(dup->byteData, src->byteData, len);
+        }
     }
     return dup;
 }
@@ -1931,6 +1964,9 @@ static int setSingleNumDataToTag(TagNode *tag, unsigned int value)
     }
     if (!tag->numData) {
         tag->numData = malloc(sizeof(*tag->numData));
+        if (!tag->numData) {
+            return 0;
+        }
     }
     tag->count = 1;
     tag->numData[0] = value;
@@ -1951,15 +1987,22 @@ static int setSingleNumDataToTag(TagNode *tag, unsigned int value)
  */
 static int writeExifSegment(FILE *fp, void **ifdTableArray)
 {
-#define IFDMAX 5
+enum {
+    EXIF_WRITE_IFD_0TH_INDEX,
+    EXIF_WRITE_IFD_EXIF_INDEX,
+    EXIF_WRITE_IFD_IO_INDEX,
+    EXIF_WRITE_IFD_GPS_INDEX,
+    EXIF_WRITE_IFD_1ST_INDEX,
+    EXIF_WRITE_IFD_COUNT
+};
 
     union _packed {
         unsigned int ui;
-        uint16_t us[2];
-        uint8_t uc[4];
+        uint16_t us[EXIF_SHORT_VALUES_IN_OFFSET_FIELD];
+        uint8_t uc[EXIF_VALUE_OFFSET_FIELD_SIZE];
     };
 
-    IfdTable *ifds[IFDMAX] = { NULL }, *ifd0th = NULL;
+    IfdTable *ifds[EXIF_WRITE_IFD_COUNT] = { NULL }, *ifd0th = NULL;
     TagNode *tag = NULL;
     IFD_TAG tagField = { 0 };
     uint16_t num, us;
@@ -1971,12 +2014,12 @@ static int writeExifSegment(FILE *fp, void **ifdTableArray)
     union _packed packed = { 0 };
     APP_HEADER dupApp1Header = App1Header;
 
-    ifds[0] = getIfdTableFromIfdTableArray(ifdTableArray, IFD_0TH);
-    ifds[1] = getIfdTableFromIfdTableArray(ifdTableArray, IFD_EXIF);
-    ifds[2] = getIfdTableFromIfdTableArray(ifdTableArray, IFD_IO);
-    ifds[3] = getIfdTableFromIfdTableArray(ifdTableArray, IFD_GPS);
-    ifds[4] = getIfdTableFromIfdTableArray(ifdTableArray, IFD_1ST);
-    ifd0th = ifds[0];
+    ifds[EXIF_WRITE_IFD_0TH_INDEX] = getIfdTableFromIfdTableArray(ifdTableArray, IFD_0TH);
+    ifds[EXIF_WRITE_IFD_EXIF_INDEX] = getIfdTableFromIfdTableArray(ifdTableArray, IFD_EXIF);
+    ifds[EXIF_WRITE_IFD_IO_INDEX] = getIfdTableFromIfdTableArray(ifdTableArray, IFD_IO);
+    ifds[EXIF_WRITE_IFD_GPS_INDEX] = getIfdTableFromIfdTableArray(ifdTableArray, IFD_GPS);
+    ifds[EXIF_WRITE_IFD_1ST_INDEX] = getIfdTableFromIfdTableArray(ifdTableArray, IFD_1ST);
+    ifd0th = ifds[EXIF_WRITE_IFD_0TH_INDEX];
 
     // return if 0th IFD is not exist
     if (!ifd0th) {
@@ -1984,7 +2027,7 @@ static int writeExifSegment(FILE *fp, void **ifdTableArray)
     }
     // get total length of the segment
     us = sizeof(APP_HEADER) - sizeof(short);
-    for (x = 0; x < IFDMAX; x++) {
+    for (x = 0; x < EXIF_WRITE_IFD_COUNT; x++) {
         if (ifds[x]) {
             us = us + ifds[x]->length;
         }
@@ -2003,7 +2046,7 @@ static int writeExifSegment(FILE *fp, void **ifdTableArray)
 
     // base offset of the Exif segment
     ofs = sizeof(TIFF_HEADER);
-    for (x = 0; x < IFDMAX; x++) {
+    for (x = 0; x < EXIF_WRITE_IFD_COUNT; x++) {
         IfdTable *ifd = ifds[x];
         if (ifd == NULL) {
             continue;
@@ -2042,35 +2085,35 @@ static int writeExifSegment(FILE *fp, void **ifdTableArray)
             switch (tag->type) {
             case TYPE_ASCII:
             case TYPE_UNDEFINED:
-                if (tag->count <= 4) {
+                if (tag->count <= EXIF_VALUE_OFFSET_FIELD_SIZE) {
                     for (i = 0; i < tag->count; i++) {
                         packed.uc[i] = tag->byteData[i];
                     }
                 } else {
                     packed.ui = fix_int(ofs);
                     ofs += tag->count;
-                    if (tag->count % 2 != 0) {
+                    if (tag->count % EXIF_TIFF_PACK_ALIGNMENT != 0) {
                         ofs++;
                     }
                 }
                 break;
             case TYPE_BYTE:
             case TYPE_SBYTE:
-                if (tag->count <= 4) {
+                if (tag->count <= EXIF_VALUE_OFFSET_FIELD_SIZE) {
                     for (i = 0; i < tag->count; i++) {
                         packed.uc[i] = uint8_from_uint(tag->numData[i]);
                     }
                 } else {
                     packed.ui = fix_int(ofs);
                     ofs += tag->count;
-                    if (tag->count % 2 != 0) {
+                    if (tag->count % EXIF_TIFF_PACK_ALIGNMENT != 0) {
                         ofs++;
                     }
                 }
                 break;
             case TYPE_SHORT:
             case TYPE_SSHORT:
-                if (tag->count <= 2) {
+                if (tag->count <= EXIF_SHORT_VALUES_IN_OFFSET_FIELD) {
                     for (i = 0; i < tag->count; i++) {
                         packed.us[i] = fix_short(uint16_from_uint(tag->numData[i]));
                     }
@@ -2091,7 +2134,7 @@ static int writeExifSegment(FILE *fp, void **ifdTableArray)
             case TYPE_RATIONAL:
             case TYPE_SRATIONAL:
                 packed.ui = fix_int(ofs);
-                ofs += tag->count * sizeof(int) * 2;
+                ofs += tag->count * sizeof(int) * EXIF_RATIONAL_COMPONENT_COUNT;
                 break;
             }
             tagField.offset = packed.ui;
@@ -2115,11 +2158,11 @@ static int writeExifSegment(FILE *fp, void **ifdTableArray)
             switch (tag->type) {
             case TYPE_ASCII:
             case TYPE_UNDEFINED:
-                if (tag->count > 4) {
+                if (tag->count > EXIF_VALUE_OFFSET_FIELD_SIZE) {
                     if (fwrite(tag->byteData, 1, tag->count, fp) != tag->count) {
                         return EXIF_ERR_WRITE_FILE;
                     }
-                    if (tag->count % 2 != 0) { // for even boundary
+                    if (tag->count % EXIF_TIFF_PACK_ALIGNMENT != 0) { // for even boundary
                         if (fwrite(&zero, 1, sizeof(char), fp) != sizeof(char)) {
                             return EXIF_ERR_WRITE_FILE;
                         }
@@ -2128,7 +2171,7 @@ static int writeExifSegment(FILE *fp, void **ifdTableArray)
                 break;
             case TYPE_BYTE:
             case TYPE_SBYTE:
-                if (tag->count > 4) {
+                if (tag->count > EXIF_VALUE_OFFSET_FIELD_SIZE) {
                     for (i = 0; i < tag->count; i++) {
                         uint8_t n = uint8_from_uint(tag->numData[i]);
                         if (fwrite(&n, 1, sizeof(char), fp) != sizeof(char)) {
@@ -2136,7 +2179,7 @@ static int writeExifSegment(FILE *fp, void **ifdTableArray)
                         }
 
                     }
-                    if (tag->count % 2 != 0) {
+                    if (tag->count % EXIF_TIFF_PACK_ALIGNMENT != 0) {
                         if (fwrite(&zero, 1, sizeof(char), fp) != sizeof(char)) {
                             return EXIF_ERR_WRITE_FILE;
                         }
@@ -2145,7 +2188,7 @@ static int writeExifSegment(FILE *fp, void **ifdTableArray)
                 break;
             case TYPE_SHORT:
             case TYPE_SSHORT:
-                if (tag->count > 2) {
+                if (tag->count > EXIF_SHORT_VALUES_IN_OFFSET_FIELD) {
                     for (i = 0; i < tag->count; i++) {
                         uint16_t n = fix_short(uint16_from_uint(tag->numData[i]));
                         if (fwrite(&n, 1, sizeof(short), fp) != sizeof(short)) {
@@ -2167,7 +2210,7 @@ static int writeExifSegment(FILE *fp, void **ifdTableArray)
                 break;
             case TYPE_RATIONAL:
             case TYPE_SRATIONAL:
-                for (i = 0; i < tag->count * 2; i++) {
+                for (i = 0; i < tag->count * EXIF_RATIONAL_COMPONENT_COUNT; i++) {
                     unsigned int n = fix_int(tag->numData[i]);
                     if (fwrite(&n, 1, sizeof(int), fp) != sizeof(int)) {
                         return EXIF_ERR_WRITE_FILE;
@@ -2235,9 +2278,9 @@ static uint16_t calcIfdSize(void *pIfd)
         case TYPE_UNDEFINED:
         case TYPE_BYTE:
         case TYPE_SBYTE:
-            if (tag->count > 4) {
+            if (tag->count > EXIF_VALUE_OFFSET_FIELD_SIZE) {
                 size += tag->count;
-                if (tag->count % 2 != 0) {
+                if (tag->count % EXIF_TIFF_PACK_ALIGNMENT != 0) {
                     // padding for even byte boundary
                     size += 1;
                 }
@@ -2245,7 +2288,7 @@ static uint16_t calcIfdSize(void *pIfd)
             break;
         case TYPE_SHORT:
         case TYPE_SSHORT:
-            if (tag->count > 2) {
+            if (tag->count > EXIF_SHORT_VALUES_IN_OFFSET_FIELD) {
                 size += tag->count * sizeof(short);
             }
             break;
@@ -2258,7 +2301,7 @@ static uint16_t calcIfdSize(void *pIfd)
         case TYPE_RATIONAL:
         case TYPE_SRATIONAL:
             if (tag->count > 0) {
-                size += tag->count * sizeof(int) * 2;
+                size += tag->count * sizeof(int) * EXIF_RATIONAL_COMPONENT_COUNT;
             }
             break;
         }
@@ -2455,12 +2498,12 @@ AGAIN:
  *  !NULL: the address of the IFD table
  */
 static void *parseIFD(FILE *fp,
-					  unsigned int baseOffset,
+                      unsigned int baseOffset,
                       unsigned int startOffset,
                       EXIF_IFD_TYPE ifdType)
 {
     void *ifd;
-    uint8_t buf[8192] = { 0 };
+    uint8_t buf[EXIF_FILE_COPY_BUFFER_SIZE] = { 0 };
     uint16_t tagCount, us;
     unsigned int nextOffset = 0;
     unsigned int *array, val, allocSize;
@@ -2494,12 +2537,12 @@ static void *parseIFD(FILE *fp,
     // parse all tags
     for (cnt = 0; cnt < tagCount; cnt++) {
         IFD_TAG tag;
-        uint8_t data[4];
+        uint8_t data[EXIF_VALUE_OFFSET_FIELD_SIZE];
         if (fseek(fp, pos, SEEK_SET) != 0 ||
             fread(&tag, 1, sizeof(tag), fp) < sizeof(tag)) {
             goto ERR;
         }
-        memcpy(data, &tag.offset, 4); // keep raw data temporary
+        memcpy(data, &tag.offset, EXIF_VALUE_OFFSET_FIELD_SIZE); // keep raw data temporary
         tag.tag = fix_short(tag.tag);
         tag.type = fix_short(tag.type);
         tag.count = fix_int(tag.count);
@@ -2511,7 +2554,7 @@ static void *parseIFD(FILE *fp,
 
         if (tag.type == TYPE_ASCII ||     // ascii = the null-terminated string
             tag.type == TYPE_UNDEFINED) { // undefined = the chunk data bytes
-            if (tag.count <= 4)  {
+            if (tag.count <= EXIF_VALUE_OFFSET_FIELD_SIZE)  {
                 // 4 bytes or less data is placed in the 'offset' area directly
                 addTagNodeToIfd(ifd, tag.tag, tag.type, tag.count, NULL, data);
             } else {
@@ -2546,7 +2589,7 @@ static void *parseIFD(FILE *fp,
             }
         }
         else if (tag.type == TYPE_RATIONAL || tag.type == TYPE_SRATIONAL) {
-            unsigned int realCount = tag.count * 2; // need double the space
+            unsigned int realCount = tag.count * EXIF_RATIONAL_COMPONENT_COUNT; // need double the space
             size_t len = realCount * sizeof(int);
             if (len >= App1Header.length) { // illegal
                 array = NULL;
@@ -2616,14 +2659,14 @@ static void *parseIFD(FILE *fp,
                 }
                 // if the total length of the value is less than or equal to 4bytes, 
                 // they have been stored in the tag.offset area
-                if (len <= 4) {
+                if (len <= EXIF_VALUE_OFFSET_FIELD_SIZE) {
                     if (size == 1) { // byte
                         for (i = 0; i < tag.count; i++) {
                             array[i] = data[i];
                         }
-                    } else if (size == 2) { // short
-                        for (i = 0; i < 2; i++) {
-                            memcpy(&us, &data[i*2], sizeof(short));
+                    } else if (size == sizeof(short)) { // short
+                        for (i = 0; i < EXIF_SHORT_VALUES_IN_OFFSET_FIELD; i++) {
+                            memcpy(&us, &data[i * sizeof(short)], sizeof(short));
                             us = fix_short(us);
                             array[i] = us;
                         }
@@ -2696,7 +2739,7 @@ ERR:
 void setDefaultAppNSegmentHeader(APP_HEADER* appHeader, const char* strId, uint16_t marker)
 {
     memset(&App1Header, 0, sizeof(APP_HEADER));
-	appHeader->marker = systemIsLittleEndian() ? swab16(marker) : marker;
+    appHeader->marker = systemIsLittleEndian() ? swab16(marker) : marker;
     appHeader->length = 0;
     strncpy(appHeader->id, strId, sizeof(appHeader->id));
     appHeader->tiff.byteOrder = 0x4949; // means little-endian
@@ -2706,13 +2749,13 @@ void setDefaultAppNSegmentHeader(APP_HEADER* appHeader, const char* strId, uint1
 
 void setDefaultMPFSegmentHeader(MPF_HEADER* appHeader, const char* strId, uint16_t marker)
 {
-	memset(&App1Header, 0, sizeof(APP_HEADER));
-	appHeader->marker = systemIsLittleEndian() ? swab16(marker) : marker;
-	appHeader->length = 0;
-	strncpy(appHeader->id, strId, sizeof(appHeader->id));
-	appHeader->tiff.byteOrder = 0x4949; // means little-endian
-	appHeader->tiff.reserved = 0x002A;
-	appHeader->tiff.Ifd0thOffset = 0x00000008;
+    memset(&App1Header, 0, sizeof(APP_HEADER));
+    appHeader->marker = systemIsLittleEndian() ? swab16(marker) : marker;
+    appHeader->length = 0;
+    strncpy(appHeader->id, strId, sizeof(appHeader->id));
+    appHeader->tiff.byteOrder = 0x4949; // means little-endian
+    appHeader->tiff.reserved = 0x002A;
+    appHeader->tiff.Ifd0thOffset = 0x00000008;
 }
 
 /**
@@ -2722,7 +2765,7 @@ void setDefaultMPFSegmentHeader(MPF_HEADER* appHeader, const char* strId, uint16
  *  1: success
  *  0: error
  */
-static int readAppNSegmentHeader(FILE *fp, APP_HEADER* appHeader, size_t startOffset)
+static int readAppNSegmentHeader(FILE *fp, APP_HEADER* appHeader, long startOffset)
 {
     // read the APP1 header
     if (fseek(fp, startOffset, SEEK_SET) != 0 ||
@@ -2732,7 +2775,7 @@ static int readAppNSegmentHeader(FILE *fp, APP_HEADER* appHeader, size_t startOf
     }
     if (systemIsLittleEndian()) {
         // the segment length value is always in big-endian order
-		appHeader->length = swab16(appHeader->length);
+        appHeader->length = swab16(appHeader->length);
     }
     // byte-order identifier
     if (appHeader->tiff.byteOrder != 0x4D4D && // big-endian
@@ -2756,31 +2799,31 @@ static int readAppNSegmentHeader(FILE *fp, APP_HEADER* appHeader, size_t startOf
 *  1: success
 *  0: error
 */
-static int readMPFSegmentHeader(FILE *fp, MPF_HEADER* appHeader, size_t startOffset)
+static int readMPFSegmentHeader(FILE *fp, MPF_HEADER* appHeader, long startOffset)
 {
-	// read the MPF header
-	if (fseek(fp, startOffset, SEEK_SET) != 0 ||
-		fread(appHeader, 1, sizeof(MPF_HEADER), fp) <
-		sizeof(MPF_HEADER)) {
-		return 0;
-	}
-	if (systemIsLittleEndian()) {
-		// the segment length value is always in big-endian order
-		appHeader->length = swab16(appHeader->length);
-	}
-	// byte-order identifier
-	if (appHeader->tiff.byteOrder != 0x4D4D && // big-endian
-		appHeader->tiff.byteOrder != 0x4949) { // little-endian
-		return 0;
-	}
-	// TIFF version number (always 0x002A)
-	appHeader->tiff.reserved = fix_short(appHeader->tiff.reserved);
-	if (appHeader->tiff.reserved != 0x002A) {
-		return 0;
-	}
-	// offset of the 0TH IFD
-	appHeader->tiff.Ifd0thOffset = fix_int(appHeader->tiff.Ifd0thOffset);
-	return 1;
+    // read the MPF header
+    if (fseek(fp, startOffset, SEEK_SET) != 0 ||
+        fread(appHeader, 1, sizeof(MPF_HEADER), fp) <
+        sizeof(MPF_HEADER)) {
+        return 0;
+    }
+    if (systemIsLittleEndian()) {
+        // the segment length value is always in big-endian order
+        appHeader->length = swab16(appHeader->length);
+    }
+    // byte-order identifier
+    if (appHeader->tiff.byteOrder != 0x4D4D && // big-endian
+        appHeader->tiff.byteOrder != 0x4949) { // little-endian
+        return 0;
+    }
+    // TIFF version number (always 0x002A)
+    appHeader->tiff.reserved = fix_short(appHeader->tiff.reserved);
+    if (appHeader->tiff.reserved != 0x002A) {
+        return 0;
+    }
+    // offset of the 0TH IFD
+    appHeader->tiff.Ifd0thOffset = fix_int(appHeader->tiff.Ifd0thOffset);
+    return 1;
 }
 /**
  * Get the offset of the Exif segment in the current opened JPEG file
@@ -2795,10 +2838,10 @@ static int readMPFSegmentHeader(FILE *fp, MPF_HEADER* appHeader, size_t startOff
 #define FPXR_ID_STR     "FPXR\0"
 #define FPXR_ID_STR_LEN 5
 #define MPF_ID_STR		"MPF\0"
-#define MPF_ID_STR_LEN	4
+#define MPF_ID_STR_LEN	EXIF_MPF_ID_SIZE
 
 static int getAppNStartOffset(FILE *fp,
-							  uint16_t appMarkerN,
+                              uint16_t appMarkerN,
                               const char *App1IDString,
                               size_t App1IDStringLength,
                               int *pDQTOffset)
@@ -2806,7 +2849,7 @@ static int getAppNStartOffset(FILE *fp,
     int pos;
     uint8_t buf[64];
     uint16_t len, marker;
-	uint32_t appn_pos = 0;
+    uint32_t appn_pos = 0;
     if (!fp) {
         return EXIF_ERR_READ_FILE;
     }
@@ -2845,7 +2888,7 @@ static int getAppNStartOffset(FILE *fp,
             // found DQT
             if (marker == 0xFFDB && pDQTOffset != NULL) {
                 *pDQTOffset = pos - sizeof(short);
-				break;
+                break;
             }
         }
         // read the length of the segment
@@ -2856,35 +2899,35 @@ static int getAppNStartOffset(FILE *fp,
             len = swab16(len);
         }
         // if is not a APPn segment, move to next segment
-		if (marker != appMarkerN) {
-			if (appn_pos != 0) {
-				break;
-			}
+        if (marker != appMarkerN) {
+            if (appn_pos != 0) {
+                break;
+            }
             if (fseek(fp, len - sizeof(short), SEEK_CUR) != 0) {
                 return EXIF_ERR_INVALID_JPEG;
             }
         } else {
             // check if it is the Exif segment
-			size_t bytesread = fread(buf, 1, App1IDStringLength + 4, fp);
+            size_t bytesread = fread(buf, 1, App1IDStringLength + EXIF_APP_ID_PREVIEW_SIZE, fp);
             if (bytesread < App1IDStringLength) {
                 return EXIF_ERR_READ_FILE;
             }
             if (memcmp(buf, App1IDString, App1IDStringLength) == 0) {
                 // return the start offset of the Exif segment
-				if (appn_pos == 0) {
-					appn_pos = pos - sizeof(short);
-				}
-			}
-			if (Verbose) {
-				unsigned char c1 = buf[0];
-				unsigned char c2 = buf[1];
-				unsigned char c3 = buf[2];
-				unsigned char c4 = buf[3];
-				if (c4 < ' ') {
-					c4 = '?';
-				}
-				printf("APP%u %c%c%c%c len=%u\n", appMarkerN - APP0_MARKER, c1, c2, c3, c4, len - 2);
-			}
+                if (appn_pos == 0) {
+                    appn_pos = pos - sizeof(short);
+                }
+            }
+            if (Verbose) {
+                unsigned char c1 = buf[0];
+                unsigned char c2 = buf[1];
+                unsigned char c3 = buf[EXIF_VERBOSE_ID_THIRD_BYTE];
+                unsigned char c4 = buf[EXIF_VERBOSE_ID_FOURTH_BYTE];
+                if (c4 < ' ') {
+                    c4 = '?';
+                }
+                printf("APP%u %c%c%c%c len=%zu\n", appMarkerN - APP0_MARKER, c1, c2, c3, c4, len - sizeof(short));
+            }
             // if is not a Exif segment, move to next segment
             if (fseek(fp, pos, SEEK_SET) != 0 ||
                 fseek(fp, len, SEEK_CUR) != 0) {
@@ -2915,33 +2958,33 @@ static int init(FILE *fp)
 {
     int sts, dqtOffset = -1;;
     setDefaultAppNSegmentHeader(&App1Header, "Exif", 0xFFE1);
-	setDefaultAppNSegmentHeader(&App2Header, "FPXR", 0xFFE2);
-	setDefaultMPFSegmentHeader(&MPFHeader, "MPF", 0xFFE2);
-	// get the offset of the Exif segment
-	sts = getAppNStartOffset(fp, APP1_MARKER, EXIF_ID_STR, EXIF_ID_STR_LEN, &dqtOffset);
+    setDefaultAppNSegmentHeader(&App2Header, "FPXR", 0xFFE2);
+    setDefaultMPFSegmentHeader(&MPFHeader, "MPF", 0xFFE2);
+    // get the offset of the Exif segment
+    sts = getAppNStartOffset(fp, APP1_MARKER, EXIF_ID_STR, EXIF_ID_STR_LEN, &dqtOffset);
     if (sts < 0) { // error
         return sts;
     }
-	JpegDQTOffset = dqtOffset;
-	App1StartOffset = sts;
-	if (sts == 0) {
-		return sts;
-	}
+    JpegDQTOffset = dqtOffset;
+    App1StartOffset = sts;
+    if (sts == 0) {
+        return sts;
+    }
 
-	App2StartOffset = getAppNStartOffset(fp, APP2_MARKER, FPXR_ID_STR, FPXR_ID_STR_LEN, NULL);
+    App2StartOffset = getAppNStartOffset(fp, APP2_MARKER, FPXR_ID_STR, FPXR_ID_STR_LEN, NULL);
 
-	MPFStartOffset = getAppNStartOffset(fp, APP2_MARKER, MPF_ID_STR, MPF_ID_STR_LEN, NULL);
+    MPFStartOffset = getAppNStartOffset(fp, APP2_MARKER, MPF_ID_STR, MPF_ID_STR_LEN, NULL);
 
-	// Load the App1 segment header
+    // Load the App1 segment header
     if (!readAppNSegmentHeader(fp, &App1Header, App1StartOffset)) {
         return EXIF_ERR_INVALID_APP1HEADER;
     }
 
-	if (MPFStartOffset > 0) {
-		if (!readMPFSegmentHeader(fp, &MPFHeader, MPFStartOffset)) {
-			return EXIF_ERR_INVALID_APP1HEADER;
-		}
-	}
+    if (MPFStartOffset > 0) {
+        if (!readMPFSegmentHeader(fp, &MPFHeader, MPFStartOffset)) {
+            return EXIF_ERR_INVALID_APP1HEADER;
+        }
+    }
     return 1;
 }
 
@@ -2966,12 +3009,18 @@ static void PRINTF(char **ms, const char *fmt, ...) {
     else if (*ms) {
         len = strlen(*ms) + cntLen + 1;
         p = malloc(len);
+        if (!p) {
+            return;
+        }
         strcpy(p, *ms);
         strcat(p, buf);
         free(*ms);
     } else {
         len = cntLen + 1;
         p = malloc(len);
+        if (!p) {
+            return;
+        }
         strcpy(p, buf);
     }
     *ms = p;

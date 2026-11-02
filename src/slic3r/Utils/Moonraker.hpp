@@ -8,6 +8,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 #include <wx/string.h>
 #include <boost/asio/ip/address.hpp>
 
@@ -24,12 +25,24 @@ class Http;
 class Moonraker : public PrintHost
 {
 public:
+    // A Klipper [extruder_stepper <name>] section, as the printer itself reports it.
+    struct KlipperExtruderStepper
+    {
+        // The stepper's name - this is what SET_PRESSURE_ADVANCE EXTRUDER= takes.
+        std::string name;
+        // The extruder it is synced to ('extruder', 'extruder1', ...), empty when free.
+        std::string synced_to;
+        double      rotation_distance = 0.;
+    };
+
     Moonraker(DynamicPrintConfig *config);
     ~Moonraker() override = default;
 
     const char* get_name() const override;
 
     virtual bool test(wxString &curl_msg) const override;
+    // Ask the printer which extruder steppers it has configured.
+    bool get_extruder_steppers(std::vector<KlipperExtruderStepper> &out, wxString &msg) const;
     wxString get_test_ok_msg () const override;
     wxString get_test_failed_msg (wxString &msg) const override;
     bool upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, ErrorFn error_fn, InfoFn info_fn) const override;

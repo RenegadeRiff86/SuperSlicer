@@ -33,26 +33,31 @@
 namespace Slic3r::FFFTreeSupport
 {
 
+// Repeated string literals extracted to named constants (BP1001).
+static constexpr const char* kAndLayer = " and layer ";
+static constexpr const char* kPrecalcPerfWarn = ", but precalculate was called. Performance may suffer!";
+static constexpr double kClipperMiterLimit = 1.2;
+
 using namespace std::literals;
 
 // or warning
 // had to use a define beacuse the macro processing inside macro BOOST_LOG_TRIVIAL()
 #define error_level_not_in_cache error
 
-//FIXME Machine border is currently ignored.
+// Collision area surrounding the print bed, so that tree branches are planned to stay
+// inside the printable area. Note: the layer-0 placeable areas are seeded from the bed
+// polygon itself (m_bed_area), not from this ring.
 static Polygons calculateMachineBorderCollision(Polygon machine_border)
 {
-    // Put a border of 1m around the print volume so that we don't collide.
-#if 1
-    //FIXME just returning no border will let tree support legs collide with print bed boundary
-    return {};
-#else
-    //FIXME offsetting by 1000mm easily overflows int32_tr coordinate.
-    Polygons out = offset(machine_border, scaled<float>(1000.), jtMiter, 1.2);
+    // Put a 100mm border around the print volume so that branches don't collide with it.
+    // The width only has to exceed the largest offset ever applied to a collision area
+    // (branch radius + xy distance); it must stay well below ClipperLib's loRange
+    // (~1.07e9 units, i.e. ~1073mm from the origin) - a 1m border overflows that range
+    // and silently breaks all collision/avoidance queries.
+    Polygons out = offset(machine_border, scaled<float>(100.), jtMiter, kClipperMiterLimit);
     machine_border.reverse(); // Makes the polygon negative so that we subtract the actual volume from the collision area.
     out.emplace_back(std::move(machine_border));
     return out;
-#endif
 }
 
 TreeModelVolumes::TreeModelVolumes(
@@ -70,6 +75,7 @@ TreeModelVolumes::TreeModelVolumes(
 #endif // SLIC3R_TREESUPPORTS_PROGRESS
     m_machine_border{ calculateMachineBorderCollision(build_volume.polygon()) }
 {
+    m_bed_area = build_volume.polygon();
 #if 0
     std::unordered_map<size_t, size_t> mesh_to_layeroutline_idx;
     for (size_t mesh_idx = 0; mesh_idx < storage.meshes.size(); ++ mesh_idx) {
@@ -145,11 +151,8 @@ TreeModelVolumes::TreeModelVolumes(
             for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++ layer_idx) {
                 if (layer_idx < coord_t(additional_excluded_areas.size()))
                     append(m_anti_overhang[layer_idx], union_ex(additional_excluded_areas[layer_idx]));
-    //          if (SUPPORT_TREE_AVOID_SUPPORT_BLOCKER)
-    //              append(m_anti_overhang[layer_idx], storage.support.supportLayers[layer_idx].anti_overhang);
-    //FIXME block wipe tower
-    //          if (storage.primeTower.enabled)
-    //              append(m_anti_overhang[layer_idx], layer_idx == 0 ? storage.primeTower.outer_poly_first_layer : storage.primeTower.outer_poly);
+    // Note: Cura's original code also excluded the support blocker and prime tower areas here;
+    // these exclusions were not ported.
                 m_anti_overhang[layer_idx] = union_ex(m_anti_overhang[layer_idx]);
             }
         });
@@ -301,7 +304,7 @@ const Polygons& TreeModelVolumes::getCollision(const coord_t orig_radius, LayerI
     if (std::optional<std::reference_wrapper<const Polygons>> result = m_collision_cache.getArea({ radius, layer_idx }); result)
         return (*result).get();
     if (m_precalculated) {
-        BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate collision at radius " << radius << " and layer " << layer_idx << ", but precalculate was called. Performance may suffer!";
+        BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate collision at radius " << radius << kAndLayer << layer_idx << kPrecalcPerfWarn;
         tree_supports_show_error("Not precalculated Collision requested."sv, false);
     }
     const_cast<TreeModelVolumes*>(this)->calculateCollision(radius, layer_idx, []{});
@@ -324,7 +327,7 @@ const Polygons& TreeModelVolumes::getCollisionHolefree(coord_t radius, LayerInde
     if (std::optional<std::reference_wrapper<const Polygons>> result = m_collision_cache_holefree.getArea({ radius, layer_idx }); result)
         return (*result).get();
     if (m_precalculated) {
-        BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate collision holefree at radius " << radius << " and layer " << layer_idx << ", but precalculate was called. Performance may suffer!";
+        BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate collision holefree at radius " << radius << kAndLayer << layer_idx << kPrecalcPerfWarn;
         tree_supports_show_error("Not precalculated Holefree Collision requested."sv, false);
     }
     const_cast<TreeModelVolumes*>(this)->calculateCollisionHolefree({ radius, layer_idx });
@@ -348,10 +351,10 @@ const Polygons& TreeModelVolumes::getAvoidance(const coord_t orig_radius, LayerI
 
     if (m_precalculated) {
         if (to_model) {
-            BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate Avoidance to model at radius " << radius << " and layer " << layer_idx << ", but precalculate was called. Performance may suffer!";
+            BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate Avoidance to model at radius " << radius << kAndLayer << layer_idx << kPrecalcPerfWarn;
             tree_supports_show_error("Not precalculated Avoidance(to model) requested."sv, false);
         } else {
-            BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate Avoidance at radius " << radius << " and layer " << layer_idx << ", but precalculate was called. Performance may suffer!";
+            BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate Avoidance at radius " << radius << kAndLayer << layer_idx << kPrecalcPerfWarn;
             tree_supports_show_error("Not precalculated Avoidance(to buildplate) requested."sv, false);
         }
     }
@@ -366,7 +369,7 @@ const Polygons& TreeModelVolumes::getPlaceableAreas(const coord_t orig_radius, L
     if (std::optional<std::reference_wrapper<const Polygons>> result = m_placeable_areas_cache.getArea({ radius, layer_idx }); result)
         return (*result).get();
     if (m_precalculated) {
-        BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate Placeable Areas at radius " << radius << " and layer " << layer_idx << ", but precalculate was called. Performance may suffer!";
+        BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate Placeable Areas at radius " << radius << kAndLayer << layer_idx << kPrecalcPerfWarn;
         tree_supports_show_error(format("Not precalculated Placeable areas requested, radius %1%, layer %2%", radius, layer_idx), false);
     }
     if (orig_radius == 0)
@@ -393,7 +396,7 @@ const Polygons& TreeModelVolumes::getWallRestriction(const coord_t orig_radius, 
         result)
         return (*result).get();
     if (m_precalculated) {
-        BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate Wall restricions at radius " << radius << " and layer " << layer_idx << ", but precalculate was called. Performance may suffer!";
+        BOOST_LOG_TRIVIAL(error_level_not_in_cache) << "Had to calculate Wall restricions at radius " << radius << kAndLayer << layer_idx << kPrecalcPerfWarn;
         tree_supports_show_error(
             min_xy_dist ? 
                 "Not precalculated Wall restriction of minimum xy distance requested )." :
@@ -449,7 +452,7 @@ void TreeModelVolumes::calculateCollision(const coord_t radius, const LayerIndex
                 // avoiding this would require saving each collision for each outline_idx separately.
                 // and later for each avoidance... But avoidance calculation has to be for the whole scene and can NOT be done for each outline_idx separately and combined later.
                 // so avoiding this inaccuracy seems infeasible as it would require 2x the avoidance calculations => 0.5x the performance.
-                //FIXME support_xy_distance is not corrected for "soluble" flag, see TreeSupportSettings constructor.
+                // Note: support_xy_distance is not corrected for the "soluble" flag either, see the TreeSupportSettings constructor.
                 settings.support_xy_distance;
 
             // 1) Calculate offsets of collision areas in parallel.
@@ -467,7 +470,7 @@ void TreeModelVolumes::calculateCollision(const coord_t radius, const LayerIndex
                     // if a key does not exist when it is accessed it is added!
                     collision_areas_offsetted[layer_idx] = offset_value == 0 ?
                             union_(collision_areas) :
-                            offset(union_ex(collision_areas), offset_value, ClipperLib::jtMiter, 1.2);
+                            offset(union_ex(collision_areas), offset_value, ClipperLib::jtMiter, kClipperMiterLimit);
                     throw_on_cancel();
                 }
             });
@@ -519,10 +522,10 @@ void TreeModelVolumes::calculateCollision(const coord_t radius, const LayerIndex
                                     // the conditional -0.5 ensures that plastic can never touch on the diagonal
                                     // downward when the z_distance_top_layers = 1. It is assumed to be better to
                                     // not support an overhang<90 degree than to risk fusing to it.
-                                append(collisions, offset(union_ex(collision_areas_original), radius + required_range_x, ClipperLib::jtMiter, 1.2));
+                                append(collisions, offset(union_ex(collision_areas_original), radius + required_range_x, ClipperLib::jtMiter, kClipperMiterLimit));
                             }
                         collisions = processing_last_mesh && layer_idx < int(anti_overhang.size()) ? 
-                                union_(collisions, offset(anti_overhang[layer_idx], radius, ClipperLib::jtMiter, 1.2)) : 
+                                union_(collisions, offset(anti_overhang[layer_idx], radius, ClipperLib::jtMiter, kClipperMiterLimit)) : 
                                 union_(collisions);
                         auto &dst = data[layer_idx];
                         if (processing_last_mesh) {
@@ -656,7 +659,6 @@ void TreeModelVolumes::calculateAvoidance(const std::vector<RadiusLayerPair> &ke
             assert(! task.holefree() || task.radius < m_increase_until_radius + m_current_min_xy_dist_delta);
             if (task.to_model)
                 // ensuring Placeableareas are calculated
-                //FIXME pass throw_on_cancel
                 getPlaceableAreas(task.radius, task.max_required_layer, throw_on_cancel);
             // The following loop propagating avoidance regions bottom up is inherently serial.
             const bool  collision_holefree = (task.slow() || task.holefree()) && task.radius < m_increase_until_radius + m_current_min_xy_dist_delta;
@@ -734,7 +736,7 @@ void TreeModelVolumes::calculatePlaceables(const coord_t radius, const LayerInde
     std::vector<Polygons> data(max_required_layer + 1 - start_layer, Polygons{});
 
     if (start_layer == 0)
-        data[0] = diff(m_machine_border, getCollision(radius, 0, true));
+        data[0] = diff(Polygons{ m_bed_area }, getCollision(radius, 0, true));
 
     tbb::parallel_for(tbb::blocked_range<LayerIndex>(std::max(1, start_layer), max_required_layer + 1),
         [this, &data, radius, start_layer, &throw_on_cancel](const tbb::blocked_range<LayerIndex>& range) {
@@ -745,7 +747,7 @@ void TreeModelVolumes::calculatePlaceables(const coord_t radius, const LayerInde
                     // it can happen that a small line is considered a flat area to place something onto, even though it is mostly 
                     // xy_distance that cant support it. Making the area smaller by xy_distance fixes this.
                     - (radius + m_current_min_xy_dist + m_current_min_xy_dist_delta),
-                    jtMiter, 1.2);
+                    jtMiter, kClipperMiterLimit);
                 throw_on_cancel();
             }
         });

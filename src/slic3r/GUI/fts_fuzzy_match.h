@@ -46,10 +46,10 @@
 
 // Public interface
 namespace fts {
-	using 						char_type 	= wchar_t;
-	using 						pos_type  	= uint16_t;
-	static constexpr pos_type 	stopper 	= pos_type(-1);
-	static constexpr int 		max_matches = 255;
+    using 						char_type 	= wchar_t;
+    using 						pos_type  	= uint16_t;
+    static constexpr pos_type 	stopper 	= pos_type(-1);
+    static constexpr int 		max_matches = 255;
 
     static bool fuzzy_match(char_type const * pattern, char_type const * str, int & outScore);
     static bool fuzzy_match(char_type const * pattern, char_type const * str, int & outScore, pos_type * matches);
@@ -81,13 +81,13 @@ namespace fts {
 
     // Private implementation
     static bool fuzzy_internal::fuzzy_match_recursive(
-    	// Pattern to match over str.
-    	const char_type * 		pattern, 
-    	// Text to match the pattern over.
-    	const char_type * 		str, 
-    	// Score of the pattern matching str. Output variable.
-    	int & 					outScore, 
-    	// The very start of str, for calculating indices of matches and for calculating matches from the start of the input string.
+        // Pattern to match over str.
+        const char_type * 		pattern, 
+        // Text to match the pattern over.
+        const char_type * 		str, 
+        // Score of the pattern matching str. Output variable.
+        int & 					outScore, 
+        // The very start of str, for calculating indices of matches and for calculating matches from the start of the input string.
         const char_type * const	strBegin, 
         // Matches when entering this function.
         pos_type const * 		srcMatches,
@@ -118,7 +118,7 @@ namespace fts {
         bool first_match = true;
         while (*pattern != '\0' && *str != '\0') {
 
-        	int  num_matched  = std::towlower(*pattern) == std::towlower(*str) ? 1 : 0;
+            int  num_matched  = std::towlower(*pattern) == std::towlower(*str) ? 1 : 0;
             // bool folded_match = false;
 
             if (! num_matched) {
@@ -128,9 +128,9 @@ namespace fts {
                 for (const wchar_t* d = pattern; c != end && *d != 0 && std::towlower(*c) == std::towlower(*d); ++c, ++d);
                 if (c == end) {
                     // folded_match = true;
-        			num_matched = end - tmp;
-        		}
-	        }
+                    num_matched = end - tmp;
+                }
+            }
             
             // Found match
             if (num_matched) {
@@ -152,8 +152,8 @@ namespace fts {
                     
                     // Pick best recursive score
                     if (!recursiveMatch || recursiveScore > bestRecursiveScore) {
-                    	copy_matches(bestRecursiveMatches, recursiveMatches);
-                		bestRecursiveScore = recursiveScore;
+                        copy_matches(bestRecursiveMatches, recursiveMatches);
+                        bestRecursiveScore = recursiveScore;
                     }
                     recursiveMatch = true;
                 }
@@ -192,13 +192,13 @@ namespace fts {
             // Start of the first group that contains matches[0].
             const char_type *group_start = strBegin + matches[0];
             for (const char_type *c = group_start; c >= strBegin && *c != ':'; -- c)
-            	if (*c != ' ' && *c != '\t')
-            		group_start = c;
+                if (*c != ' ' && *c != '\t')
+                    group_start = c;
 
             // Apply leading letter penalty or bonus.
             outScore += matches[0] == int(group_start - strBegin) ?
-            	first_letter_bonus :
-            	std::max((matches[0] - int(group_start - strBegin)) * leading_letter_penalty, max_leading_letter_penalty);
+                first_letter_bonus :
+                std::max((matches[0] - int(group_start - strBegin)) * leading_letter_penalty, max_leading_letter_penalty);
 
             // Apply unmatched letters after the end penalty
 //            outScore += (int(str - group_start) - matches[nextMatch-1] + 1) * unmatched_letter_penalty;
@@ -213,15 +213,15 @@ namespace fts {
                 // Check for bonuses based on neighbor character value
                 if (currIdx > 0) {
                     if (i > 0 && currIdx == matches[i - 1] + 1) {
-	                    // Sequential
+                        // Sequential
                         outScore += sequential_state;
                         // Exponential grow of the sequential bonus.
-                    	sequential_state = std::min(5 * sequential_bonus, sequential_state + sequential_state / 3);
+                        sequential_state = std::min(5 * sequential_bonus, sequential_state + sequential_state / 3);
                     } else {
-                    	// Reset the sequential bonus exponential grow.
-                    	sequential_state = sequential_bonus;
+                        // Reset the sequential bonus exponential grow.
+                        sequential_state = sequential_bonus;
                     }
-					char_type prev = strBegin[currIdx - 1];
+                    char_type prev = strBegin[currIdx - 1];
 /*
                     // Camel case
                     if (std::islower(prev) && std::isupper(strBegin[currIdx]))

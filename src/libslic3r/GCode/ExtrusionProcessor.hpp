@@ -252,6 +252,8 @@ std::vector<ExtendedPoint> estimate_points_properties(const POINTS              
 //                                                          const AABBTreeLines::LinesDistancer<Linef>      &unscaled_prev_layer,
 //                                                          const AABBTreeLines::LinesDistancer<CurledLine> &prev_layer_curled_lines);
 
+void update_split_perimeter_overhang_role(ExtrusionPath &path, ExtrusionRole source_role);
+
 ExtrusionEntityCollection calculate_and_split_overhanging_extrusions(
     const ExtrusionEntityCollection                 *ecc,
     const AABBTreeLines::LinesDistancer<Linef>      &unscaled_prev_layer,

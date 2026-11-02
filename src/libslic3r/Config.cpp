@@ -48,13 +48,16 @@
 
 #include <LibBGCode/binarize/binarize.hpp>
 
-//FIXME for GCodeFlavor and gcfMarlin (for forward-compatibility conversion)
-// This is not nice, likely it would be better to pass the ConfigSubstitutionContext to handle_legacy().
+// PrintConfig.hpp provides GCodeFlavor and gcfMarlin for forward-compatible legacy conversion.
+// handle_legacy() consumes these definitions directly.
 #include "PrintConfig.hpp"
 
 #define L(s) (s)
 
 namespace Slic3r {
+
+// Repeated string literals extracted to named constants (BP1001).
+static constexpr const char* GET_ABS_VALUE_ERR = "ConfigBase::get_abs_value(): ";
 
 PrinterTechnology parse_printer_technology(const std::string &technology) {
     if (technology == "FFF")
@@ -420,7 +423,7 @@ double GraphData::interpolate(double x_value) const{
                     // Cubic spline interpolation: see https://en.wikiversity.org/wiki/Cubic_Spline_Interpolation#Methods
                     const bool boundary_first_derivative = true; // true - first derivative is 0 at the leftmost and
                                                                  // rightmost point false - second ---- || -------
-                    // TODO: cache (if the caller use my cache).
+                    // Recompute spline coefficients here because this method has no stable caller-owned cache.
                     const size_t N = end_idx - begin_idx - 1; // last point can be accessed as N, we have N+1 total points
                     std::vector<float> diag(N + 1);
                     std::vector<float> mu(N + 1);
@@ -610,7 +613,7 @@ bool GraphData::deserialize(const std::string &str)
     return true;
 }
 
-//TODO: replace ConfigOptionDef* by ConfigOptionDef&
+// ConfigSubstitution retains a non-owning definition pointer; callers must keep the definition alive.
 ConfigSubstitution::ConfigSubstitution(const ConfigOptionDef *def, const std::string &old, ConfigOptionUniquePtr &&new_v)
     : opt_def(def), old_name(def->opt_key), old_value(old), new_value(std::move(new_v)) { assert(def); }
 
@@ -635,7 +638,7 @@ bool ConfigSubstitutionContext::erase(const std::string &old_name) {
 }
 
 void ConfigOptionDeleter::operator()(ConfigOption* p) {
-    delete p;
+    std::default_delete<ConfigOption>{}(p);
 }
 
 std::vector<std::string> ConfigOptionDef::cli_args(const std::string &key) const
@@ -643,10 +646,7 @@ std::vector<std::string> ConfigOptionDef::cli_args(const std::string &key) const
     std::vector<std::string> args;
     if (this->cli != ConfigOptionDef::nocli) {
         const std::string &cli = this->cli;
-        //FIXME What was that for? Check the "readline" documentation.
-        // Neither '=' nor '!' is used in any of the cli parameters currently defined by PrusaSlicer.
-//        std::string cli = this->cli.substr(0, this->cli.find("="));
-//        boost::trim_right_if(cli, boost::is_any_of("!"));
+        // Neither '=' nor '!' is used in any of the cli parameters currently defined, so no cli substring/trim handling is needed here.
         if (cli.empty()) {
             // Convert an option key to CLI argument by replacing underscores with dashes.
             std::string opt = key;
@@ -893,7 +893,7 @@ std::optional<int> ConfigOptionEnumDef::value_to_index(const std::string &value)
 {
     assert(this->is_valid_open_enum() || this->is_valid_closed_enum());
     auto it = std::find(m_values.begin(), m_values.end(), value);
-    return it == m_values.end() ? std::optional<int>{} : std::optional<int>{it - m_values.begin()};
+    return it == m_values.end() ? std::optional<int>{} : std::optional<int>{static_cast<int>(it - m_values.begin())};
 }
 
 // Look up an index of label of this combo box. Used for open enums.
@@ -902,7 +902,7 @@ std::optional<int> ConfigOptionEnumDef::label_to_index(const std::string &value)
     assert(is_valid_open_enum());
     const auto &ls = this->labels();
     auto        it = std::find(ls.begin(), ls.end(), value);
-    return it == ls.end() ? std::optional<int>{} : std::optional<int>{it - ls.begin()};
+    return it == ls.end() ? std::optional<int>{} : std::optional<int>{static_cast<int>(it - ls.begin())};
 }
 
 std::optional<std::reference_wrapper<const std::string>> ConfigOptionEnumDef::enum_to_value(int enum_val) const
@@ -1327,7 +1327,7 @@ bool ConfigBase::set_deserialize_raw(const t_config_option_key &opt_key_src, con
     } else {
         bool substituted = false;
         if (optdef->type == coBools && substitutions_ctxt.rule != ForwardCompatibilitySubstitutionRule::Disable) {
-            //FIXME Special handling of vectors of bools, quick and not so dirty solution before PrusaSlicer 2.3.2 release.
+            // Note: special handling of vectors of bools - a pragmatic solution introduced for the PrusaSlicer 2.3.2 release.
             ConfigHelpers::DeserializationSubstitution default_value = ConfigHelpers::DeserializationSubstitution::DefaultsToFalse;
             if (optdef->default_value) {
                 // Default value for vectors of booleans used in a "per extruder" context, thus the default contains just a single value.
@@ -1446,7 +1446,7 @@ double ConfigBase::get_computed_value(const t_config_option_key &opt_key, int ex
         if (!opt_def->ratio_over.empty() && opt_def->ratio_over != "depends")
             return cast_opt->get_abs_value(resolve_ratio_over(opt_def->ratio_over, extruder_id));
 
-        std::stringstream ss; ss << "ConfigBase::get_abs_value(): " << opt_key << " has no valid ratio_over to compute of";
+        std::stringstream ss; ss << GET_ABS_VALUE_ERR << opt_key << " has no valid ratio_over to compute of";
         throw ConfigurationError(ss.str());
     } else {
         // check if it's an extruder_id array
@@ -1459,7 +1459,7 @@ double ConfigBase::get_computed_value(const t_config_option_key &opt_key, int ex
                 if ((opt_extruder_id = this->option("extruder")) == nullptr)
                     if ((opt_extruder_id = this->option("current_extruder")) == nullptr
                         || opt_extruder_id->get_int() < 0 || opt_extruder_id->get_int() >= vector_opt->size()) {
-                        std::stringstream ss; ss << "ConfigBase::get_abs_value(): " << opt_key << " need to has the extuder id to get the right value, but it's not available";
+                        std::stringstream ss; ss << GET_ABS_VALUE_ERR << opt_key << " need to has the extuder id to get the right value, but it's not available";
                         throw ConfigurationError(ss.str());
                     }
                 extruder_id = opt_extruder_id->get_int();
@@ -1486,7 +1486,7 @@ double ConfigBase::get_computed_value(const t_config_option_key &opt_key, int ex
                     return opt_fl_per->get_abs_value(idx, 1);
                 if (opt_def->ratio_over != "depends")
                     return opt_fl_per->get_abs_value(idx, resolve_ratio_over(opt_def->ratio_over, idx));
-                std::stringstream ss; ss << "ConfigBase::get_abs_value(): " << opt_key << " has no valid ratio_over to compute of";
+                std::stringstream ss; ss << GET_ABS_VALUE_ERR << opt_key << " has no valid ratio_over to compute of";
                 throw ConfigurationError(ss.str());
             }
             if (raw_opt->type() == coPercents) {
@@ -1498,12 +1498,12 @@ double ConfigBase::get_computed_value(const t_config_option_key &opt_key, int ex
                     return opt_per->get_abs_value(idx, 1);
                 if (opt_def->ratio_over != "depends")
                     return opt_per->get_abs_value(idx, resolve_ratio_over(opt_def->ratio_over, idx));
-                std::stringstream ss; ss << "ConfigBase::get_abs_value(): " << opt_key << " has no valid ratio_over to compute of";
+                std::stringstream ss; ss << GET_ABS_VALUE_ERR << opt_key << " has no valid ratio_over to compute of";
                 throw ConfigurationError(ss.str());
             }
         } 
     }
-    std::stringstream ss; ss << "ConfigBase::get_abs_value(): "<< opt_key<<" has not a valid option type for get_abs_value()";
+    std::stringstream ss; ss << GET_ABS_VALUE_ERR<< opt_key<<" has not a valid option type for get_abs_value()";
     throw ConfigurationError(ss.str());
 }
 
@@ -1531,7 +1531,7 @@ double ConfigBase::get_abs_value(const t_config_option_key &opt_key, double rati
             if ((opt_extruder_id = this->option("extruder")) == nullptr)
                 if ((opt_extruder_id = this->option("current_extruder")) == nullptr
                     || opt_extruder_id->get_int() < 0 || opt_extruder_id->get_int() >= vector_opt->size()) {
-                    std::stringstream ss; ss << "ConfigBase::get_abs_value(): " << opt_key << " need to has the extuder id to get the right value, but it's not available";
+                    std::stringstream ss; ss << GET_ABS_VALUE_ERR << opt_key << " need to has the extuder id to get the right value, but it's not available";
                     throw ConfigurationError(ss.str());
                 }
             extruder_id = opt_extruder_id->get_int();

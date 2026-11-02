@@ -57,9 +57,6 @@ public:
     Polylines unsupported_edges(double angle = -1) const;
     
 private:
-    // Suppress warning "assignment operator could not be generated"
-    BridgeDetector& operator=(const BridgeDetector &);
-
     void initialize();
 
     struct BridgeDirection {
@@ -95,13 +92,15 @@ public:
 //return ideal bridge direction and unsupported bridge endpoints distance.
 inline std::tuple<Vec2d, double> detect_bridging_direction(const Lines &floating_edges, const Polygons &overhang_area)
 {
+    constexpr double zero_bridge_cost = 0.0;
+
     if (floating_edges.empty()) {
         // consider this area anchored from all sides, pick bridging direction that will likely yield shortest bridges
         auto [pc1, pc2] = compute_principal_components(overhang_area);
         if (pc2 == Vec2f::Zero()) { // overhang may be smaller than resolution. In this case, any direction is ok
-            return {Vec2d{1.0,0.0}, 0.0};
+            return {Vec2d::UnitX(), zero_bridge_cost};
         } else {
-            return {pc2.normalized().cast<double>(), 0.0};
+            return {pc2.normalized().cast<double>(), zero_bridge_cost};
         }
     }
 
@@ -115,7 +114,7 @@ inline std::tuple<Vec2d, double> detect_bridging_direction(const Lines &floating
     std::vector<std::pair<Vec2d, double>> direction_costs{};
     // it is acutally cost of a perpendicular bridge direction - we find the minimal cost and then return the perpendicular dir
     for (const auto& d : directions) {
-        direction_costs.emplace_back(d.second, 0.0);
+        direction_costs.emplace_back(d.second, zero_bridge_cost);
     }
 
     for (const Line &l : floating_edges) {

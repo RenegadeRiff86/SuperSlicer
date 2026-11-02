@@ -39,7 +39,7 @@ static const char * get_fmtstr(TimeFormat fmt)
 }
 
 namespace __get_put_time_emulation {
-// FIXME: Implementations with the cpp11 put_time and get_time either not
+// Workaround: implementations with the cpp11 put_time and get_time either not
 // compile or do not pass the tests on the build server. If we switch to newer
 // compilers, this namespace can be deleted with all its content.
 

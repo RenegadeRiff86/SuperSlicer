@@ -19,10 +19,10 @@ END_EVENT_TABLE()
  */
 
 TextInput::TextInput()
-    : label_color(std::make_pair(0x909090, (int) StateColor::Disabled),
-                 std::make_pair(0x6B6B6B, (int) StateColor::Normal))
-    , text_color(std::make_pair(0x909090, (int) StateColor::Disabled),
-                 std::make_pair(0x262E30, (int) StateColor::Normal))
+    : label_color(std::make_pair(0x909090, static_cast<int>(StateColor::Disabled)),
+                 std::make_pair(0x6B6B6B, static_cast<int>(StateColor::Normal)))
+    , text_color(std::make_pair(0x909090, static_cast<int>(StateColor::Disabled)),
+                 std::make_pair(0x262E30, static_cast<int>(StateColor::Normal)))
 {
     if (Slic3r::GUI::wxGetApp().suppress_round_corners())
         radius = 0;
@@ -100,10 +100,10 @@ void TextInput::SetLabel(const wxString& label)
 bool TextInput::SetBackgroundColour(const wxColour& colour)
 {
     const int clr_background_disabled = Slic3r::GUI::wxGetApp().dark_mode() ? Slic3r::GUI::Widget::clr_background_disabled_dark : Slic3r::GUI::Widget::clr_background_disabled_light;
-    const StateColor clr_state( std::make_pair(clr_background_disabled,    (int)StateColor::Disabled),
-                                std::make_pair(Slic3r::GUI::Widget::get_clr_background_focused(),     (int)StateColor::Checked),
-                                std::make_pair(colour,                     (int)StateColor::Focused),
-                                std::make_pair(colour,                     (int)StateColor::Normal));
+    const StateColor clr_state( std::make_pair(clr_background_disabled,    static_cast<int>(StateColor::Disabled)),
+                                std::make_pair(Slic3r::GUI::Widget::get_clr_background_focused(),     static_cast<int>(StateColor::Checked)),
+                                std::make_pair(colour,                     static_cast<int>(StateColor::Focused)),
+                                std::make_pair(colour,                     static_cast<int>(StateColor::Normal)));
 
     SetBackgroundColor(clr_state);
     if (text_ctrl)
@@ -114,8 +114,8 @@ bool TextInput::SetBackgroundColour(const wxColour& colour)
 
 bool TextInput::SetForegroundColour(const wxColour& colour)
 {
-    const StateColor clr_state( std::make_pair(Slic3r::GUI::Widget::clr_foreground_disabled,    (int)StateColor::Disabled),
-                                std::make_pair(colour,                     (int)StateColor::Normal));
+    const StateColor clr_state( std::make_pair(Slic3r::GUI::Widget::clr_foreground_disabled,    static_cast<int>(StateColor::Disabled)),
+                                std::make_pair(colour,                     static_cast<int>(StateColor::Normal)));
 
     SetLabelColor(clr_state);
     SetTextColor (clr_state);

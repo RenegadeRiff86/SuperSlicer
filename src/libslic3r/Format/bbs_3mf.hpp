@@ -32,23 +32,23 @@ struct FilamentInfo
 struct ThumbnailData;
 
 
-#define PLATE_THUMBNAIL_SMALL_WIDTH     128
-#define PLATE_THUMBNAIL_SMALL_HEIGHT    128
+static constexpr int PLATE_THUMBNAIL_SMALL_WIDTH = 128;
+static constexpr int PLATE_THUMBNAIL_SMALL_HEIGHT = 128;
 
-#define GCODE_FILE_FORMAT               "Metadata/plate_%1%.gcode"
-#define THUMBNAIL_FILE_FORMAT           "Metadata/plate_%1%.png"
-#define TOP_FILE_FORMAT                 "Metadata/top_%1%.png"
-#define PICK_FILE_FORMAT                "Metadata/pick_%1%.png"
+static constexpr const char* GCODE_FILE_FORMAT = "Metadata/plate_%1%.gcode";
+static constexpr const char* THUMBNAIL_FILE_FORMAT = "Metadata/plate_%1%.png";
+static constexpr const char* TOP_FILE_FORMAT = "Metadata/top_%1%.png";
+static constexpr const char* PICK_FILE_FORMAT = "Metadata/pick_%1%.png";
 //#define PATTERN_FILE_FORMAT             "Metadata/plate_%1%_pattern_layer_0.png"
-#define PATTERN_CONFIG_FILE_FORMAT      "Metadata/plate_%1%.json"
-#define EMBEDDED_PRINT_FILE_FORMAT      "Metadata/process_settings_%1%.config"
-#define EMBEDDED_FILAMENT_FILE_FORMAT      "Metadata/filament_settings_%1%.config"
-#define EMBEDDED_PRINTER_FILE_FORMAT      "Metadata/machine_settings_%1%.config"
+static constexpr const char* PATTERN_CONFIG_FILE_FORMAT = "Metadata/plate_%1%.json";
+static constexpr const char* EMBEDDED_PRINT_FILE_FORMAT = "Metadata/process_settings_%1%.config";
+static constexpr const char* EMBEDDED_FILAMENT_FILE_FORMAT = "Metadata/filament_settings_%1%.config";
+static constexpr const char* EMBEDDED_PRINTER_FILE_FORMAT = "Metadata/machine_settings_%1%.config";
 
-#define BBL_DESIGNER_MODEL_TITLE_TAG     "Title"
-#define BBL_DESIGNER_PROFILE_ID_TAG      "DesignProfileId"
-#define BBL_DESIGNER_PROFILE_TITLE_TAG   "ProfileTitle"
-#define BBL_DESIGNER_MODEL_ID_TAG        "DesignModelId"
+static constexpr const char* BBL_DESIGNER_MODEL_TITLE_TAG = "Title";
+static constexpr const char* BBL_DESIGNER_PROFILE_ID_TAG = "DesignProfileId";
+static constexpr const char* BBL_DESIGNER_PROFILE_TITLE_TAG = "ProfileTitle";
+static constexpr const char* BBL_DESIGNER_MODEL_ID_TAG = "DesignModelId";
 
 
 //BBS: define assistant struct to store temporary variable during exporting 3mf

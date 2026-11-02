@@ -158,6 +158,25 @@ private:
     // See the original local lambda comments and the detailed kickstart/hold comments for rationale.
     void _handle_g_command(const std::string& cmd, GCodeReader& reader, const GCodeReader::GCodeLine& line, double& time);
     void _handle_m_command(const std::string& cmd, const GCodeReader::GCodeLine& line, int16_t& fan_speed, double& time, bool& need_flush);
+
+    // Further extracted from the "; overhang fan : SET_FAN_SPEED" marker handling inside
+    // _process_gcode_line to address BP1015 (nesting up to 9 levels).
+    void _process_overhang_fan_marker(GCodeReader& reader, const GCodeReader::GCodeLine& line);
+    void _apply_overhang_approach_slowdown(int overhang_fan_speed);
+    // Slows buffered approach moves within t_req seconds of the buffer's back towards v_floor,
+    // ramping from approach_speed. Returns the total time actually covered by adjusted moves.
+    float _slow_buffer_approach_moves(float t_req, float v_floor, float approach_speed);
+    // Scans m_process_output backwards for the fan speed of the last emitted M106/M107 line.
+    int16_t _find_last_emitted_fan_speed() const;
+
+    // Further extracted from _handle_m_command's immediately-invoked "handle_delayed_kickstart"
+    // lambda to address BP1015 (nesting up to 10 levels). Delays this M106 by kickstarting the
+    // fan target from the speed already in the delay buffer (or from a kickstart already
+    // running), so a big fan increase reaches speed by the time this line reaches the front.
+    void _handle_delayed_kickstart(const GCodeReader::GCodeLine& line, int16_t fan_speed, int fan_baseline, double& time);
+    // The non-delayed-buffer fan-increase path: stop or extend an in-flight kickstart, or
+    // start a new deferred kickstart for this M106, depending on kickstart_min_delta.
+    void _cherry_pick_kickstart(const GCodeReader::GCodeLine& line, int16_t fan_speed, double& time);
 };
 
 } // namespace Slic3r

@@ -65,7 +65,7 @@ struct FillParams
     InfillConnection connection{ icConnected };
 
     // If full_infill(), the empty space can be filled with a gapfill pass.
-    //TODO: save the region areas where it needs to be added, to avoid splitting infill.
+    // Possible improvement: save the region areas where it needs to be added, to avoid splitting infill.
     bool add_gap_fill = false;
 
     // Length of an infill anchor along the perimeter.

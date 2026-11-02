@@ -132,7 +132,7 @@ static void Splice( GLUhalfEdge *a, GLUhalfEdge *b )
  * list will not see the newly created vertices.
  */
 static void MakeVertex( GLUvertex *newVertex, 
-			GLUhalfEdge *eOrig, GLUvertex *vNext )
+            GLUhalfEdge *eOrig, GLUvertex *vNext )
 {
   GLUhalfEdge *e;
   GLUvertex *vPrev;
@@ -569,19 +569,19 @@ void __gl_meshZapFace( GLUface *fZap )
       /* delete the edge -- see __gl_MeshDelete above */
 
       if( e->Onext == e ) {
-	KillVertex( e->Org, NULL );
+    KillVertex( e->Org, NULL );
       } else {
-	/* Make sure that e->Org points to a valid half-edge */
-	e->Org->anEdge = e->Onext;
-	Splice( e, e->Oprev );
+    /* Make sure that e->Org points to a valid half-edge */
+    e->Org->anEdge = e->Onext;
+    Splice( e, e->Oprev );
       }
       eSym = e->Sym;
       if( eSym->Onext == eSym ) {
-	KillVertex( eSym->Org, NULL );
+    KillVertex( eSym->Org, NULL );
       } else {
-	/* Make sure that eSym->Org points to a valid half-edge */
-	eSym->Org->anEdge = eSym->Onext;
-	Splice( eSym, eSym->Oprev );
+    /* Make sure that eSym->Org points to a valid half-edge */
+    eSym->Org->anEdge = eSym->Onext;
+    Splice( eSym, eSym->Oprev );
       }
       KillEdge( e );
     }

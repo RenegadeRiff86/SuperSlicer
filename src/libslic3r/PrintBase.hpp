@@ -107,10 +107,9 @@ public:
     };
 
 protected:
-    //FIXME last timestamp is shared between Print & SLAPrint,
-    // and if multiple Print or SLAPrint instances are executed in parallel, modification of g_last_timestamp
-    // is not synchronized!
-    static size_t g_last_timestamp;
+    // The last timestamp is shared between Print & SLAPrint. It is atomic, so concurrent
+    // Print / SLAPrint instances can update it safely.
+    static std::atomic<size_t> g_last_timestamp;
 };
 
 // To be instantiated over PrintStep or PrintObjectStep enums.

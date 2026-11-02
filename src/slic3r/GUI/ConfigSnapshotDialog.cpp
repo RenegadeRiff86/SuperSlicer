@@ -77,7 +77,7 @@ static wxString generate_html_row(const Config::Snapshot &snapshot, bool row_eve
     bool compatible = true;
     for (const Config::Snapshot::VendorConfig &vc : snapshot.vendor_configs) {
         text += _L("vendor") + ": " + vc.name +", " + _L("version") + ": " + vc.version.config_version.to_string() + 
-				", " + wxString::Format(_L("min %s version"), SLIC3R_APP_NAME) + ": " + vc.version.min_slic3r_version.to_string();
+                ", " + wxString::Format(_L("min %s version"), SLIC3R_APP_NAME) + ": " + vc.version.min_slic3r_version.to_string();
         if (vc.version.max_slic3r_version != Semver::inf())
             text += ", " + wxString::Format(_L("max %s version"), SLIC3R_APP_NAME) + ": " + vc.version.max_slic3r_version.to_string();
         text += "<br>";
@@ -99,7 +99,7 @@ static wxString generate_html_row(const Config::Snapshot &snapshot, bool row_eve
     else if (! snapshot_active)
         text += "<p align=\"right\"><a href=\"" + snapshot.id + "\">" + _L("Activate") + "</a></p>";
     text += "</td>";
-	text += "</tr>";
+    text += "</tr>";
     return text;
 }
 
@@ -149,7 +149,10 @@ ConfigSnapshotDialog::ConfigSnapshotDialog(const Config::SnapshotDB &snapshot_db
             int size[] = {fs1, fs1, fs1, fs1, fs2, fs2, fs2};
 //             int size[] = {8,8,8,8,11,11,11};
         #else
-            int size[] = {11,11,11,11,14,14,14};
+            constexpr int body_font_size  = 11;
+            constexpr int header_font_size = 14;
+            int size[] = {body_font_size, body_font_size, body_font_size, body_font_size,
+                          header_font_size, header_font_size, header_font_size};
         #endif
         html->SetFonts(font.GetFaceName(), font.GetFaceName(), size);
         html->SetBorders(2);

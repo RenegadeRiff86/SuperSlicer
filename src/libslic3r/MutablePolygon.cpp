@@ -150,7 +150,7 @@ static bool clip_narrow_corner(
             break;
         // Try to proceed by flipping a diagonal.
         // Progress by keeping the distance of the clipping edge end points equal to initial p1.
-        //FIXME This is an arbitrary condition, maybe a more local condition will be better (take a shorter diagonal?).
+        // Note: this is an arbitrary condition; maybe a more local condition would be better (take a shorter diagonal?).
         //if (forward == Free && (backward != Free || (p2 - p1).squaredNorm() < (p0 - p1).cast<int64_t>().squaredNorm())) {
         if (forward == Free && (backward != Free || p2.distance_to_square(p1) < p0.distance_to_square(p1))) {
             //p22 = it2.next()->cast<int64_t>();

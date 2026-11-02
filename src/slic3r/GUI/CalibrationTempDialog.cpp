@@ -3,56 +3,66 @@
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/CustomGCode.hpp"
 #include "libslic3r/Model.hpp"
-#include "libslic3r/AppConfig.hpp"
 #include "GLCanvas3D.hpp"
 #include "GUI.hpp"
 #include "GUI_ObjectList.hpp"
 #include "Plater.hpp"
 #include "Tab.hpp"
 #include <wx/scrolwin.h>
-#include <wx/display.h>
 #include <wx/file.h>
 #include <wx/wupdlock.h>
-#include "wxExtensions.hpp"
 
-#if ENABLE_SCROLLABLE
-static wxSize get_screen_size(wxWindow* window)
-{
-    const auto idx = wxDisplay::GetFromWindow(window);
-    wxDisplay display(idx != wxNOT_FOUND ? idx : 0u);
-    return display.GetClientArea().GetSize();
-}
-#endif // ENABLE_SCROLLABLE
 
 namespace Slic3r {
 namespace GUI {
 
+static constexpr int TEMPERATURE_INCREMENT = 5;
+static constexpr int TEMPERATURE_CHOICE_COUNT = 8;
+static constexpr double BRIM_WIDTH_NOZZLE_MULTIPLIER = 8.0;
+static constexpr int DEFAULT_COUNT_SELECTION = 2;
+static constexpr size_t TWO_ITEM_COUNT = 2;
+static constexpr size_t PREVIOUS_VOLUME_OFFSET = 2;
+static constexpr int BOTTOM_SOLID_LAYER_COUNT = 2;
+static constexpr double HALF_DIVISOR = 2.0;
+static constexpr int DEFAULT_TEMPERATURE_STEP = 10;
+static constexpr int TOWER_LAYER_INTERVAL = 10;
+static constexpr int STEP_CHOICE_COUNT = 4;
+static constexpr int DEFAULT_STEP_SELECTION = 1; // "10" °C
+static constexpr int SPACER_AFTER_NB_PX = 15;
+static constexpr int SPACER_BEFORE_STEPS_PX = 40;
+static constexpr int ENGRAVED_TEMP_MIN_C = 175;
+static constexpr int ENGRAVED_TEMP_MAX_C = 290;
+static constexpr double LABEL_X_OFFSET_FACTOR = 3.75;
+static constexpr double LABEL_Y_OFFSET_FACTOR = 2.7;
+static constexpr double LABEL_Z_OFFSET_MM = 2.45;
+static constexpr double LABEL_Z_SCALE = 0.43;
+
 void CalibrationTempDialog::create_buttons(wxStdDialogButtonSizer* buttons){
-    const wxSize size(6 * em_unit(), wxDefaultCoord);
+    const wxSize size(CalibrationConstants::kComboFieldWidthEm * em_unit(), wxDefaultCoord);
     wxString choices_steps[] = { "5","10","15","20" };
     //steps = new wxComboBox(this, wxID_ANY, wxString{ "10" }, wxDefaultPosition, wxDefaultSize, 4, choices_steps);
-    steps = new ComboBox(this, wxID_ANY, wxString{ "10" }, wxDefaultPosition, size, 4, choices_steps);
+    steps = new ComboBox(this, wxID_ANY, wxString{ "10" }, wxDefaultPosition, size, STEP_CHOICE_COUNT, choices_steps);
     steps->SetToolTip(_L("Select the step in celcius between two tests.\nNote that only multiple of 5 are engraved on the part."));
-    steps->SetSelection(1);
+    steps->SetSelection(DEFAULT_STEP_SELECTION);
     wxString choices_nb[] = { "0","1","2","3","4","5","6","7" };
     //nb_down = new wxComboBox(this, wxID_ANY, wxString{ "2" }, wxDefaultPosition, wxDefaultSize, 8, choices_nb);
-    nb_down = new ComboBox(this, wxID_ANY, wxString{ "2" }, wxDefaultPosition, size, 8, choices_nb);
+    nb_down = new ComboBox(this, wxID_ANY, wxString{ "2" }, wxDefaultPosition, size, TEMPERATURE_CHOICE_COUNT, choices_nb);
     nb_down->SetToolTip(_L("Select the number of tests with lower temperature than the current one."));
-    nb_down->SetSelection(2);
+    nb_down->SetSelection(DEFAULT_COUNT_SELECTION);
     //nb_up = new wxComboBox(this, wxID_ANY, wxString{ "2" }, wxDefaultPosition, wxDefaultSize, 8, choices_nb);
-    nb_up = new ComboBox(this, wxID_ANY, wxString{ "2" }, wxDefaultPosition, size, 8, choices_nb);
+    nb_up = new ComboBox(this, wxID_ANY, wxString{ "2" }, wxDefaultPosition, size, TEMPERATURE_CHOICE_COUNT, choices_nb);
     nb_up->SetToolTip(_L("Select the number of tests with higher temperature than the current one."));
-    nb_up->SetSelection(2);
+    nb_up->SetSelection(DEFAULT_COUNT_SELECTION);
 
     buttons->Add(new wxStaticText(this, wxID_ANY, _L("Nb down:")));
     buttons->Add(nb_down);
-    buttons->AddSpacer(15);
+    buttons->AddSpacer(SPACER_AFTER_NB_PX);
     buttons->Add(new wxStaticText(this, wxID_ANY, _L("Nb up:")));
     buttons->Add(nb_up);
-    buttons->AddSpacer(40);
+    buttons->AddSpacer(SPACER_BEFORE_STEPS_PX);
     buttons->Add(new wxStaticText(this, wxID_ANY, _L("Steps:")));
     buttons->Add(steps);
-    buttons->AddSpacer(40);
+    buttons->AddSpacer(SPACER_BEFORE_STEPS_PX);
 
     wxButton* bt = new wxButton(this, wxID_FILE1, _L("Generate"));
     bt->Bind(wxEVT_BUTTON, &CalibrationTempDialog::create_geometry, this);
@@ -83,16 +93,16 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
     assert(temperature_config->size() >= 1);
     long nb_items_up = 1;
     if (!nb_up->GetValue().ToLong(&nb_items_up)) {
-        nb_items_up = 2;
+        nb_items_up = TWO_ITEM_COUNT;
     }
     long nb_items_down = 1;
     if (!nb_down->GetValue().ToLong(&nb_items_down)) {
-        nb_items_down = 2;
+        nb_items_down = TWO_ITEM_COUNT;
     }
-    int16_t temperature = 5 * (temperature_config->get_at(0) / 5);
+    int16_t temperature = TEMPERATURE_INCREMENT * (temperature_config->get_at(0) / TEMPERATURE_INCREMENT);
     long step_temp = 1;
     if (!steps->GetValue().ToLong(&step_temp)) {
-        step_temp = 10;
+        step_temp = DEFAULT_TEMPERATURE_STEP;
     }
     size_t nb_items = 1 + nb_items_up + nb_items_down;
     //start at the highest temp
@@ -103,20 +113,23 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
     const ConfigOptionFloats* nozzle_diameter_config = printer_config->option<ConfigOptionFloats>("nozzle_diameter");
     assert(nozzle_diameter_config->size() > 0);
     float nozzle_diameter = nozzle_diameter_config->get_at(0);
-    float xyzScale = nozzle_diameter / 0.4;
+    float xyzScale = nozzle_diameter / CalibrationConstants::kDesignNozzleDiameterMm;
     //do scaling
-    if (xyzScale < 0.9 || 1.1 < xyzScale) {
-        model.objects[objs_idx[0]]->scale(xyzScale, xyzScale * 0.5, xyzScale);
+    constexpr double kTempScaleMin = 0.9;
+    constexpr double kTempScaleMax = 1.1;
+    constexpr double kTempYScaleFactor = 0.5; // temperature tower is half as tall in Y
+    if (xyzScale < kTempScaleMin || kTempScaleMax < xyzScale) {
+        model.objects[objs_idx[0]]->scale(xyzScale, xyzScale * kTempYScaleFactor, xyzScale);
     } else {
         xyzScale = 1;
-        model.objects[objs_idx[0]]->scale(xyzScale, xyzScale * 0.5, xyzScale);
+        model.objects[objs_idx[0]]->scale(xyzScale, xyzScale * kTempYScaleFactor, xyzScale);
     }
     
     // it's rotated but not around the good origin: correct that
     double init_z_rotate_angle = Geometry::deg2rad(plat->config()->opt_float("init_z_rotate"));
     Matrix3d rot_matrix = Eigen::Quaterniond(Eigen::AngleAxisd(init_z_rotate_angle, Vec3d{0,0,1})).toRotationMatrix();
     auto     translate_from_rotation = [&rot_matrix, &model, &objs_idx](int idx, const Vec3d &translation) {
-            ModelVolume *vol_parent = model.objects[objs_idx[idx]]->volumes[model.objects[objs_idx[idx]]->volumes.size()-2];
+            ModelVolume *vol_parent = model.objects[objs_idx[idx]]->volumes[model.objects[objs_idx[idx]]->volumes.size() - PREVIOUS_VOLUME_OFFSET];
             ModelVolume *vol = model.objects[objs_idx[idx]]->volumes[model.objects[objs_idx[idx]]->volumes.size()-1];
             //Geometry::Transformation trsf = vol->get_transformation();
             //Vec3d rotxtrans = rot_matrix * translation;
@@ -130,21 +143,20 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
         };
 
     //add 8 others
-    float zshift = (1 - xyzScale) / 2;
-    if (temperature > 175 && temperature < 290 && temperature%5==0) {
-        Vec3d translate{ 0 - xyzScale * 3.75, -xyzScale * 2.7, xyzScale * (0 * 10 - 2.45) };
+    if (temperature > ENGRAVED_TEMP_MIN_C && temperature < ENGRAVED_TEMP_MAX_C && temperature % TEMPERATURE_INCREMENT==0) {
+        Vec3d translate{ 0 - xyzScale * LABEL_X_OFFSET_FACTOR, -xyzScale * LABEL_Y_OFFSET_FACTOR, xyzScale * (0 * TOWER_LAYER_INTERVAL - LABEL_Z_OFFSET_MM) };
         add_part(model.objects[objs_idx[0]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_temp" / ("t"+std::to_string(temperature)+".amf")).string(),
-            translate, Vec3d{ xyzScale, xyzScale, xyzScale * 0.43 });
+            translate, Vec3d{ xyzScale, xyzScale, xyzScale * LABEL_Z_SCALE });
         translate_from_rotation(0, translate);
     }
-    for (int16_t i = 1; i < nb_items; i++) {
+    for (int16_t i = 1; size_t(i) < nb_items; i++) {
         add_part(model.objects[objs_idx[0]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_temp" / ("Smart_compact_temperature_calibration_item.amf")).string(),
-            Vec3d{ 0,0, i * 10 * xyzScale }, Vec3d{ xyzScale, xyzScale * 0.5, xyzScale });
+            Vec3d{ 0,0, i * TOWER_LAYER_INTERVAL * xyzScale }, Vec3d{ xyzScale, xyzScale * kTempYScaleFactor, xyzScale });
         int sub_temp = temperature - i * step_temp;
-        if (sub_temp > 175 && sub_temp < 290 && sub_temp % 5 == 0) {
-            Vec3d translate{ 0 - xyzScale * 3.75, -xyzScale * 2.7, xyzScale * (0 * 10 - 2.45) };
+        if (sub_temp > ENGRAVED_TEMP_MIN_C && sub_temp < ENGRAVED_TEMP_MAX_C && sub_temp % TEMPERATURE_INCREMENT == 0) {
+            Vec3d translate{ 0 - xyzScale * LABEL_X_OFFSET_FACTOR, -xyzScale * LABEL_Y_OFFSET_FACTOR, xyzScale * (0 * TOWER_LAYER_INTERVAL - LABEL_Z_OFFSET_MM) };
             add_part(model.objects[objs_idx[0]], (boost::filesystem::path(Slic3r::resources_dir()) / "calibration" / "filament_temp" / ("t" + std::to_string(sub_temp) + ".amf")).string(),
-                translate, Vec3d{ xyzScale, xyzScale, xyzScale * 0.43 });
+                translate, Vec3d{ xyzScale, xyzScale, xyzScale * LABEL_Z_SCALE });
             translate_from_rotation(0, translate);
         }
     }
@@ -154,43 +166,42 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
 
     /// --- main config, please modify object config when possible ---
     DynamicPrintConfig new_print_config = *print_config; //make a copy
-    new_print_config.set_key_value("complete_objects", new ConfigOptionBool(false));
+    new_print_config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(false));
     
     /// -- generate the heat change gcode
     //std::string str_layer_gcode = "{if layer_num > 0 and layer_z  <= " + std::to_string(2 * xyzScale) + "}\nM104 S" + std::to_string(temperature - (int8_t)nb_delta * 5);
     //    double print_z, std::string gcode,int extruder, std::string color
-    double firstChangeHeight = print_config->get_abs_value("first_layer_height", nozzle_diameter);
     //model.custom_gcode_per_print_z.gcodes.emplace_back(CustomGCode::Item{ firstChangeHeight + nozzle_diameter/2, CustomGCode::Type::Custom, -1, "", "M104 S" + std::to_string(temperature) + " ; ground floor temp tower set" });
-    model.objects[objs_idx[0]]->config.set_key_value("print_temperature", new ConfigOptionInt(temperature));
-    model.objects[objs_idx[0]]->config.set_key_value("print_first_layer_temperature", new ConfigOptionInt(first_layer_temperature));
-    for (int16_t i = 1; i < nb_items; i++) {
-        model.custom_gcode_per_print_z.gcodes.emplace_back(CustomGCode::Item{ (i * 10 * xyzScale), CustomGCode::Type::Custom , -1, "", "M104 S" + std::to_string(temperature - i * step_temp) + " ; floor " + std::to_string(i) + " of the temp tower set" });
-        //str_layer_gcode += "\n{ elsif layer_z >= " + std::to_string(i * 10 * xyzScale) + " and layer_z <= " + std::to_string((1 + i * 10) * xyzScale) + " }\nM104 S" + std::to_string(temperature - (int8_t)nb_delta * 5 + i * 5);
+    model.objects[objs_idx[0]]->config.set_key_value("print_temperature", std::make_unique<ConfigOptionInt>(temperature));
+    model.objects[objs_idx[0]]->config.set_key_value("print_first_layer_temperature", std::make_unique<ConfigOptionInt>(first_layer_temperature));
+    for (int16_t i = 1; size_t(i) < nb_items; i++) {
+        model.custom_gcode_per_print_z.gcodes.emplace_back(CustomGCode::Item{ (i * TOWER_LAYER_INTERVAL * xyzScale), CustomGCode::Type::Custom , -1, "",
+          "M104 S" + std::to_string(temperature - i * step_temp) + " ; floor " + std::to_string(i) + " of the temp tower set" });
     }
-    //str_layer_gcode += "\n{endif}\n";
-    //DynamicPrintConfig new_printer_config = *printerConfig; //make a copy
-    //new_printer_config.set_key_value("layer_gcode", new ConfigOptionString(str_layer_gcode));
 
     /// --- custom config ---
     float brim_width = print_config->option<ConfigOptionFloat>("brim_width")->value;
-    if (brim_width < nozzle_diameter * 8) {
-        model.objects[objs_idx[0]]->config.set_key_value("brim_width", new ConfigOptionFloat(nozzle_diameter * 8));
+    if (brim_width < nozzle_diameter * BRIM_WIDTH_NOZZLE_MULTIPLIER) {
+        model.objects[objs_idx[0]]->config.set_key_value("brim_width", std::make_unique<ConfigOptionFloat>(nozzle_diameter * BRIM_WIDTH_NOZZLE_MULTIPLIER));
     }
-    model.objects[objs_idx[0]]->config.set_key_value("brim_ears", new ConfigOptionBool(false));
-    model.objects[objs_idx[0]]->config.set_key_value("perimeters", new ConfigOptionInt(1));
-    model.objects[objs_idx[0]]->config.set_key_value("extra_perimeters_on_overhangs", new ConfigOptionBool(true));
-    model.objects[objs_idx[0]]->config.set_key_value("bottom_solid_layers", new ConfigOptionInt(2));
-    model.objects[objs_idx[0]]->config.set_key_value("top_solid_layers", new ConfigOptionInt(3)); 
-    model.objects[objs_idx[0]]->config.set_key_value("gap_fill_enabled", new ConfigOptionBool(false)); 
-    model.objects[objs_idx[0]]->config.set_key_value("thin_perimeters", new ConfigOptionPercent(100));
-    model.objects[objs_idx[0]]->config.set_key_value("layer_height", new ConfigOptionFloat(nozzle_diameter / 2));
-    model.objects[objs_idx[0]]->config.set_key_value("fill_density", new ConfigOptionPercent(7));
-    model.objects[objs_idx[0]]->config.set_key_value("solid_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipRectilinear));
-    model.objects[objs_idx[0]]->config.set_key_value("infill_filled_solid", new ConfigOptionBool(true));
-    model.objects[objs_idx[0]]->config.set_key_value("top_fill_pattern", new ConfigOptionEnum<InfillPattern>(ipRectilinear));
-    model.objects[objs_idx[0]]->config.set_key_value("infill_filled_bottom", new ConfigOptionBool(true));
+    model.objects[objs_idx[0]]->config.set_key_value("brim_ears", std::make_unique<ConfigOptionBool>(false));
+    model.objects[objs_idx[0]]->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(1));
+    model.objects[objs_idx[0]]->config.set_key_value("extra_perimeters_on_overhangs", std::make_unique<ConfigOptionBool>(true));
+    model.objects[objs_idx[0]]->config.set_key_value("bottom_solid_layers", std::make_unique<ConfigOptionInt>(BOTTOM_SOLID_LAYER_COUNT));
+    constexpr int kTopSolidLayers = 3;
+    constexpr int kThinPerimeterPercent = 100;
+    constexpr int kFillDensityPercent = 7;
+    model.objects[objs_idx[0]]->config.set_key_value("top_solid_layers", std::make_unique<ConfigOptionInt>(kTopSolidLayers)); 
+    model.objects[objs_idx[0]]->config.set_key_value("gap_fill_enabled", std::make_unique<ConfigOptionBool>(false)); 
+    model.objects[objs_idx[0]]->config.set_key_value("thin_perimeters", std::make_unique<ConfigOptionPercent>(kThinPerimeterPercent));
+    model.objects[objs_idx[0]]->config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(nozzle_diameter / HALF_DIVISOR));
+    model.objects[objs_idx[0]]->config.set_key_value("fill_density", std::make_unique<ConfigOptionPercent>(kFillDensityPercent));
+    model.objects[objs_idx[0]]->config.set_key_value("solid_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipRectilinear));
+    model.objects[objs_idx[0]]->config.set_key_value("infill_filled_solid", std::make_unique<ConfigOptionBool>(true));
+    model.objects[objs_idx[0]]->config.set_key_value("top_fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipRectilinear));
+    model.objects[objs_idx[0]]->config.set_key_value("infill_filled_bottom", std::make_unique<ConfigOptionBool>(true));
     //disable ironing post-process, it only slow down things
-    model.objects[objs_idx[0]]->config.set_key_value("ironing", new ConfigOptionBool(false));
+    model.objects[objs_idx[0]]->config.set_key_value("ironing", std::make_unique<ConfigOptionBool>(false));
 
     //update plater
     //GLCanvas3D::set_warning_freeze(false);
@@ -208,6 +219,7 @@ void CalibrationTempDialog::create_geometry(wxCommandEvent& event_args) {
     freeze_gui.reset();
 
     plat->reslice();
+    close_dialog();
 }
 
 } // namespace GUI

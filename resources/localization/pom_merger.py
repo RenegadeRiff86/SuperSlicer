@@ -49,7 +49,6 @@ class TranslationFiles:
 	file_in = ""
 	file_out = ""
 	file_todo = ""
-	database = ""
 
 class TranslationLine:
 	header_comment = ""
@@ -142,17 +141,17 @@ def main():
 		print("finish reading" + data_file + " of size "+ str(len(new_data)) + ", now we had "+ str(len(datastore)) + " items");
 
 	if ignore_case:
-		temp = list();
+		missing_lower_keys = list();
 		for msgid in datastore:
 			if not msgid.lower() in datastore:
-				temp.append(msgid);
-		for msgid in temp:
+				missing_lower_keys.append(msgid);
+		for msgid in missing_lower_keys:
 			datastore[msgid.lower()] = datastore[msgid];
-		temp = list();
+		missing_lower_keys = list();
 		for msgid in datastore_trim:
 			if not msgid.lower() in datastore_trim:
-				temp.append(msgid);
-		for msgid in temp:
+				missing_lower_keys.append(msgid);
+		for msgid in missing_lower_keys:
 			datastore_trim[msgid.lower()] = datastore_trim[msgid];
 
 	for operation in operations:
@@ -247,7 +246,7 @@ def createKnowledge(file_path_in):
 					current_line.msgid += lines[line_idx][1:];
 				else:
 					current_line.msgid += "\n" + lines[line_idx];
-				#todo: do something for msgid_plural. Not needed right now...
+				# msgid_plural lines are kept in raw_msgid; plural-aware merge is not implemented.
 				
 				#get the next line (can be whatever)
 				line_idx+=1;
@@ -304,6 +303,12 @@ def createKnowledge(file_path_in):
 		print(error);
 	return read_data_lines;
 
+MSGSTR_PREFIX = "msgstr \""
+MSGSTR_SUFFIX = "\""
+
+def _format_msgstr(body):
+	return MSGSTR_PREFIX + body + MSGSTR_SUFFIX
+
 def getTranslation(item):
 	if len(item.msgid) == 0:
 		return "";
@@ -312,7 +317,7 @@ def getTranslation(item):
 	elif item.msgid in datastore_trim:
 		good = datastore_trim[item.msgid];
 		if not good.multivalue:
-			return "msgstr \""+trim(good.msgstr)+"\"";
+			return _format_msgstr(trim(good.msgstr));
 	else:
 		item_msg_trim = trim(item.msgid);
 		if item_msg_trim in datastore:
@@ -320,14 +325,14 @@ def getTranslation(item):
 			if not good.multivalue:
 				if good.msgid in item.msgid:
 					start_at = item.msgid.index(good.msgid);
-					return "msgstr \"" + item.msgid[0:start_at] + good.msgstr + item.msgid[start_at+len(good.msgid):] + "\"";
+					return _format_msgstr(item.msgid[0:start_at] + good.msgstr + item.msgid[start_at+len(good.msgid):]);
 		elif item_msg_trim in datastore_trim:
 			good = datastore_trim[item_msg_trim];
 			if not good.multivalue:
 				good_msg_trim = trim(good.msgid);
 				if good_msg_trim in item.msgid:
 					start_at = item.msgid.index(good_msg_trim);
-					return "msgstr \"" + item.msgid[0:start_at] + trim(good.msgstr) + item.msgid[start_at+len(good_msg_trim):] + "\"";
+					return _format_msgstr(item.msgid[0:start_at] + trim(good.msgstr) + item.msgid[start_at+len(good_msg_trim):]);
 
 	if ignore_case:
 		lowercase = TranslationLine();

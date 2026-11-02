@@ -5,6 +5,8 @@
 
 #include "../Utils/WifiScanner.hpp"
 
+#include <memory>
+
 #include <wx/event.h>
 #include <wx/dialog.h>
 #include <wx/combobox.h>
@@ -30,7 +32,7 @@ private:
     ::ComboBox*             m_drive_combo {nullptr};
     // reference to string that is filled after ShowModal is called from owner
     std::string&            out_file_path;
-    WifiScanner*            m_wifi_scanner;
+    std::unique_ptr<WifiScanner> m_wifi_scanner;
     RemovableDriveManager*  m_removable_manager;
     wxString                m_used_path;
     int                     m_ssid_button_id {wxID_ANY};

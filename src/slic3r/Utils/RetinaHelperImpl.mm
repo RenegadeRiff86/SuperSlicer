@@ -1,5 +1,7 @@
 // The RetinaHelper was originally written by Andreas Stahl, 2013
 
+#include <memory>
+
 #import "RetinaHelper.hpp"
 #import "RetinaHelperImpl.hmm"
 #import <OpenGL/OpenGL.h>
@@ -94,7 +96,7 @@ float RetinaHelper::get_scale_factor()
 
         if (newBackingScaleFactor != oldBackingScaleFactor) {
             // generate a wx resize event and pass it to the handler's queue
-            wxSizeEvent *event = new wxSizeEvent();
+            auto event = std::make_unique<wxSizeEvent>();
             // use the following line if this resize event should have the physical pixel resolution
             // but that is not recommended, because ordinary resize events won't do so either
             // which would necessitate a case-by-case switch in the resize handler method.
@@ -103,7 +105,7 @@ float RetinaHelper::get_scale_factor()
             wxRect rect = wxRect(nsrect.origin.x, nsrect.origin.y, nsrect.size.width, nsrect.size.height);
             event->SetRect(rect);
             event->SetSize(rect.GetSize());
-            handler->QueueEvent(event);
+            handler->QueueEvent(event.release());
         }
     }
 }

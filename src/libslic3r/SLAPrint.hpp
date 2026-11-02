@@ -300,6 +300,7 @@ protected:
     // to be called from SLAPrint only.
     friend class SLAPrint;
     friend class PrintBaseWithState<SLAPrintStep, slapsCount>;
+    friend struct std::default_delete<SLAPrintObject>;
 
     SLAPrintObject(SLAPrint* print, ModelObject* model_object);
     ~SLAPrintObject();
@@ -335,7 +336,7 @@ private:
     // Individual 2d slice polygons from lower z to higher z levels
     std::vector<ExPolygons>                 m_model_slices;
 
-    // Exact (float) height levels mapped to the slices. Each record contains
+    // Exact float height levels mapped to the slices. Each record contains
     // the index to the model and the support slice vectors.
     std::vector<SliceRecord>                m_slice_index;
 
@@ -540,7 +541,7 @@ public:
     };
 
     // The aggregated and leveled print records from various objects.
-    // TODO: use this structure for the preview in the future.
+    // This structure could also drive the preview in the future.
     const std::vector<PrintLayer>& print_layers() const { return m_printer_input; }
 
     void export_print(const std::string &fname, const std::string &projectname = "")

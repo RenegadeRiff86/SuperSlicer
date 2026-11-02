@@ -10,6 +10,11 @@
 #include <wx/spinctrl.h>
 #include <wx/valtext.h>
 
+namespace {
+constexpr int CENTER_DIVISOR = 2;
+constexpr int STEP_REDUCTION_FACTOR = 2;
+}
+
 BEGIN_EVENT_TABLE(SpinInputBase, wxPanel)
 
 EVT_KEY_DOWN(SpinInputBase::keyPressed)
@@ -27,8 +32,8 @@ END_EVENT_TABLE()
  */
 
 SpinInputBase::SpinInputBase()
-    : label_color(std::make_pair(0x909090, (int) StateColor::Disabled), std::make_pair(0x6B6B6B, (int) StateColor::Normal))
-    , text_color(std::make_pair(0x909090, (int) StateColor::Disabled), std::make_pair(0x262E30, (int) StateColor::Normal))
+    : label_color(std::make_pair(0x909090, static_cast<int>(StateColor::Disabled)), std::make_pair(0x6B6B6B, static_cast<int>(StateColor::Normal)))
+    , text_color(std::make_pair(0x909090, static_cast<int>(StateColor::Disabled)), std::make_pair(0x262E30, static_cast<int>(StateColor::Normal)))
 {
     if (Slic3r::GUI::wxGetApp().suppress_round_corners())
         radius = 0;
@@ -106,10 +111,10 @@ bool SpinInputBase::SetFont(wxFont const& font)
 bool SpinInputBase::SetBackgroundColour(const wxColour& colour)
 {
     const int clr_background_disabled = Slic3r::GUI::wxGetApp().dark_mode() ? Slic3r::GUI::Widget::clr_background_disabled_dark : Slic3r::GUI::Widget::clr_background_disabled_light;
-    StateColor clr_state(std::make_pair(clr_background_disabled, (int)StateColor::Disabled),
-                         std::make_pair(Slic3r::GUI::Widget::get_clr_background_focused(), (int)StateColor::Checked),
-                         std::make_pair(colour, (int)StateColor::Focused),
-                         std::make_pair(colour, (int)StateColor::Normal));
+    StateColor clr_state(std::make_pair(clr_background_disabled, static_cast<int>(StateColor::Disabled)),
+                         std::make_pair(Slic3r::GUI::Widget::get_clr_background_focused(), static_cast<int>(StateColor::Checked)),
+                         std::make_pair(colour, static_cast<int>(StateColor::Focused)),
+                         std::make_pair(colour, static_cast<int>(StateColor::Normal)));
 
     StaticBox::SetBackgroundColor(clr_state);
     if (text_ctrl)
@@ -124,8 +129,8 @@ bool SpinInputBase::SetBackgroundColour(const wxColour& colour)
 
 bool SpinInputBase::SetForegroundColour(const wxColour& colour)
 {
-    StateColor clr_state(std::make_pair(Slic3r::GUI::Widget::clr_foreground_disabled, (int)StateColor::Disabled),
-        std::make_pair(colour, (int)StateColor::Normal));
+    StateColor clr_state(std::make_pair(Slic3r::GUI::Widget::clr_foreground_disabled, static_cast<int>(StateColor::Disabled)),
+        std::make_pair(colour, static_cast<int>(StateColor::Normal)));
 
     SetLabelColor(clr_state);
     SetTextColor(clr_state);
@@ -199,7 +204,7 @@ void SpinInputBase::render(wxDC& dc)
     wxSize size = GetSize();
     // draw seperator of buttons
     wxPoint pt = button_inc->GetPosition();
-    pt.y = size.y / 2;
+    pt.y = size.y / CENTER_DIVISOR;
     dc.SetPen(wxPen(border_color.defaultColor()));
 
     const double scale = dc.GetContentScaleFactor();
@@ -209,7 +214,7 @@ void SpinInputBase::render(wxDC& dc)
     auto label = GetLabel();
     if (!label.IsEmpty()) {
         pt.x = size.x - labelSize.x - 5;
-        pt.y = (size.y - labelSize.y) / 2;
+        pt.y = (size.y - labelSize.y) / CENTER_DIVISOR;
         dc.SetFont(GetFont());
         dc.SetTextForeground(label_color.colorForStates(states));
         dc.DrawText(label, pt);
@@ -227,7 +232,7 @@ void SpinInputBase::messureSize()
         SetMinSize(size);
     }
 
-    wxSize btnSize = {14, (size.y - 4) / 2};
+    wxSize btnSize = {14, (size.y - 4) / CENTER_DIVISOR};
     btnSize.x = btnSize.x * btnSize.y / 10;
 
     const double scale = this->GetContentScaleFactor();
@@ -236,11 +241,11 @@ void SpinInputBase::messureSize()
     labelSize  = dc.GetMultiLineTextExtent(GetLabel());
     textSize.x = size.x - labelSize.x - btnSize.x - 16;
     text_ctrl->SetSize(textSize);
-    text_ctrl->SetPosition({int(3. * scale), (size.y - textSize.y) / 2});
+    text_ctrl->SetPosition({int(3. * scale), (size.y - textSize.y) / CENTER_DIVISOR});
     button_inc->SetSize(btnSize);
     button_dec->SetSize(btnSize);
-    button_inc->SetPosition({size.x - btnSize.x - int(3. * scale), size.y / 2 - btnSize.y/* - 1*/});
-    button_dec->SetPosition({size.x - btnSize.x - int(3. * scale), size.y / 2 + 1});
+    button_inc->SetPosition({size.x - btnSize.x - int(3. * scale), size.y / CENTER_DIVISOR - btnSize.y/* - 1*/});
+    button_dec->SetPosition({size.x - btnSize.x - int(3. * scale), size.y / CENTER_DIVISOR + 1});
 }
 
 void SpinInputBase::onText(wxCommandEvent &event)
@@ -365,7 +370,7 @@ int SpinInput::GetValue()const
 
 void SpinInput::onTimer(wxTimerEvent &evnet) {
     if (delta < -1 || delta > 1) {
-        delta /= 2;
+        delta /= STEP_REDUCTION_FACTOR;
         return;
     }
     SetValue(val + delta);
@@ -582,7 +587,7 @@ void SpinInputDouble::SetDigits(unsigned digits_in)
 
 void SpinInputDouble::onTimer(wxTimerEvent &evnet) {
     if (delta < -inc || delta > inc) {
-        delta /= 2;
+        delta /= STEP_REDUCTION_FACTOR;
         return;
     }
     SetValue(val + delta);

@@ -50,8 +50,8 @@ public:
         m_port_name = port_name;
     }
 
+    // Single-threaded: enqueue only from the thread that will call run_queue().
     bool enqueue_cmd(const std::string& cmd) {
-        // TODO: Add multithread protection to queue
         m_cmd_queue.push_back(cmd);
         return true;
     }

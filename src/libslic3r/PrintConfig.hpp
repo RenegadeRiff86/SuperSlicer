@@ -410,10 +410,8 @@ extern const PrintConfigDef print_config_def;
 
 class StaticPrintConfig;
 
-//PrinterTechnology printer_technology(const ConfigBase &cfg); //TODO del
 OutputFormat output_format(const ConfigBase &cfg);
 // Minimum object distance for arrangement, based on printer technology
-// double min_object_distance(const ConfigBase &cfg);
 
 // Slic3r dynamic configuration, used to override the configuration
 // per object, per modification volume or per printing material.
@@ -1094,8 +1092,23 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloats,              machine_max_jerk_e))
     ((ConfigOptionFloats,              machine_min_travel_rate))
     ((ConfigOptionFloats,              machine_min_extruding_rate))
-    // Klipper SET_VELOCITY_LIMIT MINIMUM_CRUISE_RATIO (0.0..<1.0); single value, can be disabled.
+    // Klipper firmware limits and calibration values imported from printer.cfg.
+    ((ConfigOptionFloat,               machine_klipper_max_velocity))
+    ((ConfigOptionFloat,               machine_klipper_max_acceleration))
+    ((ConfigOptionFloat,               machine_klipper_max_z_velocity))
+    ((ConfigOptionFloat,               machine_klipper_max_z_acceleration))
+    ((ConfigOptionFloat,               machine_klipper_square_corner_velocity))
     ((ConfigOptionFloat,               machine_min_cruise_ratio))
+    ((ConfigOptionFloat,               machine_klipper_max_extrude_only_velocity))
+    ((ConfigOptionFloat,               machine_klipper_max_extrude_only_acceleration))
+    ((ConfigOptionFloat,               machine_klipper_instantaneous_corner_velocity))
+    ((ConfigOptionFloat,               machine_klipper_rotation_distance))
+    ((ConfigOptionFloat,               machine_klipper_pressure_advance))
+    ((ConfigOptionFloat,               machine_klipper_pressure_advance_smooth_time))
+    ((ConfigOptionFloat,               machine_klipper_shaper_freq_x))
+    ((ConfigOptionFloat,               machine_klipper_shaper_freq_y))
+    ((ConfigOptionFloat,               machine_klipper_damping_ratio_x))
+    ((ConfigOptionFloat,               machine_klipper_damping_ratio_y))
 )
 
 PRINT_CONFIG_CLASS_DEFINE(
@@ -1107,6 +1120,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloatOrPercent,      arc_fitting_tolerance))
     ((ConfigOptionBool,                autoemit_temperature_commands))
     ((ConfigOptionFloatOrPercent,      autospeed_min_thin_flow))
+    ((ConfigOptionBool,                autospeed_pressure_advance_headroom))
     ((ConfigOptionString,              before_layer_gcode))
     ((ConfigOptionString,              between_objects_gcode))
     ((ConfigOptionBool,                between_objects_gcode_before_move))
@@ -1173,6 +1187,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloats,              filament_dip_extraction_speed)) /* SKINNYDIP OPTIONS END */
     ((ConfigOptionFloats,              filament_pressure_advance))
     ((ConfigOptionFloats,              filament_pressure_advance_smooth_time))
+    ((ConfigOptionFloats,              filament_z_offset))
     ((ConfigOptionBools,               filament_adaptive_pressure_advance))
     ((ConfigOptionStrings,             filament_adaptive_pressure_advance_model))
     ((ConfigOptionBools,               filament_adaptive_pressure_advance_overhangs))
@@ -1242,6 +1257,9 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloats,              travel_slope))
     ((ConfigOptionBools,               travel_lift_before_obstacle))
     ((ConfigOptionStrings,             tool_name))
+    // Klipper stores pressure advance per stepper, so an [extruder_stepper] synced to a tool does
+    // NOT follow SET_PRESSURE_ADVANCE aimed at that tool. Names listed here get their own copy.
+    ((ConfigOptionStrings,             tool_pressure_advance_mirrors))
     ((ConfigOptionString,              toolchange_gcode))
     ((ConfigOptionFloat,               travel_speed))
     ((ConfigOptionFloat,               travel_speed_z))
@@ -1410,10 +1428,8 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
 
 )
 
-//static inline 
-double min_object_distance(const PrintConfig& config); //TODO: remove
-//static inline 
-double min_object_distance(const ConfigBase* config, double height = 0); //TODO: remove
+// Possible refactor: to be removed once callers use Print-level clearance logic instead.
+double min_object_distance(const ConfigBase* config, double height = 0);
 
 // This object is mapped to Perl as Slic3r::Config::Full.
 PRINT_CONFIG_CLASS_DERIVED_DEFINE0(
@@ -1478,10 +1494,9 @@ PRINT_CONFIG_CLASS_DEFINE(
     // Generate only ground facing supports
     ((ConfigOptionBool, support_enforcers_only))
 
-    // TODO: unimplemented at the moment. This coefficient will have an impact
-    // when bridges and pillars are merged. The resulting pillar should be a bit
-    // thicker than the ones merging into it. How much thicker? I don't know
-    // but it will be derived from this value.
+    // Note: only effective for the branching support tree (the field is permanently
+    // disabled in the GUI for the classic tree, see ConfigManipulation). When bridges
+    // and pillars merge, the resulting pillar is thickened proportionally to this factor.
     ((ConfigOptionFloat, support_pillar_widening_factor))
 
     // Radius in mm of the pillar base.
@@ -1921,6 +1936,8 @@ public:
     void         apply(const ConfigBase &other, bool ignore_nonexistent = false) { m_data.apply_only(other, other.keys(), ignore_nonexistent); this->touch(); }
     void         apply_only(const ModelConfig &other, const t_config_option_keys &keys, bool ignore_nonexistent = false) { this->apply_only(other.get(), keys, ignore_nonexistent); }
     void         apply_only(const ConfigBase &other, const t_config_option_keys &keys, bool ignore_nonexistent = false) { m_data.apply_only(other, keys, ignore_nonexistent); this->touch(); }
+    bool         set_key_value(const std::string &opt_key, std::unique_ptr<ConfigOption> opt) { bool out = m_data.set_key_value(opt_key, std::move(opt)); this->touch(); return out; }
+    // Compatibility overload for existing ownership-transferring callers.
     bool         set_key_value(const std::string &opt_key, ConfigOption *opt) { bool out = m_data.set_key_value(opt_key, opt); this->touch(); return out; }
     template<typename T>
     void         set(const std::string &opt_key, T value) { m_data.set(opt_key, value, true); this->touch(); }

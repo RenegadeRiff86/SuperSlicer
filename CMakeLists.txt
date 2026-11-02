@@ -64,6 +64,16 @@ option(SLIC3R_MSVC_PDB          "Generate PDB files on MSVC in Release mode" 1)
 option(SLIC3R_ASAN              "Enable ASan on Clang and GCC" 0)
 option(SLIC3R_UBSAN             "Enable UBSan on Clang and GCC" 0)
 option(SLIC3R_ENABLE_FORMAT_STEP "Enable compilation of STEP file support" ON)
+
+set(_SLIC3R_AUTOMATION_API_DEFAULT OFF)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(_SLIC3R_AUTOMATION_API_DEFAULT ON)
+endif()
+option(SLIC3R_ENABLE_AUTOMATION_API
+       "Build the loopback-only developer GUI automation API"
+       ${_SLIC3R_AUTOMATION_API_DEFAULT})
+unset(_SLIC3R_AUTOMATION_API_DEFAULT)
+
 # If SLIC3R_FHS is 1 -> SLIC3R_DESKTOP_INTEGRATION is always 0, othrewise variable.
 CMAKE_DEPENDENT_OPTION(SLIC3R_DESKTOP_INTEGRATION "Allow perfoming desktop integration during runtime" 1 "NOT SLIC3R_FHS" 0)
 
@@ -593,7 +603,22 @@ elseif(TARGET expat::expat)
     target_link_libraries(libexpat INTERFACE expat::expat)
 endif ()
 
+# libpng is the one dependency where CMAKE_FIND_PACKAGE_PREFER_CONFIG (set above for static
+# builds) does the opposite of what it was set for. It is there because a static dependency
+# usually ships its own export script while a Find module would locate the system copy - but
+# the bundled libpng installs no config script at all, and Debian 13 and other recent
+# distributions now ship one for the SYSTEM libpng. Config mode therefore finds the system
+# shared library and skips the static one built alongside every other dependency.
+#
+# The headers still resolve to deps/, where PNG_PREFIX renames every entry point to
+# prusaslicer_png_*, so the mismatch only surfaces at link time as ~400 undefined
+# prusaslicer_png_* symbols. Prefer module mode here so CMAKE_PREFIX_PATH - which points at the
+# deps destdir - is searched first; config mode still runs as a fallback for platforms that do
+# ship a PNG config script.
+set(SLIC3R_PNG_PREFER_CONFIG_BACKUP ${CMAKE_FIND_PACKAGE_PREFER_CONFIG})
+set(CMAKE_FIND_PACKAGE_PREFER_CONFIG OFF)
 find_package(PNG REQUIRED)
+set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ${SLIC3R_PNG_PREFER_CONFIG_BACKUP})
 
 set(OpenGL_GL_PREFERENCE "LEGACY")
 find_package(OpenGL REQUIRED)
@@ -754,6 +779,19 @@ add_subdirectory(src)
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Slic3r_app_console)
 
 add_dependencies(gettext_make_pot hintsToPot)
+
+# Slice-verification tooling (scripts/slice_verify.py, doc/slice-verification.md).
+# Attached here rather than added to the solution by hand so it survives
+# regeneration -- a CMake-generated solution discards manual edits. Requires the
+# Visual Studio Python workload; skipped silently when it is not installed, since
+# an unloadable project would be worse than an absent one.
+if (MSVC AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/scripts/slice_verify.pyproj")
+    include_external_msproject(slice_verify
+        "${CMAKE_CURRENT_SOURCE_DIR}/scripts/slice_verify.pyproj"
+        TYPE 888888A0-9F3D-457C-B088-3A5042F75D52
+        GUID 6F3C1D9A-4B87-4E2A-9C5E-2B7A8D1F4E60)
+    set_target_properties(slice_verify PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+endif ()
 
 if(SLIC3R_BUILD_SANDBOXES)
     add_subdirectory(sandboxes)

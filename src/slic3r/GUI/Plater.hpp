@@ -1,4 +1,5 @@
-///|/ Copyright (c) Prusa Research 2018 - 2023 Tomáš Mészáros @tamasmeszaros, Oleksandra Iushchenko @YuSanka, Enrico Turri @enricoturri1966, David Kocík @kocikdav, Lukáš Hejl @hejllukas, Vojtěch Bubník @bubnikv, Lukáš Matěna @lukasmatena, Pavel Mikuš @Godrak, Filip Sykala @Jony01, Vojtěch Král @vojtechkral
+// |/ Copyright (c) Prusa Research 2018 - 2023 Tomáš Mészáros @tamasmeszaros, Oleksandra Iushchenko @YuSanka, Enrico Turri @enricoturri1966, David Kocík @kocikdav, Lukáš Hejl @hejllukas, Vojtěch Bubník @bubnikv, Lukáš Matěna @lukasmatena, Pavel Mikuš
+// @Godrak, Filip Sykala @Jony01, Vojtěch Král @vojtechkral
 ///|/
 ///|/ ported from lib/Slic3r/GUI/Plater.pm:
 ///|/ Copyright (c) Prusa Research 2016 - 2019 Vojtěch Bubník @bubnikv, Vojtěch Král @vojtechkral, Enrico Turri @enricoturri1966, Oleksandra Iushchenko @YuSanka, Lukáš Matěna @lukasmatena, Tomáš Mészáros @tamasmeszaros
@@ -27,9 +28,7 @@
 
 #include "libslic3r/enum_bitmask.hpp"
 #include "libslic3r/Preset.hpp"
-#include "libslic3r/BoundingBox.hpp"
 #include "libslic3r/GCode/GCodeProcessor.hpp"
-#include "Jobs/Job.hpp"
 #include "Jobs/Worker.hpp"
 #include "Search.hpp"
 #include "GUI_Preview.hpp"
@@ -57,7 +56,7 @@ enum class ConversionType : int;
 using ModelInstancePtrs = std::vector<ModelInstance*>;
 
 namespace UndoRedo {
-	class Stack;
+    class Stack;
     enum class SnapshotType : unsigned char;
     struct Snapshot;
 }
@@ -137,11 +136,11 @@ public:
     void                    enable_buttons(bool enable);
     void                    set_btn_label(const ActionButtonType btn_type, const wxString& label) const;
     bool                    show_reslice(bool show) const;
-	bool                    show_export(bool show) const;
-	bool                    show_send(bool show) const;
+    bool                    show_export(bool show) const;
+    bool                    show_send(bool show) const;
     bool                    show_eject(bool show)const;
-	bool                    show_export_removable(bool show) const;
-	bool                    get_eject_shown() const;
+    bool                    show_export_removable(bool show) const;
+    bool                    get_eject_shown() const;
     bool                    is_multifilament();
     void                    update_mode();
     bool                    is_collapsed();
@@ -198,7 +197,7 @@ public:
     SLAPrint& sla_print();
     const PrintBase* current_print() const;
 
-    bool new_project(std::string project_name = "");
+    bool new_project(const std::string& project_name = "");
     void load_project();
     void load_project(const wxString& filename, bool unbake_trsf = false);
     void add_model(bool imperial_units = false);
@@ -311,8 +310,9 @@ public:
 
     std::string get_export_path();
     void export_gcode(bool prefer_removable);
+    bool export_gcode_to_path(const boost::filesystem::path& output_path, bool overwrite, std::string& error);
     void export_platter();
-    void export_stl_obj(std::string path, bool extended = false, bool selection_only = false);
+    void export_stl_obj(const std::string& path, bool extended = false, bool selection_only = false);
     void export_amf();
     bool export_3mf(const boost::filesystem::path& output_path = boost::filesystem::path());
     void reload_from_disk();
@@ -333,9 +333,10 @@ public:
     void changed_all_objects();
     void schedule_background_process(bool schedule = true);
     bool is_background_process_update_scheduled() const;
+    bool is_background_process_running() const;
     void suppress_background_process(const bool stop_background_process) ;
     void send_gcode();
-	void eject_drive();
+    void eject_drive();
 
     void take_snapshot(const std::string &snapshot_name);
     void take_snapshot(const wxString &snapshot_name);
@@ -449,6 +450,7 @@ public:
     GLToolbar& get_collapse_toolbar();
 
     void set_preview_layers_slider_values_range(int bottom, int top);
+    void set_preview_moves_slider_values_range(int bottom, int top);
 
     void update_preview_moves_slider();
     void enable_preview_moves_slider(bool enable);
@@ -459,7 +461,7 @@ public:
     const Mouse3DController& get_mouse3d_controller() const;
     Mouse3DController& get_mouse3d_controller();
 
-	void set_bed_shape() const;
+    void set_bed_shape() const;
     void set_bed_shape(const Pointfs& shape, const double max_print_height, const std::string& custom_texture, const std::string& custom_model, bool force_as_custom = false) const;
     void set_default_bed_shape() const;
 
@@ -470,32 +472,32 @@ public:
 
     void bring_instance_forward();
     
-	// ROII wrapper for suppressing the Undo / Redo snapshot to be taken.
-	class SuppressSnapshots
-	{
-	public:
-		SuppressSnapshots(Plater *plater) : m_plater(plater)
-		{
-			m_plater->suppress_snapshots();
-		}
-		~SuppressSnapshots()
-		{
-			m_plater->allow_snapshots();
-		}
-	private:
-		Plater *m_plater;
-	};
+    // ROII wrapper for suppressing the Undo / Redo snapshot to be taken.
+    class SuppressSnapshots
+    {
+    public:
+        SuppressSnapshots(Plater *plater) : m_plater(plater)
+        {
+            m_plater->suppress_snapshots();
+        }
+        ~SuppressSnapshots()
+        {
+            m_plater->allow_snapshots();
+        }
+    private:
+        Plater *m_plater;
+    };
 
     // RAII wrapper for taking an Undo / Redo snapshot while disabling the snapshot taking by the methods called from inside this snapshot.
-	class TakeSnapshot
-	{
-	public:
+    class TakeSnapshot
+    {
+    public:
         TakeSnapshot(Plater *plater, const std::string &snapshot_name);
-		TakeSnapshot(Plater *plater, const wxString &snapshot_name) : m_plater(plater)
-		{
-			m_plater->take_snapshot(snapshot_name);
-			m_plater->suppress_snapshots();
-		}
+        TakeSnapshot(Plater *plater, const wxString &snapshot_name) : m_plater(plater)
+        {
+            m_plater->take_snapshot(snapshot_name);
+            m_plater->suppress_snapshots();
+        }
         TakeSnapshot(Plater* plater, const std::string& snapshot_name, UndoRedo::SnapshotType snapshot_type);
         TakeSnapshot(Plater *plater, const wxString &snapshot_name, UndoRedo::SnapshotType snapshot_type) : m_plater(plater)
         {
@@ -503,13 +505,13 @@ public:
             m_plater->suppress_snapshots();
         }
 
-		~TakeSnapshot()
-		{
-			m_plater->allow_snapshots();
-		}
-	private:
-		Plater *m_plater;
-	};
+        ~TakeSnapshot()
+        {
+            m_plater->allow_snapshots();
+        }
+    private:
+        Plater *m_plater;
+    };
 
     bool inside_snapshot_capture();
 
@@ -518,8 +520,8 @@ public:
 
     void set_keep_current_preview_type(bool value);
 
-	// Wrapper around wxWindow::PopupMenu to suppress error messages popping out while tracking the popup menu.
-	bool PopupMenu(wxMenu *menu, const wxPoint& pos = wxDefaultPosition);
+    // Wrapper around wxWindow::PopupMenu to suppress error messages popping out while tracking the popup menu.
+    bool PopupMenu(wxMenu *menu, const wxPoint& pos = wxDefaultPosition);
     bool PopupMenu(wxMenu *menu, int x, int y) { return this->PopupMenu(menu, wxPoint(x, y)); }
 
     // get same Plater/ObjectList menus

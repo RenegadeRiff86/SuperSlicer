@@ -9,6 +9,9 @@
 #include <libslic3r/MeshNormals.hpp>
 #include <libslic3r/Execution/ExecutionTBB.hpp>
 
+#include <limits>
+#include <stdexcept>
+
 namespace Slic3r { namespace sla {
 
 using Slic3r::opt::initvals;
@@ -233,7 +236,7 @@ bool DefaultSupportTree::interconnect(const Pillar &pillar,
        // results in a cross connection between the pillars.
     Vec3d sj = supper, ej = slower; sj.z() = startz; ej.z() = sj.z() + zstep;
 
-       // TODO: This is a workaround to not have a faulty last bridge
+       // Stop before the terminal bridge position; including it produces a degenerate final bridge.
     while(ej.z() >= eupper.z() /*endz*/) {
         if(bridge_mesh_distance(sj, dirv(sj, ej), pillar.r_start) >= bridge_distance)
         {
@@ -498,7 +501,11 @@ void DefaultSupportTree::add_pinheads()
         },
         execution::max_concurrency(suptree_ex_policy));
 
-    for (size_t i = 0; i < heads.size(); ++i)
+    if (heads.size() > static_cast<size_t>(std::numeric_limits<unsigned>::max()))
+        throw std::overflow_error("Support tree exceeds the head ID range");
+
+    const unsigned head_count = static_cast<unsigned>(heads.size());
+    for (unsigned i = 0; i < head_count; ++i)
         if (heads[i].is_valid()) {
             m_builder.add_head(i, heads[i]);
             m_iheads.emplace_back(i);
@@ -659,7 +666,7 @@ bool DefaultSupportTree::connect_to_model_body(Head &head)
     auto &hit = it->second;
 
     if (!hit.is_hit()) {
-        // TODO scan for potential anchor points on model surface
+        // Without a ground-scan hit there is no safe model-surface anchor, so leave this head unconnected.
         return false;
     }
 
@@ -722,7 +729,7 @@ bool DefaultSupportTree::search_pillar_and_connect(const Head &source)
         auto qres = spindex.nearest(qp, 1);
         if(qres.empty()) break;
 
-        auto ne = qres.front();
+        const auto &ne = qres.front();
         nearest_id = ne.second;
 
         if(nearest_id >= 0) {
@@ -910,10 +917,13 @@ void DefaultSupportTree::interconnect_pillars()
                           m_sm.cfg.base_radius_mm + EPSILON;
 
         while(!found && alpha < 2*PI) {
-            for (unsigned n = 0;
-                 n < needpillars && (!n || canplace[n - 1]);
-                 n++)
-            {
+            for (unsigned n = 0; n < needpillars; ++n) {
+                if (n > 0) {
+                    const unsigned previous = n - 1;
+                    if (!canplace[previous])
+                        break;
+                }
+
                 double a = alpha + n * PI / 3;
                 Vec3d  s = sp;
                 s.x() += std::cos(a) * r;

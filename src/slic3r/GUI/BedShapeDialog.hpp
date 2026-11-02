@@ -64,7 +64,7 @@ class BedShapePanel : public wxPanel
     static const std::string NONE;
     static const std::string EMPTY_STRING;
 
-	Bed_2D*			   m_canvas;
+    Bed_2D*			   m_canvas;
     std::vector<Vec2d> m_shape;
     std::vector<Vec2d> m_loaded_shape;
     std::string        m_custom_texture;
@@ -87,22 +87,22 @@ private:
     wxPanel*    init_model_panel();
     void		set_shape(const ConfigOptionPoints& points);
     void		update_preview();
-	void		update_shape();
-	void		load_stl();
+    void		update_shape();
+    void		load_stl();
     void		load_texture();
     void		load_model();
 
-	wxChoicebook*	m_shape_options_book;
-	std::vector <ConfigOptionsGroupShp>	m_optgroups;
+    wxChoicebook*	m_shape_options_book;
+    std::vector <ConfigOptionsGroupShp>	m_optgroups;
 
     friend class BedShapeDialog;
 };
 
 class BedShapeDialog : public DPIDialog
 {
-	BedShapePanel*	m_panel;
+    BedShapePanel*	m_panel;
 public:
-	BedShapeDialog(wxWindow* parent);
+    BedShapeDialog(wxWindow* parent);
 
     void build_dialog(const ConfigOptionPoints& default_pt, const ConfigOptionString& custom_texture, const ConfigOptionString& custom_model);
 

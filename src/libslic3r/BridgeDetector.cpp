@@ -145,7 +145,7 @@ bool BridgeDetector::detect_angle(double bridge_direction_override /* = -1*/)
             double s = sin(angle);
             double c = cos(angle);
             // As The lines be spaced half the line width from the edge
-            // FIXME: some of the test cases may fail. Need to adjust the test cases
+            // Note: this half-spacing edge offset (vs the old version below) may require adjusting some upstream test cases.
             for (coord_t y = bbox.min.y() + this->spacing / 2; y <= bbox.max.y(); y += this->spacing)
             //for (coord_t y = bbox.min.y(); y <= bbox.max.y(); y += this->spacing) //this is the old version
                 lines.push_back(Line(
@@ -404,14 +404,14 @@ stop_fake_bridge_test: ;
 
     }
     
-    // if any other direction is within extrusion width of coverage, prefer it if shorter
-    // shorter = shorter max length, or if in espilon (10) range, the shorter mean length.
-    // TODO: There are two options here - within width of the angle with most coverage, or within width of the currently perferred?
+    // Pick the candidate with the best coverage. (A duplicated dead 'else if' with the exact
+    // same condition was removed here.) Unimplemented idea: if another direction is within one
+    // extrusion width of the best coverage, prefer it if shorter (shorter max length, or within
+    // epsilon (10), the shorter mean length); open question whether "within width" should be
+    // measured against the most-covered angle or the currently preferred one.
     size_t i_best = 0;
     for (size_t i = 1; i < candidates.size(); ++ i)
         if (candidates[i].coverage > candidates[i_best].coverage)
-            i_best = i;
-        else if (candidates[i].coverage > candidates[i_best].coverage)
             i_best = i;
 
     this->angle = candidates[i_best].angle;
@@ -589,10 +589,18 @@ Polygons BridgeDetector::coverage(double angle) const
             // are inside the anchors and not on their contours leading to false negatives.
             ExPolygons unsupported_bigger = offset_ex(unsupported, 0.5f * float(this->spacing));
             assert(unsupported_bigger.size() == 1); // growing don't split
+            if (unsupported_bigger.empty())
+                // Degenerate (zero-area or self-intersecting) bridge region: offsetting erased it,
+                // so there is no coverable area to report. Asserts are disabled in release builds,
+                // and unsupported_bigger.front() on an empty vector is undefined behavior.
+                continue;
             ExPolygons small_anchors = intersection_ex({unsupported_bigger.front()}, anchors);
             unsupported_bigger       = small_anchors;
             unsupported_bigger.push_back(unsupported);
             unsupported_bigger = union_safety_offset_ex(unsupported_bigger);
+            if (unsupported_bigger.empty())
+                // The region collapsed under the safety offset and no anchor overlaps it.
+                continue;
             // now unsupported_bigger is unsupported but with a little extra inside the anchors
             // clean it up if needed (remove bits unlinked to 'unsupported'
             if (unsupported_bigger.size() > 1) {
@@ -674,7 +682,7 @@ void BridgeDetector::unsupported_edges(double angle, Polylines* unsupported) con
         // get unsupported bridge edges (both contour and holes)
         Lines unsupported_lines = to_lines(diff_pl(to_polylines(*it_expoly), grown_lower));
         /*  Split into individual segments and filter out edges parallel to the bridging angle
-            TODO: angle tolerance should probably be based on segment length and flow width,
+            Possible improvement: angle tolerance should probably be based on segment length and flow width,
             so that we build supports whenever there's a chance that at least one or two bridge
             extrusions would be anchored within such length (i.e. a slightly non-parallel bridging
             direction might still benefit from anchors if long enough)

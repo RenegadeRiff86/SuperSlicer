@@ -47,7 +47,7 @@ public:
 // 1.0 value means a voxel for every unit cube. 2 means the model is scaled to
 // be 2x larger and the voxel count is increased by the increment in the scaled
 // volume, thus 4 times. This kind a sampling accuracy selection is not
-// achievable through the Transform parameter. (TODO: or is it?)
+// achievable through the Transform parameter (possibly it is; unverified).
 // The resulting grid will contain the voxel_scale in its metadata under the
 // "voxel_scale" key to be used in grid_to_mesh function.
 VoxelGridPtr mesh_to_grid(const indexed_triangle_set &mesh,

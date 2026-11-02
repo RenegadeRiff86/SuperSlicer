@@ -21,8 +21,8 @@ for lang in languages:
 	# # flush
 	# file_out_stream.close();
 
-	p = subprocess.Popen(["python","../pom_merger.py"], cwd=lang);
-	p.wait();
+	merger = subprocess.Popen(["python","../pom_merger.py"], cwd=lang);
+	merger.wait();
 
 	# for file in os.listdir(lang):
 		# if not file.endswith("Slic3r.po"):

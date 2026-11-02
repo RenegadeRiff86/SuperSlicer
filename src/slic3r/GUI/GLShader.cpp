@@ -5,7 +5,6 @@
 ///|/
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
-#include "libslic3r/libslic3r.h"
 #include "GLShader.hpp"
 
 #include "3DScene.hpp"
@@ -236,45 +235,45 @@ void GLShaderProgram::set_uniform(int id, double value) const
     set_uniform(id, static_cast<float>(value));
 }
 
-void GLShaderProgram::set_uniform(int id, const std::array<int, 2>& value) const
+void GLShaderProgram::set_uniform(int id, const std::array<int, GLShaderProgram::Vec2Components>& value) const
 {
     if (id >= 0)
         glsafe(::glUniform2iv(id, 1, static_cast<const GLint*>(value.data())));
 }
 
-void GLShaderProgram::set_uniform(int id, const std::array<int, 3>& value) const
+void GLShaderProgram::set_uniform(int id, const std::array<int, GLShaderProgram::Vec3Components>& value) const
 {
     if (id >= 0)
         glsafe(::glUniform3iv(id, 1, static_cast<const GLint*>(value.data())));
 }
 
-void GLShaderProgram::set_uniform(int id, const std::array<int, 4>& value) const
+void GLShaderProgram::set_uniform(int id, const std::array<int, GLShaderProgram::Vec4Components>& value) const
 {
     if (id >= 0)
         glsafe(::glUniform4iv(id, 1, static_cast<const GLint*>(value.data())));
 }
 
-void GLShaderProgram::set_uniform(int id, const std::array<float, 2>& value) const
+void GLShaderProgram::set_uniform(int id, const std::array<float, GLShaderProgram::Vec2Components>& value) const
 {
     if (id >= 0)
         glsafe(::glUniform2fv(id, 1, static_cast<const GLfloat*>(value.data())));
 }
 
-void GLShaderProgram::set_uniform(int id, const std::array<float, 3>& value) const
+void GLShaderProgram::set_uniform(int id, const std::array<float, GLShaderProgram::Vec3Components>& value) const
 {
     if (id >= 0)
         glsafe(::glUniform3fv(id, 1, static_cast<const GLfloat*>(value.data())));
 }
 
-void GLShaderProgram::set_uniform(int id, const std::array<float, 4>& value) const
+void GLShaderProgram::set_uniform(int id, const std::array<float, GLShaderProgram::Vec4Components>& value) const
 {
     if (id >= 0)
         glsafe(::glUniform4fv(id, 1, static_cast<const GLfloat*>(value.data())));
 }
 
-void GLShaderProgram::set_uniform(int id, const std::array<double, 4>& value) const
+void GLShaderProgram::set_uniform(int id, const std::array<double, GLShaderProgram::Vec4Components>& value) const
 {
-    const std::array<float, 4> f_value = { float(value[0]), float(value[1]), float(value[2]), float(value[3]) };
+    const std::array<float, GLShaderProgram::Vec4Components> f_value = { float(value[0]), float(value[1]), float(value[2]), float(value[3]) };
     set_uniform(id, f_value);
 }
 

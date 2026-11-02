@@ -51,7 +51,7 @@ public:
     TransformationType& operator=(Enum value) { m_value = value; return *this; }
 
     Enum operator()() const { return m_value; }
-    bool has(Enum v) const { return ((unsigned int)m_value & (unsigned int)v) != 0; }
+    bool has(Enum v) const { return (static_cast<unsigned int>(m_value) & static_cast<unsigned int>(v)) != 0; }
 
     void set_world()      { this->remove(Instance); this->remove(Local); }
     void set_instance()   { this->remove(Local); this->add(Instance); }
@@ -70,8 +70,8 @@ public:
     bool independent()  const { return this->has(Independent); }
 
 private:
-    void add(Enum v)    { m_value = Enum((unsigned int)m_value | (unsigned int)v); }
-    void remove(Enum v) { m_value = Enum((unsigned int)m_value & (~(unsigned int)v)); }
+    void add(Enum v)    { m_value = Enum(static_cast<unsigned int>(m_value) | static_cast<unsigned int>(v)); }
+    void remove(Enum v) { m_value = Enum(static_cast<unsigned int>(m_value) & (~static_cast<unsigned int>(v))); }
 
     Enum    m_value;
 };

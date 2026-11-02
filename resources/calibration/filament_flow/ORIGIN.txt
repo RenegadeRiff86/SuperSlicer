@@ -1,0 +1,10 @@
+Official OrcaSlicer flow-calibration models, imported unchanged.
+
+Source: https://github.com/OrcaSlicer/OrcaSlicer
+Path:   resources/calib/filament_flow/
+License: AGPLv3 (same as SuperSlicer)
+
+Orca-LinearFlow.3mf       YOLO recommended  (-0.05 .. +0.05, step 0.01)
+Orca-LinearFlow_fine.3mf  YOLO perfectionist (-0.04 .. +0.035, step 0.005)
+flowrate-test-pass1.3mf   older coarse pass
+flowrate-test-pass2.3mf   older fine pass

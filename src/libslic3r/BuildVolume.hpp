@@ -93,7 +93,7 @@ public:
     // Using BedEpsilon for all tests.
     static constexpr const double BedEpsilon = 3. * EPSILON;
     // Called on final G-code paths.
-    //FIXME The test does not take the thickness of the extrudates into account!
+    // Known limitation: the test does not take the thickness of the extrudates into account.
     bool         all_paths_inside(const GCodeProcessorResult& paths, const BoundingBoxf3& paths_bbox, bool ignore_bottom = true) const;
     // Called on initial G-code preview on OpenGL vertex buffer interleaved normals and vertices.
     bool         all_paths_inside_vertices_and_normals_interleaved(const std::vector<float>& paths, const Eigen::AlignedBox<float, 3>& bbox, bool ignore_bottom = true) const;

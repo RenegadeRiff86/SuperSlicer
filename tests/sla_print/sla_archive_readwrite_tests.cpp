@@ -15,15 +15,16 @@ TEST_CASE("Archive export test", "[sla_archives]") {
     auto registry = registered_sla_archives();
 
     for (const char * pname : {"20mm_cube", "extruder_idler"})
-    for (const ArchiveEntry &entry : registry) {
+    for (const auto &registered_archive : registry) {
+        const ArchiveEntry &entry = registered_archive.second;
         INFO(std::string("Testing archive type: ") + entry.id + " -- writing...");
         SLAPrint print;
         SLAFullPrintConfig fullcfg;
 
         auto m = Model::read_from_file(TEST_DATA_DIR PATH_SEPARATOR + std::string(pname) + ".obj", nullptr);
 
-        fullcfg.printer_technology.setInt(ptSLA); // FIXME this should be ensured
-        fullcfg.set("sla_archive_format", entry.id);
+        fullcfg.printer_technology.set_enum_int(ptSLA); // FIXME this should be ensured
+        fullcfg.output_format.set_enum_int(entry.format);
         fullcfg.set("supports_enable", false);
         fullcfg.set("pad_enable", false);
 
@@ -52,7 +53,7 @@ TEST_CASE("Archive export test", "[sla_archives]") {
             try {
                 // Leave format_id deliberetaly empty, guessing should always
                 // work here.
-                import_sla_archive(outputfname, "", its, cfg);
+                import_sla_archive(outputfname, ofUnknown, its, cfg);
             } catch (...) {
                 REQUIRE(false);
             }

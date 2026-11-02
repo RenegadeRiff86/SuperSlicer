@@ -20,10 +20,7 @@
 #include "ModelArrange.hpp"
 #include "Geometry/ConvexHull.hpp"
 #include "Polygon.hpp"
-#include "ClipperUtils.hpp"
 #include "Print.hpp"
-#include "MTUtils.hpp"
-#include "TriangleMeshSlicer.hpp"
 #include "TriangleSelector.hpp"
 
 #include "Format/AMF.hpp"
@@ -43,11 +40,12 @@
 
 #include <oneapi/tbb/concurrent_vector.h>
 
-#include "SVG.hpp"
 #include <Eigen/Dense>
-#include "GCode/GCodeWriter.hpp"
 
 namespace Slic3r {
+
+// Repeated string literals extracted to named constants (BP1001).
+static constexpr const char* kExtruder = "extruder";
 
 Model& Model::assign_copy(const Model &rhs)
 {
@@ -138,7 +136,7 @@ bool Model::equals(const Model& rhs) const {
     // check objects
     if (this->objects.size() != rhs.objects.size())
         return false;
-    for (int i = 0; i < rhs.objects.size(); i++) {
+    for (size_t i = 0; i < rhs.objects.size(); i++) {
         // Copy including the ID, leave ID set to invalid (zero).
         if (rhs.objects[i]->equals(*objects[i]))
             return false;
@@ -301,7 +299,7 @@ ModelObject* Model::add_object(const ModelObject &other)
 void Model::delete_object(size_t idx)
 {
     ModelObjectPtrs::iterator i = this->objects.begin() + idx;
-    delete *i;
+    std::unique_ptr<ModelObject> removed_object{*i};
     this->objects.erase(i);
 }
 
@@ -311,7 +309,7 @@ bool Model::delete_object(ModelObject* object)
         size_t idx = 0;
         for (ModelObject *model_object : objects) {
             if (model_object == object) {
-                delete model_object;
+                std::unique_ptr<ModelObject> removed_object{model_object};
                 objects.erase(objects.begin() + idx);
                 return true;
             }
@@ -327,7 +325,7 @@ bool Model::delete_object(ObjectID id)
         size_t idx = 0;
         for (ModelObject *model_object : objects) {
             if (model_object->id() == id) {
-                delete model_object;
+                std::unique_ptr<ModelObject> removed_object{model_object};
                 objects.erase(objects.begin() + idx);
                 return true;
             }
@@ -339,8 +337,9 @@ bool Model::delete_object(ObjectID id)
 
 void Model::clear_objects()
 {
-    for (ModelObject *o : this->objects)
-        delete o;
+    for (ModelObject *object : this->objects) {
+        std::unique_ptr<ModelObject> object_owner{object};
+    }
     this->objects.clear();
 }
 
@@ -348,15 +347,16 @@ void Model::delete_material(t_model_material_id material_id)
 {
     ModelMaterialMap::iterator i = this->materials.find(material_id);
     if (i != this->materials.end()) {
-        delete i->second;
+        std::unique_ptr<ModelMaterial> removed_material{i->second};
         this->materials.erase(i);
     }
 }
 
 void Model::clear_materials()
 {
-    for (auto &m : this->materials)
-        delete m.second;
+    for (auto &material_entry : this->materials) {
+        std::unique_ptr<ModelMaterial> material_owner{material_entry.second};
+    }
     this->materials.clear();
 }
 
@@ -372,13 +372,20 @@ ModelMaterial* Model::add_material(t_model_material_id material_id)
 ModelMaterial* Model::add_material(t_model_material_id material_id, const ModelMaterial &other)
 {
     assert(! material_id.empty());
-    // delete existing material if any
-    ModelMaterial* material = this->get_material(material_id);
-    delete material;
-    // set new material
-    material = new ModelMaterial(other);
-    material->set_model(this);
-    this->materials[material_id] = material;
+
+    std::unique_ptr<ModelMaterial> material_owner{new ModelMaterial(other)}; // Private copy constructor: std::make_unique cannot access it.
+    material_owner->set_model(this);
+    ModelMaterial *material = material_owner.get();
+
+    auto existing_material = this->materials.find(material_id);
+    if (existing_material != this->materials.end()) {
+        std::unique_ptr<ModelMaterial> replaced_material{existing_material->second};
+        existing_material->second = material;
+    } else {
+        this->materials.emplace(material_id, material);
+    }
+
+    static_cast<void>(material_owner.release());
     return material;
 }
 
@@ -488,9 +495,9 @@ bool Model::looks_like_multipart_object() const
 
         BoundingBoxf3 bb_this = obj->volumes[0]->mesh().bounding_box();
 
-        // FIXME: There is sadly the case when instances are empty (AMF files). The normalization of instances in that
-        // case is performed only after this function is called. For now (shortly before the 2.7.2 release), let's
-        // just do this non-invasive check. Reordering all the functions could break it much more.
+        // Note: instances can be empty at this point (AMF files) because instance normalization runs
+        // only after this function is called; fall back to the untransformed bounding box in that case.
+        // A non-invasive check chosen shortly before the 2.7.2 release - reordering the load steps would be riskier.
         BoundingBoxf3 tbb_this = (! obj->instances.empty() ? obj->instances[0]->transform_bounding_box(bb_this) : bb_this);
 
         if (!tbb.defined)
@@ -520,7 +527,8 @@ void Model::convert_multipart_object(unsigned int max_extruders)
     ModelObject* object = new ModelObject(this);
     object->input_file = this->objects.front()->input_file;
     object->name = boost::filesystem::path(this->objects.front()->input_file).stem().string();
-    //FIXME copy the config etc?
+    // Object-level config is not merged: sources may disagree. Each volume gets a fresh
+    // extruder assignment below; instance transforms are applied when volumes are added.
 
     unsigned int extruder_counter = 0;
     for (const ModelObject* o : this->objects)
@@ -535,7 +543,7 @@ void Model::convert_multipart_object(unsigned int max_extruders)
             auto copy_volume = [o, max_extruders, &counter, &extruder_counter](ModelVolume *new_v) {
                 assert(new_v != nullptr);
                 new_v->name = (counter > 1) ? o->name + "_" + std::to_string(counter++) : o->name;
-                new_v->config.set("extruder", auto_extruder_id(max_extruders, extruder_counter));
+                new_v->config.set(kExtruder, auto_extruder_id(max_extruders, extruder_counter));
                 return new_v;
             };
             if (o->instances.empty()) {
@@ -864,7 +872,7 @@ ModelVolume* ModelObject::add_volume(const ModelVolume &other, TriangleMesh &&me
 void ModelObject::delete_volume(size_t idx)
 {
     ModelVolumePtrs::iterator i = this->volumes.begin() + idx;
-    delete *i;
+    std::unique_ptr<ModelVolume> removed_volume{*i};
     this->volumes.erase(i);
 
     if (this->volumes.size() == 1)
@@ -888,8 +896,9 @@ void ModelObject::delete_volume(size_t idx)
 
 void ModelObject::clear_volumes()
 {
-    for (ModelVolume *v : this->volumes)
-        delete v;
+    for (ModelVolume *volume : this->volumes) {
+        std::unique_ptr<ModelVolume> volume_owner{volume};
+    }
     this->volumes.clear();
     this->invalidate_bounding_box();
 }
@@ -956,7 +965,7 @@ ModelInstance* ModelObject::add_instance(const Geometry::Transformation& trafo)
 void ModelObject::delete_instance(size_t idx)
 {
     ModelInstancePtrs::iterator i = this->instances.begin() + idx;
-    delete *i;
+    std::unique_ptr<ModelInstance> removed_instance{*i};
     this->instances.erase(i);
     this->invalidate_bounding_box();
 }
@@ -968,8 +977,9 @@ void ModelObject::delete_last_instance()
 
 void ModelObject::clear_instances()
 {
-    for (ModelInstance *i : this->instances)
-        delete i;
+    for (ModelInstance *instance : this->instances) {
+        std::unique_ptr<ModelInstance> instance_owner{instance};
+    }
     this->instances.clear();
     this->invalidate_bounding_box();
 }
@@ -1490,11 +1500,11 @@ void ModelObject::split(ModelObjectPtrs* new_objects)
 
         size_t counter = 1;
         for (TriangleMesh &mesh : meshes) {
-            // FIXME: crashes if not satisfied
+            // Guard: downstream processing crashes on degenerate fragments (fewer than 3 facets or zero volume), so skip them.
             if (mesh.facets_count() < 3 || mesh.has_zero_volume())
                 continue;
 
-            // XXX: this seems to be the only real usage of m_model, maybe refactor this so that it's not needed?
+            // Possible refactor: this seems to be the only real usage of m_model; it could go away if the caller created the new objects instead.
             ModelObject* new_object = m_model->add_object();
             if (meshes.size() == 1) {
                 new_object->name = volume->name;
@@ -1516,8 +1526,8 @@ void ModelObject::split(ModelObjectPtrs* new_objects)
             // Invalidate extruder value in volume's config,
             // otherwise there will no way to change extruder for object after splitting,
             // because volume's extruder value overrides object's extruder value.
-            if (new_vol->config.has("extruder"))
-                new_vol->config.set_key_value("extruder", new ConfigOptionInt(0));
+            if (new_vol->config.has(kExtruder))
+                new_vol->config.set_key_value(kExtruder, std::make_unique<ConfigOptionInt>(0));
 
             for (ModelInstance* model_instance : new_object->instances) {
                 const Vec3d shift = model_instance->get_transformation().get_matrix_no_offset() * new_vol->get_offset();
@@ -1831,9 +1841,9 @@ int ModelVolume::extruder_id() const
 {
     int extruder_id = -1;
     if (this->is_model_part()) {
-        const ConfigOption *opt = this->config.option("extruder");
+        const ConfigOption *opt = this->config.option(kExtruder);
         if ((opt == nullptr) || (opt->get_int() == 0))
-            opt = this->object->config.option("extruder");
+            opt = this->object->config.option(kExtruder);
         extruder_id = (opt == nullptr) ? 0 : opt->get_int();
     }
     return extruder_id;
@@ -1983,7 +1993,7 @@ size_t ModelVolume::split(unsigned int max_extruders)
         this->object->volumes[ivolume]->center_geometry_after_creation();
         this->object->volumes[ivolume]->translate(offset);
         this->object->volumes[ivolume]->name = name + "_" + std::to_string(idx + 1);
-        this->object->volumes[ivolume]->config.set("extruder", auto_extruder_id(max_extruders, extruder_counter));
+        this->object->volumes[ivolume]->config.set(kExtruder, auto_extruder_id(max_extruders, extruder_counter));
         this->object->volumes[ivolume]->m_is_splittable = 0;
         ++ idx;
     }
@@ -2282,7 +2292,11 @@ bool model_volume_list_changed(const ModelObject &model_object_old, const ModelO
         }
         if (mv_old.type() != mv_new.type() || mv_old.id() != mv_new.id())
             return true;
-        //FIXME test for the content of the mesh!
+        // m_mesh is a shared_ptr<const TriangleMesh> that is always replaced wholesale, never
+        // mutated in place (see ModelVolume::set_mesh()), so pointer identity is an exact,
+        // O(1) proxy for mesh content equality.
+        if (mv_old.mesh_ptr().get() != mv_new.mesh_ptr().get())
+            return true;
         if (! mv_old.get_matrix().isApprox(mv_new.get_matrix()))
             return true;
         ++ i_old;
@@ -2381,7 +2395,7 @@ bool model_has_multi_part_objects(const Model &model)
 bool model_has_advanced_features(const Model &model)
 {
     auto config_is_advanced = [](const ModelConfig &config) {
-        return ! (config.empty() || (config.size() == 1 && config.cbegin()->first == "extruder"));
+        return ! (config.empty() || (config.size() == 1 && config.cbegin()->first == kExtruder));
     };
     for (const ModelObject *model_object : model.objects) {
         // Is there more than one instance or advanced config data?

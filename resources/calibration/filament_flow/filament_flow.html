@@ -6,90 +6,46 @@
 </head>
 <body>
 
-<table width="100%">
-<tbody>
-<tr>
-<td style="text-align: center;">
 <h1>Filament Flow Calibration</h1>
-</td>
-</tr>
-<tr>
-<td style="text-align: right;"><strong>
-    <table><tr><td>Needs:</td>
-        <td style="text-align: left;">Bed Leveling</td></tr>
-    </table>
-    </strong>
-</tr>
-</tbody>
-</table>
+<p><strong>Do bed leveling and a first-layer Z offset first.</strong> Calibrate e-steps / rotation distance so 100&nbsp;mm requested is 100&nbsp;mm extruded. Pressure advance should already be in the ballpark.</p>
 
-<p><strong>You need to do the bed level calibration before this one.</strong></p>
-<p>This test will print five test samples with various level of flow. You can choose the flow difference between each steps. You should start with the 10% interval test.
-After verifying the result with the help of the table below, you have to modify the filament extrusion multiplier in your filament preset (if the -20 is the best, change the multiplier from 1 to 0.8, see the formula below). Don't forget to save it afterwards! You can continue with the 2% interval test if you want a bit more precision.</p>
-<h2>Results</h2>
-<h4>Example:</h4>
-<table width="100%">
-<tbody>
-<tr>
-<td><img src="./m20.jpg" width="150" height="150" /></td>
-<td><img src="./m10.jpg" width="150" height="150" /></td>
-<td><img src="./0_v1.jpg" width="150" height="150" /></td>
-<td><img src="./p10.jpg" width="150" height="150" /></td>
-<td><img src="./p20.jpg" width="150" height="150" /></td>
-</tr>
-<tr>
-<td style="text-align: center;">Not flat</td>
-<td style="text-align: center;">Not flat</td>
-<td style="text-align: center;">Not flat</td>
-<td style="text-align: center;">Flat<br />but the circle<br />isn't that good</td>
-<td style="text-align: center;">Flat surface<br />and good circle</td>
-</tr>
-</table>
-<p>The flow you want to choose is the lowest that does not create gaps in the top surface. In this example it seems that the good flow is below +20%. So you have to change your extrusion multiplier to 1.2 and print the second set of test (or put 1.15 and call it a day).</p>
-<p>Don't look at the surface quality of the letter, it should be only good at the 0, as it's for this flow we calibrated the bed height. Here, going with +20% flow, you should lower the bed a bit (redoing the bed level calibration).</p>
-<h4>Second step, starting from +20%:</h4>
-<table>
-<tbody>
-<tr>
-<td><img src="./m8.jpg" width="150" height="150" /></td>
-<td><img src="./m6.jpg" width="150" height="150" /></td>
-<td><img src="./m4.jpg" width="150" height="150" /></td>
-<td><img src="./m2.jpg" width="150" height="150" /></td>
-<td><img src="./0_v2.jpg" width="150" height="150" /></td>
-</tr>
-<tr>
-<td style="text-align: center;">Not good</td>
-<td style="text-align: center;">Not good</td>
-<td style="text-align: center;">Almost good</td>
-<td style="text-align: center;">Good but the<br />circle has some<br />irregularities</td>
-<td style="text-align: center;">Good</td>
-</tr>
-</table>
-<p>Here we can see the loop is not very good in the -8 and -6. The -4 is almost round but not quite, so it indicates that the nozzle has lost pressure. -2 is almost good but the 0 is the only one that can be considered as "good", and even so the loop isn't perfect. </p>
-<h2>How to tune your printer</h2>
-<p>You have to change the extrusion multiplier for the filament you calibrate for (and save it). Formula for the new extrusion multiplier: new_multiplier = ( (100 + chosen_number) / 100 ) * old_multiplier<br />
-Example: first step, i choose the -10, so i have ((100-10)/100) * 1 = (0.9) * 1 = 0.9<br />
-second step i choose +5, so i have ((100+5)/100) * 0.9 = (1.05) * 0.9 = 0.945
-</p>
-<p>If you want to make this change permanent and left your extrusion multiplier to 1 in the slicer, you can change your firmware configuration by multiplying (or dividing, depends of the firmware/setting) the 'extruder speed setting' (e-step, step_distance) by this extrusion multiplier.</p>
-<h2>Advice</h2>
-<p>Before doing this test, it's preferable to calibrate your extruder (it's easier on bowden setup):</p>
+<h2>What this test is</h2>
+<p>This uses OrcaSlicer's official YOLO LinearFlow models and SuperSlicer's filament extrusion-multiplier math:</p>
 <ul>
-<li>Remove the extruder bowden tube from the output of the extruder (or remove the extruder assembly from the nozzle assembly if you have a direct-extruder)</li>
-<li>Put the filament through it (by hand or using the software control)</li>
-<li>Cut the filament flush with the output of the extruder. Measure with your spring-steel ruler that you measure just 0mm. If not, note the value and don't forget to remove it from every other measure you do.</li>
-<li>Ask your extruder to extrude 200mm of filament (gcode: G1 E200).</li>
-<li>Measure the length of the extruded filament. Repeat this process two times more if you want more precision.</li>
-<li>You have to change your extruder multiplier (estep, step_distance) by multiplying (or dividing, depending on your firmware) the current value by (200 / average_measured_value).</li>
-<p>Note that this value may change if you change the pressure the extruder exerts against the filament.</p>
+  <li><strong>Generate recommended</strong> loads Orca's <code>Orca-LinearFlow.3mf</code>: eleven chips around your current extrusion multiplier, range &minus;0.05 to +0.05 in steps of 0.01. New multiplier = old &plusmn; the chip you pick.</li>
+  <li><strong>Generate fine</strong> loads Orca's <code>Orca-LinearFlow_fine.3mf</code> (perfectionist pass, 0.005 steps).</li>
+  <li>The top of each square is the evaluation surface (Archimedean chords). The number is on a connected <em>tab</em>, not on the top, so you can tell the chips apart without ruining the surface you judge.</li>
+  <li>The official model is 2&nbsp;mm tall and drawn for a 0.4&nbsp;mm nozzle. SuperSlicer computes the plate scale from the nozzle, first-layer height, first-layer line width, and layer height currently selected. Those print settings are not overwritten.</li>
+  <li>Ellis' Print Tuning Guide: judge the top, not a caliper on one wall. Sparse infill, ironing off. If two chips look equal, pick the higher multiplier.</li>
 </ul>
+
+<h2>How to run it</h2>
+<ol>
+  <li>Select the filament you are calibrating. The chips are offset from that filament's current extrusion multiplier.</li>
+  <li>Click <strong>Generate recommended</strong>. SuperSlicer loads Orca's arranged plate. Each chip has a tab engraved <code>-.05</code> &hellip; <code>0</code> &hellip; <code>.05</code>.</li>
+  <li>Slice and print. All chips share one plate. Do not use sequential printing.</li>
+  <li>Inspect the <em>top</em> of each square, looking at the centre:
+    <ul>
+      <li>Best: smoothest top, no valleys between the spiral/arcs, no raised ridge at the inner spiral.</li>
+      <li>Too low: gaps or shadows between lines.</li>
+      <li>Too high: rough, shiny pile-up, or a raised ring where the inner spiral meets the outer arcs.</li>
+    </ul>
+  </li>
+  <li>Re-open this window. Click the tile that matches the number on the printed tab. SuperSlicer does the math and shows <code>current + modifier = new</code>. Click <strong>Apply to filament</strong>, then save the filament preset.</li>
+  <li>Optional: click <strong>Generate fine</strong> for the tighter Orca pass around the new value, then pick a tile again.</li>
+</ol>
+
+<h2>Formula</h2>
+<p><code>new_multiplier = old_multiplier + chip_modifier</code></p>
+<p>That is Orca YOLO / Ellis linear math. The tab is the modifier, not the absolute multiplier. Do not multiply by (100 + percent) / 100 unless you are reading an old 2-pass guide.</p>
+
 <h2>Notes</h2>
-<p>It's very difficult to tune the flow below the 2% mark, and no filament is consistent enough to warrant it anyway. Filaments that have a guarantee of +-0.03mm has a ~7% variation between the low and high end cross section.</p>
-<p>Most of the calibrations need to be done in the right order. This one should be second.</p>
-<p>You may want to re-do the bed level calibration if the result is below 0.9 or higher than 1.1.</p>
-<p>Note that the filament extrusion multiplier can change with a different filament material, as a softer one can be squished/dented more by the extruder and so have a lower diameter in the extruder gears.</p>
-<p>If your printer extruder 'eats' the filament and can't complete the top layer, you will have to increase the ironing distribution (by 5% increments). (Expert setting, print -> infill)</p>
-<p>This test sets the setting "Complete individual objects" to true, so you may want to reset your print settings afterwards</p>
-<p>Licence for models used for this calibration test: CC BY-SA 3.0</p>
+<ul>
+  <li>Do not use wall-thickness calipers for this setting. That measures wobble and line width more than flow, and a 0.02&nbsp;mm error is a 5% multiplier change.</li>
+  <li>If dimensions are still off after a good top, use shrinkage / horizontal expansion. Do not chase that with flow.</li>
+  <li>This test turns off sequential printing (complete objects) so the official plate fits. Reset that if you do not want it left dirty on the print preset.</li>
+  <li>Models come from OrcaSlicer (AGPLv3), <code>resources/calib/filament_flow/</code>.</li>
+</ul>
+
 </body>
 </html>

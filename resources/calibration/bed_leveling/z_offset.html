@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Klipper Z Offset</title>
+</head>
+<body>
+<table width="100%">
+<tbody>
+<tr>
+<td style="text-align: center;">
+<h1>Klipper Z Offset</h1>
+</td>
+</tr>
+<tr>
+<td style="text-align: right;">
+    <table><tr><td>Needs:</td>
+        <td style="text-align: left;">Klipper</td>
+        <td style="text-align: left;">Bed leveling</td></tr>
+    </table>
+</td>
+</tr>
+</tbody>
+</table>
+
+<p>This prints nine first-layer squares. Each one uses a different Z offset so you can see which height looks right, then measure it and save that value on the filament.</p>
+
+<h2>How it works</h2>
+<p>Pick the printer, print and filament profiles you actually use. Center is the offset on the middle pad. Step is how much the offset changes from one pad to the next. Layer height starts as your first layer height; you can raise it a bit if you are afraid of scraping the bed.</p>
+<p>Click Generate. SuperSlicer builds the project and slices it. Send the G-code to the printer the usual way.</p>
+
+<h2>Pad numbers</h2>
+<table border="1" cellpadding="8" cellspacing="0" style="margin-left: auto; margin-right: auto; text-align: center;">
+  <tr><td>1<br>Top left</td><td>2<br>Top center</td><td>3<br>Top right</td></tr>
+  <tr><td>4<br>Middle left</td><td>5<br>Center</td><td>6<br>Middle right</td></tr>
+  <tr><td>7<br>Bottom left</td><td>8<br>Bottom center</td><td>9<br>Bottom right</td></tr>
+</table>
+<p>Pad 5 uses the center value. Going from pad 1 to pad 9 adds one step each time. So pad 1 is center &minus; 4&nbsp;&times;&nbsp;step, and pad 9 is center + 4&nbsp;&times;&nbsp;step.</p>
+
+<h2>After the print</h2>
+<p>Look at the first layers and pick the pad that looks best. Measure the thickness of that pad at the outer edge with calipers.</p>
+<p>Then open <strong>Calibration &gt; Apply Z offset</strong>. Type the pad number and the height you measured. SuperSlicer writes the result to the current filament. Look at Filament Settings &rarr; Z offset and save the preset if you want to keep it.</p>
+<p>If the pad is thicker than the target layer height, the nozzle was too high. If it is thinner, the nozzle was too low.</p>
+
+<h2>Notes</h2>
+<p>Watch the first pads. If the nozzle is heading into the bed, stop the print.</p>
+<p>This test turns off skirt and brim so the pads stay separate. You may want to put those back afterwards.</p>
+</body>
+</html>

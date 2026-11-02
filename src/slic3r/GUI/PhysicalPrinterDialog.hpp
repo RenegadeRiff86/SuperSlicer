@@ -5,6 +5,7 @@
 #ifndef slic3r_PhysicalPrinterDialog_hpp_
 #define slic3r_PhysicalPrinterDialog_hpp_
 
+#include <memory>
 #include <vector>
 
 #include <wx/gdicmn.h>
@@ -67,7 +68,7 @@ class PhysicalPrinterDialog : public DPIDialog
     wxString            m_default_name;
     DynamicPrintConfig* m_config            { nullptr };
     ::TextInput*        m_printer_name      { nullptr };
-    std::vector<PresetForPrinter*> m_presets;
+    std::vector<std::unique_ptr<PresetForPrinter>> m_presets;
 
     ConfigOptionsGroup* m_optgroup          { nullptr };
 

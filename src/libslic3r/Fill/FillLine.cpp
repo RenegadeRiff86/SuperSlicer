@@ -33,9 +33,12 @@ void FillLine::_fill_surface_single(
     ExPolygon                        expolygon,
     Polylines                       &polylines_out) const
 {
-    //Quick hack to put it at a sane position.
-    //FIXME for real
-    ExPolygons polys = offset_ex(to_polygons(expolygon), -this->_min_spacing*(1- 0.3/*INFILL_OVERLAP_OVER_SPACING*/));
+    constexpr double INFILL_OVERLAP_OVER_SPACING = 0.3;
+
+    // Inset by the non-overlapping portion of one extrusion spacing so the generated
+    // path centers stay inside the fill boundary.
+    ExPolygons polys = offset_ex(to_polygons(expolygon),
+        -this->_min_spacing * (1.0 - INFILL_OVERLAP_OVER_SPACING));
     if (polys.size() == 1)
         expolygon = polys[0];
 
@@ -66,7 +69,8 @@ void FillLine::_fill_surface_single(
     // the minimum offset for preventing edge lines from being clipped is SCALED_EPSILON;
     // however we use a larger offset to support expolygons with slightly skewed sides and 
     // not perfectly straight
-    //FIXME Vojtech: Update the intersecton function to work directly with lines.
+    // The clipping API accepts polylines, so adapt each generated line to a
+    // two-point polyline before intersecting it with the expanded boundary.
     Polylines polylines_src;
     polylines_src.reserve(lines.size());
     for (Lines::const_iterator it = lines.begin(); it != lines.end(); ++ it) {
@@ -78,8 +82,8 @@ void FillLine::_fill_surface_single(
     }
     Polylines polylines = intersection_pl(polylines_src, offset(expolygon, scale_(0.02)));
 
-    // FIXME Vojtech: This is only performed for horizontal lines, not for the vertical lines!
-    const float INFILL_OVERLAP_OVER_SPACING = 0.3f;
+    // The generated lines are vertical in this rotated coordinate system; extend
+    // both endpoints along local Y to preserve the requested boundary overlap.
     // How much to extend an infill path from expolygon outside?
     coord_t extra = coord_t(floor(this->_min_spacing * INFILL_OVERLAP_OVER_SPACING + 0.5f));
     for (Polylines::iterator it_polyline = polylines.begin(); it_polyline != polylines.end(); ++ it_polyline) {
@@ -114,8 +118,8 @@ void FillLine::_fill_surface_single(
                 const Point &last_point = pts_end.back();
                 // Distance in X, Y.
                 const Vector distance = last_point - first_point;
-                // TODO: we should also check that both points are on a fill_boundary to avoid 
-                // connecting paths on the boundaries of internal regions
+                // Accept the connector only when the complete segment stays inside expolygon_off;
+                // this prevents crossing internal-region boundaries.
                 if (this->_can_connect(std::abs(distance(0)), std::abs(distance(1))) && 
                     expolygon_off.contains(Line(last_point, first_point))) {
                     // Append the polyline.

@@ -125,20 +125,21 @@ void triangulate_wall(std::vector<Vec<3, Sc>> &pts,
                       double                   lower_z_mm,
                       double                   upper_z_mm)
 {
-    using namespace trianglulate_wall_detail;
-
     if (upper.points.size() < 3 || lower.points.size() < 3) return;
 
+    const Sc lower_z = static_cast<Sc>(lower_z_mm);
+    const Sc upper_z = static_cast<Sc>(upper_z_mm);
+
     pts.reserve(lower.points.size() + upper.points.size());
-    for (auto &p : lower.points)
-        pts.emplace_back(unscaled(p.x()), unscaled(p.y()), lower_z_mm);
-    for (auto &p : upper.points)
-        pts.emplace_back(unscaled(p.x()), unscaled(p.y()), upper_z_mm);
+    for (const auto &p : lower.points)
+        pts.emplace_back(static_cast<Sc>(unscaled(p.x())), static_cast<Sc>(unscaled(p.y())), lower_z);
+    for (const auto &p : upper.points)
+        pts.emplace_back(static_cast<Sc>(unscaled(p.x())), static_cast<Sc>(unscaled(p.y())), upper_z);
 
     ind.reserve(2 * (lower.size() + upper.size()));
 
-    Ring lring{0, lower.points.size()}, uring{lower.points.size(), pts.size()};
-    Triangulator t{&pts, lring, uring};
+    trianglulate_wall_detail::Ring lring{0, lower.points.size()}, uring{lower.points.size(), pts.size()};
+    trianglulate_wall_detail::Triangulator t{&pts, lring, uring};
     t.run(ind);
 }
 

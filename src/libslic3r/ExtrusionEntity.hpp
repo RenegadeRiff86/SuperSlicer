@@ -106,11 +106,10 @@ public:
 };
 
 
-//FIXME: this is unsafe. it's a collection of row pointer that isn't ours
+// Non-owning pointers: callers keep ExtrusionEntity lifetimes (typically ExtrusionEntityCollection).
 using ExtrusionEntitiesPtr = std::vector<ExtrusionEntity*>;
 
-//FIXME: this is unsafe. it contains a raw pointer that isn't ours
-// Const reference for ordering extrusion entities without having to modify them.
+// Non-owning const reference for ordering paths without copying geometry.
 class ExtrusionEntityReference final
 {
 public:
@@ -130,7 +129,7 @@ private:
     bool                   m_flipped;
 };
 
-//FIXME: this is still unsafe. it's a collection of unsafe container.
+// Non-owning collection of ExtrusionEntityReference values.
 using ExtrusionEntityReferences = std::vector<ExtrusionEntityReference>;
 
 struct ExtrusionFlow
@@ -191,7 +190,7 @@ inline bool operator==(const ExtrusionAttributes &lhs, const ExtrusionAttributes
 class ExtrusionPath : public ExtrusionEntity
 {
 public:
-    ArcPolyline polyline; //TODO: protected
+    ArcPolyline polyline; // Possible refactor: should be protected, but many call sites still access it directly
 
     //ExtrusionPath(ExtrusionRole role) : ExtrusionEntity(true), m_attributes{role} {}
     ExtrusionPath(const ExtrusionAttributes &attributes, bool can_reverse = true) : ExtrusionEntity(can_reverse), m_attributes(attributes) {}
@@ -338,7 +337,7 @@ public:
         std::reverse(this->z_offsets.begin(), this->z_offsets.end());
     }
 
-    //TODO: simplify only for points that have the same z-offset
+    // Simplification must preserve each run of equal Z offsets; crossing an offset change would alter the 3D path.
     void simplify(double tolerance, ArcFittingType use_arc_fitting, double fitting_arc_tolerance) override;
 };
 typedef std::vector<ExtrusionPath3D> ExtrusionPaths3D;

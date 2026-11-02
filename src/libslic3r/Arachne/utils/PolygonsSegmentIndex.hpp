@@ -4,8 +4,6 @@
 #ifndef UTILS_POLYGONS_SEGMENT_INDEX_H
 #define UTILS_POLYGONS_SEGMENT_INDEX_H
 
-#include <vector>
-
 #include "PolygonsPointIndex.hpp"
 
 namespace Slic3r::Arachne

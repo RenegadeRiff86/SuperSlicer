@@ -167,7 +167,7 @@ VoronoiDiagram::detect_known_issues(const VoronoiDiagram &voronoi_diagram, Segme
             // Detection of non-planar Voronoi diagram detects at least GH issues #8474, #8514 and #8446.
             return IssueType::NON_PLANAR_VORONOI_DIAGRAM;
         }
-    } catch (std::exception) {
+    } catch (const std::exception &) {
         return IssueType::UNKNOWN;
     }
 
@@ -328,7 +328,7 @@ VoronoiDiagram::try_to_repair_degenerated_voronoi_diagram_by_rotation(const Segm
             }
         }
 
-        // FIXME @hejllukas: Implement mapping also for source points and not just for source segments.
+        // Known limitation (@hejllukas): mapping is implemented only for source segments, not for source points.
     }
 
     // Rotate all Voronoi vertices back.

@@ -28,8 +28,8 @@ static void draw_transparent_icon(const IconManager::Icon &icon); // only help f
 }
 
 IconManager::~IconManager() {
-	priv::clear(m_icons);
-	// release opengl texture is made in ~GLTexture()
+    priv::clear(m_icons);
+    // release opengl texture is made in ~GLTexture()
 
     if (m_id != 0)
         glsafe(::glDeleteTextures(1, &m_id));
@@ -65,7 +65,7 @@ void subdata(unsigned char *data, size_t data_stride, const std::vector<unsigned
     for (size_t data2_offset = 0, data_offset = 0; 
         data2_offset < data2.size();
         data2_offset += data2_row, data_offset += data_stride)   
-        ::memcpy((void *)(data + data_offset), (const void *)(data2.data() + data2_offset), data2_row);
+        ::memcpy(data + data_offset, data2.data() + data2_offset, data2_row);
 }
 }
 
@@ -75,7 +75,7 @@ IconManager::Icons IconManager::init(const InitTypes &input)
     if (input.empty())
         return {};
 
-    // TODO: remove in future
+    // Re-init replaces the atlas: free the previous GL texture if any.
     if (m_id != 0) {
         glsafe(::glDeleteTextures(1, &m_id));
         m_id = 0;
@@ -84,7 +84,7 @@ IconManager::Icons IconManager::init(const InitTypes &input)
     int total_surface = 0;
     for (const InitType &i : input)
         total_surface += i.size.x * i.size.y;
-    const int surface_sqrt = (int)sqrt((float)total_surface) + 1;
+    const int surface_sqrt = static_cast<int>(sqrt(static_cast<float>(total_surface))) + 1;
 
     // Start packing
     // Pack our extra data rectangles first, so it will be on the upper-left corner of our texture (UV will have small values).
@@ -98,7 +98,7 @@ IconManager::Icons IconManager::init(const InitTypes &input)
 
     ImVector<stbrp_rect> pack_rects;
     pack_rects.resize(input.size());
-    memset(pack_rects.Data, 0, (size_t) pack_rects.size_in_bytes());
+    memset(pack_rects.Data, 0, static_cast<size_t>(pack_rects.size_in_bytes()));
     for (size_t i = 0; i < input.size(); i++) {
         const ImVec2 &size = input[i].size;
         assert(size.x > 1);
@@ -204,11 +204,11 @@ IconManager::Icons IconManager::init(const InitTypes &input)
 
     glsafe(::glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
     glsafe(::glGenTextures(1, &m_id));
-    glsafe(::glBindTexture(GL_TEXTURE_2D, (GLuint) m_id));
+    glsafe(::glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(m_id)));
     glsafe(::glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
     glsafe(::glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0));
     glsafe(::glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-    glsafe(::glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) tex_size.x, (GLsizei) tex_size.y, 0, GL_RGBA, GL_UNSIGNED_BYTE,  (const void*) data.data()));    
+    glsafe(::glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>(tex_size.x), static_cast<GLsizei>(tex_size.y), 0, GL_RGBA, GL_UNSIGNED_BYTE, data.data()));    
 
     // bind no texture
     glsafe(::glBindTexture(GL_TEXTURE_2D, 0));
@@ -224,9 +224,8 @@ std::vector<IconManager::Icons> IconManager::init(const std::vector<std::string>
     assert(size.x >= 1);
     assert(size.x < 256*16);
 
-    // TODO: remove in future
+    // Re-init: drop previous atlas entries before packing a new set.
     if (!m_icons.empty()) {
-        // not first initialization
         priv::clear(m_icons);
         m_icons.clear();
         m_icons_texture.reset();
@@ -243,8 +242,8 @@ std::vector<IconManager::Icons> IconManager::init(const std::vector<std::string>
         
     bool compress  = false;
     bool is_loaded = m_icons_texture.load_from_svg_files_as_sprites_array(file_paths, states, width, compress);
-    if (!is_loaded || (size_t) m_icons_texture.get_width() < (states.size() * width) ||
-        (size_t) m_icons_texture.get_height() < (file_paths.size() * width)) {
+    if (!is_loaded || static_cast<size_t>(m_icons_texture.get_width()) < (states.size() * width) ||
+        static_cast<size_t>(m_icons_texture.get_height()) < (file_paths.size() * width)) {
         // bad load of icons, but all usage of m_icons_texture check that texture is initialized
         assert(false);
         m_icons_texture.reset();
@@ -288,34 +287,34 @@ std::vector<IconManager::Icons> IconManager::init(const std::vector<std::string>
         }
         result.emplace_back(std::move(file_icons));
     }
-	return result;
+    return result;
 }
 
 void IconManager::release() {
-	BOOST_LOG_TRIVIAL(error) << "Not implemented yet";
+    BOOST_LOG_TRIVIAL(error) << "Not implemented yet";
 }
 
 void priv::clear(IconManager::Icons &icons) {
     std::string message;
-	for (auto &icon : icons) {
-		// Exist more than this instance of shared ptr?
+    for (auto &icon : icons) {
+        // Exist more than this instance of shared ptr?
         long count = icon.use_count();
         if (count != 1) {
-			// in existing icon change texture to non existing one
+            // in existing icon change texture to non existing one
             icon->tex_id = 0;
 
             std::string descr = 
-				((count > 2) ? (std::to_string(count - 1) + "x") : "") + // count
-				std::to_string(icon->size.x) + "x" + std::to_string(icon->size.y); // resolution
+                ((count > 2) ? (std::to_string(count - 1) + "x") : "") + // count
+                std::to_string(icon->size.x) + "x" + std::to_string(icon->size.y); // resolution
             if (message.empty())
                 message = descr;
             else
                 message += ", " + descr;
-		}
-	}
+        }
+    }
 
     if (!message.empty())
-		BOOST_LOG_TRIVIAL(warning) << "There is still used icons(" << message << ").";
+        BOOST_LOG_TRIVIAL(warning) << "There is still used icons(" << message << ").";
 }
 
 const std::vector<std::pair<int, bool>> &priv::get_states(IconManager::RasterType type) {
@@ -372,7 +371,7 @@ void draw(const IconManager::Icon &icon, const ImVec2 &size, const ImVec4 &tint_
         return;
     }
 
-    ImTextureID id = (void *)static_cast<intptr_t>(icon.tex_id);
+    ImTextureID id = reinterpret_cast<void*>(static_cast<intptr_t>(icon.tex_id));
     const ImVec2 &s  = (size.x < 1 || size.y < 1) ? icon.size : size;
     ImGui::Image(id, s, icon.tl, icon.br, tint_col, border_col);
 }

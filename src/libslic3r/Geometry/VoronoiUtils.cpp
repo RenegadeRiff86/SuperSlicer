@@ -212,7 +212,7 @@ VoronoiUtils::compute_segment_cell_range(const VD::cell_type &cell, const Segmen
     const Vec2i64  from_i64       = from.template cast<int64_t>();
     const Vec2i64  to_i64         = to.template cast<int64_t>();
 
-    // FIXME @hejllukas: Ensure that there is no infinite edge during iteration between edge_begin and edge_end.
+    // Robustness note (@hejllukas): iteration between edge_begin and edge_end assumes no infinite edge is encountered; this is not verified.
     SegmentCellRange cell_range(to, from);
 
     // Find starting edge and end edge

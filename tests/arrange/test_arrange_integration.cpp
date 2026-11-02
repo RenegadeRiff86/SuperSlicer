@@ -622,8 +622,8 @@ TEMPLATE_TEST_CASE("Bed needs to be completely filled with 1cm cubes",
     cfg.load_from_ini(basepath + "default_fff.ini",
                       ForwardCompatibilitySubstitutionRule::Enable);
     cfg.set_key_value("bed_shape",
-                      new ConfigOptionPoints(
-                          {{0., 0.}, {100., 0.}, {100., 100.}, {0, 100.}}));
+                      std::make_unique<ConfigOptionPoints>(
+                          std::vector<Vec2d>{{0., 0.}, {100., 0.}, {100., 100.}, {0, 100.}}));
 
     Model m;
 
@@ -1079,41 +1079,4 @@ TEST_CASE("Testing duplicate function to really duplicate the whole Model",
     REQUIRE(is_collision_free(range(task->selected)));
 }
 
-// TODO:
-//TEST_CASE("Testing fit-into-bed rotation search", "[arrange2][integration]")
-//{
-//    using namespace Slic3r;
-
-//    Model model;
-
-//    ModelObject* new_object = model.add_object();
-//    new_object->name = "big_cube";
-//    new_object->add_instance();
-//    TriangleMesh mesh = make_cube(205., 220., 10.);
-//    mesh.rotate_z(15 * PI / 180);
-
-//    ModelVolume* new_volume = new_object->add_volume(mesh);
-//    new_volume->name = new_object->name;
-
-//    store_3mf("rotfail.3mf", &model, nullptr, false);
-
-//    arr2::RectangleBed bed{scaled(250.), scaled(210.)};
-
-//    arr2::Scene scene{
-//        arr2::SceneBuilder{}
-//            .set_bed(bed)
-//            .set_model(model)
-//            .set_arrange_settings(arr2::ArrangeSettings{}
-//                .set_distance_from_objects(0.)
-//                .set_rotation_enabled(true)
-//            )
-//    };
-
-//    auto task   = arr2::ArrangeTask<arr2::ArrangeItem>::create(scene);
-//    auto result = task->process_native(arr2::DummyCtl{});
-
-//    REQUIRE(result->items.size() == 1);
-//    REQUIRE(arr2::get_rotation(result->items.front()) > 0.);
-//    REQUIRE(arr2::is_arranged(result->items.front()));
-//}
 

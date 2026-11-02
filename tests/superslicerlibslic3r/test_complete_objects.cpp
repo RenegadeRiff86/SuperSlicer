@@ -17,7 +17,7 @@ std::unique_ptr<Print> init_print_with_dist(DynamicPrintConfig &config, float di
     TestMesh m = TestMesh::cube_20x20x20;
     Model model{};
 
-    std::unique_ptr<Print> print(new Print{});
+    auto print = std::make_unique<Print>();
     ModelObject* object{ model.add_object() };
     object->name += std::string(mesh_names.at(m)) + ".stl"s;
     object->add_volume(mesh(m));
@@ -37,7 +37,14 @@ std::unique_ptr<Print> init_print_with_dist(DynamicPrintConfig &config, float di
 
     if (distance <= 0) {
         print->apply(model, config);
-        arrange_objects(model, InfiniteBed{}, ArrangeParams{ scale_t(10)/*min_object_distance(config)) }); PrintConfig::min_object_distance(&print->config(), 999999))/*/ });
+        // arr2::ArrangeSettings replaced ArrangeParams, and its distance is in mm rather than
+        // scaled units. The spacing has to come from the config (clearance radius, brim and
+        // skirt widths) as the original code intended - a flat 10mm is not enough once a
+        // skirt at skirt_distance=10 is in play, and validate() then reports a collision.
+        arr2::ArrangeSettings arrange_settings;
+        arrange_settings.set_distance_from_objects(
+            float(min_object_distance(static_cast<const ConfigBase*>(&config), 0)));
+        arrange_objects(model, arr2::InfiniteBed{}, arrange_settings);
         model.center_instances_around_point(Slic3r::Vec2d(100, 100));
     }
 
@@ -51,8 +58,8 @@ std::unique_ptr<Print> init_print_with_dist(DynamicPrintConfig &config, float di
 SCENARIO("Complete objects separatly") {
     GIVEN("20mm cubes and extruder_clearance_radius to 10") {
         ConfigSubstitutionContext subst(ForwardCompatibilitySubstitutionRule::Disable);
-        DynamicPrintConfig& config = Slic3r::DynamicPrintConfig::full_print_config();
-        config.set_key_value("fill_density", new ConfigOptionPercent(0));
+        DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
+        config.set_key_value("fill_density", std::make_unique<ConfigOptionPercent>(0));
         config.set_deserialize("nozzle_diameter", "0.4", subst);
         config.set_deserialize("layer_height", "0.3", subst);
         config.set_deserialize("extruder_clearance_height", "50", subst);
@@ -74,13 +81,13 @@ SCENARIO("Complete objects separatly") {
 
             //now with complete_objects
             THEN("complete objects") {
-                config.set_key_value("complete_objects", new ConfigOptionBool(true));
+                config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(true));
                 result = init_print_with_dist(config, 22)->validate();
                 REQUIRE(result.first == PrintBase::PrintValidationError::pveWrongPosition);
             }
         }
         WHEN("at the limit (~30 mm)") {
-            config.set_key_value("complete_objects", new ConfigOptionBool(true));
+            config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(true));
             THEN("(too near)") {
                 result = init_print_with_dist(config, 29.9)->validate();
                 REQUIRE(result.first == PrintBase::PrintValidationError::pveWrongPosition);
@@ -92,8 +99,11 @@ SCENARIO("Complete objects separatly") {
             }
         }
         WHEN("with a 10 mm brim, so the dist should be 40mm ") {
-            config.set_key_value("complete_objects", new ConfigOptionBool(true));
+            config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(true));
             config.set_deserialize("brim_width", "10", subst);
+            // min_object_distance() only adds the brim when brim_per_object is set (it has no
+            // per-object config otherwise), so the 40mm premise only holds with it enabled.
+            config.set_key_value("brim_per_object", std::make_unique<ConfigOptionBool>(true));
             THEN("(too near)") {
                 result = init_print_with_dist(config, 39.9)->validate();
                 REQUIRE(result.first == PrintBase::PrintValidationError::pveWrongPosition);
@@ -105,7 +115,7 @@ SCENARIO("Complete objects separatly") {
             }
         }
         WHEN("with a 10 mm dist short skirt, so the dist should be 40mm +extrusionwidth") {
-            config.set_key_value("complete_objects", new ConfigOptionBool(true));
+            config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(true));
             config.set_deserialize("skirts", "1", subst);
             config.set_deserialize("skirt_height", "1", subst);
             config.set_deserialize("skirt_distance", "10", subst);
@@ -126,8 +136,8 @@ SCENARIO("Complete objects separatly") {
 SCENARIO("Arrange is good enough") {
     GIVEN("20mm cubes and extruder_clearance_radius to 10") {
         ConfigSubstitutionContext subst(ForwardCompatibilitySubstitutionRule::Disable);
-        DynamicPrintConfig& config = Slic3r::DynamicPrintConfig::full_print_config();
-        config.set_key_value("fill_density", new ConfigOptionPercent(0));
+        DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
+        config.set_key_value("fill_density", std::make_unique<ConfigOptionPercent>(0));
         config.set_deserialize("nozzle_diameter", "0.4", subst);
         config.set_deserialize("layer_height", "0.3", subst);
         config.set_deserialize("extruder_clearance_height", "50", subst);
@@ -143,18 +153,18 @@ SCENARIO("Arrange is good enough") {
             REQUIRE(result.second == "");
         }
         WHEN("complete objects") {
-            config.set_key_value("complete_objects", new ConfigOptionBool(true));
+            config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(true));
             result = init_print_with_dist(config, -1)->validate();
             REQUIRE(result.second == "");
         }
         WHEN("complete objects whith brim") {
-            config.set_key_value("complete_objects", new ConfigOptionBool(true));
+            config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(true));
             config.set_deserialize("brim_width", "10", subst);
             result = init_print_with_dist(config, -1)->validate();
             REQUIRE(result.second == "");
         }
         WHEN("complete objects whith skirt") {
-            config.set_key_value("complete_objects", new ConfigOptionBool(true));
+            config.set_key_value("complete_objects", std::make_unique<ConfigOptionBool>(true));
             config.set_deserialize("skirts", "1", subst);
             config.set_deserialize("skirt_height", "1", subst);
             config.set_deserialize("skirt_distance", "10", subst);

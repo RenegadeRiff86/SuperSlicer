@@ -12,16 +12,16 @@ class StateHandler : public wxEvtHandler
 {
 public:
     enum State {
-        Enabled = 1,
-        Checked = 2,
-        Focused = 4,
-        Hovered = 8,
-        Pressed = 16,
-        Disabled = 1 << 16,
-        NotChecked = 2 << 16,
-        NotFocused = 4 << 16,
-        NotHovered = 8 << 16,
-        NotPressed = 16 << 16,
+        Enabled    = StateColor::Enabled,
+        Checked    = StateColor::Checked,
+        Focused    = StateColor::Focused,
+        Hovered    = StateColor::Hovered,
+        Pressed    = StateColor::Pressed,
+        Disabled   = StateColor::Disabled,
+        NotChecked = StateColor::NotChecked,
+        NotFocused = StateColor::NotFocused,
+        NotHovered = StateColor::NotHovered,
+        NotPressed = StateColor::NotPressed,
     };
 
 public:

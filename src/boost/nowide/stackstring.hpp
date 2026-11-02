@@ -10,6 +10,7 @@
 #include <boost/nowide/convert.hpp>
 #include <string.h>
 #include <algorithm>
+#include <memory>
 
 namespace boost {
 namespace nowide {
@@ -30,15 +31,15 @@ public:
     typedef CharIn input_char;
 
     basic_stackstring(basic_stackstring const &other) : 
-    mem_buffer_(0)
+    mem_buffer_(nullptr)
     {
         clear();
         if(other.mem_buffer_) {
             size_t len = 0;
             while(other.mem_buffer_[len])
                 len ++;
-            mem_buffer_ = new output_char[len + 1];
-            memcpy(mem_buffer_,other.mem_buffer_,sizeof(output_char) * (len+1));
+            mem_buffer_ = std::make_unique<output_char[]>(len + 1);
+            memcpy(mem_buffer_.get(), other.mem_buffer_.get(), sizeof(output_char) * (len+1));
         }
         else {
             memcpy(buffer_,other.buffer_,buffer_size * sizeof(output_char));
@@ -60,7 +61,7 @@ public:
         return *this;
     }
 
-    basic_stackstring() : mem_buffer_(0)
+    basic_stackstring() : mem_buffer_(nullptr)
     {
     }
     bool convert(input_char const *input)
@@ -79,8 +80,8 @@ public:
             return false;
         }
         else {
-            mem_buffer_ = new output_char[space];
-            if(!basic_convert(mem_buffer_,space,begin,end)) {
+            mem_buffer_ = std::make_unique<output_char[]>(space);
+            if(!basic_convert(mem_buffer_.get(),space,begin,end)) {
                 clear();
                 return false;
             }
@@ -91,21 +92,18 @@ public:
     output_char *c_str()
     {
         if(mem_buffer_)
-            return mem_buffer_;
+            return mem_buffer_.get();
         return buffer_;
     }
     output_char const *c_str() const
     {
         if(mem_buffer_)
-            return mem_buffer_;
+            return mem_buffer_.get();
         return buffer_;
     }
     void clear()
     {
-        if(mem_buffer_) {
-            delete [] mem_buffer_;
-            mem_buffer_=0;
-        }
+        mem_buffer_.reset();
         buffer_[0] = 0;
     }
     ~basic_stackstring()
@@ -124,8 +122,8 @@ private:
         else  // if(insize == 4 && outsize == 2) 
             return 2 * in;
     }
-    output_char buffer_[buffer_size];
-    output_char *mem_buffer_;
+    output_char buffer_[buffer_size]{};
+    std::unique_ptr<output_char[]> mem_buffer_;
 };  //basic_stackstring
 
 ///

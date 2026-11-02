@@ -32,6 +32,29 @@ static constexpr float max_segment_length = 5.f;
 // Bigger values affect the GCode export speed a lot, and smaller values could
 // affect how distant will be propagated a flow rate adjustment.
 static constexpr int max_look_back_limit = 128;
+static constexpr float kSecondsPerMinute = 60.f;
+
+// Position array layout: X=0, Y=1, Z=2, E=3, F=4 (feedrate).
+static constexpr int NUM_POS_COMPONENTS = 5; // X, Y, Z, E, F
+static constexpr int NUM_XYZE_AXES      = 4; // X, Y, Z, E (position/extrusion, excludes F)
+static constexpr int NUM_XYZ_AXES       = 3; // X, Y, Z only
+static constexpr int Z_AXIS_IDX         = 2;
+static constexpr int E_AXIS_IDX         = 3;
+static constexpr int F_AXIS_IDX         = 4;
+
+#ifdef PRESSURE_EQUALIZER_DEBUG
+static void log_low_flow_rate(const float rate, const size_t line_idx, const float length_squared,
+                              const float *diff, const float *current_pos, const float *new_pos)
+{
+    if (rate >= 40.f)
+        return;
+
+    printf("Extremely low flow rate: %f. Line %d, Length: %f, extrusion: %f Old position: (%f, %f, %f), new position: (%f, %f, %f)\n",
+           rate, int(line_idx), sqrt(length_squared),
+           sqrt((diff[E_AXIS_IDX] * diff[E_AXIS_IDX]) / length_squared), current_pos[0], current_pos[1],
+           current_pos[Z_AXIS_IDX], new_pos[0], new_pos[1], new_pos[Z_AXIS_IDX]);
+}
+#endif
 
 PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config) : m_use_relative_e_distances(config.use_relative_e_distances.value)
 {
@@ -42,7 +65,7 @@ PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config) : m_use_
 
     m_current_extruder = 0;
     // Zero the position of the XYZE axes + the current feed
-    memset(m_current_pos, 0, sizeof(float) * 5);
+    memset(m_current_pos, 0, sizeof(float) * NUM_POS_COMPONENTS);
     m_current_extrusion_role = GCodeExtrusionRole::None;
     // Expect the first command to fill the nozzle (deretract).
     m_retracted = true;
@@ -62,8 +85,8 @@ PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config) : m_use_
     // Volumetric rate of a 0.45mm x 0.2mm extrusion at 60mm/s XY movement: 0.45*0.2*60*60=5.4*60 = 324 mm^3/min
     // Volumetric rate of a 0.45mm x 0.2mm extrusion at 20mm/s XY movement: 0.45*0.2*20*60=1.8*60 = 108 mm^3/min
     // Slope of the volumetric rate, changing from 20mm/s to 60mm/s over 2 seconds: (5.4-1.8)*60*60/2=60*60*1.8 = 6480 mm^3/min^2 = 1.8 mm^3/s^2
-    m_max_volumetric_extrusion_rate_slope_positive = float(config.max_volumetric_extrusion_rate_slope_positive.value) * 60.f * 60.f;
-    m_max_volumetric_extrusion_rate_slope_negative = float(config.max_volumetric_extrusion_rate_slope_negative.value) * 60.f * 60.f;
+    m_max_volumetric_extrusion_rate_slope_positive = float(config.max_volumetric_extrusion_rate_slope_positive.value) * kSecondsPerMinute * kSecondsPerMinute;
+    m_max_volumetric_extrusion_rate_slope_negative = float(config.max_volumetric_extrusion_rate_slope_negative.value) * kSecondsPerMinute * kSecondsPerMinute;
 
     m_gcode_precision_xyz = config.gcode_precision_xyz.value;
     m_gcode_precision_e = config.gcode_precision_e.value;
@@ -89,6 +112,8 @@ PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config) : m_use_
     line_idx = 0;
 #endif
 }
+
+PressureEqualizer::~PressureEqualizer() = default;
 
 void PressureEqualizer::process_layer(const std::string &gcode)
 {
@@ -121,14 +146,14 @@ LayerResult PressureEqualizer::process_layer(LayerResult &&input)
     if (!input.nop_layer_result) {
         this->process_layer(input.gcode);
         input.gcode.clear(); // GCode is already processed, so it isn't needed to store it.
-        m_layer_results.emplace(new LayerResult(input));
+        m_layer_results.emplace(std::make_unique<LayerResult>(input));
     }
 
     if (is_first_layer) // Buffer previous input result and output NOP.
         return LayerResult::make_nop_layer_result();
 
     // Export previous layer.
-    LayerResult *prev_layer_result = m_layer_results.front();
+    std::unique_ptr<LayerResult> prev_layer_result = std::move(m_layer_results.front());
     m_layer_results.pop();
 
     output_buffer_length      = 0;
@@ -142,7 +167,6 @@ LayerResult PressureEqualizer::process_layer(LayerResult &&input)
 
     assert(!input.nop_layer_result || m_layer_results.empty());
     LayerResult out = *prev_layer_result;
-    delete prev_layer_result;
     return out;
 }
 
@@ -172,7 +196,7 @@ static inline int parse_int(const char *&line)
     return int(result);
 }
 
-float string_to_float_decimal_point(const char *line, const size_t str_len, size_t* pos)
+static float string_to_float_decimal_point(const char *line, const size_t str_len, size_t *pos)
 {
     float out;
     size_t p = fast_float::from_chars(line, line + str_len, out).ptr - line;
@@ -191,6 +215,130 @@ static inline float parse_float(const char *&line, const size_t line_length)
         throw Slic3r::RuntimeError("PressureEqualizer: Error parsing a float");
     line = line + endptr;
     return result;
+}
+
+static int gcode_axis_index(const char axis)
+{
+    switch (axis) {
+    case 'X':
+    case 'Y':
+    case 'Z':
+        return axis - 'X';
+    case 'E':
+        return E_AXIS_IDX;
+    case 'F':
+        return F_AXIS_IDX;
+    default:
+        return -1;
+    }
+}
+
+void PressureEqualizer::parse_axis_values(const char *&line, const char *line_end, float *new_pos, bool *changed, GCodeLine &buf)
+{
+    while (!is_eol(*line)) {
+        const int axis_idx = gcode_axis_index(toupper(*line++));
+        if (axis_idx == -1)
+            continue;
+
+        buf.pos_provided[axis_idx] = true;
+        new_pos[axis_idx] = parse_float(line, line_end - line);
+        if (axis_idx == E_AXIS_IDX && m_use_relative_e_distances)
+            new_pos[axis_idx] += m_current_pos[axis_idx];
+        changed[axis_idx] = new_pos[axis_idx] != m_current_pos[axis_idx];
+        eatws(line);
+    }
+}
+
+void PressureEqualizer::process_gcode(const int gcode, const char *&line, const char *line_end, GCodeLine &buf,
+                                      const bool found_extrude_set_speed_tag, const bool found_extrude_end_tag)
+{
+    switch (gcode) {
+    case 0:
+    case 1:
+    {
+        // G0, G1: A FFF 3D printer does not make a difference between the two.
+        buf.adjustable_flow = this->opened_extrude_set_speed_block;
+        buf.extrude_set_speed_tag = found_extrude_set_speed_tag;
+        buf.extrude_end_tag = found_extrude_end_tag;
+        float new_pos[NUM_POS_COMPONENTS];
+        memcpy(new_pos, m_current_pos, sizeof(float)*NUM_POS_COMPONENTS);
+        bool  changed[NUM_POS_COMPONENTS] = { false, false, false, false, false };
+        parse_axis_values(line, line_end, new_pos, changed, buf);
+        if (changed[E_AXIS_IDX]) {
+            // Extrusion, retract or unretract.
+            float diff = new_pos[E_AXIS_IDX] - m_current_pos[E_AXIS_IDX];
+            if (diff < 0) {
+                buf.type = GCODELINETYPE_RETRACT;
+                m_retracted = true;
+            } else if (! changed[0] && ! changed[1] && ! changed[Z_AXIS_IDX]) {
+                // assert(m_retracted);
+                buf.type = GCODELINETYPE_UNRETRACT;
+                m_retracted = false;
+            } else {
+                assert(changed[0] || changed[1]);
+                // Moving in XY plane.
+                buf.type = GCODELINETYPE_EXTRUDE;
+                // Calculate the volumetric extrusion rate.
+                float diff[NUM_XYZE_AXES];
+                for (size_t i = 0; i < NUM_XYZE_AXES; ++ i)
+                    diff[i] = new_pos[i] - m_current_pos[i];
+                // volumetric extrusion rate = A_filament * F_xyz * L_e / L_xyz [mm^3/min]
+                float len2 = diff[0]*diff[0]+diff[1]*diff[1]+diff[Z_AXIS_IDX]*diff[Z_AXIS_IDX];
+                float rate = m_filament_crossections[m_current_extruder] * new_pos[F_AXIS_IDX] * sqrt((diff[E_AXIS_IDX]*diff[E_AXIS_IDX])/len2);
+                buf.volumetric_extrusion_rate       = rate;
+                buf.volumetric_extrusion_rate_start = rate;
+                buf.volumetric_extrusion_rate_end   = rate;
+
+#ifdef PRESSURE_EQUALIZER_DEBUG
+                log_low_flow_rate(rate, line_idx, len2, diff, m_current_pos, new_pos);
+#endif
+            }
+        } else if (changed[0] || changed[1] || changed[Z_AXIS_IDX]) {
+            // Moving without extrusion.
+            buf.type = GCODELINETYPE_MOVE;
+        }
+        memcpy(m_current_pos, new_pos, sizeof(float) * NUM_POS_COMPONENTS);
+        break;
+    }
+    case 92: 
+    {
+        // G92 : Set Position
+        // Set a logical coordinate position to a new value without actually moving the machine motors.
+        // Which axes to set?
+        while (!is_eol(*line)) {
+            const char axis = toupper(*line++);
+            switch (axis) {
+            case 'X':
+            case 'Y':
+            case 'Z':
+                m_current_pos[axis - 'X'] = (!is_ws_or_eol(*line)) ? parse_float(line, line_end - line) : 0.f;
+                break;
+            case 'E':
+                m_current_pos[E_AXIS_IDX] = (!is_ws_or_eol(*line)) ? parse_float(line, line_end - line) : 0.f;
+                break;
+            default:
+                break;
+            }
+            eatws(line);
+        }
+        break;
+    }
+    case 10:
+    case 22:
+        // Firmware retract.
+        buf.type = GCODELINETYPE_RETRACT;
+        m_retracted = true;
+        break;
+    case 11:
+    case 23:
+        // Firmware unretract.
+        buf.type = GCODELINETYPE_UNRETRACT;
+        m_retracted = false;
+        break;
+    default:
+        // Ignore the rest.
+    break;
+    }
 }
 
 bool PressureEqualizer::process_line(const char *line, const char *line_end, GCodeLine &buf)
@@ -216,9 +364,9 @@ bool PressureEqualizer::process_line(const char *line, const char *line_end, GCo
     buf.raw[len] = 0;
     buf.raw_length = len;
 
-    memcpy(buf.pos_start, m_current_pos, sizeof(float)*5);
-    memcpy(buf.pos_end, m_current_pos, sizeof(float)*5);
-    memset(buf.pos_provided, 0, 5);
+    memcpy(buf.pos_start, m_current_pos, sizeof(float)*NUM_POS_COMPONENTS);
+    memcpy(buf.pos_end, m_current_pos, sizeof(float)*NUM_POS_COMPONENTS);
+    memset(buf.pos_provided, 0, NUM_POS_COMPONENTS);
 
     buf.volumetric_extrusion_rate = 0.f;
     buf.volumetric_extrusion_rate_start = 0.f;
@@ -251,126 +399,7 @@ bool PressureEqualizer::process_line(const char *line, const char *line_end, GCo
 
         assert(gcode != -1);
         eatws(line);
-        switch (gcode) {
-        case 0:
-        case 1:
-        {
-            // G0, G1: A FFF 3D printer does not make a difference between the two.
-            buf.adjustable_flow = this->opened_extrude_set_speed_block;
-            buf.extrude_set_speed_tag = found_extrude_set_speed_tag;
-            buf.extrude_end_tag = found_extrude_end_tag;
-            float new_pos[5];
-            memcpy(new_pos, m_current_pos, sizeof(float)*5);
-            bool  changed[5] = { false, false, false, false, false };
-            while (!is_eol(*line)) {
-                const char axis = toupper(*line++);
-                int  i = -1;
-                switch (axis) {
-                case 'X':
-                case 'Y':
-                case 'Z':
-                    i = axis - 'X';
-                    break;
-                case 'E':
-                    i = 3;
-                    break;
-                case 'F':
-                    i = 4;
-                    break;
-                default:
-                    break;
-                }
-                if (i != -1) {
-                    buf.pos_provided[i] = true;
-                    new_pos[i] = parse_float(line, line_end - line);
-                    if (i == 3 && m_use_relative_e_distances)
-                        new_pos[i] += m_current_pos[i];
-                    changed[i] = new_pos[i] != m_current_pos[i];
-                    eatws(line);
-                }
-            }
-            if (changed[3]) {
-                // Extrusion, retract or unretract.
-                float diff = new_pos[3] - m_current_pos[3];
-                if (diff < 0) {
-                    buf.type = GCODELINETYPE_RETRACT;
-                    m_retracted = true;
-                } else if (! changed[0] && ! changed[1] && ! changed[2]) {
-                    // assert(m_retracted);
-                    buf.type = GCODELINETYPE_UNRETRACT;
-                    m_retracted = false;
-                } else {
-                    assert(changed[0] || changed[1]);
-                    // Moving in XY plane.
-                    buf.type = GCODELINETYPE_EXTRUDE;
-                    // Calculate the volumetric extrusion rate.
-                    float diff[4];
-                    for (size_t i = 0; i < 4; ++ i)
-                        diff[i] = new_pos[i] - m_current_pos[i];
-                    // volumetric extrusion rate = A_filament * F_xyz * L_e / L_xyz [mm^3/min]
-                    float len2 = diff[0]*diff[0]+diff[1]*diff[1]+diff[2]*diff[2];
-                    float rate = m_filament_crossections[m_current_extruder] * new_pos[4] * sqrt((diff[3]*diff[3])/len2);
-                    buf.volumetric_extrusion_rate       = rate;
-                    buf.volumetric_extrusion_rate_start = rate;
-                    buf.volumetric_extrusion_rate_end   = rate;
-
-#ifdef PRESSURE_EQUALIZER_STATISTIC
-                    m_stat.update(rate, sqrt(len2));
-#endif
-#ifdef PRESSURE_EQUALIZER_DEBUG
-                    if (rate < 40.f) {
-                        printf("Extremely low flow rate: %f. Line %d, Length: %f, extrusion: %f Old position: (%f, %f, %f), new position: (%f, %f, %f)\n",
-                               rate, int(line_idx), sqrt(len2), sqrt((diff[3] * diff[3]) / len2), m_current_pos[0], m_current_pos[1], m_current_pos[2],
-                               new_pos[0], new_pos[1], new_pos[2]);
-                    }
-#endif
-                }
-            } else if (changed[0] || changed[1] || changed[2]) {
-                // Moving without extrusion.
-                buf.type = GCODELINETYPE_MOVE;
-            }
-            memcpy(m_current_pos, new_pos, sizeof(float) * 5);
-            break;
-        }
-        case 92: 
-        {
-            // G92 : Set Position
-            // Set a logical coordinate position to a new value without actually moving the machine motors.
-            // Which axes to set?
-            while (!is_eol(*line)) {
-                const char axis = toupper(*line++);
-                switch (axis) {
-                case 'X':
-                case 'Y':
-                case 'Z':
-                    m_current_pos[axis - 'X'] = (!is_ws_or_eol(*line)) ? parse_float(line, line_end - line) : 0.f;
-                    break;
-                case 'E':
-                    m_current_pos[3] = (!is_ws_or_eol(*line)) ? parse_float(line, line_end - line) : 0.f;
-                    break;
-                default:
-                    break;
-                }
-                eatws(line);
-            }
-            break;
-        }
-        case 10:
-        case 22:
-            // Firmware retract.
-            buf.type = GCODELINETYPE_RETRACT;
-            m_retracted = true;
-            break;
-        case 11:
-        case 23:
-            // Firmware unretract.
-            buf.type = GCODELINETYPE_UNRETRACT;
-            m_retracted = false;
-            break;
-        default:
-            // Ignore the rest.
-        break;
-        }
+        process_gcode(gcode, line, line_end, buf, found_extrude_set_speed_tag, found_extrude_end_tag);
         break;
     }
     case 'M': {
@@ -407,7 +436,7 @@ bool PressureEqualizer::process_line(const char *line, const char *line_end, GCo
     }
 
     buf.extruder_id = m_current_extruder;
-    memcpy(buf.pos_end, m_current_pos, sizeof(float)*5);
+    memcpy(buf.pos_end, m_current_pos, sizeof(float)*NUM_POS_COMPONENTS);
 
     adjust_volumetric_rate();
 #ifdef PRESSURE_EQUALIZER_DEBUG
@@ -419,7 +448,6 @@ bool PressureEqualizer::process_line(const char *line, const char *line_end, GCo
 void PressureEqualizer::parse_activate_extruder(const std::string &line_str)
 {
     if (size_t cmd_end = line_str.find("CTIVATE_EXTRUDER"); cmd_end != std::string::npos) {
-        bool   error              = false;
         size_t extruder_pos_start = line_str.find("EXTRUDER", cmd_end + std::string_view("CTIVATE_EXTRUDER").size()) +
                                     std::string_view("EXTRUDER").size();
         assert(line_str[extruder_pos_start - 1] == 'R');
@@ -479,9 +507,9 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
     } else {
         bool accelerating = line.volumetric_extrusion_rate_start < line.volumetric_extrusion_rate_end;
         // Update the initial and final feed rate values.
-        line.pos_start[4] = line.volumetric_extrusion_rate_start * line.pos_end[4] / line.volumetric_extrusion_rate;
-        line.pos_end  [4] = line.volumetric_extrusion_rate_end   * line.pos_end[4] / line.volumetric_extrusion_rate;
-        float feed_avg = 0.5f * (line.pos_start[4] + line.pos_end[4]);
+        line.pos_start[F_AXIS_IDX] = line.volumetric_extrusion_rate_start * line.pos_end[F_AXIS_IDX] / line.volumetric_extrusion_rate;
+        line.pos_end  [F_AXIS_IDX] = line.volumetric_extrusion_rate_end   * line.pos_end[F_AXIS_IDX] / line.volumetric_extrusion_rate;
+        float feed_avg = 0.5f * (line.pos_start[F_AXIS_IDX] + line.pos_end[F_AXIS_IDX]);
         // Limiting volumetric extrusion rate slope for this segment.
         float max_volumetric_extrusion_rate_slope = accelerating ? line.max_volumetric_extrusion_rate_slope_positive :
                                                                    line.max_volumetric_extrusion_rate_slope_negative;
@@ -503,71 +531,71 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
             } else
                 nSegments = size_t(ceil(l_acc / max_segment_length));
         }
-        float pos_start[5];
-        float pos_end[5];
-        float pos_end2[4];
-        memcpy(pos_start, line.pos_start, sizeof(float) * 5);
-        memcpy(pos_end, line.pos_end, sizeof(float) * 5);
+        float pos_start[NUM_POS_COMPONENTS];
+        float pos_end[NUM_POS_COMPONENTS];
+        float pos_end2[NUM_XYZE_AXES];
+        memcpy(pos_start, line.pos_start, sizeof(float) * NUM_POS_COMPONENTS);
+        memcpy(pos_end, line.pos_end, sizeof(float) * NUM_POS_COMPONENTS);
         if (l_steady > 0.f) {
             // There will be a steady feed segment emitted.
             if (accelerating) {
                 // Prepare the final steady feed rate segment.
-                memcpy(pos_end2, pos_end, sizeof(float)*4);
+                memcpy(pos_end2, pos_end, sizeof(float)*NUM_XYZE_AXES);
                 float t = l_acc / l;
-                for (int i = 0; i < 4; ++ i) {
+                for (int i = 0; i < NUM_XYZE_AXES; ++ i) {
                     pos_end[i] = pos_start[i] + (pos_end[i] - pos_start[i]) * t;
                     line.pos_provided[i] = true;
                 }
             } else {
                 // Emit the steady feed rate segment.
                 float t = l_steady / l;
-                for (int i = 0; i < 4; ++ i) {
+                for (int i = 0; i < NUM_XYZE_AXES; ++ i) {
                     line.pos_end[i] = pos_start[i] + (pos_end[i] - pos_start[i]) * t;
                     line.pos_provided[i] = true;
                 }
-                push_line_to_output(line_idx, pos_start[4], comment);
+                push_line_to_output(line_idx, pos_start[F_AXIS_IDX], comment);
                 comment = nullptr;
 
-                float new_pos_start_feedrate = pos_start[4];
+                float new_pos_start_feedrate = pos_start[F_AXIS_IDX];
 
-                memcpy(line.pos_start, line.pos_end, sizeof(float)*5);
-                memcpy(pos_start, line.pos_end, sizeof(float)*5);
+                memcpy(line.pos_start, line.pos_end, sizeof(float)*NUM_POS_COMPONENTS);
+                memcpy(pos_start, line.pos_end, sizeof(float)*NUM_POS_COMPONENTS);
 
-                line.pos_start[4] = new_pos_start_feedrate;
-                pos_start[4] = new_pos_start_feedrate;
+                line.pos_start[F_AXIS_IDX] = new_pos_start_feedrate;
+                pos_start[F_AXIS_IDX] = new_pos_start_feedrate;
             }
         }
         // Split the segment into pieces.
         for (size_t i = 1; i < nSegments; ++ i) {
             float t = float(i) / float(nSegments);
-            for (size_t j = 0; j < 4; ++ j) {
+            for (size_t j = 0; j < NUM_XYZE_AXES; ++ j) {
                 line.pos_end[j] = pos_start[j] + (pos_end[j] - pos_start[j]) * t;
                 line.pos_provided[j] = true;
             } 
             // Interpolate the feed rate at the center of the segment.
-            push_line_to_output(line_idx, pos_start[4] + (pos_end[4] - pos_start[4]) * (float(i) - 0.5f) / float(nSegments), comment);
+            push_line_to_output(line_idx, pos_start[F_AXIS_IDX] + (pos_end[F_AXIS_IDX] - pos_start[F_AXIS_IDX]) * (float(i) - 0.5f) / float(nSegments), comment);
             comment = nullptr;
-            memcpy(line.pos_start, line.pos_end, sizeof(float)*5);
+            memcpy(line.pos_start, line.pos_end, sizeof(float)*NUM_POS_COMPONENTS);
         }
         if (l_steady > 0.f && accelerating) {
-            for (int i = 0; i < 4; ++ i) {
+            for (int i = 0; i < NUM_XYZE_AXES; ++ i) {
                 line.pos_end[i] = pos_end2[i];
                 line.pos_provided[i] = true;
             }
-            push_line_to_output(line_idx, pos_end[4], comment);
+            push_line_to_output(line_idx, pos_end[F_AXIS_IDX], comment);
         } else {
-            for (int i = 0; i < 4; ++ i) {
+            for (int i = 0; i < NUM_XYZE_AXES; ++ i) {
                 line.pos_end[i] = pos_end[i];
                 line.pos_provided[i] = true;
             }
-            push_line_to_output(line_idx, pos_end[4], comment);
+            push_line_to_output(line_idx, pos_end[F_AXIS_IDX], comment);
         }
     }
 }
 
 void PressureEqualizer::adjust_volumetric_rate()
 {
-    if (m_gcode_lines.size() < 2)
+    if (m_gcode_lines.size() < 2)  // need at least 2 lines to compute a slope
         return;
 
     // Go back from the current circular_buffer_pos and lower the feedtrate to decrease the slope of the extrusion rate changes.
@@ -732,8 +760,8 @@ inline void PressureEqualizer::push_to_output(const char *text, const size_t len
         // http://graphics.stanford.edu/~seander/bithacks.html
         v--;
         v |= v >> 1;
-        v |= v >> 2;
-        v |= v >> 4;
+        v |= v >> 2;  // round v up to the next power of 2 (see the bit-hack link above)
+        v |= v >> 4;  // bit-hack continued: propagate the highest set bit down
         v |= v >> 8;
         v |= v >> 16;
         v++;
@@ -751,12 +779,12 @@ inline void PressureEqualizer::push_to_output(const char *text, const size_t len
     output_buffer[output_buffer_length] = 0;
 }
 
-inline bool is_just_line_with_extrude_set_speed_tag(const std::string &line)
+static inline bool is_just_line_with_extrude_set_speed_tag(const std::string &line)
 {
-    if (line.empty() && !boost::starts_with(line, "G1 ") && !boost::ends_with(line, EXTRUDE_SET_SPEED_TAG))
+    if (line.empty() || !boost::starts_with(line, "G1 ") || !boost::ends_with(line, EXTRUDE_SET_SPEED_TAG))
         return false;
 
-    const char       *p_line   = line.data() + 3;
+    const char       *p_line   = line.data() + (sizeof("G1 ") - 1);
     const char *const line_end = line.data() + line.length() - 1;
     while (!is_eol(*p_line)) {
         if (toupper(*p_line++) == 'F')
@@ -792,7 +820,7 @@ void PressureEqualizer::push_line_to_output(const size_t line_idx, const float n
     push_to_output(feedrate_formatter);
 
     GCodeG1Formatter extrusion_formatter(m_gcode_precision_xyz, m_gcode_precision_e);
-    for (size_t axis_idx = 0; axis_idx < 3; ++axis_idx)
+    for (size_t axis_idx = 0; axis_idx < NUM_XYZ_AXES; ++axis_idx)
         if (line.pos_provided[axis_idx])
             extrusion_formatter.emit_axis(char('X' + axis_idx), line.pos_end[axis_idx], extrusion_formatter.m_gcode_precision_xyz);
     extrusion_formatter.emit_axis('E', m_use_relative_e_distances ? (line.pos_end[3] - line.pos_start[3]) : line.pos_end[3], extrusion_formatter.m_gcode_precision_e);

@@ -35,7 +35,7 @@ std::string WipeTowerIntegration::toolchange_gcode_from_wipe_tower_generator(GCo
     if (tcr.priming || (new_extruder_id >= 0)) {
         if (is_ramming)
             gcodegen.m_wipe.reset_path(); // We don't want wiping on the ramming lines.
-        toolchange_gcode_str = gcodegen.set_extruder(new_extruder_id, tcr.print_z); // TODO: toolchange_z vs print_z
+        toolchange_gcode_str = gcodegen.set_extruder(new_extruder_id, tcr.print_z); // open question (upstream): should this use toolchange_z instead of print_z?
     }
     assert(toolchange_gcode_str.empty() || toolchange_gcode_str.back() == '\n');
     return toolchange_gcode_str;
@@ -198,7 +198,6 @@ std::string WipeTowerIntegration::post_process_wipe_tower_moves(const WipeTower:
 
     std::string extruder_letter = gcodegen.writer().extrusion_axis();
 
-    bool is_absolute_e = !gcodegen.writer().gcode_config().use_relative_e_distances.value;
     Tool* current_tool = gcodegen.writer().tool();
     assert(current_tool);
     assert(current_tool->id() == tcr.initial_tool);

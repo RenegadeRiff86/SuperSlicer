@@ -8,15 +8,13 @@
 
 #include <wx/dcmemory.h>
 
-const int px_cnt = 16;
-
 GraphBitmapButton::GraphBitmapButton(wxWindow* parent, const wxSize &size/*, const wxString& name*/)
     : wxBitmapButton()
     , m_image(size)
     , m_image_disabled(size)
     , m_image_focused(size)
 {
-    wxBitmapButton::Create(parent, wxID_ANY, m_image, wxDefaultPosition, size, wxBORDER_NONE/*wxBORDER_SIMPLE/*, wxDefaultValidator, name*/);
+    wxBitmapButton::Create(parent, wxID_ANY, m_image, wxDefaultPosition, size, wxBORDER_NONE);
 #ifdef __WXMSW__
     if (parent) {
         SetBackgroundColour(parent->GetBackgroundColour());
@@ -146,8 +144,6 @@ void GraphBitmapButton::draw_bitmap(wxDC &mem_dc,
     // iterate from 0 to max X
     Slic3r::Pointfs points = data_storage.data();
     if (points.empty()) {
-        // TODO: draw localised "disabled"
-        //this->SetLabelText(_L("Disabled"));
         mem_dc.DrawText(_L("Disabled"), 1, 1);
     } else {
         //if (!GetLabelText().empty()) {

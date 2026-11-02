@@ -17,16 +17,19 @@
 
 namespace Slic3r {
 
+static constexpr int LINE_ENDPOINT_COUNT = 2;
+static constexpr int Z_AXIS_INDEX = 2;
+
 Linef3 transform(const Linef3& line, const Transform3d& t)
 {
-    typedef Eigen::Matrix<double, 3, 2> LineInMatrixForm;
+    typedef Eigen::Matrix<double, 3, LINE_ENDPOINT_COUNT> LineInMatrixForm;
 
     LineInMatrixForm world_line;
     ::memcpy(reinterpret_cast<void*>(world_line.col(0).data()), reinterpret_cast<const void*>(line.a.data()), 3 * sizeof(double));
     ::memcpy(reinterpret_cast<void*>(world_line.col(1).data()), reinterpret_cast<const void*>(line.b.data()), 3 * sizeof(double));
 
     LineInMatrixForm local_line = t * world_line.colwise().homogeneous();
-    return Linef3(Vec3d(local_line(0, 0), local_line(1, 0), local_line(2, 0)), Vec3d(local_line(0, 1), local_line(1, 1), local_line(2, 1)));
+    return Linef3(Vec3d(local_line(0, 0), local_line(1, 0), local_line(Z_AXIS_INDEX, 0)), Vec3d(local_line(0, 1), local_line(1, 1), local_line(Z_AXIS_INDEX, 1)));
 }
 
 bool Line::intersection_infinite(const Line &other, Point* point) const
@@ -63,7 +66,7 @@ coordf_t Line::perp_distance_to(const Point &point) const
 double Line::orientation() const
 {
     double angle = this->atan2_();
-    if (angle < 0) angle = 2*PI + angle;
+    if (angle < 0) angle = 2 * PI + angle; // Add one full turn to wrap a negative angle.
     return angle;
 }
 
@@ -124,8 +127,8 @@ void Line::extend(coordf_t offset)
 
 Vec3d Linef3::intersect_plane(coordf_t z) const
 {
-    auto   v = (this->b - this->a).cast<double>();
-    double t = (z - this->a(2)) / v(2);
+    const Vec3d v = this->b - this->a;
+    double t = (z - this->a(Z_AXIS_INDEX)) / v(Z_AXIS_INDEX);
     return Vec3d(this->a(0) + v(0) * t, this->a(1) + v(1) * t, z);
 }
 

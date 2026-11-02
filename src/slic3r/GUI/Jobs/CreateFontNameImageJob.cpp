@@ -84,7 +84,7 @@ void CreateFontImageJob::process(Ctl &ctl)
         m_input.cancel->store(true);
         return;
     }
-    double scale = m_input.size.y() / (double) bounding_box.size().y();
+    double scale = m_input.size.y() / static_cast<double>(bounding_box.size().y());
     BoundingBoxf bb2(bounding_box.min.cast<double>(),
                      bounding_box.max.cast<double>());
     bb2.scale(scale);
@@ -113,7 +113,7 @@ void CreateFontImageJob::process(Ctl &ctl)
          gray_level = m_input.gray_level]
     (const void *ptr, size_t width, size_t height, size_t num_components) {        
         size_t size {static_cast<size_t>(w*h)};
-        const unsigned char *ptr2 = (const unsigned char *) ptr;
+        const unsigned char *ptr2 = static_cast<const unsigned char*>(ptr);
         for (size_t x = 0; x < width; ++x)
             for (size_t y = 0; y < height; ++y) { 
                 size_t index = y*w + x;

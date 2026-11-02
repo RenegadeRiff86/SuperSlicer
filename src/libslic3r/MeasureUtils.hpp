@@ -310,7 +310,7 @@ public:
         std::vector<double> derivCoeff(static_cast<size_t>(derivDegree) + 1);
         std::vector<double> derivRoots(derivDegree);
         for (int32_t i = 0, ip1 = 1; i <= derivDegree; ++i, ++ip1) {
-            derivCoeff[i] = c[ip1] * (double)(ip1) / (double)degree;
+            derivCoeff[i] = c[ip1] * static_cast<double>(ip1) / static_cast<double>(degree);
         }
         const int32_t numDerivRoots = FindRecursive(degree - 1, &derivCoeff[0], tmin, tmax, maxIterations, &derivRoots[0]);
 

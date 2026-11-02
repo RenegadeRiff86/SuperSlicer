@@ -82,6 +82,17 @@ namespace nowide {
                 *old_env_ptr_ = old_env_;
         }
     private:    
+        int convert_args(wchar_t **wargv,int wargc)
+        {
+            args_.resize(wargc+1,0);
+            arg_values_.resize(wargc);
+            for(int i=0;i<wargc;i++) {
+                if(!arg_values_[i].convert(wargv[i]))
+                    return i;
+                args_[i] = arg_values_[i].c_str();
+            }
+            return wargc;
+        }
         void fix_args(int &argc,char **&argv)
         {
                 int wargc;
@@ -92,16 +103,8 @@ namespace nowide {
                 argv = &dummy;
                 return;
             }
-            try{ 
-                args_.resize(wargc+1,0);
-                arg_values_.resize(wargc);
-                for(int i=0;i<wargc;i++) {
-                    if(!arg_values_[i].convert(wargv[i])) {
-                        wargc = i;
-                        break;
-                    }
-                    args_[i] = arg_values_[i].c_str();
-                }
+            try{
+                wargc = convert_args(wargv,wargc);
                 argc = wargc;
                 argv = &args_[0];
             }
@@ -110,6 +113,17 @@ namespace nowide {
                 throw;
             }
             LocalFree(wargv);
+        }
+        void populate_envp(int count)
+        {
+            envp_.resize(count+1,0);
+            char *p=env_.c_str();
+            int pos = 0;
+            for(int i=0;i<count;i++) {
+                if(*p!='=')
+                    envp_[pos++] = p;
+                p+=strlen(p)+1;
+            }
         }
         void fix_env(char **&en)
         {
@@ -124,14 +138,7 @@ namespace nowide {
                 for(wstrings_end = wstrings;*wstrings_end;wstrings_end+=wcslen(wstrings_end)+1)
                         count++;
                 if(env_.convert(wstrings,wstrings_end)) {
-                    envp_.resize(count+1,0);
-                    char *p=env_.c_str();
-                    int pos = 0;
-                    for(int i=0;i<count;i++) {
-                        if(*p!='=')
-                            envp_[pos++] = p;
-                        p+=strlen(p)+1;
-                    }
+                    populate_envp(count);
                     en = &envp_[0];
                 }
             }

@@ -1,9 +1,7 @@
 #ifndef slic3r_GUI_CreateMMUTiledCanvas_hpp_
 #define slic3r_GUI_CreateMMUTiledCanvas_hpp_
 
-#include <map>
 #include <vector>
-#include <regex>
 
 #include "OptionsGroup.hpp"
 
@@ -40,7 +38,7 @@ namespace GUI {
 
         void render(wxDC& dc);
 
-        void loadImage(std::string filepath);
+        void loadImage(const std::string& filepath);
         void redrawImage();
 
         // some useful events

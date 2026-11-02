@@ -48,7 +48,7 @@ struct SupportTreeConfig
     // Only generate pillars that can be routed to ground
     bool ground_facing_only = false;
 
-    // TODO: unimplemented at the moment. This coefficient will have an impact
+    // Unimplemented at the moment. This coefficient will have an impact
     // when bridges and pillars are merged. The resulting pillar should be a bit
     // thicker than the ones merging into it. How much thicker? I don't know
     // but it will be derived from this value.

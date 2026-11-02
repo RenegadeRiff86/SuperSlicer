@@ -6,6 +6,7 @@
 
 #include "libslic3r/AppConfig.hpp"
 
+#include "Automation/AutomationIds.hpp"
 #include "GUI_App.hpp"
 #include "GUI_Tags.hpp"
 #include "ThemeMetrics.hpp"
@@ -18,6 +19,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
 
 namespace
 {
@@ -218,6 +220,10 @@ bool ButtonsListCtrl::InsertPage(size_t n, const wxString& text, bool bSelect/* 
 #endif //__APPLE__
         false, bmp_size);
 
+    // The automation API addresses controls by wxWindow::GetName(); every tab
+    // button would otherwise report the wx default "button" and be indistinguishable.
+    btn->SetName(Slic3r::GUI::AutomationIds::tab(text));
+
     if (Slic3r::GUI::ThemeMetrics::ui_density_preference() == "compact")
         btn->SetMinSize(wxSize(-1, Slic3r::GUI::ThemeMetrics::notebook_min_height(this)));
 
@@ -259,7 +265,7 @@ bool ButtonsListCtrl::InsertPage(size_t n, const wxString& text, bool bSelect/* 
     m_pageButtons.insert(m_pageButtons.begin() + n, btn);
     m_spacers.insert(m_spacers.begin() + n, false);
     size_t idx = n;
-    for (int i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
         if (m_spacers[i]) idx++;
     }
     m_buttons_sizer->Insert(idx, new wxSizerItem(btn));
@@ -276,7 +282,7 @@ bool ButtonsListCtrl::InsertSpacer(size_t n, int size)
     }
     m_spacers[n] = true;
     size_t idx = n;
-    for (int i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
         if (m_spacers[i]) idx++;
     }
     m_buttons_sizer->Insert(idx, size, 1);
@@ -303,7 +309,7 @@ void ButtonsListCtrl::RemovePage(size_t n)
         m_focused_button = nullptr;
     m_pageButtons.erase(m_pageButtons.begin() + n);
     size_t idx = n;
-    for (int i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
         if (m_spacers[i]) idx++;
     }
     if (m_spacers[n])
@@ -319,7 +325,7 @@ void ButtonsListCtrl::RemoveSpacer(size_t n)
 {
     if (m_spacers[n]) {
         size_t idx = n;
-        for (int i = 0; i < n; i++) {
+        for (size_t i = 0; i < n; i++) {
             if (m_spacers[i]) idx++;
         }
         m_buttons_sizer->Remove(idx);
@@ -364,13 +370,12 @@ ScalableButton* ButtonsListCtrl::GetPageButton(size_t n)
 void Notebook::EmitEventSelChanged(int16_t new_sel) {
 
     //emit event for changed tab
-    if (new_sel >=0 && GetBtnsListCtrl() && this->GetPageCount() > new_sel) {
+    if (new_sel >=0 && GetBtnsListCtrl() && this->GetPageCount() > size_t(new_sel)) {
         ScalableButton* btn = GetBtnsListCtrl()->GetPageButton(new_sel);
         if (btn) {
-            wxCommandEvent* evt = new wxCommandEvent(wxCUSTOMEVT_NOTEBOOK_BT_PRESSED);
+            auto evt = std::make_unique<wxCommandEvent>(wxCUSTOMEVT_NOTEBOOK_BT_PRESSED);
             evt->SetId(new_sel);
-            //btn->ProcessEvent(*evt);
-            wxQueueEvent(btn, evt);
+            wxQueueEvent(btn, evt.release());
         }
     }
 }

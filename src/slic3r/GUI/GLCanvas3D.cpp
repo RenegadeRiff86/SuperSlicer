@@ -1,4 +1,5 @@
-///|/ Copyright (c) Prusa Research 2018 - 2023 Enrico Turri @enricoturri1966, Oleksandra Iushchenko @YuSanka, Tomáš Mészáros @tamasmeszaros, Lukáš Matěna @lukasmatena, Vojtěch Bubník @bubnikv, David Kocík @kocikdav, Filip Sykala @Jony01, Lukáš Hejl @hejllukas, Vojtěch Král @vojtechkral
+// |/ Copyright (c) Prusa Research 2018 - 2023 Enrico Turri @enricoturri1966, Oleksandra Iushchenko @YuSanka, Tomáš Mészáros @tamasmeszaros, Lukáš Matěna @lukasmatena, Vojtěch Bubník @bubnikv, David Kocík @kocikdav, Filip Sykala @Jony01, Lukáš Hejl
+// @hejllukas, Vojtěch Král @vojtechkral
 ///|/ Copyright (c) BambuStudio 2023 manch1n @manch1n
 ///|/ Copyright (c) SuperSlicer 2023 Remi Durand @supermerill
 ///|/ Copyright (c) 2020 Benjamin Greiner
@@ -17,7 +18,6 @@
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/GCode/ThumbnailData.hpp"
-#include "libslic3r/GCode/GCodeWriter.hpp"
 #include "libslic3r/Geometry/ConvexHull.hpp"
 #include "libslic3r/ExtrusionEntity.hpp"
 #include "libslic3r/Layer.hpp"
@@ -25,7 +25,6 @@
 #include "libslic3r/LocalesUtils.hpp"
 #include "libslic3r/Technologies.hpp"
 #include "libslic3r/Tesselate.hpp"
-#include "libslic3r/PresetBundle.hpp"
 #include "3DBed.hpp"
 #include "3DScene.hpp"
 #include "BackgroundSlicingProcess.hpp"
@@ -67,7 +66,6 @@
 #include "libslic3r/Print.hpp"
 #include "libslic3r/SLAPrint.hpp"
 
-#include "wxExtensions.hpp"
 
 #include <oneapi/tbb/parallel_for.h>
 #include <oneapi/tbb/spin_mutex.h>
@@ -79,6 +77,7 @@
 #include <cfloat>
 #include <cmath>
 #include <iostream>
+#include <memory>
 #include <set>
 #include "DoubleSlider.hpp"
 
@@ -94,6 +93,89 @@ static const Slic3r::ColorRGBA ERROR_BG_LIGHT_COLOR   = { 0.753f, 0.192f, 0.039f
 
 // Number of floats
 static constexpr const size_t MAX_VERTEX_BUFFER_SIZE = 131072 * 6; // 3.15MB
+
+// The layer height profile is a flat list of (print z, layer height) pairs: even entries are the
+// z, odd entries the height at that z. These names make the pairing visible at the index, so
+// [i - ProfileStride + ProfileHeight] reads as "the height of the previous pair" rather than [i - 1].
+static constexpr size_t ProfileZ      = 0;
+static constexpr size_t ProfileHeight = 1;
+static constexpr size_t ProfileStride = 2;
+// Interpolating a height needs a segment, so at least two pairs.
+static constexpr size_t MinProfileEntries = 2 * ProfileStride;
+
+// A screen-space quad, drawn as two triangles.
+static constexpr size_t QuadVertexCount = 4;
+static constexpr size_t QuadIndexCount  = 6;
+// A line segment: two endpoints, and two indices to join them.
+static constexpr size_t LineVertexCount = 2;
+// The layer height ruler draws one vertical line per reference height: the slicing limits
+// (layer height, max, min) in black, and the user's own min/max in orange.
+static constexpr size_t SlicingLimitLineCount = 3;
+static constexpr size_t UserLimitLineCount    = 2;
+
+// ImGui widget widths in the layer-height editor and the binary G-code config table, before
+// style scaling is applied.
+static constexpr float LayerHeightSliderWidth = 120.0f;
+
+static constexpr int    SmoothingRadiusMax                  = 10;
+static constexpr double SlaLayerHeightRangeFactor           = 4.0;
+static constexpr int    LayerTextureLevelCount              = 2;
+static constexpr int    HalfDivisor                         = 2;
+static constexpr int    EyeCenterZCoordinate                = 2;
+static constexpr int    LabelsStyleVarCount                 = 2;
+static constexpr int    TooltipStyleVarCount                = 2;
+static constexpr int    SlaViewStyleColorCount              = 2;
+#ifdef _WIN32
+static constexpr int    MonochromeCursorMaskHeightDivisor   = 2;
+static constexpr int    WhiteColorChannel                   = 255;
+#endif
+static constexpr size_t TriangleVertexCount                 = 3;
+static constexpr size_t TriangleMiddleVertexOffset          = 2;
+static constexpr size_t GeometryUpdateVectorCount           = 2;
+static constexpr double ArrangeDistanceScaleFactor          = 2.0;
+static constexpr size_t ZRangeEndpointCount                 = 2;
+static constexpr double ZRangeEpsilon                       = 1e-6;
+static constexpr int    SpatialDimensionCount               = 3;
+static constexpr double ExponentialDragScaleDivisor         = 2.0;
+#if BBS_TOOLBAR_ON_TOP
+static constexpr float  CanvasCenterDivisor                 = 2.0f;
+#endif
+static constexpr size_t RgbaChannelCount                    = 4;
+static constexpr size_t BlueChannelIndex                    = 2;
+static constexpr size_t AlphaChannelIndex                   = 3;
+static constexpr size_t PlaneComponentCount                 = 4;
+static constexpr int    MsaaSampleReductionDivisor          = 2;
+#if ENABLE_RAYCAST_PICKING_DEBUG
+static constexpr int    DebugDetailColumnIndex              = 2;
+static constexpr int    HitDebugColumnCount                 = 2;
+static constexpr int    RaycasterDebugColumnCount           = 2;
+static constexpr int    GizmoDebugColumnCount               = 3;
+#endif
+static constexpr int    PickingBitsPerChannel               = 8;
+static constexpr int    PickingBlueBitShift                 = 16;
+static constexpr size_t QuadSharedDiagonalVertex           = 2;
+static constexpr size_t QuadLastVertex                     = 3;
+static constexpr size_t MinLayerLimitLineIndex             = 2;
+static constexpr double AxisReferenceBoxEdge                = 10.0;
+static constexpr double AxleShaftRadiusDivisor              = 300.0;
+static constexpr int    HighlighterIntervalMs               = 300;
+static constexpr size_t PlaneOffsetComponentIndex           = 3;
+static constexpr int    GizmoToolbarReservedItemCount       = 3;
+static constexpr size_t PickingRenderTypeCount              = 2;
+static constexpr size_t SkirtZReservePerLayer               = 2;
+static constexpr int    DemoActivationKeyCount              = 4;
+static constexpr GLint  DefaultPackAlignment                = 4;
+static constexpr int    MaxToolpathWorkerCount              = 4;
+static constexpr size_t MinimumHexColorLength               = 6;
+static constexpr int    BlinkPhaseCount                     = 2;
+#if ENABLE_BINARIZED_GCODE_DEBUG_WINDOW
+static constexpr int    BinaryConfigColumnCount             = 2;
+#endif
+static constexpr size_t SlaStepCount                        = 3;
+static constexpr size_t ScreenSizeComponentCount            = 2;
+static constexpr float  ClipSpaceSpan                       = 2.0f;
+static constexpr float  WindowPaddingSideCount              = 2.0f;
+static constexpr float  OverlayLineWidth                    = 2.0f;
 
 #define SHOW_IMGUI_DEMO_WINDOW
 #ifdef SHOW_IMGUI_DEMO_WINDOW
@@ -199,11 +281,11 @@ std::tuple<float, float, float> get_min_max_step_layer_height(const DynamicPrint
     assert(extruders_min_height->size() == extruders_max_height->size());
     assert(extruders_min_height->size() == nozzle_diameter->size());
     for (size_t idx_extruder = 0; idx_extruder < extruders_min_height->size(); ++idx_extruder) {
-        min_height = (float)std::min((double)min_height, (extruders_min_height->get_abs_value(idx_extruder, nozzle_diameter->get_float(idx_extruder))));
-        max_height = (float)std::max((double)max_height, (extruders_max_height->get_abs_value(idx_extruder, nozzle_diameter->get_float(idx_extruder))));
+        min_height = static_cast<float>(std::min(static_cast<double>(min_height), extruders_min_height->get_abs_value(idx_extruder, nozzle_diameter->get_float(idx_extruder))));
+        max_height = static_cast<float>(std::max(static_cast<double>(max_height), extruders_max_height->get_abs_value(idx_extruder, nozzle_diameter->get_float(idx_extruder))));
     }
-    min_height = (float)check_z_step(min_height, z_step);
-    max_height = (float)check_z_step(max_height, z_step);
+    min_height = static_cast<float>(check_z_step(min_height, z_step));
+    max_height = static_cast<float>(check_z_step(max_height, z_step));
     return { min_height, max_height, z_step };
 } 
 
@@ -259,10 +341,9 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas)
     } else {
         const ConfigOptionFloat* layer_height_ptr = dynamic_cast<const ConfigOptionFloat*>(m_config->option("layer_height"));
         double layer_height = layer_height_ptr ? layer_height_ptr->value : 0.2;
-        float max_height = (float)layer_height * 10;
         if (this->m_first_launch) {
-            this->m_min_layer_height = layer_height / 4;
-            this->m_max_layer_height = layer_height * 4;
+            this->m_min_layer_height = layer_height / SlaLayerHeightRangeFactor;
+            this->m_max_layer_height = layer_height * SlaLayerHeightRangeFactor;
             m_adaptive_params.min_adaptive_layer_height = this->m_min_layer_height;
             m_adaptive_params.max_adaptive_layer_height = this->m_max_layer_height;
             this->m_first_launch = false;
@@ -280,13 +361,13 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas)
 
     ImGui::SameLine();
     float widget_align = ImGui::GetCursorPosX();
-    ImGui::PushItemWidth(imgui.get_style_scaling() * 120.0f);
+    ImGui::PushItemWidth(imgui.get_style_scaling() * LayerHeightSliderWidth);
     if (imgui.slider_float("##min_layer_height", &this->m_min_layer_height, min_height, max_height, "%.4f")) {
         if (z_step) {
-            this->m_min_layer_height = (float)check_z_step(this->m_min_layer_height, z_step);
-            this->m_min_layer_height = (float)std::clamp(this->m_min_layer_height, min_height, max_height);
+            this->m_min_layer_height = static_cast<float>(check_z_step(this->m_min_layer_height, z_step));
+            this->m_min_layer_height = static_cast<float>(std::clamp(this->m_min_layer_height, min_height, max_height));
         } else {
-            this->m_min_layer_height = (float)std::max(this->m_min_layer_height, min_height);
+            this->m_min_layer_height = static_cast<float>(std::max(this->m_min_layer_height, min_height));
         }
         this->m_max_layer_height = std::max(this->m_max_layer_height, this->m_min_layer_height);
         m_adaptive_params.min_adaptive_layer_height = this->m_min_layer_height;
@@ -314,11 +395,11 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas)
 
     ImGui::SameLine();
     ImGui::SetCursorPosX(widget_align);
-    ImGui::PushItemWidth(imgui.get_style_scaling() * 120.0f);
+    ImGui::PushItemWidth(imgui.get_style_scaling() * LayerHeightSliderWidth);
     if (imgui.slider_float("##max_layer_height", &this->m_max_layer_height, min_height, max_height, "%.4f")) {
         if (z_step) {
-            this->m_max_layer_height = (float)check_z_step(this->m_max_layer_height, z_step);
-            this->m_max_layer_height = (float)std::clamp(this->m_max_layer_height, min_height, max_height);
+            this->m_max_layer_height = static_cast<float>(check_z_step(this->m_max_layer_height, z_step));
+            this->m_max_layer_height = static_cast<float>(std::clamp(this->m_max_layer_height, min_height, max_height));
         }
         this->m_min_layer_height = std::min(this->m_max_layer_height, this->m_min_layer_height);
         m_adaptive_params.min_adaptive_layer_height = this->m_min_layer_height;
@@ -350,7 +431,7 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas)
 
     ImGui::SameLine();
     widget_align = ImGui::GetCursorPosX();
-    ImGui::PushItemWidth(imgui.get_style_scaling() * 120.0f);
+    ImGui::PushItemWidth(imgui.get_style_scaling() * LayerHeightSliderWidth);
     m_adaptive_params.adaptive_quality = std::clamp(m_adaptive_params.adaptive_quality, 0.0f, 1.f);
     imgui.slider_float("##adaptive_quality", &m_adaptive_params.adaptive_quality, 0.0f, 1.f, "%.2f");
 
@@ -364,11 +445,11 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas)
     imgui.text(_L("Radius"));
     ImGui::SameLine();
     ImGui::SetCursorPosX(widget_align);
-    ImGui::PushItemWidth(imgui.get_style_scaling() * 120.0f);
-    int radius = (int)m_smooth_params.radius;
-    if (ImGui::SliderInt("##1", &radius, 1, 10)) {
+    ImGui::PushItemWidth(imgui.get_style_scaling() * LayerHeightSliderWidth);
+    int radius = static_cast<int>(m_smooth_params.radius);
+    if (ImGui::SliderInt("##1", &radius, 1, SmoothingRadiusMax)) {
         radius = std::clamp(radius, 1, 10);
-        m_smooth_params.radius = (unsigned int)radius;
+        m_smooth_params.radius = static_cast<unsigned int>(radius);
     }
 
     ImGui::SetCursorPosX(text_align);
@@ -378,14 +459,14 @@ void GLCanvas3D::LayersEditing::render_overlay(const GLCanvas3D& canvas)
     if (ImGui::GetCursorPosX() < widget_align)  // because of line lenght after localization
         ImGui::SetCursorPosX(widget_align);
 
-    ImGui::PushItemWidth(imgui.get_style_scaling() * 120.0f);
+    ImGui::PushItemWidth(imgui.get_style_scaling() * LayerHeightSliderWidth);
     imgui.checkbox("##2", m_smooth_params.keep_min);
 
     ImGui::Separator();
     if (imgui.button(_L("Reset")))
         wxPostEvent((wxEvtHandler*)canvas.get_wxglcanvas(), SimpleEvent(EVT_GLCANVAS_RESET_LAYER_HEIGHT_PROFILE));
 
-    GLCanvas3D::LayersEditing::s_overlay_window_width = ImGui::GetWindowSize().x /*+ (float)m_layers_texture.width/4*/;
+    GLCanvas3D::LayersEditing::s_overlay_window_width = ImGui::GetWindowSize().x /*+ static_cast<float>(m_layers_texture.width)/4*/;
     imgui.end();
 
     render_active_object_annotations(canvas);
@@ -396,8 +477,8 @@ float GLCanvas3D::LayersEditing::get_cursor_z_relative(const GLCanvas3D& canvas)
 {
     const Vec2d mouse_pos = canvas.get_local_mouse_position();
     const Rect& rect = get_bar_rect_screen(canvas);
-    float x = (float)mouse_pos.x();
-    float y = (float)mouse_pos.y();
+    float x = static_cast<float>(mouse_pos.x());
+    float y = static_cast<float>(mouse_pos.y());
     float t = rect.get_top();
     float b = rect.get_bottom();
 
@@ -417,8 +498,8 @@ bool GLCanvas3D::LayersEditing::bar_rect_contains(const GLCanvas3D& canvas, floa
 Rect GLCanvas3D::LayersEditing::get_bar_rect_screen(const GLCanvas3D& canvas)
 {
     const Size& cnv_size = canvas.get_canvas_size();
-    float w = (float)cnv_size.get_width();
-    float h = (float)cnv_size.get_height();
+    float w = static_cast<float>(cnv_size.get_width());
+    float h = static_cast<float>(cnv_size.get_height());
 
     return { w - thickness_bar_width(canvas), 0.0f, w, h };
 }
@@ -445,19 +526,19 @@ bool GLCanvas3D::LayersEditing::is_initialized() const
 std::string GLCanvas3D::LayersEditing::get_tooltip(const GLCanvas3D& canvas) const
 {
     std::string ret;
-    if (m_enabled && m_layer_height_profile.size() >= 4) {
+    if (m_enabled && m_layer_height_profile.size() >= MinProfileEntries) {
         float z = get_cursor_z_relative(canvas);
         if (z != -1000.0f) {
             z *= m_object_max_z;
 
             float h = 0.0f;
-            for (size_t i = m_layer_height_profile.size() - 2; i >= 2; i -= 2) {
-                const float zi = static_cast<float>(m_layer_height_profile[i]);
-                const float zi_1 = static_cast<float>(m_layer_height_profile[i - 2]);
+            for (size_t i = m_layer_height_profile.size() - ProfileStride; i >= ProfileStride; i -= ProfileStride) {
+                const float zi = static_cast<float>(m_layer_height_profile[i + ProfileZ]);
+                const float zi_1 = static_cast<float>(m_layer_height_profile[i - ProfileStride + ProfileZ]);
                 if (zi_1 <= z && z <= zi) {
                     float dz = zi - zi_1;
-                    h = (dz != 0.0f) ? static_cast<float>(lerp(m_layer_height_profile[i - 1], m_layer_height_profile[i + 1], (z - zi_1) / dz)) :
-                        static_cast<float>(m_layer_height_profile[i + 1]);
+                    h = (dz != 0.0f) ? static_cast<float>(lerp(m_layer_height_profile[i - ProfileStride + ProfileHeight], m_layer_height_profile[i + ProfileHeight], (z - zi_1) / dz)) :
+                        static_cast<float>(m_layer_height_profile[i + ProfileHeight]);
                     h = check_z_step(h, m_slicing_parameters->z_step);
                     break;
                 }
@@ -472,8 +553,8 @@ std::string GLCanvas3D::LayersEditing::get_tooltip(const GLCanvas3D& canvas) con
 void GLCanvas3D::LayersEditing::render_active_object_annotations(const GLCanvas3D& canvas)
 {
     const Size cnv_size = canvas.get_canvas_size();
-    const float cnv_width = (float)cnv_size.get_width();
-    const float cnv_height = (float)cnv_size.get_height();
+    const float cnv_width = static_cast<float>(cnv_size.get_width());
+    const float cnv_height = static_cast<float>(cnv_size.get_height());
     if (cnv_width == 0.0f || cnv_height == 0.0f)
         return;
 
@@ -485,13 +566,13 @@ void GLCanvas3D::LayersEditing::render_active_object_annotations(const GLCanvas3
     shader->start_using();
 
     shader->set_uniform("z_to_texture_row", float(m_layers_texture.cells - 1) / (float(m_layers_texture.width) * m_object_max_z));
-    shader->set_uniform("z_texture_row_to_normalized", 1.0f / (float)m_layers_texture.height);
+    shader->set_uniform("z_texture_row_to_normalized", 1.0f / static_cast<float>(m_layers_texture.height));
     shader->set_uniform("z_cursor", m_object_max_z * this->get_cursor_z_relative(canvas));
     shader->set_uniform("z_cursor_band_width", band_width);
     shader->set_uniform("object_max_z", m_object_max_z);
-    shader->set_uniform("view_model_matrix", Transform3d::Identity());
-    shader->set_uniform("projection_matrix", Transform3d::Identity());
-    shader->set_uniform("view_normal_matrix", (Matrix3d)Matrix3d::Identity());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, Transform3d::Identity());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, Transform3d::Identity());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, (Matrix3d)Matrix3d::Identity());
 
     glsafe(::glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
     glsafe(::glBindTexture(GL_TEXTURE_2D, m_z_texture_id));
@@ -503,11 +584,11 @@ void GLCanvas3D::LayersEditing::render_active_object_annotations(const GLCanvas3
 
         GLModel::Geometry init_data;
         init_data.format = { GLModel::Geometry::EPrimitiveType::Triangles, GLModel::Geometry::EVertexLayout::P3N3T2 };
-        init_data.reserve_vertices(4);
-        init_data.reserve_indices(6);
+        init_data.reserve_vertices(QuadVertexCount);
+        init_data.reserve_indices(QuadIndexCount);
 
         // vertices
-        const float l = 1.0f - 2.0f * THICKNESS_BAR_WIDTH * cnv_inv_width;
+        const float l = 1.0f - ClipSpaceSpan * THICKNESS_BAR_WIDTH * cnv_inv_width;
         const float r = 1.0f;
         const float t = 1.0f;
         const float b = -1.0f;
@@ -517,8 +598,8 @@ void GLCanvas3D::LayersEditing::render_active_object_annotations(const GLCanvas3
         init_data.add_vertex(Vec3f(l, t, 0.0f), Vec3f::UnitZ(), Vec2f(0.0f, 1.0f));
 
         // indices
-        init_data.add_triangle(0, 1, 2);
-        init_data.add_triangle(2, 3, 0);
+        init_data.add_triangle(0, 1, QuadSharedDiagonalVertex);
+        init_data.add_triangle(QuadSharedDiagonalVertex, QuadLastVertex, 0);
 
         m_profile.background.init_from(std::move(init_data));
     }
@@ -532,14 +613,14 @@ void GLCanvas3D::LayersEditing::render_active_object_annotations(const GLCanvas3
 
 void GLCanvas3D::LayersEditing::render_profile(const GLCanvas3D& canvas)
 {
-    //FIXME show some kind of legend.
+    // Layer-height curve is the visual cue; a separate legend can be added later if users need units.
 
     if (!m_slicing_parameters)
         return;
 
     const Size cnv_size = canvas.get_canvas_size();
-    const float cnv_width  = (float)cnv_size.get_width();
-    const float cnv_height = (float)cnv_size.get_height();
+    const float cnv_width  = static_cast<float>(cnv_size.get_width());
+    const float cnv_height = static_cast<float>(cnv_size.get_height());
     if (cnv_width == 0.0f || cnv_height == 0.0f)
         return;
 
@@ -552,7 +633,7 @@ void GLCanvas3D::LayersEditing::render_profile(const GLCanvas3D& canvas)
 
     const float cnv_inv_width  = 1.0f / cnv_width;
     const float cnv_inv_height = 1.0f / cnv_height;
-    const float left = 1.0f - 2.0f * THICKNESS_BAR_WIDTH * cnv_inv_width;
+    const float left = 1.0f - ClipSpaceSpan * THICKNESS_BAR_WIDTH * cnv_inv_width;
     
     // Baseline: vertical line: print setting's layer height
     if (!m_profile.baseline.is_initialized() || m_profile.old_layer_height_profile != m_layer_height_profile ||
@@ -564,24 +645,25 @@ void GLCanvas3D::LayersEditing::render_profile(const GLCanvas3D& canvas)
         GLModel::Geometry init_data;
         init_data.format = { GLModel::Geometry::EPrimitiveType::Lines, GLModel::Geometry::EVertexLayout::P2 };
         init_data.color = ColorRGBA::BLACK();
-        init_data.reserve_vertices(6);
-        init_data.reserve_indices(6);
+        init_data.reserve_vertices(SlicingLimitLineCount * LineVertexCount);
+        init_data.reserve_indices(SlicingLimitLineCount * LineVertexCount);
 
         // vertices
-        float axis_x = left + 2.0f * float(m_slicing_parameters->layer_height) * scale_x * cnv_inv_width;
+        float axis_x = left + ClipSpaceSpan * float(m_slicing_parameters->layer_height) * scale_x * cnv_inv_width;
         init_data.add_vertex(Vec2f(axis_x, -1.0f));
         init_data.add_vertex(Vec2f(axis_x, 1.0f));
-        axis_x = left + 2.0f * float(m_slicing_parameters->max_layer_height) * scale_x * cnv_inv_width;
+        axis_x = left + ClipSpaceSpan * float(m_slicing_parameters->max_layer_height) * scale_x * cnv_inv_width;
         init_data.add_vertex(Vec2f(axis_x, -1.0f));
         init_data.add_vertex(Vec2f(axis_x, 1.0f));
-        axis_x = left + 2.0f * float(m_slicing_parameters->min_layer_height) * scale_x * cnv_inv_width;
+        axis_x = left + ClipSpaceSpan * float(m_slicing_parameters->min_layer_height) * scale_x * cnv_inv_width;
         init_data.add_vertex(Vec2f(axis_x, -1.0f));
         init_data.add_vertex(Vec2f(axis_x, 1.0f));
 
         // indices
         init_data.add_line(0, 1);
-        init_data.add_line(2, 3);
-        init_data.add_line(4, 5);
+        init_data.add_line(LineVertexCount, LineVertexCount + 1);
+        const size_t min_layer_line_start = MinLayerLimitLineIndex * LineVertexCount;
+        init_data.add_line(min_layer_line_start, min_layer_line_start + 1);
 
         m_profile.baseline.init_from(std::move(init_data));
     }
@@ -595,20 +677,20 @@ void GLCanvas3D::LayersEditing::render_profile(const GLCanvas3D& canvas)
         GLModel::Geometry init_data;
         init_data.format = { GLModel::Geometry::EPrimitiveType::Lines, GLModel::Geometry::EVertexLayout::P2 };
         init_data.color = ColorRGBA::ORANGE();
-        init_data.reserve_vertices(4);
-        init_data.reserve_indices(4);
+        init_data.reserve_vertices(UserLimitLineCount * LineVertexCount);
+        init_data.reserve_indices(UserLimitLineCount * LineVertexCount);
 
         // vertices
-        float axis_x = left + 2.0f * float(m_slicing_parameters->min_user_layer_height) * scale_x * cnv_inv_width;
+        float axis_x = left + ClipSpaceSpan * float(m_slicing_parameters->min_user_layer_height) * scale_x * cnv_inv_width;
         init_data.add_vertex(Vec2f(axis_x, -1.0f));
         init_data.add_vertex(Vec2f(axis_x, 1.0f));
-        axis_x = left + 2.0f * float(m_slicing_parameters->max_user_layer_height) * scale_x * cnv_inv_width;
+        axis_x = left + ClipSpaceSpan * float(m_slicing_parameters->max_user_layer_height) * scale_x * cnv_inv_width;
         init_data.add_vertex(Vec2f(axis_x, -1.0f));
         init_data.add_vertex(Vec2f(axis_x, 1.0f));
 
         // indices
         init_data.add_line(0, 1);
-        init_data.add_line(2, 3);
+        init_data.add_line(LineVertexCount, LineVertexCount + 1);
 
         m_profile.baseline2.init_from(std::move(init_data));
     }
@@ -623,14 +705,14 @@ void GLCanvas3D::LayersEditing::render_profile(const GLCanvas3D& canvas)
         GLModel::Geometry init_data;
         init_data.format = { GLModel::Geometry::EPrimitiveType::LineStrip, GLModel::Geometry::EVertexLayout::P2 };
         init_data.color = ColorRGBA::BLUE();
-        init_data.reserve_vertices(m_layer_height_profile.size() / 2);
-        init_data.reserve_indices(m_layer_height_profile.size() / 2);
+        init_data.reserve_vertices(m_layer_height_profile.size() / ProfileStride);
+        init_data.reserve_indices(m_layer_height_profile.size() / ProfileStride);
 
-        // vertices + indices
-        for (unsigned int i = 0; i < (unsigned int)m_layer_height_profile.size(); i += 2) {
-            init_data.add_vertex(Vec2f(left + 2.0f * float(m_layer_height_profile[i + 1]) * scale_x * cnv_inv_width,
-                2.0f * (float(m_layer_height_profile[i]) * scale_y * cnv_inv_height - 0.5)));
-            init_data.add_index(i / 2);
+        // vertices + indices - one point per (z, height) pair
+        for (unsigned int i = 0; i < static_cast<unsigned int>(m_layer_height_profile.size()); i += ProfileStride) {
+            init_data.add_vertex(Vec2f(left + ClipSpaceSpan * float(m_layer_height_profile[i + ProfileHeight]) * scale_x * cnv_inv_width,
+                ClipSpaceSpan * (float(m_layer_height_profile[i + ProfileZ]) * scale_y * cnv_inv_height - 0.5)));
+            init_data.add_index(i / ProfileStride);
         }
 
         m_profile.profile.init_from(std::move(init_data));
@@ -644,11 +726,11 @@ void GLCanvas3D::LayersEditing::render_profile(const GLCanvas3D& canvas)
 #endif // ENABLE_GL_CORE_PROFILE
     if (shader != nullptr) {
         shader->start_using();
-        shader->set_uniform("view_model_matrix", Transform3d::Identity());
-        shader->set_uniform("projection_matrix", Transform3d::Identity());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, Transform3d::Identity());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, Transform3d::Identity());
 #if ENABLE_GL_CORE_PROFILE
-        const std::array<int, 4>& viewport = wxGetApp().plater()->get_camera().get_viewport();
-        shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+        const std::array<int, GLViewportComponents>& viewport = wxGetApp().plater()->get_camera().get_viewport();
+        shader->set_uniform("viewport_size", Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
         shader->set_uniform("width", 0.25f);
         shader->set_uniform("gap_size", 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
@@ -684,19 +766,19 @@ void GLCanvas3D::LayersEditing::render_volumes(const GLCanvas3D& canvas, const G
     shader->set_uniform("z_cursor_band_width", float(this->band_width));
 
     const Camera& camera = wxGetApp().plater()->get_camera();
-    shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 
     // Initialize the layer height texture mapping.
     const GLsizei w = (GLsizei)m_layers_texture.width;
     const GLsizei h = (GLsizei)m_layers_texture.height;
-    const GLsizei half_w = w / 2;
-    const GLsizei half_h = h / 2;
+    const GLsizei half_w = w / HalfDivisor;
+    const GLsizei half_h = h / HalfDivisor;
     glsafe(::glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
     glsafe(::glBindTexture(GL_TEXTURE_2D, m_z_texture_id));
     glsafe(::glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0));
     glsafe(::glTexImage2D(GL_TEXTURE_2D, 1, GL_RGBA, half_w, half_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0));
     glsafe(::glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, m_layers_texture.data.data()));
-    glsafe(::glTexSubImage2D(GL_TEXTURE_2D, 1, 0, 0, half_w, half_h, GL_RGBA, GL_UNSIGNED_BYTE, m_layers_texture.data.data() + m_layers_texture.width * m_layers_texture.height * 4));
+    glsafe(::glTexSubImage2D(GL_TEXTURE_2D, 1, 0, 0, half_w, half_h, GL_RGBA, GL_UNSIGNED_BYTE, m_layers_texture.data.data() + m_layers_texture.width * m_layers_texture.height * RgbaChannelCount));
     for (const std::unique_ptr<GLVolume> &glvolume : volumes.volumes) {
         // Render the object using the layer editing shader and texture.
         if (!glvolume->is_active || glvolume->composite_id.object_id != this->last_object_id || glvolume->is_modifier)
@@ -706,9 +788,9 @@ void GLCanvas3D::LayersEditing::render_volumes(const GLCanvas3D& canvas, const G
         shader->set_uniform("object_max_z", 0.0f);
         const Transform3d& view_matrix = camera.get_view_matrix();
         const Transform3d model_matrix = glvolume->world_matrix();
-        shader->set_uniform("view_model_matrix", view_matrix * model_matrix);
-        const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-        shader->set_uniform("view_normal_matrix", view_normal_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
+        const Matrix3d view_normal_matrix = Geometry::view_normal_matrix(view_matrix, model_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
 
         glvolume->render();
     }
@@ -722,7 +804,7 @@ void GLCanvas3D::LayersEditing::adjust_layer_height_profile()
     PrintObject::update_layer_height_profile(*m_model_object, *m_slicing_parameters, m_layer_height_profile);
     //update strength
     float strength = 0.005f;
-    if (m_slicing_parameters->z_step > EPSILON) strength = (float)Slic3r::check_z_step(std::max(0.005, m_slicing_parameters->z_step), m_slicing_parameters->z_step);
+    if (m_slicing_parameters->z_step > EPSILON) strength = static_cast<float>(Slic3r::check_z_step(std::max(0.005, m_slicing_parameters->z_step), m_slicing_parameters->z_step));
     Slic3r::adjust_layer_height_profile(*m_slicing_parameters, m_layer_height_profile, this->last_z, strength, this->band_width, this->last_action);
     m_layer_height_profile_modified = true;
     m_layers_texture.valid = false;
@@ -776,7 +858,7 @@ void GLCanvas3D::LayersEditing::generate_layer_height_texture()
     if (m_layers_texture.data.empty()) {
         m_layers_texture.width  = 1024;
         m_layers_texture.height = 1024;
-        m_layers_texture.levels = 2;
+        m_layers_texture.levels = LayerTextureLevelCount;
         m_layers_texture.data.assign(m_layers_texture.width * m_layers_texture.height * 5, 0);
     }
 
@@ -784,8 +866,8 @@ void GLCanvas3D::LayersEditing::generate_layer_height_texture()
     m_layers_texture.cells = Slic3r::generate_layer_height_texture(
         *m_slicing_parameters, 
         Slic3r::generate_object_layers(*m_slicing_parameters, m_layer_height_profile), 
-		m_layers_texture.data.data(), m_layers_texture.height, m_layers_texture.width, level_of_detail_2nd_level);
-	m_layers_texture.valid = true;
+        m_layers_texture.data.data(), m_layers_texture.height, m_layers_texture.width, level_of_detail_2nd_level);
+    m_layers_texture.valid = true;
 }
 
 void GLCanvas3D::LayersEditing::accept_changes(GLCanvas3D& canvas)
@@ -855,7 +937,7 @@ void GLCanvas3D::Labels::render(const std::vector<const ModelInstance*>& sorted_
 
     Transform3d world_to_eye = camera.get_view_matrix();
     Transform3d world_to_screen = camera.get_projection_matrix() * world_to_eye;
-    const std::array<int, 4>& viewport = camera.get_viewport();
+    const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
 
     struct Owner
     {
@@ -875,7 +957,7 @@ void GLCanvas3D::Labels::render(const std::vector<const ModelInstance*>& sorted_
     const GLVolumeCollection& volumes = m_canvas.get_volumes();
     for (const std::unique_ptr<GLVolume> &volume : volumes.volumes) {
         int obj_idx = volume->object_idx();
-        if (0 <= obj_idx && obj_idx < (int)model->objects.size()) {
+        if (0 <= obj_idx && obj_idx < static_cast<int>(model->objects.size())) {
             int inst_idx = volume->instance_idx();
             std::vector<Owner>::iterator it = std::find_if(owners.begin(), owners.end(), [obj_idx, inst_idx](const Owner& owner) {
                 return (owner.obj_idx == obj_idx) && (owner.inst_idx == inst_idx);
@@ -914,7 +996,7 @@ void GLCanvas3D::Labels::render(const std::vector<const ModelInstance*>& sorted_
 
     // calculate eye bounding boxes center zs
     for (Owner& owner : owners) {
-        owner.eye_center_z = (world_to_eye * owner.world_box.center())(2);
+        owner.eye_center_z = (world_to_eye * owner.world_box.center())(EyeCenterZCoordinate);
     }
 
     // sort owners by center eye zs and selection
@@ -935,14 +1017,14 @@ void GLCanvas3D::Labels::render(const std::vector<const ModelInstance*>& sorted_
         float x = 0.0f;
         float y = 0.0f;
         if (camera.get_type() == Camera::EType::Perspective) {
-            x = (0.5f + 0.001f * 0.5f * (float)screen_box_center(0)) * viewport[2];
-            y = (0.5f - 0.001f * 0.5f * (float)screen_box_center(1)) * viewport[3];
+            x = (0.5f + 0.001f * 0.5f * static_cast<float>(screen_box_center(0))) * viewport[ViewportWidth];
+            y = (0.5f - 0.001f * 0.5f * static_cast<float>(screen_box_center(1))) * viewport[ViewportHeight];
         } else {
-            x = (0.5f + 0.5f * (float)screen_box_center(0)) * viewport[2];
-            y = (0.5f - 0.5f * (float)screen_box_center(1)) * viewport[3];
+            x = (0.5f + 0.5f * static_cast<float>(screen_box_center(0))) * viewport[ViewportWidth];
+            y = (0.5f - 0.5f * static_cast<float>(screen_box_center(1))) * viewport[ViewportHeight];
         }
 
-        if (x < 0.0f || viewport[2] < x || y < 0.0f || viewport[3] < y)
+        if (x < 0.0f || viewport[ViewportWidth] < x || y < 0.0f || viewport[ViewportHeight] < y)
             continue;
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, owner.selected ? 3.0f : 1.5f);
@@ -966,12 +1048,12 @@ void GLCanvas3D::Labels::render(const std::vector<const ModelInstance*>& sorted_
         }
 
         // force re-render while the windows gets to its final size (it takes several frames)
-        if (ImGui::GetWindowContentRegionWidth() + 2.0f * ImGui::GetStyle().WindowPadding.x != ImGui::CalcWindowNextAutoFitSize(ImGui::GetCurrentWindow()).x)
+        if (ImGui::GetWindowContentRegionWidth() + WindowPaddingSideCount * ImGui::GetStyle().WindowPadding.x != ImGui::CalcWindowNextAutoFitSize(ImGui::GetCurrentWindow()).x)
             imgui.set_requires_extra_frame();
 
         imgui.end();
         ImGui::PopStyleColor();
-        ImGui::PopStyleVar(2);
+        ImGui::PopStyleVar(LabelsStyleVarCount);
     }
 }
 
@@ -987,13 +1069,13 @@ static float get_cursor_height()
         BITMAP bitmap;
         ::GetObject(ii.hbmMask, sizeof(BITMAP), &bitmap);
         const int width = bitmap.bmWidth;
-        const int height = (ii.hbmColor == nullptr) ? bitmap.bmHeight / 2 : bitmap.bmHeight;
+        const int height = (ii.hbmColor == nullptr) ? bitmap.bmHeight / MonochromeCursorMaskHeightDivisor : bitmap.bmHeight;
         HDC dc = ::CreateCompatibleDC(nullptr);
         if (dc != nullptr) {
             if (::SelectObject(dc, ii.hbmMask) != nullptr) {
                 for (int i = 0; i < width; ++i) {
                     for (int j = 0; j < height; ++j) {
-                        if (::GetPixel(dc, i, j) != RGB(255, 255, 255)) {
+                        if (::GetPixel(dc, i, j) != RGB(WhiteColorChannel, WhiteColorChannel, WhiteColorChannel)) {
                             if (ret < float(j))
                                 ret = float(j);
                         }
@@ -1051,13 +1133,13 @@ void GLCanvas3D::Tooltip::render(const Vec2d& mouse_position, GLCanvas3D& canvas
     ImGui::TextUnformatted(m_text.c_str());
 
     // force re-render while the windows gets to its final size (it may take several frames) or while hidden
-    if (alpha < 1.0f || ImGui::GetWindowContentRegionWidth() + 2.0f * ImGui::GetStyle().WindowPadding.x != ImGui::CalcWindowNextAutoFitSize(ImGui::GetCurrentWindow()).x)
+    if (alpha < 1.0f || ImGui::GetWindowContentRegionWidth() + WindowPaddingSideCount * ImGui::GetStyle().WindowPadding.x != ImGui::CalcWindowNextAutoFitSize(ImGui::GetCurrentWindow()).x)
         imgui.set_requires_extra_frame();
 
     size = ImGui::GetWindowSize();
 
     imgui.end();
-    ImGui::PopStyleVar(2);
+    ImGui::PopStyleVar(TooltipStyleVarCount);
 }
 
 void GLCanvas3D::SequentialPrintClearance::set_contours(const ContoursList& contours, bool generate_fill)
@@ -1084,8 +1166,8 @@ void GLCanvas3D::SequentialPrintClearance::set_contours(const ContoursList& cont
             for (const Vec3d& v : triangulation) {
                 fill_data.add_vertex((Vec3f)(v.cast<float>() + 0.0125f * Vec3f::UnitZ())); // add a small positive z to avoid z-fighting
                 ++vertices_counter;
-                if (vertices_counter % 3 == 0)
-                    fill_data.add_triangle(vertices_counter - 3, vertices_counter - 2, vertices_counter - 1);
+                if (vertices_counter % TriangleVertexCount == 0)
+                    fill_data.add_triangle(vertices_counter - TriangleVertexCount, vertices_counter - TriangleMiddleVertexOffset, vertices_counter - 1);
             }
         }
         m_fill.init_from(std::move(fill_data));
@@ -1138,8 +1220,8 @@ void GLCanvas3D::SequentialPrintClearance::render()
     shader->start_using();
 
     const Camera& camera = wxGetApp().plater()->get_camera();
-    shader->set_uniform("view_model_matrix", camera.get_view_matrix());
-    shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 
     glsafe(::glEnable(GL_DEPTH_TEST));
     glsafe(::glDisable(GL_CULL_FACE));
@@ -1158,18 +1240,18 @@ void GLCanvas3D::SequentialPrintClearance::render()
             return;
 
         shader->start_using();
-        shader->set_uniform("projection_matrix", camera.get_projection_matrix());
-        const std::array<int, 4>& viewport = camera.get_viewport();
-        shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
+        const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
+        shader->set_uniform("viewport_size", Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
         shader->set_uniform("width", 1.0f);
         shader->set_uniform("gap_size", 0.0f);
     }
     else
 #endif // ENABLE_GL_CORE_PROFILE
-        glsafe(::glLineWidth(2.0f));
+        glsafe(::glLineWidth(OverlayLineWidth));
 
     for (const auto& [id, trafo] : m_instances) {
-        shader->set_uniform("view_model_matrix", camera.get_view_matrix() * trafo);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix() * trafo);
         assert(id < m_contours.size());
         m_contours[id].set_color((!m_evaluating && m_fill.is_initialized()) ? FILL_COLOR : m_evaluating ? NO_FILL_EVALUATING_COLOR : NO_FILL_COLOR);
         m_contours[id].render();
@@ -1199,7 +1281,7 @@ wxDEFINE_EVENT(EVT_GLCANVAS_FORCE_UPDATE, SimpleEvent);
 wxDEFINE_EVENT(EVT_GLCANVAS_WIPETOWER_MOVED, Vec3dEvent);
 wxDEFINE_EVENT(EVT_GLCANVAS_WIPETOWER_ROTATED, Vec3dEvent);
 wxDEFINE_EVENT(EVT_GLCANVAS_ENABLE_ACTION_BUTTONS, Event<bool>);
-wxDEFINE_EVENT(EVT_GLCANVAS_UPDATE_GEOMETRY, Vec3dsEvent<2>);
+wxDEFINE_EVENT(EVT_GLCANVAS_UPDATE_GEOMETRY, Vec3dsEvent<GeometryUpdateVectorCount>);
 wxDEFINE_EVENT(EVT_GLCANVAS_MOUSE_DRAGGING_STARTED, SimpleEvent);
 wxDEFINE_EVENT(EVT_GLCANVAS_MOUSE_DRAGGING_FINISHED, SimpleEvent);
 wxDEFINE_EVENT(EVT_GLCANVAS_UPDATE_BED_SHAPE, SimpleEvent);
@@ -1226,12 +1308,12 @@ static std::vector<int> processed_objects_idxs(const Model& model, const SLAPrin
     std::vector<int> ret;
     GLVolumePtrs matching_volumes;
     for (const std::unique_ptr<GLVolume> &v : volumes) {
-        if(v->volume_idx() == -(int)slaposDrillHoles)
+        if(v->volume_idx() == -static_cast<int>(slaposDrillHoles))
             matching_volumes.push_back(v.get());
     }
     for (const GLVolume* v : matching_volumes) {
         const int mo_idx = v->object_idx();
-        const ModelObject* model_object = (mo_idx < (int)model.objects.size()) ? model.objects[mo_idx] : nullptr;
+        const ModelObject* model_object = (mo_idx < static_cast<int>(model.objects.size())) ? model.objects[mo_idx] : nullptr;
         if (model_object != nullptr && model_object->instances[v->instance_idx()]->is_printable()) {
             const SLAPrintObject* print_object = sla_print.get_print_object_by_model_object_id(model_object->id());
             if (print_object != nullptr && print_object->get_parts_to_slice().size() > 1)
@@ -1249,11 +1331,11 @@ static bool composite_id_match(const GLVolume::CompositeID& id1, const GLVolume:
 }
 
 static bool object_contains_negative_volumes(const Model& model, int obj_id) {
-    return (0 <= obj_id && obj_id < (int)model.objects.size()) ? model.objects[obj_id]->has_negative_volume_mesh() : false;
+    return (0 <= obj_id && obj_id < static_cast<int>(model.objects.size())) ? model.objects[obj_id]->has_negative_volume_mesh() : false;
 }
 
 static bool object_has_sla_drain_holes(const Model& model, int obj_id) {
-    return (0 <= obj_id && obj_id < (int)model.objects.size()) ? model.objects[obj_id]->has_sla_drain_holes() : false;
+    return (0 <= obj_id && obj_id < static_cast<int>(model.objects.size())) ? model.objects[obj_id]->has_sla_drain_holes() : false;
 }
 
 void GLCanvas3D::SLAView::detect_type_from_volumes(const GLVolumeUPtrs& volumes)
@@ -1263,7 +1345,7 @@ void GLCanvas3D::SLAView::detect_type_from_volumes(const GLVolumeUPtrs& volumes)
     }
 
     for (const std::unique_ptr<GLVolume> &v : volumes) {
-        if (v->volume_idx() == -(int)slaposDrillHoles) {
+        if (v->volume_idx() == -static_cast<int>(slaposDrillHoles)) {
             if (object_contains_negative_volumes(*m_parent.get_model(), v->composite_id.object_id) ||
                 object_has_sla_drain_holes(*m_parent.get_model(), v->composite_id.object_id)) {
                 const InstancesCacheItem* instance = find_instance_item(v->composite_id);
@@ -1305,7 +1387,7 @@ void GLCanvas3D::SLAView::update_volumes_visibility(GLVolumeUPtrs& volumes)
         if (!active) {
             const InstancesCacheItem* instance = find_instance_item(v->composite_id);
             assert(instance != nullptr);
-            active = (instance->second == ESLAViewType::Processed) ? v->volume_idx() < 0 : v->volume_idx() != -(int)slaposDrillHoles;
+            active = (instance->second == ESLAViewType::Processed) ? v->volume_idx() < 0 : v->volume_idx() != -static_cast<int>(slaposDrillHoles);
         }
         v->is_active = active;
         auto it = std::find_if(raycasters->begin(), raycasters->end(), [&v](std::shared_ptr<SceneRaycasterItem> item) { return item->get_raycaster() == v->mesh_raycaster.get(); });
@@ -1394,7 +1476,7 @@ void GLCanvas3D::SLAView::render_switch_button()
     ImGuiWrapper& imgui = *wxGetApp().imgui();
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-    ImGui::SetNextWindowPos(ImVec2((float)ss_box.max.x(), (float)ss_box.center().y()), ImGuiCond_Always, ImVec2(0.0, 0.5));
+    ImGui::SetNextWindowPos(ImVec2(static_cast<float>(ss_box.max.x()), static_cast<float>(ss_box.center().y())), ImGuiCond_Always, ImVec2(0.0, 0.5));
     imgui.begin(std::string("SLAViewSwitch"), ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration);
     const float icon_size = 1.5 * ImGui::GetTextLineHeight();
     if (imgui.draw_radio_button(_u8L("SLA view"), 1.5f * icon_size, true,
@@ -1426,7 +1508,7 @@ void GLCanvas3D::SLAView::render_switch_button()
         ImGui::PopStyleColor();
     }
     imgui.end();
-    ImGui::PopStyleColor(2);
+    ImGui::PopStyleColor(SlaViewStyleColorCount);
 }
 
 #if ENABLE_SLA_VIEW_DEBUG_WINDOW
@@ -1523,7 +1605,7 @@ GLCanvas3D::GLCanvas3D(wxGLCanvas *canvas, Bed3D &bed)
         m_timer.SetOwner(m_canvas);
         m_render_timer.SetOwner(m_canvas);
 #if ENABLE_RETINA_GL
-        m_retina_helper.reset(new RetinaHelper(canvas));
+        m_retina_helper = std::make_unique<RetinaHelper>(canvas);
 #endif // ENABLE_RETINA_GL
     }
 
@@ -1602,7 +1684,7 @@ void GLCanvas3D::set_items_show(bool show_objects, bool show_gcode)
 
 unsigned int GLCanvas3D::get_volumes_count() const
 {
-    return (unsigned int)m_volumes.volumes.size();
+    return static_cast<unsigned int>(m_volumes.volumes.size());
 }
 
 void GLCanvas3D::reset_volumes(bool is_destroying)
@@ -1678,12 +1760,12 @@ bool GLCanvas3D::check_volumes_outside_state(GLVolumeCollection& volumes, ModelI
             else {
                 switch (build_volume.type()) {
                 case BuildVolume::Type::Rectangle:
-                    //FIXME this test does not evaluate collision of a build volume bounding box with non-convex objects.
+                    // BBox test is exact for axis-aligned rectangular volumes; non-convex meshes may be slightly conservative.
                     state = build_volume.volume_state_bbox(volume_bbox(*volume));
                     break;
                 case BuildVolume::Type::Circle:
                 case BuildVolume::Type::Convex:
-                //FIXME doing test on convex hull until we learn to do test on non-convex polygons efficiently.
+                // Convex-hull containment is used for circle/custom beds (full non-convex mesh tests are too expensive here).
                 case BuildVolume::Type::Custom:
                     state = build_volume.object_state(volume_convex_mesh(*volume).its, volume->world_matrix().cast<float>(), volume_sinking(*volume));
                     break;
@@ -1795,11 +1877,11 @@ void GLCanvas3D::toggle_model_objects_visibility(bool visible, const ModelObject
 void GLCanvas3D::update_instance_printable_state_for_object(const size_t obj_idx)
 {
     ModelObject* model_object = m_model->objects[obj_idx];
-    for (int inst_idx = 0; inst_idx < (int)model_object->instances.size(); ++inst_idx) {
+    for (int inst_idx = 0; inst_idx < static_cast<int>(model_object->instances.size()); ++inst_idx) {
         ModelInstance* instance = model_object->instances[inst_idx];
 
         for (const std::unique_ptr<GLVolume> &volume : m_volumes.volumes) {
-            if (volume->object_idx() == (int)obj_idx && volume->instance_idx() == inst_idx)
+            if (volume->object_idx() == static_cast<int>(obj_idx) && volume->instance_idx() == inst_idx)
                 volume->printable = instance->printable;
         }
     }
@@ -1835,7 +1917,7 @@ void GLCanvas3D::set_config(const DynamicPrintConfig* config)
 
         double objdst = min_object_distance(config, 0);
         double min_obj_dst = slot == ArrangeSettingsDb_AppCfg::slotFFFSeqPrint ? objdst : 0.;
-        m_arrange_settings_db.set_distance_from_obj_range(slot, min_obj_dst, std::max(100., min_obj_dst*2));
+        m_arrange_settings_db.set_distance_from_obj_range(slot, min_obj_dst, std::max(100., min_obj_dst * ArrangeDistanceScaleFactor));
         
         if (std::abs(m_arrange_settings_db.get_defaults(slot).d_obj - objdst) > EPSILON) {
             m_arrange_settings_db.get_defaults(slot).d_obj = objdst;
@@ -1885,7 +1967,7 @@ BoundingBoxf3 GLCanvas3D::scene_bounding_box() const
     BoundingBoxf3 bb = volumes_bounding_box();
     bb.merge(m_bed.extended_bounding_box());
     double h = m_bed.build_volume().max_print_height();
-    //FIXME why -h?
+    // Expand Z both ways so the camera framing includes the full print volume and any under-bed offsets.
     bb.min.z() = std::min(bb.min.z(), -h);
     bb.max.z() = std::max(bb.max.z(), h);
     return bb;
@@ -2033,7 +2115,7 @@ void GLCanvas3D::render()
 
     m_in_render = true;
     Slic3r::ScopeGuard in_render_guard([this]() { m_in_render = false; });
-    (void)in_render_guard;
+    
 
     if (m_canvas == nullptr)
         return;
@@ -2069,12 +2151,12 @@ void GLCanvas3D::render()
     // and the viewport was set incorrectly, leading to tripping glAsserts further down
     // the road (in apply_projection). That's why the minimum size is forced to 10.
     Camera& camera = wxGetApp().plater()->get_camera();
-    camera.set_viewport(0, 0, std::max(10u, (unsigned int)cnv_size.get_width()), std::max(10u, (unsigned int)cnv_size.get_height()));
+    camera.set_viewport(0, 0, std::max(10u, static_cast<unsigned int>(cnv_size.get_width())), std::max(10u, static_cast<unsigned int>(cnv_size.get_height())));
     camera.apply_viewport();
 
     if (camera.requires_zoom_to_bed) {
         zoom_to_bed();
-        _resize((unsigned int)cnv_size.get_width(), (unsigned int)cnv_size.get_height());
+        _resize(static_cast<unsigned int>(cnv_size.get_width()), static_cast<unsigned int>(cnv_size.get_height()));
         camera.requires_zoom_to_bed = false;
     }
 
@@ -2205,25 +2287,25 @@ void GLCanvas3D::render()
 
     std::string tooltip;
 
-	// Negative coordinate means out of the window, likely because the window was deactivated.
-	// In that case the tooltip should be hidden.
+    // Negative coordinate means out of the window, likely because the window was deactivated.
+    // In that case the tooltip should be hidden.
     if (m_mouse.position.x() >= 0. && m_mouse.position.y() >= 0.) {
-	    if (tooltip.empty())
-	        tooltip = m_layers_editing.get_tooltip(*this);
+        if (tooltip.empty())
+            tooltip = m_layers_editing.get_tooltip(*this);
 
-	    if (tooltip.empty())
-	        tooltip = m_gizmos.get_tooltip();
+        if (tooltip.empty())
+            tooltip = m_gizmos.get_tooltip();
 
-	    if (tooltip.empty())
-	        tooltip = m_main_toolbar.get_tooltip();
+        if (tooltip.empty())
+            tooltip = m_main_toolbar.get_tooltip();
 
-	    if (tooltip.empty())
-	        tooltip = m_undoredo_toolbar.get_tooltip();
+        if (tooltip.empty())
+            tooltip = m_undoredo_toolbar.get_tooltip();
 
-	    if (tooltip.empty())
+        if (tooltip.empty())
             tooltip = wxGetApp().plater()->get_collapse_toolbar().get_tooltip();
 
-	    if (tooltip.empty())
+        if (tooltip.empty())
             tooltip = wxGetApp().plater()->get_view_toolbar().get_tooltip();
     }
 
@@ -2241,6 +2323,39 @@ void GLCanvas3D::render()
     m_canvas->SetBackgroundColour(wxColor("black"));
     m_canvas->SwapBuffers();
     m_render_stats.increment_fps_counter();
+}
+
+bool GLCanvas3D::capture_current_framebuffer(ThumbnailData& image)
+{
+    if (m_canvas == nullptr || !_is_shown_on_screen())
+        return false;
+
+    render();
+    if (!_set_current())
+        return false;
+
+    const Size& canvas_size = get_canvas_size();
+    const unsigned int width = static_cast<unsigned int>(canvas_size.get_width());
+    const unsigned int height = static_cast<unsigned int>(canvas_size.get_height());
+    if (width == 0 || height == 0)
+        return false;
+
+    image.set(width, height);
+    if (!image.is_valid())
+        return false;
+
+    GLint previous_read_buffer = GL_BACK;
+    GLint previous_pack_alignment = DefaultPackAlignment;
+    glsafe(::glGetIntegerv(GL_READ_BUFFER, &previous_read_buffer));
+    glsafe(::glGetIntegerv(GL_PACK_ALIGNMENT, &previous_pack_alignment));
+    glsafe(::glReadBuffer(GL_FRONT));
+    glsafe(::glPixelStorei(GL_PACK_ALIGNMENT, 1));
+    glsafe(::glReadPixels(
+        0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE,
+        static_cast<void*>(image.pixels.data())));
+    glsafe(::glPixelStorei(GL_PACK_ALIGNMENT, previous_pack_alignment));
+    glsafe(::glReadBuffer(previous_read_buffer));
+    return true;
 }
 
 void GLCanvas3D::render_thumbnail(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, const ThumbnailsParams& thumbnail_params, Camera::EType camera_type)
@@ -2299,7 +2414,7 @@ void GLCanvas3D::ensure_on_bed(unsigned int object_idx, bool allow_negative_z)
     InstancesToZMap instances_min_z;
 
     for (const std::unique_ptr<GLVolume> &volume : m_volumes.volumes) {
-        if (volume->object_idx() == (int)object_idx && !volume->is_modifier) {
+        if (volume->object_idx() == static_cast<int>(object_idx) && !volume->is_modifier) {
             double min_z = volume->transformed_convex_hull_bounding_box().min.z();
             std::pair<int, int> instance = std::make_pair(volume->object_idx(), volume->instance_idx());
             InstancesToZMap::iterator it = instances_min_z.find(instance);
@@ -2334,6 +2449,11 @@ void GLCanvas3D::set_gcode_options_visibility_from_flags(unsigned int flags)
     m_gcode_viewer.set_options_visibility_from_flags(flags);
 }
 
+void GLCanvas3D::apply_gcode_options_visibility_flags(unsigned int flags)
+{
+    m_gcode_viewer.apply_options_visibility_flags(flags);
+}
+
 void GLCanvas3D::set_toolpath_role_visibility_flags(unsigned int flags)
 {
     m_gcode_viewer.set_toolpath_role_visibility_flags(flags);
@@ -2344,12 +2464,12 @@ void GLCanvas3D::set_toolpath_view_type(GCodeViewer::EViewType type)
     m_gcode_viewer.set_view_type(type);
 }
 
-void GLCanvas3D::set_volumes_z_range(const std::array<double, 2>& range)
+void GLCanvas3D::set_volumes_z_range(const std::array<double, ZRangeEndpointCount>& range)
 {
-    m_volumes.set_range(range[0] - 1e-6, range[1] + 1e-6);
+    m_volumes.set_range(range[0] - ZRangeEpsilon, range[1] + ZRangeEpsilon);
 }
 
-void GLCanvas3D::set_toolpaths_z_range(const std::array<unsigned int, 2>& range)
+void GLCanvas3D::set_toolpaths_z_range(const std::array<unsigned int, LayerRangeBounds>& range)
 {
     if (m_gcode_viewer.has_data())
         m_gcode_viewer.set_layers_z_range(range);
@@ -2367,7 +2487,7 @@ std::vector<int> GLCanvas3D::load_object(const ModelObject& model_object, int ob
 
 std::vector<int> GLCanvas3D::load_object(const Model& model, int obj_idx)
 {
-    if (0 <= obj_idx && obj_idx < (int)model.objects.size()) {
+    if (0 <= obj_idx && obj_idx < static_cast<int>(model.objects.size())) {
         const ModelObject* model_object = model.objects[obj_idx];
         if (model_object != nullptr)
             return load_object(*model_object, obj_idx, std::vector<int>());
@@ -2446,7 +2566,7 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
     std::vector<std::pair<GLVolume::CompositeID, GLVolume::CompositeID>> new_to_old_ids_map;
 
     // SLA steps to pull the preview meshes for.
-    typedef std::array<SLAPrintObjectStep, 3> SLASteps;
+    typedef std::array<SLAPrintObjectStep, SlaStepCount> SLASteps;
     SLASteps sla_steps = { slaposDrillHoles, slaposSupportTree, slaposPad };
     struct SLASupportState {
         std::array<PrintStateBase::StateWithTimeStamp, std::tuple_size<SLASteps>::value> step;
@@ -2468,11 +2588,11 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
 
     // Release invalidated volumes to conserve GPU memory in case of delayed refresh (see m_reload_delayed).
     // First initialize model_volumes_new_sorted & model_instances_new_sorted.
-    for (int object_idx = 0; object_idx < (int)m_model->objects.size(); ++object_idx) {
+    for (int object_idx = 0; object_idx < static_cast<int>(m_model->objects.size()); ++object_idx) {
         const ModelObject* model_object = m_model->objects[object_idx];
-        for (int instance_idx = 0; instance_idx < (int)model_object->instances.size(); ++instance_idx) {
+        for (int instance_idx = 0; instance_idx < static_cast<int>(model_object->instances.size()); ++instance_idx) {
             const ModelInstance* model_instance = model_object->instances[instance_idx];
-            for (int volume_idx = 0; volume_idx < (int)model_object->volumes.size(); ++volume_idx) {
+            for (int volume_idx = 0; volume_idx < static_cast<int>(model_object->volumes.size()); ++volume_idx) {
                 const ModelVolume* model_volume = model_object->volumes[volume_idx];
                 model_volume_state.emplace_back(model_volume, model_instance->id(), GLVolume::CompositeID(object_idx, volume_idx, instance_idx));
             }
@@ -2542,7 +2662,7 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
 #if ENABLE_OPENGL_ES
                 m_wipe_tower_mesh.clear();
 #endif // ENABLE_OPENGL_ES
-                volume_idx_wipe_tower_old = (int)volume_id;
+                volume_idx_wipe_tower_old = static_cast<int>(volume_id);
             }
             if (!m_reload_delayed) {
                 deleted_volumes.emplace_back(volume.get(), volume_id);
@@ -2620,11 +2740,11 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
         }
         m_volumes.volumes = std::move(new_list);
     }
-    for (unsigned int obj_idx = 0; obj_idx < (unsigned int)m_model->objects.size(); ++ obj_idx) {
+    for (unsigned int obj_idx = 0; obj_idx < static_cast<unsigned int>(m_model->objects.size()); ++ obj_idx) {
         const ModelObject &model_object = *m_model->objects[obj_idx];
-        for (int volume_idx = 0; volume_idx < (int)model_object.volumes.size(); ++ volume_idx) {
+        for (int volume_idx = 0; volume_idx < static_cast<int>(model_object.volumes.size()); ++ volume_idx) {
             const ModelVolume &model_volume = *model_object.volumes[volume_idx];
-            for (int instance_idx = 0; instance_idx < (int)model_object.instances.size(); ++ instance_idx) {
+            for (int instance_idx = 0; instance_idx < static_cast<int>(model_object.instances.size()); ++ instance_idx) {
                 const ModelInstance &model_instance = *model_object.instances[instance_idx];
                 ModelVolumeState key(model_volume.id(), model_instance.id());
                 auto it = std::lower_bound(model_volume_state.begin(), model_volume_state.end(), key, model_volume_state_lower);
@@ -2719,7 +2839,7 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
 
         // Shift-up all volumes of the object so that it has the right elevation with respect to the print bed
         for (const std::unique_ptr<GLVolume> &volume : m_volumes.volumes) {
-            const ModelObject* model_object = (volume->object_idx() < (int)m_model->objects.size()) ? m_model->objects[volume->object_idx()] : nullptr;
+            const ModelObject* model_object = (volume->object_idx() < static_cast<int>(m_model->objects.size())) ? m_model->objects[volume->object_idx()] : nullptr;
             if (model_object != nullptr && model_object->instances[volume->instance_idx()]->is_printable()) {
                 const SLAPrintObject* po = sla_print->get_print_object_by_model_object_id(model_object->id());
                 if (po != nullptr)
@@ -2730,7 +2850,7 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
 
     if (printer_technology == ptFFF && m_config->has("nozzle_diameter")) {
         // Should the wipe tower be visualized ?
-        unsigned int extruders_count = (unsigned int)m_config->option<ConfigOptionFloats>("nozzle_diameter")->size();
+        unsigned int extruders_count = static_cast<unsigned int>(m_config->option<ConfigOptionFloats>("nozzle_diameter")->size());
 
         const bool wt = m_config->option("wipe_tower")->get_bool();
         const bool co = m_config->option("complete_objects")->get_bool() ||
@@ -2746,9 +2866,11 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
             const float ca = dynamic_cast<const ConfigOptionFloat*>(m_config->option("wipe_tower_cone_angle"))->value;
 
             const Print *print = m_process->fff_print();
-            //FIXME use real nozzle diameter, or the biggest
-            const double first_nozzle_diameter = m_config->option<ConfigOptionFloats>("nozzle_diameter")->get_at(0);
-            const WipeTowerData& wipe_tower_data = print->wipe_tower_data(m_config, first_nozzle_diameter);
+            // Wipe tower sizing tracks the largest nozzle (conservative for multi-nozzle setups).
+            const std::vector<double> &nozzle_diameters =
+                m_config->option<ConfigOptionFloats>("nozzle_diameter")->get_values();
+            const double max_nozzle_diameter = *std::max_element(nozzle_diameters.begin(), nozzle_diameters.end());
+            const WipeTowerData& wipe_tower_data = print->wipe_tower_data(m_config, max_nozzle_diameter);
             const float depth = wipe_tower_data.depth;
             const float bw = wipe_tower_data.brim_width;
             const std::vector<std::pair<float, float>> z_and_depth_pairs = wipe_tower_data.z_and_depth_pairs;
@@ -2761,11 +2883,11 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
             if (depth != 0.) {
     #if ENABLE_OPENGL_ES
                 int volume_idx_wipe_tower_new = m_volumes.load_wipe_tower_preview(
-                    x, y, w, depth, z_and_depth_pairs, (float)height, ca, a, !print->is_step_done(psWipeTower),
+                    x, y, w, depth, z_and_depth_pairs, static_cast<float>(height), ca, a, !print->is_step_done(psWipeTower),
                     bw, &m_wipe_tower_mesh);
     #else
                 int volume_idx_wipe_tower_new = m_volumes.load_wipe_tower_preview(
-                    x, y, w, depth, z_and_depth_pairs, (float)height, ca, a, !print->is_step_done(psWipeTower),
+                    x, y, w, depth, z_and_depth_pairs, static_cast<float>(height), ca, a, !print->is_step_done(psWipeTower),
                     bw);
     #endif // ENABLE_OPENGL_ES
                 if (volume_idx_wipe_tower_old != -1)
@@ -2869,7 +2991,7 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
 
     // check activity/visibility of the modifiers in SLA mode
     for (const std::unique_ptr<GLVolume> &volume : m_volumes.volumes)
-        if (volume->object_idx() < (int)m_model->objects.size() && m_model->objects[volume->object_idx()]->instances[volume->instance_idx()]->is_printable()) {
+        if (volume->object_idx() < static_cast<int>(m_model->objects.size()) && m_model->objects[volume->object_idx()]->instances[volume->instance_idx()]->is_printable()) {
             if (volume->is_active && volume->is_modifier && m_model->objects[volume->object_idx()]->volumes[volume->volume_idx()]->is_modifier())
                 volume->is_active = printer_technology != ptSLA;
         }
@@ -2927,8 +3049,8 @@ void GLCanvas3D::load_sla_preview()
     const SLAPrint* print = sla_print();
     if (m_canvas != nullptr && print != nullptr) {
         _set_current();
-	    // Release OpenGL data before generating new data.
-	    reset_volumes();
+        // Release OpenGL data before generating new data.
+        reset_volumes();
         _load_sla_shells();
         _update_sla_shells_outside_state();
         _set_warning_notification_if_needed(EWarning::ObjectClashed);
@@ -3015,7 +3137,7 @@ void GLCanvas3D::unbind_event_handlers()
         m_canvas->Unbind(wxEVT_TIMER, &GLCanvas3D::on_timer, this);
         m_canvas->Unbind(EVT_GLCANVAS_RENDER_TIMER, &GLCanvas3D::on_render_timer, this);
         m_canvas->Unbind(wxEVT_LEFT_DOWN, &GLCanvas3D::on_mouse, this);
-		m_canvas->Unbind(wxEVT_LEFT_UP, &GLCanvas3D::on_mouse, this);
+        m_canvas->Unbind(wxEVT_LEFT_UP, &GLCanvas3D::on_mouse, this);
         m_canvas->Unbind(wxEVT_MIDDLE_DOWN, &GLCanvas3D::on_mouse, this);
         m_canvas->Unbind(wxEVT_MIDDLE_UP, &GLCanvas3D::on_mouse, this);
         m_canvas->Unbind(wxEVT_RIGHT_DOWN, &GLCanvas3D::on_mouse, this);
@@ -3082,8 +3204,8 @@ void GLCanvas3D::on_char(wxKeyEvent& evt)
 
 #ifdef SHOW_IMGUI_DEMO_WINDOW
     static int cur = 0;
-    if (get_logging_level() >= 3 && wxString("demo")[cur] == evt.GetUnicodeKey()) ++cur; else cur = 0;
-    if (cur == 4) { show_imgui_demo_window = !show_imgui_demo_window; cur = 0;}
+    if (get_logging_level() >= LogLevelInfo && wxString("demo")[cur] == evt.GetUnicodeKey()) ++cur; else cur = 0;
+    if (cur == DemoActivationKeyCount) { show_imgui_demo_window = !show_imgui_demo_window; cur = 0;}
 #endif // SHOW_IMGUI_DEMO_WINDOW
 
     auto imgui = wxGetApp().imgui();
@@ -3381,7 +3503,7 @@ void GLCanvas3D::on_key(wxKeyEvent& evt)
 
             Vec3d displacement;
             if (camera_space) {
-                Eigen::Matrix<double, 3, 3, Eigen::DontAlign> inv_view_3x3 = wxGetApp().plater()->get_camera().get_view_matrix().inverse().matrix().block(0, 0, 3, 3);
+                Eigen::Matrix<double, SpatialDimensionCount, SpatialDimensionCount, Eigen::DontAlign> inv_view_3x3 = wxGetApp().plater()->get_camera().get_view_matrix().inverse().matrix().block(0, 0, SpatialDimensionCount, SpatialDimensionCount);
                 displacement = multiplier * (inv_view_3x3 * direction);
                 displacement.z() = 0.0;
             }
@@ -3404,13 +3526,12 @@ void GLCanvas3D::on_key(wxKeyEvent& evt)
     else {
         if (!m_gizmos.on_key(evt)) {
             if (evt.GetEventType() == wxEVT_KEY_UP) {
-                if (get_logging_level() >= 3 && evt.ShiftDown() && evt.ControlDown() && keyCode == WXK_SPACE) {
+                if (get_logging_level() >= LogLevelInfo && evt.ShiftDown() && evt.ControlDown() && keyCode == WXK_SPACE) {
                     wxGetApp().plater()->toggle_render_statistic_dialog();
                     m_dirty = true;
                 }
                 if (m_tab_down && keyCode == WXK_TAB && !evt.HasAnyModifiers()) {
-                    // Enable switching between 3D and Preview with Tab
-                    // m_canvas->HandleAsNavigationKey(evt);   // XXX: Doesn't work in some cases / on Linux
+                    // Switch 3D / Preview via a custom event (wx HandleAsNavigationKey is unreliable on GTK).
                     post_event(SimpleEvent(EVT_GLCANVAS_TAB));
                 }
                 else if (! wxGetApp().is_gcode_viewer() && keyCode == WXK_TAB &&
@@ -3576,9 +3697,9 @@ void GLCanvas3D::on_mouse_wheel(wxMouseEvent& evt)
     }
 
 #ifdef __WXMSW__
-	// For some reason the Idle event is not being generated after the mouse scroll event in case of scrolling with the two fingers on the touch pad,
-	// if the event is not allowed to be passed further.
-	// https://github.com/prusa3d/PrusaSlicer/issues/2750
+    // For some reason the Idle event is not being generated after the mouse scroll event in case of scrolling with the two fingers on the touch pad,
+    // if the event is not allowed to be passed further.
+    // https://github.com/prusa3d/PrusaSlicer/issues/2750
     // evt.Skip() used to trigger the needed screen refresh, but it does no more. wxWakeUpIdle() seem to work now.
     wxWakeUpIdle();
 #endif /* __WXMSW__ */
@@ -3588,9 +3709,9 @@ void GLCanvas3D::on_mouse_wheel(wxMouseEvent& evt)
         int object_idx_selected = m_selection.get_object_idx();
         if (object_idx_selected != -1) {
             // A volume is selected. Test, whether hovering over a layer thickness bar.
-            if (m_layers_editing.bar_rect_contains(*this, (float)evt.GetX(), (float)evt.GetY())) {
+            if (m_layers_editing.bar_rect_contains(*this, static_cast<float>(evt.GetX()), static_cast<float>(evt.GetY()))) {
                 // Adjust the width of the selection.
-                m_layers_editing.band_width = std::max(std::min(m_layers_editing.band_width * (1.0f + 0.1f * (float)evt.GetWheelRotation() / (float)evt.GetWheelDelta()), 10.0f), 1.5f);
+                m_layers_editing.band_width = std::max(std::min(m_layers_editing.band_width * (1.0f + 0.1f * static_cast<float>(evt.GetWheelRotation()) / static_cast<float>(evt.GetWheelDelta())), 10.0f), 1.5f);
                 if (m_canvas != nullptr)
                     m_canvas->Refresh();
 
@@ -3604,7 +3725,7 @@ void GLCanvas3D::on_mouse_wheel(wxMouseEvent& evt)
     if (m_main_toolbar.is_item_pressed("search")    || 
         m_undoredo_toolbar.is_item_pressed("undo")  || 
         m_undoredo_toolbar.is_item_pressed("redo")) {
-        m_mouse_wheel = int((double)evt.GetWheelRotation() / (double)evt.GetWheelDelta());
+        m_mouse_wheel = int(static_cast<double>(evt.GetWheelRotation()) / static_cast<double>(evt.GetWheelDelta()));
         return;
     }
 
@@ -3614,7 +3735,7 @@ void GLCanvas3D::on_mouse_wheel(wxMouseEvent& evt)
 
     // Calculate the zoom delta and apply it to the current zoom factor
     const double direction_factor = wxGetApp().app_config->get_bool("reverse_mouse_wheel_zoom") ? -1.0 : 1.0;
-    const double delta = direction_factor * (double)evt.GetWheelRotation() / (double)evt.GetWheelDelta();
+    const double delta = direction_factor * static_cast<double>(evt.GetWheelRotation()) / static_cast<double>(evt.GetWheelDelta());
     if (wxGetKeyState(WXK_SHIFT)) {
         const auto cnv_size = get_canvas_size();
         const Vec3d screen_center_3d_pos = _mouse_to_3d({ cnv_size.get_width() * 0.5, cnv_size.get_height() * 0.5 });
@@ -3684,44 +3805,44 @@ void GLCanvas3D::schedule_extra_frame(int miliseconds)
 #ifdef SLIC3R_DEBUG_MOUSE_EVENTS
 std::string format_mouse_event_debug_message(const wxMouseEvent &evt)
 {
-	static int idx = 0;
-	char buf[2048];
-	std::string out;
-	sprintf(buf, "Mouse Event %d - ", idx ++);
-	out = buf;
+    static int idx = 0;
+    char buf[2048];
+    std::string out;
+    sprintf(buf, "Mouse Event %d - ", idx ++);
+    out = buf;
 
-	if (evt.Entering())
-		out += "Entering ";
-	if (evt.Leaving())
-		out += "Leaving ";
-	if (evt.Dragging())
-		out += "Dragging ";
-	if (evt.Moving())
-		out += "Moving ";
-	if (evt.Magnify())
-		out += "Magnify ";
-	if (evt.LeftDown())
-		out += "LeftDown ";
-	if (evt.LeftUp())
-		out += "LeftUp ";
-	if (evt.LeftDClick())
-		out += "LeftDClick ";
-	if (evt.MiddleDown())
-		out += "MiddleDown ";
-	if (evt.MiddleUp())
-		out += "MiddleUp ";
-	if (evt.MiddleDClick())
-		out += "MiddleDClick ";
-	if (evt.RightDown())
-		out += "RightDown ";
-	if (evt.RightUp())
-		out += "RightUp ";
-	if (evt.RightDClick())
-		out += "RightDClick ";
+    if (evt.Entering())
+        out += "Entering ";
+    if (evt.Leaving())
+        out += "Leaving ";
+    if (evt.Dragging())
+        out += "Dragging ";
+    if (evt.Moving())
+        out += "Moving ";
+    if (evt.Magnify())
+        out += "Magnify ";
+    if (evt.LeftDown())
+        out += "LeftDown ";
+    if (evt.LeftUp())
+        out += "LeftUp ";
+    if (evt.LeftDClick())
+        out += "LeftDClick ";
+    if (evt.MiddleDown())
+        out += "MiddleDown ";
+    if (evt.MiddleUp())
+        out += "MiddleUp ";
+    if (evt.MiddleDClick())
+        out += "MiddleDClick ";
+    if (evt.RightDown())
+        out += "RightDown ";
+    if (evt.RightUp())
+        out += "RightUp ";
+    if (evt.RightDClick())
+        out += "RightDClick ";
 
-	sprintf(buf, "(%d, %d)", evt.GetX(), evt.GetY());
-	out += buf;
-	return out;
+    sprintf(buf, "(%d, %d)", evt.GetX(), evt.GetY());
+    out += buf;
+    return out;
 }
 #endif /* SLIC3R_DEBUG_MOUSE_EVENTS */
 
@@ -3758,22 +3879,22 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
     }
 
 #ifdef __WXMSW__
-	bool on_enter_workaround = false;
+    bool on_enter_workaround = false;
     if (! evt.Entering() && ! evt.Leaving() && m_mouse.position.x() == -1.0) {
         // Workaround for SPE-832: There seems to be a mouse event sent to the window before evt.Entering()
         m_mouse.position = pos.cast<double>();
         render();
 #ifdef SLIC3R_DEBUG_MOUSE_EVENTS
-		printf((format_mouse_event_debug_message(evt) + " - OnEnter workaround\n").c_str());
+        printf((format_mouse_event_debug_message(evt) + " - OnEnter workaround\n").c_str());
 #endif /* SLIC3R_DEBUG_MOUSE_EVENTS */
-		on_enter_workaround = true;
+        on_enter_workaround = true;
     } else 
 #endif /* __WXMSW__ */
     {
 #ifdef SLIC3R_DEBUG_MOUSE_EVENTS
-		printf((format_mouse_event_debug_message(evt) + " - other\n").c_str());
+        printf((format_mouse_event_debug_message(evt) + " - other\n").c_str());
 #endif /* SLIC3R_DEBUG_MOUSE_EVENTS */
-	}
+    }
 
     if (m_main_toolbar.on_mouse(evt, *this)) {
         if (evt.LeftUp() || evt.MiddleUp() || evt.RightUp())
@@ -3986,7 +4107,7 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
                 if (evt.LeftDown() && m_moving_enabled && m_mouse.drag.move_volume_idx == -1) {
                     // Only accept the initial position, if it is inside the volume bounding box.
                     const int volume_idx = get_first_hover_volume_idx();
-                    if (m_volumes.volumes.size() > volume_idx) { //can fail if the screen takes a bit of time to refresh
+                    if (m_volumes.volumes.size() > size_t(volume_idx)) { //can fail if the screen takes a bit of time to refresh
                         BoundingBoxf3 volume_bbox = m_volumes.volumes[volume_idx]->transformed_bounding_box();
                         volume_bbox.offset(1.0);
                         const bool is_cut_connector_selected = m_selection.is_any_connector();
@@ -4069,7 +4190,7 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
                             val /= 100;
                             if (val > 0) {val -= 1; if(val < 0) val = 0;}
                             if (val < 0) {val += 1; if(val > 0) val = 0;}
-                            return std::exp(val/2);
+                            return std::exp(val / ExponentialDragScaleDivisor);
                         };
                         double xy = val_fit(pos.x() - m_mouse.drag.start_position_2D.x());
                         double z = val_fit(m_mouse.drag.start_position_2D.y() - pos.y());
@@ -4131,7 +4252,7 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
 
                     m_dirty = true;
                 }
-                m_mouse.drag.start_position_3D = Vec3d((double)pos.x(), (double)pos.y(), 0.0);
+                m_mouse.drag.start_position_3D = Vec3d(static_cast<double>(pos.x()), static_cast<double>(pos.y()), 0.0);
             }
         }
         else if (evt.RightIsDown() || (evt.MiddleIsDown() && !wxGetApp().app_config->get_bool("mouse_middle_target"))) {
@@ -4180,11 +4301,9 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
                         // vector from the starting position to the found intersection
                         const Vec3d inters_vec = inters - orig/*m_mouse.drag.start_position_3D*/;
 
-                        const Vec3d camera_right = camera.get_dir_right();
                         const Vec3d camera_up = camera.get_dir_up();
 
-                        // finds projection of the vector along the camera axes
-                        const double projection_x = inters_vec.dot(camera_right);
+                        // finds the vertical projection of the vector along the camera axis
                         const double projection_z = inters_vec.dot(camera_up);
                         //const Vec3d cur_pos = _mouse_to_3d(pos, &z);
                         //Vec3d delta = orig - cur_pos;
@@ -4219,11 +4338,9 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
                 // vector from the starting position to the found intersection
                 const Vec3d inters_vec = inters - orig/*m_mouse.drag.start_position_3D*/;
 
-                const Vec3d camera_right = camera.get_dir_right();
                 const Vec3d camera_up = camera.get_dir_up();
 
-                // finds projection of the vector along the camera axes
-                const double projection_x = inters_vec.dot(camera_right);
+                // finds the vertical projection of the vector along the camera axis
                 const double projection_z = inters_vec.dot(camera_up);
                 //const Vec3d cur_pos = _mouse_to_3d(pos, &z);
                 //Vec3d delta = orig - cur_pos;
@@ -4352,8 +4469,8 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
         show_sinking_contours();
 
 #ifdef __WXMSW__
-	if (on_enter_workaround)
-		m_mouse.position = Vec2d(-1., -1.);
+    if (on_enter_workaround)
+        m_mouse.position = Vec2d(-1., -1.);
 #endif /* __WXMSW__ */
 }
 
@@ -4395,7 +4512,7 @@ Size GLCanvas3D::get_canvas_size() const
 Vec2d GLCanvas3D::get_local_mouse_position() const
 {
     if (m_canvas == nullptr)
-		return Vec2d::Zero();
+        return Vec2d::Zero();
 
     wxPoint mouse_pos = m_canvas->ScreenToClient(wxGetMousePosition());
     const double factor = 
@@ -4437,7 +4554,7 @@ void GLCanvas3D::do_move(const std::string& snapshot_type)
 
         std::pair<int, int> done_id(object_idx, instance_idx);
 
-        if (0 <= object_idx && object_idx < (int)m_model->objects.size()) {
+        if (0 <= object_idx && object_idx < static_cast<int>(m_model->objects.size())) {
             done.insert(done_id);
 
             // Move instances/volumes
@@ -4529,7 +4646,7 @@ void GLCanvas3D::do_rotate(const std::string& snapshot_type)
             post_event(Vec3dEvent(EVT_GLCANVAS_WIPETOWER_ROTATED, Vec3d(offset.x(), offset.y(), z_rot)));
         }
         const int object_idx = v->object_idx();
-        if (object_idx < 0 || (int)m_model->objects.size() <= object_idx)
+        if (object_idx < 0 || static_cast<int>(m_model->objects.size()) <= object_idx)
             continue;
 
         const int instance_idx = v->instance_idx();
@@ -4605,7 +4722,7 @@ void GLCanvas3D::do_scale(const std::string& snapshot_type)
 
     for (const std::unique_ptr<GLVolume> &v : m_volumes.volumes) {
         const int object_idx = v->object_idx();
-        if (object_idx < 0 || (int)m_model->objects.size() <= object_idx)
+        if (object_idx < 0 || static_cast<int>(m_model->objects.size()) <= object_idx)
             continue;
 
         const int instance_idx = v->instance_idx();
@@ -4682,7 +4799,7 @@ void GLCanvas3D::do_mirror(const std::string& snapshot_type)
 
     for (const std::unique_ptr<GLVolume> &v : m_volumes.volumes) {
         int object_idx = v->object_idx();
-        if (object_idx < 0 || (int)m_model->objects.size() <= object_idx)
+        if (object_idx < 0 || static_cast<int>(m_model->objects.size()) <= object_idx)
             continue;
 
         int instance_idx = v->instance_idx();
@@ -4748,7 +4865,7 @@ void GLCanvas3D::do_reset_skew(const std::string& snapshot_type)
 
     for (const std::unique_ptr<GLVolume> &v : m_volumes.volumes) {
         int object_idx = v->object_idx();
-        if (object_idx < 0 || (int)m_model->objects.size() <= object_idx)
+        if (object_idx < 0 || static_cast<int>(m_model->objects.size()) <= object_idx)
             continue;
 
         int instance_idx = v->instance_idx();
@@ -4927,7 +5044,8 @@ void GLCanvas3D::mouse_up_cleanup()
 
 void GLCanvas3D::update_sequential_clearance(bool force_contours_generation)
 {
-    if (current_printer_technology() != ptFFF || (!fff_print()->config().complete_objects && fff_print()->config().parallel_objects_step == 0))
+    if (current_printer_technology() != ptFFF ||
+        (!fff_print()->config().complete_objects && fff_print()->config().parallel_objects_step.value == 0.0))
         return;
 
     if (m_layers_editing.is_enabled())
@@ -4998,10 +5116,10 @@ void GLCanvas3D::update_sequential_clearance(bool force_contours_generation)
         m_sequential_print_clearance.m_hulls_2d_cache.reserve(m_model->objects.size());
         for (size_t i = 0; i < m_model->objects.size(); ++i) {
             ModelObject* model_object = m_model->objects[i];
-            Geometry::Transformation trafo = instance_transform_from_volumes((int)i, 0);
+            Geometry::Transformation trafo = instance_transform_from_volumes(static_cast<int>(i), 0);
             trafo.set_offset({ 0.0, 0.0, trafo.get_offset().z() });
             Pointf3s& new_hull_2d = m_sequential_print_clearance.m_hulls_2d_cache.emplace_back(std::make_pair(Pointf3s(), trafo.get_matrix())).first;
-            if (is_object_outside_printbed((int)i))
+            if (is_object_outside_printbed(static_cast<int>(i)))
                 continue;
 
             Polygon hull_2d = model_object->convex_hull_2d(trafo.get_matrix());
@@ -5128,7 +5246,7 @@ bool GLCanvas3D::_render_undo_redo_stack(const bool is_undo, float pos_x)
     int selected = -1;
     float em = static_cast<float>(wxGetApp().em_unit());
 #if ENABLE_RETINA_GL
-	em *= m_retina_helper->get_scale_factor();
+    em *= m_retina_helper->get_scale_factor();
 #endif
 
     if (imgui->undo_redo_list(ImVec2(18 * em, 26 * em), is_undo, &string_getter, hovered, selected, m_mouse_wheel))
@@ -5167,21 +5285,23 @@ bool GLCanvas3D::_render_search_list(float pos_x)
     bool edited = false;
     float em = static_cast<float>(wxGetApp().em_unit());
 #if ENABLE_RETINA_GL
-	em *= m_retina_helper->get_scale_factor();
+    em *= m_retina_helper->get_scale_factor();
 #endif // ENABLE_RETINA_GL
 
     Sidebar& sidebar = wxGetApp().sidebar();
 
     std::string& search_line = sidebar.get_search_line();
-    char *s = new char[255];
-    strcpy(s, search_line.empty() ? _u8L("Enter a search term").c_str() : search_line.c_str());
+    // ImGui edits this buffer in place, so it has to stay writable at its full size for
+    // the whole call. resize() also bounds the initial text, which strcpy did not.
+    static constexpr size_t search_buffer_size = 255;
+    std::string search_buffer = search_line.empty() ? _u8L("Enter a search term") : search_line;
+    search_buffer.resize(search_buffer_size);
 
-    imgui->search_list(ImVec2(65 * em, 30 * em), &search_string_getter, s,
+    imgui->search_list(ImVec2(65 * em, 30 * em), &search_string_getter, search_buffer.data(),
         sidebar.get_searcher().view_params,
         selected, edited, m_mouse_wheel, wxGetApp().is_localized());
 
-    search_line = s;
-    delete [] s;
+    search_line = search_buffer.c_str();
     if (search_line == _u8L("Enter a search term"))
         search_line.clear();
 
@@ -5226,7 +5346,7 @@ bool GLCanvas3D::_render_orient_menu(float left, float right, float bottom, floa
     //original use center as {0.0}, and top is (canvas_h/2), bottom is (-canvas_h/2), also plus inv_camera
     //now change to left_up as {0,0}, and top is 0, bottom is canvas_h
 #if BBS_TOOLBAR_ON_TOP
-    const float x = (1 + left) * canvas_w / 2;
+    const float x = (1 + left) * canvas_w / CanvasCenterDivisor;
     ImGuiWrapper::push_toolbar_style(get_scale());
     imgui->set_next_window_pos(x, m_main_toolbar.get_height(), ImGuiCond_Always, 0.5f, 0.0f);
 #else
@@ -5244,13 +5364,11 @@ bool GLCanvas3D::_render_orient_menu(float left, float right, float bottom, floa
     PrinterTechnology ptech = current_printer_technology();
 
     bool settings_changed = false;
-    float angle_min = 45.f;
     std::string angle_key = "overhang_angle", rot_key = "enable_rotation";
     std::string key_min_area = "min_area";
     std::string postfix = "_fff";
 
     if (ptech == ptSLA) {
-        angle_min = 45.f;
         postfix = "_sla";
     }
 
@@ -5313,9 +5431,9 @@ static void debug_output_thumbnail(const ThumbnailData& thumbnail_data)
         unsigned int rr = (thumbnail_data.height - 1 - r) * thumbnail_data.width;
         for (unsigned int c = 0; c < thumbnail_data.width; ++c)
         {
-            unsigned char* px = (unsigned char*)thumbnail_data.pixels.data() + 4 * (rr + c);
-            image.SetRGB((int)c, (int)r, px[0], px[1], px[2]);
-            image.SetAlpha((int)c, (int)r, px[3]);
+            unsigned char* px = static_cast<unsigned char*>(thumbnail_data.pixels.data()) + RgbaChannelCount * (rr + c);
+            image.SetRGB(static_cast<int>(c), static_cast<int>(r), px[0], px[1], px[BlueChannelIndex]);
+            image.SetAlpha(static_cast<int>(c), static_cast<int>(r), px[AlphaChannelIndex]);
         }
     }
 
@@ -5397,7 +5515,7 @@ void GLCanvas3D::_render_thumbnail_internal(ThumbnailData& thumbnail_data, const
             if (const ConfigOptionBool *conf_ok = printer_config->option<ConfigOptionBool>("thumbnails_custom_color")) {
                 if (conf_ok->value) {
                     if (const ConfigOptionString *conf_color = printer_config->option<ConfigOptionString>("thumbnails_color")) {
-                        if (conf_color->value.length() > 6) {
+                        if (conf_color->value.length() > MinimumHexColorLength) {
                             wxColour clr(conf_color->value);
                             custom_color.r(clr.Red() / 255.f);
                             custom_color.g(clr.Green() / 255.f);
@@ -5420,8 +5538,8 @@ void GLCanvas3D::_render_thumbnail_internal(ThumbnailData& thumbnail_data, const
             continue;
 
         shader->start_using();
-        const std::array<float, 4> clp_data = { 0.0f, 0.0f, 1.0f, FLT_MAX };
-        const std::array<float, 2> z_range = { -FLT_MAX, FLT_MAX };
+        const std::array<float, PlaneComponentCount> clp_data = { 0.0f, 0.0f, 1.0f, FLT_MAX };
+        const std::array<float, ZRangeEndpointCount> z_range = { -FLT_MAX, FLT_MAX };
         const bool is_left_handed = vol->is_left_handed();
         if (render_as_painted) {
             shader->set_uniform("volume_world_matrix", vol->world_matrix());
@@ -5440,10 +5558,10 @@ void GLCanvas3D::_render_thumbnail_internal(ThumbnailData& thumbnail_data, const
         const bool is_active = vol->is_active;
         vol->is_active = true;
         const Transform3d model_matrix = vol->world_matrix();
-        shader->set_uniform("view_model_matrix", view_matrix * model_matrix);
-        shader->set_uniform("projection_matrix", projection_matrix);
-        const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-        shader->set_uniform("view_normal_matrix", view_normal_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, projection_matrix);
+        const Matrix3d view_normal_matrix = Geometry::view_normal_matrix(view_matrix, model_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
 
         if (is_left_handed)
             glsafe(::glFrontFace(GL_CW));
@@ -5495,7 +5613,7 @@ void GLCanvas3D::_render_thumbnail_framebuffer(ThumbnailData &           thumbna
 
     GLint max_samples;
     glsafe(::glGetIntegerv(GL_MAX_SAMPLES, &max_samples));
-    GLsizei num_samples = max_samples / 2;
+    GLsizei num_samples = max_samples / MsaaSampleReductionDivisor;
 
     GLuint render_fbo;
     glsafe(::glGenFramebuffers(1, &render_fbo));
@@ -5556,14 +5674,14 @@ void GLCanvas3D::_render_thumbnail_framebuffer(ThumbnailData &           thumbna
                 glsafe(::glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_LINEAR));
 
                 glsafe(::glBindFramebuffer(GL_READ_FRAMEBUFFER, resolve_fbo));
-                glsafe(::glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, (void*)thumbnail_data.pixels.data()));
+                glsafe(::glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, static_cast<void*>(thumbnail_data.pixels.data())));
             }
 
             glsafe(::glDeleteTextures(1, &resolve_tex));
             glsafe(::glDeleteFramebuffers(1, &resolve_fbo));
         }
         else
-            glsafe(::glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, (void*)thumbnail_data.pixels.data()));
+            glsafe(::glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, static_cast<void*>(thumbnail_data.pixels.data())));
 
 #if ENABLE_THUMBNAIL_GENERATOR_DEBUG_OUTPUT
         debug_output_thumbnail(thumbnail_data);
@@ -5594,7 +5712,7 @@ void GLCanvas3D::_render_thumbnail_framebuffer_ext(ThumbnailData& thumbnail_data
 
     GLint max_samples;
     glsafe(::glGetIntegerv(GL_MAX_SAMPLES_EXT, &max_samples));
-    GLsizei num_samples = max_samples / 2;
+    GLsizei num_samples = max_samples / MsaaSampleReductionDivisor;
 
     GLuint render_fbo;
     glsafe(::glGenFramebuffersEXT(1, &render_fbo));
@@ -5655,14 +5773,14 @@ void GLCanvas3D::_render_thumbnail_framebuffer_ext(ThumbnailData& thumbnail_data
                 glsafe(::glBlitFramebufferEXT(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_LINEAR));
 
                 glsafe(::glBindFramebufferEXT(GL_READ_FRAMEBUFFER_EXT, resolve_fbo));
-                glsafe(::glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, (void*)thumbnail_data.pixels.data()));
+                glsafe(::glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, static_cast<void*>(thumbnail_data.pixels.data())));
             }
 
             glsafe(::glDeleteTextures(1, &resolve_tex));
             glsafe(::glDeleteFramebuffersEXT(1, &resolve_fbo));
         }
         else
-            glsafe(::glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, (void*)thumbnail_data.pixels.data()));
+            glsafe(::glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, static_cast<void*>(thumbnail_data.pixels.data())));
 
 #if ENABLE_THUMBNAIL_GENERATOR_DEBUG_OUTPUT
         debug_output_thumbnail(thumbnail_data);
@@ -5685,12 +5803,12 @@ void GLCanvas3D::_render_thumbnail_legacy(ThumbnailData& thumbnail_data, unsigne
 {
     // check that thumbnail size does not exceed the default framebuffer size
     const Size& cnv_size = get_canvas_size();
-    unsigned int cnv_w = (unsigned int)cnv_size.get_width();
-    unsigned int cnv_h = (unsigned int)cnv_size.get_height();
+    unsigned int cnv_w = static_cast<unsigned int>(cnv_size.get_width());
+    unsigned int cnv_h = static_cast<unsigned int>(cnv_size.get_height());
     if (w > cnv_w || h > cnv_h) {
-        float ratio = std::min((float)cnv_w / (float)w, (float)cnv_h / (float)h);
-        w = (unsigned int)(ratio * (float)w);
-        h = (unsigned int)(ratio * (float)h);
+        float ratio = std::min(static_cast<float>(cnv_w) / static_cast<float>(w), static_cast<float>(cnv_h) / static_cast<float>(h));
+        w = static_cast<unsigned int>(ratio * static_cast<float>(w));
+        h = static_cast<unsigned int>(ratio * static_cast<float>(h));
     }
 
     thumbnail_data.set(w, h);
@@ -5699,7 +5817,7 @@ void GLCanvas3D::_render_thumbnail_legacy(ThumbnailData& thumbnail_data, unsigne
 
     _render_thumbnail_internal(thumbnail_data, thumbnail_params, volumes, camera_type);
 
-    glsafe(::glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, (void*)thumbnail_data.pixels.data()));
+    glsafe(::glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, static_cast<void*>(thumbnail_data.pixels.data())));
 #if ENABLE_THUMBNAIL_GENERATOR_DEBUG_OUTPUT
     debug_output_thumbnail(thumbnail_data);
 #endif // ENABLE_THUMBNAIL_GENERATOR_DEBUG_OUTPUT
@@ -6009,7 +6127,7 @@ bool GLCanvas3D::_init_undoredo_toolbar()
 
         std::string new_additional_tooltip;
         if (can_undo) {
-        	std::string action;
+            std::string action;
             wxGetApp().plater()->undo_redo_topmost_string_getter(true, action);
             new_additional_tooltip = format(_L("Next Undo action: %1%"), action);
         }
@@ -6045,7 +6163,7 @@ bool GLCanvas3D::_init_undoredo_toolbar()
 
         std::string new_additional_tooltip;
         if (can_redo) {
-        	std::string action;
+            std::string action;
             wxGetApp().plater()->undo_redo_topmost_string_getter(false, action);
             new_additional_tooltip = format(_L("Next Redo action: %1%"), action);
         }
@@ -6086,7 +6204,7 @@ void GLCanvas3D::_resize(unsigned int w, unsigned int h)
     if (m_canvas == nullptr && m_context == nullptr)
         return;
 
-    const std::array<unsigned int, 2> new_size = { w, h };
+    const std::array<unsigned int, ScreenSizeComponentCount> new_size = { w, h };
     if (m_old_size == new_size)
         return;
 
@@ -6160,7 +6278,7 @@ void GLCanvas3D::_refresh_if_shown_on_screen()
 {
     if (_is_shown_on_screen()) {
         const Size& cnv_size = get_canvas_size();
-        _resize((unsigned int)cnv_size.get_width(), (unsigned int)cnv_size.get_height());
+        _resize(static_cast<unsigned int>(cnv_size.get_width()), static_cast<unsigned int>(cnv_size.get_height()));
 
         // When the application starts the following call to render() triggers the opengl initialization.
         // We need to ask for an extra call to reload_scene() to force the generation of the model for wipe tower
@@ -6199,7 +6317,7 @@ void GLCanvas3D::_picking_pass()
         {
         case SceneRaycaster::EType::Volume:
         {
-            if (0 <= hit.raycaster_id && hit.raycaster_id < (int)m_volumes.volumes.size()) {
+            if (0 <= hit.raycaster_id && hit.raycaster_id < static_cast<int>(m_volumes.volumes.size())) {
                 const std::unique_ptr<GLVolume> &volume = m_volumes.volumes[hit.raycaster_id];
                 if (volume->is_active && !volume->disabled && (volume->composite_id.volume_id >= 0 || m_render_sla_auxiliaries)) {
                     // do not add the volume id if any gizmo is active and CTRL is pressed
@@ -6273,14 +6391,14 @@ void GLCanvas3D::_picking_pass()
         ImGui::TableSetColumnIndex(1);
         imgui.text_colored(col_2_color, col_2.c_str());
         if (!col_3.empty()) {
-            ImGui::TableSetColumnIndex(2);
+            ImGui::TableSetColumnIndex(DebugDetailColumnIndex);
             imgui.text_colored(col_3_color, col_3.c_str());
         }
     };
 
     char buf[1024];
     if (hit.type != SceneRaycaster::EType::None) {
-        if (ImGui::BeginTable("Hit", 2)) {
+        if (ImGui::BeginTable("Hit", HitDebugColumnCount)) {
             add_strings_row_to_table("Object ID", ImGuiWrapper::get_COL_LIGHT(), std::to_string(hit.raycaster_id), ImGui::GetStyleColorVec4(ImGuiCol_Text));
             add_strings_row_to_table("Type", ImGuiWrapper::get_COL_LIGHT(), object_type, ImGui::GetStyleColorVec4(ImGuiCol_Text));
             sprintf(buf, "%.3f, %.3f, %.3f", hit.position.x(), hit.position.y(), hit.position.z());
@@ -6295,14 +6413,14 @@ void GLCanvas3D::_picking_pass()
 
     ImGui::Separator();
     imgui.text("Registered for picking:");
-    if (ImGui::BeginTable("Raycasters", 2)) {
-        sprintf(buf, "%d (%d)", (int)m_scene_raycaster.beds_count(), (int)m_scene_raycaster.active_beds_count());
+    if (ImGui::BeginTable("Raycasters", RaycasterDebugColumnCount)) {
+        sprintf(buf, "%d (%d)", static_cast<int>(m_scene_raycaster.beds_count()), static_cast<int>(m_scene_raycaster.active_beds_count()));
         add_strings_row_to_table("Beds", ImGuiWrapper::get_COL_LIGHT(), std::string(buf), ImGui::GetStyleColorVec4(ImGuiCol_Text));
-        sprintf(buf, "%d (%d)", (int)m_scene_raycaster.volumes_count(), (int)m_scene_raycaster.active_volumes_count());
+        sprintf(buf, "%d (%d)", static_cast<int>(m_scene_raycaster.volumes_count()), static_cast<int>(m_scene_raycaster.active_volumes_count()));
         add_strings_row_to_table("Volumes", ImGuiWrapper::get_COL_LIGHT(), std::string(buf), ImGui::GetStyleColorVec4(ImGuiCol_Text));
-        sprintf(buf, "%d (%d)", (int)m_scene_raycaster.gizmos_count(), (int)m_scene_raycaster.active_gizmos_count());
+        sprintf(buf, "%d (%d)", static_cast<int>(m_scene_raycaster.gizmos_count()), static_cast<int>(m_scene_raycaster.active_gizmos_count()));
         add_strings_row_to_table("Gizmo elements", ImGuiWrapper::get_COL_LIGHT(), std::string(buf), ImGui::GetStyleColorVec4(ImGuiCol_Text));
-        sprintf(buf, "%d (%d)", (int)m_scene_raycaster.fallback_gizmos_count(), (int)m_scene_raycaster.active_fallback_gizmos_count());
+        sprintf(buf, "%d (%d)", static_cast<int>(m_scene_raycaster.fallback_gizmos_count()), static_cast<int>(m_scene_raycaster.active_fallback_gizmos_count()));
         add_strings_row_to_table("Gizmo2 elements", ImGuiWrapper::get_COL_LIGHT(), std::string(buf), ImGui::GetStyleColorVec4(ImGuiCol_Text));
         ImGui::EndTable();
     }
@@ -6311,7 +6429,7 @@ void GLCanvas3D::_picking_pass()
     if (gizmo_raycasters != nullptr && !gizmo_raycasters->empty()) {
         ImGui::Separator();
         imgui.text("Gizmo raycasters IDs:");
-        if (ImGui::BeginTable("GizmoRaycasters", 3)) {
+        if (ImGui::BeginTable("GizmoRaycasters", GizmoDebugColumnCount)) {
             for (size_t i = 0; i < gizmo_raycasters->size(); ++i) {
                 add_strings_row_to_table(std::to_string(i), ImGuiWrapper::get_COL_LIGHT(),
                     std::to_string(SceneRaycaster::decode_id(SceneRaycaster::EType::Gizmo, (*gizmo_raycasters)[i]->get_id())), ImGui::GetStyleColorVec4(ImGuiCol_Text),
@@ -6325,7 +6443,7 @@ void GLCanvas3D::_picking_pass()
     if (gizmo2_raycasters != nullptr && !gizmo2_raycasters->empty()) {
         ImGui::Separator();
         imgui.text("Gizmo2 raycasters IDs:");
-        if (ImGui::BeginTable("Gizmo2Raycasters", 3)) {
+        if (ImGui::BeginTable("Gizmo2Raycasters", GizmoDebugColumnCount)) {
             for (size_t i = 0; i < gizmo2_raycasters->size(); ++i) {
                 add_strings_row_to_table(std::to_string(i), ImGuiWrapper::get_COL_LIGHT(),
                     std::to_string(SceneRaycaster::decode_id(SceneRaycaster::EType::FallbackGizmo, (*gizmo2_raycasters)[i]->get_id())), ImGui::GetStyleColorVec4(ImGuiCol_Text),
@@ -6401,7 +6519,7 @@ void GLCanvas3D::_rectangular_selection_picking_pass()
         }
 
         if (m_multisample_allowed)
-        	// This flag is often ignored by NVIDIA drivers if rendering into a screen buffer.
+            // This flag is often ignored by NVIDIA drivers if rendering into a screen buffer.
             glsafe(::glDisable(GL_MULTISAMPLE));
 
         glsafe(::glDisable(GL_BLEND));
@@ -6415,19 +6533,19 @@ void GLCanvas3D::_rectangular_selection_picking_pass()
         const Camera* camera = &main_camera;
         if (use_framebuffer) {
             // setup a camera which covers only the selection rectangle
-            const std::array<int, 4>& viewport = camera->get_viewport();
+            const std::array<int, GLViewportComponents>& viewport = camera->get_viewport();
             const double near_left   = camera->get_near_left();
             const double near_bottom = camera->get_near_bottom();
             const double near_width  = camera->get_near_width();
             const double near_height = camera->get_near_height();
 
-            const double ratio_x = near_width / double(viewport[2]);
-            const double ratio_y = near_height / double(viewport[3]);
+            const double ratio_x = near_width / double(viewport[ViewportWidth]);
+            const double ratio_y = near_height / double(viewport[ViewportHeight]);
 
             const double rect_near_left   = near_left + double(m_rectangle_selection.get_left()) * ratio_x;
-            const double rect_near_bottom = near_bottom + (double(viewport[3]) - double(m_rectangle_selection.get_bottom())) * ratio_y;
+            const double rect_near_bottom = near_bottom + (double(viewport[ViewportHeight]) - double(m_rectangle_selection.get_bottom())) * ratio_y;
             double rect_near_right = near_left + double(m_rectangle_selection.get_right()) * ratio_x;
-            double rect_near_top   = near_bottom + (double(viewport[3]) - double(m_rectangle_selection.get_top())) * ratio_y;
+            double rect_near_top   = near_bottom + (double(viewport[ViewportHeight]) - double(m_rectangle_selection.get_top())) * ratio_y;
 
             if (rect_near_left == rect_near_right)
                 rect_near_right = rect_near_left + ratio_x;
@@ -6449,45 +6567,53 @@ void GLCanvas3D::_rectangular_selection_picking_pass()
 
         const size_t px_count = width * height;
 
-        const size_t left = use_framebuffer ? 0 : (size_t)m_rectangle_selection.get_left();
-        const size_t top  = use_framebuffer ? 0 : (size_t)get_canvas_size().get_height() - (size_t)m_rectangle_selection.get_top();
+        const size_t left = use_framebuffer ? 0 : static_cast<size_t>(m_rectangle_selection.get_left());
+        const size_t top  = use_framebuffer ? 0 : static_cast<size_t>(get_canvas_size().get_height()) - static_cast<size_t>(m_rectangle_selection.get_top());
 #define USE_PARALLEL 1
 #if USE_PARALLEL
             struct Pixel
             {
-                std::array<GLubyte, 4> data;
-            	// Only non-interpolated colors are valid, those have their lowest three bits zeroed.
-                bool valid() const { return picking_checksum_alpha_channel(data[0], data[1], data[2]) == data[3]; }
+                std::array<GLubyte, RgbaChannelCount> data;
+                // Only non-interpolated colors are valid, those have their lowest three bits zeroed.
+                bool valid() const
+                {
+                    return picking_checksum_alpha_channel(data[0], data[1], data[BlueChannelIndex]) ==
+                           data[AlphaChannelIndex];
+                }
                 // we reserve color = (0,0,0) for occluders (as the printbed) 
                 // volumes' id are shifted by 1
                 // see: _render_volumes_for_picking()
-                int id() const { return data[0] + (data[1] << 8) + (data[2] << 16) - 1; }
+                int id() const
+                {
+                    return data[0] + (data[1] << PickingBitsPerChannel) +
+                           (data[BlueChannelIndex] << PickingBlueBitShift) - 1;
+                }
             };
 
             std::vector<Pixel> frame(px_count);
-            glsafe(::glReadPixels(left, top, width, height, GL_RGBA, GL_UNSIGNED_BYTE, (void*)frame.data()));
+            glsafe(::glReadPixels(left, top, width, height, GL_RGBA, GL_UNSIGNED_BYTE, static_cast<void*>(frame.data())));
 
             tbb::spin_mutex mutex;
-            tbb::parallel_for(tbb::blocked_range<size_t>(0, frame.size(), (size_t)width),
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, frame.size(), static_cast<size_t>(width)),
                 [this, &frame, &idxs, &mutex](const tbb::blocked_range<size_t>& range) {
                 for (size_t i = range.begin(); i < range.end(); ++i)
-                	if (frame[i].valid()) {
-                    	int volume_id = frame[i].id();
-                    	if (0 <= volume_id && volume_id < (int)m_volumes.volumes.size()) {
-                        	mutex.lock();
-                        	idxs.insert(volume_id);
-                        	mutex.unlock();
-                    	}
-                	}
+                    if (frame[i].valid()) {
+                        int volume_id = frame[i].id();
+                        if (0 <= volume_id && volume_id < static_cast<int>(m_volumes.volumes.size())) {
+                            mutex.lock();
+                            idxs.insert(volume_id);
+                            mutex.unlock();
+                        }
+                    }
             });
 #else
-            std::vector<GLubyte> frame(4 * px_count);
-            glsafe(::glReadPixels(left, top, width, height, GL_RGBA, GL_UNSIGNED_BYTE, (void*)frame.data()));
+            std::vector<GLubyte> frame(RgbaChannelCount * px_count);
+            glsafe(::glReadPixels(left, top, width, height, GL_RGBA, GL_UNSIGNED_BYTE, static_cast<void*>(frame.data())));
 
             for (int i = 0; i < px_count; ++i) {
-                int px_id = 4 * i;
-                int volume_id = frame[px_id] + (frame[px_id + 1] << 8) + (frame[px_id + 2] << 16);
-                if (0 <= volume_id && volume_id < (int)m_volumes.volumes.size())
+                int px_id = RgbaChannelCount * i;
+                int volume_id = frame[px_id] + (frame[px_id + 1] << PickingBitsPerChannel) + (frame[px_id + BlueChannelIndex] << PickingBlueBitShift);
+                if (0 <= volume_id && volume_id < static_cast<int>(m_volumes.volumes.size()))
                     idxs.insert(volume_id);
             }
 #endif // USE_PARALLEL
@@ -6540,8 +6666,8 @@ void GLCanvas3D::_render_background()
 
         GLModel::Geometry init_data;
         init_data.format = { GLModel::Geometry::EPrimitiveType::Triangles, GLModel::Geometry::EVertexLayout::P2T2 };
-        init_data.reserve_vertices(4);
-        init_data.reserve_indices(6);
+        init_data.reserve_vertices(QuadVertexCount);
+        init_data.reserve_indices(QuadIndexCount);
 
         // vertices
         init_data.add_vertex(Vec2f(-1.0f, -1.0f), Vec2f(0.0f, 0.0f));
@@ -6550,8 +6676,8 @@ void GLCanvas3D::_render_background()
         init_data.add_vertex(Vec2f(-1.0f, 1.0f),  Vec2f(0.0f, 1.0f));
 
         // indices
-        init_data.add_triangle(0, 1, 2);
-        init_data.add_triangle(2, 3, 0);
+        init_data.add_triangle(0, 1, QuadSharedDiagonalVertex);
+        init_data.add_triangle(QuadSharedDiagonalVertex, QuadLastVertex, 0);
 
         m_background.init_from(std::move(init_data));
     }
@@ -6609,26 +6735,24 @@ void GLCanvas3D::_render_bed_axes()
         if (m_show_z_axle) {
             if (!m_z_axle.is_initialized()) {
                     // construct an axle that is the right size for our zoom & position
-                    BoundingBoxf3 side_bb(Vec3d(0, 0, 0), Vec3d(10, 10, 10));
+                    BoundingBoxf3 side_bb(Vec3d(0, 0, 0), Vec3d(AxisReferenceBoxEdge, AxisReferenceBoxEdge, AxisReferenceBoxEdge));
                     const double length_zoom = camera.calc_zoom_to_bounding_box_factor(side_bb);
                     m_z_axle_length = 17 * (length_zoom / camera.get_zoom());
-                    m_z_axle.init_from(stilized_arrow(16, m_z_axle_length / 300, m_z_axle_length / 50, m_z_axle_length / 300, m_z_axle_length));
+                    m_z_axle.init_from(stilized_arrow(16, m_z_axle_length / AxleShaftRadiusDivisor, m_z_axle_length / 50, m_z_axle_length / AxleShaftRadiusDivisor, m_z_axle_length));
                     m_z_axle.set_color(ColorRGBA::Z());
             }
             Transform3d scale_tr = Transform3d::Identity();
             scale_tr.scale(std::min(1., camera.get_inv_zoom() * 10.));
 
-            Transform3d trafo = camera.get_view_matrix();
             Vec3d position = camera.get_target();
-            position.z() -= m_z_axle_length / 2;
+            position.z() -= m_z_axle_length / HalfDivisor;
             const Transform3d &transform = Geometry::translation_transform(position);
             const Transform3d &view_matrix = camera.get_view_matrix();
             const Transform3d matrix = view_matrix * transform;
-            shader->set_uniform("view_model_matrix", matrix);
-            shader->set_uniform("projection_matrix", camera.get_projection_matrix());
-            shader->set_uniform("view_normal_matrix",
-                               (Matrix3d) (view_matrix.matrix().block(0, 0, 3, 3) *
-                                           transform.matrix().block(0, 0, 3, 3).inverse().transpose()));
+            shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, matrix);
+            shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
+            shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix,
+                                Geometry::view_normal_matrix(view_matrix, transform));
             m_z_axle.render();
         }
         shader->stop_using();
@@ -6691,7 +6815,7 @@ void GLCanvas3D::_render_objects(GLVolumeCollection::ERenderType type)
     }
 
     if (m_use_clipping_planes)
-        m_volumes.set_z_range(-m_clipping_planes[0].get_data()[3], m_clipping_planes[1].get_data()[3]);
+        m_volumes.set_z_range(-m_clipping_planes[0].get_data()[PlaneOffsetComponentIndex], m_clipping_planes[1].get_data()[PlaneOffsetComponentIndex]);
     else
         m_volumes.set_z_range(-FLT_MAX, FLT_MAX);
 
@@ -6845,7 +6969,7 @@ void GLCanvas3D::_check_and_update_toolbar_icon_scale()
     //      https://github.com/supermerill/SuperSlicer/issues/854
     const float new_h_scale = std::max((cnv_size.get_width() - noitems_width), 1.0f) / (items_cnt * GLToolbar::Default_Icons_Size);
 
-    items_cnt = m_gizmos.get_selectable_icons_cnt() + 3; // +3 means a place for top and view toolbars and separators in gizmos toolbar
+    items_cnt = m_gizmos.get_selectable_icons_cnt() + GizmoToolbarReservedItemCount; // +3 means a place for top and view toolbars and separators in gizmos toolbar
 
     // calculate scale needed for items in the gizmos toolbar
     const float new_v_scale = cnv_size.get_height() / (items_cnt * GLGizmosManager::Default_Icons_Size);
@@ -6899,25 +7023,25 @@ void GLCanvas3D::_render_volumes_for_picking(const Camera& camera) const
     glsafe(::glDisable(GL_CULL_FACE));
 
     const Transform3d& view_matrix = camera.get_view_matrix();
-    for (size_t type = 0; type < 2; ++ type) {
+    for (size_t type = 0; type < PickingRenderTypeCount; ++ type) {
         GLVolumeWithIdAndZList to_render = volumes_to_render(m_volumes.volumes, (type == 0) ? GLVolumeCollection::ERenderType::Opaque : GLVolumeCollection::ERenderType::Transparent, view_matrix);
         for (const GLVolumeWithIdAndZ& volume : to_render)
-	        if (!volume.first->disabled && (volume.first->composite_id.volume_id >= 0 || m_render_sla_auxiliaries)) {
-		        // Object picking mode. Render the object with a color encoding the object index.
+            if (!volume.first->disabled && (volume.first->composite_id.volume_id >= 0 || m_render_sla_auxiliaries)) {
+                // Object picking mode. Render the object with a color encoding the object index.
                 // we reserve color = (0,0,0) for occluders (as the printbed) 
                 // so we shift volumes' id by 1 to get the proper color
                 const unsigned int id = 1 + volume.second.first;
                 volume.first->model.set_color(picking_decode(id));
                 shader->start_using();
-                shader->set_uniform("view_model_matrix", view_matrix * volume.first->world_matrix());
-                shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+                shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * volume.first->world_matrix());
+                shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
                 shader->set_uniform("volume_world_matrix", volume.first->world_matrix());
                 shader->set_uniform("z_range", m_volumes.get_z_range());
                 shader->set_uniform("clipping_plane", m_volumes.get_clipping_plane());
                 volume.first->render();
                 shader->stop_using();
           }
-	  }
+      }
 
     glsafe(::glEnable(GL_CULL_FACE));
 }
@@ -6952,7 +7076,7 @@ void GLCanvas3D::_render_main_toolbar()
         return;
 
     const Size cnv_size = get_canvas_size();
-    const float top = 0.5f * (float)cnv_size.get_height();
+    const float top = 0.5f * static_cast<float>(cnv_size.get_height());
 
     GLToolbar& collapse_toolbar = wxGetApp().plater()->get_collapse_toolbar();
     const float collapse_toolbar_width = collapse_toolbar.is_enabled() ? collapse_toolbar.get_width() : 0.0f;
@@ -6970,7 +7094,7 @@ void GLCanvas3D::_render_undoredo_toolbar()
         return;
 
     const Size cnv_size = get_canvas_size();
-    const float top = 0.5f * (float)cnv_size.get_height();
+    const float top = 0.5f * static_cast<float>(cnv_size.get_height());
     GLToolbar& collapse_toolbar = wxGetApp().plater()->get_collapse_toolbar();
     const float collapse_toolbar_width = collapse_toolbar.is_enabled() ? collapse_toolbar.get_width() : 0.0f;
     const float left = m_main_toolbar.get_width() - 0.5f * (m_main_toolbar.get_width() + m_undoredo_toolbar.get_width() + collapse_toolbar_width);
@@ -6987,8 +7111,8 @@ void GLCanvas3D::_render_collapse_toolbar() const
 
     const Size cnv_size = get_canvas_size();
     const float band = m_layers_editing.is_enabled() ? (wxGetApp().imgui()->get_style_scaling() * LayersEditing::THICKNESS_BAR_WIDTH) : 0.0;
-    const float top  = 0.5f * (float)cnv_size.get_height();
-    const float left = 0.5f * (float)cnv_size.get_width() - collapse_toolbar.get_width() - band;
+    const float top  = 0.5f * static_cast<float>(cnv_size.get_height());
+    const float left = 0.5f * static_cast<float>(cnv_size.get_width()) - collapse_toolbar.get_width() - band;
 
     collapse_toolbar.set_position(top, left);
     collapse_toolbar.render(*this);
@@ -7013,8 +7137,8 @@ void GLCanvas3D::_render_view_toolbar() const
 
     const Size cnv_size = get_canvas_size();
     // places the toolbar on the bottom-left corner of the 3d scene
-    const float top = -0.5f * (float)cnv_size.get_height() + view_toolbar.get_height();
-    const float left = -0.5f * (float)cnv_size.get_width();
+    const float top = -0.5f * static_cast<float>(cnv_size.get_height()) + view_toolbar.get_height();
+    const float left = -0.5f * static_cast<float>(cnv_size.get_width());
     view_toolbar.set_position(top, left);
     view_toolbar.render(*this);
 }
@@ -7028,20 +7152,20 @@ void GLCanvas3D::_render_camera_target()
 #if ENABLE_GL_CORE_PROFILE
     if (!OpenGLManager::get_gl_info().is_core_profile())
 #endif // ENABLE_GL_CORE_PROFILE
-        glsafe(::glLineWidth(2.0f));
+        glsafe(::glLineWidth(OverlayLineWidth));
 
     const Vec3f& target = wxGetApp().plater()->get_camera().get_target().cast<float>();
     m_camera_target.target = target.cast<double>();
 
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < SpatialDimensionCount; ++i) {
         if (!m_camera_target.axis[i].is_initialized()) {
             m_camera_target.axis[i].reset();
 
             GLModel::Geometry init_data;
             init_data.format = { GLModel::Geometry::EPrimitiveType::Lines, GLModel::Geometry::EVertexLayout::P3 };
             init_data.color = (i == X) ? ColorRGBA::X() : ((i == Y) ? ColorRGBA::Y() : ColorRGBA::Z());
-            init_data.reserve_vertices(2);
-            init_data.reserve_indices(2);
+            init_data.reserve_vertices(LineVertexCount);
+            init_data.reserve_indices(LineVertexCount);
 
             // vertices
             if (i == X) {
@@ -7072,15 +7196,15 @@ void GLCanvas3D::_render_camera_target()
     if (shader != nullptr) {
         shader->start_using();
         const Camera& camera = wxGetApp().plater()->get_camera();
-        shader->set_uniform("view_model_matrix", camera.get_view_matrix() * Geometry::translation_transform(m_camera_target.target));
-        shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix() * Geometry::translation_transform(m_camera_target.target));
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
-        const std::array<int, 4>& viewport = camera.get_viewport();
-        shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+        const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
+        shader->set_uniform("viewport_size", Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
         shader->set_uniform("width", 0.5f);
         shader->set_uniform("gap_size", 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
-        for (int i = 0; i < 3; ++i) {
+        for (int i = 0; i < SpatialDimensionCount; ++i) {
             m_camera_target.axis[i].render();
         }
         shader->stop_using();
@@ -7099,9 +7223,9 @@ void GLCanvas3D::_render_sla_slices()
         // nothing to render, return
         return;
 
-    double clip_min_z = -m_clipping_planes[0].get_data()[3];
-    double clip_max_z = m_clipping_planes[1].get_data()[3];
-    for (unsigned int i = 0; i < (unsigned int)print_objects.size(); ++i) {
+    double clip_min_z = -m_clipping_planes[0].get_data()[PlaneOffsetComponentIndex];
+    double clip_max_z = m_clipping_planes[1].get_data()[PlaneOffsetComponentIndex];
+    for (unsigned int i = 0; i < static_cast<unsigned int>(print_objects.size()); ++i) {
         const SLAPrintObject* obj = print_objects[i];
 
         if (!obj->is_step_done(slaposSliceSupports))
@@ -7134,15 +7258,15 @@ void GLCanvas3D::_render_sla_slices()
             GLModel::Geometry init_data;
             init_data.format = { GLModel::Geometry::EPrimitiveType::Triangles, GLModel::Geometry::EVertexLayout::P3 };
             init_data.reserve_vertices(triangles.size());
-            init_data.reserve_indices(triangles.size() / 3);
+            init_data.reserve_indices(triangles.size() / TriangleVertexCount);
             init_data.color = color;
 
             unsigned int vertices_count = 0;
             for (const Vec3d& v : triangles) {
                 init_data.add_vertex((Vec3f)v.cast<float>());
                 ++vertices_count;
-                if (vertices_count % 3 == 0)
-                    init_data.add_triangle(vertices_count - 3, vertices_count - 2, vertices_count - 1);
+                if (vertices_count % TriangleVertexCount == 0)
+                    init_data.add_triangle(vertices_count - TriangleVertexCount, vertices_count - TriangleMiddleVertexOffset, vertices_count - 1);
             }
 
             if (!init_data.is_empty())
@@ -7202,8 +7326,8 @@ void GLCanvas3D::_render_sla_slices()
                 if (obj->is_left_handed())
                     view_model_matrix = view_model_matrix * Geometry::scale_transform({ -1.0f, 1.0f, 1.0f });
 
-                shader->set_uniform("view_model_matrix", view_model_matrix);
-                shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+                shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_model_matrix);
+                shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 
                 bottom_obj_triangles.render();
                 top_obj_triangles.render();
@@ -7337,7 +7461,7 @@ Vec3d GLCanvas3D::_mouse_to_3d(const Point& mouse_pos, float* z)
         const Camera& camera = wxGetApp().plater()->get_camera();
         const Vec4i32 viewport(camera.get_viewport().data());
         Vec3d out;
-        igl::unproject(Vec3d(mouse_pos.x(), viewport[3] - mouse_pos.y(), *z), camera.get_view_matrix().matrix(), camera.get_projection_matrix().matrix(), viewport, out);
+        igl::unproject(Vec3d(mouse_pos.x(), viewport[ViewportHeight] - mouse_pos.y(), *z), camera.get_view_matrix().matrix(), camera.get_projection_matrix().matrix(), viewport, out);
         return out;
     }
 }
@@ -7382,12 +7506,11 @@ void GLCanvas3D::_load_skirt_brim_preview_toolpaths(const BuildVolume &build_vol
     if (skirt_height == 0 && print->has_brim())
         skirt_height = 1;
 
-    // Get first skirt_height layers.
-    //FIXME This code is fishy. It may not work for multiple objects with different layering due to variable layer height feature.
-    // This is not critical as this is just an initial preview.
+    // Sample skirt Z from the object with the most layers (good enough for the initial toolpath preview).
+    // Variable layer-height multi-object cases may differ slightly from final G-code skirts.
     const PrintObject* highest_object = *std::max_element(print->objects().begin(), print->objects().end(), [](auto l, auto r){ return l->layers().size() < r->layers().size(); });
     std::vector<float> print_zs;
-    print_zs.reserve(skirt_height * 2);
+    print_zs.reserve(skirt_height * SkirtZReservePerLayer);
     for (size_t i = 0; i < std::min(skirt_height, highest_object->layers().size()); ++ i)
         print_zs.push_back(float(highest_object->layers()[i]->print_z));
     // Only add skirt for the raft layers.
@@ -7625,20 +7748,21 @@ void GLCanvas3D::_load_print_object_toolpaths(const PrintObject &               
 
     const bool is_selected_separate_extruder = m_selected_extruder > 0 && ctxt.color_by_color_print();
 
-    //FIXME Improve the heuristics for a grain size.
+    // ~16 parallel chunks keeps TBB busy without oversplitting short layer stacks.
     size_t          grain_size = std::max(ctxt.layers.size() / 16, size_t(1));
     tbb::spin_mutex new_volume_mutex;
     auto            new_volume = [this, &new_volume_mutex](const ColorRGBA& color) {
         // Allocate the volume before locking.
-		GLVolume *volume = new GLVolume(color);
-		volume->is_extrusion_path = true;
+        auto owned_volume = std::make_unique<GLVolume>(color);
+        GLVolume *volume = owned_volume.get();
+        volume->is_extrusion_path = true;
         // to prevent sending data to gpu (in the main thread) while
         // editing the model geometry
         volume->model.disable_render();
         tbb::spin_mutex::scoped_lock lock;
-    	// Lock by ROII, so if the emplace_back() fails, the lock will be released.
+        // Lock by ROII, so if the emplace_back() fails, the lock will be released.
         lock.acquire(new_volume_mutex);
-        m_volumes.volumes.emplace_back(volume);
+        m_volumes.volumes.emplace_back(std::move(owned_volume));
         lock.release();
         return volume;
     };
@@ -7648,14 +7772,14 @@ void GLCanvas3D::_load_print_object_toolpaths(const PrintObject &               
         GLVolume * volume_ptr;
         GCodeExtrusionRole assigned_role;
         GeoStorage(GLVolume *new_volume, GCodeExtrusionRole role = GCodeExtrusionRole::None)
-            : geometry_storage(new GLModel::Geometry()), volume_ptr(new_volume), assigned_role(role)
+            : geometry_storage(std::make_unique<GLModel::Geometry>()), volume_ptr(new_volume), assigned_role(role)
         {}
     };
     const size_t    volumes_cnt_initial = m_volumes.volumes.size();
     // Limit the number of threads as the code below does not scale well due to memory pressure.
     // (most of the time is spent in malloc / free / memmove)
     // Not using all the threads leaves some of the threads to G-code generator.
-    tbb::task_arena limited_arena(std::min(tbb::this_task_arena::max_concurrency(), 4));
+    tbb::task_arena limited_arena(std::min(tbb::this_task_arena::max_concurrency(), MaxToolpathWorkerCount));
     limited_arena.execute([&ctxt, grain_size, &new_volume, is_selected_separate_extruder, this]{
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0, ctxt.layers.size(), grain_size),
@@ -7801,14 +7925,14 @@ void GLCanvas3D::_load_print_object_toolpaths(const PrintObject &               
                     geo_storage.volume_ptr->model.init_from(std::move(*geo_storage.geometry_storage));
                     // the geo_storage.geometry_storage still contains an empty geometry object
                     //  we create a new one to be extra safe.
-                    geo_storage.geometry_storage.reset(new GLModel::Geometry{});
+                    geo_storage.geometry_storage = std::make_unique<GLModel::Geometry>();
                     //create new volume for the new geometry
                     geo_storage.volume_ptr = new_volume(geo_storage.volume_ptr->color);
                     //update map
                     if(GCodeExtrusionRole::None != geo_storage.assigned_role)
                         feature_to_geometry_map[geo_storage.assigned_role] = geo_storage.geometry_storage.get();
                 }
-	        }
+            }
         }
 
         for (GeoStorage &geo_storage : geo_vols) {
@@ -7881,7 +8005,7 @@ void GLCanvas3D::_load_wipe_tower_toolpaths(const BuildVolume& build_volume, con
     ctxt.print = print;
     ctxt.tool_colors = tool_colors.empty() ? nullptr : &tool_colors;
     if (print->wipe_tower_data().priming && print->config().single_extruder_multi_material_priming)
-        for (int i=0; i<(int)print->wipe_tower_data().priming.get()->size(); ++i)
+        for (int i=0; i<static_cast<int>(print->wipe_tower_data().priming.get()->size()); ++i)
             ctxt.priming.emplace_back(print->wipe_tower_data().priming.get()->at(i));
     if (print->wipe_tower_data().final_purge)
         ctxt.final.emplace_back(*print->wipe_tower_data().final_purge.get());
@@ -7893,19 +8017,20 @@ void GLCanvas3D::_load_wipe_tower_toolpaths(const BuildVolume& build_volume, con
 
     BOOST_LOG_TRIVIAL(debug) << "Loading wipe tower toolpaths in parallel - start" << m_volumes.log_memory_info() << log_memory_info();
 
-    //FIXME Improve the heuristics for a grain size.
+    // Fine grain for wipe-tower tool changes (often many small items).
     size_t          n_items = print->wipe_tower_data().tool_changes.size() + (ctxt.priming.empty() ? 0 : 1);
     size_t          grain_size = std::max(n_items / 128, size_t(1));
     tbb::spin_mutex new_volume_mutex;
     auto            new_volume = [this, &new_volume_mutex](const ColorRGBA& color) {
-        auto *volume = new GLVolume(color);
-		volume->is_extrusion_path = true;
+        auto owned_volume = std::make_unique<GLVolume>(color);
+        GLVolume *volume = owned_volume.get();
+        volume->is_extrusion_path = true;
         // to prevent sending data to gpu (in the main thread) while
         // editing the model geometry
         volume->model.disable_render();
         tbb::spin_mutex::scoped_lock lock;
         lock.acquire(new_volume_mutex);
-        m_volumes.volumes.emplace_back(volume);
+        m_volumes.volumes.emplace_back(std::move(owned_volume));
         lock.release();
         return volume;
     };
@@ -8036,7 +8161,7 @@ void GLCanvas3D::_load_sla_shells()
 
     auto add_volume = [this](const SLAPrintObject &object, int volume_id, const SLAPrintObject::Instance& instance,
         const indexed_triangle_set& mesh, const ColorRGBA& color, bool outside_printer_detection_enabled) {
-        m_volumes.volumes.emplace_back(new GLVolume(color));
+        m_volumes.volumes.emplace_back(std::make_unique<GLVolume>(color));
         GLVolume& v = *m_volumes.volumes.back();
 #if ENABLE_SMOOTH_NORMALS
         v.model.init_from(mesh, true);
@@ -8046,14 +8171,14 @@ void GLCanvas3D::_load_sla_shells()
         v.shader_outside_printer_detection_enabled = outside_printer_detection_enabled;
         v.composite_id.volume_id = volume_id;
         v.set_instance_offset(unscale(instance.shift.x(), instance.shift.y(), 0.0));
-        v.set_instance_rotation({ 0.0, 0.0, (double)instance.rotation });
+        v.set_instance_rotation({ 0.0, 0.0, static_cast<double>(instance.rotation) });
         v.set_instance_mirror(X, object.is_left_handed() ? -1. : 1.);
         v.set_convex_hull(TriangleMesh{its_convex_hull(mesh)});
     };
 
     // adds objects' volumes 
     for (const SLAPrintObject* obj : print->objects()) {
-        unsigned int initial_volumes_count = (unsigned int)m_volumes.volumes.size();
+        unsigned int initial_volumes_count = static_cast<unsigned int>(m_volumes.volumes.size());
         std::shared_ptr<const indexed_triangle_set> m = obj->get_mesh_to_print();
         if (m && !m->empty()) {
             for (const SLAPrintObject::Instance& instance : obj->instances()) {
@@ -8245,7 +8370,7 @@ void GLCanvas3D::_update_selection_from_hover()
         if (state == GLSelectionRectangle::EState::Select) {
             bool contains_all = true;
             for (int i : m_hover_volume_idxs) {
-                if (!m_selection.contains_volume((unsigned int)i)) {
+                if (!m_selection.contains_volume(static_cast<unsigned int>(i))) {
                     contains_all = false;
                     break;
                 }
@@ -8260,7 +8385,7 @@ void GLCanvas3D::_update_selection_from_hover()
         else {
             bool contains_any = false;
             for (int i : m_hover_volume_idxs) {
-                if (m_selection.contains_volume((unsigned int)i)) {
+                if (m_selection.contains_volume(static_cast<unsigned int>(i))) {
                     contains_any = true;
                     break;
                 }
@@ -8434,7 +8559,7 @@ void GLCanvas3D::ToolbarHighlighter::init(GLToolbarItem* toolbar_item, GLCanvas3
     if (!toolbar_item || !canvas)
         return;
 
-    m_timer.Start(300, false);
+    m_timer.Start(HighlighterIntervalMs, false);
 
     m_toolbar_item = toolbar_item;
     m_canvas       = canvas;
@@ -8456,7 +8581,7 @@ void GLCanvas3D::ToolbarHighlighter::blink()
 {
     if (m_toolbar_item) {
         char state = m_toolbar_item->get_highlight();
-        if (state != (char)GLToolbarItem::EHighlightState::HighlightedShown)
+        if (state != static_cast<char>(GLToolbarItem::EHighlightState::HighlightedShown))
             m_toolbar_item->set_highlight(GLToolbarItem::EHighlightState::HighlightedShown);
         else 
             m_toolbar_item->set_highlight(GLToolbarItem::EHighlightState::HighlightedHidden);
@@ -8483,7 +8608,7 @@ void GLCanvas3D::GizmoHighlighter::init(GLGizmosManager* manager, GLGizmosManage
     if (gizmo == GLGizmosManager::EType::Undefined || !canvas)
         return;
 
-    m_timer.Start(300, false);
+    m_timer.Start(HighlighterIntervalMs, false);
 
     m_gizmo_manager = manager;
     m_gizmo_type    = gizmo;
@@ -8506,7 +8631,7 @@ void GLCanvas3D::GizmoHighlighter::invalidate()
 void GLCanvas3D::GizmoHighlighter::blink()
 {
     if (m_gizmo_manager) {
-        if (m_blink_counter % 2 == 0)
+        if (m_blink_counter % BlinkPhaseCount == 0)
             m_gizmo_manager->set_highlight(m_gizmo_type, true);
         else
             m_gizmo_manager->set_highlight(m_gizmo_type, false);
@@ -8530,47 +8655,47 @@ void GLCanvas3D::show_binary_gcode_debug_window()
     imgui.begin(std::string("Binary GCode"), ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 
     using namespace bgcode::core;
-    if (ImGui::BeginTable("BinaryGCodeConfig", 2)) {
+    if (ImGui::BeginTable("BinaryGCodeConfig", BinaryConfigColumnCount)) {
 
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
         imgui.text_colored(ImGuiWrapper::get_COL_LIGHT(), "File metadata compression");
         ImGui::TableSetColumnIndex(1);
         std::vector<std::string> options = { "None", "Deflate", "heatshrink 11,4", "heatshrink 12,4" };
-        int option_id = (int)binarizer_config.compression.file_metadata;
-        if (imgui.combo(std::string("##file_metadata_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, 175.0f))
+        int option_id = static_cast<int>(binarizer_config.compression.file_metadata);
+        if (imgui.combo(std::string("##file_metadata_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, BinaryGCodeComboWidth))
             binarizer_config.compression.file_metadata = (ECompressionType)option_id;
 
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
         imgui.text_colored(ImGuiWrapper::get_COL_LIGHT(), "Printer metadata compression");
         ImGui::TableSetColumnIndex(1);
-        option_id = (int)binarizer_config.compression.printer_metadata;
-        if (imgui.combo(std::string("##printer_metadata_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, 175.0f))
+        option_id = static_cast<int>(binarizer_config.compression.printer_metadata);
+        if (imgui.combo(std::string("##printer_metadata_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, BinaryGCodeComboWidth))
             binarizer_config.compression.printer_metadata = (ECompressionType)option_id;
 
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
         imgui.text_colored(ImGuiWrapper::get_COL_LIGHT(), "Print metadata compression");
         ImGui::TableSetColumnIndex(1);
-        option_id = (int)binarizer_config.compression.print_metadata;
-        if (imgui.combo(std::string("##print_metadata_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, 175.0f))
+        option_id = static_cast<int>(binarizer_config.compression.print_metadata);
+        if (imgui.combo(std::string("##print_metadata_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, BinaryGCodeComboWidth))
             binarizer_config.compression.print_metadata = (ECompressionType)option_id;
 
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
         imgui.text_colored(ImGuiWrapper::get_COL_LIGHT(), "Slicer metadata compression");
         ImGui::TableSetColumnIndex(1);
-        option_id = (int)binarizer_config.compression.slicer_metadata;
-        if (imgui.combo(std::string("##slicer_metadata_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, 175.0f))
+        option_id = static_cast<int>(binarizer_config.compression.slicer_metadata);
+        if (imgui.combo(std::string("##slicer_metadata_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, BinaryGCodeComboWidth))
             binarizer_config.compression.slicer_metadata = (ECompressionType)option_id;
 
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
         imgui.text_colored(ImGuiWrapper::get_COL_LIGHT(), "GCode compression");
         ImGui::TableSetColumnIndex(1);
-        option_id = (int)binarizer_config.compression.gcode;
-        if (imgui.combo(std::string("##gcode_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, 175.0f))
+        option_id = static_cast<int>(binarizer_config.compression.gcode);
+        if (imgui.combo(std::string("##gcode_compression"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, BinaryGCodeComboWidth))
             binarizer_config.compression.gcode = (ECompressionType)option_id;
 
         ImGui::TableNextRow();
@@ -8578,8 +8703,8 @@ void GLCanvas3D::show_binary_gcode_debug_window()
         imgui.text_colored(ImGuiWrapper::get_COL_LIGHT(), "GCode encoding");
         ImGui::TableSetColumnIndex(1);
         options = { "None", "MeatPack", "MeatPack Comments" };
-        option_id = (int)binarizer_config.gcode_encoding;
-        if (imgui.combo(std::string("##gcode_encoding"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, 175.0f))
+        option_id = static_cast<int>(binarizer_config.gcode_encoding);
+        if (imgui.combo(std::string("##gcode_encoding"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, BinaryGCodeComboWidth))
             binarizer_config.gcode_encoding = (EGCodeEncodingType)option_id;
 
         ImGui::TableNextRow();
@@ -8587,8 +8712,8 @@ void GLCanvas3D::show_binary_gcode_debug_window()
         imgui.text_colored(ImGuiWrapper::get_COL_LIGHT(), "Metadata encoding");
         ImGui::TableSetColumnIndex(1);
         options = { "INI" };
-        option_id = (int)binarizer_config.metadata_encoding;
-        if (imgui.combo(std::string("##metadata_encoding"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, 175.0f))
+        option_id = static_cast<int>(binarizer_config.metadata_encoding);
+        if (imgui.combo(std::string("##metadata_encoding"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, BinaryGCodeComboWidth))
             binarizer_config.metadata_encoding = (EMetadataEncodingType)option_id;
 
         ImGui::TableNextRow();
@@ -8596,8 +8721,8 @@ void GLCanvas3D::show_binary_gcode_debug_window()
         imgui.text_colored(ImGuiWrapper::get_COL_LIGHT(), "Checksum type");
         ImGui::TableSetColumnIndex(1);
         options = { "None", "CRC32" };
-        option_id = (int)binarizer_config.checksum;
-        if (imgui.combo(std::string("##4"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, 175.0f))
+        option_id = static_cast<int>(binarizer_config.checksum);
+        if (imgui.combo(std::string("##4"), options, option_id, ImGuiComboFlags_HeightLargest, 0.0f, BinaryGCodeComboWidth))
             binarizer_config.checksum = (EChecksumType)option_id;
 
         ImGui::EndTable();
@@ -8615,9 +8740,9 @@ const ModelVolume *get_model_volume(const GLVolume &v, const Model &model)
 {
     const ModelVolume * ret = nullptr;
 
-    if (v.object_idx() < (int)model.objects.size()) {
+    if (v.object_idx() < static_cast<int>(model.objects.size())) {
         const ModelObject *obj = model.objects[v.object_idx()];
-        if (v.volume_idx() < (int)obj->volumes.size())
+        if (v.volume_idx() < static_cast<int>(obj->volumes.size()))
             ret = obj->volumes[v.volume_idx()];
     }
 

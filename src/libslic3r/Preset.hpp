@@ -85,7 +85,7 @@ public:
     std::set<std::string>              default_sla_materials;
 
     VendorProfile() {}
-    VendorProfile(std::string id) : id(std::move(id)) {}
+    VendorProfile(const std::string &profile_id) : id(profile_id) {}
 
     bool 		valid() const { return ! name.empty() && ! id.empty() && config_version.valid(); }
 
@@ -118,10 +118,9 @@ struct PresetWithVendorProfile {
     const VendorProfile *vendor;
 };
 
-// Note: it is imporant that map is used here rather than unordered_map,
-// because we need iterators to not be invalidated,
-// because Preset and the ConfigWizard hold pointers to VendorProfiles.
-// XXX: maybe set is enough (cf. changes in Wizard)
+// Note: it is important that map is used here rather than unordered_map:
+// Preset and the ConfigWizard hold pointers to VendorProfiles, while other code
+// indexes profiles by vendor id through this key-to-profile association.
 typedef std::map<std::string, VendorProfile> VendorMap;
 class _BBS_3MF_Importer;
 class Preset
@@ -162,7 +161,7 @@ public:
         return PrinterTechnology::ptUnknown;
     }
     static std::string type_name(Type t);
-    static Type        type_from_name(std::string name);
+    static Type        type_from_name(const std::string &name);
 
     Type                type        = TYPE_INVALID;
 
@@ -207,7 +206,7 @@ public:
     // and to match the "inherits" field of user profiles with updated system profiles.
     std::vector<std::string> renamed_from;
 
-    void                save();
+    void                save() const;
 
     // Return a label of this preset, consisting of a name and a "(modified)" suffix, if this preset is dirty.
     std::string         label() const;
@@ -742,7 +741,7 @@ public:
     bool                has_empty_config() const;
     void                update_preset_names_in_config();
 
-    void                save() { this->config.save(this->file); }
+    void                save() const { this->config.save(this->file); }
     void                save(const std::string& file_name_from, const std::string& file_name_to);
 
     void                update_from_preset(const Preset& preset);
@@ -770,10 +769,10 @@ public:
     std::string         get_full_name(const std::string &preset_name) const;
 
     // get printer name from the full name uncluded preset name
-    static std::string  get_short_name(std::string full_name);
+    static std::string  get_short_name(const std::string &full_name);
 
     // get preset name from the full name uncluded printer name
-    static std::string  get_preset_name(std::string full_name);
+    static std::string  get_preset_name(const std::string &full_name);
 
 protected:
     friend class        PhysicalPrinterCollection;
@@ -816,15 +815,15 @@ public:
     // New printer is activated.
     void            save_printer(PhysicalPrinter& printer, const std::string& renamed_from = "");
 
-    // Delete the current preset, activate the first visible preset.
-    // returns true if the preset was deleted successfully.
+    // Remove the current preset, activate the first visible preset.
+    // returns true if the preset was removed successfully.
     bool            delete_printer(const std::string& name);
-    // Delete the selected preset
-    // returns true if the preset was deleted successfully.
+    // Remove the selected preset.
+    // returns true if the preset was removed successfully.
     bool            delete_selected_printer();
-    // Delete preset_name preset from all printers:
-    // If there is last preset for the printer and first_check== false, then delete this printer
-    // returns true if all presets were deleted successfully.
+    // Remove preset_name preset from all printers:
+    // If this is the last preset for a printer and first_check == false, remove that printer.
+    // returns true if all presets were removed successfully.
     bool            delete_preset_from_printers(const std::string& preset_name);
     void            rename_preset_in_printers(const std::string& old_name, const std::string& new_name);
     // Get list of printers which have more than one preset and "preset_names" preset is one of them

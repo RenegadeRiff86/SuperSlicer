@@ -2,6 +2,7 @@ add_cmake_project(
     TBB
     URL "https://github.com/oneapi-src/oneTBB/archive/refs/tags/v2021.5.0.zip"
     URL_HASH SHA256=83ea786c964a384dd72534f9854b419716f412f9d43c0be88d41874763e7bb47
+    PATCH_COMMAND patch --batch --forward -p1 -i ${CMAKE_CURRENT_LIST_DIR}/notify-type-odr.patch
     CMAKE_ARGS          
         -DTBB_BUILD_SHARED=${BUILD_SHARED_LIBS}
         -DTBB_TEST=OFF

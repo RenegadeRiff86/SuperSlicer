@@ -49,7 +49,7 @@ SCENARIO("Shells", "[Shells]") {
             }
             THEN("correct number of top solid layers") {
                 // NOTE: there is one additional layer with enusring line under the bridge layer, bridges would be otherwise anchored weakly to the perimeter.
-                size_t additional_ensuring_anchors = top_solid_layers > 0 ? 1 : 0;
+                const int additional_ensuring_anchors = top_solid_layers > 0 ? 1 : 0;
                 for (int i = 0; i < top_solid_layers + additional_ensuring_anchors; ++ i)
                     REQUIRE(has_shells(int(zs.size()) - i - 1));
                 for (int i = top_solid_layers + additional_ensuring_anchors; i < int(zs.size() / 2); ++ i)
@@ -150,64 +150,6 @@ SCENARIO("Shells (from Perl)", "[Shells]") {
         }
     }
 
-    //TODO CHECK AFTER REMOVAL OF "ensure_vertical_wall_thickness"
-    // GIVEN("V shape") {
-    //     // we need to check against one perimeter because this test is calibrated
-    //     // (shape, extrusion_width) so that perimeters cover the bottom surfaces of
-    //     // their lower layer - the test checks that shells are not generated on the
-    //     // above layers (thus 'across' the shadow perimeter)
-    //     // the test is actually calibrated to leave a narrow bottom region for each
-    //     // layer - we test that in case of fill_density = 0 such narrow shells are 
-    //     // discarded instead of grown
-    //     int bottom_solid_layers = 3;
-    //     auto config = Slic3r::DynamicPrintConfig::full_print_config_with({
-    //         { "perimeters",             1 },
-    //         { "fill_density",           0 },
-    //         // to prevent speeds from being altered
-    //         { "cooling",                "0" },
-    //         // to prevent speeds from being altered
-    //         { "first_layer_speed",      "100%" },
-    //         // prevent speed alteration
-    //         { "enable_dynamic_overhang_speeds", 0 },
-    //         { "layer_height",           0.4 },
-    //         { "first_layer_height",     0.4 },
-    //         { "extrusion_width",        0.55 },
-    //         { "bottom_solid_layers",    bottom_solid_layers },
-    //         { "top_solid_layers",       0 },
-    //         { "solid_infill_speed",     99 }
-    //     });
-    //     THEN("shells are not propagated across perimeters of the neighbor layer") {
-    //         std::string gcode = Slic3r::Test::slice({TestMesh::V}, config);
-    //         REQUIRE(layers_with_speed(gcode, 99).size() == bottom_solid_layers);
-    //     }
-    // }
-    // GIVEN("sloping_hole") {
-    //     int bottom_solid_layers = 3;
-    //     int top_solid_layers    = 3;
-    //     int solid_speed         = 99;
-    //     auto config = Slic3r::DynamicPrintConfig::full_print_config_with({
-    //         { "perimeters",             3 },
-    //         // to prevent speeds from being altered
-    //         { "cooling",                "0" },
-    //         // to prevent speeds from being altered
-    //         { "first_layer_speed",      "100%" },
-    //         // prevent speed alteration
-    //         { "enable_dynamic_overhang_speeds", 0 },
-    //         { "layer_height",           0.4 },
-    //         { "first_layer_height",     0.4 },
-    //         { "bottom_solid_layers",    bottom_solid_layers },
-    //         { "top_solid_layers",       top_solid_layers },
-    //         { "solid_infill_speed",     solid_speed },
-    //         { "top_solid_infill_speed", solid_speed },
-    //         { "bridge_speed",           solid_speed },
-    //         { "filament_diameter",      3. },
-    //         { "nozzle_diameter",        0.5 }
-    //     });
-    //     THEN("no superfluous shells are generated") {
-    //         std::string gcode = Slic3r::Test::slice({TestMesh::sloping_hole}, config);
-    //         REQUIRE(layers_with_speed(gcode, solid_speed).size() == bottom_solid_layers + top_solid_layers);
-    //     }
-    // }
     GIVEN("20mm_cube, spiral vase") {
         double layer_height = 0.3;
         auto config = Slic3r::DynamicPrintConfig::full_print_config_with({

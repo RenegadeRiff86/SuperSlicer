@@ -1,5 +1,3 @@
-#include <unordered_map>
-#include <random>
 #include <numeric>
 #include <cstdint>
 
@@ -8,6 +6,8 @@
 #include <libslic3r/TriangleMeshSlicer.hpp>
 #include <libslic3r/SLA/SupportTreeMesher.hpp>
 #include <libslic3r/BranchingTree/PointCloud.hpp>
+
+using namespace Slic3r;
 
 namespace {
 

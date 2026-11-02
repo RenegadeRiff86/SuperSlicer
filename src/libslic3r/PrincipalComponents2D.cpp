@@ -57,8 +57,8 @@ std::tuple<float, Vec2f, Vec2f, float> compute_moments_of_area_of_triangle(const
     //   1/24 (a_2 (b_1 + c_1) + a_1 (2 a_2 + b_2 + c_2) + b_2 c_1 + b_1 c_2 + 2 b_1 b_2 + 2 c_1 c_2)
     //  result is Int_T func = jacobian_determinant_abs * Int_0^1 Int_0^1-u func(gx(u,v), gy(u,v)) dv du
     float second_moment_of_area_covariance = jacobian_determinant_abs * (1.0f / 24.0f) *
-                                             (a.y() * (b.x() + c.x()) + a.x() * (2.0f * a.y() + b.y() + c.y()) + b.y() * c.x() +
-                                              b.x() * c.y() + 2.0f * b.x() * b.y() + 2.0f * c.x() * c.y());
+                                             (a.y() * (b.x() + c.x()) + a.x() * (2.0f * a.y() + b.y() + c.y()) + b.y() * c.x() + // Quadratic cross-term coefficient from the exact triangle integral.
+                                              b.x() * c.y() + 2.0f * b.x() * b.y() + 2.0f * c.x() * c.y()); // Quadratic cross-term coefficients from the exact triangle integral.
 
     float area = jacobian_determinant_abs * 0.5f;
 
@@ -77,7 +77,7 @@ std::tuple<Vec2f, Vec2f> compute_principal_components(const Polygons &polys)
 
     for (const Polygon &poly : polys) {
         Vec2f p0 = unscaled(poly.first_point()).cast<float>();
-        for (size_t i = 2; i < poly.points.size(); i++) {
+        for (size_t i = 2; i < poly.points.size(); i++) { // Vertices 0 and 1 seed this triangle fan.
             Vec2f p1 = unscaled(poly.points[i - 1]).cast<float>();
             Vec2f p2 = unscaled(poly.points[i]).cast<float>();
 

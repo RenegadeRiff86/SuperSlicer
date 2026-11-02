@@ -32,7 +32,7 @@
 
 #define FLAVOR_IS(val) this->config.gcode_flavor.value == val
 #define FLAVOR_IS_NOT(val) this->config.gcode_flavor.value != val
-// TODO: switch to gcodeformatter classes
+// Possible refactor: switch to the GCodeFormatter classes (as upstream PrusaSlicer).
 #define COMMENT(comment) if (this->config.gcode_comments.value && !comment.empty()) gcode << " ; " << comment;
 #define PRECISION(val, precision) to_string_nozero(val, precision)
 #define XYZ_NUM(val) PRECISION(val, this->config.gcode_precision_xyz.value)
@@ -43,6 +43,17 @@ using namespace std::string_view_literals;
 
 namespace Slic3r {
     
+// Sanity bounds and unit-conversion constants for G-code motion output.
+// The coordinate/offset/feedrate/delta values only guard asserts against garbage input.
+static constexpr double MAX_PLAUSIBLE_COORD_MM        = 120000.;   // ~120 m guard on XYZ coordinates
+static constexpr double MAX_PLAUSIBLE_ARC_OFFSET_MM   = 12000000.; // guard on arc center offset
+static constexpr double MAX_PLAUSIBLE_FEEDRATE_MM_MIN = 10000000.; // guard on F (mm/min)
+static constexpr int    MAX_PLAUSIBLE_E_DELTA         = 10000000;  // guard on extrusion delta
+static constexpr int    SECONDS_PER_MINUTE            = 60;        // mm/s -> mm/min feedrate conversion
+static constexpr int    PA_OUTPUT_DECIMALS            = 4;         // decimals when emitting pressure-advance values
+static constexpr double ARC_CENTER_OFFSET_EPSILON_SCALE = 10.;     // require arc center offset to rise above epsilon noise
+static constexpr int    MIN_ARC_QUANTIZED_DELTA       = 10;        // smallest XY quantized delta that still emits an arc
+
 // static
 bool GCodeWriter::supports_separate_travel_acceleration(GCodeFlavor flavor)
 {
@@ -252,33 +263,66 @@ std::string GCodeWriter::write_pressure_advance(double pa) {
     }
     if (FLAVOR_IS(gcfRepRap) || FLAVOR_IS(gcfSprinter)) {
         if (tool_id >= 0 && !this->config.single_extruder_multi_material.value) {
-            gcode += "M572 D" + std::to_string(tool_id) + " S" + to_string_nozero(pa, 4);
+            gcode += "M572 D" + std::to_string(tool_id) + " S" + to_string_nozero(pa, PA_OUTPUT_DECIMALS);
         } else {
             // is it possible to have no tool id? or a -1 is possible?
-            gcode = std::string("M572 S") + to_string_nozero(pa, 4);
+            gcode = std::string("M572 S") + to_string_nozero(pa, PA_OUTPUT_DECIMALS);
         }
     } else if (FLAVOR_IS(gcfKlipper)) {
         pa = std::clamp(pa, 0.0, KLIPPER_PA_SANE_MAX);
-        gcode = std::string("SET_PRESSURE_ADVANCE ADVANCE=") + to_string_nozero(pa, 4);
+        // The name Klipper knows this tool's extruder stepper by.
+        std::string extruder_name;
         if (tool_id >= 0 && size_t(tool_id) < this->config.tool_name.size() && !this->config.tool_name.get_at(tool_id).empty()) {
-            gcode += std::string(" EXTRUDER=") + this->config.tool_name.get_at(tool_id);
-            } else if(tool_id > 0){
-                gcode += std::string(" EXTRUDER=extruder") + std::to_string(tool_id);
-            } else {
-                gcode += std::string(" EXTRUDER=extruder");
+            extruder_name = this->config.tool_name.get_at(tool_id);
+        } else if (tool_id > 0) {
+            extruder_name = std::string("extruder") + std::to_string(tool_id);
+        } else {
+            extruder_name = "extruder";
         }
         // Optional Klipper SMOOTH_TIME: when set, smooths pressure changes over this window.
         const int st_idx = tool_id >= 0 ? tool_id : 0;
+        std::string smooth_time_arg;
         if (this->config.filament_pressure_advance_smooth_time.is_enabled(st_idx)) {
             // Klipper hard-limits SMOOTH_TIME to 200ms and rejects the command above that, so
             // clamp before emitting (the config option itself is not capped). See issue #36.
             const double smooth_time = std::clamp(
                 this->config.filament_pressure_advance_smooth_time.get_at(st_idx), 0.0, 0.2);
-            gcode += std::string(" SMOOTH_TIME=") + to_string_nozero(smooth_time, 4);
+            smooth_time_arg = std::string(" SMOOTH_TIME=") + to_string_nozero(smooth_time, PA_OUTPUT_DECIMALS);
+        }
+        // Klipper keeps pressure advance PER STEPPER: an [extruder_stepper] synced to this tool with
+        // `extruder:` still holds its own value (0 unless configured) because SET_PRESSURE_ADVANCE is
+        // a mux command dispatched on the stepper name. A synced stepper that misses the update pushes
+        // a different amount of filament than the main drive during every acceleration, so repeat the
+        // command verbatim for each mirror the user named.
+        std::vector<std::string> targets{extruder_name};
+        if (tool_id >= 0 && size_t(tool_id) < this->config.tool_pressure_advance_mirrors.size()) {
+            const std::string &mirrors = this->config.tool_pressure_advance_mirrors.get_at(tool_id);
+            for (size_t start = 0; start <= mirrors.size(); ) {
+                size_t end = mirrors.find(',', start);
+                if (end == std::string::npos)
+                    end = mirrors.size();
+                const std::string entry = mirrors.substr(start, end - start);
+                const size_t first = entry.find_first_not_of(" \t");
+                if (first != std::string::npos)
+                    targets.push_back(entry.substr(first, entry.find_last_not_of(" \t") - first + 1));
+                if (end == mirrors.size())
+                    break;
+                start = end + 1;
+            }
+        }
+        const std::string command = std::string("SET_PRESSURE_ADVANCE ADVANCE=") + to_string_nozero(pa, PA_OUTPUT_DECIMALS);
+        for (size_t i = 0; i < targets.size(); ++i) {
+            if (i > 0) {
+                // Close the previous line the same way the tail of this function closes the last one.
+                if (this->config.gcode_comments)
+                    gcode += comment;
+                gcode += "\n";
+            }
+            gcode += command + " EXTRUDER=" + targets[i] + smooth_time_arg;
         }
     } else {
         // if (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfMarlinLegacy))
-        gcode += "M900 K" + to_string_nozero(pa, 4);
+        gcode += "M900 K" + to_string_nozero(pa, PA_OUTPUT_DECIMALS);
     }
     m_last_pressure_advance = pa;
     if (this->config.gcode_comments) {
@@ -371,7 +415,7 @@ std::string GCodeWriter::set_temperature(const int16_t temperature, bool wait, i
 
 std::string GCodeWriter::set_bed_temperature(uint32_t temperature, bool wait)
 {
-    if (temperature == m_last_bed_temperature && (! wait || m_last_bed_temperature_reached))
+    if (temperature == uint32_t(m_last_bed_temperature) && (! wait || m_last_bed_temperature_reached))
         return {};
 
     m_last_bed_temperature = temperature;
@@ -416,7 +460,7 @@ std::string GCodeWriter::set_bed_temperature(uint32_t temperature, bool wait)
 
 std::string GCodeWriter::set_chamber_temperature(uint32_t temperature, bool wait)
 {
-    if (temperature == m_last_chamber_temperature && !wait)
+    if (temperature == uint32_t(m_last_chamber_temperature) && !wait)
         return std::string();
 
     if (FLAVOR_IS(gcfMarlinFirmware) || FLAVOR_IS(gcfRepRap) || FLAVOR_IS(gcfMachinekit)) {
@@ -624,10 +668,10 @@ std::string GCodeWriter::toolchange(uint16_t tool_id)
 // !! be careful, prusa pass the F in set_speed(mm/min) as parameter, not the speed (mm/s)
 std::string GCodeWriter::set_speed_mm_s(const double speed, const std::string_view comment, const std::string_view cooling_marker)
 {
-    const double F = speed * 60;
+    const double F = speed * SECONDS_PER_MINUTE;
     m_current_speed = speed;
     assert(F > 0.);
-    assert(F < 10000000.);
+    assert(F < MAX_PLAUSIBLE_FEEDRATE_MM_MIN);
     GCodeG1Formatter w(this->get_default_gcode_formatter());
     w.emit_f(F);
     w.emit_comment(this->config.gcode_comments, comment);
@@ -642,8 +686,8 @@ double GCodeWriter::get_speed_mm_s() const
 
 std::string GCodeWriter::travel_to_xy(const Vec2d &point, const double speed, const std::string_view comment)
 {
-    assert(std::abs(point.x()) < 120000.);
-    assert(std::abs(point.y()) < 120000.);
+    assert(std::abs(point.x()) < MAX_PLAUSIBLE_COORD_MM);
+    assert(std::abs(point.y()) < MAX_PLAUSIBLE_COORD_MM);
 
     double travel_speed = this->config.travel_speed.value;
     if ((speed > 0) & (speed < travel_speed))
@@ -657,24 +701,24 @@ std::string GCodeWriter::travel_to_xy(const Vec2d &point, const double speed, co
         return "";
     }
     assert(travel_speed > 0.);
-    w.emit_f(travel_speed * 60);
+    w.emit_f(travel_speed * SECONDS_PER_MINUTE);
     w.emit_comment(this->config.gcode_comments, comment);
     return write_acceleration() + w.string();
 }
 
 std::string GCodeWriter::travel_arc_to_xy(const Vec2d& point, const Vec2d& center_offset, const bool is_ccw, const double speed, const std::string_view comment)
 {
-    assert(std::abs(point.x()) < 120000.);
-    assert(std::abs(point.y()) < 120000.);
-    assert(std::abs(center_offset.x()) < 12000000.);
-    assert(std::abs(center_offset.y()) < 12000000.);
-    assert(std::abs(center_offset.x()) >= EPSILON * 10 || std::abs(center_offset.y()) >= EPSILON * 10);
+    assert(std::abs(point.x()) < MAX_PLAUSIBLE_COORD_MM);
+    assert(std::abs(point.y()) < MAX_PLAUSIBLE_COORD_MM);
+    assert(std::abs(center_offset.x()) < MAX_PLAUSIBLE_ARC_OFFSET_MM);
+    assert(std::abs(center_offset.y()) < MAX_PLAUSIBLE_ARC_OFFSET_MM);
+    assert(std::abs(center_offset.x()) >= EPSILON * ARC_CENTER_OFFSET_EPSILON_SCALE || std::abs(center_offset.y()) >= EPSILON * ARC_CENTER_OFFSET_EPSILON_SCALE);
 
     //check that the move is long enough: if not enough precision, the arc can be weird or in opposite.
     GCodeG2G3Formatter w(this->config.gcode_precision_xyz.value, this->config.gcode_precision_e.value, is_ccw);
     int delta = std::abs(w.quantize_int(this->m_pos.x()) - w.quantize_int(point.x())) +
         std::abs(w.quantize_int(this->m_pos.y()) - w.quantize_int(point.y()));
-    bool has_long_enough_move = delta > 10;
+    bool has_long_enough_move = delta > MIN_ARC_QUANTIZED_DELTA;
     if (!has_long_enough_move) {
         // use strait move
         return travel_to_xy(point, speed, comment);
@@ -693,15 +737,15 @@ std::string GCodeWriter::travel_arc_to_xy(const Vec2d& point, const Vec2d& cente
     }
     w.emit_ij(center_offset);
     assert(travel_speed > 0.);
-    w.emit_f(travel_speed * 60);
+    w.emit_f(travel_speed * SECONDS_PER_MINUTE);
     w.emit_comment(this->config.gcode_comments, comment);
     return write_acceleration() + w.string();
 }
 
 std::string GCodeWriter::travel_to_xyz(const Vec3d &point, const bool is_lift, const double speed, const std::string_view comment)
 {
-    assert(std::abs(point.x()) < 120000.);
-    assert(std::abs(point.y()) < 120000.);
+    assert(std::abs(point.x()) < MAX_PLAUSIBLE_COORD_MM);
+    assert(std::abs(point.y()) < MAX_PLAUSIBLE_COORD_MM);
  
     /*  If target Z is lower than current Z but higher than nominal Z we
         don't perform the Z move but we only move in the XY plane and
@@ -760,7 +804,7 @@ std::string GCodeWriter::travel_to_xyz(const Vec3d &point, const bool is_lift, c
         return "";
     }
     assert(travel_speed > 0.);
-    w.emit_f(travel_speed * 60);
+    w.emit_f(travel_speed * SECONDS_PER_MINUTE);
     w.emit_comment(this->config.gcode_comments, comment);
     return write_acceleration() + w.string();
 }
@@ -801,7 +845,7 @@ std::string GCodeWriter::get_travel_to_z_gcode(const double z, const std::string
         return "";
     }
     assert(speed > 0.);
-    w.emit_f(speed * 60.0);
+    w.emit_f(speed * SECONDS_PER_MINUTE);
     w.emit_comment(this->config.gcode_comments, comment);
     return write_acceleration() + w.string();
 }
@@ -866,23 +910,22 @@ std::string GCodeWriter::extrude_to_xy(const Vec2d &point, const double dE, cons
     return write_acceleration() + w.string();
 }
 
-static constexpr const std::array<double, 10> log_10{1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000};
 //BBS: generate G2 or G3 extrude which moves by arc
 //point is end point which means X and Y axis
 //center_offset is I and J axis
 std::string GCodeWriter::extrude_arc_to_xy(const Vec2d& point, const Vec2d& center_offset, const double dE, const bool is_ccw, const std::string_view comment)
 {
-    assert(std::abs(point.x()) < 120000.);
-    assert(std::abs(point.y()) < 120000.);
-    assert(std::abs(center_offset.x()) < 12000000.);
-    assert(std::abs(center_offset.y()) < 12000000.);
-    assert(std::abs(center_offset.x()) >= EPSILON * 10 || std::abs(center_offset.y()) >= EPSILON * 10);
+    assert(std::abs(point.x()) < MAX_PLAUSIBLE_COORD_MM);
+    assert(std::abs(point.y()) < MAX_PLAUSIBLE_COORD_MM);
+    assert(std::abs(center_offset.x()) < MAX_PLAUSIBLE_ARC_OFFSET_MM);
+    assert(std::abs(center_offset.y()) < MAX_PLAUSIBLE_ARC_OFFSET_MM);
+    assert(std::abs(center_offset.x()) >= EPSILON * ARC_CENTER_OFFSET_EPSILON_SCALE || std::abs(center_offset.y()) >= EPSILON * ARC_CENTER_OFFSET_EPSILON_SCALE);
     
     //check that the move is long enough: if not enough precision, the arc can be weird or in opposite.
     GCodeG2G3Formatter w(this->config.gcode_precision_xyz.value, this->config.gcode_precision_e.value, is_ccw);
     int delta = std::abs(w.quantize_int(this->m_pos.x()) - w.quantize_int(point.x())) +
         std::abs(w.quantize_int(this->m_pos.y()) - w.quantize_int(point.y()));
-    bool has_long_enough_move = delta > 10;
+    bool has_long_enough_move = delta > MIN_ARC_QUANTIZED_DELTA;
     if (!has_long_enough_move) {
         // use strait move
         return extrude_to_xy(point, dE, comment);
@@ -915,9 +958,9 @@ std::string GCodeWriter::extrude_arc_to_xy(const Vec2d& point, const Vec2d& cent
 
 std::string GCodeWriter::extrude_to_xyz(const Vec3d &point, const double dE, const std::string_view comment)
 {
-    assert(std::abs(point.x()) < 120000.);
-    assert(std::abs(point.y()) < 120000.);
-    assert(std::abs(point.z()) < 120000.);
+    assert(std::abs(point.x()) < MAX_PLAUSIBLE_COORD_MM);
+    assert(std::abs(point.y()) < MAX_PLAUSIBLE_COORD_MM);
+    assert(std::abs(point.z()) < MAX_PLAUSIBLE_COORD_MM);
     assert(dE == dE);
     //assert(point.z() >= m_pos.z() - EPSILON);
     m_pos = point;
@@ -959,17 +1002,17 @@ std::string GCodeWriter::extrude_to_xyz(const Vec3d &point, const double dE, con
 
 std::string GCodeWriter::extrude_arc_to_xyz(const Vec3d& point, const Vec2d& center_offset, const double dE, const bool is_ccw, const std::string_view comment)
 {
-    assert(std::abs(point.x()) < 120000.);
-    assert(std::abs(point.y()) < 120000.);
-    assert(std::abs(center_offset.x()) < 12000000.);
-    assert(std::abs(center_offset.y()) < 12000000.);
-    assert(std::abs(center_offset.x()) >= EPSILON * 10 || std::abs(center_offset.y()) >= EPSILON * 10);
+    assert(std::abs(point.x()) < MAX_PLAUSIBLE_COORD_MM);
+    assert(std::abs(point.y()) < MAX_PLAUSIBLE_COORD_MM);
+    assert(std::abs(center_offset.x()) < MAX_PLAUSIBLE_ARC_OFFSET_MM);
+    assert(std::abs(center_offset.y()) < MAX_PLAUSIBLE_ARC_OFFSET_MM);
+    assert(std::abs(center_offset.x()) >= EPSILON * ARC_CENTER_OFFSET_EPSILON_SCALE || std::abs(center_offset.y()) >= EPSILON * ARC_CENTER_OFFSET_EPSILON_SCALE);
     
     //check that the move is long enough: if not enough precision, the arc can be weird or in opposite.
     GCodeG2G3Formatter w(this->config.gcode_precision_xyz.value, this->config.gcode_precision_e.value, is_ccw);
     int delta = std::abs(w.quantize_int(this->m_pos.x()) - w.quantize_int(point.x())) +
         std::abs(w.quantize_int(this->m_pos.y()) - w.quantize_int(point.y()));
-    bool has_long_enough_move = delta > 10;
+    bool has_long_enough_move = delta > MIN_ARC_QUANTIZED_DELTA;
     if (!has_long_enough_move) {
         // use strait move
         return extrude_to_xyz(point, dE, comment);
@@ -1077,7 +1120,7 @@ std::string GCodeWriter::_retract(double length, std::optional<double> restart_e
     
     auto [dE, emit_E] = m_tool->retract(length, restart_extra, restart_extra_toolchange);
     assert(dE >= 0);
-    assert(dE < 10000000);
+    assert(dE < MAX_PLAUSIBLE_E_DELTA);
     if (dE != 0) {
         // write pa if it's set for retraction
         _write_pressure_advance(gcode);
@@ -1091,7 +1134,7 @@ std::string GCodeWriter::_retract(double length, std::optional<double> restart_e
             GCodeG1Formatter w(this->get_default_gcode_formatter());
             w.emit_e(m_extrusion_axis, emit_E);
             if (int speed = m_tool->retract_speed(); speed > 0.) {
-                w.emit_f(speed * 60.);
+                w.emit_f(speed * SECONDS_PER_MINUTE);
             }
             w.emit_comment(this->config.gcode_comments, comment);
             gcode += w.string();
@@ -1117,7 +1160,7 @@ std::string GCodeWriter::unretract()
     
     auto [dE, emit_E] = m_tool->unretract();
     assert(dE >= 0);
-    assert(dE < 10000000);
+    assert(dE < MAX_PLAUSIBLE_E_DELTA);
     if (dE != 0) {
         // write pa if it's set for retraction
         _write_pressure_advance(gcode);
@@ -1130,7 +1173,7 @@ std::string GCodeWriter::unretract()
             GCodeG1Formatter w(this->get_default_gcode_formatter());
             w.emit_e(m_extrusion_axis, emit_E);
             if (int speed = m_tool->deretract_speed(); speed > 0.) {
-                w.emit_f(speed * 60.);
+                w.emit_f(speed * SECONDS_PER_MINUTE);
             }
             w.emit_comment(this->config.gcode_comments, "unretract");
             gcode += w.string();

@@ -10,6 +10,9 @@
 
 namespace Slic3r::GCode {
 
+// Repeated string literals extracted to named constants (BP1001).
+static constexpr const char* kVec3Fmt = "%.3f,%.3f,%.3f";
+
 
 namespace {
 
@@ -153,13 +156,13 @@ std::string LabelObjects::all_objects_header(BoundingBoxf3 &global_bounding_box,
             .append(",\"id\":\"").append(std::to_string(label.unique_id)).append("\"")
             .append(",\"object_id\":").append(std::to_string(label.unique_id))
             .append(",\"copy\":").append(std::to_string(label.copy_id));
-        std::snprintf(buffer, sizeof(buffer) - 1, "%.3f,%.3f,%.3f", unscale<float>(center[0]), unscale<float>(center[1]), 0.f);
+        std::snprintf(buffer, sizeof(buffer) - 1, kVec3Fmt, unscale<float>(center[0]), unscale<float>(center[1]), 0.f);
         out.append(",\"object_center\":[").append(buffer).append("]");
-        std::snprintf(buffer, sizeof(buffer) - 1, "%.3f,%.3f,%.3f",bounding_box.center().x(), bounding_box.center().y(), bounding_box.center().z());
+        std::snprintf(buffer, sizeof(buffer) - 1, kVec3Fmt,bounding_box.center().x(), bounding_box.center().y(), bounding_box.center().z());
         out.append(",\"boundingbox_center\":[").append(buffer).append("]");
-        std::snprintf(buffer, sizeof(buffer) - 1, "%.3f,%.3f,%.3f", bounding_box.size().x(), bounding_box.size().y(), bounding_box.size().z());
+        std::snprintf(buffer, sizeof(buffer) - 1, kVec3Fmt, bounding_box.size().x(), bounding_box.size().y(), bounding_box.size().z());
         out.append(",\"boundingbox_size\":[").append(buffer).append("]");
-        std::snprintf(buffer, sizeof(buffer) - 1, "%.3f,%.3f,%.3f", print_instance->model_instance->get_scaling_factor(Axis::X), print_instance->model_instance->get_scaling_factor(Axis::Y),
+        std::snprintf(buffer, sizeof(buffer) - 1, kVec3Fmt, print_instance->model_instance->get_scaling_factor(Axis::X), print_instance->model_instance->get_scaling_factor(Axis::Y),
             print_instance->model_instance->get_scaling_factor(Axis::Z));
         out.append(",\"scale\":[").append(buffer).append("]");
         out.append(",\"outline\":[");
@@ -179,12 +182,12 @@ std::string LabelObjects::all_objects_header(BoundingBoxf3 &global_bounding_box,
     {
         out.append("; plater:{");
         Point global_center = global_outline.centroid();
-        std::snprintf(buffer, sizeof(buffer) - 1, "%.3f,%.3f,%.3f", unscaled(global_center.x()), unscaled(global_center.y()), 0.f);
+        std::snprintf(buffer, sizeof(buffer) - 1, kVec3Fmt, unscaled(global_center.x()), unscaled(global_center.y()), 0.f);
         out.append(",\"object_center\":[").append(buffer).append("]");
-        std::snprintf(buffer, sizeof(buffer) - 1, "%.3f,%.3f,%.3f", global_bounding_box.center().x(), global_bounding_box.center().y(),
+        std::snprintf(buffer, sizeof(buffer) - 1, kVec3Fmt, global_bounding_box.center().x(), global_bounding_box.center().y(),
                       global_bounding_box.center().z());
         out.append(",\"boundingbox_center\":[").append(buffer).append("]");
-        std::snprintf(buffer, sizeof(buffer) - 1, "%.3f,%.3f,%.3f", global_bounding_box.size().x(), global_bounding_box.size().y(),
+        std::snprintf(buffer, sizeof(buffer) - 1, kVec3Fmt, global_bounding_box.size().x(), global_bounding_box.size().y(),
                       global_bounding_box.size().z());
         out.append(",\"boundingbox_size\":[").append(buffer).append("]");
         out.append(",\"outline\":[");

@@ -92,10 +92,11 @@ public:
     {
         m_canceled = false;
 
-        if (job)
-            m_jobqueue.push(std::move(job));
+        if (!job)
+            return false;
 
-        return bool(job);
+        m_jobqueue.push(std::move(job));
+        return true;
     }
 
     bool is_idle() const override { return !m_running && m_jobqueue.empty(); }

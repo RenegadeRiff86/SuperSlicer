@@ -21,7 +21,10 @@
 
 #include "libslic3r/SVG.hpp"
 
-using namespace Slic3r;
+using Slic3r::ExPolygon;
+using Slic3r::ExPolygons;
+using Slic3r::TriangleMesh;
+namespace sla = Slic3r::sla;
 
 enum e_validity {
     ASSUME_NO_EMPTY = 1,

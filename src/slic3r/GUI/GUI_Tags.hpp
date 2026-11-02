@@ -37,7 +37,7 @@ public:
     //    const wxString&     mode,
     //    wxBitmap*           bitmap,
     //    int                 px_cnt);
-		
+        
      //ModeButton(
      //    wxWindow*           parent,
      //    uint64_t            mode_mask,/*ConfigOptionMode*/
@@ -67,7 +67,7 @@ protected:
 private:
     bool        m_is_selected = false;
     // uint64_t    m_mode_mask {uint64_t(-1)};
-	std::string m_mode_name;
+    std::string m_mode_name;
 
     wxString    m_tt_selected;
     wxString    m_tt_focused;

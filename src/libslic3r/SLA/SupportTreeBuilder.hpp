@@ -86,7 +86,7 @@ struct Head: public SupportTreeNode {
 
     double r_back_mm = 1;
     double r_pin_mm = 0.5;
-    double width_mm = 2;
+    double width_mm = 2; // Default head width in millimeters.
     double penetration_mm = 0.5;
 
     // If there is a pillar connecting to this head, then the id will be set.
@@ -107,7 +107,7 @@ struct Head: public SupportTreeNode {
 
     inline double real_width() const
     {
-        return 2 * r_pin_mm + width_mm + 2 * r_back_mm ;
+        return 2 * r_pin_mm + width_mm + 2 * r_back_mm; // Convert both radii to diameters around the center width.
     }
 
     inline double fullwidth() const
@@ -265,7 +265,7 @@ public:
         m_heads.emplace_back(std::forward<Args>(args)...);
         m_heads.back().id = id;
         
-        if (id >= m_head_indices.size()) m_head_indices.resize(id + 1);
+        if (id >= m_head_indices.size()) m_head_indices.resize(static_cast<size_t>(id) + 1);
         m_head_indices[id] = m_heads.size() - 1;
         
         m_meshcache_valid = false;
@@ -294,7 +294,7 @@ public:
         return pillar.id;
     }
     
-    void add_pillar_base(long pid, double baseheight = 3, double radius = 2);
+    void add_pillar_base(long pid, double baseheight = 3, double radius = 2); // Default base dimensions are millimeters.
 
     template<class...Args> const Anchor& add_anchor(Args&&...args)
     {

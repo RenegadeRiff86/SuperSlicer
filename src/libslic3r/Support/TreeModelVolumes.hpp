@@ -479,6 +479,10 @@ private:
      */
     Polygons m_machine_border;
     /*!
+     * \brief The print bed area, used to seed the layer-0 placeable areas.
+     */
+    Polygon m_bed_area;
+    /*!
      * \brief Storage for layer outlines and the corresponding settings of the meshes grouped by meshes with identical setting.
      */
     std::vector<std::pair<TreeSupportMeshGroupSettings, std::vector<Polygons>>> m_layer_outlines;

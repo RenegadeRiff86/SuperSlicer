@@ -188,7 +188,7 @@ static void trianglemesh_repair_on_import(stl_file &stl)
     stl_verify_neighbors(&stl);
     assert(stl_validate(&stl));
 
-    //FIXME The admesh repair function may break the face connectivity, rather refresh it here as the slicing code relies on it.
+    // The admesh repair function may break the face connectivity; refresh it here since the slicing code relies on it.
     if (auto nr_degenerated = stl.stats.degenerate_facets; stl.stats.number_of_facets > 0 && nr_degenerated > 0)
         stl_check_facets_exact(&stl);
 
@@ -344,11 +344,11 @@ void TriangleMesh::mirror(const Axis axis)
         break;
     case Y:
         for (stl_vertex& v : this->its.vertices)
-            v.y() *= -1.0;
+            v.y() *= -1.;
         break;
     case Z:
         for (stl_vertex &v : this->its.vertices)
-            v.z() *= -1.0;
+            v.z() *= -1.;
         break;
     default:
         assert(false);
@@ -357,8 +357,8 @@ void TriangleMesh::mirror(const Axis axis)
     its_flip_triangles(this->its);
     int iaxis = int(axis);
     std::swap(m_stats.min[iaxis], m_stats.max[iaxis]);
-    m_stats.min[iaxis] *= -1.0;
-    m_stats.max[iaxis] *= -1.0;
+    m_stats.min[iaxis] *= -1.;
+    m_stats.max[iaxis] *= -1.;
 }
 
 void TriangleMesh::transform(const Transform3d& t, bool fix_left_handed)
@@ -445,7 +445,7 @@ void TriangleMesh::merge(const TriangleMesh &mesh)
 }
 
 // Calculate projection of the mesh into the XY plane, in scaled coordinates.
-//FIXME This could be extremely slow! Use it for tiny meshes only!
+// Performance note: this could be extremely slow! Use it for tiny meshes only!
 ExPolygons TriangleMesh::horizontal_projection() const
 {
     return union_ex(project_mesh(this->its, Transform3d::Identity(), []() {}));
@@ -543,7 +543,10 @@ std::vector<ExPolygons> TriangleMesh::slice(const std::vector<double> &z) const
 {
     throw Exception("not using config");
     // convert doubles to floats
-    std::vector<float> z_f(z.begin(), z.end());
+    std::vector<float> z_f;
+    z_f.reserve(z.size());
+    for (double z_mm : z)
+        z_f.emplace_back(static_cast<float>(z_mm));
     return slice_mesh_ex(this->its, z_f, 0.0004f);
 }
 
@@ -622,7 +625,7 @@ static inline std::vector<Vec3i32> its_face_edge_ids_impl(const indexed_triangle
                 break;
             }
         if (! found) {
-            //FIXME Vojtech: Trying to find an edge with equal orientation. This smells.
+            // Fallback (Vojtech): try to find an edge with equal orientation.
             // admesh can assign the same edge ID to more than two facets (which is 
             // still topologically correct), so we have to search for a duplicate of 
             // this edge too in case it was already seen in this orientation
@@ -682,8 +685,14 @@ std::vector<Vec3i32> its_face_edge_ids(const indexed_triangle_set &its, std::vec
                 // First find an edge with opposite orientation.
                 std::swap(edge(0), edge(1));
                 int   k       = its_triangle_edge_index(triangle2, edge);
-                //FIXME is the following realistic? Could face_neighbors contain such faces?
-                // And if it does, do we want to produce the same edge ID for those mutually incorrectly oriented edges?
+                // The lookup above always succeeds for a neighbor table produced by
+                // its_face_neighbors()/its_face_neighbors_par(): create_face_neighbors_index()
+                // links two faces only when they traverse the shared edge in opposite directions
+                // (the "Has NOT oposite direction?" guard in MeshSplitImpl.hpp). Two mutually
+                // flipped faces are therefore never recorded as neighbors at all - the edge stays
+                // unbound (-1) and is handled by the assign_unbound_edges branch below. The
+                // same-orientation retry is kept so this function stays correct for a caller that
+                // builds its neighbor table some other way.
                 if (k == -1) {
                     // Second find an edge with the same orientation (the neighbor triangle may be flipped).
                     std::swap(edge(0), edge(1));
@@ -1095,9 +1104,9 @@ indexed_triangle_set its_make_cone(double r, double h, double fa)
 
     // base center and top vertex
     vertices.emplace_back(Vec3f::Zero());
-    vertices.emplace_back(Vec3f(0., 0., h));
+    vertices.emplace_back(Vec3f(0.f, 0.f, static_cast<float>(h)));
 
-    size_t i = 0;
+    int i = 0;
     const auto vec = Eigen::Vector2f(0, float(r));
     for (double angle=0; angle<2*PI; angle+=fa) {
         Vec2f p = Eigen::Rotation2Df(angle) * vec;
@@ -1153,6 +1162,8 @@ indexed_triangle_set its_make_sphere(double radius, double fa)
     float z, xy;
     float hAngle1 = -float(PI) / 2 - H_ANGLE / 2;
 
+    constexpr int ICOSA_BOTTOM_APEX = 11; // index of the last of the 12 icosahedron vertices (the bottom pole)
+
     vertices[0] = stl_vertex(0, 0, radius); // the first top vertex at (0, 0, r)
 
     for (int i = 1; i <= 5; ++i) {
@@ -1164,10 +1175,10 @@ indexed_triangle_set its_make_sphere(double radius, double fa)
 
         indices.emplace_back(stl_triangle_vertex_indices(i, i < 5 ? i+1 : 1, 0));
         indices.emplace_back(stl_triangle_vertex_indices(i, i+5, i < 5 ? i+1 : 1));
-        indices.emplace_back(stl_triangle_vertex_indices(i+5, i+6 < 11 ? i+6 : 6, i+6 < 11 ? i+1 : 1));
-        indices.emplace_back(stl_triangle_vertex_indices(i+5, 11, i+6 < 11 ? i+6 : 6));
+        indices.emplace_back(stl_triangle_vertex_indices(i+5, i+6 < ICOSA_BOTTOM_APEX ? i+6 : 6, i+6 < ICOSA_BOTTOM_APEX ? i+1 : 1));
+        indices.emplace_back(stl_triangle_vertex_indices(i+5, ICOSA_BOTTOM_APEX, i+6 < ICOSA_BOTTOM_APEX ? i+6 : 6));
     }
-    vertices[11] = stl_vertex(0, 0, -radius); // the last bottom vertex at (0, 0, -r)
+    vertices[ICOSA_BOTTOM_APEX] = stl_vertex(0, 0, -radius); // the last bottom vertex at (0, 0, -r)
 
     
     // We have a beautiful icosahedron. Now subdivide the triangles.
@@ -1481,7 +1492,7 @@ indexed_triangle_set its_convex_hull(const std::vector<Vec3f> &pts)
                     i = int(dst_vertices.size());
                     map_dst_vertices[id] = i;
                     orgQhull::QhullPoint pt(vertex.point());
-                    dst_vertices.emplace_back(pt[0], pt[1], pt[2]);
+                    dst_vertices.emplace_back(static_cast<float>(pt[0]), static_cast<float>(pt[1]), static_cast<float>(pt[2]));
                     indices[cnt] = i;
                 } else {
                     // Reuse existing vertex.

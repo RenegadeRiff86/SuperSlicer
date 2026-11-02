@@ -56,11 +56,26 @@
 
 using boost::property_tree::ptree;
 
-// todo: arc_fitting and mlin_gcode_resolution switch from print to printer
+// Note: arc_fitting and gcode_min_resolution switched from print options to printer options.
 
 namespace Slic3r {
 
 namespace {
+
+constexpr const char *opt_key_nozzle_diameter               = "nozzle_diameter";
+constexpr const char *opt_key_compatible_prints             = "compatible_prints";
+constexpr const char *opt_key_compatible_prints_condition   = "compatible_prints_condition";
+constexpr const char *opt_key_compatible_printers           = "compatible_printers";
+constexpr const char *opt_key_compatible_printers_condition = "compatible_printers_condition";
+constexpr const char *opt_key_inherits                      = "inherits";
+constexpr const char *opt_key_num_extruders                 = "num_extruders";
+constexpr const char *opt_key_num_milling                   = "num_milling";
+constexpr const char *opt_key_printer_model                 = "printer_model";
+constexpr const char *opt_key_printer_variant               = "printer_variant";
+constexpr const char *opt_key_print_host                    = "print_host";
+constexpr const char *opt_key_printhost_apikey              = "printhost_apikey";
+constexpr const char *opt_key_printhost_cafile              = "printhost_cafile";
+constexpr const char *opt_key_printhost_port                = "printhost_port";
 
 int checked_size_to_config_int(size_t value, const char *field_name)
 {
@@ -90,7 +105,7 @@ ConfigFileType guess_config_file_type(const ptree &tree)
                 v.first == "no_controller" ||
                 v.first == "no_defaults")
                 ++ app_config;
-            else if (v.first == "nozzle_diameter" ||
+            else if (v.first == opt_key_nozzle_diameter ||
                 v.first == "filament_diameter")
                 ++ config;
         } else if (boost::algorithm::starts_with(v.first, "print:") ||
@@ -417,12 +432,10 @@ VendorProfile VendorProfile::from_ini(const ptree &tree, const std::string &base
 std::vector<std::string> VendorProfile::families() const
 {
     std::vector<std::string> res;
-    unsigned num_familiies = 0;
 
     for (auto &model : models) {
         if (std::find(res.begin(), res.end(), model.family) == res.end()) {
             res.push_back(model.family);
-            num_familiies++;
         }
     }
 
@@ -452,7 +465,7 @@ std::string Preset::remove_suffix_modified(const std::string &name)
 // Update new extruder fields at the printer profile.
 void Preset::normalize(DynamicPrintConfig &config)
 {
-    auto *nozzle_diameter = dynamic_cast<const ConfigOptionFloats*>(config.option("nozzle_diameter"));
+    auto *nozzle_diameter = dynamic_cast<const ConfigOptionFloats*>(config.option(opt_key_nozzle_diameter));
     if (nozzle_diameter != nullptr)
         // Loaded the FFF Printer settings. Verify, that all extruder dependent values have enough values.
         config.set_num_extruders(static_cast<unsigned int>(nozzle_diameter->size()));
@@ -462,7 +475,7 @@ void Preset::normalize(DynamicPrintConfig &config)
         size_t n = (nozzle_diameter == nullptr) ? 1 : nozzle_diameter->size();
         const auto &defaults = FullPrintConfig::defaults();
         for (const std::string &key : Preset::filament_options()) {
-            if (key == "compatible_prints" || key == "compatible_printers")
+            if (key == opt_key_compatible_prints || key == opt_key_compatible_printers)
                 continue;
             auto *opt = config.option(key, false);
             auto *opt_default = defaults.option(key);
@@ -509,7 +522,7 @@ std::string Preset::remove_invalid_keys(DynamicPrintConfig &config, const Dynami
     return incorrect_keys;
 }
 
-void Preset::save()
+void Preset::save() const
 {
     this->config.save(this->file);
 }
@@ -527,13 +540,13 @@ bool is_compatible_with_print(const PresetWithVendorProfile &preset, const Prese
         // The current profile has a vendor assigned and it is different from the active print's vendor.
         return false;
     auto &condition             = preset.preset.compatible_prints_condition();
-    auto *compatible_prints     = dynamic_cast<const ConfigOptionStrings*>(preset.preset.config.option("compatible_prints"));
+    auto *compatible_prints     = dynamic_cast<const ConfigOptionStrings*>(preset.preset.config.option(opt_key_compatible_prints));
     bool  has_compatible_prints = compatible_prints != nullptr && ! compatible_prints->empty();
     if (! has_compatible_prints && ! condition.empty()) {
         try {
             return PlaceholderParser::evaluate_boolean_expression(condition, active_print.preset.config);
         } catch (const std::runtime_error &err) {
-            //FIXME in case of an error, return "compatible with everything".
+            // Note: on a parsing error the preset is considered "compatible with everything" (fail-open).
             printf("Preset::is_compatible_with_print - parsing error of compatible_prints_condition %s:\n%s\n", active_print.preset.name.c_str(), err.what());
             return true;
         }
@@ -550,13 +563,13 @@ bool is_compatible_with_printer(const PresetWithVendorProfile &preset, const Pre
         // The current profile has a vendor assigned and it is different from the active print's vendor.
         return false;
     auto &condition               = preset.preset.compatible_printers_condition();
-    auto *compatible_printers     = dynamic_cast<const ConfigOptionStrings*>(preset.preset.config.option("compatible_printers"));
+    auto *compatible_printers     = dynamic_cast<const ConfigOptionStrings*>(preset.preset.config.option(opt_key_compatible_printers));
     bool  has_compatible_printers = compatible_printers != nullptr && ! compatible_printers->empty();
     if (! has_compatible_printers && ! condition.empty()) {
         try {
             return PlaceholderParser::evaluate_boolean_expression(condition, active_printer.preset.config, extra_config);
         } catch (const std::runtime_error &err) {
-            //FIXME in case of an error, return "compatible with everything".
+            // Note: on a parsing error the preset is considered "compatible with everything" (fail-open).
             printf("Preset::is_compatible_with_printer - parsing error of compatible_printers_condition %s:\n%s\n", active_printer.preset.name.c_str(), err.what());
             return true;
         }
@@ -569,18 +582,18 @@ bool is_compatible_with_printer(const PresetWithVendorProfile &preset, const Pre
 bool is_compatible_with_printer(const PresetWithVendorProfile &preset, const PresetWithVendorProfile &active_printer)
 {
     DynamicPrintConfig config;
-    config.set_key_value("printer_preset", new ConfigOptionString(active_printer.preset.name));
-    const ConfigOption *opt = active_printer.preset.config.option("nozzle_diameter");
+    config.set_key_value("printer_preset", std::make_unique<ConfigOptionString>(active_printer.preset.name));
+    const ConfigOption *opt = active_printer.preset.config.option(opt_key_nozzle_diameter);
     if (opt) {
-        const int num_extruders = config_option_floats_size_to_int(opt, "num_extruders");
-        config.set_key_value("num_extruders", new ConfigOptionInt(num_extruders));
-        config.set_key_value("extruders_count", new ConfigOptionInt(num_extruders));
+        const int num_extruders = config_option_floats_size_to_int(opt, opt_key_num_extruders);
+        config.set_key_value(opt_key_num_extruders, std::make_unique<ConfigOptionInt>(num_extruders));
+        config.set_key_value("extruders_count", std::make_unique<ConfigOptionInt>(num_extruders));
     }
     opt = active_printer.preset.config.option("milling_diameter");
     if (opt) {
-        const int num_milling = config_option_floats_size_to_int(opt, "num_milling");
-        config.set_key_value("num_milling", new ConfigOptionInt(num_milling));
-        config.set_key_value("milling_count", new ConfigOptionInt(num_milling));
+        const int num_milling = config_option_floats_size_to_int(opt, opt_key_num_milling);
+        config.set_key_value(opt_key_num_milling, std::make_unique<ConfigOptionInt>(num_milling));
+        config.set_key_value("milling_count", std::make_unique<ConfigOptionInt>(num_milling));
     }
     return is_compatible_with_printer(preset, active_printer, &config);
 }
@@ -590,8 +603,8 @@ void Preset::set_visible_from_appconfig(const AppConfig &app_config)
     if (vendor == nullptr) { return; }
 
     if (type == TYPE_PRINTER) {
-        const std::string &model = config.opt_string("printer_model");
-        const std::string &variant = config.opt_string("printer_variant");
+        const std::string &model = config.opt_string(opt_key_printer_model);
+        const std::string &variant = config.opt_string(opt_key_printer_variant);
         if (model.empty() || variant.empty())
             return;
         is_visible = app_config.get_variant(vendor->id, model, variant);
@@ -742,6 +755,7 @@ static std::vector<std::string> s_Preset_print_options {
         "travel_speed", "travel_speed_z",
         "max_print_speed",
         "autospeed_min_thin_flow",
+        "autospeed_pressure_advance_headroom",
         "max_volumetric_speed",
         // gapfill
         "gap_fill_enabled",
@@ -916,7 +930,7 @@ static std::vector<std::string> s_Preset_print_options {
         "mmu_segmented_region_interlocking_depth", 
         "mmu_segmented_region_max_width",
         "single_extruder_multi_material_priming", 
-        "compatible_printers", "compatible_printers_condition", "inherits", 
+        opt_key_compatible_printers, opt_key_compatible_printers_condition, opt_key_inherits, 
         "infill_dense", "infill_dense_algo",
         "no_perimeter_unsupported_algo",
         // "exact_last_layer_height",
@@ -979,6 +993,7 @@ static std::vector<std::string> s_Preset_filament_options {
         "filament_cooling_initial_speed", "filament_cooling_final_speed", "filament_ramming_parameters", "filament_minimal_purge_on_wipe_tower",
         "filament_max_overlap",
         "filament_shrink",
+        "filament_z_offset",
         "filament_use_skinnydip",  // skinnydip params start
         "filament_use_fast_skinnydip",
         "filament_skinnydip_distance",
@@ -1065,11 +1080,10 @@ static std::vector<std::string> s_Preset_filament_options {
         "filament_wipe_lift_length",
         "filament_wipe_min",
         // Profile compatibility
-        "filament_vendor", "compatible_prints", "compatible_prints_condition", "compatible_printers", "compatible_printers_condition", "inherits",
+        "filament_vendor", opt_key_compatible_prints, opt_key_compatible_prints_condition, opt_key_compatible_printers, opt_key_compatible_printers_condition, opt_key_inherits,
         //merill adds
         "filament_wipe_advanced_pigment",
         "chamber_temperature",
-        "filament_pressure_advance",
 };
 
 static std::vector<std::string> s_Preset_machine_limits_options {
@@ -1080,7 +1094,14 @@ static std::vector<std::string> s_Preset_machine_limits_options {
     "machine_max_feedrate_x", "machine_max_feedrate_y", "machine_max_feedrate_z", "machine_max_feedrate_e",
     "machine_min_extruding_rate", "machine_min_travel_rate",
     "machine_max_jerk_x", "machine_max_jerk_y", "machine_max_jerk_z", "machine_max_jerk_e",
-    "machine_min_cruise_ratio",
+    "machine_klipper_max_velocity", "machine_klipper_max_acceleration",
+    "machine_klipper_max_z_velocity", "machine_klipper_max_z_acceleration",
+    "machine_klipper_square_corner_velocity", "machine_min_cruise_ratio",
+    "machine_klipper_max_extrude_only_velocity", "machine_klipper_max_extrude_only_acceleration",
+    "machine_klipper_instantaneous_corner_velocity", "machine_klipper_rotation_distance",
+    "machine_klipper_pressure_advance", "machine_klipper_pressure_advance_smooth_time",
+    "machine_klipper_shaper_freq_x", "machine_klipper_shaper_freq_y",
+    "machine_klipper_damping_ratio_x", "machine_klipper_damping_ratio_y",
     "z_step"
 };
 
@@ -1088,7 +1109,7 @@ static std::vector<std::string> s_Preset_printer_options {
     "arc_fitting",
     "arc_fitting_ignore_holes",
     "arc_fitting_resolution",
-    "arc_fitting_tolerance", //TODO: keep?
+    "arc_fitting_tolerance",
     "autoemit_temperature_commands",
     "printer_technology",
     "bed_shape", "bed_custom_texture", "bed_custom_model", "z_offset", "init_z_rotate",
@@ -1111,8 +1132,8 @@ static std::vector<std::string> s_Preset_printer_options {
     "gcode_min_length",
     "gcode_min_resolution",
     "max_gcode_per_second",
-    //FIXME the print host keys are left here just for conversion from the Printer preset to Physical Printer preset.
-    "host_type", "print_host", "printhost_apikey", "printhost_cafile", "printhost_port",
+    // Note: the print host keys are left here just for conversion from the Printer preset to the Physical Printer preset.
+    "host_type", opt_key_print_host, opt_key_printhost_apikey, opt_key_printhost_cafile, opt_key_printhost_port,
     "single_extruder_multi_material", 
     // custom gcode
     "start_gcode",
@@ -1127,13 +1148,13 @@ static std::vector<std::string> s_Preset_printer_options {
     //printer fields
     "printer_custom_variables",
     "printer_vendor",
-    "printer_model", 
-    "printer_variant", 
+    opt_key_printer_model, 
+    opt_key_printer_variant, 
     "printer_notes", 
      // mmu
      "cooling_tube_retraction",
      "cooling_tube_length", "high_current_on_filament_swap", "parking_pos_retraction", "extra_loading_move", "max_print_height", 
-    "default_print_profile", "inherits",
+    "default_print_profile", opt_key_inherits,
     "remaining_times",
     "remaining_times_type",
     "silent_mode", 
@@ -1223,9 +1244,9 @@ static std::vector<std::string> s_Preset_sla_print_options {
     "hollowing_closing_distance",
     "output_filename_format",
     "default_sla_print_profile",
-    "compatible_printers",
-    "compatible_printers_condition",
-    "inherits"
+    opt_key_compatible_printers,
+    opt_key_compatible_printers_condition,
+    opt_key_inherits
 };
 
 static std::vector<std::string> s_Preset_sla_material_options {
@@ -1247,8 +1268,8 @@ static std::vector<std::string> s_Preset_sla_material_options {
     "material_vendor",
     "material_print_speed",
     "default_sla_material_profile",
-    "compatible_prints", "compatible_prints_condition",
-    "compatible_printers", "compatible_printers_condition", "inherits",
+    opt_key_compatible_prints, opt_key_compatible_prints_condition,
+    opt_key_compatible_printers, opt_key_compatible_printers_condition, opt_key_inherits,
 
     // overriden options
     "material_ow_support_head_front_diameter",
@@ -1288,11 +1309,11 @@ static std::vector<std::string> s_Preset_sla_printer_options {
     "min_initial_exposure_time", "max_initial_exposure_time", "sla_output_precision",
     "output_format",
     "sla_output_precision",
-    //FIXME the print host keys are left here just for conversion from the Printer preset to Physical Printer preset.
-    "print_host", "printhost_apikey", "printhost_cafile", "printhost_port",
+    // Note: the print host keys are left here just for conversion from the Printer preset to the Physical Printer preset.
+    opt_key_print_host, opt_key_printhost_apikey, opt_key_printhost_cafile, opt_key_printhost_port,
     "printer_custom_variables", // only for scripted widgets
     "printer_notes",
-    "inherits",
+    opt_key_inherits,
     "thumbnails",
     "thumbnails_color",
     "thumbnails_custom_color",
@@ -1441,13 +1462,13 @@ static bool profile_print_params_same(const DynamicPrintConfig &cfg_old, const D
     t_config_option_keys diff = cfg_old.diff(cfg_new);
     // Following keys are used by the UI, not by the slicing core, therefore they are not important
     // when comparing profiles for equality. Ignore them.
-    for (const char *key : { "compatible_prints", "compatible_prints_condition",
-                             "compatible_printers", "compatible_printers_condition", "inherits",
+    for (const char *key : { opt_key_compatible_prints, opt_key_compatible_prints_condition,
+                             opt_key_compatible_printers, opt_key_compatible_printers_condition, opt_key_inherits,
                              "print_settings_id", "filament_settings_id", "sla_print_settings_id", "sla_material_settings_id", "printer_settings_id", "filament_vendor",
                              "print_settings_modified", "filament_settings_modified", "sla_print_settings_modified", "sla_material_settings_modified", "printer_settings_modified",
-                             "printer_model", "printer_variant", "default_print_profile", "default_filament_profile", "default_sla_print_profile", "default_sla_material_profile",
-                             //FIXME remove the print host keys?
-                             "print_host", "printhost_apikey", "printhost_cafile", "printhost_port" })
+                             opt_key_printer_model, opt_key_printer_variant, "default_print_profile", "default_filament_profile", "default_sla_print_profile", "default_sla_material_profile",
+                             // legacy print host keys (leftovers from before the Physical Printer conversion)
+                             opt_key_print_host, opt_key_printhost_apikey, opt_key_printhost_cafile, opt_key_printhost_port })
         diff.erase(std::remove(diff.begin(), diff.end(), key), diff.end());
     // Preset with the same name as stored inside the config exists.
     return diff.empty();
@@ -1529,7 +1550,7 @@ ExternalPreset PresetCollection::load_external_preset(
                 // Erase them from config apply to avoid redundant "dirty" parameter in loaded preset.
                 for (const char* key : { "print_settings_id", "filament_settings_id", "sla_print_settings_id", "sla_material_settings_id", "printer_settings_id", "filament_vendor", 
                                          "print_settings_modified", "filament_settings_modified", "sla_print_settings_modified", "sla_material_settings_modified", "printer_settings_modified",
-                                         "printer_model", "printer_variant", "default_print_profile", "default_filament_profile", "default_sla_print_profile", "default_sla_material_profile" })
+                                         opt_key_printer_model, opt_key_printer_variant, "default_print_profile", "default_filament_profile", "default_sla_print_profile", "default_sla_material_profile" })
                     keys.erase(std::remove(keys.begin(), keys.end(), key), keys.end());
 
                 this->get_edited_preset().config.apply_only(combined_config, keys, true);
@@ -1899,18 +1920,18 @@ void PresetCollection::set_default_suppressed(bool default_suppressed)
 size_t PresetCollection::update_compatible_internal(const PresetWithVendorProfile &active_printer, const PresetWithVendorProfile *active_print, PresetSelectCompatibleType unselect_if_incompatible)
 {
     DynamicPrintConfig config;
-    config.set_key_value("printer_preset", new ConfigOptionString(active_printer.preset.name));
-    const ConfigOption *opt = active_printer.preset.config.option("nozzle_diameter");
+    config.set_key_value("printer_preset", std::make_unique<ConfigOptionString>(active_printer.preset.name));
+    const ConfigOption *opt = active_printer.preset.config.option(opt_key_nozzle_diameter);
     if (opt) {
-        const int num_extruders = config_option_floats_size_to_int(opt, "num_extruders");
-        config.set_key_value("num_extruders", new ConfigOptionInt(num_extruders));
-        config.set_key_value("extruders_count", new ConfigOptionInt(num_extruders));
+        const int num_extruders = config_option_floats_size_to_int(opt, opt_key_num_extruders);
+        config.set_key_value(opt_key_num_extruders, std::make_unique<ConfigOptionInt>(num_extruders));
+        config.set_key_value("extruders_count", std::make_unique<ConfigOptionInt>(num_extruders));
     }
     opt = active_printer.preset.config.option("milling_diameter");
     if (opt) {
-        const int num_milling = config_option_floats_size_to_int(opt, "num_milling");
-        config.set_key_value("num_milling", new ConfigOptionInt(num_milling));
-        config.set_key_value("milling_count", new ConfigOptionInt(num_milling));
+        const int num_milling = config_option_floats_size_to_int(opt, opt_key_num_milling);
+        config.set_key_value(opt_key_num_milling, std::make_unique<ConfigOptionInt>(num_milling));
+        config.set_key_value("milling_count", std::make_unique<ConfigOptionInt>(num_milling));
     }
     bool some_compatible = false;
     std::vector<size_t> indices_of_template_presets;
@@ -1980,7 +2001,7 @@ bool PresetCollection::update_dirty()
     return was_dirty != is_dirty;
 }
 
-static constexpr const std::initializer_list<const char*> optional_keys { "compatible_prints", "compatible_printers" };
+static constexpr const std::initializer_list<const char*> optional_keys { opt_key_compatible_prints, opt_key_compatible_printers };
 bool PresetCollection::is_dirty(const Preset *edited, const Preset *reference)
 {
     if (edited != nullptr && reference != nullptr) {
@@ -2003,14 +2024,13 @@ void add_correct_opts_to_diff(const t_config_option_key &opt_key,
                               const ConfigOption *option_init) {
     const T* opt_init = static_cast<const T*>(option_init);
     const T* opt_cur = static_cast<const T*>(option_cur);
-    int opt_init_max_id = opt_init->size() - 1;
     // emplace the whole vector if size changed.
     if (opt_init->size() != opt_cur->size()) {
         vec.emplace(OptionKeyIdx::scalar(opt_key), PresetCollection::DIRTY_VECTOR_CHANGE_SIZE);
     }
     for (int32_t i = 0; i < int32_t(opt_cur->size()); i++) {
         // if (new one & we need to report new idx) or if hte value isn't the same.
-        if (i >= opt_init->size()) {
+        if (i >= int32_t(opt_init->size())) {
             uint16_t status = PresetCollection::DIRTY_VECTOR_ADDED_IDX;
             if (opt_cur->get_at(i) == opt_init->get_at(0)) {
                 status |= PresetCollection::DIRTY_VECTOR_SAME_AS_FIRST;
@@ -2023,7 +2043,7 @@ void add_correct_opts_to_diff(const t_config_option_key &opt_key,
 }
 
 // Use deep_diff to correct return of changed options, considering individual options for each extruder.
-inline std::map<OptionKeyIdx, uint16_t> deep_diff(const ConfigBase &config_this,
+static inline std::map<OptionKeyIdx, uint16_t> deep_diff(const ConfigBase &config_this,
                                                   const ConfigBase &config_other,
                                                   bool ignore_phony) {
     std::map<OptionKeyIdx, uint16_t> diff;
@@ -2212,7 +2232,7 @@ std::string Preset::type_name(Type t) {
     }
 }
 
-Preset::Type Preset::type_from_name(std::string name) { 
+Preset::Type Preset::type_from_name(const std::string &name) { 
     if ("print" == name)
         return Preset::TYPE_FFF_PRINT;
     if ("filament" == name)
@@ -2272,11 +2292,11 @@ const Preset* PrinterPresetCollection::find_system_preset_by_model_and_variant(c
     if (model_id.empty()) { return nullptr; }
 
     const auto it = std::find_if(cbegin(), cend(), [&](const Preset &preset) {
-        if (!preset.is_system || preset.config.opt_string("printer_model") != model_id)
+        if (!preset.is_system || preset.config.opt_string(opt_key_printer_model) != model_id)
             return false;
         if (variant.empty())
             return true;
-        return preset.config.opt_string("printer_variant") == variant;
+        return preset.config.opt_string(opt_key_printer_variant) == variant;
     });
 
     return it != cend() ? &*it : nullptr;
@@ -2304,12 +2324,27 @@ static std::vector<std::string> s_PhysicalPrinter_opts {
     "preset_names",
     "printer_technology",
     "host_type",
-    "print_host",
-    "printhost_apikey",
-    "printhost_cafile",
+    opt_key_print_host,
+    opt_key_printhost_apikey,
+    opt_key_printhost_cafile,
     "printhost_client_cert",
     "printhost_client_cert_password",
-    "printhost_port",
+    opt_key_printhost_port,
+    "printhost_authorization_type",
+    // HTTP digest authentization (RFC 2617)
+    "printhost_user",
+    "printhost_password",
+    "printhost_ssl_ignore_revoke"
+};
+
+static std::vector<std::string> s_PhysicalPrinter_print_host_options {
+    "host_type",
+    opt_key_print_host,
+    opt_key_printhost_apikey,
+    opt_key_printhost_cafile,
+    "printhost_client_cert",
+    "printhost_client_cert_password",
+    opt_key_printhost_port,
     "printhost_authorization_type",
     // HTTP digest authentization (RFC 2617)
     "printhost_user",
@@ -2322,11 +2357,16 @@ const std::vector<std::string>& PhysicalPrinter::printer_options()
     return s_PhysicalPrinter_opts;
 }
 
+const std::vector<std::string>& PhysicalPrinter::print_host_options()
+{
+    return s_PhysicalPrinter_print_host_options;
+}
+
 static constexpr auto legacy_print_host_options = {
-            "print_host",
-            "printhost_apikey",
-            "printhost_cafile",
-            "printhost_port"
+            opt_key_print_host,
+            opt_key_printhost_apikey,
+            opt_key_printhost_cafile,
+            opt_key_printhost_port
         };
 
 std::vector<std::string> PhysicalPrinter::presets_with_print_host_information(const PrinterPresetCollection& printer_presets)
@@ -2355,25 +2395,25 @@ const std::set<std::string>& PhysicalPrinter::get_preset_names() const
 
 bool PhysicalPrinter::has_empty_config() const
 {
-    return  config.opt_string("print_host"                      ).empty() &&
-            config.opt_string("printhost_apikey"                ).empty() &&
-            config.opt_string("printhost_cafile"                ).empty() &&
+    return  config.opt_string(opt_key_print_host                 ).empty() &&
+            config.opt_string(opt_key_printhost_apikey          ).empty() &&
+            config.opt_string(opt_key_printhost_cafile          ).empty() &&
             config.opt_string("printhost_client_cert"           ).empty() && 
             config.opt_string("printhost_client_cert_password"  ).empty() && 
-            config.opt_string("printhost_port"                  ).empty() &&
+            config.opt_string(opt_key_printhost_port            ).empty() &&
             config.opt_string("printhost_user"                  ).empty() &&
             config.opt_string("printhost_password"              ).empty() && 
-            config.opt_string("printhost_port"                  ).empty();
+            config.opt_string(opt_key_printhost_port            ).empty();
 }
 
 // temporary workaround for compatibility with older Slicer
 static void update_preset_name_option(const std::set<std::string>& preset_names, DynamicPrintConfig& config)
 {
     std::string name;
-    for (auto el : preset_names)
+    for (const auto &el : preset_names)
         name += el + ";";
     name.pop_back();
-    config.set_key_value("preset_name", new ConfigOptionString(name));
+    config.set_key_value("preset_name", std::make_unique<ConfigOptionString>(name));
 }
 
 void PhysicalPrinter::update_preset_names_in_config()
@@ -2456,19 +2496,19 @@ std::string PhysicalPrinter::get_full_name(const std::string& preset_name) const
     return name + separator() + preset_name;
 }
 
-std::string PhysicalPrinter::get_short_name(std::string full_name)
+std::string PhysicalPrinter::get_short_name(const std::string &full_name)
 {
-    int pos = full_name.find(separator());
-    if (pos > 0)
-        boost::erase_tail(full_name, full_name.length() - pos);
-    return full_name;
+    const std::string sep = separator();
+    const size_t pos = full_name.find(sep);
+    return pos == std::string::npos ? full_name : full_name.substr(0, pos);
 }
 
-std::string PhysicalPrinter::get_preset_name(std::string name)
+std::string PhysicalPrinter::get_preset_name(const std::string &full_name)
 {
-    int pos = name.find(separator());
-    boost::erase_head(name, pos + 3);
-    return Preset::remove_suffix_modified(name);
+    const std::string sep = separator();
+    const size_t pos = full_name.find(sep);
+    const std::string preset_name = pos == std::string::npos ? full_name : full_name.substr(pos + sep.size());
+    return Preset::remove_suffix_modified(preset_name);
 }
 
 
@@ -2797,7 +2837,7 @@ std::vector<std::string> PhysicalPrinterCollection::get_printers_with_preset(con
 {
     std::vector<std::string> printers;
 
-    for (auto printer : m_printers) {
+    for (const auto &printer : m_printers) {
         if (!respect_only_preset && printer.preset_names.size() == 1)
             continue;
         if (printer.preset_names.find(preset_name) != printer.preset_names.end())
@@ -2935,18 +2975,18 @@ size_t ExtruderFilaments::update_compatible_internal(const PresetWithVendorProfi
                                                      PresetSelectCompatibleType      unselect_if_incompatible)
 {
     DynamicPrintConfig config;
-    config.set_key_value("printer_preset", new ConfigOptionString(active_printer.preset.name));
-    const ConfigOption* opt = active_printer.preset.config.option("nozzle_diameter");
+    config.set_key_value("printer_preset", std::make_unique<ConfigOptionString>(active_printer.preset.name));
+    const ConfigOption* opt = active_printer.preset.config.option(opt_key_nozzle_diameter);
     if (opt) {
-        const int num_extruders = config_option_floats_size_to_int(opt, "num_extruders");
-        config.set_key_value("num_extruders", new ConfigOptionInt(num_extruders));
-        config.set_key_value("extruders_count", new ConfigOptionInt(num_extruders));
+        const int num_extruders = config_option_floats_size_to_int(opt, opt_key_num_extruders);
+        config.set_key_value(opt_key_num_extruders, std::make_unique<ConfigOptionInt>(num_extruders));
+        config.set_key_value("extruders_count", std::make_unique<ConfigOptionInt>(num_extruders));
     }
     opt = active_printer.preset.config.option("milling_diameter");
     if (opt) {
-        const int num_milling = config_option_floats_size_to_int(opt, "num_milling");
-        config.set_key_value("num_milling", new ConfigOptionInt(num_milling));
-        config.set_key_value("milling_count", new ConfigOptionInt(num_milling));
+        const int num_milling = config_option_floats_size_to_int(opt, opt_key_num_milling);
+        config.set_key_value(opt_key_num_milling, std::make_unique<ConfigOptionInt>(num_milling));
+        config.set_key_value("milling_count", std::make_unique<ConfigOptionInt>(num_milling));
     }
 
     // Adjust printer preset config to the first extruder from m_extruder_id 
@@ -3020,7 +3060,7 @@ namespace PresetUtils {
     {
         const VendorProfile::PrinterModel *out = nullptr;
         if (preset.vendor != nullptr) {
-            const auto *printer_model = preset.config.opt<ConfigOptionString>("printer_model");
+            const auto *printer_model = preset.config.opt<ConfigOptionString>(opt_key_printer_model);
             if (printer_model != nullptr && ! printer_model->value.empty()) {
                 auto it = std::find_if(preset.vendor->models.begin(), preset.vendor->models.end(), [printer_model](const VendorProfile::PrinterModel &pm) { return pm.id == printer_model->value; });
                 if (it != preset.vendor->models.end())

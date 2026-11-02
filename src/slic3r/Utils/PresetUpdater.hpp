@@ -64,7 +64,8 @@ class PresetUpdater
 {
 protected:
 public:
-    bool cancel = false; //TODO
+    // Set true to stop in-flight vendor sync/downloads; destructor joins the worker after signalling cancel.
+    std::atomic_bool cancel{false};
     std::thread thread;
 
     // max request: 60/h per ip
@@ -103,7 +104,7 @@ public:
     int get_profile_count_to_update();
     size_t count_available();
     size_t count_installed();
-    VendorSync *get_vendor(std::string id) {
+    VendorSync *get_vendor(const std::string& id) {
         auto it = all_vendors.find(id);
         return it == all_vendors.end() ? nullptr : &it->second;
     }

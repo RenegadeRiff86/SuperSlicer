@@ -18,7 +18,8 @@ Unit dotperp(const Vec<2, T> &a, const Vec<2, T> &b)
 
 // Convex-Convex nfp in linear time (fixed.size() + movable.size()),
 // no memory allocations (if out param is used).
-// FIXME: Currently broken for very sharp triangles.
+// Known limitation: very sharp triangles can produce incorrect NFP edges;
+// prefer nfp_convex_convex_legacy when that case is observed.
 Polygon nfp_convex_convex(const Polygon &fixed, const Polygon &movable);
 void nfp_convex_convex(const Polygon &fixed, const Polygon &movable, Polygon &out);
 Polygon nfp_convex_convex_legacy(const Polygon &fixed, const Polygon &movable);

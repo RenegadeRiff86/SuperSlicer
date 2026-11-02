@@ -51,7 +51,7 @@
 </tbody>
 </table>
 
-<p><span style="color: red; font-weight: bold;">This line pressure advance calibration is still in development. The beta version should work well, but your current print settings need to be saved before clicking "Generate" since they are used to create the model.</span></p>
+<p><span style="color: red; font-weight: bold;">Save your print settings before clicking "Generate".</span> The models are built from your saved configuration, so unsaved changes are not used.</p>
 
 <p>Note: This calibration will automatically pull all your currently saved configuration parameters and generate a model for you to print. For optimal results, depending if you're chasing speed/quality or a mix of both, it is recommended to keep similar speeds for most extrusion roles, (although this is not mandatory).</p>
 
@@ -59,47 +59,38 @@
 <p>To get started:</p>
 <ul>
 <li>Select the number of calibration lines to create, the <b>max</b> is <b>10</b>.</li>
-<li>Select a calibration style:
-  <ul>
-    <li><b>Segmented line sweep (recommended):</b> Uses segmented layer-range configuration that is currently stable and safe for repeated generation/plate clearing.</li>
-    <li><b>Classic line sweep:</b> Matches Orca-style naming but is temporarily disabled while object cleanup handling is fixed for this dialog.</li>
-  </ul>
-</li>
-<li>Each row represents the config parameters for the selected extrusion role (e.g., first row = ExternalPerimeter, second row = FirstLayer).</li>
-<li>Select the start/end and increment values, <b>you can manually edit these values if you want larger or smaller values.</b></li>
+<li>Each row represents the config parameters for one extrusion role. Rows are pre-filled by walking down the extrusion role list starting at <b>ExternalPerimeter</b>, so row 1 is ExternalPerimeter, row 2 is GapFill, row 3 is InternalBridgeInfill, and so on. Change any row's role with its drop-down.</li>
+<li>Select the start/end and increment values, <b>you can manually edit these values if you want larger or smaller values.</b> When the active filament has Pressure Advance enabled, these fields start from that filament's value instead of the built-in defaults.</li>
+<li><b>Klipper only:</b> tick <b>Calibrate Smooth Time instead of Advance</b> on a row to sweep <b>SMOOTH_TIME</b> rather than <b>ADVANCE</b>. Klipper's default smooth time is 0.04s; shorter values (around 0.01s) suit fast printing, longer ones (around 0.4s) suit slower printing. The row switches to fixed recommended values (0.010 to 0.080, step 0.005, on ExternalPerimeter) and its fields are locked while the box is ticked; un-ticking restores whatever the row held before.</li>
 <li>Since each model will have its own config, one calibration model might print faster or slower than others. This is expected and normal.</li>
-<li>This is the first calibration tool that supports <b>Arachne!</b> so leave it enabled if you use Arachne. </li>
+<li>Works with the <b>Arachne</b> perimeter generator, so leave it enabled if you use it.</li>
 <li>Helpful tip: If you are running multiple calibration lines on a single plate, take a screenshot of the main configuration page (or leave it open and drag the window out of the way) to match the row number to the ID label on the bottom right of the loaded model. (counting starts at '0' ☺)<br>
 You can also inspect each 'base model' and view the object modifiers for each 90° bend model, the 'region_gcode' will have a comment for the extrusion role.<br></li>
 </ul>
 
-<li>If you use PA/LA commands in your <b>feature_gcode</b> you need to remove them, otherwise your calibration will be invalid.</li>
+<p>If you use PA/LA commands in your <b>feature_gcode</b> you need to remove them, otherwise your calibration will be invalid.</p>
 
 <p>Role coverage:</p>
 <ul>
-<li><b>Directly supported:</b> InternalInfill, ExternalPerimeter, OverhangPerimeter, Perimeter, SolidInfill, SupportMaterial, SupportMaterialInterface, TopSolidInfill, FirstLayer.</li>
-<li><b>Compatibility mode (with safe fallbacks):</b> BridgeInfill, InternalBridgeInfill, ThinWall, GapFill, Ironing. These roles are generated with deterministic base-layer geometry and fallback spacing/width values when role-specific values are unavailable.</li>
+<li><b>Calibrated with their own flow:</b> InternalInfill, ExternalPerimeter, Perimeter, SolidInfill, SupportMaterial, SupportMaterialInterface, TopSolidInfill. The generated geometry uses that role's own flow, width and spacing.</li>
+<li><b>Calibrated with an approximated flow:</b> BridgeInfill, InternalBridgeInfill, ThinWall, GapFill, Ironing, FirstLayer. SuperSlicer has no dedicated flow for these in the generator, so they borrow the support-interface flow. The pressure advance sweep itself is still applied to the correct extrusion role, but the line width may not match what your real parts print at. Treat the result as a starting point and confirm it on a representative part.</li>
+<li><b>OverhangPerimeter</b> is generated with the external perimeter flow. That mapping has not been confirmed against real overhang extrusions yet.</li>
 </ul>
 <p>What is the "CheckAll" option?<br>
-The "CheckAll" option is an experimental feature. It aims to create a 90° model for each extrusion role, applying specific settings related to that extrusion role. <br>
-You need to <b>manually</b> add the pressure advance values into the "per region g-code" box.<br>
-For consistency, "CheckAll" forces deterministic geometry and disables object-level gap fill artifacts so the output stays easier to compare. Select the "CheckAll" option to identify which extrusion roles need Pressure Advance tuning.</p>
-
-<h2>Known Bugs</h2>
+Pick <b>CheckAll</b> as a row's extrusion role to build one 90° model per extrusion role on a single plate, so you can see at a glance which roles need Pressure Advance tuning.<br>
+It differs from a normal row in three ways:</p>
 <ul>
-<li>Classic line sweep style is visible in the UI for reference, but currently disabled due to a known model/object-list cleanup issue.</li>
-<li>Bridge/GAP/ThinWall/Ironing paths still use compatibility-mode approximations. Use the result as a baseline and confirm with a focused real-part test if absolute accuracy is critical.</li>
-<li>Occasionally some numbers might get scaled wrong so they won't show up on the G-code preview, this has primarily been for number '1'. If this happens, adjust main config 'thin_perimeters' to '-1'.</li>
-<li>Other minor bugs may be present.</li>
+<li>The per-region g-code is emitted <b>without a value</b> - you type the pressure advance numbers into the "per region g-code" box yourself.</li>
+<li>Gap fill and thin walls are turned off on the object so the geometry stays identical between roles and stays easy to compare.</li>
+<li>Per-role layer heights are <b>not</b> applied. Roles that normally need their own layer height - infill with "combine infill every N layers", supports, and the first layer - are generated at the base layer height instead, so their results are not directly comparable to a single-role run.</li>
 </ul>
 
 <h2>Advice</h2>
-<p>Before calibrating Pressure/Linear Advance, it is recommended to tune everything else first!<br>
+<p>Before calibrating Pressure/Linear Advance, it is recommended to tune everything else first!</p>
 <p>You may need to disable or adjust your part cooling config for this test, including the features that slow down layer times. Note: Large variances in ER speeds can reduce print quality and dimensional accuracy.</p>
 <p>It's recommended to set 'first_layer_min_speed' and 'first_layer_speed' to the same values, since the variance in speeds will mess with the first layer's pressure advance adjustments.</p>
 
-<h2>Notes</h2>
-<p><strong>TODO: add pictures</p>
+<!-- TODO: add reference pictures of good/bad PA lines to this page. -->
 
 <table width="100%">
 <tbody>

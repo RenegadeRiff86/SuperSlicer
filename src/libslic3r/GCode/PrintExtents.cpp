@@ -19,6 +19,8 @@
 
 namespace Slic3r {
 
+constexpr double extrusion_radius_ratio = 0.5;
+
 static inline BoundingBox extrusion_polyline_extents(const Polyline &polyline, const coord_t radius)
 {
     BoundingBox bbox;
@@ -35,7 +37,7 @@ static inline BoundingBox extrusion_polyline_extents(const Polyline &polyline, c
 
 static inline BoundingBoxf extrusionentity_extents(const ExtrusionPath &extrusion_path)
 {
-    BoundingBox bbox = extrusion_polyline_extents(extrusion_path.polyline.to_polyline(), coord_t(scale_(0.5 * extrusion_path.width())));
+    BoundingBox bbox = extrusion_polyline_extents(extrusion_path.polyline.to_polyline(), coord_t(scale_(extrusion_radius_ratio * extrusion_path.width())));
     BoundingBoxf bboxf;
     if (! empty(bbox)) {
         bboxf.min = unscale(bbox.min);
@@ -49,7 +51,7 @@ static inline BoundingBoxf extrusionentity_extents(const ExtrusionLoop &extrusio
 {
     BoundingBox bbox;
     for (const ExtrusionPath &extrusion_path : extrusion_loop.paths)
-        bbox.merge(extrusion_polyline_extents(extrusion_path.polyline.to_polyline(), coord_t(scale_(0.5 * extrusion_path.width()))));
+        bbox.merge(extrusion_polyline_extents(extrusion_path.polyline.to_polyline(), coord_t(scale_(extrusion_radius_ratio * extrusion_path.width()))));
     BoundingBoxf bboxf;
     if (! empty(bbox)) {
         bboxf.min = unscale(bbox.min);
@@ -63,7 +65,7 @@ static inline BoundingBoxf extrusionentity_extents(const ExtrusionMultiPath &ext
 {
     BoundingBox bbox;
     for (const ExtrusionPath &extrusion_path : extrusion_multi_path.paths)
-        bbox.merge(extrusion_polyline_extents(extrusion_path.polyline.to_polyline(), coord_t(scale_(0.5 * extrusion_path.width()))));
+        bbox.merge(extrusion_polyline_extents(extrusion_path.polyline.to_polyline(), coord_t(scale_(extrusion_radius_ratio * extrusion_path.width()))));
     BoundingBoxf bboxf;
     if (! empty(bbox)) {
         bboxf.min = unscale(bbox.min);
@@ -154,7 +156,7 @@ BoundingBoxf get_wipe_tower_extrusions_extents(const Print &print, const coordf_
             for (size_t i = 1; i < tcr.extrusions.size(); ++ i) {
                 const WipeTower::Extrusion &e = tcr.extrusions[i];
                 if (e.width > 0) {
-                    Vec2d delta = 0.5 * Vec2d(e.width, e.width);
+                    Vec2d delta = extrusion_radius_ratio * Vec2d(e.width, e.width);
                     Vec2d p1 = trafo * (&e - 1)->pos.cast<double>();
                     Vec2d p2 = trafo * e.pos.cast<double>();
                     bbox.merge(p1.cwiseMin(p2) - delta);
@@ -178,7 +180,7 @@ BoundingBoxf get_wipe_tower_priming_extrusions_extents(const Print &print)
                     const Vec2d& p1 = (&e - 1)->pos.cast<double>();
                     const Vec2d& p2 = e.pos.cast<double>();
                     bbox.merge(p1);
-                    coordf_t radius = 0.5 * e.width;
+                    coordf_t radius = extrusion_radius_ratio * e.width;
                     bbox.min(0) = std::min(bbox.min(0), std::min(p1(0), p2(0)) - radius);
                     bbox.min(1) = std::min(bbox.min(1), std::min(p1(1), p2(1)) - radius);
                     bbox.max(0) = std::max(bbox.max(0), std::max(p1(0), p2(0)) + radius);

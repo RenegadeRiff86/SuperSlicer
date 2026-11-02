@@ -265,7 +265,7 @@ namespace detail {
         std::vector<igl::Hit>				 hits;
     };
 
-    //FIXME implement SSE for float AABB trees with float ray queries.
+    // Potential optimization: implement SSE for float AABB trees with float ray queries.
     // SSE/SSE2 is supported by any Intel/AMD x64 processor.
     // SSE support requires 16 byte alignment of the AABB nodes, representing the bounding boxes with 4+4 floats,
     // storing the node index as the 4th element of the bounding box min value etc.
@@ -688,7 +688,7 @@ inline Tree<3, typename VertexType::Scalar> build_aabb_tree_over_indexed_triangl
     const std::vector<VertexType> 		&vertices, 
     // Indexed triangle set - triangular faces, references to vertices.
     const std::vector<IndexedFaceType> 	&faces,
-    //FIXME do we want to apply an epsilon?
+    // Optional epsilon inflation of the bounding boxes; callers currently rely on the default 0.
     const typename VertexType::Scalar 	 eps = 0)
 {
     using 				 TreeType 		= Tree<3, typename VertexType::Scalar>;

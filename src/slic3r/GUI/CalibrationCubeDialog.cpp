@@ -6,35 +6,41 @@
 #include "GUI.hpp"
 #include "GUI_ObjectList.hpp"
 #include "Plater.hpp"
-#include "Tab.hpp"
 #include <wx/scrolwin.h>
-#include <wx/display.h>
 #include <wx/file.h>
 #include <wx/wupdlock.h>
-#include "wxExtensions.hpp"
 
-#if ENABLE_SCROLLABLE
-static wxSize get_screen_size(wxWindow* window)
-{
-    const auto idx = wxDisplay::GetFromWindow(window);
-    wxDisplay display(idx != wxNOT_FOUND ? idx : 0u);
-    return display.GetClientArea().GetSize();
-}
-#endif // ENABLE_SCROLLABLE
 
 namespace Slic3r {
 namespace GUI {
 
+namespace {
+constexpr int kScaleChoiceCount = 4;
+constexpr int kDefaultScaleSelection = 1; // "20" mm
+constexpr int kScaleFieldWidthPx = 60;
+constexpr int kGoalChoiceCount = 2;
+constexpr int kGoalFieldWidthPx = 240;
+constexpr int kSpacerBeforeGoalPx = 40;
+constexpr int kSpacerBetweenButtonsPx = 10;
+constexpr float kDefaultCubeSizeMm = 30.f;
+constexpr float kXyzCubeSizeMm = 20.f;
+constexpr double kDefaultScaleMm = 20.;
+constexpr int kEncroachmentPerimeters = 1;
+constexpr int kExternalPerimeterPerimeters = 3;
+constexpr int kEncroachmentGoalIndex = 1;
+constexpr int kExternalPerimeterGoalIndex = 2;
+} // namespace
+
 void CalibrationCubeDialog::create_buttons(wxStdDialogButtonSizer* buttons){
     wxString choices_scale[] = { "10", "20", "30", "40" };
     //scale = new wxComboBox(this, wxID_ANY, wxString{ "20" }, wxDefaultPosition, wxDefaultSize, 4, choices_scale);
-    scale = new ComboBox(this, wxID_ANY, wxString{"20"}, wxDefaultPosition, wxSize{60,-1}, 4, choices_scale);
+    scale = new ComboBox(this, wxID_ANY, wxString{"20"}, wxDefaultPosition, wxSize{kScaleFieldWidthPx,-1}, kScaleChoiceCount, choices_scale);
     scale->SetToolTip(_L("You can choose the dimension of the cube."
         " It's a simple scale, you can modify it in the right panel yourself if you prefer. It's just quicker to select it here."));
-    scale->SetSelection(1);
+    scale->SetSelection(kDefaultScaleSelection);
     wxString choices_goal[] = { "Dimensional accuracy (default)" , "infill/perimeters encroachment"/*, "external perimeter overlap"*/};
     //calibrate = new wxComboBox(this, wxID_ANY, _L("Dimensional accuracy (default)"), wxDefaultPosition, wxDefaultSize, 2, choices_goal);
-    calibrate = new ComboBox(this, wxID_ANY, _L("Dimensional accuracy (default)"), wxDefaultPosition,  wxSize{240,-1}, 2, choices_goal);
+    calibrate = new ComboBox(this, wxID_ANY, _L("Dimensional accuracy (default)"), wxDefaultPosition,  wxSize{kGoalFieldWidthPx,-1}, kGoalChoiceCount, choices_goal);
     calibrate->SetToolTip(_L("Select a goal, this will change settings to increase the effects to search."));
     calibrate->SetSelection(0);
     //calibrate->SetEditable(false);
@@ -42,23 +48,23 @@ void CalibrationCubeDialog::create_buttons(wxStdDialogButtonSizer* buttons){
     buttons->Add(new wxStaticText(this, wxID_ANY, _L("Dimension:") + " "));
     buttons->Add(scale);
     buttons->Add(new wxStaticText(this, wxID_ANY, wxString(" ") + _L("mm")));
-    buttons->AddSpacer(40);
+    buttons->AddSpacer(kSpacerBeforeGoalPx);
     buttons->Add(new wxStaticText(this, wxID_ANY, _L("Goal:") + " "));
     buttons->Add(calibrate);
-    buttons->AddSpacer(40);
+    buttons->AddSpacer(kSpacerBeforeGoalPx);
 
     wxButton* bt = new wxButton(this, wxID_FILE1, _(L("Standard Cube")));
     bt->Bind(wxEVT_BUTTON, &CalibrationCubeDialog::create_geometry_standard, this);
     bt->SetToolTip(_L("Standard cubic xyz cube, with a flat top. Better for infill/perimeters encroachment calibration."));
     buttons->Add(bt);
-    buttons->AddSpacer(10);
+    buttons->AddSpacer(kSpacerBetweenButtonsPx);
     bt = new wxButton(this, wxID_FILE2, _(L("Voron Cube")));
     bt->Bind(wxEVT_BUTTON, &CalibrationCubeDialog::create_geometry_voron, this);
     bt->SetToolTip(_L("Voron cubic cube with many features inside, with a bearing slot on top. Better to check dimensional accuracy."));
     buttons->Add(bt);
 }
 
-void CalibrationCubeDialog::create_geometry(std::string calibration_path) {
+void CalibrationCubeDialog::create_geometry(const std::string& calibration_path) {
     Plater* plat = this->main_frame->plater();
     Model& model = plat->model();
     if (!plat->new_project(L("Calibration cube")))
@@ -71,22 +77,13 @@ void CalibrationCubeDialog::create_geometry(std::string calibration_path) {
             (boost::filesystem::path(Slic3r::resources_dir()) / "calibration"/"cube"/ calibration_path).string()}, LoadFileOption::LoadModel | LoadFileOption::DontUpdateDirs);
 
     assert(objs_idx.size() == 1);
-    const DynamicPrintConfig* printConfig = this->gui_app->get_tab(Preset::TYPE_FFF_PRINT)->get_config();
-    const DynamicPrintConfig* filamentConfig = this->gui_app->get_tab(Preset::TYPE_FFF_FILAMENT)->get_config();
-    const DynamicPrintConfig* printerConfig = this->gui_app->get_tab(Preset::TYPE_PRINTER)->get_config();
-    
     /// --- scale ---
-    //model is created for a 0.4 nozzle, scale xy with nozzle size.
-    const ConfigOptionFloats* nozzle_diameter_config = printerConfig->option<ConfigOptionFloats>("nozzle_diameter");
-    assert(nozzle_diameter_config->size() > 0);
-    float nozzle_diameter = nozzle_diameter_config->get_at(0);
-    float cube_size = 30;
+    float cube_size = kDefaultCubeSizeMm;
     if (calibration_path == "xyzCalibration_cube.amf")
-        cube_size = 20;
-    int idx_scale = scale->GetSelection();
-    double xyzScale = 20;
+        cube_size = kXyzCubeSizeMm;
+    double xyzScale = kDefaultScaleMm;
     if (!scale->GetValue().ToDouble(&xyzScale)) {
-        xyzScale = 20;
+        xyzScale = kDefaultScaleMm;
     }
     xyzScale = xyzScale / cube_size;
     //do scaling
@@ -97,11 +94,11 @@ void CalibrationCubeDialog::create_geometry(std::string calibration_path) {
 
     /// --- custom config ---
     int idx_goal = calibrate->GetSelection();
-    if (idx_goal == 1) {
-        model.objects[objs_idx[0]]->config.set_key_value("perimeters", new ConfigOptionInt(1));
-        model.objects[objs_idx[0]]->config.set_key_value("fill_pattern", new ConfigOptionEnum<InfillPattern>(ipCubic));
-    } else if (idx_goal == 2) {
-        model.objects[objs_idx[0]]->config.set_key_value("perimeters", new ConfigOptionInt(3));
+    if (idx_goal == kEncroachmentGoalIndex) {
+        model.objects[objs_idx[0]]->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(kEncroachmentPerimeters));
+        model.objects[objs_idx[0]]->config.set_key_value("fill_pattern", std::make_unique<ConfigOptionEnum<InfillPattern>>(ipCubic));
+    } else if (idx_goal == kExternalPerimeterGoalIndex) {
+        model.objects[objs_idx[0]]->config.set_key_value("perimeters", std::make_unique<ConfigOptionInt>(kExternalPerimeterPerimeters));
         //add full solid layers
     }
 
@@ -115,7 +112,7 @@ void CalibrationCubeDialog::create_geometry(std::string calibration_path) {
     freeze_gui.reset();
 
     plat->reslice();
-
+    close_dialog();
 }
 
 } // namespace GUI

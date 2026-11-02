@@ -79,12 +79,12 @@ bool Repetier::test(wxString &msg) const
     auto http = Http::get(std::move(url));
     set_auth(http);
     
-    http.on_error([&](std::string body, std::string error, unsigned status) {
+    http.on_error([&](const std::string& body, const std::string& error, unsigned status) {
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error getting version: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
             res = false;
             msg = format_error(body, error, status);
         })
-        .on_complete([&](std::string body, unsigned) {
+        .on_complete([&](const std::string& body, unsigned) {
             BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: Got version: %2%") % name % body;
 
             try {
@@ -158,10 +158,10 @@ bool Repetier::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, Error
 
     http.form_add("a", "upload")
         .form_add_file("filename", upload_data.source_path.string(), upload_filename.string())
-        .on_complete([&](std::string body, unsigned status) {
+        .on_complete([&](const std::string& body, unsigned status) {
             BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: File uploaded: HTTP %2%: %3%") % name % status % body;
         })
-        .on_error([&](std::string body, std::string error, unsigned status) {
+        .on_error([&](const std::string& body, const std::string& error, unsigned status) {
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error uploading file: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
             error_fn(format_error(body, error, status));
             res = false;
@@ -215,10 +215,10 @@ bool Repetier::get_groups(wxArrayString& groups) const
     auto http = Http::get(std::move(url));
     set_auth(http);
     http.form_add("a", "listModelGroups");
-    http.on_error([&](std::string body, std::string error, unsigned status) {
+    http.on_error([&](const std::string& body, const std::string& error, unsigned status) {
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error getting version: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
         })
-        .on_complete([&](std::string body, unsigned) {
+        .on_complete([&](const std::string& body, unsigned) {
             BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: Got groups: %2%") % name % body;
 
             try {
@@ -257,11 +257,11 @@ bool Repetier::get_printers(wxArrayString& printers) const
     auto http = Http::get(std::move(url));
     set_auth(http);
     
-    http.on_error([&](std::string body, std::string error, unsigned status) {
+    http.on_error([&](const std::string& body, const std::string& error, unsigned status) {
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error listing printers: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
             res = false;
         })
-        .on_complete([&](std::string body, unsigned http_status) {
+        .on_complete([&](const std::string& body, unsigned http_status) {
             BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: Got printers: %2%, HTTP status: %3%") % name % body % http_status;
             
             if (http_status != 200)

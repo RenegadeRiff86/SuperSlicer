@@ -36,8 +36,8 @@ std::shared_ptr<ArchiveViewNode> ArchiveViewModel::AddFile(std::shared_ptr<Archi
         m_top_children.emplace_back(node);
     }
      
-    wxDataViewItem child = wxDataViewItem((void*)node.get());
-    wxDataViewItem parent_item= wxDataViewItem((void*)parent.get());
+    wxDataViewItem child = wxDataViewItem(static_cast<void*>(node.get()));
+    wxDataViewItem parent_item= wxDataViewItem(static_cast<void*>(parent.get()));
     ItemAdded(parent_item, child);
     
     if (parent)
@@ -61,12 +61,21 @@ void  ArchiveViewModel::Delete(const wxDataViewItem& item)
 {
     assert(item.IsOk());
     ArchiveViewNode* node = static_cast<ArchiveViewNode*>(item.GetID());
-    assert(node->get_parent() != nullptr);
+    std::shared_ptr<ArchiveViewNode> parent = node->get_parent();
+    assert(parent != nullptr);
     for (std::shared_ptr<ArchiveViewNode> child : node->get_children())
     {
-        Delete(wxDataViewItem((void*)child.get()));
+        Delete(wxDataViewItem(static_cast<void*>(child.get())));
     }
-    delete [] node;
+    // node's lifetime is owned by parent's shared_ptr entry, not by this raw view - erase it
+    // there so the refcount reaches zero and frees it, instead of double-freeing it here.
+    auto& siblings = parent->get_children();
+    for (auto it = siblings.begin(); it != siblings.end(); ++it) {
+        if (it->get() == node) {
+            siblings.erase(it);
+            break;
+        }
+    }
 }
 void  ArchiveViewModel::Clear()
 {
@@ -76,20 +85,20 @@ wxDataViewItem ArchiveViewModel::GetParent(const wxDataViewItem& item) const
 {
     assert(item.IsOk());
     ArchiveViewNode* node = static_cast<ArchiveViewNode*>(item.GetID());
-    return wxDataViewItem((void*)node->get_parent().get());
+    return wxDataViewItem(static_cast<void*>(node->get_parent().get()));
 }
 unsigned int ArchiveViewModel::GetChildren(const wxDataViewItem& parent, wxDataViewItemArray& array) const
 {
     if (!parent.IsOk()) {
         for (std::shared_ptr<ArchiveViewNode>child : m_top_children) {
-            array.push_back(wxDataViewItem((void*)child.get()));
+            array.push_back(wxDataViewItem(static_cast<void*>(child.get())));
         }
         return m_top_children.size();
     }
        
     ArchiveViewNode* node = static_cast<ArchiveViewNode*>(parent.GetID());
     for (std::shared_ptr<ArchiveViewNode> child : node->get_children()) {
-        array.push_back(wxDataViewItem((void*)child.get()));
+        array.push_back(wxDataViewItem(static_cast<void*>(child.get())));
     }
     return node->get_children().size();
 }
@@ -111,7 +120,7 @@ void ArchiveViewModel::untoggle_folders(const wxDataViewItem& item)
     ArchiveViewNode* node = static_cast<ArchiveViewNode*>(item.GetID());
     node->set_toggle(false);
     if (node->get_parent().get() != nullptr)
-        untoggle_folders(wxDataViewItem((void*)node->get_parent().get()));
+        untoggle_folders(wxDataViewItem(static_cast<void*>(node->get_parent().get())));
 }
 
 bool ArchiveViewModel::SetValue(const wxVariant& variant, const wxDataViewItem& item, unsigned int col) 
@@ -122,10 +131,10 @@ bool ArchiveViewModel::SetValue(const wxVariant& variant, const wxDataViewItem& 
         node->set_toggle(variant.GetBool());
         // if folder recursivelly check all children
         for (std::shared_ptr<ArchiveViewNode> child : node->get_children()) {
-            SetValue(variant, wxDataViewItem((void*)child.get()), col);
+            SetValue(variant, wxDataViewItem(static_cast<void*>(child.get())), col);
         }
         if(!variant.GetBool() && node->get_parent())
-            untoggle_folders(wxDataViewItem((void*)node->get_parent().get()));
+            untoggle_folders(wxDataViewItem(static_cast<void*>(node->get_parent().get())));
     } else {
         node->set_name(variant.GetString());
     }
@@ -201,7 +210,8 @@ FileArchiveDialog::FileArchiveDialog(wxWindow* parent_window, mz_zip_archive* ar
             stack.pop_back();
     };
     // recursively stores whole structure of file onto function stack and synchoronize with stack object.
-    std::function<size_t(const boost::filesystem::path&, std::vector<std::shared_ptr<ArchiveViewNode>>&)> adjust_stack = [&adjust_stack, &reduce_stack, &avc = m_avc](const boost::filesystem::path& const_file, std::vector<std::shared_ptr<ArchiveViewNode>>& stack)->size_t {
+    std::function<size_t(const boost::filesystem::path&, std::vector<std::shared_ptr<ArchiveViewNode>>&)> adjust_stack = [&adjust_stack, &reduce_stack, &avc = m_avc](const boost::filesystem::path& const_file,
+      std::vector<std::shared_ptr<ArchiveViewNode>>& stack)->size_t {
         boost::filesystem::path file(const_file);
         size_t struct_size = file.has_parent_path() ? adjust_stack(file.parent_path(), stack) : 0;
 

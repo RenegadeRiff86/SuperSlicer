@@ -27,6 +27,9 @@
 namespace Slic3r {
 namespace GUI {
 
+// Prefix of the debug log line emitted for each desktop file being removed.
+static constexpr const char* LOG_REMOVING = "removing ";
+
 namespace {
 
 // escaping of path string according to 
@@ -225,7 +228,7 @@ bool DesktopIntegrationDialog::integration_possible()
 }
 void DesktopIntegrationDialog::perform_desktop_integration()
 {
-	BOOST_LOG_TRIVIAL(debug) << "performing desktop integration.";
+    BOOST_LOG_TRIVIAL(debug) << "performing desktop integration.";
     // Path to appimage
     const char *appimage_env = std::getenv("APPIMAGE");
     std::string excutable_path;
@@ -323,7 +326,7 @@ void DesktopIntegrationDialog::perform_desktop_integration()
     if(target_dir_icons.empty()) {
         BOOST_LOG_TRIVIAL(error) << "Copying " SLIC3R_APP_KEY " icon to icons directory failed.";
     } else 
-    	// save path to icon
+        // save path to icon
         app_config->set("desktop_integration_icon_slicer_path", GUI::format("%1%/icons/%2%" SLIC3R_APP_KEY "%3%.png", target_dir_icons, icon_theme_path, version_suffix));
 
     // desktop file
@@ -436,13 +439,13 @@ void DesktopIntegrationDialog::undo_desktop_intgration()
     // slicer .desktop
     std::string path = std::string(app_config->get("desktop_integration_app_path"));
     if (!path.empty()) {
-    	BOOST_LOG_TRIVIAL(debug) << "removing " << path;
+        BOOST_LOG_TRIVIAL(debug) << LOG_REMOVING << path;
         std::remove(path.c_str());  
     }
     // slicer icon
     path = std::string(app_config->get("desktop_integration_icon_slicer_path"));
     if (!path.empty()) {
-    	BOOST_LOG_TRIVIAL(debug) << "removing " << path;
+        BOOST_LOG_TRIVIAL(debug) << LOG_REMOVING << path;
         std::remove(path.c_str());
     }
     // No gcode viewer at ChromeOS
@@ -450,13 +453,13 @@ void DesktopIntegrationDialog::undo_desktop_intgration()
         // gcode viewer .desktop
         path = std::string(app_config->get("desktop_integration_app_viewer_path"));
         if (!path.empty()) {
-        	BOOST_LOG_TRIVIAL(debug) << "removing " << path;
+            BOOST_LOG_TRIVIAL(debug) << LOG_REMOVING << path;
             std::remove(path.c_str());
         }
          // gcode viewer icon
         path = std::string(app_config->get("desktop_integration_icon_viewer_path"));
         if (!path.empty()) {
-        	BOOST_LOG_TRIVIAL(debug) << "removing " << path;
+            BOOST_LOG_TRIVIAL(debug) << LOG_REMOVING << path;
             std::remove(path.c_str());
         }
     }
@@ -623,7 +626,7 @@ void DesktopIntegrationDialog::undo_downloader_registration()
     const AppConfig *app_config = wxGetApp().app_config.get();
     std::string path = std::string(app_config->get("desktop_integration_URL_path"));
     if (!path.empty()) {
-        BOOST_LOG_TRIVIAL(debug) << "removing " << path;
+        BOOST_LOG_TRIVIAL(debug) << LOG_REMOVING << path;
         std::remove(path.c_str());  
     }
     // There is no need to undo xdg-mime default command. It is done automatically when desktop file is deleted.
@@ -632,14 +635,14 @@ void DesktopIntegrationDialog::undo_downloader_registration()
 DesktopIntegrationDialog::DesktopIntegrationDialog(wxWindow *parent)
 : wxDialog(parent, wxID_ANY, _(L("Desktop Integration")), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER)
 {
-	bool can_undo = DesktopIntegrationDialog::is_integrated();
+    bool can_undo = DesktopIntegrationDialog::is_integrated();
 
-	wxBoxSizer *vbox = new wxBoxSizer(wxVERTICAL);
+    wxBoxSizer *vbox = new wxBoxSizer(wxVERTICAL);
 
 
-	wxString text = _L("Desktop Integration sets this binary to be searchable by the system.\n\nPress \"Perform\" to proceed.");
-	if (can_undo)
-		text += "\nPress \"Undo\" to remove previous integration.";
+    wxString text = _L("Desktop Integration sets this binary to be searchable by the system.\n\nPress \"Perform\" to proceed.");
+    if (can_undo)
+        text += "\nPress \"Undo\" to remove previous integration.";
 
     vbox->Add(
         new wxStaticText( this, wxID_ANY, text),
@@ -648,24 +651,24 @@ DesktopIntegrationDialog::DesktopIntegrationDialog(wxWindow *parent)
         wxEXPAND |    // make horizontally stretchable
         wxALL,        //   and make border all around
         10 );         // set border width to 10
-	
+    
 
-	wxBoxSizer *btn_szr = new wxBoxSizer(wxHORIZONTAL);
-	wxButton *btn_perform = new wxButton(this, wxID_ANY, _L("Perform"));
-	btn_szr->Add(btn_perform, 0, wxALL, 10);
+    wxBoxSizer *btn_szr = new wxBoxSizer(wxHORIZONTAL);
+    wxButton *btn_perform = new wxButton(this, wxID_ANY, _L("Perform"));
+    btn_szr->Add(btn_perform, 0, wxALL, 10);
 
-	btn_perform->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { DesktopIntegrationDialog::perform_desktop_integration(); EndModal(wxID_ANY); });
-	
-	if (can_undo){
-		wxButton *btn_undo = new wxButton(this, wxID_ANY, _L("Undo"));
-		btn_szr->Add(btn_undo, 0, wxALL, 10);
-		btn_undo->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { DesktopIntegrationDialog::undo_desktop_intgration(); EndModal(wxID_ANY); });
-	}
-	wxButton *btn_cancel = new wxButton(this, wxID_ANY, _L("Cancel"));
-	btn_szr->Add(btn_cancel, 0, wxALL, 10);
-	btn_cancel->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { EndModal(wxID_ANY); });
+    btn_perform->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { DesktopIntegrationDialog::perform_desktop_integration(); EndModal(wxID_ANY); });
+    
+    if (can_undo){
+        wxButton *btn_undo = new wxButton(this, wxID_ANY, _L("Undo"));
+        btn_szr->Add(btn_undo, 0, wxALL, 10);
+        btn_undo->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { DesktopIntegrationDialog::undo_desktop_intgration(); EndModal(wxID_ANY); });
+    }
+    wxButton *btn_cancel = new wxButton(this, wxID_ANY, _L("Cancel"));
+    btn_szr->Add(btn_cancel, 0, wxALL, 10);
+    btn_cancel->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { EndModal(wxID_ANY); });
 
-	vbox->Add(btn_szr, 0, wxALIGN_CENTER);
+    vbox->Add(btn_szr, 0, wxALIGN_CENTER);
 
     SetSizerAndFit(vbox);
 }

@@ -7,20 +7,20 @@
 using namespace Slic3r::Test;
 using namespace Slic3r;
 
-constexpr char* SKIRT_TAG = "Skirt";
-constexpr char* BRIM_TAG = "Brim";
+constexpr const char* SKIRT_TAG = "Skirt";
+constexpr const char* BRIM_TAG = "Brim";
 
 SCENARIO("skirt test by merill", "") {
 
     GIVEN("2 objects, don't complete individual object") {
-        DynamicPrintConfig &config = Slic3r::DynamicPrintConfig::full_print_config();
+        DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
         // remove noise
         config.set_deserialize("top_solid_layers", "0");
         config.set_deserialize("bottom_solid_layers", "0");
         config.set_deserialize("fill_density", "0");
         config.set_deserialize("perimeters", "1");
         config.set_deserialize("complete_objects", "0");
-        config.set_key_value("gcode_comments", new ConfigOptionBool(true));
+        config.set_key_value("gcode_comments", std::make_unique<ConfigOptionBool>(true));
 
         WHEN("skirt with 3 layers is requested") {
             config.set_deserialize("skirts", "1");
@@ -36,7 +36,7 @@ SCENARIO("skirt test by merill", "") {
             std::string gcode_filepath{ "" };
             Slic3r::Test::gcode(gcode_filepath, print);
             auto parser{ Slic3r::GCodeReader() };
-            parser.parse_file(gcode_filepath, [&layers_with_skirt, &layers_with_brim, &config](Slic3r::GCodeReader& self, const Slic3r::GCodeReader::GCodeLine& line)
+            parser.parse_file(gcode_filepath, [&layers_with_skirt, &layers_with_brim](Slic3r::GCodeReader& self, const Slic3r::GCodeReader::GCodeLine& line)
             {
                 if (line.extruding(self) && line.comment().find(SKIRT_TAG) != std::string::npos) {
                     layers_with_skirt[self.z()] = 1;
@@ -61,7 +61,7 @@ SCENARIO("skirt test by merill", "") {
                 REQUIRE(layers_with_brim.size() == 0);
             }
             THEN("skirt_height is honored") {
-                REQUIRE(layers_with_skirt.size() == (size_t)config.opt_int("skirt_height"));
+                REQUIRE(layers_with_skirt.size() == static_cast<size_t>(config.opt_int("skirt_height")));
             }
         }
 
@@ -79,7 +79,7 @@ SCENARIO("skirt test by merill", "") {
             std::string gcode_filepath{ "" };
             Slic3r::Test::gcode(gcode_filepath, print);
             auto parser{ Slic3r::GCodeReader() };
-            parser.parse_file(gcode_filepath, [&layers_with_skirt, &layers_with_brim, &config](Slic3r::GCodeReader& self, const Slic3r::GCodeReader::GCodeLine& line)
+            parser.parse_file(gcode_filepath, [&layers_with_skirt, &layers_with_brim](Slic3r::GCodeReader& self, const Slic3r::GCodeReader::GCodeLine& line)
             {
                 if (line.extruding(self) && line.comment().find(SKIRT_TAG) != std::string::npos) {
                     layers_with_skirt[self.z()] = 1;
@@ -104,7 +104,7 @@ SCENARIO("skirt test by merill", "") {
                 REQUIRE(layers_with_brim.size() == 1);
             }
             THEN("skirt_height is honored") {
-                REQUIRE(layers_with_skirt.size() == (size_t)config.opt_int("skirt_height"));
+                REQUIRE(layers_with_skirt.size() == static_cast<size_t>(config.opt_int("skirt_height")));
             }
         }
 
@@ -122,7 +122,7 @@ SCENARIO("skirt test by merill", "") {
             std::string gcode_filepath{ "" };
             Slic3r::Test::gcode(gcode_filepath, print);
             auto parser{ Slic3r::GCodeReader() };
-            parser.parse_file(gcode_filepath, [&layers_with_skirt, &layers_with_brim, &config](Slic3r::GCodeReader& self, const Slic3r::GCodeReader::GCodeLine& line)
+            parser.parse_file(gcode_filepath, [&layers_with_skirt, &layers_with_brim](Slic3r::GCodeReader& self, const Slic3r::GCodeReader::GCodeLine& line)
             {
                 if (line.extruding(self) && line.comment().find(SKIRT_TAG) != std::string::npos) {
                     layers_with_skirt[self.z()] = 1;
@@ -153,7 +153,7 @@ SCENARIO("skirt test by merill", "") {
     }
 
     GIVEN("3 objects, complete individual object") {
-        DynamicPrintConfig &config = Slic3r::DynamicPrintConfig::full_print_config();
+        DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
         // remove noise
         config.set_deserialize("top_solid_layers", "0");
         config.set_deserialize("bottom_solid_layers", "0");
@@ -177,7 +177,7 @@ SCENARIO("skirt test by merill", "") {
             std::string gcode_filepath{ "" };
             Slic3r::Test::gcode(gcode_filepath, print);
             auto parser{ Slic3r::GCodeReader() };
-            parser.parse_file(gcode_filepath, [&layers_with_skirt, &layers_with_brim, &config](Slic3r::GCodeReader& self, const Slic3r::GCodeReader::GCodeLine& line)
+            parser.parse_file(gcode_filepath, [&layers_with_skirt, &layers_with_brim](Slic3r::GCodeReader& self, const Slic3r::GCodeReader::GCodeLine& line)
             {
                 if (line.extruding(self) && line.comment().find(SKIRT_TAG) != std::string::npos) {
                     layers_with_skirt[self.z()] = 1;
@@ -200,7 +200,7 @@ SCENARIO("skirt test by merill", "") {
                 REQUIRE(layers_with_brim.size() == 0);
             }
             THEN("skirt_height is honored") {
-                REQUIRE(layers_with_skirt.size() == (size_t)config.opt_int("skirt_height"));
+                REQUIRE(layers_with_skirt.size() == static_cast<size_t>(config.opt_int("skirt_height")));
             }
         }
 
@@ -218,7 +218,7 @@ SCENARIO("skirt test by merill", "") {
             std::string gcode_filepath{ "" };
             Slic3r::Test::gcode(gcode_filepath, print);
             auto parser{ Slic3r::GCodeReader() };
-            parser.parse_file(gcode_filepath, [&layers_with_skirt, &layers_with_brim, &config](Slic3r::GCodeReader& self, const Slic3r::GCodeReader::GCodeLine& line)
+            parser.parse_file(gcode_filepath, [&layers_with_skirt, &layers_with_brim](Slic3r::GCodeReader& self, const Slic3r::GCodeReader::GCodeLine& line)
             {
                 if (line.extruding(self) && line.comment().find(SKIRT_TAG) != std::string::npos) {
                     layers_with_skirt[self.z()] = 1;
@@ -243,7 +243,7 @@ SCENARIO("skirt test by merill", "") {
                 REQUIRE(layers_with_brim.size() == 1);
             }
             THEN("skirt_height is honored") {
-                REQUIRE(layers_with_skirt.size() == (size_t)config.opt_int("skirt_height"));
+                REQUIRE(layers_with_skirt.size() == static_cast<size_t>(config.opt_int("skirt_height")));
             }
         }
 
@@ -261,7 +261,7 @@ SCENARIO("skirt test by merill", "") {
             std::string gcode_filepath{ "" };
             Slic3r::Test::gcode(gcode_filepath, print);
             auto parser{ Slic3r::GCodeReader() };
-            parser.parse_file(gcode_filepath, [&layers_with_skirt, &layers_with_brim, &config](Slic3r::GCodeReader& self, const Slic3r::GCodeReader::GCodeLine& line)
+            parser.parse_file(gcode_filepath, [&layers_with_skirt, &layers_with_brim](Slic3r::GCodeReader& self, const Slic3r::GCodeReader::GCodeLine& line)
             {
                 if (line.extruding(self) && line.comment().find(SKIRT_TAG) != std::string::npos) {
                     layers_with_skirt[self.z()] = 1;
@@ -293,7 +293,7 @@ SCENARIO("skirt test by merill", "") {
 }
 SCENARIO("Original Slic3r Skirt/Brim tests", "[!mayfail]") {
     GIVEN("Configuration with a skirt height of 2") {
-        DynamicPrintConfig &config = Slic3r::DynamicPrintConfig::full_print_config();
+        DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
         config.set_deserialize("skirts", "1");
         config.set_deserialize("skirt_height", "2");
         config.set_deserialize("perimeters", "1");
@@ -313,7 +313,7 @@ SCENARIO("Original Slic3r Skirt/Brim tests", "[!mayfail]") {
             std::string gcode_filepath{ "" };
             Slic3r::Test::gcode(gcode_filepath, print);
             auto parser {Slic3r::GCodeReader()};
-            parser.parse_file(gcode_filepath, [&layers_with_skirt, &config] (Slic3r::GCodeReader& self, const Slic3r::GCodeReader::GCodeLine& line)
+            parser.parse_file(gcode_filepath, [&layers_with_skirt] (Slic3r::GCodeReader& self, const Slic3r::GCodeReader::GCodeLine& line)
             {
                 if (line.extruding(self) && line.comment().find(SKIRT_TAG) != std::string::npos) {
                     layers_with_skirt[self.z()] = 1;
@@ -327,14 +327,14 @@ SCENARIO("Original Slic3r Skirt/Brim tests", "[!mayfail]") {
             clean_file(gcode_filepath, "gcode");
 
             THEN("skirt_height is honored") {
-                REQUIRE(layers_with_skirt.size() == (size_t)config.opt_int("skirt_height"));
+                REQUIRE(layers_with_skirt.size() == static_cast<size_t>(config.opt_int("skirt_height")));
             }
         }
     }
 
 
     GIVEN("A default configuration") {
-        DynamicPrintConfig &config = Slic3r::DynamicPrintConfig::full_print_config();
+        DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
         config.set_deserialize("support_material_speed", "99");
 
         // avoid altering speeds unexpectedly
@@ -399,29 +399,6 @@ SCENARIO("Original Slic3r Skirt/Brim tests", "[!mayfail]") {
             }
         }
 
-        //TODO review this test that fail because "there are no layer" and it test nothing anyway
-        //WHEN("Object is plated with overhang support and a brim") {
-        //    config.set_deserialize("layer_height", "0.4");
-        //    config.set_deserialize("first_layer_height", "0.4");
-        //    config.set_deserialize("skirts", "1");
-        //    config.set_deserialize("skirt_distance", "0");
-        //    config.set_deserialize("support_material_speed", "99");
-        //    config.set_deserialize("perimeter_extruder", "1");
-        //    config.set_deserialize("support_material_extruder", "2");
-        //    config.set_deserialize("cooling", "0");                     // to prevent speeds to be altered
-        //    config.set_deserialize("first_layer_speed", "100%");      // to prevent speeds to be altered
-
-        //    Slic3r::Model model;
-        //    Print print{};
-        //    Slic3r::Test::init_print(print, { TestMesh::overhang }, model, &config, false);
-        //    print.process();
-        //    
-        //    config.set_deserialize("support_material", "true");      // to prevent speeds to be altered
-
-        //    THEN("skirt length is large enough to contain object with support") {
-        //        REQUIRE(true); //TODO
-        //    }
-        //}
         WHEN("Large minimum skirt length is used.") {
             config.set_deserialize("min_skirt_length", "20");
             auto gcode {std::stringstream("")};

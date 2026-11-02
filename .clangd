@@ -8,5 +8,12 @@
 #
 # Note: the build dir is configured as build-linux-current-release but cmake reports
 # build-linux-x86_64-release as the binary dir - that is the one holding the database.
+#
+# -fext-numeric-literals is a GCC-only flag that cmake bakes into the database for
+# boost's __float128 handling. clangd drives real clang, which rejects it outright,
+# so every TU opened here reported a bogus "Unknown argument" error at line 1 that
+# crowded out genuine diagnostics. Strip it for clangd only - the GCC build still
+# gets the flag from compile_commands.json.
 CompileFlags:
   CompilationDatabase: build-linux-x86_64-release
+  Remove: [-fext-numeric-literals]

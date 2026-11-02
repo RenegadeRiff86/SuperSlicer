@@ -5,9 +5,46 @@
 #include "libslic3r.h"
 #include "Color.hpp"
 
+#include <climits>
 #include <random>
 
-static const float INV_255 = 1.0f / 255.0f;
+static constexpr int RED_BYTE_SHIFT = 0;
+static constexpr int BITS_PER_BYTE = CHAR_BIT;
+static constexpr int BITS_PER_NIBBLE = BITS_PER_BYTE >> 1;
+static constexpr int BITS_PER_HALF_NIBBLE = BITS_PER_NIBBLE >> 1;
+static constexpr int GREEN_BYTE_SHIFT = BITS_PER_BYTE;
+static constexpr int BLUE_BYTE_SHIFT = GREEN_BYTE_SHIFT + BITS_PER_BYTE;
+
+static constexpr int COLOR_CHANNEL_MAX = 0xFF;
+static constexpr float COLOR_COMPONENT_MIN = 0.0f;
+static constexpr float COLOR_COMPONENT_MAX = 1.0f;
+static constexpr float COLOR_CHANNEL_MAX_F = static_cast<float>(COLOR_CHANNEL_MAX);
+static constexpr float INV_255 = COLOR_COMPONENT_MAX / COLOR_CHANNEL_MAX_F;
+
+static constexpr int RGB_COMPONENT_COUNT = BLUE_BYTE_SHIFT / GREEN_BYTE_SHIFT + 1;
+static constexpr int ALPHA_COMPONENT_INDEX = RGB_COMPONENT_COUNT;
+static constexpr int HEX_BASE = 1 << BITS_PER_NIBBLE;
+static constexpr int HEX_COLOR_DIGITS = RGB_COMPONENT_COUNT << 1;
+static constexpr int HEX_COLOR_WITH_HASH_DIGITS = HEX_COLOR_DIGITS + 1;
+
+static constexpr float HSV_SEXTANT_DEGREES = 60.0f;
+static constexpr float HSV_SEXTANT_COUNT = static_cast<float>(HEX_COLOR_DIGITS);
+static constexpr float HSV_FULL_CIRCLE_DEGREES = HSV_SEXTANT_DEGREES * HSV_SEXTANT_COUNT;
+static constexpr float HSV_GREEN_SEXTANT_OFFSET = static_cast<float>(GREEN_BYTE_SHIFT / BITS_PER_NIBBLE);
+static constexpr float HSV_BLUE_SEXTANT_OFFSET = static_cast<float>(BLUE_BYTE_SHIFT / BITS_PER_NIBBLE);
+
+static constexpr int HSV_SEXTANT_RED_TO_YELLOW = RED_BYTE_SHIFT;
+static constexpr int HSV_SEXTANT_YELLOW_TO_GREEN = HSV_SEXTANT_RED_TO_YELLOW + 1;
+static constexpr int HSV_SEXTANT_GREEN_TO_CYAN = HSV_SEXTANT_YELLOW_TO_GREEN + 1;
+static constexpr int HSV_SEXTANT_CYAN_TO_BLUE = HSV_SEXTANT_GREEN_TO_CYAN + 1;
+static constexpr int HSV_SEXTANT_BLUE_TO_MAGENTA = HSV_SEXTANT_CYAN_TO_BLUE + 1;
+static constexpr int HSV_SEXTANT_MAGENTA_TO_RED = HSV_SEXTANT_BLUE_TO_MAGENTA + 1;
+
+static constexpr uint32_t NIBBLE_MASK = 0xF;
+static constexpr uint32_t BYTE_MASK = static_cast<uint32_t>(COLOR_CHANNEL_MAX);
+static constexpr uint32_t RED_BYTE_MASK = BYTE_MASK;
+static constexpr uint32_t GREEN_BYTE_MASK = BYTE_MASK << GREEN_BYTE_SHIFT;
+static constexpr uint32_t BLUE_BYTE_MASK = BYTE_MASK << BLUE_BYTE_SHIFT;
 
 namespace Slic3r {
 
@@ -16,36 +53,36 @@ namespace Slic3r {
 // The output HSV values are in the ranges h = [0, 360], and s, v = [0, 1]
 static void RGBtoHSV(float r, float g, float b, float& h, float& s, float& v)
 {
-    assert(0.0f <= r && r <= 1.0f);
-    assert(0.0f <= g && g <= 1.0f);
-    assert(0.0f <= b && b <= 1.0f);
+    assert(COLOR_COMPONENT_MIN <= r && r <= COLOR_COMPONENT_MAX);
+    assert(COLOR_COMPONENT_MIN <= g && g <= COLOR_COMPONENT_MAX);
+    assert(COLOR_COMPONENT_MIN <= b && b <= COLOR_COMPONENT_MAX);
 
     const float max_comp = std::max(std::max(r, g), b);
     const float min_comp = std::min(std::min(r, g), b);
     const float delta = max_comp - min_comp;
 
-    if (delta > 0.0f) {
+    if (delta > COLOR_COMPONENT_MIN) {
         if (max_comp == r)
-            h = 60.0f * (std::fmod(((g - b) / delta), 6.0f));
+            h = HSV_SEXTANT_DEGREES * (std::fmod(((g - b) / delta), HSV_SEXTANT_COUNT));
         else if (max_comp == g)
-            h = 60.0f * (((b - r) / delta) + 2.0f);
+            h = HSV_SEXTANT_DEGREES * (((b - r) / delta) + HSV_GREEN_SEXTANT_OFFSET);
         else  // max_comp == b
-            h = 60.0f * (((r - g) / delta) + 4.0f);
+            h = HSV_SEXTANT_DEGREES * (((r - g) / delta) + HSV_BLUE_SEXTANT_OFFSET);
 
-        s = (max_comp > 0.0f) ? delta / max_comp : 0.0f;
+        s = (max_comp > COLOR_COMPONENT_MIN) ? delta / max_comp : COLOR_COMPONENT_MIN;
     }
     else {
-        h = 0.0f;
-        s = 0.0f;
+        h = COLOR_COMPONENT_MIN;
+        s = COLOR_COMPONENT_MIN;
     }
     v = max_comp;
 
-    while (h < 0.0f) { h += 360.0f; }
-    while (h > 360.0f) { h -= 360.0f; }
+    while (h < COLOR_COMPONENT_MIN) { h += HSV_FULL_CIRCLE_DEGREES; }
+    while (h > HSV_FULL_CIRCLE_DEGREES) { h -= HSV_FULL_CIRCLE_DEGREES; }
 
-    assert(0.0f <= s && s <= 1.0f);
-    assert(0.0f <= v && v <= 1.0f);
-    assert(0.0f <= h && h <= 360.0f);
+    assert(COLOR_COMPONENT_MIN <= s && s <= COLOR_COMPONENT_MAX);
+    assert(COLOR_COMPONENT_MIN <= v && v <= COLOR_COMPONENT_MAX);
+    assert(COLOR_COMPONENT_MIN <= h && h <= HSV_FULL_CIRCLE_DEGREES);
 }
 
 // Conversion from HSV to RGB color space
@@ -53,58 +90,60 @@ static void RGBtoHSV(float r, float g, float b, float& h, float& s, float& v)
 // The output RGB values are in the range [0, 1]
 static void HSVtoRGB(float h, float s, float v, float& r, float& g, float& b)
 {
-    assert(0.0f <= s && s <= 1.0f);
-    assert(0.0f <= v && v <= 1.0f);
-    assert(0.0f <= h && h <= 360.0f);
+    assert(COLOR_COMPONENT_MIN <= s && s <= COLOR_COMPONENT_MAX);
+    assert(COLOR_COMPONENT_MIN <= v && v <= COLOR_COMPONENT_MAX);
+    assert(COLOR_COMPONENT_MIN <= h && h <= HSV_FULL_CIRCLE_DEGREES);
 
     const float chroma = v * s;
-    const float h_prime = std::fmod(h / 60.0f, 6.0f);
-    const float x = chroma * (1.0f - std::abs(std::fmod(h_prime, 2.0f) - 1.0f));
+    const float h_prime = std::fmod(h / HSV_SEXTANT_DEGREES, HSV_SEXTANT_COUNT);
+    const float x = chroma * (COLOR_COMPONENT_MAX - std::abs(std::fmod(h_prime, HSV_GREEN_SEXTANT_OFFSET) - COLOR_COMPONENT_MAX));
     const float m = v - chroma;
 
-    if (0.0f <= h_prime && h_prime < 1.0f) {
+    switch (static_cast<int>(h_prime)) {
+    case HSV_SEXTANT_RED_TO_YELLOW:
         r = chroma;
         g = x;
-        b = 0.0f;
-    }
-    else if (1.0f <= h_prime && h_prime < 2.0f) {
+        b = COLOR_COMPONENT_MIN;
+        break;
+    case HSV_SEXTANT_YELLOW_TO_GREEN:
         r = x;
         g = chroma;
-        b = 0.0f;
-    }
-    else if (2.0f <= h_prime && h_prime < 3.0f) {
-        r = 0.0f;
+        b = COLOR_COMPONENT_MIN;
+        break;
+    case HSV_SEXTANT_GREEN_TO_CYAN:
+        r = COLOR_COMPONENT_MIN;
         g = chroma;
         b = x;
-    }
-    else if (3.0f <= h_prime && h_prime < 4.0f) {
-        r = 0.0f;
+        break;
+    case HSV_SEXTANT_CYAN_TO_BLUE:
+        r = COLOR_COMPONENT_MIN;
         g = x;
         b = chroma;
-    }
-    else if (4.0f <= h_prime && h_prime < 5.0f) {
+        break;
+    case HSV_SEXTANT_BLUE_TO_MAGENTA:
         r = x;
-        g = 0.0f;
+        g = COLOR_COMPONENT_MIN;
         b = chroma;
-    }
-    else if (5.0f <= h_prime && h_prime < 6.0f) {
+        break;
+    case HSV_SEXTANT_MAGENTA_TO_RED:
         r = chroma;
-        g = 0.0f;
+        g = COLOR_COMPONENT_MIN;
         b = x;
-    }
-    else {
-        r = 0.0f;
-        g = 0.0f;
-        b = 0.0f;
+        break;
+    default:
+        r = COLOR_COMPONENT_MIN;
+        g = COLOR_COMPONENT_MIN;
+        b = COLOR_COMPONENT_MIN;
+        break;
     }
 
     r += m;
     g += m;
     b += m;
 
-    assert(0.0f <= r && r <= 1.0f);
-    assert(0.0f <= g && g <= 1.0f);
-    assert(0.0f <= b && b <= 1.0f);
+    assert(COLOR_COMPONENT_MIN <= r && r <= COLOR_COMPONENT_MAX);
+    assert(COLOR_COMPONENT_MIN <= g && g <= COLOR_COMPONENT_MAX);
+    assert(COLOR_COMPONENT_MIN <= b && b <= COLOR_COMPONENT_MAX);
 }
 
 class Randomizer
@@ -131,7 +170,7 @@ ColorRGB::ColorRGB(unsigned char r, unsigned char g, unsigned char b)
 
 bool ColorRGB::operator < (const ColorRGB& other) const
 {
-    for (size_t i = 0; i < 3; ++i) {
+    for (size_t i = 0; i < RGB_COMPONENT_COUNT; ++i) {
         if (m_data[i] < other.m_data[i])
             return true;
         else if (m_data[i] > other.m_data[i])
@@ -143,7 +182,7 @@ bool ColorRGB::operator < (const ColorRGB& other) const
 
 bool ColorRGB::operator > (const ColorRGB& other) const
 {
-    for (size_t i = 0; i < 3; ++i) {
+    for (size_t i = 0; i < RGB_COMPONENT_COUNT; ++i) {
         if (m_data[i] > other.m_data[i])
             return true;
         else if (m_data[i] < other.m_data[i])
@@ -156,7 +195,7 @@ bool ColorRGB::operator > (const ColorRGB& other) const
 ColorRGB ColorRGB::operator + (const ColorRGB& other) const
 {
     ColorRGB ret;
-    for (size_t i = 0; i < 3; ++i) {
+    for (size_t i = 0; i < RGB_COMPONENT_COUNT; ++i) {
         ret.m_data[i] = std::clamp(m_data[i] + other.m_data[i], 0.0f, 1.0f);
     }
     return ret;
@@ -166,7 +205,7 @@ ColorRGB ColorRGB::operator * (float value) const
 {
     assert(value >= 0.0f);
     ColorRGB ret;
-    for (size_t i = 0; i < 3; ++i) {
+    for (size_t i = 0; i < RGB_COMPONENT_COUNT; ++i) {
         ret.m_data[i] = std::clamp(value * m_data[i], 0.0f, 1.0f);
     }
     return ret;
@@ -184,7 +223,7 @@ ColorRGBA::ColorRGBA(unsigned char r, unsigned char g, unsigned char b, unsigned
 
 bool ColorRGBA::operator < (const ColorRGBA& other) const
 {
-    for (size_t i = 0; i < 3; ++i) {
+    for (size_t i = 0; i < RGB_COMPONENT_COUNT; ++i) {
         if (m_data[i] < other.m_data[i])
             return true;
         else if (m_data[i] > other.m_data[i])
@@ -196,7 +235,7 @@ bool ColorRGBA::operator < (const ColorRGBA& other) const
 
 bool ColorRGBA::operator > (const ColorRGBA& other) const
 {
-    for (size_t i = 0; i < 3; ++i) {
+    for (size_t i = 0; i < RGB_COMPONENT_COUNT; ++i) {
         if (m_data[i] > other.m_data[i])
             return true;
         else if (m_data[i] < other.m_data[i])
@@ -209,7 +248,7 @@ bool ColorRGBA::operator > (const ColorRGBA& other) const
 ColorRGBA ColorRGBA::operator + (const ColorRGBA& other) const
 {
     ColorRGBA ret;
-    for (size_t i = 0; i < 3; ++i) {
+    for (size_t i = 0; i < RGB_COMPONENT_COUNT; ++i) {
         ret.m_data[i] = std::clamp(m_data[i] + other.m_data[i], 0.0f, 1.0f);
     }
     return ret;
@@ -219,10 +258,10 @@ ColorRGBA ColorRGBA::operator * (float value) const
 {
     assert(value >= 0.0f);
     ColorRGBA ret;
-    for (size_t i = 0; i < 3; ++i) {
+    for (size_t i = 0; i < RGB_COMPONENT_COUNT; ++i) {
         ret.m_data[i] = std::clamp(value * m_data[i], 0.0f, 1.0f);
     }
-    ret.m_data[3] = m_data[3];
+    ret.m_data[ALPHA_COMPONENT_INDEX] = m_data[ALPHA_COMPONENT_INDEX];
     return ret;
 }
 
@@ -272,10 +311,10 @@ ColorRGB opposite(const ColorRGB& color)
     RGBtoHSV(color.r(), color.g(), color.b(), h, s, v);
 
     h += 65.0f; // 65 instead 60 to avoid circle values
-    if (h > 360.0f)
-        h -= 360.0f;
+    if (h > HSV_FULL_CIRCLE_DEGREES)
+        h -= HSV_FULL_CIRCLE_DEGREES;
 
-    Randomizer rnd;
+    Randomizer rnd{};
     if (s < 0.8) {
         s = rnd.random_float(0.8f, 1.0f);
     } else if (s > 0.85) {
@@ -310,7 +349,7 @@ ColorRGB opposite(const ColorRGB& a, const ColorRGB& b)
     if (delta_h < 180.0f)
         delta_h = 360.0f - delta_h;
 
-    Randomizer rnd;
+    Randomizer rnd{};
     float out_h = start_h + 0.5f * delta_h;
     if (out_h > 360.0f)
         out_h -= 360.0f;
@@ -336,11 +375,11 @@ bool decode_color(const std::string& color_in, ColorRGB& color_out)
     color_out = ColorRGB::BLACK();
     if (can_decode_color(color_in)) {
         const char* c = color_in.data() + 1;
-        for (unsigned int i = 0; i < 3; ++i) {
+        for (unsigned int i = 0; i < RGB_COMPONENT_COUNT; ++i) {
             const int digit1 = hex_digit_to_int(*c++);
             const int digit2 = hex_digit_to_int(*c++);
             if (digit1 != -1 && digit2 != -1)
-                color_out.set(i, float(digit1 * 16 + digit2) * INV_255);
+                color_out.set(i, float(digit1 * HEX_BASE + digit2) * INV_255);
         }
     }
     else
@@ -420,7 +459,7 @@ ColorRGBA to_rgba(const ColorRGB& other_rgb, float alpha) { return { other_rgb.r
 
 hsv rgb2hsv(const ColorRGB& in)
 {
-    hsv         out;
+    hsv         out{};
     double      min, max, delta;
 
     min = in.r() < in.g() ? in.r() : in.g();
@@ -437,12 +476,12 @@ hsv rgb2hsv(const ColorRGB& in)
         out.h = 0; // undefined, maybe nan?
         return out;
     }
-    if (max > 0.0) { // NOTE: if Max is == 0, this divide would cause a crash
+    if (max > COLOR_COMPONENT_MIN) { // NOTE: if Max is == 0, this divide would cause a crash
         out.s = (delta / max);                  // s
     } else {
         // if max is 0, then r = g = b = 0              
         // s = 0, h is undefined
-        out.s = 0.0;
+        out.s = COLOR_COMPONENT_MIN;
         out.h = NAN;                            // its now undefined
         return out;
     }
@@ -450,14 +489,14 @@ hsv rgb2hsv(const ColorRGB& in)
         out.h = (in.g() - in.b()) / delta;        // between yellow & magenta
     else
         if (in.g() >= max)
-            out.h = 2.0 + (in.b() - in.r()) / delta;  // between cyan & yellow
+            out.h = HSV_GREEN_SEXTANT_OFFSET + (in.b() - in.r()) / delta;  // between cyan & yellow
         else
-            out.h = 4.0 + (in.r() - in.g()) / delta;  // between magenta & cyan
+            out.h = HSV_BLUE_SEXTANT_OFFSET + (in.r() - in.g()) / delta;  // between magenta & cyan
 
-    out.h *= 60.0;                              // degrees
+    out.h *= HSV_SEXTANT_DEGREES;               // degrees
 
-    if (out.h < 0.0)
-        out.h += 360.0;
+    if (out.h < COLOR_COMPONENT_MIN)
+        out.h += HSV_FULL_CIRCLE_DEGREES;
 
     return out;
 }
@@ -469,49 +508,49 @@ ColorRGB hsv2rgb(const hsv& in)
     long        i;
     ColorRGB    out;
 
-    if (in.s <= 0.0) {       // < is bogus, just shuts up warnings
+    if (in.s <= COLOR_COMPONENT_MIN) {       // < is bogus, just shuts up warnings
         out.r(in.v);
         out.g(in.v);
         out.b(in.v);
         return out;
     }
     hh = in.h;
-    if (hh >= 360.0) hh = 0.0;
-    hh /= 60.0;
+    if (hh >= HSV_FULL_CIRCLE_DEGREES) hh = COLOR_COMPONENT_MIN;
+    hh /= HSV_SEXTANT_DEGREES;
     i = static_cast<long>(hh);
     ff = hh - i;
-    p = in.v * (1.0 - in.s);
-    q = in.v * (1.0 - (in.s * ff));
-    t = in.v * (1.0 - (in.s * (1.0 - ff)));
+    p = in.v * (COLOR_COMPONENT_MAX - in.s);
+    q = in.v * (COLOR_COMPONENT_MAX - (in.s * ff));
+    t = in.v * (COLOR_COMPONENT_MAX - (in.s * (COLOR_COMPONENT_MAX - ff)));
 
     switch (i) {
-    case 0:
+    case HSV_SEXTANT_RED_TO_YELLOW:
         out.r(in.v);
         out.g(t);
         out.b(p);
         break;
-    case 1:
+    case HSV_SEXTANT_YELLOW_TO_GREEN:
         out.r(q);
         out.g(in.v);
         out.b(p);
         break;
-    case 2:
+    case HSV_SEXTANT_GREEN_TO_CYAN:
         out.r(p);
         out.g(in.v);
         out.b(t);
         break;
 
-    case 3:
+    case HSV_SEXTANT_CYAN_TO_BLUE:
         out.r(p);
         out.g(q);
         out.b(in.v);
         break;
-    case 4:
+    case HSV_SEXTANT_BLUE_TO_MAGENTA:
         out.r(t);
         out.g(p);
         out.b(in.v);
         break;
-    case 5:
+    case HSV_SEXTANT_MAGENTA_TO_RED:
     default:
         out.r(in.v);
         out.g(p);
@@ -524,7 +563,7 @@ ColorRGB hsv2rgb(const hsv& in)
 uint32_t hex2int(const std::string& hex)
 {
     uint32_t int_color;
-    if (hex.empty() || !(hex.size() == 6 || hex.size() == 7)) {
+    if (hex.empty() || !(hex.size() == HEX_COLOR_DIGITS || hex.size() == HEX_COLOR_WITH_HASH_DIGITS)) {
         int_color = 0x2172eb;
     } else {
         std::stringstream ss;
@@ -533,42 +572,51 @@ uint32_t hex2int(const std::string& hex)
     }
     // #RRVVBB so r in in the high bit, but we store it in the low one in an int
     uint32_t good_int_color = 0;
-    good_int_color |= ((int_color & 0xFF0000) >> 16);
-    good_int_color |= ((int_color & 0xFF00));
-    good_int_color |= ((int_color & 0xFF) << 16);
+    good_int_color |= ((int_color & BLUE_BYTE_MASK) >> BLUE_BYTE_SHIFT);
+    good_int_color |= (int_color & GREEN_BYTE_MASK);
+    good_int_color |= ((int_color & RED_BYTE_MASK) << BLUE_BYTE_SHIFT);
     return good_int_color;
 }
 
 std::string int2hex(uint32_t int_color)
 {
     std::stringstream ss;
-    ss << std::hex << ((int_color & 0xF0) >> 4) << ((int_color & 0xF));
-    ss << ((int_color & 0xF000) >> 12) << ((int_color & 0xF00) >> 8);
-    ss << ((int_color & 0xF00000) >> 20) << ((int_color & 0xF0000) >> 16);
+    const auto append_byte = [&ss, int_color](int shift) {
+        ss << ((int_color >> (shift + BITS_PER_NIBBLE)) & NIBBLE_MASK)
+           << ((int_color >> shift) & NIBBLE_MASK);
+    };
+
+    append_byte(RED_BYTE_SHIFT);
+    append_byte(GREEN_BYTE_SHIFT);
+    append_byte(BLUE_BYTE_SHIFT);
     return ss.str();
 }
 
 ColorRGB int2rgb(uint32_t int_color)
 {
     return ColorRGB(
-            uint8_t((int_color & 0xFF)),
-            uint8_t((int_color & 0xFF00) >> 8),
-            uint8_t((int_color & 0xFF0000) >> 16));
+            uint8_t((int_color & RED_BYTE_MASK)),
+            uint8_t((int_color & GREEN_BYTE_MASK) >> GREEN_BYTE_SHIFT),
+            uint8_t((int_color & BLUE_BYTE_MASK) >> BLUE_BYTE_SHIFT));
 }
 uint32_t rgb2int(const ColorRGB& rgb_color)
 {
+    const auto component_to_byte = [](float component) {
+        return std::min(COLOR_CHANNEL_MAX, int(component * COLOR_CHANNEL_MAX_F));
+    };
+
     uint32_t int_color = 0;
-    int_color |= std::min(255, int(rgb_color.r() * 255));
-    int_color |= std::min(255, int(rgb_color.g() * 255)) << 8;
-    int_color |= std::min(255, int(rgb_color.b() * 255)) << 16;
+    int_color |= component_to_byte(rgb_color.r());
+    int_color |= component_to_byte(rgb_color.g()) << GREEN_BYTE_SHIFT;
+    int_color |= component_to_byte(rgb_color.b()) << BLUE_BYTE_SHIFT;
     return int_color;
 }
 uint32_t change_endian_int24(uint32_t int_color)
 {
     uint32_t out_int = 0;
-    out_int |= (int_color & 0xFF) << 16;
-    out_int |= ((int_color & 0xFF00) >> 8) << 8;
-    out_int |= ((int_color & 0xFF0000) >> 16);
+    out_int |= (int_color & RED_BYTE_MASK) << BLUE_BYTE_SHIFT;
+    out_int |= (int_color & GREEN_BYTE_MASK);
+    out_int |= ((int_color & BLUE_BYTE_MASK) >> BLUE_BYTE_SHIFT);
     return out_int;
 }
 
@@ -628,24 +676,24 @@ std::optional<ColorReplace> ColorReplaces::has_value(const std::string & new_col
 ColorRGBA picking_decode(unsigned int id)
 {
     return {
-               float((id >> 0) & 0xff) * INV_255,  // red
-               float((id >> 8) & 0xff) * INV_255,  // green
-               float((id >> 16) & 0xff) * INV_255, // blue
-               float(picking_checksum_alpha_channel(id & 0xff, (id >> 8) & 0xff, (id >> 16) & 0xff)) * INV_255 // checksum for validating against unwanted alpha blending and multi sampling
+               float((id >> RED_BYTE_SHIFT) & BYTE_MASK) * INV_255,  // red
+               float((id >> GREEN_BYTE_SHIFT) & BYTE_MASK) * INV_255,  // green
+               float((id >> BLUE_BYTE_SHIFT) & BYTE_MASK) * INV_255, // blue
+               float(picking_checksum_alpha_channel(id & BYTE_MASK, (id >> GREEN_BYTE_SHIFT) & BYTE_MASK, (id >> BLUE_BYTE_SHIFT) & BYTE_MASK)) * INV_255 // checksum for validating against unwanted alpha blending and multi sampling
            };
 }
 
-unsigned int picking_encode(unsigned char r, unsigned char g, unsigned char b) { return r + (g << 8) + (b << 16); }
+unsigned int picking_encode(unsigned char r, unsigned char g, unsigned char b) { return r + (g << GREEN_BYTE_SHIFT) + (b << BLUE_BYTE_SHIFT); }
 
 unsigned char picking_checksum_alpha_channel(unsigned char red, unsigned char green, unsigned char blue)
 {
-    // 8 bit hash for the color
-    unsigned char b = ((((37 * red) + green) & 0x0ff) * 37 + blue) & 0x0ff;
-    // Increase enthropy by a bit reversal
-    b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
-    b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+    // Byte-sized hash for the color
+    unsigned char b = ((((37 * red) + green) & BYTE_MASK) * 37 + blue) & BYTE_MASK;
+    // Increase entropy by a bit reversal
+    b = (b & 0xF0) >> BITS_PER_NIBBLE | (b & 0x0F) << BITS_PER_NIBBLE;
+    b = (b & 0xCC) >> BITS_PER_HALF_NIBBLE | (b & 0x33) << BITS_PER_HALF_NIBBLE;
     b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
-    // Flip every second bit to increase the enthropy even more.
+    // Flip every second bit to increase the entropy even more.
     b ^= 0x55;
     return b;
 }

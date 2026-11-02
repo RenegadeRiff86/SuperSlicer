@@ -113,7 +113,8 @@ void fill_slicerconf(ConfMap &m, const SLAPrint &print)
     static constexpr auto banned_keys = { 
         "compatible_printers"sv,
         "compatible_prints"sv,
-        //FIXME The print host keys should not be exported to full_print_config anymore. The following keys may likely be removed.
+        // Note (upstream): the print host keys should no longer be exported to full_print_config;
+        // once that holds everywhere, the following keys can be dropped from this ban list.
         "print_host"sv,
         "printhost_apikey"sv,
         "printhost_cafile"sv
@@ -352,7 +353,7 @@ ExPolygons rings_to_expolygons(const std::vector<marchsq::Ring> &rings,
         polys.emplace_back(poly);
     }
 
-    // TODO: Is a union necessary?
+    // Defensive union: rings from marching squares may touch or overlap after scaling.
     return union_ex(polys);
 }
 

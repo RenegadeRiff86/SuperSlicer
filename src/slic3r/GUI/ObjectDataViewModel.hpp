@@ -1,4 +1,5 @@
-///|/ Copyright (c) Prusa Research 2018 - 2023 Oleksandra Iushchenko @YuSanka, Lukáš Matěna @lukasmatena, Lukáš Hejl @hejllukas, Enrico Turri @enricoturri1966, David Kocík @kocikdav, Vojtěch Bubník @bubnikv, Tomáš Mészáros @tamasmeszaros, Vojtěch Král @vojtechkral
+// |/ Copyright (c) Prusa Research 2018 - 2023 Oleksandra Iushchenko @YuSanka, Lukáš Matěna @lukasmatena, Lukáš Hejl @hejllukas, Enrico Turri @enricoturri1966, David Kocík @kocikdav, Vojtěch Bubník @bubnikv, Tomáš Mészáros @tamasmeszaros, Vojtěch
+// Král @vojtechkral
 ///|/
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
@@ -64,7 +65,8 @@ enum class InfoItemType
 };
 
 class ObjectDataViewModelNode;
-WX_DEFINE_ARRAY_PTR(ObjectDataViewModelNode*, MyObjectTreeModelNodePtrArray);
+// A node owns its children. Mirrors ModelNodePtrArray in UnsavedChangesDialog.hpp.
+using MyObjectTreeModelNodePtrArray = std::vector<std::unique_ptr<ObjectDataViewModelNode>>;
 
 class ObjectDataViewModelNode
 {
@@ -104,7 +106,7 @@ public:
     {
         set_action_and_extruder_icons();
         init_container();
-	}
+    }
 
     ObjectDataViewModelNode(ObjectDataViewModelNode* parent,
                             const wxString& sub_obj_name,
@@ -124,26 +126,20 @@ public:
 
     ~ObjectDataViewModelNode()
     {
-        // free all our children nodes
-        size_t count = m_children.GetCount();
-        for (size_t i = 0; i < count; i++)
-        {
-            ObjectDataViewModelNode *child = m_children[i];
-            delete child;
-        }
+        // m_children owns the child nodes; destroying it frees the subtree depth-first.
 #ifndef NDEBUG
         // Indicate that the object was deleted.
         m_idx = -2;
 #endif /* NDEBUG */
     }
 
-	void init_container();
+    void init_container();
     void invalidate_container();
 
     bool IsContainer() const
-	{
-		return m_container;
-	}
+    {
+        return m_container;
+    }
 
     ObjectDataViewModelNode* GetParent()
     {
@@ -156,37 +152,50 @@ public:
     }
     ObjectDataViewModelNode* GetNthChild(unsigned int n)
     {
-        return m_children.Item(n);
+        return m_children[n].get();
     }
-    void Insert(ObjectDataViewModelNode* child, unsigned int n)
+    // Index of a child, or -1 when it is not one. Replaces wxArray::Index().
+    int GetChildIndex(const ObjectDataViewModelNode* child) const
+    {
+        for (size_t i = 0; i < m_children.size(); ++i)
+            if (m_children[i].get() == child)
+                return int(i);
+        return -1;
+    }
+    // Detach a child WITHOUT destroying it - the caller takes ownership. Replaces
+    // wxArray::Remove(), which only dropped the pointer. Call sites that used to pair
+    // Remove() with a later 'delete' now just let the returned unique_ptr expire, which
+    // keeps the free at the same point in the sequence.
+    std::unique_ptr<ObjectDataViewModelNode> ReleaseChild(const ObjectDataViewModelNode* child)
+    {
+        const int id = GetChildIndex(child);
+        if (id < 0)
+            return nullptr;
+        std::unique_ptr<ObjectDataViewModelNode> released = std::move(m_children[id]);
+        m_children.erase(m_children.begin() + id);
+        return released;
+    }
+    void Insert(std::unique_ptr<ObjectDataViewModelNode> child, unsigned int n)
     {
         if (!m_container)
             m_container = true;
-        m_children.Insert(child, n);
+        m_children.insert(m_children.begin() + n, std::move(child));
     }
-    void Append(ObjectDataViewModelNode* child)
+    void Append(std::unique_ptr<ObjectDataViewModelNode> child)
     {
         if (!m_container)
             m_container = true;
-        m_children.Add(child);
+        m_children.emplace_back(std::move(child));
     }
     void RemoveAllChildren()
     {
-        if (GetChildCount() == 0)
-            return;
-        for (int id = int(GetChildCount()) - 1; id >= 0; --id)
-        {
-            if (m_children.Item(id)->GetChildCount() > 0)
-                m_children[id]->RemoveAllChildren();
-            auto node = m_children[id];
-            m_children.RemoveAt(id);
-            delete node;
-        }
+        // unique_ptr destruction recurses into each subtree, so this is depth-first.
+        m_children.clear();
     }
 
     size_t GetChildCount() const
     {
-        return m_children.GetCount();
+        return m_children.size();
     }
 
     bool            SetValue(const wxVariant &variant, unsigned int col);
@@ -199,10 +208,10 @@ public:
     const wxString& GetName() const                 { return m_name; }
     ItemType        GetType() const                 { return m_type; }
     InfoItemType    GetInfoItemType() const         { return m_info_item_type; }
-	void			SetIdx(const int& idx);
-	int             GetIdx() const                  { return m_idx; }
+    void			SetIdx(const int& idx);
+    int             GetIdx() const                  { return m_idx; }
     ModelVolumeType GetVolumeType() const           { return m_volume_type; }
-	t_layer_height_range    GetLayerRange() const   { return m_layer_range; }
+    t_layer_height_range    GetLayerRange() const   { return m_layer_range; }
     wxString        GetExtruder()                   { return m_extruder; }
     PrintIndicator  IsPrintable() const             { return m_printable; }
     void            UpdateExtruderAndColorIcon(wxString extruder = "");
@@ -220,18 +229,21 @@ public:
 
     bool SwapChildrens(int frst_id, int scnd_id) {
         if (GetChildCount() < 2 ||
-            frst_id < 0 || (size_t)frst_id >= GetChildCount() ||
-            scnd_id < 0 || (size_t)scnd_id >= GetChildCount())
+            frst_id < 0 || static_cast<size_t>(frst_id) >= GetChildCount() ||
+            scnd_id < 0 || static_cast<size_t>(scnd_id) >= GetChildCount())
             return false;
 
-        ObjectDataViewModelNode new_scnd = *GetNthChild(frst_id);
-        ObjectDataViewModelNode new_frst = *GetNthChild(scnd_id);
+        // Swap just the displayed values; each child keeps its own m_idx, which is its
+        // position under this parent. This is what the old copy-node-then-AssignAllVal
+        // dance amounted to, and a node can no longer be copied wholesale because it owns
+        // its children.
+        ObjectDataViewModelNode* frst = GetNthChild(frst_id);
+        ObjectDataViewModelNode* scnd = GetNthChild(scnd_id);
 
-        new_scnd.m_idx = m_children.Item(scnd_id)->m_idx;
-        new_frst.m_idx = m_children.Item(frst_id)->m_idx;
-
-        m_children.Item(frst_id)->AssignAllVal(new_frst);
-        m_children.Item(scnd_id)->AssignAllVal(new_scnd);
+        std::swap(frst->m_name,     scnd->m_name);
+        std::swap(frst->m_bmp,      scnd->m_bmp);
+        std::swap(frst->m_extruder, scnd->m_extruder);
+        std::swap(frst->m_type,     scnd->m_type);
         return true;
     }
 
@@ -239,7 +251,7 @@ public:
     void        set_action_and_extruder_icons();
     // set extruder icon for node
     void        set_extruder_icon();
-	// Set printable icon for node
+    // Set printable icon for node
     void        set_printable_icon(PrintIndicator printable);
 
     void        update_settings_digest_bitmaps();
@@ -271,7 +283,8 @@ wxDECLARE_EVENT(wxCUSTOMEVT_LAST_VOLUME_IS_DELETED, wxCommandEvent);
 
 class ObjectDataViewModel :public wxDataViewModel
 {
-    std::vector<ObjectDataViewModelNode*>       m_objects;
+    // Owns the top-level object nodes, mirroring how each node owns its children.
+    std::vector<std::unique_ptr<ObjectDataViewModelNode>> m_objects;
     std::vector<wxBitmapBundle*>                m_volume_bmps;
     std::vector<wxBitmapBundle *>               m_text_volume_bmps;
     std::vector<wxBitmapBundle *>               m_svg_volume_bmps;

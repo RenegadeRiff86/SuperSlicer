@@ -101,7 +101,7 @@ void fill_config(PConf& pcfg, const ArrangeParams &params) {
     // Start placing the items from the center of the print bed
     pcfg.starting_point = PConf::Alignment::CENTER;
 
-    // TODO cannot use rotations until multiple objects of same geometry can
+    // Note: cannot use free rotations until multiple objects of same geometry can
     // handle different rotations.
     if (params.allow_rotations)
         pcfg.rotations = {0., PI / 2., PI, 3. * PI / 2. };
@@ -511,7 +511,7 @@ void _arrange(
     for (auto &itm : excludes) inp.emplace_back(itm);
 
     // Use the minimum bounding box rotation as a starting point.
-    // TODO: This only works for convex hull. If we ever switch to concave
+    // Note: this only works for the convex hull. If we ever switch to concave
     // polygon nesting, a convex hull needs to be calculated.
     if (params.allow_rotations) {
         for (auto &itm : shapes) {

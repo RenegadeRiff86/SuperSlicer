@@ -8,22 +8,24 @@
 #include <libslic3r/Preset.hpp>
 #include <libslic3r/PrintConfig.hpp>
 
+#include <optional>
+
 namespace Slic3r {
 
 namespace GUI {
 
 struct OpenGLVersions
 {
-	static const std::vector<std::pair<int, int>> core;
+    static const std::vector<std::pair<int, int>> core;
 };
 
 struct GUI_InitParams
 {
-	int		                    argc;
-	char	                  **argv;
+    int		                    argc;
+    char	                  **argv;
 
-	// Substitutions of unknown configuration values done during loading of user presets.
-	PresetsConfigSubstitutions  preset_substitutions;
+    // Substitutions of unknown configuration values done during loading of user presets.
+    PresetsConfigSubstitutions  preset_substitutions;
 
     std::vector<std::string>    load_configs;
     DynamicPrintConfig          extra_config;
@@ -33,10 +35,12 @@ struct GUI_InitParams
     bool                        start_downloader;
     bool                        delete_after_load;
     std::string                 download_url;
+    std::optional<bool>         automation_api_enabled;
+    std::optional<int>          automation_api_port;
 #if ENABLE_GL_CORE_PROFILE
-		std::pair<int, int>         opengl_version;
-		bool                        opengl_debug;
-		bool                        opengl_compatibiity_profile;
+        std::pair<int, int>         opengl_version;
+        bool                        opengl_debug;
+        bool                        opengl_compatibiity_profile;
 #endif // ENABLE_GL_CORE_PROFILE
 };
 

@@ -5,53 +5,66 @@
 ///|/
 #include "wxExtensions.hpp"
 
-#include <stdexcept>
-#include <cmath>
+#include <exception>
+#include <sstream>
 
 #include <wx/sizer.h>
 
 #include <boost/algorithm/string/replace.hpp>
-
+#include <boost/format.hpp>
 
 #include "libslic3r/AppConfig.hpp"
+#include "libslic3r/Exception.hpp"
 
 #include "BitmapCache.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"
 #include "GUI_ObjectList.hpp"
-#include "libslic3r/Config.hpp"
 #include "I18N.hpp"
 #include "GUI_Utils.hpp"
 #include "Plater.hpp"
-#include "../Utils/MacDarkMode.hpp"
 #include "BitmapComboBox.hpp"
-#include "libslic3r/Utils.hpp"
-#include "OG_CustomCtrl.hpp"
-#include "format.hpp"
 
 #include "libslic3r/Color.hpp"
+
+namespace {
+constexpr unsigned RGB_CHANNEL_SHIFT            = 16;
+constexpr size_t   HEX_COLOR_WITH_HASH_LENGTH   = 7;
+constexpr size_t   HEX_COLOR_WITHOUT_HASH_LENGTH = 6;
+}
+
+int settings_toolbar_icon_px()
+{
+    int px = 32;
+    if (Slic3r::GUI::wxGetApp().app_config) {
+        const int tab_px = Slic3r::GUI::wxGetApp().app_config->get_int("tab_icon_size");
+        if (tab_px > 0)
+            px = tab_px;
+    }
+    return px;
+}
 
 #ifndef __linux__
 // msw_menuitem_bitmaps is used for MSW and OSX
 static std::map<int, std::string> msw_menuitem_bitmaps;
 void sys_color_changed_menu(wxMenu* menu)
 {
-	struct update_icons {
-		static void run(wxMenuItem* item) {
-			const auto it = msw_menuitem_bitmaps.find(item->GetId());
-			if (it != msw_menuitem_bitmaps.end()) {
-				wxBitmapBundle* item_icon = get_bmp_bundle(it->second);
-				if (item_icon->IsOk())
-					item->SetBitmap(*item_icon);
-			}
-			if (item->IsSubMenu())
-				for (wxMenuItem *sub_item : item->GetSubMenu()->GetMenuItems())
-					update_icons::run(sub_item);
-		}
-	};
+    struct update_icons {
+        static void run(wxMenuItem* item) {
+            const auto it = msw_menuitem_bitmaps.find(item->GetId());
+            if (it != msw_menuitem_bitmaps.end()) {
+                wxBitmapBundle* item_icon = get_bmp_bundle(it->second);
+                if (item_icon->IsOk())
+                    item->SetBitmap(*item_icon);
+            }
+            if (item->IsSubMenu())
+                for (wxMenuItem *sub_item : item->GetSubMenu()->GetMenuItems())
+                    update_icons::run(sub_item);
+        }
+    };
 
-	for (wxMenuItem *item : menu->GetMenuItems())
-		update_icons::run(item);
+    for (wxMenuItem *item : menu->GetMenuItems())
+        update_icons::run(item);
 }
 #endif /* no __linux__ */
 
@@ -81,8 +94,10 @@ wxMenuItem* append_menu_item(wxMenu* menu, int id, const wxString& string, const
     if (event_handler != nullptr && event_handler != menu)
         event_handler->Bind(wxEVT_MENU, cb, id);
     else
-#endif // __WXMSW__
         menu->Bind(wxEVT_MENU, cb, id);
+#else
+    menu->Bind(wxEVT_MENU, cb, id);
+#endif // __WXMSW__
 
     if (parent) {
         parent->Bind(wxEVT_UPDATE_UI, [cb_condition, item, parent](wxUpdateUIEvent& evt) {
@@ -147,8 +162,10 @@ wxMenuItem* append_menu_radio_item(wxMenu* menu, int id, const wxString& string,
     if (event_handler != nullptr && event_handler != menu)
         event_handler->Bind(wxEVT_MENU, cb, id);
     else
-#endif // __WXMSW__
         menu->Bind(wxEVT_MENU, cb, id);
+#else
+    menu->Bind(wxEVT_MENU, cb, id);
+#endif // __WXMSW__
 
     return item;
 }
@@ -166,8 +183,10 @@ wxMenuItem* append_menu_check_item(wxMenu* menu, int id, const wxString& string,
     if (event_handler != nullptr && event_handler != menu)
         event_handler->Bind(wxEVT_MENU, cb, id);
     else
-#endif // __WXMSW__
         menu->Bind(wxEVT_MENU, cb, id);
+#else
+    menu->Bind(wxEVT_MENU, cb, id);
+#endif // __WXMSW__
 
     if (parent)
         parent->Bind(wxEVT_UPDATE_UI, [enable_condition, check_condition](wxUpdateUIEvent& evt)
@@ -179,30 +198,30 @@ wxMenuItem* append_menu_check_item(wxMenu* menu, int id, const wxString& string,
     return item;
 }
 
-uint32_t color_from_hex(std::string hex)
+uint32_t color_from_hex(const std::string& hex)
 {
     std::stringstream ss;
     ss << std::hex << hex;
     uint32_t color_bad_endian;
     ss >> color_bad_endian;
     uint32_t color = 0;
-    color |= (color_bad_endian & 0xFF) << 16;
+    color |= (color_bad_endian & 0xFF) << RGB_CHANNEL_SHIFT;
     color |= (color_bad_endian & 0xFF00);
-    color |= (color_bad_endian & 0xFF0000) >> 16;
+    color |= (color_bad_endian & 0xFF0000) >> RGB_CHANNEL_SHIFT;
     return color;
 }
 
 wxColour color_from_int(uint32_t color)
 {
-    return wxColour{ uint8_t(color & 0xFF), uint8_t((color & 0xFF00) >> 8) , uint8_t((color & 0xFF0000) >> 16) , uint8_t(255) };
+    return wxColour{ uint8_t(color & 0xFF), uint8_t((color & 0xFF00) >> 8) , uint8_t((color & 0xFF0000) >> RGB_CHANNEL_SHIFT) , uint8_t(255) };
 }
 
 std::string color_to_hex(uint32_t color)
 {
     uint32_t color_bad_endian = 0;
-    color_bad_endian |= (color & 0xFF) << 16;
+    color_bad_endian |= (color & 0xFF) << RGB_CHANNEL_SHIFT;
     color_bad_endian |= (color & 0xFF00);
-    color_bad_endian |= (color & 0xFF0000) >> 16;
+    color_bad_endian |= (color & 0xFF0000) >> RGB_CHANNEL_SHIFT;
     std::stringstream ss;
     ss << std::hex << color_bad_endian;
     return ss.str();
@@ -324,10 +343,13 @@ void wxCheckListBoxComboPopup::OnListBoxSelection(wxCommandEvent& evt)
     int selId = GetSelection();
     if (selId != wxNOT_FOUND)
     {
-        #ifndef _WIN32
-            if (m_check_box_events_status == OnCheckListBoxFunction::RefuseToProceed)
-        #endif
-                Check((unsigned int)selId, !IsChecked((unsigned int)selId));
+#ifdef _WIN32
+        const bool should_toggle = true;
+#else
+        const bool should_toggle = m_check_box_events_status == OnCheckListBoxFunction::RefuseToProceed;
+#endif
+        if (should_toggle)
+            Check(static_cast<unsigned int>(selId), !IsChecked(static_cast<unsigned int>(selId)));
 
         m_check_box_events_status = OnCheckListBoxFunction::FreeToProceed; // so the checkbox reacts to square-click the next time
 
@@ -348,51 +370,51 @@ const unsigned int wxDataViewTreeCtrlComboPopup::DefaultItemHeight = 22;
 
 bool wxDataViewTreeCtrlComboPopup::Create(wxWindow* parent)
 {
-	return wxDataViewTreeCtrl::Create(parent, wxID_ANY/*HIGHEST + 1*/, wxPoint(0, 0), wxDefaultSize/*wxSize(270, -1)*/, wxDV_NO_HEADER);
+    return wxDataViewTreeCtrl::Create(parent, wxID_ANY/*HIGHEST + 1*/, wxPoint(0, 0), wxDefaultSize/*wxSize(270, -1)*/, wxDV_NO_HEADER);
 }
 /*
 wxSize wxDataViewTreeCtrlComboPopup::GetAdjustedSize(int minWidth, int prefHeight, int maxHeight)
 {
-	// matches owner wxComboCtrl's width
-	// and sets height dinamically in dependence of contained items count
-	wxComboCtrl* cmb = GetComboCtrl();
-	if (cmb != nullptr)
-	{
-		wxSize size = GetComboCtrl()->GetSize();
-		if (m_cnt_open_items > 0)
-			size.SetHeight(m_cnt_open_items * DefaultItemHeight);
-		else
-			size.SetHeight(DefaultHeight);
+    // matches owner wxComboCtrl's width
+    // and sets height dinamically in dependence of contained items count
+    wxComboCtrl* cmb = GetComboCtrl();
+    if (cmb != nullptr)
+    {
+        wxSize size = GetComboCtrl()->GetSize();
+        if (m_cnt_open_items > 0)
+            size.SetHeight(m_cnt_open_items * DefaultItemHeight);
+        else
+            size.SetHeight(DefaultHeight);
 
-		return size;
-	}
-	else
-		return wxSize(DefaultWidth, DefaultHeight);
+        return size;
+    }
+    else
+        return wxSize(DefaultWidth, DefaultHeight);
 }
 */
 void wxDataViewTreeCtrlComboPopup::OnKeyEvent(wxKeyEvent& evt)
 {
-	// filters out all the keys which are not working properly
-	if (evt.GetKeyCode() == WXK_UP)
-	{
-		return;
-	}
-	else if (evt.GetKeyCode() == WXK_DOWN)
-	{
-		return;
-	}
-	else
-	{
-		evt.Skip();
-		return;
-	}
+    // filters out all the keys which are not working properly
+    if (evt.GetKeyCode() == WXK_UP)
+    {
+        return;
+    }
+    else if (evt.GetKeyCode() == WXK_DOWN)
+    {
+        return;
+    }
+    else
+    {
+        evt.Skip();
+        return;
+    }
 }
 
 void wxDataViewTreeCtrlComboPopup::OnDataViewTreeCtrlSelection(wxCommandEvent& evt)
 {
-	wxComboCtrl* cmb = GetComboCtrl();
-	auto selected = GetItemText(GetSelection());
-	cmb->SetText(selected);
+    wxComboCtrl* cmb = GetComboCtrl();
+    auto selected = GetItemText(GetSelection());
+    cmb->SetText(selected);
 }
 
 // edit tooltip : change Slic3r to SLIC3R_APP_KEY
@@ -452,7 +474,7 @@ wxBitmapBundle* get_bmp_bundle(const std::string& bmp_name_in, int width/* = 16*
     // Try loading an SVG first, then PNG if SVG is not found:
     Slic3r::ColorReplaces changes;
     //grayscale: just ask for new_color="#606060"
-    if (new_color.empty() || new_color.size() > 7 || new_color.size() < 6) {
+    if (new_color.empty() || new_color.size() > HEX_COLOR_WITH_HASH_LENGTH || new_color.size() < HEX_COLOR_WITHOUT_HASH_LENGTH) {
         try {
             uint32_t color_int = Slic3r::GUI::wxGetApp().app_config->create_color(0.86f, 0.93f);
             changes.add("#ED6B21", color_int);
@@ -460,13 +482,13 @@ wxBitmapBundle* get_bmp_bundle(const std::string& bmp_name_in, int width/* = 16*
             changes.add("#ED8D21", Slic3r::GUI::wxGetApp().app_config->create_color(0.5f, 0.93f));
             changes.add("#2172eb", color_int);
         }
-        catch (std::exception /*e*/) {
+        catch (const std::exception & /*e*/) {
         }
     } else {
-        changes.add("#ED6B21", new_color.size() == 7 ? new_color : (std::string("#") + new_color));
-        changes.add("#ed6b21", new_color.size() == 7 ? new_color : (std::string("#") + new_color));
-        //changes.add("#ED8D21", new_color.size() == 7 ? new_color : (std::string("#") + new_color));
-        changes.add("#2172eb", new_color.size() == 7 ? new_color : (std::string("#") + new_color));
+        changes.add("#ED6B21", new_color.size() == HEX_COLOR_WITH_HASH_LENGTH ? new_color : (std::string("#") + new_color));
+        changes.add("#ed6b21", new_color.size() == HEX_COLOR_WITH_HASH_LENGTH ? new_color : (std::string("#") + new_color));
+        //changes.add("#ED8D21", new_color.size() == HEX_COLOR_WITH_HASH_LENGTH ? new_color : (std::string("#") + new_color));
+        changes.add("#2172eb", new_color.size() == HEX_COLOR_WITH_HASH_LENGTH ? new_color : (std::string("#") + new_color));
     }
     
     // already added in get_bmp_bundle(bmp_name_in, width, height, changes);
@@ -791,7 +813,9 @@ bool ScalableButton::SetBitmap_(const std::string& bmp_name, int bmp_width)
     if (m_current_icon_name.empty())
         return false;
 
-    m_bmp_width = bmp_width;
+    // Keep the size the button was created with unless the caller asks for another.
+    if (bmp_width > 0)
+        m_bmp_width = bmp_width;
 
     wxBitmapBundle bmp = *get_bmp_bundle(m_current_icon_name, m_bmp_width, m_bmp_height);
     SetBitmap(bmp);
@@ -822,11 +846,11 @@ void ScalableButton::sys_color_changed()
     Slic3r::GUI::wxGetApp().UpdateDarkUI(this, m_has_border);
 
     wxBitmapBundle bmp = *get_bmp_bundle(m_current_icon_name, m_bmp_width, m_bmp_height);
-        SetBitmap(bmp);
-        SetBitmapCurrent(bmp);
-        SetBitmapPressed(bmp);
-        SetBitmapFocus(bmp);
-        if (!m_disabled_icon_name.empty())
+    SetBitmap(bmp);
+    SetBitmapCurrent(bmp);
+    SetBitmapPressed(bmp);
+    SetBitmapFocus(bmp);
+    if (!m_disabled_icon_name.empty())
         SetBitmapDisabled(*get_bmp_bundle(m_disabled_icon_name, m_bmp_width, m_bmp_height));
     if (!GetLabelText().IsEmpty())
         SetBitmapMargins(int(0.5 * em_unit(m_parent)), 0);

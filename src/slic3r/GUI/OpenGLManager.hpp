@@ -5,6 +5,13 @@
 #ifndef slic3r_OpenGLManager_hpp_
 #define slic3r_OpenGLManager_hpp_
 
+// This header's own interface is guarded by ENABLE_GL_CORE_PROFILE / ENABLE_OPENGL_ES below, so it
+// must define them itself. Without this include the macros are undefined here, init_glcontext
+// declares its single-argument form, and whether a caller sees that or the four-argument form comes
+// down to whether that translation unit happened to include Technologies.hpp first - which is how
+// GUI_App.cpp came to call an overload OpenGLManager.cpp never emitted.
+#include "libslic3r/Technologies.hpp"
+
 #include "GLShadersManager.hpp"
 
 class wxWindow;
@@ -106,7 +113,7 @@ private:
     };
 
     bool m_gl_initialized{ false };
-    wxGLContext* m_context{ nullptr };
+    std::unique_ptr<wxGLContext> m_context;
     bool m_debug_enabled{ false };
     GLShadersManager m_shaders_manager;
     static GLInfo s_gl_info;
@@ -121,7 +128,12 @@ private:
     static EFramebufferType s_framebuffers_type;
 
 public:
-    OpenGLManager() = default;
+    // Both are defined out of line. m_context is a unique_ptr to the forward-declared
+    // wxGLContext, and the compiler needs that type complete anywhere it might have to destroy
+    // the member - which includes the constructor's exception-cleanup path, not just the
+    // destructor. Defaulting the constructor inline here puts that cleanup in every translation
+    // unit that builds an OpenGLManager, where wxGLContext is still incomplete.
+    OpenGLManager();
     ~OpenGLManager();
 
     bool init_gl();

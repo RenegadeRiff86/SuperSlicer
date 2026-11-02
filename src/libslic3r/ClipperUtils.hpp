@@ -38,11 +38,12 @@ static constexpr const Slic3r::ClipperLib::JoinType DefaultJoinType         = Sl
 
 static constexpr const Slic3r::ClipperLib::EndType DefaultEndType           = Slic3r::ClipperLib::etOpenButt;
 
-//FIXME evaluate the default miter limit. 3 seems to be extreme, Cura uses 1.2.
+// The default miter limit of 3 is a deliberate compromise (Cura uses 1.2):
 // Mitter Limit 3 is useful for perimeter generator, where sharp corners are extruded without needing a gap fill.
 // However such a high limit causes issues with large positive or negative offsets, where a sharp corner
 // is extended excessively.
 static constexpr const double                       DefaultMiterLimit       = 3.;
+static constexpr const double                       DefaultVariableOffsetMiterLimit = 2.;
 
 static constexpr const Slic3r::ClipperLib::JoinType DefaultLineJoinType     = Slic3r::ClipperLib::jtSquare;
 // Miter limit is ignored for jtSquare.
@@ -641,10 +642,10 @@ Slic3r::ExPolygons simplify_polygons_ex(const Slic3r::Polygons &subject, bool pr
 Polygons top_level_islands(const Slic3r::Polygons &polygons);
 
 ClipperLib::Path mittered_offset_path_scaled(const Points &contour, const std::vector<float> &deltas, double miter_limit);
-Polygons  variable_offset_inner(const ExPolygon &expoly, const std::vector<std::vector<float>> &deltas, double miter_limit = 2.);
-Polygons  variable_offset_outer(const ExPolygon &expoly, const std::vector<std::vector<float>> &deltas, double miter_limit = 2.);
-ExPolygons variable_offset_outer_ex(const ExPolygon &expoly, const std::vector<std::vector<float>> &deltas, double miter_limit = 2.);
-ExPolygons variable_offset_inner_ex(const ExPolygon &expoly, const std::vector<std::vector<float>> &deltas, double miter_limit = 2.);
+Polygons  variable_offset_inner(const ExPolygon &expoly, const std::vector<std::vector<float>> &deltas, double miter_limit = DefaultVariableOffsetMiterLimit);
+Polygons  variable_offset_outer(const ExPolygon &expoly, const std::vector<std::vector<float>> &deltas, double miter_limit = DefaultVariableOffsetMiterLimit);
+ExPolygons variable_offset_outer_ex(const ExPolygon &expoly, const std::vector<std::vector<float>> &deltas, double miter_limit = DefaultVariableOffsetMiterLimit);
+ExPolygons variable_offset_inner_ex(const ExPolygon &expoly, const std::vector<std::vector<float>> &deltas, double miter_limit = DefaultVariableOffsetMiterLimit);
 
 } // namespace Slic3r
 

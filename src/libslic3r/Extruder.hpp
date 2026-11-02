@@ -24,7 +24,7 @@ class Tool
 {
 public:
     Tool(uint16_t id, GCodeConfig &config);
-    ~Tool() = default;
+    virtual ~Tool() = default;
 
     /*void   reset() {
         m_E             = 0;
@@ -120,7 +120,7 @@ class Mill : public Tool
 {
 public:
     Mill(uint16_t mill_id, GCodeConfig &config);
-    ~Mill() = default;
+    ~Mill() override = default;
     double retract_lift() const override;
 
     uint16_t mill_id() const { return m_mill_id; }
@@ -135,7 +135,7 @@ class Extruder : public Tool
 {
 public:
     Extruder(uint16_t id, GCodeConfig &config);
-    virtual ~Extruder() {}
+    ~Extruder() override = default;
 
     double filament_diameter() const override;
     double filament_density() const override;

@@ -64,8 +64,8 @@ namespace GUI {
             return;
 
         const Size cnv_size = canvas.get_canvas_size();
-        const float cnv_width = (float)cnv_size.get_width();
-        const float cnv_height = (float)cnv_size.get_height();
+        const float cnv_width = static_cast<float>(cnv_size.get_width());
+        const float cnv_height = static_cast<float>(cnv_size.get_height());
         if (cnv_width == 0.0f || cnv_height == 0.0f)
             return;
 
@@ -92,7 +92,8 @@ namespace GUI {
         if (!core_profile) {
 #endif // ENABLE_GL_CORE_PROFILE
         glsafe(::glPushAttrib(GL_ENABLE_BIT));
-        glsafe(::glLineStipple(4, 0xAAAA));
+        constexpr GLint stipple_repeat_factor = 4;
+        glsafe(::glLineStipple(stipple_repeat_factor, 0xAAAA));
         glsafe(::glEnable(GL_LINE_STIPPLE));
 #if ENABLE_GL_CORE_PROFILE
         }
@@ -162,15 +163,15 @@ namespace GUI {
                 m_rectangle.init_from(std::move(init_data));
             }
 
-            shader->set_uniform("view_model_matrix", Transform3d::Identity());
-            shader->set_uniform("projection_matrix", Transform3d::Identity());
+            shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, Transform3d::Identity());
+            shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, Transform3d::Identity());
 #if ENABLE_OPENGL_ES
             shader->set_uniform("dash_size", 0.01f);
             shader->set_uniform("gap_size", 0.0075f);
 #elif ENABLE_GL_CORE_PROFILE
             if (core_profile) {
-            const std::array<int, 4>& viewport = wxGetApp().plater()->get_camera().get_viewport();
-            shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+            const std::array<int, GLViewportComponents>& viewport = wxGetApp().plater()->get_camera().get_viewport();
+            shader->set_uniform("viewport_size", Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
             shader->set_uniform("width", 0.25f);
             shader->set_uniform("dash_size", 0.01f);
             shader->set_uniform("gap_size", 0.0075f);

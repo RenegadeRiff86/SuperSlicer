@@ -30,7 +30,6 @@ private:
         PickingModel vbo;
         Vec3d normal;
         float area;
-        int picking_id{ -1 };
     };
 
     // This holds information to decide whether recalculation is necessary:

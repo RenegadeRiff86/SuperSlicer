@@ -36,6 +36,20 @@
 
 namespace Slic3r {
 
+// A polygon degenerates below this point count; the sanitizing helpers drop such contours.
+static constexpr size_t MIN_POLYGON_POINT_COUNT = 3;
+// XOR-fold shifts mixing the 16-bit words of a coordinate into a small jitter that keeps equal points equal across collections.
+static constexpr int JITTER_FOLD_SHIFT_1 = 16;
+static constexpr int JITTER_FOLD_SHIFT_2 = 32;
+static constexpr int JITTER_FOLD_SHIFT_3 = 48;
+// Nudge separating coincident consecutive points: well below CLIPPER_OFFSET_POWER_OF_2, high enough not to be reduced to 0 if cut near an end.
+static constexpr ClipperLib::cInt DUPLICATE_POINT_NUDGE = 2048;
+// Margin inflating a bounds rectangle used as the outer frame when inverting a clipping result.
+static constexpr ClipperLib::cInt BOUNDS_FRAME_MARGIN = 10;
+static constexpr double ROUND_TO_NEAREST_BIAS = 0.5; // added before truncating to round to the nearest integer
+// A square join approximates the arc with two points placed at the quarter angle.
+static constexpr double SQUARE_JOIN_ANGLE_DIVISOR = 4.;
+
 #ifdef CLIPPER_UTILS_DEBUG
 // For debugging the Clipper library, for providing bug reports to the Clipper author.
 bool export_clipper_input_polygons_bin(const char *path, const ClipperLib::Paths &input_subject, const ClipperLib::Paths &input_clip)
@@ -82,7 +96,7 @@ namespace ClipperUtils {
 
         out.clear();
         const size_t cnt = src.size();
-        if (cnt < 3) {
+        if (cnt < MIN_POLYGON_POINT_COUNT) {
             return;
         }
 
@@ -516,7 +530,7 @@ namespace ClipperUtils {
             out.pop_back();
         }
         
-        if (out.size() < 3) {
+        if (out.size() < MIN_POLYGON_POINT_COUNT) {
             out.clear();
             return;
         }
@@ -620,8 +634,8 @@ namespace ClipperUtils {
             }
         }
 
-        // hack bugfix https://github.com/prusa3d/PrusaSlicer/issues/13356
-        if (out.size() < 3) {
+        // workaround for https://github.com/prusa3d/PrusaSlicer/issues/13356: never return a degenerate (<3 point) polygon
+        if (out.size() < MIN_POLYGON_POINT_COUNT) {
             out.clear();
             return;
         }
@@ -641,7 +655,7 @@ namespace ClipperUtils {
 
         out.clear();
         const size_t cnt = src.size();
-        if (cnt < 3)
+        if (cnt < MIN_POLYGON_POINT_COUNT)
             return;
 
         enum class Side {
@@ -688,8 +702,8 @@ namespace ClipperUtils {
                 out.emplace_back(src.back());
             }
         }
-        // hack bugfix https://github.com/prusa3d/PrusaSlicer/issues/13356
-        if(out.size() < 3)
+        // workaround for https://github.com/prusa3d/PrusaSlicer/issues/13356: never return a degenerate (<3 point) polygon
+        if(out.size() < MIN_POLYGON_POINT_COUNT)
             out.clear();
         assert(out.size() > 2 || out.empty());
     }
@@ -833,7 +847,7 @@ static ExPolygons PolyTreeToExPolygons(ClipperLib::PolyTree &&polytree)
                 return;
             }
             // 3 points and two are too close
-            if ((*expolygons)[cnt].contour.size() < 4) {
+            if ((*expolygons)[cnt].contour.size() <= MIN_POLYGON_POINT_COUNT) {
                 if ((*expolygons)[cnt].contour[0].coincides_with_epsilon((*expolygons)[cnt].contour[2]) ||
                     (*expolygons)[cnt].contour[0].coincides_with_epsilon((*expolygons)[cnt].contour[1]) ||
                     (*expolygons)[cnt].contour[1].coincides_with_epsilon((*expolygons)[cnt].contour[2])) {
@@ -1020,7 +1034,7 @@ TResult clipper_union(
 }
 
 // Perform union of input polygons using the positive rule, convert to ExPolygons.
-//FIXME is there any benefit of not doing the boolean / using pftEvenOdd?
+// Performance note: it is unclear whether there is any benefit of not doing the boolean / using pftEvenOdd.
 inline ExPolygons ClipperPaths_to_Slic3rExPolygons(const ClipperLib::Paths &input, bool do_union)
 {
     return PolyTreeToExPolygons(clipper_union<ClipperLib::PolyTree>(input, do_union ? ClipperLib::pftNonZero : ClipperLib::pftEvenOdd));
@@ -1058,7 +1072,11 @@ static TResult shrink_paths(PathsProvider &&paths, double offset, ClipperLib::Jo
         ClipperLib::Clipper clipper;
         clipper.AddPaths(raw, ClipperLib::ptSubject, true);
         ClipperLib::IntRect r = clipper.GetBounds();
-        clipper.AddPath({ { r.left - 10, r.bottom + 10 }, { r.right + 10, r.bottom + 10 }, { r.right + 10, r.top - 10 }, { r.left - 10, r.top - 10 } }, ClipperLib::ptSubject, true);
+        clipper.AddPath({ { r.left - BOUNDS_FRAME_MARGIN, r.bottom + BOUNDS_FRAME_MARGIN },
+                          { r.right + BOUNDS_FRAME_MARGIN, r.bottom + BOUNDS_FRAME_MARGIN },
+                          { r.right + BOUNDS_FRAME_MARGIN, r.top - BOUNDS_FRAME_MARGIN },
+                          { r.left - BOUNDS_FRAME_MARGIN, r.top - BOUNDS_FRAME_MARGIN } },
+                        ClipperLib::ptSubject, true);
         clipper.ReverseSolution(true);
         clipper.Execute(ClipperLib::ctUnion, out, ClipperLib::pftNegative, ClipperLib::pftNegative);
         remove_outermost_polygon(out);
@@ -1231,7 +1249,7 @@ Slic3r::Polygons offset(const Slic3r::Surfaces &surfaces, const double delta, Cl
 Slic3r::Polygons offset(const Slic3r::SurfacesPtr &surfaces, const double delta, ClipperLib::JoinType joinType, double miterLimit)
     { return to_polygons(expolygons_offset(surfaces, delta, joinType, miterLimit)); }
 Slic3r::ExPolygons offset_ex(const Slic3r::ExPolygon &expolygon, const double delta, ClipperLib::JoinType joinType, double miterLimit)
-    //FIXME one may spare one Clipper Union call.
+    // Performance note: one may spare one Clipper Union call.
     { return ClipperPaths_to_Slic3rExPolygons(expolygon_offset(expolygon, delta, joinType, miterLimit), /* do union */ false); }
 Slic3r::ExPolygons offset_ex(const Slic3r::ExPolygons &expolygons, const double delta, ClipperLib::JoinType joinType, double miterLimit)
     { return PolyTreeToExPolygons(expolygons_offset_pt(expolygons, delta, joinType, miterLimit)); }
@@ -1250,7 +1268,7 @@ ExPolygons offset2_ex(const ExPolygons &expolygons, const double delta1, const d
 }
 ExPolygons offset2_ex(const Surfaces &surfaces, const double delta1, const double delta2, ClipperLib::JoinType joinType, double miterLimit)
 {
-    //FIXME it may be more efficient to offset to_expolygons(surfaces) instead of to_polygons(surfaces).
+    // Performance note: it may be more efficient to offset to_expolygons(surfaces) instead of to_polygons(surfaces).
     return PolyTreeToExPolygons(offset_paths<ClipperLib::PolyTree>(expolygons_offset(surfaces, delta1, joinType, miterLimit), delta2, joinType, miterLimit));
 }
 
@@ -1271,7 +1289,7 @@ Slic3r::ExPolygons closing_ex(const Slic3r::Surfaces &surfaces, const double del
 {
     assert(delta1 > 0);
     assert(delta2 > 0);
-    //FIXME it may be more efficient to offset to_expolygons(surfaces) instead of to_polygons(surfaces).
+    // Performance note: it may be more efficient to offset to_expolygons(surfaces) instead of to_polygons(surfaces).
     return PolyTreeToExPolygons(shrink_paths<ClipperLib::PolyTree>(expand_paths<ClipperLib::Paths>(ClipperUtils::SurfacesProvider(surfaces), delta1, joinType, miterLimit), delta2, joinType, miterLimit));
 }
 
@@ -1292,7 +1310,7 @@ Slic3r::Polygons opening(const Slic3r::Surfaces &surfaces, const double delta1, 
 {
     assert(delta1 > 0);
     assert(delta2 > 0);
-    //FIXME it may be more efficient to offset to_expolygons(surfaces) instead of to_polygons(surfaces).
+    // Performance note: it may be more efficient to offset to_expolygons(surfaces) instead of to_polygons(surfaces).
     return to_polygons(expand_paths<ClipperLib::Paths>(shrink_paths<ClipperLib::Paths>(ClipperUtils::SurfacesProvider(surfaces), delta1, joinType, miterLimit), delta2, joinType, miterLimit));
 }
 Slic3r::ExPolygons opening_ex(const Slic3r::Polygons& polygons, const double delta1, const double delta2, ClipperLib::JoinType joinType, double miterLimit)
@@ -1618,17 +1636,17 @@ Polylines _clipper_pl_open(ClipperLib::ClipType clipType, PathsProvider1 &&subje
                 {
                     //add something from the x() to allow points to be equal even if in different collection
                     ClipperLib::cInt dy = pt.x() & 0xFFFF;
-                    dy ^= ((pt.x()>>16) & 0xFFFF);
+                    dy ^= ((pt.x() >> JITTER_FOLD_SHIFT_1) & 0xFFFF);
 #ifndef CLIPPERLIB_INT32
-                    dy ^= ((pt.x()>>32) & 0xFFFF);
-                    dy ^= ((pt.x()>>48) & 0xFFFF);
+                    dy ^= ((pt.x() >> JITTER_FOLD_SHIFT_2) & 0xFFFF);
+                    dy ^= ((pt.x() >> JITTER_FOLD_SHIFT_3) & 0xFFFF);
 #endif
                     assert(dy >= 0 && dy <= 0xFFFF);
                     ClipperLib::cInt dx = pt.y() & 0xFFFF;
-                    dx ^= ((pt.y()>>16) & 0xFFFF);
+                    dx ^= ((pt.y() >> JITTER_FOLD_SHIFT_1) & 0xFFFF);
 #ifndef CLIPPERLIB_INT32
-                    dx ^= ((pt.y()>>32) & 0xFFFF);
-                    dx ^= ((pt.y()>>48) & 0xFFFF);
+                    dx ^= ((pt.y() >> JITTER_FOLD_SHIFT_2) & 0xFFFF);
+                    dx ^= ((pt.y() >> JITTER_FOLD_SHIFT_3) & 0xFFFF);
 #endif
                     assert(dx >= 0 && dx <= 0xFFFF);
                     pt.x() += dx;
@@ -1639,10 +1657,10 @@ Polylines _clipper_pl_open(ClipperLib::ClipType clipType, PathsProvider1 &&subje
                     // this can create artifacts, as two identical point aren't identical anymore.
                     // But it's better to have a little point returned instead of a wierd result.
                     // note: it also trigger when x==y, but it's okay
-                    pt.x() += 2048;// well below CLIPPER_OFFSET_POWER_OF_2, need also to be high enough that it won't be reduce to 0 if cut near an end
+                    pt.x() += DUPLICATE_POINT_NUDGE;// well below CLIPPER_OFFSET_POWER_OF_2, need also to be high enough that it won't be reduce to 0 if cut near an end
                 }
                 if (lasty == pt.y()) {
-                    pt.y() += 2048;
+                    pt.y() += DUPLICATE_POINT_NUDGE;
                 }
                 lastx = pt.x();
                 lasty = pt.y();
@@ -1764,17 +1782,17 @@ ClipperLib_Z::Paths clip_extrusion(const ClipperLib_Z::Paths& subjects, const Cl
                 {
                     //add something from the x() to allow points to be equal even if in different collection
                     ClipperLib::cInt dy = pt.x() & 0xFFFF;
-                    dy ^= ((pt.x()>>16) & 0xFFFF);
+                    dy ^= ((pt.x() >> JITTER_FOLD_SHIFT_1) & 0xFFFF);
 #ifndef CLIPPERLIB_INT32
-                    dy ^= ((pt.x()>>32) & 0xFFFF);
-                    dy ^= ((pt.x()>>48) & 0xFFFF);
+                    dy ^= ((pt.x() >> JITTER_FOLD_SHIFT_2) & 0xFFFF);
+                    dy ^= ((pt.x() >> JITTER_FOLD_SHIFT_3) & 0xFFFF);
 #endif
                     assert(dy >= 0 && dy <= 0xFFFF);
                     ClipperLib::cInt dx = pt.y() & 0xFFFF;
-                    dx ^= ((pt.y()>>16) & 0xFFFF);
+                    dx ^= ((pt.y() >> JITTER_FOLD_SHIFT_1) & 0xFFFF);
 #ifndef CLIPPERLIB_INT32
-                    dx ^= ((pt.y()>>32) & 0xFFFF);
-                    dx ^= ((pt.y()>>48) & 0xFFFF);
+                    dx ^= ((pt.y() >> JITTER_FOLD_SHIFT_2) & 0xFFFF);
+                    dx ^= ((pt.y() >> JITTER_FOLD_SHIFT_3) & 0xFFFF);
 #endif
                     assert(dx >= 0 && dx <= 0xFFFF);
                     pt.x() += dx;
@@ -1785,10 +1803,10 @@ ClipperLib_Z::Paths clip_extrusion(const ClipperLib_Z::Paths& subjects, const Cl
                     // this can create artifacts, as two identical point aren't identical anymore.
                     // But it's better to have a little point returned instead of a wierd result.
                     // note: it also trigger when x==y, but it's okay
-                    pt.x() += 2048;// well below CLIPPER_OFFSET_POWER_OF_2, need also to be high enough that it won't be reduce to 0 if cut near an end
+                    pt.x() += DUPLICATE_POINT_NUDGE;// well below CLIPPER_OFFSET_POWER_OF_2, need also to be high enough that it won't be reduce to 0 if cut near an end
                 }
                 if (lasty == pt.y()) {
-                    pt.y() += 2048;
+                    pt.y() += DUPLICATE_POINT_NUDGE;
                 }
                 lastx = pt.x();
                 lasty = pt.y();
@@ -2027,7 +2045,7 @@ Lines _clipper_ln(ClipperLib::ClipType clipType, const Lines &subject, const Pol
     Lines retval;
     for (Polylines::const_iterator polyline = polylines.begin(); polyline != polylines.end(); ++polyline)
         if (polyline->size() >= 2)
-            //FIXME It may happen, that Clipper produced a polyline with more than 2 collinear points by clipping a single line with polygons. It is a very rare issue, but it happens, see GH #6933.
+            // Note: Clipper may produce a polyline with more than 2 collinear points by clipping a single line with polygons (very rare, see GH #6933); taking front/back collapses it back to a single line.
             retval.push_back({ polyline->front(), polyline->back() });
     return retval;
 }
@@ -2080,7 +2098,7 @@ static void traverse_pt_outside_in(ClipperLib::PolyNodes &&nodes, Polygons *retv
         ordering_points.emplace_back(node->Contour.front().x(), node->Contour.front().y());
 
     // Perform the ordering, push results recursively.
-    //FIXME pass the last point to chain_clipper_polynodes?
+    // Possible improvement: pass the last point to chain_clipper_polynodes.
     for (ClipperLib::PolyNode *node : chain_clipper_polynodes(ordering_points, nodes)) {
         retval->emplace_back(std::move(node->Contour));
         if (node->IsHole()) 
@@ -2105,7 +2123,7 @@ Polygons simplify_polygons(const Polygons &subject)
     ClipperLib::Paths output;
         ClipperLib::Clipper c;
 //    c.PreserveCollinear(true);
-    //FIXME StrictlySimple is very expensive! Is it needed?
+    // Performance note: StrictlySimple is very expensive; it is unclear whether it is needed.
         c.StrictlySimple(true);
         c.AddPaths(ClipperUtils::PolygonsProvider(subject), ClipperLib::ptSubject, true);
         c.Execute(ClipperLib::ctUnion, output, ClipperLib::pftNonZero, ClipperLib::pftNonZero);
@@ -2121,7 +2139,7 @@ ExPolygons simplify_polygons_ex(const Polygons &subject, bool preserve_collinear
     ClipperLib::PolyTree polytree;
     ClipperLib::Clipper c;
     if (preserve_collinear) c.PreserveCollinear(preserve_collinear);
-    //FIXME StrictlySimple is very expensive! Is it needed?
+    // Performance note: StrictlySimple is very expensive; it is unclear whether it is needed.
     c.StrictlySimple(true);
     c.AddPaths(ClipperUtils::PolygonsProvider(subject), ClipperLib::ptSubject, true);
     c.Execute(ClipperLib::ctUnion, polytree, ClipperLib::pftNonZero, ClipperLib::pftNonZero);
@@ -2184,7 +2202,7 @@ ClipperLib::Paths fix_after_inner_offset(
         ClipperLib::Clipper clipper;
         clipper.AddPath(input, ClipperLib::ptSubject, true);
         ClipperLib::IntRect r = clipper.GetBounds();
-        r.left -= 10; r.top -= 10; r.right += 10; r.bottom += 10;
+        r.left -= BOUNDS_FRAME_MARGIN; r.top -= BOUNDS_FRAME_MARGIN; r.right += BOUNDS_FRAME_MARGIN; r.bottom += BOUNDS_FRAME_MARGIN;
         if (filltype == ClipperLib::pftPositive)
             clipper.AddPath({ ClipperLib::IntPoint(r.left, r.bottom), ClipperLib::IntPoint(r.left, r.top), ClipperLib::IntPoint(r.right, r.top), ClipperLib::IntPoint(r.right, r.bottom) }, ClipperLib::ptSubject, true);
         else
@@ -2229,7 +2247,7 @@ ClipperLib::Path mittered_offset_path_scaled(const Points &contour, const std::v
 
         // Add a new point to the output, scale by CLIPPER_OFFSET_SCALE and round to ClipperLib::cInt.
         auto   add_offset_point = [&out](Vec2d pt) {
-            pt += Vec2d(0.5 - (pt.x() < 0), 0.5 - (pt.y() < 0));
+            pt += Vec2d(ROUND_TO_NEAREST_BIAS - (pt.x() < 0), ROUND_TO_NEAREST_BIAS - (pt.y() < 0));
             out.emplace_back(ClipperLib::cInt(pt.x()), ClipperLib::cInt(pt.y()));
         };
 
@@ -2295,7 +2313,7 @@ ClipperLib::Path mittered_offset_path_scaled(const Points &contour, const std::v
                         if (r >= miter_limit)
                             add_offset_point(pt + (nprev + nnext) * (delta / r));
                         else {
-                            double dx = std::tan(std::atan2(sin_a, dot) / 4.);
+                            double dx = std::tan(std::atan2(sin_a, dot) / SQUARE_JOIN_ANGLE_DIVISOR);
                             Vec2d  newpt1 = pt + (nprev - perp(nprev) * dx) * delta;
                             Vec2d  newpt2 = pt + (nnext + perp(nnext) * dx) * delta;
 #ifndef NDEBUG
@@ -2482,7 +2500,7 @@ Polygons variable_offset_outer(const ExPolygon &expoly, const std::vector<std::v
     if (holes.empty())
         output = std::move(contours);
     else {
-        //FIXME the difference is not needed as the holes may never intersect with other holes.
+        // Performance note: the difference may not be needed, as the holes may never intersect with other holes.
         ClipperLib::Clipper clipper;
         clipper.Clear();
         clipper.AddPaths(contours, ClipperLib::ptSubject, true);
@@ -2524,7 +2542,7 @@ ExPolygons variable_offset_outer_ex(const ExPolygon &expoly, const std::vector<s
             output.push_back(ExPolygon{ std::move(contours.front()) });
         }
     } else {
-        //FIXME the difference is not needed as the holes may never intersect with other holes.
+        // Performance note: the difference may not be needed, as the holes may never intersect with other holes.
         ClipperLib::Clipper clipper;
         // Contours may have holes if they were created by closing a C shape.
         clipper.AddPaths(contours, ClipperLib::ptSubject, true);

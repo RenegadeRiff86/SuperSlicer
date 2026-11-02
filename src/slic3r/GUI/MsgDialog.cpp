@@ -32,37 +32,41 @@
 namespace Slic3r {
 namespace GUI {
 
+static constexpr int HTML_BORDER = 2;
+static constexpr int EXTRA_TEXT_LINES = 2;
+static constexpr int TEXT_PADDING = 2;
+
 MsgDialog::MsgDialog(wxWindow *parent, const wxString &title, const wxString &headline, long style, wxBitmap bitmap)
-	: wxDialog(parent ? parent : dynamic_cast<wxWindow*>(wxGetApp().mainframe), wxID_ANY, title, wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
-	, boldfont(wxGetApp().normal_font())
-	, content_sizer(new wxBoxSizer(wxVERTICAL))
-	, btn_sizer(new wxBoxSizer(wxHORIZONTAL))
+    : wxDialog(parent ? parent : dynamic_cast<wxWindow*>(wxGetApp().mainframe), wxID_ANY, title, wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
+    , boldfont(wxGetApp().normal_font())
+    , content_sizer(new wxBoxSizer(wxVERTICAL))
+    , btn_sizer(new wxBoxSizer(wxHORIZONTAL))
 {
 #ifdef __APPLE__
     this->SetBackgroundColour(wxGetApp().get_window_default_clr());
 #endif
-	boldfont.SetWeight(wxFONTWEIGHT_BOLD);
+    boldfont.SetWeight(wxFONTWEIGHT_BOLD);
 
     this->SetFont(wxGetApp().normal_font());
     this->CenterOnParent();
 
     auto *main_sizer = new wxBoxSizer(wxVERTICAL);
-	auto *topsizer = new wxBoxSizer(wxHORIZONTAL);
-	auto *rightsizer = new wxBoxSizer(wxVERTICAL);
+    auto *topsizer = new wxBoxSizer(wxHORIZONTAL);
+    auto *rightsizer = new wxBoxSizer(wxVERTICAL);
 
-	auto *headtext = new wxStaticText(this, wxID_ANY, headline);
-	headtext->SetFont(boldfont);
+    auto *headtext = new wxStaticText(this, wxID_ANY, headline);
+    headtext->SetFont(boldfont);
     headtext->Wrap(CONTENT_WIDTH*wxGetApp().em_unit());
-	rightsizer->Add(headtext);
-	rightsizer->AddSpacer(VERT_SPACING);
+    rightsizer->Add(headtext);
+    rightsizer->AddSpacer(VERT_SPACING);
 
-	rightsizer->Add(content_sizer, 1, wxEXPAND);
+    rightsizer->Add(content_sizer, 1, wxEXPAND);
     btn_sizer->AddStretchSpacer();
 
-	logo = new wxStaticBitmap(this, wxID_ANY, bitmap.IsOk() ? bitmap : wxNullBitmap);
+    logo = new wxStaticBitmap(this, wxID_ANY, bitmap.IsOk() ? bitmap : wxNullBitmap);
 
-	topsizer->Add(logo, 0, wxALL, BORDER);
-	topsizer->Add(rightsizer, 1, wxTOP | wxBOTTOM | wxRIGHT | wxEXPAND, BORDER);
+    topsizer->Add(logo, 0, wxALL, BORDER);
+    topsizer->Add(rightsizer, 1, wxTOP | wxBOTTOM | wxRIGHT | wxEXPAND, BORDER);
 
     main_sizer->Add(topsizer, 1, wxEXPAND);
     main_sizer->Add(new StaticLine(this), 0, wxEXPAND | wxLEFT | wxRIGHT, HORIZ_SPACING);
@@ -70,7 +74,7 @@ MsgDialog::MsgDialog(wxWindow *parent, const wxString &title, const wxString &he
 
     apply_style(style);
 
-	SetSizerAndFit(main_sizer);
+    SetSizerAndFit(main_sizer);
 }
 
 void MsgDialog::SetButtonLabel(wxWindowID btn_id, const wxString& label, bool set_focus/* = false*/) 
@@ -140,7 +144,7 @@ static void add_msg_content(MsgDialog* parent, wxBoxSizer* content_sizer, const 
                 if (cur_line_len == 0 || line_len > cur_line_len)
                     msg_lines++;
                 else
-                    msg_lines += std::lround((double)(cur_line_len) / line_len);
+                    msg_lines += std::lround(static_cast<double>(cur_line_len) / line_len);
             }
         }
         msg_lines++;
@@ -149,12 +153,14 @@ static void add_msg_content(MsgDialog* parent, wxBoxSizer* content_sizer, const 
     wxFont      font = wxGetApp().normal_font();//wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT);
     wxFont      monospace = wxGetApp().code_font();
     wxColour    text_clr = wxGetApp().get_label_clr_default();
+    if (!text_clr.IsOk())
+        text_clr = GUI_App::dark_mode() ? wxColour(230, 230, 230) : wxColour(0, 0, 0);
     auto        text_clr_str = encode_color(ColorRGB(text_clr.Red(), text_clr.Green(), text_clr.Blue()));
     auto        bgr_clr_str = wxGetApp().get_html_bg_color(parent);
     const int   font_size = font.GetPointSize();
     int         size[] = { font_size, font_size, font_size, font_size, font_size, font_size, font_size };
     html->SetFonts(font.GetFaceName(), monospace.GetFaceName(), size);
-    html->SetBorders(2);
+    html->SetBorders(HTML_BORDER);
 
     // calculate html page size from text
     wxSize page_size;
@@ -169,7 +175,7 @@ static void add_msg_content(MsgDialog* parent, wxBoxSizer* content_sizer, const 
         // So, initialize default width_unit according to the width of the one symbol ("m") of the currently active font of this window.
         em = std::max<size_t>(10, parent->GetTextExtent("m").x - 1);
 #else
-        double scale_factor = (double)get_dpi_for_window(parent) / (double)DPI_DEFAULT;
+        double scale_factor = static_cast<double>(get_dpi_for_window(parent)) / static_cast<double>(DPI_DEFAULT);
         em = std::max<size_t>(10, 10.0f * scale_factor);
 #endif // __WXGTK__
     }
@@ -178,18 +184,18 @@ static void add_msg_content(MsgDialog* parent, wxBoxSizer* content_sizer, const 
     if (content.msg.Contains("<tr>")) {
         int lines = content.msg.Freq('\n') + 1;
         int pos = 0;
-        while (pos < (int)content.msg.Len() && pos != wxNOT_FOUND) {
+        while (pos < static_cast<int>(content.msg.Len()) && pos != wxNOT_FOUND) {
             pos = content.msg.find("<tr>", pos + 1);
-            lines += 2;
+            lines += EXTRA_TEXT_LINES;
         }
-        int page_height = std::min(int(font.GetPixelSize().y+2) * lines, 68 * em);
+        int page_height = std::min(int(font.GetPixelSize().y + TEXT_PADDING) * lines, 68 * em);
         page_size = wxSize(68 * em, page_height);
     }
     else {
         wxClientDC dc(parent);
         wxSize msg_sz = dc.GetMultiLineTextExtent(content.msg);
-        page_size = wxSize(std::min(msg_sz.GetX() + 2 * em, 68 * em),
-                           std::min(msg_sz.GetY() + 2 * em, 68 * em));
+        page_size = wxSize(std::min(msg_sz.GetX() + TEXT_PADDING * em, 68 * em),
+                           std::min(msg_sz.GetY() + TEXT_PADDING * em, 68 * em));
     }
     html->SetMinSize(page_size);
 
@@ -275,8 +281,10 @@ WarningDialog::WarningDialog(wxWindow *parent,
     finalize();
 }
 
-#ifdef _WIN32
 // MessageDialog
+// Built on MsgDialog on every platform - see the note on the class declaration for why the
+// native wxMessageDialog cannot be used here (its buttons are not wxWindows, so custom button
+// labels were silently discarded).
 
 MessageDialog::MessageDialog(wxWindow* parent,
     const wxString& message,
@@ -287,18 +295,6 @@ MessageDialog::MessageDialog(wxWindow* parent,
     add_msg_content(this, content_sizer, HtmlContent{ get_wraped_wxString(message) });
     finalize();
 }
-#else
-
-void MessageDialog::SetButtonLabel(wxWindowID btn_id, const wxString& label, bool set_focus/* = false*/)
-{
-    if (wxButton* btn = static_cast<wxButton*>(FindWindowById(btn_id, this))) {
-        btn->SetLabel(label);
-        if (set_focus)
-            btn->SetFocus();
-    }
-}
-
-#endif
 
 
 // RichMessageDialogBase
@@ -348,8 +344,8 @@ int RichMessageDialogBase::ShowModal()
 // InfoDialog
 
 InfoDialog::InfoDialog(wxWindow* parent, const wxString &title, const wxString& msg, bool is_marked_msg/* = false*/, long style/* = wxOK | wxICON_INFORMATION*/)
-	: MsgDialog(parent, wxString::Format(_L("%s information"), SLIC3R_APP_NAME), title, style)
-	, msg(msg)
+    : MsgDialog(parent, wxString::Format(_L("%s information"), SLIC3R_APP_NAME), title, style)
+    , msg(msg)
 {
     add_msg_content(this, content_sizer, HtmlContent{ msg, false, is_marked_msg });
     finalize();

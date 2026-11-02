@@ -80,8 +80,9 @@ void Print::clear()
     std::scoped_lock<std::mutex> lock(this->state_mutex());
     // The following call should stop background processing if it is running.
     this->invalidate_all_steps();
-    for (PrintObject *object : m_objects)
-        delete object;
+    for (PrintObject *object : m_objects) {
+        std::unique_ptr<PrintObject> object_owner{object};
+    }
     m_objects.clear();
     m_print_regions.clear();
     m_model.clear_objects();
@@ -101,6 +102,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "allow_empty_layers",
         "autoemit_temperature_commands",
         "autospeed_min_thin_flow",
+        "autospeed_pressure_advance_headroom",
         "avoid_crossing_perimeters",
         "avoid_crossing_perimeters_max_detour",
         "avoid_crossing_not_first_layer",
@@ -123,6 +125,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "duplicate_distance",
         "overhangs_dynamic_fan_speed",
         "filament_pressure_advance",
+        "filament_z_offset",
         "filament_adaptive_pressure_advance",
         "filament_adaptive_pressure_advance_model",
         "filament_adaptive_pressure_advance_overhangs",
@@ -136,8 +139,8 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "extruder_colour",
         "extruder_extrusion_multiplier_speed",
         "extruder_offset",
-        "extruder_fan_offset"
-        "extruder_pressure_factor"
+        "extruder_fan_offset",
+        "extruder_pressure_factor",
         "extruder_temperature_offset",
         "extrusion_multiplier",
         "fan_below_layer_time",
@@ -181,7 +184,15 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "lift_min",
         "max_fan_speed",
         "max_gcode_per_second",
+        "machine_klipper_max_velocity",
+        "machine_klipper_max_acceleration",
+        "machine_klipper_max_z_velocity",
+        "machine_klipper_max_z_acceleration",
+        "machine_klipper_square_corner_velocity",
         "machine_min_cruise_ratio",
+        "machine_klipper_max_extrude_only_velocity",
+        "machine_klipper_max_extrude_only_acceleration",
+        "machine_klipper_instantaneous_corner_velocity",
         "max_print_height",
         "max_print_speed",
         "max_speed_reduction",
@@ -254,6 +265,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "time_start_gcode",
         "time_toolchange",
         "tool_name",
+        "tool_pressure_advance_mirrors",
         "toolchange_gcode",
         "top_fan_speed",
         "threads",
@@ -386,7 +398,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
             steps.emplace_back(psWipeTower);
             // Soluble support interface / non-soluble base interface produces non-soluble interface layers below soluble interface layers.
             // Thus switching between soluble / non-soluble interface layer material may require recalculation of supports.
-            //FIXME Killing supports on any change of "filament_soluble" is rough. We should check for each object whether that is necessary.
+            // Performance note: killing supports on any change of "filament_soluble" is rough; checking for each object whether that is necessary would avoid recalculation.
             osteps.emplace_back(posSupportMaterial);
         } else if (
             opt_key == "arc_fitting"
@@ -421,7 +433,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
             osteps.emplace_back(posCount);
         else {
             // for legacy, if we can't handle this option let's invalidate all steps
-            //FIXME invalidate all steps of all objects as well?
+            // Note: unclear whether all steps of all objects should be invalidated here as well.
             invalidated |= this->invalidate_all_steps();
             // Continue with the other opt_keys to possibly invalidate any object specific steps.
         }
@@ -607,7 +619,7 @@ bool Print::has_brim() const
 
 bool Print::sequential_print_horizontal_clearance_valid(const Print &print, Polygons* polygons)
 {
-    if (print.config().extruder_clearance_radius == 0) {
+    if (print.config().extruder_clearance_radius.value == 0) {
         return true;
     }
     Polygons convex_hulls_other;
@@ -629,9 +641,9 @@ bool Print::sequential_print_horizontal_clearance_valid(const Print &print, Poly
           if (it_convex_hull == map_model_object_to_convex_hull.end()) {
               // Calculate the convex hull of a printable object. 
               // Grow convex hull with the clearance margin.
-              // FIXME: Arrangement has different parameters for offsetting (jtMiter, limit 2)
-              // which causes that the warning will be showed after arrangement with the
-              // appropriate object distance. Even if I set this to jtMiter the warning still shows up.
+              // Known limitation: Arrangement has different parameters for offsetting (jtMiter, limit 2),
+              // which causes the warning to be shown after arrangement with the appropriate object
+              // distance. Even with jtMiter here the warning still shows up.
             Geometry::Transformation trafo = model_instance0->get_transformation();
             trafo.set_offset(Vec3d{ 0.0, 0.0, model_instance0->get_offset().z() });
             Polygon ch2d = print_object->model_object()->convex_hull_2d(trafo.get_matrix());
@@ -645,7 +657,6 @@ bool Print::sequential_print_horizontal_clearance_valid(const Print &print, Poly
         }
         if (it_convex_hull != map_model_object_to_convex_hull.end()) {
             // Make a copy, so it may be rotated for instances.
-            //FIXME seems like the rotation isn't taken into account
             Polygon convex_hull0 = it_convex_hull->second;
             //this can create bugs in macos, for reasons.
             const double z_diff = Geometry::rotation_diff_z(model_instance0->get_matrix(), print_object->instances().front().model_instance->get_matrix());
@@ -803,7 +814,7 @@ std::pair<PrintBase::PrintValidationError, std::string> Print::validate(std::vec
     // Checks that the print does not exceed the max print height
     for (size_t print_object_idx = 0; print_object_idx < m_objects.size(); ++ print_object_idx) {
         const PrintObject &print_object = *m_objects[print_object_idx];
-        //FIXME It is quite expensive to generate object layers just to get the print height!
+        // Performance note: it is quite expensive to generate object layers just to get the print height.
         if (auto layers = generate_object_layers(print_object.slicing_parameters(), layer_height_profile(print_object_idx));
             ! layers.empty() && layers.back() > this->config().max_print_height + EPSILON) {
             return { PrintBase::PrintValidationError::pveWrongPosition, 
@@ -1195,7 +1206,7 @@ void Print::auto_assign_extruders(ModelObject* model_object) const
 //    size_t extruders = m_config.nozzle_diameter.size();
     for (size_t volume_id = 0; volume_id < model_object->volumes.size(); ++ volume_id) {
         ModelVolume *volume = model_object->volumes[volume_id];
-        //FIXME Vojtech: This assigns an extruder ID even to a modifier volume, if it has a material assigned.
+        // Note (Vojtech): this assigns an extruder ID even to a modifier volume, if it has a material assigned.
         if ((volume->is_model_part() || volume->is_modifier()) && ! volume->material_id().empty() && ! volume->config.has("extruder"))
             volume->config.set("extruder", int(volume_id + 1));
     }
@@ -1266,7 +1277,7 @@ void Print::process()
     );
 
     // The following step writes to m_shared_regions, it should not run in parallel.
-    //FIXME: only run it when the support is needed.
+    // Performance note: this could run only when the support is needed.
     secondary_status_counter_reset();
     for (PrintObject *obj : m_objects)
         obj->generate_support_spots();
@@ -1283,7 +1294,6 @@ void Print::process()
     secondary_status_counter_reset();
     Slic3r::parallel_for(size_t(0), m_objects.size(),
         [this](const size_t idx) {
-            PrintObject &obj = *m_objects[idx];
             m_objects[idx]->estimate_curled_extrusions();
         }
     );
@@ -1429,7 +1439,7 @@ std::string Print::export_gcode(const std::string& path_template, GCodeProcessor
     }
 
     // Create GCode on heap, it has quite a lot of data.
-    std::unique_ptr<GCodeGenerator> gcode(new GCodeGenerator());
+    auto gcode = std::make_unique<GCodeGenerator>();
     gcode->do_export(this, path.c_str(), result, thumbnail_cb);
 
     if (m_conflict_result.has_value())
@@ -2010,7 +2020,8 @@ void Print::alert_when_supports_needed()
         auto single_line_list_rule = L("%1%, %2%");
         auto multiline_list_rule   = "%1%\n%2%";
 
-        auto elements_to_translated_list = [](const std::vector<std::string> &translated_elements, std::string expansion_rule) {
+auto elements_to_translated_list = [](const std::vector<std::string> &translated_elements, const std::string& expansion_rule_in) {
+            std::string expansion_rule = expansion_rule_in;
             if (expansion_rule.find("%1%") == expansion_rule.npos || expansion_rule.find("%2%") == expansion_rule.npos) {
                 BOOST_LOG_TRIVIAL(error) << "INCORRECT EXPANSION RULE FOR LIST TRANSLATION: " << expansion_rule
                                          << " - IT SHOULD CONTAIN %1% and %2%!";
@@ -2208,7 +2219,7 @@ const WipeTowerData& Print::wipe_tower_data(const ConfigBase* config, double noz
         //} else {
         //    first_layer_height = get_min_first_layer_height();
         //}
-        // FIXME: get layer height from layers instead of config.
+        // Note: the layer height is taken from the config; taking it from the actual layers would be more accurate.
         //float layer_height = std::min(first_layer_height, float(default_object_config().layer_height.value));
         float layer_height = float(config->option("layer_height")->get_float());
         if (first_layer_height > 0 && first_layer_height < layer_height) {
@@ -2272,7 +2283,7 @@ void Print::_make_wipe_tower()
                 lt.has_support = true;
                 // Insert the new support layer.
                 double height    = lt.print_z - (i == 0 ? 0. : m_wipe_tower_data.tool_ordering.layer_tools()[i-1].print_z);
-                //FIXME the support layer ID is set to -1, as Vojtech hopes it is not being used anyway.
+                // Note: the support layer ID is set to -1; it is hopefully not being used anyway.
                 it_layer = m_objects.front()->insert_support_layer(it_layer, -1, 0, height, lt.print_z, lt.print_z - 0.5 * height);
                 ++ it_layer;
             }
@@ -2400,13 +2411,13 @@ std::string Print::output_filename(const std::string &filename_base) const
     DynamicConfig config = this->finished() ? this->print_statistics().config() : this->print_statistics().placeholders();
     const int num_extruders = checked_size_to_config_int(m_config.nozzle_diameter.size(), "num_extruders");
     const int num_milling   = checked_size_to_config_int(m_config.milling_diameter.size(), "num_milling");
-    config.set_key_value("num_extruders", new ConfigOptionInt(num_extruders));
-    config.set_key_value("extruders_count", new ConfigOptionInt(num_extruders));
-    config.set_key_value("num_milling", new ConfigOptionInt(num_milling));
-    config.set_key_value("milling_count", new ConfigOptionInt(num_milling));
-    config.set_key_value("default_output_extension", new ConfigOptionString(".gcode"));
+    config.set_key_value("num_extruders", std::make_unique<ConfigOptionInt>(num_extruders));
+    config.set_key_value("extruders_count", std::make_unique<ConfigOptionInt>(num_extruders));
+    config.set_key_value("num_milling", std::make_unique<ConfigOptionInt>(num_milling));
+    config.set_key_value("milling_count", std::make_unique<ConfigOptionInt>(num_milling));
+    config.set_key_value("default_output_extension", std::make_unique<ConfigOptionString>(".gcode"));
 
-    // Handle output_filename_format. There is a hack related to binary G-codes: gcode / bgcode substitution.
+    // Handle output_filename_format, including the gcode / bgcode extension substitution for binary G-codes.
     std::string output_filename_format = m_config.output_filename_format.value;
     if (m_config.binary_gcode && boost::iends_with(output_filename_format, ".gcode"))
         output_filename_format.insert(output_filename_format.end()-5, 'b');
@@ -2448,33 +2459,33 @@ DynamicConfig PrintStatistics::config() const
         this->estimated_print_time_str.end()) {
         std::string normal_print_time = short_time(
             this->estimated_print_time_str.at(static_cast<uint8_t>(PrintEstimatedStatistics::ETimeMode::Normal)));
-        config.set_key_value("print_time", new ConfigOptionString(normal_print_time));
-        config.set_key_value("normal_print_time", new ConfigOptionString(normal_print_time));
+        config.set_key_value("print_time", std::make_unique<ConfigOptionString>(normal_print_time));
+        config.set_key_value("normal_print_time", std::make_unique<ConfigOptionString>(normal_print_time));
     } else if (this->estimated_print_time_str.find(static_cast<uint8_t>(
                    PrintEstimatedStatistics::ETimeMode::Stealth)) != this->estimated_print_time_str.end()) {
         std::string silent_print_time = short_time(
             this->estimated_print_time_str.at(static_cast<uint8_t>(PrintEstimatedStatistics::ETimeMode::Stealth)));
-        config.set_key_value("print_time", new ConfigOptionString(silent_print_time));
+        config.set_key_value("print_time", std::make_unique<ConfigOptionString>(silent_print_time));
     }
     if (this->estimated_print_time_str.find(static_cast<uint8_t>(PrintEstimatedStatistics::ETimeMode::Stealth)) !=
         this->estimated_print_time_str.end()) {
         std::string silent_print_time = short_time(
             this->estimated_print_time_str.at(static_cast<uint8_t>(PrintEstimatedStatistics::ETimeMode::Stealth)));
-        config.set_key_value("silent_print_time", new ConfigOptionString(silent_print_time));
+        config.set_key_value("silent_print_time", std::make_unique<ConfigOptionString>(silent_print_time));
     }
-    config.set_key_value("used_filament",             new ConfigOptionFloat(this->total_used_filament / 1000.));
-    config.set_key_value("extruded_volume",           new ConfigOptionFloat(this->total_extruded_volume));
-    config.set_key_value("total_cost",                new ConfigOptionFloat(this->total_cost));
-    config.set_key_value("total_toolchanges",         new ConfigOptionInt(this->total_toolchanges));
-    config.set_key_value("total_weight",              new ConfigOptionFloat(this->total_weight));
-    config.set_key_value("total_wipe_tower_cost",     new ConfigOptionFloat(this->total_wipe_tower_cost));
-    config.set_key_value("total_wipe_tower_filament", new ConfigOptionFloat(this->total_wipe_tower_filament));
-    config.set_key_value("initial_tool",              new ConfigOptionInt(int(this->initial_extruder_id)));
-    config.set_key_value("initial_extruder",          new ConfigOptionInt(int(this->initial_extruder_id)));
-    config.set_key_value("initial_filament_type",     new ConfigOptionString(this->initial_filament_type));
-    config.set_key_value("printing_filament_types",   new ConfigOptionString(this->printing_filament_types));
-    config.set_key_value("num_printing_extruders",    new ConfigOptionInt(int(this->printing_extruders.size())));
-//    config.set_key_value("printing_extruders",        new ConfigOptionInts(std::vector<int>(this->printing_extruders.begin(), this->printing_extruders.end())));
+    config.set_key_value("used_filament",             std::make_unique<ConfigOptionFloat>(this->total_used_filament / 1000.));
+    config.set_key_value("extruded_volume",           std::make_unique<ConfigOptionFloat>(this->total_extruded_volume));
+    config.set_key_value("total_cost",                std::make_unique<ConfigOptionFloat>(this->total_cost));
+    config.set_key_value("total_toolchanges",         std::make_unique<ConfigOptionInt>(this->total_toolchanges));
+    config.set_key_value("total_weight",              std::make_unique<ConfigOptionFloat>(this->total_weight));
+    config.set_key_value("total_wipe_tower_cost",     std::make_unique<ConfigOptionFloat>(this->total_wipe_tower_cost));
+    config.set_key_value("total_wipe_tower_filament", std::make_unique<ConfigOptionFloat>(this->total_wipe_tower_filament));
+    config.set_key_value("initial_tool",              std::make_unique<ConfigOptionInt>(int(this->initial_extruder_id)));
+    config.set_key_value("initial_extruder",          std::make_unique<ConfigOptionInt>(int(this->initial_extruder_id)));
+    config.set_key_value("initial_filament_type",     std::make_unique<ConfigOptionString>(this->initial_filament_type));
+    config.set_key_value("printing_filament_types",   std::make_unique<ConfigOptionString>(this->printing_filament_types));
+    config.set_key_value("num_printing_extruders",    std::make_unique<ConfigOptionInt>(int(this->printing_extruders.size())));
+//    config.set_key_value("printing_extruders",        std::make_unique<ConfigOptionInts>(std::vector<int>(this->printing_extruders.begin(), this->printing_extruders.end())));
     
     return config;
 }
@@ -2487,7 +2498,7 @@ DynamicConfig PrintStatistics::placeholders()
         "used_filament", "extruded_volume", "total_cost", "total_weight", 
         "total_toolchanges", "total_wipe_tower_cost", "total_wipe_tower_filament",
         "initial_tool", "initial_extruder", "initial_filament_type", "printing_filament_types", "num_printing_extruders" })
-        config.set_key_value(key, new ConfigOptionString(std::string("{") + key + "}"));
+        config.set_key_value(key, std::make_unique<ConfigOptionString>(std::string("{") + key + "}"));
     return config;
 }
 

@@ -30,6 +30,8 @@
 
 namespace Slic3r { namespace GUI {
 
+static constexpr int DIALOG_PADDING = 5;
+
 std::string get_readers_wildcard()
 {
     std::string ret;
@@ -99,7 +101,7 @@ public:
 
         szfilepck->Add(new wxStaticText(this, wxID_ANY, _L("Import file") + ": "), 0, wxALIGN_CENTER);
         szfilepck->Add(m_filepicker, 1);
-        szvert->Add(szfilepck, 0, wxALL | wxEXPAND, 5);
+        szvert->Add(szfilepck, 0, wxALL | wxEXPAND, DIALOG_PADDING);
 
         auto szchoices = new wxBoxSizer{wxHORIZONTAL};
 
@@ -115,7 +117,7 @@ public:
 
         szchoices->Add(m_import_dropdown);
         szchoices->AddStretchSpacer(1);
-        szchoices->Add(new wxStaticText(this, wxID_ANY, _L("Quality") + ": "), 0, wxALIGN_CENTER | wxALL, 5);
+        szchoices->Add(new wxStaticText(this, wxID_ANY, _L("Quality") + ": "), 0, wxALIGN_CENTER | wxALL, DIALOG_PADDING);
 
         static const std::vector<wxString> qual_choices = {
             _L("Accurate"),
@@ -134,11 +136,11 @@ public:
             else m_quality_dropdown->Enable();
         });
 
-        szvert->Add(szchoices, 1, wxEXPAND | wxALL, 5);
+        szvert->Add(szchoices, 1, wxEXPAND | wxALL, DIALOG_PADDING);
         auto szbtn = new wxBoxSizer(wxHORIZONTAL);
-        szbtn->Add(new wxButton{this, wxID_CANCEL}, 0, wxRIGHT, 5);
+        szbtn->Add(new wxButton{this, wxID_CANCEL}, 0, wxRIGHT, DIALOG_PADDING);
         szbtn->Add(new wxButton{this, wxID_OK});
-        szvert->Add(szbtn, 0, wxALIGN_RIGHT | wxALL, 5);
+        szvert->Add(szbtn, 0, wxALIGN_RIGHT | wxALL, DIALOG_PADDING);
 
         SetSizerAndFit(szvert);
         wxGetApp().UpdateDlgDarkUI(this);

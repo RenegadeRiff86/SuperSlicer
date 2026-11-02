@@ -121,7 +121,7 @@ private:
 
 #ifdef SUPPORTS_MARKUP
     #ifdef wxHAS_GENERIC_DATAVIEWCTRL
-    class wxItemMarkupText* m_markupText { nullptr };;
+    std::unique_ptr<class wxItemMarkupText> m_markupText;
     #else
     bool is_markupText {false};
     #endif

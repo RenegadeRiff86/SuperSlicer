@@ -8,14 +8,12 @@
 #include <optional>
 #include <vector>
 #include <memory>
-#include <atomic>
 
 #include "libslic3r/libslic3r.h"
 #include "libslic3r/ExtrusionEntity.hpp"
 #include "libslic3r/Polygon.hpp"
 #include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/BoundingBox.hpp"
-#include "libslic3r/AABBTreeIndirect.hpp"
 #include "libslic3r/KDTreeIndirect.hpp"
 
 namespace Slic3r {

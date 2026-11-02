@@ -59,6 +59,29 @@ extern void DebugEvent( GLUtesselator *tess );
 #define DebugEvent( tess )
 #endif
 
+#define TESS_ABS_WINDING_THRESHOLD 2
+#define TESS_COMBINE_INPUT_COUNT 4
+#define TESS_EDGE_HALF_WEIGHT 0.5f
+
+enum {
+  TESS_COORD_X_INDEX,
+  TESS_COORD_Y_INDEX,
+  TESS_COORD_Z_INDEX,
+  TESS_COORD_COUNT
+};
+
+enum {
+  TESS_WEIGHT_ORG_INDEX,
+  TESS_WEIGHT_DST_INDEX
+};
+
+enum {
+  TESS_COMBINE_UP_ORG_INDEX,
+  TESS_COMBINE_UP_DST_INDEX,
+  TESS_COMBINE_LO_ORG_INDEX,
+  TESS_COMBINE_LO_DST_INDEX
+};
+
 /*
  * Invariants for the Edge Dictionary.
  * - each pair of adjacent edges e2=Succ(e1) satisfies EdgeLeq(e1,e2)
@@ -105,7 +128,7 @@ static void WalkDirtyRegions( GLUtesselator *tess, ActiveRegion *regUp );
 static int CheckForRightSplice( GLUtesselator *tess, ActiveRegion *regUp );
 
 static int EdgeLeq( GLUtesselator *tess, ActiveRegion *reg1,
-		    ActiveRegion *reg2 )
+            ActiveRegion *reg2 )
 /*
  * Both edges must be directed from right to left (this is the canonical
  * direction for the upper edge of each region).
@@ -131,7 +154,7 @@ static int EdgeLeq( GLUtesselator *tess, ActiveRegion *reg1,
        * Sort them by slope.
        */
       if( VertLeq( e1->Org, e2->Org )) {
-	return EdgeSign( e2->Dst, e1->Org, e2->Org ) <= 0;
+    return EdgeSign( e2->Dst, e1->Org, e2->Org ) <= 0;
       }
       return EdgeSign( e1->Dst, e2->Org, e1->Org ) >= 0;
     }
@@ -211,8 +234,8 @@ static ActiveRegion *TopRightRegion( ActiveRegion *reg )
 }
 
 static ActiveRegion *AddRegionBelow( GLUtesselator *tess,
-				     ActiveRegion *regAbove,
-				     GLUhalfEdge *eNewUp )
+                     ActiveRegion *regAbove,
+                     GLUhalfEdge *eNewUp )
 /*
  * Add a new active region to the sweep line, *somewhere* below "regAbove"
  * (according to where the new edge belongs in the sweep-line dictionary).
@@ -247,7 +270,7 @@ static GLboolean IsWindingInside( GLUtesselator *tess, int n )
   case GLU_TESS_WINDING_NEGATIVE:
     return (n < 0);
   case GLU_TESS_WINDING_ABS_GEQ_TWO:
-    return (n >= 2) || (n <= -2);
+    return (n >= TESS_ABS_WINDING_THRESHOLD) || (n <= -TESS_ABS_WINDING_THRESHOLD);
   }
   /*LINTED*/
   assert( FALSE );
@@ -282,7 +305,7 @@ static void FinishRegion( GLUtesselator *tess, ActiveRegion *reg )
 
 
 static GLUhalfEdge *FinishLeftRegions( GLUtesselator *tess,
-	       ActiveRegion *regFirst, ActiveRegion *regLast )
+           ActiveRegion *regFirst, ActiveRegion *regLast )
 /*
  * We are given a vertex with one or more left-going edges.  All affected
  * edges should be in the edge dictionary.  Starting at regFirst->eUp,
@@ -307,14 +330,14 @@ static GLUhalfEdge *FinishLeftRegions( GLUtesselator *tess,
     e = reg->eUp;
     if( e->Org != ePrev->Org ) {
       if( ! reg->fixUpperEdge ) {
-	/* Remove the last left-going edge.  Even though there are no further
-	 * edges in the dictionary with this origin, there may be further
-	 * such edges in the mesh (if we are adding left edges to a vertex
-	 * that has already been processed).  Thus it is important to call
-	 * FinishRegion rather than just DeleteRegion.
-	 */
-	FinishRegion( tess, regPrev );
-	break;
+    /* Remove the last left-going edge.  Even though there are no further
+     * edges in the dictionary with this origin, there may be further
+     * such edges in the mesh (if we are adding left edges to a vertex
+     * that has already been processed).  Thus it is important to call
+     * FinishRegion rather than just DeleteRegion.
+     */
+    FinishRegion( tess, regPrev );
+    break;
       }
       /* If the edge below was a temporary edge introduced by
        * ConnectRightVertex, now is the time to fix it.
@@ -410,14 +433,14 @@ static void AddRightEdges( GLUtesselator *tess, ActiveRegion *regUp,
 
 
 static void CallCombine( GLUtesselator *tess, GLUvertex *isect,
-			 void *data[4], GLfloat weights[4], int needed )
+             void *data[TESS_COMBINE_INPUT_COUNT], GLfloat weights[TESS_COMBINE_INPUT_COUNT], int needed )
 {
-  GLdouble coords[3];
+  GLdouble coords[TESS_COORD_COUNT] = { 0 };
 
   /* Copy coord data in case the callback changes it. */
-  coords[0] = isect->coords[0];
-  coords[1] = isect->coords[1];
-  coords[2] = isect->coords[2];
+  coords[TESS_COORD_X_INDEX] = isect->coords[TESS_COORD_X_INDEX];
+  coords[TESS_COORD_Y_INDEX] = isect->coords[TESS_COORD_Y_INDEX];
+  coords[TESS_COORD_Z_INDEX] = isect->coords[TESS_COORD_Z_INDEX];
 
   isect->data = NULL;
   CALL_COMBINE_OR_COMBINE_DATA( coords, data, weights, &isect->data );
@@ -436,14 +459,14 @@ static void CallCombine( GLUtesselator *tess, GLUvertex *isect,
 }
 
 static void SpliceMergeVertices( GLUtesselator *tess, GLUhalfEdge *e1,
-				 GLUhalfEdge *e2 )
+                 GLUhalfEdge *e2 )
 /*
  * Two vertices with idential coordinates are combined into one.
  * e1->Org is kept, while e2->Org is discarded.
  */
 {
-  void *data[4] = { NULL, NULL, NULL, NULL };
-  GLfloat weights[4] = { 0.5, 0.5, 0.0, 0.0 };
+  void *data[TESS_COMBINE_INPUT_COUNT] = { NULL, NULL, NULL, NULL };
+  GLfloat weights[TESS_COMBINE_INPUT_COUNT] = { TESS_EDGE_HALF_WEIGHT, TESS_EDGE_HALF_WEIGHT, 0.0, 0.0 };
 
   data[0] = e1->Org->data;
   data[1] = e2->Org->data;
@@ -452,7 +475,7 @@ static void SpliceMergeVertices( GLUtesselator *tess, GLUhalfEdge *e1,
 }
 
 static void VertexWeights( GLUvertex *isect, GLUvertex *org, GLUvertex *dst,
-			   GLfloat *weights )
+               GLfloat *weights )
 /*
  * Find some weights which describe how the intersection vertex is
  * a linear combination of "org" and "dest".  Each of the two edges
@@ -464,11 +487,11 @@ static void VertexWeights( GLUvertex *isect, GLUvertex *org, GLUvertex *dst,
   GLdouble t1 = VertL1dist( org, isect );
   GLdouble t2 = VertL1dist( dst, isect );
 
-  weights[0] = 0.5 * t2 / (t1 + t2);
-  weights[1] = 0.5 * t1 / (t1 + t2);
-  isect->coords[0] += weights[0]*org->coords[0] + weights[1]*dst->coords[0];
-  isect->coords[1] += weights[0]*org->coords[1] + weights[1]*dst->coords[1];
-  isect->coords[2] += weights[0]*org->coords[2] + weights[1]*dst->coords[2];
+  weights[TESS_WEIGHT_ORG_INDEX] = TESS_EDGE_HALF_WEIGHT * t2 / (t1 + t2);
+  weights[TESS_WEIGHT_DST_INDEX] = TESS_EDGE_HALF_WEIGHT * t1 / (t1 + t2);
+  isect->coords[TESS_COORD_X_INDEX] += weights[TESS_WEIGHT_ORG_INDEX]*org->coords[TESS_COORD_X_INDEX] + weights[TESS_WEIGHT_DST_INDEX]*dst->coords[TESS_COORD_X_INDEX];
+  isect->coords[TESS_COORD_Y_INDEX] += weights[TESS_WEIGHT_ORG_INDEX]*org->coords[TESS_COORD_Y_INDEX] + weights[TESS_WEIGHT_DST_INDEX]*dst->coords[TESS_COORD_Y_INDEX];
+  isect->coords[TESS_COORD_Z_INDEX] += weights[TESS_WEIGHT_ORG_INDEX]*org->coords[TESS_COORD_Z_INDEX] + weights[TESS_WEIGHT_DST_INDEX]*dst->coords[TESS_COORD_Z_INDEX];
 }
 
 
@@ -481,17 +504,17 @@ static void GetIntersectData( GLUtesselator *tess, GLUvertex *isect,
  * rendering callbacks.
  */
 {
-  void *data[4];
-  GLfloat weights[4];
+  void *data[TESS_COMBINE_INPUT_COUNT] = { NULL };
+  GLfloat weights[TESS_COMBINE_INPUT_COUNT] = { 0 };
 
-  data[0] = orgUp->data;
-  data[1] = dstUp->data;
-  data[2] = orgLo->data;
-  data[3] = dstLo->data;
+  data[TESS_COMBINE_UP_ORG_INDEX] = orgUp->data;
+  data[TESS_COMBINE_UP_DST_INDEX] = dstUp->data;
+  data[TESS_COMBINE_LO_ORG_INDEX] = orgLo->data;
+  data[TESS_COMBINE_LO_DST_INDEX] = dstLo->data;
 
-  isect->coords[0] = isect->coords[1] = isect->coords[2] = 0;
-  VertexWeights( isect, orgUp, dstUp, &weights[0] );
-  VertexWeights( isect, orgLo, dstLo, &weights[2] );
+  isect->coords[TESS_COORD_X_INDEX] = isect->coords[TESS_COORD_Y_INDEX] = isect->coords[TESS_COORD_Z_INDEX] = 0;
+  VertexWeights( isect, orgUp, dstUp, &weights[TESS_COMBINE_UP_ORG_INDEX] );
+  VertexWeights( isect, orgLo, dstLo, &weights[TESS_COMBINE_LO_ORG_INDEX] );
 
   CallCombine( tess, isect, data, weights, TRUE );
 }
@@ -682,9 +705,9 @@ static int CheckForIntersect( GLUtesselator *tess, ActiveRegion *regUp )
   }
 
   if(	 (! VertEq( dstUp, tess->event )
-	  && EdgeSign( dstUp, tess->event, &isect ) >= 0)
+      && EdgeSign( dstUp, tess->event, &isect ) >= 0)
       || (! VertEq( dstLo, tess->event )
-	  && EdgeSign( dstLo, tess->event, &isect ) <= 0 ))
+      && EdgeSign( dstLo, tess->event, &isect ) <= 0 ))
   {
     /* Very unusual -- the new upper or lower edge would pass on the
      * wrong side of the sweep event, or through it.  This can happen
@@ -780,8 +803,8 @@ static void WalkDirtyRegions( GLUtesselator *tess, ActiveRegion *regUp )
       regLo = regUp;
       regUp = RegionAbove( regUp );
       if( regUp == NULL || ! regUp->dirty ) {
-	/* We've walked all the dirty regions */
-	return;
+    /* We've walked all the dirty regions */
+    return;
       }
     }
     regUp->dirty = FALSE;
@@ -792,45 +815,45 @@ static void WalkDirtyRegions( GLUtesselator *tess, ActiveRegion *regUp )
       /* Check that the edge ordering is obeyed at the Dst vertices. */
       if( CheckForLeftSplice( tess, regUp )) {
 
-	/* If the upper or lower edge was marked fixUpperEdge, then
-	 * we no longer need it (since these edges are needed only for
-	 * vertices which otherwise have no right-going edges).
-	 */
-	if( regLo->fixUpperEdge ) {
-	  DeleteRegion( tess, regLo );
-	  if ( !__gl_meshDelete( eLo ) ) longjmp(tess->env,1);
-	  regLo = RegionBelow( regUp );
-	  eLo = regLo->eUp;
-	} else if( regUp->fixUpperEdge ) {
-	  DeleteRegion( tess, regUp );
-	  if ( !__gl_meshDelete( eUp ) ) longjmp(tess->env,1);
-	  regUp = RegionAbove( regLo );
-	  eUp = regUp->eUp;
-	}
+    /* If the upper or lower edge was marked fixUpperEdge, then
+     * we no longer need it (since these edges are needed only for
+     * vertices which otherwise have no right-going edges).
+     */
+    if( regLo->fixUpperEdge ) {
+      DeleteRegion( tess, regLo );
+      if ( !__gl_meshDelete( eLo ) ) longjmp(tess->env,1);
+      regLo = RegionBelow( regUp );
+      eLo = regLo->eUp;
+    } else if( regUp->fixUpperEdge ) {
+      DeleteRegion( tess, regUp );
+      if ( !__gl_meshDelete( eUp ) ) longjmp(tess->env,1);
+      regUp = RegionAbove( regLo );
+      eUp = regUp->eUp;
+    }
       }
     }
     if( eUp->Org != eLo->Org ) {
       if(    eUp->Dst != eLo->Dst
-	  && ! regUp->fixUpperEdge && ! regLo->fixUpperEdge
-	  && (eUp->Dst == tess->event || eLo->Dst == tess->event) )
+      && ! regUp->fixUpperEdge && ! regLo->fixUpperEdge
+      && (eUp->Dst == tess->event || eLo->Dst == tess->event) )
       {
-	/* When all else fails in CheckForIntersect(), it uses tess->event
-	 * as the intersection location.  To make this possible, it requires
-	 * that tess->event lie between the upper and lower edges, and also
-	 * that neither of these is marked fixUpperEdge (since in the worst
-	 * case it might splice one of these edges into tess->event, and
-	 * violate the invariant that fixable edges are the only right-going
-	 * edge from their associated vertex).
-	 */
-	if( CheckForIntersect( tess, regUp )) {
-	  /* WalkDirtyRegions() was called recursively; we're done */
-	  return;
-	}
+    /* When all else fails in CheckForIntersect(), it uses tess->event
+     * as the intersection location.  To make this possible, it requires
+     * that tess->event lie between the upper and lower edges, and also
+     * that neither of these is marked fixUpperEdge (since in the worst
+     * case it might splice one of these edges into tess->event, and
+     * violate the invariant that fixable edges are the only right-going
+     * edge from their associated vertex).
+     */
+    if( CheckForIntersect( tess, regUp )) {
+      /* WalkDirtyRegions() was called recursively; we're done */
+      return;
+    }
       } else {
-	/* Even though we can't use CheckForIntersect(), the Org vertices
-	 * may violate the dictionary edge ordering.  Check and correct this.
-	 */
-	CheckForRightSplice( tess, regUp );
+    /* Even though we can't use CheckForIntersect(), the Org vertices
+     * may violate the dictionary edge ordering.  Check and correct this.
+     */
+    CheckForRightSplice( tess, regUp );
       }
     }
     if( eUp->Org == eLo->Org && eUp->Dst == eLo->Dst ) {
@@ -845,7 +868,7 @@ static void WalkDirtyRegions( GLUtesselator *tess, ActiveRegion *regUp )
 
 
 static void ConnectRightVertex( GLUtesselator *tess, ActiveRegion *regUp,
-				GLUhalfEdge *eBottomLeft )
+                GLUhalfEdge *eBottomLeft )
 /*
  * Purpose: connect a "right" vertex vEvent (one where all edges go left)
  * to the unprocessed portion of the mesh.  Since there are no right-going
@@ -939,7 +962,7 @@ static void ConnectRightVertex( GLUtesselator *tess, ActiveRegion *regUp,
 #define TOLERANCE_NONZERO	FALSE
 
 static void ConnectLeftDegenerate( GLUtesselator *tess,
-				   ActiveRegion *regUp, GLUvertex *vEvent )
+                   ActiveRegion *regUp, GLUvertex *vEvent )
 /*
  * The event vertex lies exacty on an already-processed edge or vertex.
  * Adding the new vertex involves splicing it into the already-processed
@@ -1017,7 +1040,7 @@ static void ConnectLeftVertex( GLUtesselator *tess, GLUvertex *vEvent )
 {
   ActiveRegion *regUp, *regLo, *reg;
   GLUhalfEdge *eUp, *eLo, *eNew;
-  ActiveRegion tmp;
+  ActiveRegion tmp = { 0 };
 
   /* assert( vEvent->anEdge->Onext->Onext == vEvent->anEdge ); */
 
@@ -1201,7 +1224,7 @@ static void RemoveDegenerateEdges( GLUtesselator *tess )
  * Remove zero-length edges, and contours with fewer than 3 vertices.
  */
 {
-  GLUhalfEdge *e, *eNext, *eLnext;
+  GLUhalfEdge *e = NULL, *eNext = NULL, *eLnext = NULL;
   GLUhalfEdge *eHead = &tess->mesh->eHead;
 
   /*LINTED*/
@@ -1221,8 +1244,8 @@ static void RemoveDegenerateEdges( GLUtesselator *tess )
       /* Degenerate contour (one or two edges) */
 
       if( eLnext != e ) {
-	if( eLnext == eNext || eLnext == eNext->Sym ) { eNext = eNext->next; }
-	if ( !__gl_meshDelete( eLnext ) ) longjmp(tess->env,1);
+    if( eLnext == eNext || eLnext == eNext->Sym ) { eNext = eNext->next; }
+    if ( !__gl_meshDelete( eLnext ) ) longjmp(tess->env,1);
       }
       if( e == eNext || e == eNext->Sym ) { eNext = eNext->next; }
       if ( !__gl_meshDelete( e ) ) longjmp(tess->env,1);
@@ -1280,8 +1303,8 @@ static int RemoveDegenerateFaces( GLUmesh *mesh )
  * will sometimes be keeping a pointer to that edge.
  */
 {
-  GLUface *f, *fNext;
-  GLUhalfEdge *e;
+  GLUface *f = NULL, *fNext = NULL;
+  GLUhalfEdge *e = NULL;
 
   /*LINTED*/
   for( f = mesh->fHead.next; f != &mesh->fHead; f = fNext ) {

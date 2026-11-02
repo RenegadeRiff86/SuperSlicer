@@ -17,6 +17,8 @@
 
 namespace Slic3r { namespace png {
 
+static constexpr size_t RGB_CHANNEL_COUNT = 3;
+
 struct PNGDescr {
     png_struct *png = nullptr; png_info *info = nullptr;
 
@@ -110,7 +112,7 @@ bool decode_png(IStream &in_buf, ImageGreyscale &out_img)
 // Down to earth function to store a packed RGB image to file. Mostly useful for debugging purposes.
 // Based on https://www.lemoda.net/c/write-png/
 // png_color_type is PNG_COLOR_TYPE_RGB or PNG_COLOR_TYPE_GRAY
-//FIXME maybe better to use tdefl_write_image_to_png_file_in_memory() instead?
+// Alternative: tdefl_write_image_to_png_file_in_memory() could be used instead.
 static bool write_rgb_or_gray_to_file(const char *file_name_utf8, size_t width, size_t height, int png_color_type, const uint8_t *data)
 {
     bool         result       = false;
@@ -160,7 +162,7 @@ static bool write_rgb_or_gray_to_file(const char *file_name_utf8, size_t width, 
     {
         int line_width = width;
         if (png_color_type == PNG_COLOR_TYPE_RGB)
-            line_width *= 3;
+            line_width *= RGB_CHANNEL_COUNT;
         for (size_t y = 0; y < height; ++ y) {
             auto row = reinterpret_cast<png_byte*>(::png_malloc(png_ptr, line_width));
             row_pointers[y] = row;
@@ -200,7 +202,7 @@ bool write_rgb_to_file(const std::string &file_name_utf8, size_t width, size_t h
 
 bool write_rgb_to_file(const std::string &file_name_utf8, size_t width, size_t height, const std::vector<uint8_t> &data_rgb)
 {
-    assert(width * height * 3 == data_rgb.size());
+    assert(width * height * RGB_CHANNEL_COUNT == data_rgb.size());
     return write_rgb_to_file(file_name_utf8.c_str(), width, height, data_rgb.data());
 }
 
@@ -228,7 +230,7 @@ static bool write_rgb_or_gray_to_file_scaled(const char *file_name_utf8, size_t 
     if (scale <= 1)
         return write_rgb_or_gray_to_file(file_name_utf8, width, height, png_color_type, data);
     else {
-        size_t pixel_bytes = png_color_type == PNG_COLOR_TYPE_RGB ? 3 : 1;
+        size_t pixel_bytes = png_color_type == PNG_COLOR_TYPE_RGB ? RGB_CHANNEL_COUNT : 1;
         size_t line_width  = width * pixel_bytes;
         std::vector<uint8_t> scaled(line_width * height * scale * scale);
         uint8_t *dst = scaled.data();
@@ -259,7 +261,7 @@ bool write_rgb_to_file_scaled(const std::string &file_name_utf8, size_t width, s
 
 bool write_rgb_to_file_scaled(const std::string &file_name_utf8, size_t width, size_t height, const std::vector<uint8_t> &data_rgb, size_t scale)
 {
-    assert(width * height * 3 == data_rgb.size());
+    assert(width * height * RGB_CHANNEL_COUNT == data_rgb.size());
     return write_rgb_to_file_scaled(file_name_utf8.c_str(), width, height, data_rgb.data(), scale);
 }
 

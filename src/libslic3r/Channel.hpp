@@ -25,14 +25,14 @@ public:
     {
     public:
         Unlocker(UniqueLock lock) : m_lock(std::move(lock)) {}
-        Unlocker(const Unlocker &other) noexcept : m_lock(std::move(other.m_lock)) {}     // XXX: done beacuse of MSVC 2013 not supporting init of deleter by move
         Unlocker(Unlocker &&other) noexcept : m_lock(std::move(other.m_lock)) {}
+        Unlocker(const Unlocker &other) = delete;
         Unlocker& operator=(const Unlocker &other) = delete;
-        Unlocker& operator=(Unlocker &&other) { m_lock = std::move(other.m_lock); }
+        Unlocker& operator=(Unlocker &&other) { m_lock = std::move(other.m_lock); return *this; }
 
         void operator()(Ptr*) { m_lock.unlock(); }
     private:
-        mutable UniqueLock m_lock;    // XXX: mutable: see above
+        UniqueLock m_lock;
     };
 
     using Queue = std::deque<T>;
@@ -76,7 +76,7 @@ public:
             return std::nullopt;
         } else {
             auto item = std::move(m_queue.front());
-            m_queue.pop();
+            m_queue.pop_front();
             return item;
         }
     }

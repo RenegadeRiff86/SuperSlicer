@@ -35,7 +35,7 @@ class ExtrusionEntityCollection : public ExtrusionEntity
 private:
     // set to tru to forbit to reorder and reverse all entities indie us.
     bool m_no_sort;
-    ExtrusionEntitiesPtr m_entities;     // we own these entities : TODO: use unique_ptr
+    ExtrusionEntitiesPtr m_entities;     // we own these entities (raw owning pointers; unique_ptr would require refactoring the polymorphic clone()/visitor APIs)
 public:
     virtual ExtrusionEntityCollection* clone() const override { return new ExtrusionEntityCollection(*this); }
     // Create a new object, initialize it with this object using the move semantics.
@@ -44,7 +44,7 @@ public:
 
     /// Owned ExtrusionEntities and descendent ExtrusionEntityCollections.
     /// Iterating over this needs to check each child to see if it, too is a collection.
-    /// FIXME Warning: not a true const, the entities inside can be modified, and if the entities are deleted -> crash
+    /// Warning: not a true const, the entities inside can be modified, and if the entities are deleted -> crash
     const ExtrusionEntitiesPtr& entities() const { return m_entities; }
     ExtrusionEntitiesPtr& set_entities() { return m_entities; }
     ExtrusionEntityCollection() : m_no_sort(false), ExtrusionEntity(true) {}

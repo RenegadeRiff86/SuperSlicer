@@ -22,7 +22,8 @@ ENABLE_SCALAR_IMPLEMENTATION(Ssh.f=SS21.f*Sone_half.f;)                         
 ENABLE_SCALAR_IMPLEMENTATION(Stmp5.f=SS11.f-SS22.f;)                                      ENABLE_SSE_IMPLEMENTATION(Vtmp5=_mm_sub_ps(VS11,VS22);)                                   ENABLE_AVX_IMPLEMENTATION(Vtmp5=_mm256_sub_ps(VS11,VS22);)
 
 ENABLE_SCALAR_IMPLEMENTATION(Stmp2.f=Ssh.f*Ssh.f;)                                        ENABLE_SSE_IMPLEMENTATION(Vtmp2=_mm_mul_ps(Vsh,Vsh);)                                     ENABLE_AVX_IMPLEMENTATION(Vtmp2=_mm256_mul_ps(Vsh,Vsh);)
-ENABLE_SCALAR_IMPLEMENTATION(Stmp1.ui=(Stmp2.f>=Stiny_number.f)?0xffffffff:0;)            ENABLE_SSE_IMPLEMENTATION(Vtmp1=_mm_cmpge_ps(Vtmp2,Vtiny_number);)                        ENABLE_AVX_IMPLEMENTATION(Vtmp1=_mm256_cmp_ps(Vtmp2,Vtiny_number, _CMP_GE_OS);) //ENABLE_AVX_IMPLEMENTATION(Vtmp1=_mm256_cmpge_ps(Vtmp2,Vtiny_number);)
+ENABLE_SCALAR_IMPLEMENTATION(Stmp1.ui=(Stmp2.f>=Stiny_number.f)?0xffffffff:0;)            ENABLE_SSE_IMPLEMENTATION(Vtmp1=_mm_cmpge_ps(Vtmp2,Vtiny_number);)                        ENABLE_AVX_IMPLEMENTATION(Vtmp1=_mm256_cmp_ps(Vtmp2,Vtiny_number,
+  _CMP_GE_OS);) //ENABLE_AVX_IMPLEMENTATION(Vtmp1=_mm256_cmpge_ps(Vtmp2,Vtiny_number);)
 ENABLE_SCALAR_IMPLEMENTATION(Ssh.ui=Stmp1.ui&Ssh.ui;)                                     ENABLE_SSE_IMPLEMENTATION(Vsh=_mm_and_ps(Vtmp1,Vsh);)                                     ENABLE_AVX_IMPLEMENTATION(Vsh=_mm256_and_ps(Vtmp1,Vsh);)
 ENABLE_SCALAR_IMPLEMENTATION(Sch.ui=Stmp1.ui&Stmp5.ui;)                                   ENABLE_SSE_IMPLEMENTATION(Vch=_mm_and_ps(Vtmp1,Vtmp5);)                                   ENABLE_AVX_IMPLEMENTATION(Vch=_mm256_blendv_ps(Vone,Vtmp5,Vtmp1);)
 ENABLE_SCALAR_IMPLEMENTATION(Stmp2.ui=~Stmp1.ui&Sone.ui;)                                 ENABLE_SSE_IMPLEMENTATION(Vtmp2=_mm_andnot_ps(Vtmp1,Vone);)
@@ -45,13 +46,17 @@ ENABLE_SCALAR_IMPLEMENTATION(Stmp4.f=Stmp4.f-Sc.f;)                             
 ENABLE_SCALAR_IMPLEMENTATION(Ssh.f=Stmp4.f*Ssh.f;)                                        ENABLE_SSE_IMPLEMENTATION(Vsh=_mm_mul_ps(Vtmp4,Vsh);)                                     ENABLE_AVX_IMPLEMENTATION(Vsh=_mm256_mul_ps(Vtmp4,Vsh);)
 ENABLE_SCALAR_IMPLEMENTATION(Sch.f=Stmp4.f*Sch.f;)                                        ENABLE_SSE_IMPLEMENTATION(Vch=_mm_mul_ps(Vtmp4,Vch);)                                     ENABLE_AVX_IMPLEMENTATION(Vch=_mm256_mul_ps(Vtmp4,Vch);)
 
-ENABLE_SCALAR_IMPLEMENTATION(Stmp1.f=Sfour_gamma_squared.f*Stmp1.f;)                      ENABLE_SSE_IMPLEMENTATION(Vtmp1=_mm_mul_ps(Vfour_gamma_squared,Vtmp1);)                   ENABLE_AVX_IMPLEMENTATION(Vtmp1=_mm256_mul_ps(Vfour_gamma_squared,Vtmp1);)
-ENABLE_SCALAR_IMPLEMENTATION(Stmp1.ui=(Stmp2.f<=Stmp1.f)?0xffffffff:0;)                   ENABLE_SSE_IMPLEMENTATION(Vtmp1=_mm_cmple_ps(Vtmp2,Vtmp1);)                               ENABLE_AVX_IMPLEMENTATION(Vtmp1=_mm256_cmp_ps(Vtmp2,Vtmp1, _CMP_LE_OS);) //ENABLE_AVX_IMPLEMENTATION(Vtmp1=_mm256_cmple_ps(Vtmp2,Vtmp1);)
+ENABLE_SCALAR_IMPLEMENTATION(Stmp1.f=Sfour_gamma_squared.f*Stmp1.f;)                      ENABLE_SSE_IMPLEMENTATION(Vtmp1=_mm_mul_ps(Vfour_gamma_squared,Vtmp1);)
+  ENABLE_AVX_IMPLEMENTATION(Vtmp1=_mm256_mul_ps(Vfour_gamma_squared,Vtmp1);)
+ENABLE_SCALAR_IMPLEMENTATION(Stmp1.ui=(Stmp2.f<=Stmp1.f)?0xffffffff:0;)                   ENABLE_SSE_IMPLEMENTATION(Vtmp1=_mm_cmple_ps(Vtmp2,Vtmp1);)                               ENABLE_AVX_IMPLEMENTATION(Vtmp1=_mm256_cmp_ps(Vtmp2,Vtmp1,
+  _CMP_LE_OS);) //ENABLE_AVX_IMPLEMENTATION(Vtmp1=_mm256_cmple_ps(Vtmp2,Vtmp1);)
 
-ENABLE_SCALAR_IMPLEMENTATION(Stmp2.ui=Ssine_pi_over_eight.ui&Stmp1.ui;)                   ENABLE_SSE_IMPLEMENTATION(Vtmp2=_mm_and_ps(Vsine_pi_over_eight,Vtmp1);)                   ENABLE_AVX_IMPLEMENTATION(Vsh=_mm256_blendv_ps(Vsh,Vsine_pi_over_eight,Vtmp1);)
+ENABLE_SCALAR_IMPLEMENTATION(Stmp2.ui=Ssine_pi_over_eight.ui&Stmp1.ui;)                   ENABLE_SSE_IMPLEMENTATION(Vtmp2=_mm_and_ps(Vsine_pi_over_eight,Vtmp1);)
+  ENABLE_AVX_IMPLEMENTATION(Vsh=_mm256_blendv_ps(Vsh,Vsine_pi_over_eight,Vtmp1);)
 ENABLE_SCALAR_IMPLEMENTATION(Ssh.ui=~Stmp1.ui&Ssh.ui;)                                    ENABLE_SSE_IMPLEMENTATION(Vsh=_mm_andnot_ps(Vtmp1,Vsh);)
 ENABLE_SCALAR_IMPLEMENTATION(Ssh.ui=Ssh.ui|Stmp2.ui;)                                     ENABLE_SSE_IMPLEMENTATION(Vsh=_mm_or_ps(Vsh,Vtmp2);)
-ENABLE_SCALAR_IMPLEMENTATION(Stmp2.ui=Scosine_pi_over_eight.ui&Stmp1.ui;)                 ENABLE_SSE_IMPLEMENTATION(Vtmp2=_mm_and_ps(Vcosine_pi_over_eight,Vtmp1);)                 ENABLE_AVX_IMPLEMENTATION(Vch=_mm256_blendv_ps(Vch,Vcosine_pi_over_eight,Vtmp1);)
+ENABLE_SCALAR_IMPLEMENTATION(Stmp2.ui=Scosine_pi_over_eight.ui&Stmp1.ui;)                 ENABLE_SSE_IMPLEMENTATION(Vtmp2=_mm_and_ps(Vcosine_pi_over_eight,Vtmp1);)
+  ENABLE_AVX_IMPLEMENTATION(Vch=_mm256_blendv_ps(Vch,Vcosine_pi_over_eight,Vtmp1);)
 ENABLE_SCALAR_IMPLEMENTATION(Sch.ui=~Stmp1.ui&Sch.ui;)                                    ENABLE_SSE_IMPLEMENTATION(Vch=_mm_andnot_ps(Vtmp1,Vch);)
 ENABLE_SCALAR_IMPLEMENTATION(Sch.ui=Sch.ui|Stmp2.ui;)                                     ENABLE_SSE_IMPLEMENTATION(Vch=_mm_or_ps(Vch,Vtmp2);)
 

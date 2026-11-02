@@ -22,12 +22,12 @@ StaticBox::StaticBox()
     : state_handler(this)
     , radius(8)
 {
-    border_color = StateColor(std::make_pair(Slic3r::GUI::Widget::clr_border_disabled,   (int) StateColor::Disabled),
+    border_color = StateColor(std::make_pair(Slic3r::GUI::Widget::clr_border_disabled,   static_cast<int>(StateColor::Disabled)),
 #ifndef __WXMSW__
-                              std::make_pair(Slic3r::GUI::Widget::clr_border_normal,     (int) StateColor::Focused),
+                              std::make_pair(Slic3r::GUI::Widget::clr_border_normal,     static_cast<int>(StateColor::Focused)),
 #endif
-                              std::make_pair(Slic3r::GUI::Widget::get_clr_border_hovered(),    (int) StateColor::Hovered),
-                              std::make_pair(Slic3r::GUI::Widget::clr_border_normal,     (int) StateColor::Normal));
+                              std::make_pair(Slic3r::GUI::Widget::get_clr_border_hovered(),    static_cast<int>(StateColor::Hovered)),
+                              std::make_pair(Slic3r::GUI::Widget::clr_border_normal,     static_cast<int>(StateColor::Normal)));
 #ifndef __WXMSW__
     border_color.setTakeFocusedAsHovered(false);
 #endif
@@ -168,9 +168,9 @@ void StaticBox::doRender(wxDC& dc)
 
             if (border_width && border_color.count() > 0) {
 #ifdef __WXOSX__
-                const double bw = (double)border_width;
+                const double bw = static_cast<double>(border_width);
 #else
-                const double bw = dc.GetContentScaleFactor() * (double)border_width;
+                const double bw = dc.GetContentScaleFactor() * static_cast<double>(border_width);
 #endif //__WXOSX__
                 {
                     int d  = floor(bw / 2.0);
@@ -195,7 +195,7 @@ void StaticBox::doRender(wxDC& dc)
         wxColor start = background_color.colorForStates(states);
         wxColor stop = background_color2.colorForStates(states);
         int r = start.Red(), g = start.Green(), b = start.Blue();
-        int dr = (int) stop.Red() - r, dg = (int) stop.Green() - g, db = (int) stop.Blue() - b;
+        int dr = static_cast<int>(stop.Red()) - r, dg = static_cast<int>(stop.Green()) - g, db = static_cast<int>(stop.Blue()) - b;
         int lr = 0, lg = 0, lb = 0;
         for (int y = 0; y < size.y; ++y) {
             dc.SetPen(wxPen(wxColor(r, g, b)));

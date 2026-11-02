@@ -4,7 +4,6 @@
 ///|/
 #include "PrintHostDialogs.hpp"
 
-#include <algorithm>
 #include <iomanip>
 
 #include <wx/frame.h>
@@ -31,13 +30,16 @@
 #include "MainFrame.hpp"
 #include "libslic3r/AppConfig.hpp"
 #include "NotificationManager.hpp"
-#include "ExtraRenderers.hpp"
 #include "format.hpp"
 
 namespace fs = boost::filesystem;
 
 namespace Slic3r {
 namespace GUI {
+
+// Assertion text shared by every bounds check against the job list.
+static constexpr const char* ERR_JOB_LIST_OUT_OF_BOUNDS = "Out of bounds access to job list";
+static constexpr float       BYTES_PER_MEBIBYTE          = 1024.f * 1024.f;
 
 static const char *CONFIG_KEY_PATH  = "printhost_path";
 static const char *CONFIG_KEY_GROUP = "printhost_group";
@@ -56,6 +58,7 @@ PrintHostSendDialog::PrintHostSendDialog(const fs::path &path, PrintHostPostUplo
     txt_filename->OSXDisableAllSmartSubstitutions();
 #endif
     const AppConfig *app_config = wxGetApp().app_config.get();
+    const int        double_vertical_spacing = 2 * VERT_SPACING;
 
     auto *label_dir_hint = new wxStaticText(this, wxID_ANY, _L("Use forward slashes ( / ) as a directory separator if needed."));
     label_dir_hint->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
@@ -68,7 +71,7 @@ PrintHostSendDialog::PrintHostSendDialog(const fs::path &path, PrintHostPostUplo
         // Repetier specific: Show a selection of file groups.
         auto *label_group = new wxStaticText(this, wxID_ANY, _L("Group"));
         content_sizer->Add(label_group);
-        content_sizer->Add(combo_groups, 0, wxBOTTOM, 2*VERT_SPACING);        
+        content_sizer->Add(combo_groups, 0, wxBOTTOM, double_vertical_spacing);        
         wxString recent_group = from_u8(app_config->get("recent", CONFIG_KEY_GROUP));
         if (! recent_group.empty())
             combo_groups->SetValue(recent_group);
@@ -80,7 +83,7 @@ PrintHostSendDialog::PrintHostSendDialog(const fs::path &path, PrintHostPostUplo
         // PrusaLink specific: User needs to choose a storage
         auto* label_group = new wxStaticText(this, wxID_ANY, _L("Upload to storage") + ":");
         content_sizer->Add(label_group);
-        content_sizer->Add(combo_storage, 0, wxBOTTOM, 2 * VERT_SPACING);
+        content_sizer->Add(combo_storage, 0, wxBOTTOM, double_vertical_spacing);
         combo_storage->SetValue(storage_names.front());
         wxString recent_storage = from_u8(app_config->get("recent", CONFIG_KEY_STORAGE));
         if (!recent_storage.empty())
@@ -169,10 +172,10 @@ PrintHostSendDialog::PrintHostSendDialog(const fs::path &path, PrintHostPostUplo
     }, txt_filename->GetId());
 #endif /* __linux__ */
 
-    Bind(wxEVT_SHOW, [=](const wxShowEvent &) {
+    Bind(wxEVT_SHOW, [this, recent_path_len, stem_len](const wxShowEvent &) {
         // Another similar case where the function only works with EVT_SHOW + CallAfter,
         // this time on Mac.
-        CallAfter([=]() {
+        CallAfter([this, recent_path_len, stem_len]() {
             txt_filename->SetInsertionPoint(0);
             txt_filename->SetSelection(recent_path_len, recent_path_len + stem_len);
         });
@@ -214,13 +217,13 @@ void PrintHostSendDialog::EndModal(int ret)
         // Persist path and print settings
         wxString path = txt_filename->GetValue();
         int last_slash = path.Find('/', true);
-		if (last_slash == wxNOT_FOUND)
-			path.clear();
-		else
+        if (last_slash == wxNOT_FOUND)
+            path.clear();
+        else
             path = path.SubString(0, last_slash);
                 
-		AppConfig *app_config = wxGetApp().app_config.get();
-		app_config->set("recent", CONFIG_KEY_PATH, into_u8(path));
+        AppConfig *app_config = wxGetApp().app_config.get();
+        app_config->set("recent", CONFIG_KEY_PATH, into_u8(path));
 
         if (combo_groups != nullptr) {
             wxString group = combo_groups->GetValue();
@@ -381,7 +384,7 @@ void PrintHostQueueDialog::append_job(const PrintHostJob &job)
         size_i = 0;
         BOOST_LOG_TRIVIAL(error) << ec.message();
     } else 
-        stream << std::fixed << std::setprecision(2) << ((float)size_i / 1024 / 1024) << "MB";
+        stream << std::fixed << std::setprecision(2) << (static_cast<float>(size_i) / BYTES_PER_MEBIBYTE) << "MB";
     fields.push_back(wxVariant(stream.str()));
     fields.push_back(wxVariant(from_path(job.upload_data.upload_path)));
     fields.push_back(wxVariant(""));
@@ -389,7 +392,7 @@ void PrintHostQueueDialog::append_job(const PrintHostJob &job)
     // Both strings are UTF-8 encoded.
     upload_names.emplace_back(job.printhost->get_host(), job.upload_data.upload_path.string());
 
-    wxGetApp().notification_manager()->push_upload_job_notification(job_list->GetItemCount(), (float)size_i / 1024 / 1024, job.upload_data.upload_path.string(), job.printhost->get_host());
+    wxGetApp().notification_manager()->push_upload_job_notification(job_list->GetItemCount(), static_cast<float>(size_i) / 1024 / 1024, job.upload_data.upload_path.string(), job.printhost->get_host());
 }
 
 void PrintHostQueueDialog::on_dpi_changed(const wxRect &suggested_rect)
@@ -416,13 +419,13 @@ void PrintHostQueueDialog::on_sys_color_changed()
 
 PrintHostQueueDialog::JobState PrintHostQueueDialog::get_state(int idx)
 {
-    wxCHECK_MSG(idx >= 0 && idx < job_list->GetItemCount(), ST_ERROR, "Out of bounds access to job list");
+    wxCHECK_MSG(idx >= 0 && idx < job_list->GetItemCount(), ST_ERROR, ERR_JOB_LIST_OUT_OF_BOUNDS);
     return static_cast<JobState>(job_list->GetItemData(job_list->RowToItem(idx)));
 }
 
 void PrintHostQueueDialog::set_state(int idx, JobState state)
 {
-    wxCHECK_RET(idx >= 0 && idx < job_list->GetItemCount(), "Out of bounds access to job list");
+    wxCHECK_RET(idx >= 0 && idx < job_list->GetItemCount(), ERR_JOB_LIST_OUT_OF_BOUNDS);
     job_list->SetItemData(job_list->RowToItem(idx), static_cast<wxUIntPtr>(state));
 
     switch (state) {
@@ -452,7 +455,7 @@ void PrintHostQueueDialog::on_list_select()
 
 void PrintHostQueueDialog::on_progress(Event &evt)
 {
-    wxCHECK_RET(evt.job_id < (size_t)job_list->GetItemCount(), "Out of bounds access to job list");
+    wxCHECK_RET(evt.job_id < static_cast<size_t>(job_list->GetItemCount()), ERR_JOB_LIST_OUT_OF_BOUNDS);
 
     if (evt.progress < 100) {
         set_state(evt.job_id, ST_PROGRESS);
@@ -475,7 +478,7 @@ void PrintHostQueueDialog::on_progress(Event &evt)
 
 void PrintHostQueueDialog::on_error(Event &evt)
 {
-    wxCHECK_RET(evt.job_id < (size_t)job_list->GetItemCount(), "Out of bounds access to job list");
+    wxCHECK_RET(evt.job_id < static_cast<size_t>(job_list->GetItemCount()), ERR_JOB_LIST_OUT_OF_BOUNDS);
 
     set_state(evt.job_id, ST_ERROR);
 
@@ -495,7 +498,7 @@ void PrintHostQueueDialog::on_error(Event &evt)
 
 void PrintHostQueueDialog::on_cancel(Event &evt)
 {
-    wxCHECK_RET(evt.job_id < (size_t)job_list->GetItemCount(), "Out of bounds access to job list");
+    wxCHECK_RET(evt.job_id < static_cast<size_t>(job_list->GetItemCount()), ERR_JOB_LIST_OUT_OF_BOUNDS);
 
     set_state(evt.job_id, ST_CANCELLED);
     job_list->SetValue(wxVariant(0), evt.job_id, COL_PROGRESS);
@@ -510,7 +513,7 @@ void PrintHostQueueDialog::on_cancel(Event &evt)
 
 void PrintHostQueueDialog::on_info(Event& evt)
 {
-    wxCHECK_RET(evt.job_id < (size_t)job_list->GetItemCount(), "Out of bounds access to job list");
+    wxCHECK_RET(evt.job_id < static_cast<size_t>(job_list->GetItemCount()), ERR_JOB_LIST_OUT_OF_BOUNDS);
     
     if (evt.tag == L"resolve") {
         wxVariant hst(evt.status);

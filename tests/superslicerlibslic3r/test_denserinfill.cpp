@@ -13,10 +13,6 @@ const ExtrusionEntitiesPtr& get_island(const ExtrusionEntityCollection &coll, in
     return dynamic_cast<const ExtrusionEntityCollection*>(coll.entities()[island])->entities();
 }
 
-const ExtrusionEntitiesPtr& remove_unique_collection_(const ExtrusionEntityCollection &coll, int island) {
-    //TODO
-}
-
 SCENARIO("denser infills: ")
 {
 
@@ -26,10 +22,10 @@ SCENARIO("denser infills: ")
             Model model{};
             Print print{};
             DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
-            config.set_key_value("layer_height", new ConfigOptionFloat(0.2));
-            config.set_key_value("first_layer_height", new ConfigOptionFloatOrPercent(0.2, false));
-            config.set_key_value("infill_dense", new ConfigOptionBool(true));
-            config.set_key_value("infill_dense_algo", new ConfigOptionEnum<DenseInfillAlgo>(dfaEnlarged));
+            config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(0.2));
+            config.set_key_value("first_layer_height", std::make_unique<ConfigOptionFloatOrPercent>(0.2, false));
+            config.set_key_value("infill_dense", std::make_unique<ConfigOptionBool>(true));
+            config.set_key_value("infill_dense_algo", std::make_unique<ConfigOptionEnum<DenseInfillAlgo>>(dfaEnlarged));
             config.save("C:\\Users\\Admin\\Desktop\\config_def.ini");
             Slic3r::Test::init_print(print, { Slic3r::Test::TestMesh::di_5mm_center_notch }, model, &config, false);
             print.process();
@@ -95,10 +91,10 @@ SCENARIO("denser infills: ")
             Model model{};
             Print print{};
             DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
-            config.set_key_value("layer_height", new ConfigOptionFloat(0.2));
-            config.set_key_value("first_layer_height", new ConfigOptionFloatOrPercent(0.2, false));
-            config.set_key_value("infill_dense", new ConfigOptionBool(true));
-            config.set_key_value("infill_dense_algo", new ConfigOptionEnum<DenseInfillAlgo>(dfaAutomatic));
+            config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(0.2));
+            config.set_key_value("first_layer_height", std::make_unique<ConfigOptionFloatOrPercent>(0.2, false));
+            config.set_key_value("infill_dense", std::make_unique<ConfigOptionBool>(true));
+            config.set_key_value("infill_dense_algo", std::make_unique<ConfigOptionEnum<DenseInfillAlgo>>(dfaAutomatic));
             config.save("C:\\Users\\Admin\\Desktop\\config_def.ini");
             Slic3r::Test::init_print(print, { Slic3r::Test::TestMesh::di_10mm_notch }, model, &config, false);
             print.process();
@@ -157,10 +153,10 @@ SCENARIO("denser infills: ")
             Model model{};
             Print print{};
             DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
-            config.set_key_value("layer_height", new ConfigOptionFloat(0.2));
-            config.set_key_value("first_layer_height", new ConfigOptionFloatOrPercent(0.2, false));
-            config.set_key_value("infill_dense", new ConfigOptionBool(true));
-            config.set_key_value("infill_dense_algo", new ConfigOptionEnum<DenseInfillAlgo>(dfaAutoNotFull));
+            config.set_key_value("layer_height", std::make_unique<ConfigOptionFloat>(0.2));
+            config.set_key_value("first_layer_height", std::make_unique<ConfigOptionFloatOrPercent>(0.2, false));
+            config.set_key_value("infill_dense", std::make_unique<ConfigOptionBool>(true));
+            config.set_key_value("infill_dense_algo", std::make_unique<ConfigOptionEnum<DenseInfillAlgo>>(dfaAutoNotFull));
             config.save("C:\\Users\\Admin\\Desktop\\config_def.ini");
             Slic3r::Test::init_print(print, { Slic3r::Test::TestMesh::di_10mm_notch }, model, &config, false);
             print.process();

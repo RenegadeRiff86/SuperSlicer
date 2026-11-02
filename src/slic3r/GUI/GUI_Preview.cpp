@@ -1,4 +1,5 @@
-///|/ Copyright (c) Prusa Research 2018 - 2023 Enrico Turri @enricoturri1966, Oleksandra Iushchenko @YuSanka, Vojtěch Bubník @bubnikv, Lukáš Matěna @lukasmatena, Filip Sykala @Jony01, David Kocík @kocikdav, Tomáš Mészáros @tamasmeszaros, Vojtěch Král @vojtechkral
+// |/ Copyright (c) Prusa Research 2018 - 2023 Enrico Turri @enricoturri1966, Oleksandra Iushchenko @YuSanka, Vojtěch Bubník @bubnikv, Lukáš Matěna @lukasmatena, Filip Sykala @Jony01, David Kocík @kocikdav, Tomáš Mészáros @tamasmeszaros, Vojtěch Král
+// @vojtechkral
 ///|/ Copyright (c) 2022 André Althaus
 ///|/ Copyright (c) 2019 John Drake @foxox
 ///|/
@@ -57,17 +58,19 @@
 namespace Slic3r {
 namespace GUI {
 
+// Per-object/volume config option key inspected when deciding what the preview shows.
+static constexpr const char* KEY_EXTRUDER = "extruder";
+
 View3D::View3D(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig* config, BackgroundSlicingProcess* process)
     : m_canvas_widget(nullptr)
-    , m_canvas(nullptr)
 {
     init(parent, bed, model, config, process);
 }
 
 View3D::~View3D()
 {
-    delete m_canvas;
-    delete m_canvas_widget;
+    m_canvas.reset();
+    m_canvas_widget.reset();
 }
 
 bool View3D::init(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig* config, BackgroundSlicingProcess* process)
@@ -77,12 +80,14 @@ bool View3D::init(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig
 
     if (!Create(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0 /* disable wxTAB_TRAVERSAL */))
         return false;
+    SetName("superslicer.view.3d");
 
-    m_canvas_widget = OpenGLManager::create_wxglcanvas(*this);
+    m_canvas_widget.reset(OpenGLManager::create_wxglcanvas(*this));
     if (m_canvas_widget == nullptr)
         return false;
+    m_canvas_widget->SetName("superslicer.canvas.3d");
 
-    m_canvas = new GLCanvas3D(m_canvas_widget, bed);
+    m_canvas = std::make_unique<GLCanvas3D>(m_canvas_widget.get(), bed);
     m_canvas->set_context(wxGetApp().init_glcontext(*m_canvas_widget));
 
     m_canvas->allow_multisample(OpenGLManager::can_multisample());
@@ -90,7 +95,6 @@ bool View3D::init(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig
     m_canvas->enable_picking(true);
     m_canvas->get_selection().set_mode(Selection::Instance);
     m_canvas->enable_moving(true);
-    // XXX: more config from 3D.pm
     m_canvas->set_model(model);
     m_canvas->set_process(process);
     m_canvas->set_config(config);
@@ -102,7 +106,7 @@ bool View3D::init(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig
     m_canvas->enable_slope(true);
 
     wxBoxSizer* main_sizer = new wxBoxSizer(wxVERTICAL);
-    main_sizer->Add(m_canvas_widget, 1, wxALL | wxEXPAND, 0);
+    main_sizer->Add(m_canvas_widget.get(), 1, wxALL | wxEXPAND, 0);
 
     SetSizer(main_sizer);
     SetMinSize(GetSize());
@@ -211,6 +215,13 @@ void Preview::set_layers_slider_values_range(int bottom, int top)
     m_layers_slider->SetLowerValue(std::max(bottom, m_layers_slider->GetMinValue()));
 }
 
+void Preview::set_moves_slider_values_range(int bottom, int top)
+{
+    const int lower = std::max(bottom, m_moves_slider->GetMinValue());
+    const int higher = std::min(top, m_moves_slider->GetMaxValue());
+    m_moves_slider->SetSelectionSpan(lower, std::max(lower, higher));
+}
+
 bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
 {
 
@@ -219,6 +230,7 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
 
     if (!Create(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0 /* disable wxTAB_TRAVERSAL */))
         return false;
+    SetName("superslicer.view.preview");
 
     // to match the background of the sliders
 #ifdef _WIN32 
@@ -227,11 +239,12 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     SetBackgroundColour(GetParent()->GetBackgroundColour());
 #endif // _WIN32
 
-    m_canvas_widget = OpenGLManager::create_wxglcanvas(*this);
+    m_canvas_widget.reset(OpenGLManager::create_wxglcanvas(*this));
     if (m_canvas_widget == nullptr)
         return false;
+    m_canvas_widget->SetName("superslicer.canvas.preview");
 
-    m_canvas = new GLCanvas3D(m_canvas_widget, bed);
+    m_canvas = std::make_unique<GLCanvas3D>(m_canvas_widget.get(), bed);
     m_canvas->set_context(wxGetApp().init_glcontext(*m_canvas_widget));
     m_canvas->allow_multisample(OpenGLManager::can_multisample());
     m_canvas->set_config(m_config);
@@ -245,12 +258,15 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     wxGetApp().UpdateDarkUI(m_bottom_toolbar_panel = new wxPanel(this));
 
     m_left_sizer = new wxBoxSizer(wxVERTICAL);
-    m_left_sizer->Add(m_canvas_widget, 1, wxALL | wxEXPAND, 0);
+    m_left_sizer->Add(m_canvas_widget.get(), 1, wxALL | wxEXPAND, 0);
 
     wxBoxSizer* right_sizer = new wxBoxSizer(wxVERTICAL);
     right_sizer->Add(m_layers_slider_sizer, 1, wxEXPAND, 0);
 
-    m_moves_slider = new DoubleSlider::Control(m_bottom_toolbar_panel, wxID_ANY, 0, 0, 0, 100, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL);
+    m_moves_slider = new DoubleSlider::Control(
+        m_bottom_toolbar_panel, wxID_ANY, 0, 0, 0, 100,
+        wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL,
+        wxDefaultValidator, "superslicer.preview.moves_slider");
     m_moves_slider->SetDrawMode(DoubleSlider::dmSequentialGCodeView);
 
     wxBoxSizer* bottom_toolbar_sizer = new wxBoxSizer(wxHORIZONTAL);
@@ -277,11 +293,9 @@ Preview::~Preview()
 {
     unbind_event_handlers();
 
-    if (m_canvas != nullptr)
-        delete m_canvas;
+    m_canvas.reset();
 
-    if (m_canvas_widget != nullptr)
-        delete m_canvas_widget;
+    m_canvas_widget.reset();
 }
 
 void Preview::set_as_dirty()
@@ -451,7 +465,10 @@ void Preview::on_size(wxSizeEvent& evt)
 wxBoxSizer* Preview::create_layers_slider_sizer()
 {
     wxBoxSizer* sizer = new wxBoxSizer(wxHORIZONTAL);
-    m_layers_slider = new DoubleSlider::Control(this, wxID_ANY, 0, 0, 0, 100);
+    m_layers_slider = new DoubleSlider::Control(
+        this, wxID_ANY, 0, 0, 0, 100,
+        wxDefaultPosition, wxDefaultSize, wxSL_VERTICAL,
+        wxDefaultValidator, "superslicer.preview.layers_slider");
     std::lock_guard lock(m_layers_slider->lock_render());
 
     m_layers_slider->SetDrawMode(wxGetApp().get_current_printer_technology() == ptSLA,
@@ -517,9 +534,8 @@ static int find_close_layer_idx(const std::vector<double>& zs, double &z, double
 
 void Preview::check_layers_slider_values(std::vector<CustomGCode::Item>& ticks_from_model, const std::vector<double>& layers_z)
 {
-    // All ticks that would end up outside the slider range should be erased.
-    // TODO: this should be placed into more appropriate part of code,
-    // this function is e.g. not called when the last object is deleted
+    // Drop custom G-code ticks that fall outside the current layer stack.
+    // Callers refresh the slider after model/object changes (including last-object delete).
     unsigned int old_size = ticks_from_model.size();
     ticks_from_model.erase(std::remove_if(ticks_from_model.begin(), ticks_from_model.end(),
                      [layers_z](CustomGCode::Item val)
@@ -554,13 +570,13 @@ void Preview::update_layers_slider(const std::vector<double>& layers_z, bool sho
 
     int current_lower_tick = m_layers_slider->GetLowerValue();
     int current_higher_tick = m_layers_slider->GetHigherValue();
-    if (layers_z.size() == m_layers_slider->GetMaxValue() + 2) {
+    if (int(layers_z.size()) == m_layers_slider->GetMaxValue() + 2) {
         // new array is bigger by one
         if (current_lower_tick == current_higher_tick || !snap_to_min) {
             current_lower_tick++;
         }
         current_higher_tick++;
-    } else if (layers_z.size() == m_layers_slider->GetMaxValue()) {
+    } else if (int(layers_z.size()) == m_layers_slider->GetMaxValue()) {
         // new array is smaller by one
         current_lower_tick = std::max(current_lower_tick - 1, 0);
         current_higher_tick =  std::max(current_higher_tick - 1, 0);
@@ -589,12 +605,12 @@ void Preview::update_layers_slider(const std::vector<double>& layers_z, bool sho
     int idx_low = std::max(current_lower_tick, 0);
     int idx_high = snap_to_max ? m_layers_slider->GetMaxValue() : std::min(current_higher_tick, m_layers_slider->GetMaxValue());
     if (!layers_z.empty()) {
-        if (!snap_to_min && idx_low < layers_z.size() && !is_approx(layers_z[idx_low], z_low, 0.0000001)) {
+        if (!snap_to_min && size_t(idx_low) < layers_z.size() && !is_approx(layers_z[idx_low], z_low, 0.0000001)) {
             int idx_new = find_close_layer_idx(layers_z, z_low, DoubleSlider::epsilon()/*1e-6*/);
             if (idx_new != -1)
                 idx_low = idx_new;
         }
-        if (!snap_to_max && idx_high < layers_z.size() && !is_approx(layers_z[idx_high], z_high, 0.0000001)) {
+        if (!snap_to_max && size_t(idx_high) < layers_z.size() && !is_approx(layers_z[idx_high], z_high, 0.0000001)) {
             int idx_new = find_close_layer_idx(layers_z, z_high, DoubleSlider::epsilon()/*1e-6*/);
             if (idx_new != -1)
                 idx_high = idx_new;
@@ -618,8 +634,7 @@ void Preview::update_layers_slider(const std::vector<double>& layers_z, bool sho
                 m_layers_slider->SetLayersTimes(print_mode_stat.layers_times, print_mode_stat.time);
             }
         }
-        // create area array
-        // area not computed for sla_print_technology //TODO
+        // Layer areas are FFF-only; SLA print statistics do not expose per-layer area.
         if (!sla_print_technology) {
             if (plater->fff_print().print_statistics().is_computing_gcode || !plater->fff_print().finished()) {
                 // do not fetch uncomplete data
@@ -728,28 +743,28 @@ void Preview::update_layers_slider_mode()
         // check if whole model uses just only one extruder
         if (!objects.empty())
         {
-            const int extruder = objects[0]->config.has("extruder") ?
-                                 objects[0]->config.option("extruder")->get_int() : 0;
+            const int extruder = objects[0]->config.has(KEY_EXTRUDER) ?
+                                 objects[0]->config.option(KEY_EXTRUDER)->get_int() : 0;
 
             auto is_one_extruder_printed_model = [objects, extruder]()
             {
                 for (ModelObject* object : objects)
                 {
-                    if (object->config.has("extruder") &&
-                        object->config.option("extruder")->get_int() != extruder)
+                    if (object->config.has(KEY_EXTRUDER) &&
+                        object->config.option(KEY_EXTRUDER)->get_int() != extruder)
                         return false;
 
                     for (ModelVolume* volume : object->volumes)
-                        if ((volume->config.has("extruder") && 
-                            volume->config.option("extruder")->get_int() != 0 && // extruder isn't default
-                            volume->config.option("extruder")->get_int() != extruder) ||
+                        if ((volume->config.has(KEY_EXTRUDER) && 
+                            volume->config.option(KEY_EXTRUDER)->get_int() != 0 && // extruder isn't default
+                            volume->config.option(KEY_EXTRUDER)->get_int() != extruder) ||
                             !volume->mm_segmentation_facets.empty())
                             return false;
 
                     for (const auto& range : object->layer_config_ranges)
-                        if (range.second.has("extruder") &&
-                            range.second.option("extruder")->get_int() != 0 && // extruder isn't default
-                            range.second.option("extruder")->get_int() != extruder)
+                        if (range.second.has(KEY_EXTRUDER) &&
+                            range.second.option(KEY_EXTRUDER)->get_int() != 0 && // extruder isn't default
+                            range.second.option(KEY_EXTRUDER)->get_int() != extruder)
                             return false;
                 }
                 return true;
@@ -913,7 +928,7 @@ void Preview::load_print_as_fff(bool keep_z_range)
     {
         const ConfigOptionStrings* extruders_opt = dynamic_cast<const ConfigOptionStrings*>(m_config->option("extruder_colour"));
         const ConfigOptionStrings* filamemts_opt = dynamic_cast<const ConfigOptionStrings*>(m_config->option("filament_colour"));
-        unsigned int colors_count = std::max((unsigned int)extruders_opt->size(), (unsigned int)filamemts_opt->size());
+        unsigned int colors_count = std::max(static_cast<unsigned int>(extruders_opt->size()), static_cast<unsigned int>(filamemts_opt->size()));
 
         ColorRGBA rgba;
         for (unsigned int i = 0; i < colors_count; ++i)
@@ -978,7 +993,7 @@ void Preview::load_print_as_fff(bool keep_z_range)
 
         if (!zs.empty() && !m_keep_current_preview_type) {
             unsigned int number_extruders = wxGetApp().is_editor() ?
-                (unsigned int)print->extruders().size() :
+                static_cast<unsigned int>(print->extruders().size()) :
                 m_canvas->get_gcode_extruders_count();
             std::vector<Item> gcodes = wxGetApp().is_editor() ?
                 wxGetApp().plater()->model().custom_gcode_per_print_z.gcodes :
@@ -1034,7 +1049,7 @@ void Preview::load_print_as_sla()
     m_canvas->reset_clipping_planes_cache();
     m_canvas->set_use_clipping_planes(true);
 
-    n_layers = (unsigned int)zs.size();
+    n_layers = static_cast<unsigned int>(zs.size());
     if (n_layers == 0) {
         hide_layers_slider();
         m_canvas_widget->Refresh();

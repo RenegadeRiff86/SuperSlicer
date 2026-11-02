@@ -28,7 +28,7 @@ void OrientJob::clear_input()
 }
 
 //BBS: add only one plate mode and lock logic
-void OrientJob::prepare_selection(std::vector<bool> obj_sel, bool only_one_plate)
+void OrientJob::prepare_selection(const std::vector<bool>& obj_sel, bool only_one_plate)
 {
     Model& model = m_plater->model();
 
@@ -117,20 +117,15 @@ void OrientJob::process(Ctl &ctl)
 
     const GLCanvas3D::OrientSettings& settings = m_plater->canvas3D()->get_orient_settings();
 
-    orientation::OrientParams params;
-    orientation::OrientParamsArea params_area;
-    if (settings.min_area) {
-        memcpy(&params, &params_area, sizeof(params));
-        params.min_volume = false;
-    }
-    else {
-        params.min_volume = true;
-    }
+    orientation::OrientParams params = settings.min_area
+        ? orientation::OrientParams::for_minimum_support_area()
+        : orientation::OrientParams{};
+    params.min_volume = !settings.min_area;
 
     auto count = unsigned(m_selected.size() + m_unprintable.size());
     params.stopcondition = [&ctl]() { return ctl.was_canceled(); };
 
-    params.progressind = [this, count, &ctl](unsigned st, std::string orientstr) {
+    params.progressind = [this, count, &ctl](unsigned st, const std::string& orientstr) {
         st += m_unprintable.size();
         if (st > 0) ctl.update_status(int(st / float(count) * 100), _u8L("Orienting") + " " + orientstr);
     };

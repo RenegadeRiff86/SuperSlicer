@@ -7,6 +7,8 @@
 
 //#include <wx/gdicmn.h>
 
+#include <memory>
+
 #include "libslic3r/Preset.hpp"
 #include "wxExtensions.hpp"
 #include "GUI_Utils.hpp"
@@ -67,13 +69,13 @@ public:
         PresetCollection*   m_presets       {nullptr};
 
         std::string get_init_preset_name(const std::string &suffix);
-        void        init_input_name_ctrl(wxBoxSizer *input_name_sizer, std::string preset_name);
+        void        init_input_name_ctrl(wxBoxSizer *input_name_sizer, const std::string& preset_name);
         const Preset*   get_existing_preset() const ;
 
         void        update();
     };
 private:
-    std::vector<Item*>   m_items;
+    std::vector<std::unique_ptr<Item>> m_items;
 
     wxBoxSizer*         m_presets_sizer     {nullptr};
     wxStaticText*       m_label             {nullptr};
@@ -92,7 +94,7 @@ public:
 
     const wxString& get_info_line_extention() { return m_info_line_extention; }
 
-    SavePresetDialog(wxWindow* parent, std::vector<Preset::Type> types, std::string suffix = "", bool template_filament = false, PresetBundle* preset_bundle = nullptr);
+    SavePresetDialog(wxWindow* parent, const std::vector<Preset::Type>& types, const std::string& suffix = "", bool template_filament = false, PresetBundle* preset_bundle = nullptr);
     SavePresetDialog(wxWindow* parent, Preset::Type type, const wxString& info_line_extention);
     ~SavePresetDialog() override;
 
@@ -114,7 +116,7 @@ protected:
     void on_sys_color_changed() override {}
 
 private:
-    void build(std::vector<Preset::Type> types, std::string suffix = "", bool template_filament = false);
+    void build(const std::vector<Preset::Type>& types, std::string suffix = "", bool template_filament = false);
     void update_physical_printers(const std::string& preset_name);
     void accept();
 };

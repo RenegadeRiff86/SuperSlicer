@@ -48,7 +48,7 @@ struct Interior {
 
 void InteriorDeleter::operator()(Interior *p)
 {
-    delete p;
+    std::default_delete<Interior>{}(p);
 }
 
 indexed_triangle_set &get_mesh(Interior &interior)
@@ -106,7 +106,8 @@ InteriorPtr generate_interior(const VoxelGrid       &vgrid,
     else ctl.statuscb(70, _u8L("Hollowing"));
 
     double adaptivity = 0.;
-    InteriorPtr interior = InteriorPtr{new Interior{}};
+    auto interior_storage = std::make_unique<Interior>();
+    InteriorPtr interior{ interior_storage.release() };
 
     interior->mesh = grid_to_mesh(*gridptr, iso_surface, adaptivity);
     interior->gridptr = std::move(gridptr);
@@ -410,7 +411,7 @@ void remove_inside_triangles(indexed_triangle_set &mesh, const Interior &interio
         return use_exclude_mask && exclude_mask[face_id];
     };
 
-    // TODO: Parallel mode not working yet
+    // Known limitation: parallel execution does not work here yet; keep ex_seq.
     constexpr auto &exec_policy = ex_seq;
 
     // Info about the needed modifications on the input mesh.

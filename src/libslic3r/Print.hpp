@@ -87,7 +87,7 @@ enum PrintStep : uint8_t {
     // should be refreshed.
     psSlicingFinished = psSkirtBrim,
     psGCodeExport,
-   //TODO: psGCodeLoader (for params that are only used for time display and such)
+   // Possible enhancement: a psGCodeLoader step for params that are only used for time display and such.
     psCount,
 };
 
@@ -203,8 +203,6 @@ using SpanOfConstPtrs           = tcb::span<const T* const>;
 
 using LayerPtrs                 = std::vector<Layer*>;
 using SupportLayerPtrs          = std::vector<SupportLayer*>;
-
-class BoundingBoxf3;        // TODO: for temporary constructor parameter
 
 // Single instance of a PrintObject.
 // As multiple PrintObjects may be generated for a single ModelObject (their instances differ in rotation around Z),
@@ -385,7 +383,7 @@ public:
 
     size_t                      num_printing_regions() const throw() { assert(m_shared_regions); return m_shared_regions->all_regions.size(); }
     const PrintRegion&          printing_region(size_t idx) const throw() { assert(m_shared_regions); return *m_shared_regions->all_regions[idx].get(); }
-    //FIXME returing all possible regions before slicing, thus some of the regions may not be slicing at the end.
+    // Note: returns all candidate regions before slicing, so some of them may end up unused by the final slice.
     std::vector<std::reference_wrapper<const PrintRegion>> all_regions() const;
     const PrintObjectRegions*   shared_regions() const throw() { return m_shared_regions; }
 
@@ -419,6 +417,7 @@ protected:
     // to be called from Print only.
     friend class Print;
     friend class PrintBaseWithState<PrintStep, psCount>;
+    friend struct std::default_delete<PrintObject>;
 
     PrintObject(Print* print, ModelObject* model_object, const Transform3d& trafo, PrintInstances&& instances);
     ~PrintObject() override {
@@ -471,7 +470,6 @@ private:
     void discover_vertical_shells();
     void bridge_over_infill();
     void replaceSurfaceType(SurfaceType st_to_replace, SurfaceType st_replacement, SurfaceType st_under_it);
-    // void clip_fill_surfaces(); //infill_only_where_needed
     void tag_under_bridge();
     void discover_horizontal_shells();
     void clean_surfaces();
@@ -783,7 +781,8 @@ public:
     const ToolOrdering&         get_tool_ordering() const { return m_wipe_tower_data.tool_ordering; }
 
     const Polygons& get_sequential_print_clearance_contours() const { return m_sequential_print_clearance_contours; }
-//TODO: decide to use this one or the printconfig one.
+// Contour-aware sequential clearance (fills optional polygons). PrintConfig has a
+// config-only helper; this one is the geometric check used by the print pipeline.
     static bool sequential_print_horizontal_clearance_valid(const Print& print, Polygons* polygons = nullptr);
 
     //put this in public to be accessible for tests, it was in private before.
@@ -794,7 +793,7 @@ public:
     bool                invalidate_step(PrintStep step);
 
     // just a little wrapper to let the user know that this print can only be modified to emit warnings & update advancement status, change stats.
-    // TODO: have the status out of the printbase class and into another one, so we can have a const print & a mutable statusmonitor
+    // Possible refactor: move the status out of PrintBase into a separate class, so we could have a const Print and a mutable status monitor.
     class StatusMonitor
     {
     private:

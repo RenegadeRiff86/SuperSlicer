@@ -1,4 +1,5 @@
-///|/ Copyright (c) Prusa Research 2018 - 2022 Oleksandra Iushchenko @YuSanka, Lukáš Matěna @lukasmatena, Pavel Mikuš @Godrak, Filip Sykala @Jony01, Lukáš Hejl @hejllukas, Vojtěch Bubník @bubnikv, David Kocík @kocikdav, Enrico Turri @enricoturri1966, Tomáš Mészáros @tamasmeszaros
+// |/ Copyright (c) Prusa Research 2018 - 2022 Oleksandra Iushchenko @YuSanka, Lukáš Matěna @lukasmatena, Pavel Mikuš @Godrak, Filip Sykala @Jony01, Lukáš Hejl @hejllukas, Vojtěch Bubník @bubnikv, David Kocík @kocikdav, Enrico Turri @enricoturri1966,
+// Tomáš Mészáros @tamasmeszaros
 ///|/
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
@@ -33,7 +34,7 @@ class ModelVolume;
 class TriangleMesh;
 enum class ModelVolumeType : int;
 
-// FIXME: broken build on mac os because of this is missing:
+// Local aliases so this header does not force PrintConfig.hpp on all consumers.
 typedef std::vector<std::string>                    t_config_option_keys;
 typedef std::vector<ModelVolume*>                   ModelVolumePtrs;
 typedef double                                      coordf_t;
@@ -427,7 +428,7 @@ private:
 
     void ItemValueChanged(wxDataViewEvent &event);
     // Workaround for entering the column editing mode on Windows. Simulate keyboard enter when another column of the active line is selected.
-	void OnEditingStarted(wxDataViewEvent &event);
+    void OnEditingStarted(wxDataViewEvent &event);
     void OnEditingDone(wxDataViewEvent &event);
 };
 

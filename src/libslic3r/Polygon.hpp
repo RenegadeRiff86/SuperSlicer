@@ -73,7 +73,7 @@ public:
     // last point == first point for polygons
     //please don't use that, prefer 'is_loop', front() and back().
     const Point& last_point() const { return this->points.front(); }
-    virtual bool is_loop() const { return true; }
+    bool is_loop() const override { return true; }
 
     distf_t length() const;
     Lines lines() const;
@@ -117,7 +117,7 @@ public:
     Points concave_points(double min_angle, double max_angle) const;
     std::vector<size_t> concave_points_idx(double min_angle, double max_angle) const;
     std::vector<size_t> convex_points_idx(double min_angle, double max_angle) const;
-    // Projection of a point onto the polygon.
+    // Projection of a point onto the polygon (unlike the MultiPoint base version, this also considers the closing segment).
     std::pair<Point, size_t> point_projection(const Point &point) const override;
     std::vector<float> parameter_by_length() const;
     /// remove points that are (almost) on an existing line from previous & next point.

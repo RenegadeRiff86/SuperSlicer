@@ -24,6 +24,7 @@
 #include <chrono>
 
 #include "Event.hpp"
+#include "Automation/AutomationFileDialog.hpp"
 
 class wxCheckBox;
 class wxTopLevelWindow;
@@ -63,7 +64,7 @@ bool check_dark_mode();
 void update_dark_ui(wxWindow* window);
 #endif
 
-#if !wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3)
+#if !wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3) // wxWidgets 3.1.3 compatibility boundary.
 struct DpiChangedEvent : public wxEvent {
     int dpi;
     wxRect rect;
@@ -93,7 +94,7 @@ public:
         : P(parent, id, title, pos, size, style, name)
     {
         int dpi = get_dpi_for_window(this);
-        m_scale_factor = (float)dpi / (float)DPI_DEFAULT;
+        m_scale_factor = static_cast<float>(dpi) / static_cast<float>(DPI_DEFAULT);
         int custom_gui_size = DPIAware_::get_font_size();
         if (custom_gui_size != 0) {
             m_scale_factor = custom_gui_size / 10.f;
@@ -134,11 +135,11 @@ public:
 //        recalc_font();
 
 #ifndef __WXOSX__
-#if wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3)
+#if wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3) // wxWidgets 3.1.3 compatibility boundary.
         this->Bind(wxEVT_DPI_CHANGED, [this](wxDPIChangedEvent& evt) {
             int custom_gui_size = DPIAware_::get_font_size();
             if (custom_gui_size == 0) {
-                m_scale_factor = (float)evt.GetNewDPI().x / (float)DPI_DEFAULT;
+                m_scale_factor = static_cast<float>(evt.GetNewDPI().x) / static_cast<float>(DPI_DEFAULT);
                 m_new_font_point_size = get_default_font_for_dpi(this, evt.GetNewDPI().x).GetPointSize();
                 if (m_can_rescale && (m_force_rescale || is_new_scale_factor()))
                     rescale(wxRect());
@@ -146,7 +147,7 @@ public:
         });
 #else
         this->Bind(EVT_DPI_CHANGED_SLICER, [this](const DpiChangedEvent& evt) {
-            m_scale_factor = (float)evt.dpi / (float)DPI_DEFAULT;
+            m_scale_factor = static_cast<float>(evt.dpi) / static_cast<float>(DPI_DEFAULT);
 
             m_new_font_point_size = get_default_font_for_dpi(this, evt.dpi).GetPointSize();
 
@@ -251,7 +252,7 @@ private:
         this->Freeze();
 
         m_force_rescale = false;
-#if !wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3)
+#if !wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3) // wxWidgets 3.1.3 compatibility boundary.
         // rescale fonts of all controls
         scale_controls_fonts(this, m_new_font_point_size);
         // rescale current window font
@@ -350,12 +351,12 @@ public:
 
     template<class EvTag, class Fun>
     EventGuard(wxEvtHandler *emitter, const EvTag &tag, Fun fun)
-        :event_storage(new EventStorageFun<EvTag, Fun>(emitter, tag, std::move(fun)))
+        :event_storage(std::make_unique<EventStorageFun<EvTag, Fun>>(emitter, tag, std::move(fun)))
     {}
 
     template<typename EvTag, typename Class, typename EvArg, typename EvHandler>
     EventGuard(wxEvtHandler *emitter, const EvTag &tag, void(Class::* method)(EvArg &), EvHandler *handler)
-        :event_storage(new EventStorageMethod<EvTag, Class, EvArg, EvHandler>(emitter, tag, method, handler))
+        :event_storage(std::make_unique<EventStorageMethod<EvTag, Class, EvArg, EvHandler>>(emitter, tag, method, handler))
     {}
 
     EventGuard& operator=(const EventGuard&) = delete;
@@ -370,7 +371,7 @@ public:
 };
 
 
-class CheckboxFileDialog : public wxFileDialog
+class CheckboxFileDialog : public FileDialog
 {
 public:
     CheckboxFileDialog(wxWindow *parent,
@@ -426,7 +427,7 @@ class TaskTimer
     std::chrono::milliseconds   start_timer;
     std::string                 task_name;
 public:
-    TaskTimer(std::string task_name);
+    TaskTimer(const std::string& task_name);
 
     ~TaskTimer();
 };

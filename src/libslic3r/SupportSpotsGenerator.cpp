@@ -60,6 +60,9 @@ constexpr bool debug_files = false;
 
 namespace Slic3r::SupportSpotsGenerator {
 
+// Repeated string literals extracted to named constants (BP1001).
+static constexpr const char* kObjVertexFmt = "v %f %f %f  %f %f %f\n";
+
 ExtrusionLine::ExtrusionLine() : a(Vec2f::Zero()), b(Vec2f::Zero()), len(0.0), origin_entity(nullptr) {}
 ExtrusionLine::ExtrusionLine(const Vec2f &a, const Vec2f &b, float len, const ExtrusionEntity *origin_entity)
     : a(a), b(b), len(len), origin_entity(origin_entity)
@@ -777,7 +780,7 @@ std::tuple<float, SupportPointCause> ObjectPart::is_stable_while_extruding(const
 }
 
 static std::vector<const ExtrusionEntityCollection*> gather_extrusions(const LayerSlice& slice, const Layer* layer) {
-    // TODO reserve might be good, benchmark
+    // The nested entity count is not available cheaply, so grow the result incrementally.
     std::vector<const ExtrusionEntityCollection*> result;
 
     for (const auto &island : slice.islands) {
@@ -808,11 +811,39 @@ static bool has_brim(const Layer* layer, const Params& params) {
 }
 
 
+Polygons get_brim(const ExPolygon &slice_polygon, const BrimType brim_type, const float brim_width)
+{
+    if (brim_width <= 0.f || brim_type == btNoBrim)
+        return {};
+
+    ExPolygons brim;
+    if (brim_type == btOuterOnly || brim_type == btOuterAndInner) {
+        Polygon brim_hole = slice_polygon.contour;
+        brim_hole.reverse();
+        Polygons expanded = expand(slice_polygon.contour, scale_t(brim_width));
+        if (!expanded.empty())
+            brim.emplace_back(expanded.front(), brim_hole);
+    }
+
+    if (brim_type == btInnerOnly || brim_type == btOuterAndInner) {
+        Polygons brim_contours = slice_polygon.holes;
+        polygons_reverse(brim_contours);
+        for (const Polygon &brim_contour : brim_contours) {
+            Polygons brim_holes = shrink({brim_contour}, scale_t(brim_width));
+            polygons_reverse(brim_holes);
+            ExPolygon inner_brim{brim_contour};
+            inner_brim.holes = std::move(brim_holes);
+            brim.emplace_back(std::move(inner_brim));
+        }
+    }
+
+    return to_polygons(brim);
+}
+
 static Polygons get_brim(const Layer* layer, const size_t slice_idx, const float brim_width_outer, const float brim_width_inner) {
     const ExPolygon& slice_polygon = layer->lslices()[slice_idx];
-    // TODO: The algorithm here should take into account that multiple slices may
-    // have coliding Brim areas and the final brim area is smaller,
-    // thus has lower adhesion. For now this effect will be neglected.
+    // This per-slice estimate does not model brim overlap with neighboring slices,
+    // so the resulting adhesion estimate may be slightly optimistic.
     ExPolygons brim;
     if (brim_width_outer > 0) {
         Polygon brim_hole = slice_polygon.contour;
@@ -947,7 +978,7 @@ struct EnitityToCheck
     size_t                 slice_idx;
 };
 
-// TODO DRY: Very similar to gather extrusions.
+// This traversal parallels gather_extrusions but also flattens nested collections and records region/slice metadata.
 static std::vector<EnitityToCheck> gather_entities_to_check(const Layer* layer) {
     auto get_flat_entities = [](const ExtrusionEntity *e) {
         std::vector<const ExtrusionEntity *> entities;
@@ -1265,7 +1296,7 @@ static void debug_export(const SupportPoints& support_points,const PartialObject
             case SupportPointCause::WeakObjectPart: color = {0.609375f, 0.210938f, 0.621094f}; break; // PURPLE
             }
 
-            fprintf(fp, "v %f %f %f  %f %f %f\n", support_points[i].position(0), support_points[i].position(1),
+            fprintf(fp, kObjVertexFmt, support_points[i].position(0), support_points[i].position(1),
                     support_points[i].position(2), color[0], color[1], color[2]);
         }
 
@@ -1274,7 +1305,7 @@ static void debug_export(const SupportPoints& support_points,const PartialObject
             if (objects[i].connected_to_bed) {
                 color = {1.0f, 0.0f, 0.0f};
             }
-            fprintf(fp, "v %f %f %f  %f %f %f\n", objects[i].centroid(0), objects[i].centroid(1), objects[i].centroid(2), color[0],
+            fprintf(fp, kObjVertexFmt, objects[i].centroid(0), objects[i].centroid(1), objects[i].centroid(2), color[0],
                     color[1], color[2]);
         }
 
@@ -1349,12 +1380,12 @@ void estimate_supports_malformations(SupportLayerPtrs &layers, float flow_width,
         for (const ExtrusionLine &line : current_layer_lines) {
             if (line.curled_up_height > params.curling_tolerance_limit) {
                 Vec3f color = value_to_rgbf(-EPSILON, l->height * params.max_curled_height_factor, line.curled_up_height);
-                fprintf(debug_file, "v %f %f %f  %f %f %f\n", line.b[0], line.b[1], l->print_z, color[0], color[1], color[2]);
+                fprintf(debug_file, kObjVertexFmt, line.b[0], line.b[1], l->print_z, color[0], color[1], color[2]);
             }
         }
         for (const ExtrusionLine &line : current_layer_lines) {
             Vec3f color = value_to_rgbf(-EPSILON, l->height * params.max_curled_height_factor, line.curled_up_height);
-            fprintf(full_file, "v %f %f %f  %f %f %f\n", line.b[0], line.b[1], l->print_z, color[0], color[1], color[2]);
+            fprintf(full_file, kObjVertexFmt, line.b[0], line.b[1], l->print_z, color[0], color[1], color[2]);
         }
 #endif
 
@@ -1427,12 +1458,12 @@ void estimate_malformations(LayerPtrs &layers, const Params &params)
         for (const ExtrusionLine &line : current_layer_lines) {
             if (line.curled_up_height > params.curling_tolerance_limit) {
                 Vec3f color = value_to_rgbf(-EPSILON, l->height * params.max_curled_height_factor, line.curled_up_height);
-                fprintf(debug_file, "v %f %f %f  %f %f %f\n", line.b[0], line.b[1], l->print_z, color[0], color[1], color[2]);
+                fprintf(debug_file, kObjVertexFmt, line.b[0], line.b[1], l->print_z, color[0], color[1], color[2]);
             }
         }
         for (const ExtrusionLine &line : current_layer_lines) {
             Vec3f color = value_to_rgbf(-EPSILON, l->height * params.max_curled_height_factor, line.curled_up_height);
-            fprintf(full_file, "v %f %f %f  %f %f %f\n", line.b[0], line.b[1], l->print_z, color[0], color[1], color[2]);
+            fprintf(full_file, kObjVertexFmt, line.b[0], line.b[1], l->print_z, color[0], color[1], color[2]);
         }
 #endif
 

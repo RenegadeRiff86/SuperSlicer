@@ -61,6 +61,16 @@ class TriangleSelector;
 
 namespace UndoRedo {
     class StackImpl;
+
+    class DeserializationToken
+    {
+    public:
+        DeserializationToken(const DeserializationToken&) = default;
+
+    private:
+        DeserializationToken() = default;
+        friend class StackImpl;
+    };
 }
 
 class ModelConfigObject : public ObjectBase, public ModelConfig
@@ -122,19 +132,19 @@ typedef std::vector<ModelInstance*> ModelInstancePtrs;
 #define OBJECTBASE_DERIVED_COPY_MOVE_CLONE(TYPE) \
     /* Copy a model, copy the IDs. The Print::apply() will call the TYPE::copy() method */ \
     /* to make a private copy for background processing. */ \
-    static TYPE* new_copy(const TYPE &rhs)  { auto *ret = new TYPE(rhs); assert(ret->id() == rhs.id()); return ret; } \
-    static TYPE* new_copy(TYPE &&rhs)       { const auto rhs_id = rhs.id(); auto *ret = new TYPE(std::move(rhs)); assert(ret->id() == rhs_id); return ret; } \
+    static TYPE* new_copy(const TYPE &rhs)  { auto ret = std::make_unique<TYPE>(CopyConstructionToken{}, rhs); assert(ret->id() == rhs.id()); return ret.release(); } \
+    static TYPE* new_copy(TYPE &&rhs)       { [[maybe_unused]] const auto rhs_id = rhs.id(); auto ret = std::make_unique<TYPE>(CopyConstructionToken{}, std::move(rhs)); assert(ret->id() == rhs_id); return ret.release(); } \
     static TYPE  make_copy(const TYPE &rhs) { TYPE ret(rhs); assert(ret.id() == rhs.id()); return ret; } \
-    static TYPE  make_copy(TYPE &&rhs)      { const auto rhs_id = rhs.id(); TYPE ret(std::move(rhs)); assert(ret.id() == rhs_id); return ret; } \
+    static TYPE  make_copy(TYPE &&rhs)      { [[maybe_unused]] const auto rhs_id = rhs.id(); TYPE ret(std::move(rhs)); assert(ret.id() == rhs_id); return ret; } \
     TYPE&        assign_copy(const TYPE &rhs); \
     TYPE&        assign_copy(TYPE &&rhs); \
     /* Copy a TYPE, generate new IDs. The front end will use this call. */ \
     static TYPE* new_clone(const TYPE &rhs) { \
         /* Default constructor assigning an invalid ID. */ \
-        auto obj = new TYPE(-1); \
+        auto obj = std::make_unique<TYPE>(CopyConstructionToken{}, -1); \
         obj->assign_clone(rhs); \
         assert(obj->id().valid() && obj->id() != rhs.id()); \
-        return obj; \
+        return obj.release(); \
     } \
     TYPE         make_clone(const TYPE &rhs) { \
         /* Default constructor assigning an invalid ID. */ \
@@ -155,6 +165,8 @@ typedef std::vector<ModelInstance*> ModelInstancePtrs;
 class ModelMaterial final : public ObjectBase
 {
 public:
+    explicit ModelMaterial(UndoRedo::DeserializationToken) : ModelMaterial() {}
+
     // Attributes are defined by the AMF file format, but they don't seem to be used by Slic3r for any purpose.
     t_model_material_attributes attributes;
     // Dynamic configuration storage for the object specific configuration values, overriding the global configuration.
@@ -338,8 +350,8 @@ enum class ModelVolumeType : int {
     SUPPORT_ENFORCER,
     SEAM_POSITION_CENTER,
     SEAM_POSITION_CENTER_Z,
-    SEAM_POSITION_INSIDE_CENTER, //TODO
-    SEAM_POSITION_INSIDE, //TODO
+    SEAM_POSITION_INSIDE_CENTER, // reserved: seam painting volume (inside center)
+    SEAM_POSITION_INSIDE,        // reserved: seam painting volume (inside)
     BRIM_PATCH,
     BRIM_NEGATIVE,
 };
@@ -351,8 +363,10 @@ enum class ModelVolumeType : int {
 class ModelObject final : public ObjectBase
 {
 public:
+    explicit ModelObject(UndoRedo::DeserializationToken) : ModelObject() {}
+
     std::string             name;
-    std::string             input_file;    // XXX: consider fs::path
+    std::string             input_file;    // Possible refactor: consider boost::filesystem::path
     // Instances of this ModelObject. Each instance defines a shift on the print bed, rotation around the Z axis and a uniform scaling.
     // Instances are owned by this ModelObject.
     ModelInstancePtrs       instances;
@@ -525,8 +539,17 @@ public:
     bool is_cut() const { return cut_id.id().valid(); }
     bool has_connectors() const;
 
+    class CopyConstructionToken {
+        friend class ModelObject;
+        CopyConstructionToken() = default;
+    };
+    ModelObject(CopyConstructionToken, const ModelObject &rhs) : ModelObject(rhs) {}
+    ModelObject(CopyConstructionToken, ModelObject &&rhs) noexcept : ModelObject(std::move(rhs)) {}
+    explicit ModelObject(CopyConstructionToken, int) : ModelObject(-1) {}
+
 private:
     friend class Model;
+    friend struct std::default_delete<ModelObject>;
     // This constructor assigns new ID to this ModelObject and its config.
     explicit ModelObject(Model* model) : m_model(model), origin_translation(Vec3d::Zero())
     { 
@@ -562,9 +585,11 @@ private:
         assert(this->layer_height_profile.id() == rhs.layer_height_profile.id());
     }
     explicit ModelObject(ModelObject &&rhs) noexcept : ObjectBase(-1), config(-1), layer_height_profile(-1) {
+#ifndef NDEBUG
         const auto rhs_id = rhs.id();
         const auto rhs_config_id = rhs.config.id();
         const auto rhs_layer_height_profile_id = rhs.layer_height_profile.id();
+#endif
         Model *const rhs_model = rhs.m_model;
         assert(this->id().invalid()); 
         assert(this->config.id().invalid()); 
@@ -596,9 +621,11 @@ private:
         return *this;
     }
     ModelObject& operator=(ModelObject &&rhs) noexcept {
+#ifndef NDEBUG
         const auto rhs_id = rhs.id();
         const auto rhs_config_id = rhs.config.id();
         const auto rhs_layer_height_profile_id = rhs.layer_height_profile.id();
+#endif
         Model *const rhs_model = rhs.m_model;
         this->assign_copy(std::move(rhs));
         m_model = rhs_model;
@@ -773,6 +800,8 @@ private:
 class ModelVolume final : public ObjectBase
 {
 public:
+    explicit ModelVolume(UndoRedo::DeserializationToken) : ModelVolume() {}
+
     std::string         name;
     // struct used by reload from disk command to recover data from disk
     struct Source
@@ -787,8 +816,8 @@ public:
         bool is_from_builtin_objects{ false };
 
         template<class Archive> void serialize(Archive& ar) { 
-            //FIXME Vojtech: Serialize / deserialize only if the Source is set.
-            // likely testing input_file or object_idx would be sufficient.
+            // Performance note (Vojtech): all fields are serialized even when the Source is unset;
+            // skipping unset sources (testing input_file or object_idx) would shrink the archive.
             ar(input_file, object_idx, volume_idx, mesh_offset, transform, is_converted_from_inches, is_converted_from_meters, is_from_builtin_objects);
         }
     };
@@ -1017,19 +1046,19 @@ private:
     }
 
     ModelVolume(ModelObject *object, const TriangleMesh &mesh, ModelVolumeType type = ModelVolumeType::MODEL_PART) :
-        m_mesh(new TriangleMesh(mesh)), m_type(type), object(object)
+        m_mesh(std::make_shared<TriangleMesh>(mesh)), m_type(type), object(object)
     {
         assert(check());
         if (m_mesh->facets_count() > 1) calculate_convex_hull();
     }
     ModelVolume(ModelObject *object, TriangleMesh &&mesh, ModelVolumeType type = ModelVolumeType::MODEL_PART)
-        : m_mesh(new TriangleMesh(std::move(mesh))), m_type(type), object(object)
+        : m_mesh(std::make_shared<TriangleMesh>(std::move(mesh))), m_type(type), object(object)
     {
         assert(check());
         if (m_mesh->facets_count() > 1) calculate_convex_hull();
     }
     ModelVolume(ModelObject *object, TriangleMesh &&mesh, TriangleMesh &&convex_hull, ModelVolumeType type = ModelVolumeType::MODEL_PART) :
-        m_mesh(new TriangleMesh(std::move(mesh))), m_convex_hull(new TriangleMesh(std::move(convex_hull))), m_type(type), object(object) {
+        m_mesh(std::make_shared<TriangleMesh>(std::move(mesh))), m_convex_hull(std::make_shared<TriangleMesh>(std::move(convex_hull))), m_type(type), object(object) {
         assert(check());
     }
 
@@ -1059,7 +1088,7 @@ private:
     }
     // Providing a new mesh, therefore this volume will get a new unique ID assigned.
     ModelVolume(ModelObject *object, const ModelVolume &other, TriangleMesh &&mesh) :
-        name(other.name), source(other.source), config(other.config), object(object), m_mesh(new TriangleMesh(std::move(mesh))), m_type(other.m_type), m_transformation(other.m_transformation),
+        name(other.name), source(other.source), config(other.config), object(object), m_mesh(std::make_shared<TriangleMesh>(std::move(mesh))), m_type(other.m_type), m_transformation(other.m_transformation),
         cut_info(other.cut_info), text_configuration(other.text_configuration), emboss_shape(other.emboss_shape)
     {
         assert(this->id().valid()); 
@@ -1159,6 +1188,7 @@ private:
     Geometry::Transformation m_transformation;
 
 public:
+    explicit ModelInstance(UndoRedo::DeserializationToken) : ModelInstance() {}
     // flag showing the position of this instance with respect to the print volume (set by Print::validate() using ModelObject::check_instances_print_volume_state())
     ModelInstanceEPrintVolumeState print_volume_state;
     // Whether or not this instance is printable
@@ -1303,15 +1333,25 @@ public:
     // Properties from loading, can be used to save.
     bool baked_transformation = true;
 
+    class CopyConstructionToken {
+        friend class Model;
+        CopyConstructionToken() = default;
+    };
+
     // Default constructor assigns a new ID to the model.
     Model() { assert(this->id().valid()); }
     ~Model() { this->clear_objects(); this->clear_materials(); }
+    Model(CopyConstructionToken, const Model &rhs) : Model(rhs) {}
+    Model(CopyConstructionToken, Model &&rhs) noexcept : Model(std::move(rhs)) {}
+    explicit Model(CopyConstructionToken, int) : Model(-1) {}
 
     /* To be able to return an object from own copy / clone methods. Hopefully the compiler will do the "Copy elision" */
     /* (Omits copy and move(since C++11) constructors, resulting in zero - copy pass - by - value semantics). */
     Model(const Model &rhs) : ObjectBase(-1) { assert(this->id().invalid()); this->assign_copy(rhs); assert(this->id().valid()); assert(this->id() == rhs.id()); }
     explicit Model(Model &&rhs) noexcept : ObjectBase(-1) {
+#ifndef NDEBUG
         const auto rhs_id = rhs.id();
+#endif
         assert(this->id().invalid());
         this->assign_copy(std::move(rhs));
         assert(this->id().valid());
@@ -1319,7 +1359,9 @@ public:
     }
     Model& operator=(const Model &rhs) { this->assign_copy(rhs); assert(this->id().valid()); assert(this->id() == rhs.id()); return *this; }
     Model& operator=(Model &&rhs) noexcept {
+#ifndef NDEBUG
         const auto rhs_id = rhs.id();
+#endif
         this->assign_copy(std::move(rhs));
         assert(this->id().valid());
         assert(this->id() == rhs_id);

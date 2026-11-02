@@ -302,9 +302,9 @@ bool is_main_thread_active()
 
 #ifdef _DEBUGINFO
 void parallel_for(size_t begin, size_t size, std::function<void(size_t)> process_one_item) {
-    // TODO: sort the idx by difficulty (difficult first) (number of points, region, surfaces, .. ?)
+    // Possible improvement: sort the idx by difficulty (difficult first) (number of points, region, surfaces, .. ?)
 
-    //For now, this is just use in debug mode, to be able toswitch from // to sequential withotu recompiling evrything.
+    // For now, this is just used in debug mode, to be able to switch from parallel to sequential without recompiling everything.
 
     // normal step
     //tbb::parallel_for(begin, size, [&process_one_item](size_t item_idx) { process_one_item(item_idx); });

@@ -105,7 +105,7 @@ public:
     // reference counter operations :
     inline operator bool() const noexcept
     {
-        return (nullptr != px); // TODO nullptrptr
+        return (nullptr != px);
     }
 
     // underlying pointer operations :

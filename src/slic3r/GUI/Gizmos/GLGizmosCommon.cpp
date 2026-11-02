@@ -25,12 +25,11 @@ CommonGizmosDataPool::CommonGizmosDataPool(GLCanvas3D* canvas)
     : m_canvas(canvas)
 {
     using c = CommonGizmosDataID;
-    m_data[c::SelectionInfo].reset(   new SelectionInfo(this));
-    m_data[c::InstancesHider].reset(  new InstancesHider(this));
-//    m_data[c::HollowedMesh].reset(    new HollowedMesh(this));
-    m_data[c::Raycaster].reset(       new Raycaster(this));
-    m_data[c::ObjectClipper].reset(   new ObjectClipper(this));
-    m_data[c::SupportsClipper].reset( new SupportsClipper(this));
+    m_data[c::SelectionInfo]   = std::make_unique<SelectionInfo>(this);
+    m_data[c::InstancesHider] = std::make_unique<InstancesHider>(this);
+    m_data[c::Raycaster]      = std::make_unique<Raycaster>(this);
+    m_data[c::ObjectClipper]  = std::make_unique<ObjectClipper>(this);
+    m_data[c::SupportsClipper] = std::make_unique<SupportsClipper>(this);
 
 }
 
@@ -174,7 +173,7 @@ void InstancesHider::on_update()
         if (meshes != m_old_meshes) {
             m_clippers.clear();
             for (const TriangleMesh* mesh : meshes) {
-                m_clippers.emplace_back(new MeshClipper);
+                m_clippers.emplace_back(std::make_unique<MeshClipper>());
                 m_clippers.back()->set_plane(ClippingPlane(-Vec3d::UnitZ(), -SINKING_Z_THRESHOLD));
                 m_clippers.back()->set_mesh(mesh->its);
             }
@@ -290,7 +289,7 @@ void Raycaster::on_update()
     if (force_raycaster_regeneration || meshes != m_old_meshes) {
         m_raycasters.clear();
         for (const TriangleMesh* mesh : meshes)
-            m_raycasters.emplace_back(new MeshRaycaster(std::make_shared<const TriangleMesh>(*mesh)));
+            m_raycasters.emplace_back(std::make_unique<MeshRaycaster>(std::make_shared<const TriangleMesh>(*mesh)));
         m_old_meshes = meshes;
     }
 }
@@ -350,7 +349,7 @@ void ObjectClipper::on_update()
     if (mc || force_clipper_regeneration || meshes != m_old_meshes) {
         m_clippers.clear();
         for (size_t i = 0; i < meshes.size(); ++i) {
-            m_clippers.emplace_back(new MeshClipper, trafos[i]);
+            m_clippers.emplace_back(std::make_unique<MeshClipper>(), trafos[i]);
             m_clippers.back().first->set_mesh(meshes[i]->its);
         }
         m_old_meshes = std::move(meshes);
@@ -454,13 +453,13 @@ void ObjectClipper::set_position_by_ratio(double pos, bool keep_normal)
         pos = m_clp_ratio;
 
     m_clp_ratio = pos;
-    m_clp.reset(new ClippingPlane(normal, (dist - (-m_active_inst_bb_radius) - m_clp_ratio * 2*m_active_inst_bb_radius)));
+    m_clp = std::make_unique<ClippingPlane>(normal, (dist - (-m_active_inst_bb_radius) - m_clp_ratio * 2*m_active_inst_bb_radius));
     get_pool()->get_canvas()->set_as_dirty();
 }
 
 void ObjectClipper::set_range_and_pos(const Vec3d& cpl_normal, double cpl_offset, double pos)
 {
-    m_clp.reset(new ClippingPlane(cpl_normal, cpl_offset));
+    m_clp = std::make_unique<ClippingPlane>(cpl_normal, cpl_offset);
     m_clp_ratio = pos;
     get_pool()->get_canvas()->set_as_dirty();
 }
@@ -503,7 +502,7 @@ void SupportsClipper::on_update()
         m_supports_clipper.reset();
     }
     else {
-        m_supports_clipper.reset(new MeshClipper);
+        m_supports_clipper = std::make_unique<MeshClipper>();
         m_supports_clipper->set_mesh(support_mesh.its);
     }
 
@@ -513,7 +512,7 @@ void SupportsClipper::on_update()
         m_pad_clipper.reset();
     }
     else {
-        m_pad_clipper.reset(new MeshClipper);
+        m_pad_clipper = std::make_unique<MeshClipper>();
         m_pad_clipper->set_mesh(pad_mesh.its);
     }
 }

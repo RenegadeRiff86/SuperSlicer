@@ -16,6 +16,39 @@ namespace Slic3r {
 
 enum class EnforcerBlockerType : int8_t;
 
+// One definition of "this facet faces downwards steeply enough to count as an overhang",
+// shared by the paint-on-supports brush and the highlight-by-angle button so the two cannot
+// disagree about what the same slider means.
+//
+// Two things have to be right. A normal does not transform like a direction - it needs the
+// inverse transpose - and the test has to be made in world space, because "down" only means
+// something there. Comparing an object-space normal against an object-space "down" measures
+// the angle in the object's own frame, and a non-uniform scale does not preserve angles: on
+// an object stretched 2x in Z, asking for 45 degrees used to select everything out to 76.
+class OverhangTest
+{
+public:
+    // threshold_deg is the largest angle from straight down that still counts as an overhang.
+    OverhangTest(const Transform3d &trafo_no_translate, float threshold_deg)
+        : m_normal_matrix(trafo_no_translate.matrix().block<3, 3>(0, 0).inverse().transpose())
+        , m_cos_threshold(std::cos(double(threshold_deg) * M_PI / 180.))
+    {}
+
+    // facet_normal is a unit normal in the mesh's own coordinates.
+    bool is_overhang(const Vec3f &facet_normal) const
+    {
+        const Vec3d normal = m_normal_matrix * facet_normal.cast<double>();
+        const double length = normal.norm();
+        // -normal.z() / length is the cosine of the angle to straight down. Comparing without
+        // dividing keeps a degenerate facet from turning the test into a NaN.
+        return length > 0. && -normal.z() >= m_cos_threshold * length;
+    }
+
+private:
+    Matrix3d m_normal_matrix;
+    double   m_cos_threshold;
+};
+
 
 // Following class holds information about selected triangles. It also has power
 // to recursively subdivide the triangles and make the selection finer.

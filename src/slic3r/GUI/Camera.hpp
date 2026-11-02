@@ -13,6 +13,17 @@
 namespace Slic3r {
 namespace GUI {
 
+// A GL viewport is reported as x, y, width, height - the layout of Camera::get_viewport(), and of
+// everything that reads it.
+enum GLViewportComponent : size_t
+{
+    ViewportX = 0,
+    ViewportY,
+    ViewportWidth,
+    ViewportHeight,
+};
+static constexpr size_t GLViewportComponents = ViewportHeight + 1;
+
 struct Camera
 {
     static const double DefaultDistance;
@@ -34,6 +45,9 @@ struct Camera
     bool requires_zoom_to_bed{ false };
 
 private:
+    static constexpr Eigen::Index ViewRotationDimensions       = 3;
+    static constexpr Eigen::Index HomogeneousTranslationColumn = 3;
+
     EType m_type{ EType::Perspective };
     bool m_update_config_on_type_change_enabled{ false };
     Vec3d m_target{ Vec3d::Zero() };
@@ -43,7 +57,7 @@ private:
     double m_distance{ DefaultDistance };
     double m_gui_scale{ 1.0 };
 
-    std::array<int, 4> m_viewport;
+    std::array<int, GLViewportComponents> m_viewport;
     Transform3d m_view_matrix{ Transform3d::Identity() };
     // We are calculating the rotation part of the m_view_matrix from m_view_rotation.
     Eigen::Quaterniond m_view_rotation{ 1.0, 0.0, 0.0, 0.0 };
@@ -81,15 +95,15 @@ public:
 
     void select_view(const std::string& direction);
 
-    const std::array<int, 4>& get_viewport() const { return m_viewport; }
+    const std::array<int, GLViewportComponents>& get_viewport() const { return m_viewport; }
     const Transform3d& get_view_matrix() const { return m_view_matrix; }
     const Transform3d& get_projection_matrix() const { return m_projection_matrix; }
 
-    Vec3d get_dir_right() const { return m_view_matrix.matrix().block(0, 0, 3, 3).row(0); }
-    Vec3d get_dir_up() const { return m_view_matrix.matrix().block(0, 0, 3, 3).row(1); }
-    Vec3d get_dir_forward() const { return -m_view_matrix.matrix().block(0, 0, 3, 3).row(2); }
+    Vec3d get_dir_right() const { return m_view_matrix.matrix().block(0, 0, ViewRotationDimensions, ViewRotationDimensions).row(0); }
+    Vec3d get_dir_up() const { return m_view_matrix.matrix().block(0, 0, ViewRotationDimensions, ViewRotationDimensions).row(1); }
+    Vec3d get_dir_forward() const { return -m_view_matrix.matrix().block(0, 0, ViewRotationDimensions, ViewRotationDimensions).row(2); }
 
-    Vec3d get_position() const { return m_view_matrix.matrix().inverse().block(0, 3, 3, 1); }
+    Vec3d get_position() const { return m_view_matrix.matrix().inverse().block(0, HomogeneousTranslationColumn, ViewRotationDimensions, 1); }
 
     double get_near_z() const { return m_frustrum_zs.first; }
     double get_far_z() const { return m_frustrum_zs.second; }

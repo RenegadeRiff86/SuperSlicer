@@ -67,7 +67,6 @@ namespace Slic3r {
 //    // Solid internal infill.
 //    static constexpr const ExtrusionRoleModifiers SolidInfill{ExtrusionRoleModifier::Infill | ExtrusionRoleModifier::Solid};
 //    // Top solid infill (visible).
-//    // FIXME why there is no bottom solid infill type?
 //    static constexpr const ExtrusionRoleModifiers TopSolidInfill{ExtrusionRoleModifier::Infill | ExtrusionRoleModifier::Solid |
 //                                                                 ExtrusionRoleModifier::External};
 //    // Ironing infill at the top surfaces.
@@ -213,7 +212,8 @@ public:
     static constexpr const ExtrusionRoleModifier SolidInfill{ExtrusionRoleModifier::ERM_Infill |
                                                              ExtrusionRoleModifier::ERM_Solid};
     // Top solid infill (visible).
-    // FIXME why there is no bottom solid infill type?
+    // Note: there is no dedicated bottom solid infill modifier; bottom surfaces map to
+    // SolidInfill, or BridgeInfill when bridging (see below).
     static constexpr const ExtrusionRoleModifier TopSolidInfill{
         ExtrusionRoleModifier::ERM_Infill | ExtrusionRoleModifier::ERM_Solid | ExtrusionRoleModifier::ERM_External};
     // Ironing infill at the top surfaces.

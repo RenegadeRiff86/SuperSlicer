@@ -15,23 +15,17 @@
 #ifndef _libslic3r_h_
 #define _libslic3r_h_
 
-#include "libslic3r_version.h"
-
 // this needs to be included early for MSVC (listing it in Build.PL is not enough)
 #include <array>
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <cstdarg>
 #include <cstdint>
 #include <cstdio>
-#include <ostream>
-#include <iostream>
+#include <deque>
 #include <memory>
 #include <optional>
-#include <queue>
 #include <set>
-#include <sstream>
 #include <type_traits>
 #include <vector>
 
@@ -42,7 +36,6 @@
 #include <boost/container/deque.hpp>
 #endif // _WIN32
 
-#include "Technologies.hpp"
 #include "Semver.hpp"
 
 
@@ -56,7 +49,7 @@ using distsqrf_t = double;
 using lengthsqr_t = uint64_t;
 
 
-inline uint16_t operator "" _u(unsigned long long value)
+inline uint16_t operator ""_u(unsigned long long value)
 {
     return static_cast<uint16_t>(value);
 }

@@ -184,7 +184,7 @@ inline Eigen::Matrix<typename Derived::Scalar, 2, 1, Eigen::DontAlign> perp(cons
 #if _DEBUG
 inline double ccw_angle_old_test(const Vec2crd &me, const Vec2crd &p1, const Vec2crd &p2)
 {
-    //FIXME this calculates an atan2 twice! Project one vector into the other!
+    // Inefficient (two atan2 calls), but this is a debug-only reference implementation.
     double angle = atan2(p1.x() - (me).x(), p1.y() - (me).y())
                  - atan2(p2.x() - (me).x(), p2.y() - (me).y());
     // we only want to return only positive angles
@@ -227,9 +227,10 @@ inline Vec3d   unscale(coord_t x, coord_t y, coord_t z) { return Vec3d(unscaled(
 inline Vec3d   unscale(const Vec3crd &pt) { return Vec3d(unscaled(pt.x()), unscaled(pt.y()), unscaled(pt.z())); }
 inline Vec3d   unscale(const Vec3d   &pt) { return Vec3d(unscaled(pt.x()), unscaled(pt.y()), unscaled(pt.z())); }
 
-inline std::string to_string(const Vec2crd &pt) { return std::string("[") + float_to_string_decimal_point(pt.x()) + ", " + float_to_string_decimal_point(pt.y()) + "]"; }
+inline std::string to_string(const Vec2crd &pt) { return std::string("[") + float_to_string_decimal_point(static_cast<double>(pt.x())) + ", " + float_to_string_decimal_point(static_cast<double>(pt.y())) + "]"; }
 inline std::string to_string(const Vec2d   &pt) { return std::string("[") + float_to_string_decimal_point(pt.x()) + ", " + float_to_string_decimal_point(pt.y()) + "]"; }
-inline std::string to_string(const Vec3crd &pt) { return std::string("[") + float_to_string_decimal_point(pt.x()) + ", " + float_to_string_decimal_point(pt.y()) + ", " + float_to_string_decimal_point(pt.z()) + "]"; }
+inline std::string to_string(const Vec3crd &pt) { return std::string("[") + float_to_string_decimal_point(static_cast<double>(pt.x())) + ", " + float_to_string_decimal_point(static_cast<double>(pt.y())) + ", " +
+  float_to_string_decimal_point(static_cast<double>(pt.z())) + "]"; }
 inline std::string to_string(const Vec3d   &pt) { return std::string("[") + float_to_string_decimal_point(pt.x()) + ", " + float_to_string_decimal_point(pt.y()) + ", " + float_to_string_decimal_point(pt.z()) + "]"; }
 
 std::vector<Vec3f> transform(const std::vector<Vec3f>& points, const Transform3f& t);
@@ -305,10 +306,10 @@ public:
 
     void   rotate(double angle) { this->rotate(std::cos(angle), std::sin(angle)); }
     void   rotate(double cos_a, double sin_a) {
-        double cur_x = (double)this->x();
-        double cur_y = (double)this->y();
-        this->x() = (coord_t)std::round(cos_a * cur_x - sin_a * cur_y);
-        this->y() = (coord_t)std::round(cos_a * cur_y + sin_a * cur_x);
+        double cur_x = static_cast<double>(this->x());
+        double cur_y = static_cast<double>(this->y());
+        this->x() = static_cast<coord_t>(std::round(cos_a * cur_x - sin_a * cur_y));
+        this->y() = static_cast<coord_t>(std::round(cos_a * cur_y + sin_a * cur_x));
     }
 
     void   rotate(double angle, const Point &center);
@@ -620,7 +621,7 @@ inline constexpr FloatingOnly<Tout> scaled(const Tin &v) noexcept
 }
 
 // Conversion definition from unscaled to integer 'scaled coord'.
-// TODO: is the rounding necessary? Here it is commented  out to show that
+// The rounding is deliberately omitted. Here it is commented out to show that
 // it can be different for integers but it does not have to be. Using
 // std::round means loosing noexcept and constexpr modifiers
 template<class Tout = coord_t, class Tin, class = FloatingOnly<Tin>>

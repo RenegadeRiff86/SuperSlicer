@@ -1,4 +1,5 @@
-///|/ Copyright (c) Prusa Research 2016 - 2023 Lukáš Matěna @lukasmatena, Enrico Turri @enricoturri1966, Oleksandra Iushchenko @YuSanka, Tomáš Mészáros @tamasmeszaros, Vojtěch Bubník @bubnikv, Filip Sykala @Jony01, Lukáš Hejl @hejllukas, David Kocík @kocikdav, Vojtěch Král @vojtechkral
+// |/ Copyright (c) Prusa Research 2016 - 2023 Lukáš Matěna @lukasmatena, Enrico Turri @enricoturri1966, Oleksandra Iushchenko @YuSanka, Tomáš Mészáros @tamasmeszaros, Vojtěch Bubník @bubnikv, Filip Sykala @Jony01, Lukáš Hejl @hejllukas, David Kocík
+// @kocikdav, Vojtěch Král @vojtechkral
 ///|/ Copyright (c) 2017 Eyal Soha @eyal0
 ///|/ Copyright (c) Slic3r 2015 Alessandro Ranellucci @alranel
 ///|/
@@ -51,7 +52,7 @@ void glAssertRecentCallImpl(const char* file_name, unsigned int line, const char
 {
 #if defined(NDEBUG)
     // In release mode, only show OpenGL errors if sufficiently high loglevel.
-    if (Slic3r::get_logging_level() < 5)
+    if (Slic3r::get_logging_level() < LogLevelTrace)
         return;
 #endif // NDEBUG
 
@@ -69,7 +70,7 @@ void glAssertRecentCallImpl(const char* file_name, unsigned int line, const char
     case GL_OUT_OF_MEMORY:      sErr = "Out Of Memory";     break;
     default:                    sErr = "Unknown";           break;
     }
-    BOOST_LOG_TRIVIAL(error) << "OpenGL error in " << file_name << ":" << line << ", function " << function_name << "() : " << (int)err << " - " << sErr;
+    BOOST_LOG_TRIVIAL(error) << "OpenGL error in " << file_name << ":" << line << ", function " << function_name << "() : " << static_cast<int>(err) << " - " << sErr;
     assert(false);
 }
 #endif // HAS_GLSAFE
@@ -87,10 +88,30 @@ void GLVolume::SinkingContours::render()
         return;
 
     const GUI::Camera& camera = GUI::wxGetApp().plater()->get_camera();
-    shader->set_uniform("view_model_matrix", camera.get_view_matrix() * Geometry::translation_transform(m_shift));
-    shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix() * Geometry::translation_transform(m_shift));
+    shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
     m_model.render();
 }
+
+// An extruded path is drawn as a quad tube, so each cross-section carries one vertex index
+// per side (see the Left/Right/Top/Bottom enum used to index these arrays).
+static constexpr size_t QuadSideCount = 4;
+
+// Triangles are emitted as flat vertex triples, so the counter walks the buffer in threes.
+static constexpr int VerticesPerTriangle = 3;
+
+// Line primitives are emitted as vertex pairs, one per edge.
+static constexpr int VerticesPerLine = 2;
+
+// A width or a depth is measured across the whole span, so a margin added at one edge is also
+// added at the opposite one, and stepping from an edge back to the centre covers half the span.
+// Growing a span and centring inside it are the same fact seen from two directions - a span has
+// two sides - so both use this one constant.
+static constexpr float BothSides = 2.f;
+
+// Non-manifold edges are drawn thicker than an ordinary line so they read as a defect marker
+// rather than as part of the model's own wireframe.
+static constexpr float NonManifoldEdgeLineWidth = 2.0f;
 
 void GLVolume::SinkingContours::update()
 {
@@ -135,8 +156,8 @@ void GLVolume::SinkingContours::update()
         for (const Vec3d& v : triangulation) {
             init_data.add_vertex((Vec3f)(v.cast<float>() + 0.015f * Vec3f::UnitZ())); // add a small positive z to avoid z-fighting
             ++vertices_counter;
-            if (vertices_counter % 3 == 0)
-                init_data.add_triangle(vertices_counter - 3, vertices_counter - 2, vertices_counter - 1);
+            if (vertices_counter % VerticesPerTriangle == 0)
+                init_data.add_triangle(vertices_counter - VerticesPerTriangle, vertices_counter - (VerticesPerTriangle - 1), vertices_counter - 1);
         }
     }
 
@@ -149,7 +170,7 @@ void GLVolume::NonManifoldEdges::render()
     update();
 
     if (GUI::OpenGLManager::get_gl_info().get_max_line_width() > 1) {
-        glsafe(::glLineWidth(2.0f));
+        glsafe(::glLineWidth(NonManifoldEdgeLineWidth));
     }
 
     GLShaderProgram* shader = GUI::wxGetApp().get_current_shader();
@@ -157,11 +178,11 @@ void GLVolume::NonManifoldEdges::render()
         return;
 
     const GUI::Camera& camera = GUI::wxGetApp().plater()->get_camera();
-    shader->set_uniform("view_model_matrix", camera.get_view_matrix() * m_parent.world_matrix());
-    shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix() * m_parent.world_matrix());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
-    const std::array<int, 4>& viewport = camera.get_viewport();
-    shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+    const std::array<int, GUI::GLViewportComponents>& viewport = camera.get_viewport();
+    shader->set_uniform("viewport_size", Vec2d(double(viewport[GUI::ViewportWidth]), double(viewport[GUI::ViewportHeight])));
     shader->set_uniform("width", 0.5f);
     shader->set_uniform("gap_size", 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
@@ -187,16 +208,16 @@ void GLVolume::NonManifoldEdges::update()
             if (!edges.empty()) {
                 GUI::GLModel::Geometry init_data;
                 init_data.format = { GUI::GLModel::Geometry::EPrimitiveType::Lines, GUI::GLModel::Geometry::EVertexLayout::P3 };
-                init_data.reserve_vertices(2 * edges.size());
-                init_data.reserve_indices(2 * edges.size());
+                init_data.reserve_vertices(VerticesPerLine * edges.size());
+                init_data.reserve_indices(VerticesPerLine * edges.size());
 
                 // vertices + indices
                 unsigned int vertices_count = 0;
                 for (const std::pair<int, int>& edge : edges) {
                     init_data.add_vertex((Vec3f)mesh.its.vertices[edge.first].cast<float>());
                     init_data.add_vertex((Vec3f)mesh.its.vertices[edge.second].cast<float>());
-                    vertices_count += 2;
-                    init_data.add_line(vertices_count - 2, vertices_count - 1);
+                    vertices_count += VerticesPerLine;
+                    init_data.add_line(vertices_count - VerticesPerLine, vertices_count - 1);
                 }
                 m_model.init_from(std::move(init_data));
             }
@@ -321,7 +342,7 @@ ColorRGBA color_from_model_volume(const ModelVolume& model_volume)
 Transform3d GLVolume::world_matrix() const
 {
     Transform3d m = m_instance_transformation.get_matrix() * m_volume_transformation.get_matrix();
-    m.translation()(2) += m_sla_shift_z;
+    m.translation()(2) += m_sla_shift_z; // component 2 is Z
     return m;
 }
 
@@ -354,8 +375,8 @@ const BoundingBoxf3& GLVolume::transformed_convex_hull_bounding_box() const
 
 BoundingBoxf3 GLVolume::transformed_convex_hull_bounding_box(const Transform3d &trafo) const
 {
-	return (m_convex_hull && ! m_convex_hull->empty()) ?
-		m_convex_hull->transformed_bounding_box(trafo) :
+    return (m_convex_hull && ! m_convex_hull->empty()) ?
+        m_convex_hull->transformed_bounding_box(trafo) :
         bounding_box().transformed(trafo);
 }
 
@@ -522,8 +543,8 @@ int GLVolumeCollection::load_wipe_tower_preview(
     float offset = 0.3f;
     pos_x -= offset;
     pos_y -= offset;
-    width += 2.f * offset;
-    depth += 2.f * offset;
+    width += BothSides * offset;
+    depth += BothSides * offset;
     brim_width += offset;
 
     static const float brim_height = 0.2f;
@@ -544,15 +565,21 @@ int GLVolumeCollection::load_wipe_tower_preview(
 
         // We'll now create the box with jagged edge. y-coordinates of the pre-generated model
         // are shifted so that the front edge has y=0 and centerline of the back edge has y=depth:
-        float out_points_idx[][3] = { { 0, -depth, 0 }, { 0, 0, 0 }, { 38.453f, 0, 0 }, { 61.547f, 0, 0 }, { 100.0f, 0, 0 }, { 100.0f, -depth, 0 }, { 55.7735f, -10.0f, 0 }, { 44.2265f, 10.0f, 0 },
-            { 38.453f, 0, 1 }, { 0, 0, 1 }, { 0, -depth, 1 }, { 100.0f, -depth, 1 }, { 100.0f, 0, 1 }, { 61.547f, 0, 1 }, { 55.7735f, -10.0f, 1 }, { 44.2265f, 10.0f, 1 } };
-        static constexpr const int out_facets_idx[][3] = {
-            { 0, 1, 2 }, { 3, 4, 5 }, { 6, 5, 0 }, { 3, 5, 6 }, { 6, 2, 7 }, { 6, 0, 2 }, { 8, 9, 10 }, { 11, 12, 13 }, { 10, 11, 14 }, { 14, 11, 13 }, { 15, 8, 14 },
-            { 8, 10, 14 }, { 3, 12, 4 }, { 3, 13, 12 }, { 6, 13, 3 }, { 6, 14, 13 }, { 7, 14, 6 }, { 7, 15, 14 }, { 2, 15, 7 }, { 2, 8, 15 }, { 1, 8, 2 }, { 1, 9, 8 },
-            { 0, 9, 1 }, { 0, 10, 9 }, { 5, 10, 0 }, { 5, 11, 10 }, { 4, 11, 5 }, { 4, 12, 11 } };
+        // x runs 0..100 here and is rescaled to min_width below; the last component is the
+        // tooth's thickness, 0 on the front face and 1 on the back one.
+        float out_points_idx[][3] = { { 0, -depth, 0 }, { 0, 0, 0 }, { 38.453f, 0, 0 }, { 61.547f, 0, 0 }, { 100.0f, 0, 0 }, { 100.0f, -depth, 0 }, { 55.7735f, -10.0f, 0 }, { 44.2265f, 10.0f, 0 }, // vertices 0-7, front face
+            { 38.453f, 0, 1 }, { 0, 0, 1 }, { 0, -depth, 1 }, { 100.0f, -depth, 1 }, { 100.0f, 0, 1 }, { 61.547f, 0, 1 }, { 55.7735f, -10.0f, 1 }, { 44.2265f, 10.0f, 1 } }; // vertices 8-15, back face
+        // 28 triangles over those 16 vertices: the tooth's two faces, then the walls that
+        // stitch them together.
+        static constexpr const int out_facets_idx[][VerticesPerTriangle] = {
+            { 0, 1, 2 }, { 3, 4, 5 }, { 6, 5, 0 }, { 3, 5, 6 }, { 6, 2, 7 }, { 6, 0, 2 },              // front face
+            { 8, 9, 10 }, { 11, 12, 13 }, { 10, 11, 14 }, { 14, 11, 13 }, { 15, 8, 14 }, { 8, 10, 14 }, // back face
+            { 3, 12, 4 }, { 3, 13, 12 }, { 6, 13, 3 }, { 6, 14, 13 }, { 7, 14, 6 }, { 7, 15, 14 },      // walls
+            { 2, 15, 7 }, { 2, 8, 15 }, { 1, 8, 2 }, { 1, 9, 8 }, { 0, 9, 1 }, { 0, 10, 9 },            // walls
+            { 5, 10, 0 }, { 5, 11, 10 }, { 4, 11, 5 }, { 4, 12, 11 } };                                // walls
         indexed_triangle_set its;
         for (int i = 0; i < 16; ++i)
-            its.vertices.emplace_back(out_points_idx[i][0] / (100.f / min_width), out_points_idx[i][1] + depth, out_points_idx[i][2]);
+            its.vertices.emplace_back(out_points_idx[i][0] / (100.f / min_width), out_points_idx[i][1] + depth, out_points_idx[i][2]); // x rescaled, y shifted, z as authored
         its.indices.reserve(28);
         for (const int* face : out_facets_idx)
             its.indices.emplace_back(face);
@@ -572,13 +599,13 @@ int GLVolumeCollection::load_wipe_tower_preview(
     else {
         for (size_t i=1; i<z_and_depth_pairs.size(); ++i) {
             TriangleMesh m = make_cube(width, z_and_depth_pairs[i-1].second, z_and_depth_pairs[i].first-z_and_depth_pairs[i-1].first);
-            m.translate(0.f, -z_and_depth_pairs[i-1].second/2.f + z_and_depth_pairs[0].second/2.f, z_and_depth_pairs[i-1].first);
+            m.translate(0.f, -z_and_depth_pairs[i-1].second/BothSides + z_and_depth_pairs[0].second/BothSides, z_and_depth_pairs[i-1].first);
             mesh.merge(m);
         }
     }
 
     // We'll make another mesh to show the brim (fixed layer height):
-    TriangleMesh brim_mesh = make_cube(width + 2.f * brim_width, depth + 2.f * brim_width, 0.2f);
+    TriangleMesh brim_mesh = make_cube(width + BothSides * brim_width, depth + BothSides * brim_width, 0.2f);
     brim_mesh.translate(-brim_width, -brim_width, 0.f);
     mesh.merge(brim_mesh);
 
@@ -592,7 +619,7 @@ int GLVolumeCollection::load_wipe_tower_preview(
         disk_mesh.scale(Vec3f(1. / scale_x, 1., 1.)); // Now it matches the base, which may be elliptic.
         disk_mesh.scale(Vec3f(1.f + scale_x*brim_width/R, 1.f + brim_width/R, 1.f)); // Scale so the brim is not deformed.
         cone_mesh.merge(disk_mesh);
-        cone_mesh.translate(width / 2., depth / 2., 0.);
+        cone_mesh.translate(width / BothSides, depth / BothSides, 0.);
         mesh.merge(cone_mesh);
     }
 
@@ -667,7 +694,7 @@ void GLVolumeCollection::load_object_auxiliary(
                 TriangleMesh convex_hull = backend_mesh.convex_hull_3d();
                 for (const std::pair<size_t, size_t>& instance_idx : instances) {
                     const ModelInstance& model_instance = *print_object->model_object()->instances[instance_idx.first];
-                    add_volume(obj_idx, (int)instance_idx.first, model_instance, slaposDrillHoles, backend_mesh, GLVolume::MODEL_COLOR[0], convex_hull);
+                    add_volume(obj_idx, static_cast<int>(instance_idx.first), model_instance, slaposDrillHoles, backend_mesh, GLVolume::MODEL_COLOR[0], convex_hull);
                 }
             }
         }
@@ -681,7 +708,7 @@ void GLVolumeCollection::load_object_auxiliary(
             TriangleMesh convex_hull = supports_mesh.convex_hull_3d();
             for (const std::pair<size_t, size_t>& instance_idx : instances) {
                 const ModelInstance& model_instance = *print_object->model_object()->instances[instance_idx.first];
-                add_volume(obj_idx, (int)instance_idx.first, model_instance, slaposSupportTree, supports_mesh, GLVolume::SLA_SUPPORT_COLOR, convex_hull);
+                add_volume(obj_idx, static_cast<int>(instance_idx.first), model_instance, slaposSupportTree, supports_mesh, GLVolume::SLA_SUPPORT_COLOR, convex_hull);
             }
         }
     }
@@ -694,7 +721,7 @@ void GLVolumeCollection::load_object_auxiliary(
             TriangleMesh convex_hull = pad_mesh.convex_hull_3d();
             for (const std::pair<size_t, size_t>& instance_idx : instances) {
                 const ModelInstance& model_instance = *print_object->model_object()->instances[instance_idx.first];
-                add_volume(obj_idx, (int)instance_idx.first, model_instance, slaposPad, pad_mesh, GLVolume::SLA_PAD_COLOR, convex_hull);
+                add_volume(obj_idx, static_cast<int>(instance_idx.first), model_instance, slaposPad, pad_mesh, GLVolume::SLA_PAD_COLOR, convex_hull);
             }
         }
     }
@@ -709,9 +736,10 @@ GLVolume* GLVolumeCollection::new_toolpath_volume(const ColorRGBA& rgba)
 
 GLVolume* GLVolumeCollection::new_nontoolpath_volume(const ColorRGBA& rgba)
 {
-    GLVolume* out = new GLVolume(rgba);
+    auto owned_volume = std::make_unique<GLVolume>(rgba);
+    GLVolume* out = owned_volume.get();
     out->is_extrusion_path = false;
-    this->volumes.emplace_back(out);
+    this->volumes.emplace_back(std::move(owned_volume));
     return out;
 }
 
@@ -720,7 +748,7 @@ GLVolumeWithIdAndZList volumes_to_render(const std::vector<std::unique_ptr<GLVol
     GLVolumeWithIdAndZList list;
     list.reserve(volumes.size());
 
-    for (unsigned int i = 0; i < (unsigned int)volumes.size(); ++i) {
+    for (unsigned int i = 0; i < static_cast<unsigned int>(volumes.size()); ++i) {
         GLVolume* volume = volumes[i].get();
         bool is_transparent = volume->render_color.is_transparent();
         if (((type == GLVolumeCollection::ERenderType::Opaque && !is_transparent) ||
@@ -732,7 +760,7 @@ GLVolumeWithIdAndZList volumes_to_render(const std::vector<std::unique_ptr<GLVol
 
     if (type == GLVolumeCollection::ERenderType::Transparent && list.size() > 1) {
         for (GLVolumeWithIdAndZ& volume : list) {
-            volume.second.second = volume.first->bounding_box().transformed(view_matrix * volume.first->world_matrix()).max(2);
+            volume.second.second = volume.first->bounding_box().transformed(view_matrix * volume.first->world_matrix()).max(2); // depth-sort on Z in view space
         }
 
         std::sort(list.begin(), list.end(),
@@ -805,7 +833,7 @@ void GLVolumeCollection::render(GLVolumeCollection::ERenderType type, bool disab
         shader->set_uniform("print_volume.z_data", m_print_volume.zs);
         shader->set_uniform("volume_world_matrix", world_matrix);
         shader->set_uniform("slope.actived", m_slope.active && !volume.first->is_modifier && !volume.first->is_wipe_tower);
-        shader->set_uniform("slope.volume_world_normal_matrix", static_cast<Matrix3f>(world_matrix.matrix().block(0, 0, 3, 3).inverse().transpose().cast<float>()));
+        shader->set_uniform("slope.volume_world_normal_matrix", static_cast<Matrix3f>(world_matrix.linear().inverse().transpose().cast<float>()));
         shader->set_uniform("slope.normal_z", m_slope.normal_z);
 
 #if ENABLE_ENVIRONMENT_MAP
@@ -819,10 +847,10 @@ void GLVolumeCollection::render(GLVolumeCollection::ERenderType type, bool disab
 
         volume.first->model.set_color(volume.first->render_color);
         const Transform3d model_matrix = world_matrix;
-        shader->set_uniform("view_model_matrix", view_matrix * model_matrix);
-        shader->set_uniform("projection_matrix", projection_matrix);
-        const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-        shader->set_uniform("view_normal_matrix", view_normal_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_matrix * model_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, projection_matrix);
+        const Matrix3d view_normal_matrix = view_matrix.linear() * model_matrix.linear().inverse().transpose();
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         volume.first->render();
 
 #if ENABLE_ENVIRONMENT_MAP
@@ -926,7 +954,7 @@ void GLVolumeCollection::update_colors_by_extruder(const DynamicPrintConfig* con
             continue;
 
         int extruder_id = volume->extruder_id - 1;
-        if (extruder_id < 0 || (int)colors.size() <= extruder_id)
+        if (extruder_id < 0 || static_cast<int>(colors.size()) <= extruder_id)
             extruder_id = 0;
 
         const ColorItem& color = colors[extruder_id];
@@ -964,23 +992,23 @@ std::vector<double> GLVolumeCollection::get_current_print_zs(bool active_only) c
 
 size_t GLVolumeCollection::cpu_memory_used() const 
 {
-	size_t memsize = sizeof(*this) + this->volumes.capacity() * sizeof(GLVolume);
-	for (const std::unique_ptr<GLVolume> &volume : this->volumes)
-		memsize += volume->cpu_memory_used();
-	return memsize;
+    size_t memsize = sizeof(*this) + this->volumes.capacity() * sizeof(GLVolume);
+    for (const std::unique_ptr<GLVolume> &volume : this->volumes)
+        memsize += volume->cpu_memory_used();
+    return memsize;
 }
 
 size_t GLVolumeCollection::gpu_memory_used() const 
 {
-	size_t memsize = 0;
-	for (const std::unique_ptr<GLVolume> &volume : this->volumes)
-		memsize += volume->gpu_memory_used();
-	return memsize;
+    size_t memsize = 0;
+    for (const std::unique_ptr<GLVolume> &volume : this->volumes)
+        memsize += volume->gpu_memory_used();
+    return memsize;
 }
 
 std::string GLVolumeCollection::log_memory_info() const 
 { 
-	return " (GLVolumeCollection RAM: " + format_memsize_MB(this->cpu_memory_used()) + " GPU: " + format_memsize_MB(this->gpu_memory_used()) + " Both: " + format_memsize_MB(this->gpu_memory_used()) + ")";
+    return " (GLVolumeCollection RAM: " + format_memsize_MB(this->cpu_memory_used()) + " GPU: " + format_memsize_MB(this->gpu_memory_used()) + " Both: " + format_memsize_MB(this->gpu_memory_used()) + ")";
 }
 
 static void thick_lines_to_geometry(
@@ -1004,8 +1032,8 @@ static void thick_lines_to_geometry(
     };
 
     // right, left, top, bottom
-    std::array<int, 4> idx_prev    = { -1, -1, -1, -1 };
-    std::array<int, 4> idx_initial = { -1, -1, -1, -1 };
+    std::array<int, QuadSideCount> idx_prev    = { -1, -1, -1, -1 };
+    std::array<int, QuadSideCount> idx_initial = { -1, -1, -1, -1 };
 
     double bottom_z_prev = 0.0;
     Vec2d  b1_prev(Vec2d::Zero());
@@ -1017,9 +1045,9 @@ static void thick_lines_to_geometry(
     // Reserve for a smooth path. Likley the path will not be that smooth, but better than nothing.
     // Allocated 1.5x more data than minimum.
     // Number of indices, not triangles.
-    geometry.reserve_more_indices((lines.size() * 8 * 3) * 3 / 2);
+    geometry.reserve_more_indices((lines.size() * 8 * 3) * 3 / 2); // 8 tris per segment, 3 indices each, +50% for the joins
     // Number of vertices, not floats.
-    geometry.reserve_more_vertices(((lines.size() + 1) * 4) * 3 / 2);
+    geometry.reserve_more_vertices(((lines.size() + 1) * QuadSideCount) * 3 / 2); // one cross-section per point, +50% for the joins
 
     // loop once more in case of closed loops
     const size_t lines_end = closed ? (lines.size() + 1) : lines.size();
@@ -1056,8 +1084,8 @@ static void thick_lines_to_geometry(
         // calculate new XY normals
         const Vec2d xy_right_normal = unscale(line.normal()).normalized();
 
-        std::array<int, 4> idx_a = { 0, 0, 0, 0 };
-        std::array<int, 4> idx_b = { 0, 0, 0, 0 };
+        std::array<int, QuadSideCount> idx_a = { 0, 0, 0, 0 };
+        std::array<int, QuadSideCount> idx_b = { 0, 0, 0, 0 };
         int idx_last = int(geometry.vertices_count());
 
         const bool bottom_z_different = bottom_z_prev != bottom_z;
@@ -1145,10 +1173,10 @@ static void thick_lines_to_geometry(
                         const size_t indices_count = geometry.indices_count();
                         for (size_t u = indices_count - 24; u < indices_count; ++u) {
                             const unsigned int id = geometry.extract_index(u);
-                            if (id == (unsigned int)idx_prev[Left])
-                                geometry.set_index(u, (unsigned int)idx_initial[Left]);
-                            else if (id == (unsigned int)idx_prev[Right])
-                                geometry.set_index(u, (unsigned int)idx_initial[Right]);
+                            if (id == static_cast<unsigned int>(idx_prev[Left]))
+                                geometry.set_index(u, static_cast<unsigned int>(idx_initial[Left]));
+                            else if (id == static_cast<unsigned int>(idx_prev[Right]))
+                                geometry.set_index(u, static_cast<unsigned int>(idx_initial[Right]));
                         }
                     }
                 }
@@ -1239,8 +1267,8 @@ static void thick_lines_to_geometry(
     };
 
     // left, right, top, bottom
-    std::array<int, 4> idx_prev    = { -1, -1, -1, -1 };
-    std::array<int, 4> idx_initial = { -1, -1, -1, -1 };
+    std::array<int, QuadSideCount> idx_prev    = { -1, -1, -1, -1 };
+    std::array<int, QuadSideCount> idx_initial = { -1, -1, -1, -1 };
 
     double z_prev = 0.0;
     double len_prev = 0.0;
@@ -1299,8 +1327,8 @@ static void thick_lines_to_geometry(
         const Vec3d n_bottom = -n_top;
         const Vec3d n_left = -n_right;
 
-        std::array<int, 4> idx_a = { 0, 0, 0, 0};
-        std::array<int, 4> idx_b = { 0, 0, 0, 0 };
+        std::array<int, QuadSideCount> idx_a = { 0, 0, 0, 0};
+        std::array<int, QuadSideCount> idx_b = { 0, 0, 0, 0 };
         int idx_last = int(geometry.vertices_count());
 
         const bool z_different = (z_prev != l_a.z());
@@ -1380,10 +1408,10 @@ static void thick_lines_to_geometry(
                     const size_t indices_count = geometry.indices_count();
                     for (size_t u = indices_count - 24; u < indices_count; ++u) {
                         const unsigned int id = geometry.extract_index(u);
-                        if (id == (unsigned int)idx_prev[Left])
-                            geometry.set_index(u, (unsigned int)idx_initial[Left]);
-                        else if (id == (unsigned int)idx_prev[Right])
-                            geometry.set_index(u, (unsigned int)idx_initial[Right]);
+                        if (id == static_cast<unsigned int>(idx_prev[Left]))
+                            geometry.set_index(u, static_cast<unsigned int>(idx_initial[Left]));
+                        else if (id == static_cast<unsigned int>(idx_prev[Right]))
+                            geometry.set_index(u, static_cast<unsigned int>(idx_initial[Right]));
                     }
                 }
 
@@ -1473,7 +1501,8 @@ void _3DScene::thick_lines_to_verts(
 // Fill in the qverts and tverts with quads and triangles for the extrusion_path.
 void _3DScene::extrusionentity_to_verts(const ExtrusionPath& extrusion_path, float print_z, const Point& copy, GUI::GLModel::Geometry& geometry)
 {
-    Polyline            polyline = extrusion_path.polyline.to_polyline(); //TODO: 2.7 check: need to set a resolution?
+    // Full path resolution for the preview mesh (path is already sampling-controlled at generation).
+    Polyline            polyline = extrusion_path.polyline.to_polyline();
     polyline.remove_duplicate_points();
     polyline.translate(copy);
     const Lines               lines = polyline.lines();
@@ -1565,7 +1594,8 @@ void ExtrusionToVertMap::use(const ExtrusionMultiPath& multipath) {
 void ExtrusionToVertMap::use(const ExtrusionMultiPath3D& multipath3D) {
     for (const ExtrusionPath3D &path3D : multipath3D.paths) _3DScene::extrusionentity_to_verts(path3D, print_z, copy, get_geometry(path3D));
     /*_3DScene::extrusionentity_to_verts(multipath3D, print_z, copy, get_geometry(multipath3D)); */}
-void ExtrusionToVertMap::use(const ExtrusionLoop& loop) { for (const ExtrusionPath &path : loop.paths) _3DScene::extrusionentity_to_verts(path, print_z, copy, get_geometry(path)); }//_3DScene::extrusionentity_to_verts(loop, print_z, copy, get_geometry(loop)); }
+void ExtrusionToVertMap::use(const ExtrusionLoop& loop) { for (const ExtrusionPath &path : loop.paths) _3DScene::extrusionentity_to_verts(path, print_z, copy, get_geometry(path)); }
+                                                                                                    // _3DScene::extrusionentity_to_verts(loop, print_z, copy, get_geometry(loop)); }
 void ExtrusionToVertMap::use(const ExtrusionEntityCollection& collection) { for (const ExtrusionEntity* extrusion_entity : collection.entities()) extrusion_entity->visit(*this); }
 GUI::GLModel::Geometry& ExtrusionToVertMap::get_geometry(const ExtrusionEntity& e) {
     auto it = geometries.find(extrusion_role_to_gcode_extrusion_role(e.role()));

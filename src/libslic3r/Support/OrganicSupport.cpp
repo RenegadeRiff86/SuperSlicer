@@ -12,6 +12,7 @@
 #include "../MutablePolygon.hpp"
 #include "../TriangleMeshSlicer.hpp"
 
+#include <algorithm>
 #include <cassert>
 
 #include <oneapi/tbb/parallel_for.h>
@@ -728,8 +729,9 @@ static void organic_smooth_branches_avoid_collisions(
         if (LayerCollisionCache& l = layer_collision_cache[layer_idx]; !l.min_element_radius_known())
             l.min_element_radius = 0;
         else {
-            //FIXME
-            l.min_element_radius = 0;
+            // Use the layer's minimum branch radius so the cached collision outline matches the
+            // smallest element that will be nudged (same as OrcaTreeSupport3D). Radius 0 would be
+            // a pessimistic lower bound and force larger avoidances than needed.
             std::optional<std::pair<coord_t, std::reference_wrapper<const Polygons>>> res = volumes.get_collision_lower_bound_area(layer_idx, l.min_element_radius);
             assert(res.has_value());
             l.collision_radius = res->first;
@@ -803,7 +805,7 @@ static void organic_smooth_branches_avoid_collisions(
     }
     // Update min_z / max_z to limit the search Z span of a given sphere for collision detection.
     for (CollisionSphere &collision_sphere : collision_spheres) {
-        //FIXME limit the collision span by the tree slope.
+        // Possible optimization: limit the collision span by the tree slope.
         collision_sphere.min_z = std::max(collision_sphere.min_z, collision_sphere.position.z() - collision_sphere.radius);
         collision_sphere.max_z = std::min(collision_sphere.max_z, collision_sphere.position.z() + collision_sphere.radius);
         collision_sphere.layer_begin = std::min(collision_sphere.element.state.layer_idx, layer_idx_ceil(slicing_params, config, collision_sphere.min_z));
@@ -950,7 +952,7 @@ static void organic_smooth_branches_avoid_collisions(
                     ++ num_moved;
                     double dxy = sqrt(sqr(radius) - sqr(v.z()));
                     double nudge_dist_max = dxy - std::hypot(v.x(), v.y())
-                        //FIXME 1mm gap
+                        // Note: collision_extra_gap is an arbitrary 1mm safety gap.
                         + collision_extra_gap;
                     // Shift by maximum 2mm.
                     double nudge_dist = std::min(std::max(0., nudge_dist_max), max_nudge_collision_avoidance);
@@ -1176,14 +1178,6 @@ void organic_draw_branches(
                 trees.push_back({});
                 TreeVisitor::visit_recursive(move_bounds, start_element, trees.back());
                 assert(!trees.back().branches.empty());
-                //FIXME debugging
-#if 0
-                if (start_element.state.lost) {
-                }
-                else if (start_element.state.verylost) {
-                } else
-                    trees.pop_back();
-#endif
             }
 //            ++ ielement;
         }
@@ -1218,9 +1212,12 @@ void organic_draw_branches(
                     }
                     std::vector<Polygons> slices = slice_mesh(partial_mesh, slice_z, mesh_slicing_params, throw_on_cancel);
                     bottom_contacts.clear();
-                    //FIXME parallelize?
+                    // Clip branch slices against the object collision at each layer. Honour min XY
+                    // distance when any node on this branch requested it (Z-overrides-XY mode).
+                    const bool min_xy = std::any_of(branch.path.begin(), branch.path.end(),
+                        [](const SupportElement *e) { return e->state.use_min_xy_dist; });
                     for (LayerIndex i = 0; i < LayerIndex(slices.size()); ++ i)
-                        slices[i] = diff_clipped(slices[i], volumes.getCollision(0, layer_begin + i, true)); //FIXME parent_uses_min || draw_area.element->state.use_min_xy_dist);
+                        slices[i] = diff_clipped(slices[i], volumes.getCollision(0, layer_begin + i, min_xy));
 
                     size_t num_empty = 0;
                     if (slices.front().empty()) {
@@ -1230,7 +1227,7 @@ void organic_draw_branches(
                         if (branch.has_root) {
                             if (branch.path.front()->state.to_model_gracious) {
                                 if (config.settings.support_floor_layers > 0)
-                                    //FIXME one may just take the whole tree slice as bottom interface.
+                                    // Possible enhancement: one may just take the whole tree slice as bottom interface.
                                     bottom_contacts.emplace_back(intersection_clipped(slices.front(), volumes.getPlaceableAreas(0, layer_begin, [] {})));
                             } else if (layer_begin > 0) {
                                 // Drop down areas that do rest non - gracefully on the model to ensure the branch actually rests on something.
@@ -1244,10 +1241,11 @@ void organic_draw_branches(
                                 // Don't propagate further than 1.5 * bottom radius.
                                 //LayerIndex                      layers_propagate_max = 2 * bottom_radius / config.layer_height;
                                 LayerIndex                      layers_propagate_max = 5 * bottom_radius / config.layer_height;
+                                // Non-gracious roots walk down at most layers_propagate_max. Fully "verylost"
+                                // roots may go to the bed (layer 0); they do not yet stop early when they cross
+                                // another branch's support — that needs a global occupancy map not available here.
                                 LayerIndex                      layer_bottommost = branch.path.front()->state.verylost ? 
-                                    // If the tree bottom is hanging in the air, bring it down to some surface.
                                     0 : 
-                                    //FIXME the "verylost" branches should stop when crossing another support.
                                     std::max(0, layer_begin - layers_propagate_max);
                                 double                          support_area_min_radius = M_PI * sqr(double(config.branch_radius));
                                 double                          support_area_stop = std::max(0.2 * M_PI * sqr(double(bottom_radius)), 0.5 * support_area_min_radius);
@@ -1289,19 +1287,8 @@ void organic_draw_branches(
                             }
                         }
                         
-#if 0
-                        //FIXME branch.has_tip seems to not be reliable.
-                        if (branch.has_tip && interface_placer.support_parameters.has_top_contacts)
-                            // Add top slices to top contacts / interfaces / base interfaces.
-                            for (int i = int(branch.path.size()) - 1; i >= 0; -- i) {
-                                const SupportElement &el = *branch.path[i];
-                                if (el.state.missing_roof_layers == 0)
-                                    break;
-                                //FIXME Move or not?
-                                interface_placer.add_roof(std::move(slices[int(slices.size()) - i - 1]), el.state.layer_idx,
-                                    interface_placer.support_parameters.num_top_interface_layers + 1 - el.state.missing_roof_layers);
-                            }
-#endif
+                        // Note: adding top slices to top contacts/interfaces was disabled here because
+                        // branch.has_tip was not reliable.
                     }
 
                     layer_begin += LayerIndex(num_empty);
@@ -1391,7 +1378,7 @@ void organic_draw_branches(
 
             if (! base_layer_polygons.empty()) {
                 // Most of the time in this function is this union call. Can take 300+ ms when a lot of areas are to be unioned.
-                base_layer_polygons = smooth_outward(union_(base_layer_polygons), config.support_line_width); //FIXME was .smooth(50);
+                base_layer_polygons = smooth_outward(union_(base_layer_polygons), config.support_line_width); // Note: was .smooth(50) in the original implementation.
                 //smooth_outward(closing(std::move(bottom), closing_distance + minimum_island_radius, closing_distance, SUPPORT_SURFACES_OFFSET_PARAMETERS), smoothing_distance) :
                 // simplify a bit, to ensure the output does not contain outrageous amounts of vertices. Should not be necessary, just a precaution.
                 base_layer_polygons = polygons_simplify(base_layer_polygons, std::min(scaled<double>(0.03), double(config.resolution)), polygons_strictly_simple);
@@ -1402,7 +1389,7 @@ void organic_draw_branches(
             if (top_contact_layer && ! top_contact_layer->polygons.empty() && ! base_layer_polygons.empty()) {
                 base_layer_polygons = diff(base_layer_polygons, top_contact_layer->polygons);
                 if (! bottom_contact_polygons.empty())
-                    //FIXME it may be better to clip bottom contacts with top contacts first after they are propagated to produce interface layers.
+                    // Possible refactor: it may be better to clip bottom contacts with top contacts first after they are propagated to produce interface layers.
                     bottom_contact_polygons = diff(bottom_contact_polygons, top_contact_layer->polygons);
             }
             if (! bottom_contact_polygons.empty()) {

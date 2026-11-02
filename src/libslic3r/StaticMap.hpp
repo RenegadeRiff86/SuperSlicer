@@ -104,7 +104,7 @@ public:
     constexpr StaticSet(const std::array<T, N> &arr, Cmp cmp = {})
         : m_vals{arr}, m_cmp{cmp}
     {
-        // TODO: C++20 can use std::sort(vals.begin(), vals.end())
+        // With C++20, constexpr std::sort could be used instead.
         static_set_detail::sort_array(m_vals, m_cmp);
     }
 
@@ -123,7 +123,7 @@ public:
 
     constexpr auto find(const T &val) const
     {
-        // TODO: C++20 can use std::lower_bound
+        // With C++20, constexpr std::lower_bound could be used instead.
         auto it = static_set_detail::array_lower_bound(m_vals, val, m_cmp);
         if (it != m_vals.end() && ! m_cmp(*it, val) && !m_cmp(val, *it) )
             return it;

@@ -28,10 +28,7 @@
           }
         }
       ],
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
+      "group": "build",
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",
@@ -83,6 +80,131 @@
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "SuperSlicer: Configure VS Code release",
+      "type": "process",
+      "command": "/usr/bin/cmake",
+      "args": [
+        "-S",
+        "${workspaceFolder}",
+        "-B",
+        "${workspaceFolder}/build-linux-x86_64-release",
+        "-G",
+        "Ninja",
+        "-ULibLZMA_DIR",
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DCMAKE_PREFIX_PATH=${workspaceFolder}/deps/build-linux-x86_64-release/destdir/usr/local",
+        "-DCMAKE_IGNORE_PREFIX_PATH=${env:CONDA_PREFIX}",
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+        "-DSLIC3R_STATIC=ON",
+        "-DSLIC3R_GTK=3",
+        "-DSLIC3R_BUILD_TESTS=ON"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PATH": "/usr/local/bin:/usr/bin:/bin"
+        }
+      },
+      "detail": "Run once to create the VS Code release build directory, or after changing toolchain settings.",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "SuperSlicer: Build VS Code release",
+      "type": "process",
+      "command": "/usr/bin/cmake",
+      "args": [
+        "--build",
+        "${workspaceFolder}/build-linux-x86_64-release",
+        "--target",
+        "Slic3r",
+        "--parallel",
+        "2"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PATH": "/usr/local/bin:/usr/bin:/bin"
+        }
+      },
+      "problemMatcher": {
+        "owner": "cpp",
+        "fileLocation": [
+          "autoDetect",
+          "${workspaceFolder}"
+        ],
+        "pattern": {
+          "regexp": "^(.*?):([0-9]+):([0-9]+):\\s+(warning|error|fatal error):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "SuperSlicer: Build and run normally",
+      "type": "process",
+      "command": "${workspaceFolder}/build-linux-x86_64-release/bin/superslicer",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": "SuperSlicer: Build VS Code release",
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "SuperSlicer: Prepare automation debug token",
+      "type": "process",
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "umask 077; printf 'SUPERSLICER_AUTOMATION_TOKEN=%s\\n' \"$(openssl rand -hex 32)\" > /tmp/superslicer-automation-session.env"
+      ],
+      "dependsOn": "SuperSlicer: Build VS Code release",
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "SuperSlicer: Remove automation debug token",
+      "type": "process",
+      "command": "/usr/bin/rm",
+      "args": [
+        "-f",
+        "--",
+        "/tmp/superslicer-automation-session.env"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "silent",
         "panel": "dedicated"
       }
     }

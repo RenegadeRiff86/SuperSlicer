@@ -280,7 +280,7 @@ Node::RectilinearJunction Node::straighten(
             RectilinearJunction below = child_p->straighten(magnitude, m_p, child_dist, max_remove_colinear_dist2);
 
             junction_moving_dir += ((below.junction_loc - m_p).cast<double>().normalized() * weight).cast<coord_t>();
-            if (below.total_recti_dist < magnitude) // TODO: make configurable?
+            if (below.total_recti_dist < magnitude) // could be made configurable
             {
                 prevent_junction_moving = true; // prevent flipflopping in branches due to straightening and junctoin moving clashing
             }

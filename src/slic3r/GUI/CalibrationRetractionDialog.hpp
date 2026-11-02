@@ -11,7 +11,12 @@ class CalibrationRetractionDialog : public CalibrationAbstractDialog
 {
 
 public:
-    CalibrationRetractionDialog(GUI_App* app, MainFrame* mainframe) : CalibrationAbstractDialog(app, mainframe, "Retraction calibration") { create(boost::filesystem::path("calibration") / "retraction", "retraction.html", wxSize(900, 500));  }
+    CalibrationRetractionDialog(GUI_App* app, MainFrame* mainframe)
+        : CalibrationAbstractDialog(app, mainframe, "Retraction calibration")
+    {
+        create(boost::filesystem::path("calibration") / "retraction", "retraction.html",
+            wxSize(CalibrationConstants::kWideDialogWidthPx, CalibrationConstants::kWideDialogHeightPx));
+    }
     virtual ~CalibrationRetractionDialog() {}
     
 protected:

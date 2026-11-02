@@ -105,7 +105,6 @@ private:
         Status status = idle;
         int progress = 0; // percent of done work
         Configuration config; // Configuration we started with.
-        const ModelObject* mo = nullptr;
 
         Data result;
         std::set<ObjectID> volume_ids; // is same as result keys - store separate for faster check

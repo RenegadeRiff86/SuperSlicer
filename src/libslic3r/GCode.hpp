@@ -17,17 +17,14 @@
 #define slic3r_GCode_hpp_
 
 #include "GCode/AdaptivePressureAdvance.hpp"
-#include "GCode/ExtrusionProcessor.hpp"
 #include "JumpPointSearch.hpp"
 #include "libslic3r.h"
-#include "EdgeGrid.hpp"
 #include "ExPolygon.hpp"
 #include "Layer.hpp"
 #include "Point.hpp"
 #include "Print.hpp"
 #include "PlaceholderParser.hpp"
 #include "PrintConfig.hpp"
-#include "Geometry/ArcWelder.hpp"
 #include "GCode/AvoidCrossingPerimeters.hpp"
 #include "GCode/CoolingBuffer.hpp"
 #include "GCode/FanMover.hpp"
@@ -45,13 +42,10 @@
 #include "GCode/GCodeProcessor.hpp"
 #include "GCode/ThumbnailData.hpp"
 #include "GCode/Travels.hpp"
-#include "EdgeGrid.hpp"
-#include "tcbspan/span.hpp"
 
 #include <memory>
 #include <map>
 #include <string>
-#include <chrono>
 
 //#include "GCode/PressureEqualizer.hpp"
 
@@ -102,9 +96,8 @@ namespace GCode {
 // public, so that it could be accessed by free helper functions from GCode.cpp
 struct ObjectLayerToPrint
 {
-    ObjectLayerToPrint() : object_layer(nullptr), support_layer(nullptr) {}
-    const Layer* 		object_layer;
-    const SupportLayer* support_layer;
+    const Layer* 		object_layer  { nullptr };
+    const SupportLayer* support_layer { nullptr };
     const Layer* 		layer()   const { return (object_layer != nullptr) ? object_layer : support_layer; }
     const PrintObject* 	object()  const { return (this->layer() != nullptr) ? this->layer()->object() : nullptr; }
     coordf_t            print_z() const { return (object_layer != nullptr && support_layer != nullptr) ? 0.5 * (object_layer->print_z + support_layer->print_z) : this->layer()->print_z; }
@@ -189,7 +182,7 @@ public:
     // For Perl bindings, to be used exclusively by unit tests.
     unsigned int    layer_count() const { return m_layer_with_support_count; }
     unsigned int    object_layer_count() const { return m_layer_count; }
-    //void            set_layer_count(unsigned int value) { m_layer_count = value; }
+    void            set_layer_count(unsigned int value) { m_layer_count = value; }
     void            apply_print_configs(const Print &print);
 
     // append full config to the given string
@@ -243,6 +236,14 @@ private:
     };
     void            _do_export(Print &print, GCodeOutputStream &file, ThumbnailsGeneratorCallback thumbnail_cb);
     void            _move_to_print_object(std::string& gcode_out, const Print& print, size_t finished_objects, uint16_t initial_extruder_id);
+    // Sequential "parallel objects" mode of _do_export: print all objects band-by-band (parallel_objects_step tall).
+    void            _do_export_parallel_objects(const Print &print, Print::StatusMonitor &status_monitor, GCodeOutputStream &file, std::string &preamble_to_put_start_layer, ToolOrdering &tool_ordering, std::vector<const PrintInstance*> &print_object_instances_ordering, uint16_t initial_extruder_id, uint16_t &final_extruder_id, bool has_wipe_tower);
+    // Single-extruder multi-material priming + overlap check of _do_export (requires m_wipe_tower).
+    void            _prime_wipe_tower_and_check_overlap(const Print &print, Print::StatusMonitor &status_monitor, const std::vector<std::pair<coordf_t, ObjectsLayerToPrint>> &layers_to_print, std::string &preamble_to_put_start_layer);
+    // extrude_loop helper: emit the wipe_extra_perimeter move and set up the wipe-on-retract path.
+    void            _extrude_extra_wipe_perimeter(const ExtrusionPaths &wipe_paths, coordf_t dist_wipe_extra_perimeter, coordf_t point_dist_for_vec, std::string &gcode, std::string &start_wipe, Point &current_point, Point &prev_point, Point &next_point);
+    // extrude_loop helper (wipe_inside_end): shift the wipe-on-retract path inside the loop and travel to its start.
+    void            _wipe_inside_end_shift(const ExtrusionLoop &original_loop, const ExtrusionPaths &paths, coordf_t dist, const Point &pt_inside, std::string &gcode, std::string &start_wipe);
     void            _init_multiextruders(const Print& print, std::string& gcode_out, GCodeWriter& writer, const ToolOrdering& tool_ordering, const std::string& custom_gcode);
 
     static ObjectsLayerToPrint         		                     collect_layers_to_print(const PrintObject &object, Print::StatusMonitor &status_monitor);
@@ -290,7 +291,7 @@ private:
     std::string change_layer(double print_z);
 
     std::string      visitor_gcode;
-    bool             visitor_flipped; //TODO use instead of reverse() at extrude_entity
+    bool             visitor_flipped; // could replace the reverse() calls in extrude_entity
     bool             visitor_in_use = false;
     std::string_view visitor_comment;
     double           visitor_speed;
@@ -382,7 +383,7 @@ private:
          bool& could_be_wipe_disabled
      );
     Polyline        travel_to(std::string& gcode, const Point &end_point, ExtrusionRole role);
-    void            write_travel_to(std::string& gcode, Polyline& travel, std::string comment);
+    void            write_travel_to(std::string& gcode, Polyline& travel, const std::string& comment);
     std::vector<coord_t> get_travel_elevation(Polyline& travel, double z_change);
     //std::string     travel_to_first_position(const Vec3crd& point);
     bool            can_cross_perimeter(const Polyline& travel, bool offset);
@@ -393,6 +394,12 @@ private:
     // enforce lift_min
     void            set_extra_lift(const float previous_print_z, const int layer_id, const PrintConfig& print_config, GCodeWriter & writer, int extruder_id);
     std::string     set_extruder(uint16_t extruder_id, double print_z, bool no_toolchange = false);
+    // Klipper's live Z offset for extruder_id. No-op on other firmware flavors, and on
+    // Klipper only writes when the value actually changes unless force is set.
+    std::string     set_filament_z_offset(uint16_t extruder_id, bool force = false);
+    // Clear Klipper's live Z offset. Always writes: the printer must be left at a known
+    // state regardless of what the print happened to end on.
+    std::string     clear_filament_z_offset();
     std::string     toolchange(uint16_t extruder_id, double print_z);
     bool line_distancer_is_required(const std::vector<uint16_t>& extruder_ids);
 
@@ -412,7 +419,9 @@ private:
     GCodeWriter                         m_writer;
     // Per-extruder adaptive pressure advance models, built on first use from
     // filament_adaptive_pressure_advance_model. Empty entry => use static PA.
-    std::map<int, AdaptivePAModel>      m_adaptive_pa_models;
+    // Cache only: built on demand from filament_adaptive_pressure_advance_model, so filling it in
+    // does not change the generator's observable state.
+    mutable std::map<int, AdaptivePAModel> m_adaptive_pa_models;
 
     struct PlaceholderParserIntegration {
         void reset();
@@ -466,7 +475,7 @@ private:
     // The Pressure Equalizer removes the markers from the final G-code.
     bool                                m_enable_extrusion_role_markers;
     int                                 m_check_markers = 0;
-    // HACK to avoid multiple Z move.
+    // Workaround to avoid emitting multiple Z moves on layer change: the move is buffered here and emitted later.
     std::string                         m_delayed_layer_change;
     // Keeps track of the last extrusion role passed to the processor
     GCodeExtrusionRole                  m_last_processor_extrusion_role;
@@ -515,6 +524,12 @@ private:
         uint16_t last_extruder;
         coord_t diameter;
     }                                   m_layer_slices_offseted{ {},{},nullptr, 0};
+    // can_cross_perimeter helper: refresh m_layer_slices_offseted for the current layer/instance/extruder.
+    void _update_travel_slices_cache(bool is_support_layer);
+    // can_cross_perimeter helper: true when the travel enters/leaves/crosses this island or its holes.
+    bool _travel_crosses_island(const Polyline &travel, SliceIsland &expoly_2_bb);
+    // _travel_before_extrude helper: decelerated travel to the extrusion start (travel_deceleration_use_target).
+    void _travel_to_first_point_decelerated(Polyline &poly_start, double speed_mm_s, double acceleration, double travel_acceleration, const std::string &description, std::string &gcode, bool &moved_to_point);
     // one per extruder
     std::vector<double>                 m_volumetric_speed_mm3_per_s;
     // Support for the extrusion role markers. Which marker is active?
@@ -535,6 +550,12 @@ private:
     // overlap wiggle (e.g. 16->18->21->16) -- only meaningful changes re-emit. Reset to -1
     // when a non-overhang extrusion is printed so each overhang run starts from its true value.
     double                              m_last_emitted_overhang_fan{ -1.0 };
+    // Klipper keeps SET_GCODE_OFFSET as persistent machine state: gcode_move re-applies
+    // homing_position after a G28, and nothing clears it at the end of a job, so a stale
+    // offset silently follows the machine into the next print. Track what was last written
+    // so tool changes re-assert it and the end of the print can zero it. Empty until the
+    // first emission, so the start of a print always writes one even for a 0 offset.
+    std::optional<double>               m_emitted_filament_z_offset;
 #if ENABLE_GCODE_VIEWER_DATA_CHECKING
     double                              m_last_mm3_per_mm;
 #endif // ENABLE_GCODE_VIEWER_DATA_CHECKING
@@ -571,7 +592,7 @@ private:
     // Heights (print_z) at which the skirt has already been extruded.
     std::vector<coordf_t>               m_skirt_done;
     // Has the brim been extruded already? Brim is being extruded only for the first object of a multi-object print.
-    std::map<std::pair<const PrintObject *, int>, bool>  m_brim_done;
+    std::map<std::pair<const PrintObject *, size_t>, bool>  m_brim_done;
     // Flag indicating whether the nozzle temperature changes from 1st to 2nd layer were performed.
     bool                                m_second_layer_things_done;
     int                                 m_bed_temperature; // computed at second layer, kept as vairable for all layers
@@ -608,10 +629,25 @@ private:
     std::string               _before_extrude(const ExtrusionPath &path, const std::string_view description, double speed = -1);
     std::string               _travel_before_extrude(const ExtrusionPath &path, const std::string_view description, double speed_mm_s = -1);
     double_t                  _compute_speed_mm_per_sec(const ExtrusionPath &path_attrs, const double speed, double &fan_speed, std::string *comment) const;
-    std::pair<double, double> _compute_acceleration(const ExtrusionPath &path);
-    std::pair<double, double> _compute_pressure_advance(const ExtrusionPath &path, double speed_mm_s);
+    // const: these only read config and derive a value. _compute_speed_mm_per_sec is const and
+    // needs both of them to reserve pressure-advance headroom against the volumetric caps.
+    std::pair<double, double> _compute_acceleration(const ExtrusionPath &path) const;
+    std::pair<double, double> _compute_pressure_advance(const ExtrusionPath &path, double speed_mm_s) const;
+    // Volumetric flow of a path in mm3 per mm of travel, carrying every extrusion multiplier that
+    // _compute_e_per_mm() applies, so a volumetric cap can be converted into a speed.
+    double                    _path_mm3_per_mm(const ExtrusionPath &path) const;
+    // The binding volumetric cap in mm3/s - the smaller of max_volumetric_speed and
+    // filament_max_volumetric_speed - or 0 when neither is set.
+    double                    _max_volumetric_speed_mm3_per_s() const;
+    // Window Klipper spreads the pressure advance correction over, in seconds; 0 on the firmwares
+    // that apply it instantaneously, which is also what the peak-flow model wants for them.
+    double                    _klipper_pa_smooth_time() const;
+    // The profile acceleration, lowered if needed so that peak flow (extrusion plus the pressure
+    // advance overshoot) still fits that cap at the given speed. Unchanged when the option is off.
+    double                    _pressure_advance_acceleration(const ExtrusionPath &path, double speed_mm_s, double acceleration) const;
     // Lazily-built per-extruder adaptive pressure advance models, keyed by extruder id.
-    const AdaptivePAModel&    adaptive_pa_model(int extruder_id);
+    // Const because the map is only a cache of values derived from the config (hence mutable).
+    const AdaptivePAModel&    adaptive_pa_model(int extruder_id) const;
     std::string               _after_extrude(const ExtrusionPath &path);
     void print_machine_envelope(GCodeOutputStream &file, const Print &print);
     int32_t _compute_first_layer_bed_temperature(const Print &print);

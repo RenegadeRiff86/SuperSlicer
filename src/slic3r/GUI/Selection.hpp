@@ -272,7 +272,7 @@ public:
     GLVolume* get_volume(unsigned int volume_idx);
     const ObjectIdxsToInstanceIdxsMap& get_content() const { return m_cache.content; }
 
-    unsigned int volumes_count() const { return (unsigned int)m_list.size(); }
+    unsigned int volumes_count() const { return static_cast<unsigned int>(m_list.size()); }
     const BoundingBoxf3& get_bounding_box() const;
     // Bounding box of a single full instance selection, in world coordinates, with no instance scaling applied.
     // This bounding box is useful for absolute scaling of tilted objects in world coordinate space.

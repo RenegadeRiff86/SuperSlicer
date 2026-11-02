@@ -18,6 +18,9 @@
 #include <CGAL/Surface_mesh.h>
 #include <CGAL/Cartesian_converter.h>
 
+#include <limits>
+#include <stdexcept>
+
 namespace Slic3r {
 namespace MeshBoolean {
 
@@ -109,6 +112,14 @@ struct CGALMesh { _EpicMesh m; };
 // Converions from and to CGAL mesh
 // /////////////////////////////////////////////////////////////////////////////
 
+template<class _Size>
+_Size checked_cgal_size(size_t value)
+{
+    if (value > static_cast<size_t>(std::numeric_limits<_Size>::max()))
+        throw std::length_error("CGAL surface mesh exceeds index capacity");
+    return static_cast<_Size>(value);
+}
+
 template<class _Mesh>
 void triangle_mesh_to_cgal(const std::vector<stl_vertex> &                 V,
                            const std::vector<stl_triangle_vertex_indices> &F,
@@ -116,9 +127,12 @@ void triangle_mesh_to_cgal(const std::vector<stl_vertex> &                 V,
 {
     if (F.empty()) return;
 
-    size_t vertices_count = V.size();
-    size_t edges_count    = (F.size()* 3) / 2;
-    size_t faces_count    = F.size();
+    using MeshSize = typename _Mesh::size_type;
+    const MeshSize vertices_count = checked_cgal_size<MeshSize>(V.size());
+    const MeshSize faces_count    = checked_cgal_size<MeshSize>(F.size());
+    const size_t   face_count     = static_cast<size_t>(faces_count);
+    const size_t   estimated_edges = (face_count / 2) * 3 + (face_count % 2);
+    const MeshSize edges_count    = checked_cgal_size<MeshSize>(estimated_edges);
     out.reserve(vertices_count, edges_count, faces_count);
 
     for (auto &v : V)

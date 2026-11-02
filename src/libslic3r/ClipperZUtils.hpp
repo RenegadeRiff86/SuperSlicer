@@ -114,7 +114,7 @@ public:
         coord_t srcs[4]{ e1bot.z(), e1top.z(), e2bot.z(), e2top.z() };
         coord_t *begin = srcs;
         coord_t *end = srcs + 4;
-        //FIXME bubble sort manually?
+        // std::sort of 4 elements is cheap enough; no need for a hand-rolled sort.
         std::sort(begin, end);
         end = std::unique(begin, end);
         if (begin + 1 == end) {

@@ -53,12 +53,21 @@ set(SLIC3R_GUI_SOURCES
     GUI/CalibrationRetractionDialog.hpp
     GUI/CalibrationPressureAdvDialog.cpp
     GUI/CalibrationPressureAdvDialog.hpp
+    GUI/CalibrationPressureAdvGeometry.cpp
+    GUI/CalibrationPressureAdvShared.hpp
     GUI/CalibrationPressureAdvAdaptiveDialog.cpp
     GUI/CalibrationPressureAdvAdaptiveDialog.hpp
     GUI/ConfigSnapshotDialog.cpp
     GUI/ConfigSnapshotDialog.hpp
     GUI/CreateMMUTiledCanvas.cpp
     GUI/CreateMMUTiledCanvas.hpp
+    GUI/CreateMMUTiledCanvasConfig.cpp
+    GUI/CreateMMUTiledCanvasGeometry.cpp
+    GUI/CreateMMUTiledCanvasRPlaceData.cpp
+    GUI/CreateMMUTiledCanvasRPlaceData.hpp
+    GUI/CreateMMUTiledCanvasRPlaceDialog.hpp
+    GUI/CreateMMUTiledCanvasShared.hpp
+    GUI/CreateMMUTiledCanvasUi.cpp
     GUI/3DScene.cpp
     GUI/3DScene.hpp
     GUI/format.hpp
@@ -138,6 +147,10 @@ set(SLIC3R_GUI_SOURCES
     GUI/GUI_App.hpp
     GUI/GUI_Utils.cpp
     GUI/GUI_Utils.hpp
+    # Built even without SLIC3R_ENABLE_AUTOMATION_API: every file dialog in the
+    # app is one of these, and the seam is inert until the API arms it.
+    GUI/Automation/AutomationFileDialog.cpp
+    GUI/Automation/AutomationFileDialog.hpp
     GUI/GUI_Geometry.cpp
     GUI/GUI_Geometry.hpp
     GUI/I18N.cpp
@@ -382,6 +395,55 @@ set(SLIC3R_GUI_SOURCES
 
 find_package(NanoSVG REQUIRED)
 
+if (SLIC3R_ENABLE_AUTOMATION_API)
+    if (NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        message(FATAL_ERROR "SLIC3R_ENABLE_AUTOMATION_API is supported on Linux only")
+    endif()
+
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(SLIC3R_AUTOMATION_INPUT REQUIRED IMPORTED_TARGET
+        liboeffis-1.0
+        libei-1.0
+        xkbcommon
+    )
+
+    # libei 1.6 (May 2026) added the text interface - EI_DEVICE_CAP_TEXT and
+    # ei_device_text_utf8_with_length. Debian 13 and the other current stables still ship 1.3,
+    # so probe for the symbols rather than raising the required version: on an older libei the
+    # automation API still builds, and only "text" requests report themselves unsupported.
+    # Probing the symbols rather than comparing the version also keeps working on distributions
+    # that backport the interface without bumping the pkg-config version.
+    include(CheckCXXSourceCompiles)
+    set(CMAKE_REQUIRED_INCLUDES ${SLIC3R_AUTOMATION_INPUT_INCLUDE_DIRS})
+    set(CMAKE_REQUIRED_LIBRARIES PkgConfig::SLIC3R_AUTOMATION_INPUT)
+    check_cxx_source_compiles([[
+        #include <libei.h>
+        int main() {
+            (void) EI_DEVICE_CAP_TEXT;
+            ei_device_text_utf8_with_length(nullptr, "", 0);
+            return 0;
+        }
+    ]] SLIC3R_HAVE_LIBEI_TEXT)
+    unset(CMAKE_REQUIRED_INCLUDES)
+    unset(CMAKE_REQUIRED_LIBRARIES)
+    if (NOT SLIC3R_HAVE_LIBEI_TEXT)
+        message(STATUS
+            "libei predates 1.6: automation text input will report itself unsupported at runtime")
+    endif()
+
+    list(APPEND SLIC3R_GUI_SOURCES
+        GUI/Automation/AutomationIds.cpp
+        GUI/Automation/AutomationIds.hpp
+        GUI/Automation/AutomationSecurity.cpp
+        GUI/Automation/AutomationSecurity.hpp
+        GUI/Automation/AutomationServer.cpp
+        GUI/Automation/AutomationServer.hpp
+        GUI/Automation/AutomationServerGui.inl
+        GUI/Automation/WaylandInput.cpp
+        GUI/Automation/WaylandInput.hpp
+    )
+endif()
+
 if (APPLE)
     list(APPEND SLIC3R_GUI_SOURCES
             Utils/RetinaHelperImpl.mm
@@ -407,7 +469,11 @@ if (MSVC)
 endif ()
 
 add_library(libslic3r_gui STATIC ${SLIC3R_GUI_SOURCES})
-target_compile_definitions(libslic3r_gui PRIVATE $<$<BOOL:${SLIC3R_ALPHA}>:SLIC3R_ALPHA>)
+target_compile_definitions(libslic3r_gui PRIVATE
+    $<$<BOOL:${SLIC3R_ALPHA}>:SLIC3R_ALPHA>
+    $<$<BOOL:${SLIC3R_ENABLE_AUTOMATION_API}>:SLIC3R_ENABLE_AUTOMATION_API>
+    $<$<BOOL:${SLIC3R_HAVE_LIBEI_TEXT}>:SLIC3R_HAVE_LIBEI_TEXT>
+)
 
 foreach(_source IN ITEMS ${SLIC3R_GUI_SOURCES})
     get_filename_component(_source_path "${_source}" PATH)
@@ -422,7 +488,10 @@ target_link_libraries(libslic3r_gui libslic3r libcereal imgui GLEW::GLEW OpenGL:
 if (MSVC)
     target_link_libraries(libslic3r_gui Setupapi.lib)
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_link_libraries(libslic3r_gui ${DBUS_LIBRARIES}) 
+    target_link_libraries(libslic3r_gui ${DBUS_LIBRARIES})
+    if (SLIC3R_ENABLE_AUTOMATION_API)
+        target_link_libraries(libslic3r_gui PkgConfig::SLIC3R_AUTOMATION_INPUT)
+    endif()
 elseif (APPLE)
     target_link_libraries(libslic3r_gui ${DISKARBITRATION_LIBRARY} ${COREWLAN_LIBRARY})
 endif()

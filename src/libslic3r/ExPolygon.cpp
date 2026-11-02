@@ -219,11 +219,15 @@ void ExPolygon::douglas_peucker(coord_t tolerance) {
     
     assert_valid();
     if (need_union) {
-        ExPolygons expolygons = union_ex(expolygons);
+        ExPolygons expolygons = union_ex(to_polygons(*this));
         assert(expolygons.size() == 1);
-        if (expolygons.size() > 0) {
-            //TODO choose biggest
-            *this = expolygons.front();
+        if (!expolygons.empty()) {
+            // If the union unexpectedly produced several expolygons, keep the biggest one.
+            size_t biggest_idx = 0;
+            for (size_t i = 1; i < expolygons.size(); ++i)
+                if (expolygons[i].area() > expolygons[biggest_idx].area())
+                    biggest_idx = i;
+            *this = std::move(expolygons[biggest_idx]);
             this->douglas_peucker(tolerance);
         } else {
             clear();
@@ -233,7 +237,8 @@ void ExPolygon::douglas_peucker(coord_t tolerance) {
     assert_valid();
 }
 
-//FIXME: dangerous, please not use it (polygons may be not ordered correctly).
+// Warning: dangerous overload, prefer simplify_p(tolerance): the polygons appended to the
+// output may not be ordered correctly (a hole may not directly follow its contour).
 void
 ExPolygon::simplify_p(coord_t tolerance, Polygons &polygons) const
 {

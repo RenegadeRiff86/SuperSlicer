@@ -2,6 +2,7 @@
 page:idx:Extruder:funnel
 group:Name and Size
 	setting:idx:tool_name
+	sync_pressure_advance_mirrors
 	setting:idx:nozzle_diameter
 	update_nozzle_diameter
 group:Layer height limits

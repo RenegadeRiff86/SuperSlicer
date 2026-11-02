@@ -5,7 +5,7 @@
 const int px_cnt = 16;
 
 CheckBox::CheckBox(wxWindow* parent, const wxString& name)
-	: BitmapToggleButton(parent, name, wxID_ANY)
+    : BitmapToggleButton(parent, name, wxID_ANY)
     , m_on(this, "check_on", px_cnt)
     , m_off(this, "check_off", px_cnt)
     , m_on_disabled(this, "check_on_disabled", px_cnt)
@@ -20,13 +20,13 @@ CheckBox::CheckBox(wxWindow* parent, const wxString& name)
     Bind(wxEVT_LEAVE_WINDOW, &CheckBox::updateBitmap, this);
 #endif
 
-	update();
+    update();
 }
 
 void CheckBox::SetValue(bool value)
 {
-	wxBitmapToggleButton::SetValue(value);
-	update();
+    wxBitmapToggleButton::SetValue(value);
+    update();
 }
 
 void CheckBox::Update()
@@ -36,14 +36,14 @@ void CheckBox::Update()
 
 void CheckBox::Rescale()
 {
-	update();
+    update();
 }
 
 void CheckBox::update()
 {
     const bool val = GetValue();
     const wxBitmapBundle& bmp = (val ? m_on : m_off).bmp();
-	SetBitmap(bmp);
+    SetBitmap(bmp);
     SetBitmapCurrent(bmp);
     SetBitmapDisabled((val ? m_on_disabled : m_off_disabled).bmp());
 #ifdef __WXMSW__
@@ -115,5 +115,5 @@ void CheckBox::updateBitmap(wxEvent & evt)
             OnLeaveWindow(e);
     }
 }
-	
+    
 #endif

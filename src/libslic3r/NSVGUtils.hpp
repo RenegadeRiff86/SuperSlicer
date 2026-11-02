@@ -29,7 +29,7 @@ struct NSVGLineParams
     int max_level = 10;
 
     // Multiplicator of point coors
-    // NOTE: Every point coor from image(float) is multiplied by scale and rounded to integer --> Slic3r::Point
+    // NOTE: Every floating-point image coordinate is multiplied by scale and rounded to integer --> Slic3r::Point
     double scale = 1. / SCALING_FACTOR;
 
     // Flag wether y is negative, when true than y coor is multiplied by -1
@@ -55,7 +55,7 @@ struct NSVGLineParams
 /// NOTE: Value is in image scale</param>
 /// <param name="max_level">Maximal depth for conversion curve to lines</param>
 /// <param name="scale">Multiplicator of point coors
-/// NOTE: Every point coor from image(float) is multiplied by scale and rounded to integer</param>
+/// NOTE: Every floating-point image coordinate is multiplied by scale and rounded to integer</param>
 /// <returns>Shapes from svg image - fill + stroke</returns>
 ExPolygonsWithIds create_shape_with_ids(const NSVGimage &image, const NSVGLineParams &param);
 

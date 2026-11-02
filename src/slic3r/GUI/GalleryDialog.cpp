@@ -5,6 +5,7 @@
 #include "GalleryDialog.hpp"
 
 #include <cstddef>
+#include <memory>
 #include <vector>
 #include <string>
 
@@ -23,6 +24,7 @@
 
 #include "GUI.hpp"
 #include "GUI_App.hpp"
+#include "Automation/AutomationFileDialog.hpp"
 #include "format.hpp"
 #include "wxExtensions.hpp"
 #include "I18N.hpp"
@@ -41,6 +43,9 @@
 
 namespace Slic3r {
 namespace GUI {
+
+static constexpr int BUTTON_SPACER_WIDTH_FACTOR = 2;
+static constexpr size_t BLUE_CHANNEL_INDEX = 2;
 
 #define BORDER_W    10
 #define IMG_PX_CNT  64
@@ -121,7 +126,7 @@ GalleryDialog::GalleryDialog(wxWindow* parent) :
     add_btn(btn_pos++, ID_BTN_ADD_CUSTOM_SHAPE,   _L("Add"),                _L("Add one or more custom shapes"),                                                &GalleryDialog::add_custom_shapes);
     add_btn(btn_pos++, ID_BTN_DEL_CUSTOM_SHAPE,   _L("Delete"),             _L("Delete one or more custom shape. You can't delete system shapes"),              &GalleryDialog::del_custom_shapes,  [this](){ return can_delete();           });
     //add_btn(btn_pos++, ID_BTN_REPLACE_CUSTOM_PNG, _L("Change thumbnail"),   _L("Replace PNG for custom shape. You can't raplace thimbnail for system shape"),   &GalleryDialog::change_thumbnail, [this](){ return can_change_thumbnail(); });
-    buttons->InsertStretchSpacer(btn_pos, 2* BORDER_W);
+    buttons->InsertStretchSpacer(btn_pos, BUTTON_SPACER_WIDTH_FACTOR * BORDER_W);
 
     load_label_icon_list();
 
@@ -137,7 +142,8 @@ GalleryDialog::GalleryDialog(wxWindow* parent) :
     wxGetApp().UpdateDlgDarkUI(this);
     this->CenterOnScreen();
 
-    this->SetDropTarget(new GalleryDropTarget(this));
+    auto drop_target = std::make_unique<GalleryDropTarget>(this);
+    this->SetDropTarget(drop_target.release()); // wxWindow owns and deletes its drop target.
 }
 
 GalleryDialog::~GalleryDialog()
@@ -145,8 +151,6 @@ GalleryDialog::~GalleryDialog()
     // From wxWidgets docs:
     // The method void wxListCtrl::SetImageList(wxImageList* imageList, int which)
     // does not take ownership of the image list, you have to delete it yourself.
-    if (m_image_list)
-        delete m_image_list;
 }
 
 int GalleryDialog::show(bool show_from_menu) 
@@ -200,21 +204,21 @@ static void add_lock(wxImage& image, wxWindow* parent_win)
     if (!lock_image.IsOk() || lock_image.GetWidth() == 0 || lock_image.GetHeight() == 0)
         return;
 
-    auto lock_px_data = (uint8_t*)lock_image.GetData();
-    auto lock_a_data = (uint8_t*)lock_image.GetAlpha();
+    auto lock_px_data = lock_image.GetData();
+    auto lock_a_data = lock_image.GetAlpha();
     int lock_width  = lock_image.GetWidth();
     int lock_height = lock_image.GetHeight();
     
-    auto px_data = (uint8_t*)image.GetData();
-    auto a_data = (uint8_t*)image.GetAlpha();
+    auto px_data = image.GetData();
+    auto a_data = image.GetAlpha();
 
     int width = image.GetWidth();
     int height = image.GetHeight();
 
     size_t beg_x = width - lock_width;
     size_t beg_y = height - lock_height;
-    for (size_t x = 0; x < (size_t)lock_width; ++x) {
-        for (size_t y = 0; y < (size_t)lock_height; ++y) {
+    for (size_t x = 0; x < static_cast<size_t>(lock_width); ++x) {
+        for (size_t y = 0; y < static_cast<size_t>(lock_height); ++y) {
             const size_t lock_idx = (x + y * lock_width);
             if (lock_a_data && lock_a_data[lock_idx] == 0)
                 continue;
@@ -227,7 +231,7 @@ static void add_lock(wxImage& image, wxWindow* parent_win)
             const size_t lock_idx_rgb = (x + y * lock_width) * 3;
             px_data[idx_rgb] = lock_px_data[lock_idx_rgb];
             px_data[idx_rgb + 1] = lock_px_data[lock_idx_rgb + 1];
-            px_data[idx_rgb + 2] = lock_px_data[lock_idx_rgb + 2];
+            px_data[idx_rgb + BLUE_CHANNEL_INDEX] = lock_px_data[lock_idx_rgb + BLUE_CHANNEL_INDEX];
         }
     }
 }
@@ -317,9 +321,9 @@ static void generate_thumbnail_from_model(const std::string& filename)
     for (unsigned int r = 0; r < thumbnail_data.height; ++r) {
         unsigned int rr = (thumbnail_data.height - 1 - r) * thumbnail_data.width;
         for (unsigned int c = 0; c < thumbnail_data.width; ++c) {
-            unsigned char* px = (unsigned char*)thumbnail_data.pixels.data() + 4 * (rr + c);
-            image.SetRGB((int)c, (int)r, px[0], px[1], px[2]);
-            image.SetAlpha((int)c, (int)r, px[3]);
+            unsigned char* px = thumbnail_data.pixels.data() + 4 * (rr + c);
+            image.SetRGB(static_cast<int>(c), static_cast<int>(r), px[0], px[1], px[BLUE_CHANNEL_INDEX]);
+            image.SetAlpha(static_cast<int>(c), static_cast<int>(r), px[3]);
         }
     }
 
@@ -366,11 +370,11 @@ void GalleryDialog::load_label_icon_list()
     // Make an image list containing large icons
 
 #ifdef __APPLE__
-    m_image_list = new wxImageList(IMG_PX_CNT, IMG_PX_CNT);
+    m_image_list = std::make_unique<wxImageList>(IMG_PX_CNT, IMG_PX_CNT);
     int px_cnt = IMG_PX_CNT * mac_max_scaling_factor();
 #else
-    int px_cnt = (int)(em_unit() * IMG_PX_CNT * 0.1f + 0.5f);
-    m_image_list = new wxImageList(px_cnt, px_cnt);
+    int px_cnt = static_cast<int>(em_unit() * IMG_PX_CNT * 0.1f + 0.5f);
+    m_image_list = std::make_unique<wxImageList>(px_cnt, px_cnt);
 #endif
 
     for (const auto& item : list_items) {
@@ -388,7 +392,7 @@ void GalleryDialog::load_label_icon_list()
             if (can_generate_thumbnail)
                 generate_thumbnail_from_model(model_name);
             else {
-                add_default_image(m_image_list, item.is_system, this);
+                add_default_image(m_image_list.get(), item.is_system, this);
                 continue;
             }
         }
@@ -398,7 +402,7 @@ void GalleryDialog::load_label_icon_list()
         if (!image.CanRead(from_u8(img_name)) ||
             !image.LoadFile(from_u8(img_name), wxBITMAP_TYPE_PNG) ||
             image.GetWidth() == 0 || image.GetHeight() == 0) {
-            add_default_image(m_image_list, item.is_system, this);
+            add_default_image(m_image_list.get(), item.is_system, this);
             continue;
         }
         image.Rescale(px_cnt, px_cnt, wxIMAGE_QUALITY_BILINEAR);
@@ -413,7 +417,7 @@ void GalleryDialog::load_label_icon_list()
         m_image_list->Add(bmp);
     }
 
-    m_list_ctrl->SetImageList(m_image_list, wxIMAGE_LIST_NORMAL);
+    m_list_ctrl->SetImageList(m_image_list.get(), wxIMAGE_LIST_NORMAL);
 
     int img_cnt = m_image_list->GetImageCount();
     for (int i = 0; i < img_cnt; i++) {
@@ -431,7 +435,7 @@ void GalleryDialog::get_input_files(wxArrayString& input_files)
 void GalleryDialog::add_custom_shapes(wxEvent& event)
 {
     wxArrayString input_files;
-    wxFileDialog dialog(this, _L("Choose one or more files (STL, OBJ):"),
+    FileDialog dialog(this, _L("Choose one or more files (STL, OBJ):"),
         from_u8(wxGetApp().app_config->get_last_dir()), "",
         file_wildcards(FT_GALLERY), wxFD_OPEN | wxFD_MULTIPLE | wxFD_FILE_MUST_EXIST);
 
@@ -482,7 +486,7 @@ void GalleryDialog::change_thumbnail()
     if (m_selected_items.size() != 1 || m_selected_items[0].is_system)
         return;
 
-    wxFileDialog dialog(this, _L("Choose one PNG file:"),
+    FileDialog dialog(this, _L("Choose one PNG file:"),
                         from_u8(wxGetApp().app_config->get_last_dir()), "",
                         "PNG files (*.png)|*.png;*.PNG", wxFD_OPEN | wxFD_FILE_MUST_EXIST);
     if (dialog.ShowModal() != wxID_OK)
@@ -504,8 +508,9 @@ void GalleryDialog::change_thumbnail()
         png_path.replace_extension("png");
 
         fs::path current = fs::path(into_u8(input_files.Item(0)));
-		std::string error_msg;
-        if (copy_file_inner(current, png_path, error_msg)) // TODO: fs::copy_options::overwrite_existing instead of fs::copy_option::overwrite_if_exists
+        std::string error_msg;
+        // copy_file_inner overwrites the destination when present.
+        if (copy_file_inner(current, png_path, error_msg))
             throw FileIOError(error_msg);
     }
     catch (fs::filesystem_error const& e) {
@@ -519,7 +524,7 @@ void GalleryDialog::change_thumbnail()
 void GalleryDialog::select(wxListEvent& event)
 {
     int idx = event.GetIndex();
-    Item item { into_u8(m_list_ctrl->GetItemText(idx)), idx < m_sys_item_count };
+    Item item { into_u8(m_list_ctrl->GetItemText(idx)), size_t(idx) < m_sys_item_count };
 
     m_selected_items.push_back(item);
 }

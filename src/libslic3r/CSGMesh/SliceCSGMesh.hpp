@@ -116,7 +116,7 @@ std::vector<ExPolygons> slice_csgmesh_ex(
 
     std::vector<ExPolygons> ret = std::move(opstack.top().slices);
 
-    // TODO: verify if this part can be omitted or not.
+    // Defensive filtering of degenerate slices; possibly redundant, kept for safety.
     execution::for_each(ex_tbb, ret.begin(), ret.end(), [](ExPolygons &slice) {
         auto it = std::remove_if(slice.begin(), slice.end(), [](const ExPolygon &p){
             return p.area() < double(SCALED_EPSILON) * double(SCALED_EPSILON);

@@ -27,7 +27,7 @@ void Filler::_fill_surface_single(
 }
 
 void GeneratorDeleter::operator()(Generator *p) {
-    delete p;
+    std::default_delete<Generator>{}(p);
 }
 
 GeneratorPtr build_generator(const PrintObject &print_object, const coordf_t fill_density, const std::function<void()> &throw_on_cancel_callback)

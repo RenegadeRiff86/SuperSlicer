@@ -145,7 +145,7 @@ inline Linef make_linef(const VD::edge_type &edge)
 
 [[maybe_unused]] inline bool is_equal(const VD::vertex_type &vertex_first, const VD::vertex_type &vertex_second) { return vertex_first.x() == vertex_second.x() && vertex_first.y() == vertex_second.y(); }
 
-// FIXME Lukas H.: Also includes parabolic segments.
+// Note (Lukas H.): also includes parabolic segments.
 bool VoronoiUtilsCgal::is_voronoi_diagram_planar_intersection(const VD &voronoi_diagram)
 {
     using CGAL_E_Point   = CGAL::Exact_predicates_exact_constructions_kernel::Point_2;

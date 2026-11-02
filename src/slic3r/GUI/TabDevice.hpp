@@ -24,6 +24,7 @@ public:
 private:
 #if wxUSE_WEBVIEW
     wxWebView* m_webview{nullptr};
+    wxString   m_target_url;
 
     void on_webview_error(wxWebViewEvent& evt);
     void on_webview_navigated(wxWebViewEvent& evt);

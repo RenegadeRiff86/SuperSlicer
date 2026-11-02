@@ -166,8 +166,6 @@ std::pair<float, Point> Fill::_infill_direction(const Surface *surface) const
 
     if (surface->bridge_angle >= 0) {
         // use bridge angle
-        //FIXME Vojtech: Add a debugf?
-        // Slic3r::debugf "Filling bridge with angle %d\n", rad2deg($surface->bridge_angle);
 #ifdef SLIC3R_DEBUG
         printf("Filling bridge with angle %f\n", surface->bridge_angle);
 #endif /* SLIC3R_DEBUG */
@@ -232,7 +230,7 @@ void Fill::fill_surface_extrusion_with_gap_fill(const Surface *surface,
 
     assert(params.add_gap_fill);
 
-    ExtrusionEntityCollection *coll_nosort = new ExtrusionEntityCollection();
+    auto coll_nosort = std::make_unique<ExtrusionEntityCollection>();
     coll_nosort->set_can_sort_reverse(false, false); //can be sorted inside the pass but thew two pass need to be done one after the other
     ExtrusionRole good_role = getRoleFromSurfaceType(params, surface);
 
@@ -293,12 +291,12 @@ void Fill::fill_surface_extrusion_with_gap_fill(const Surface *surface,
         coll_nosort->set_entities().pop_back();
         // now squash the infill
         assert(coll_nosort->size() == nb_infill);
-        ExtrusionEntityCollection *coll_infill = new ExtrusionEntityCollection();
+        auto coll_infill = std::make_unique<ExtrusionEntityCollection>();
         coll_infill->set_can_sort_reverse(true, true);
         // dangerous copy
         coll_infill->set_entities().insert(coll_infill->set_entities().end(), coll_nosort->set_entities().begin(), coll_nosort->set_entities().end());
         coll_nosort->set_entities().clear();
-        coll_nosort->set_entities().push_back(coll_infill);
+        coll_nosort->set_entities().push_back(coll_infill.release());
         // add the gap fill after the infill
         coll_nosort->set_entities().push_back(gapfill);
         assert(coll_nosort->entities().size() == 2);
@@ -309,7 +307,7 @@ void Fill::fill_surface_extrusion_with_gap_fill(const Surface *surface,
     // check volume coverage
     if (!coll_nosort->empty()) {
         //note: the fill_surface_extrusion's extrusions should already be on point.
-        //TODO: change more the flow of the gap fill 
+        // Possible improvement: also adjust the flow of the gap fill.
         double mult_flow = 1;
         // check if not over-extruding
         if (!params.dont_adjust && params.full_infill() && !params.flow.bridge() && params.fill_exactly) {
@@ -344,11 +342,8 @@ void Fill::fill_surface_extrusion_with_gap_fill(const Surface *surface,
     }
 
     // === end ===
-    if (!coll_nosort->empty()) {
-        out.push_back(coll_nosort);
-    } else {
-        delete coll_nosort;
-    }
+    if (!coll_nosort->empty())
+        out.push_back(coll_nosort.release());
 
 }
 
@@ -380,7 +375,7 @@ void Fill::fill_surface_extrusion(const Surface *surface, const FillParams &para
             ExtrusionRole good_role = getRoleFromSurfaceType(params, surface);
 
             // to paths
-            ExtrusionEntityCollection* all_new_paths = new ExtrusionEntityCollection();
+            auto all_new_paths = std::make_unique<ExtrusionEntityCollection>();
             double extruded_volume = 0;
             for (const ThickPolyline& thick_polyline : thick_polylines) {
                 ExtrusionEntitiesPtr entities = Geometry::thin_variable_width(
@@ -417,11 +412,8 @@ void Fill::fill_surface_extrusion(const Surface *surface, const FillParams &para
             }
 
             //save into layer
-            if (all_new_paths->entities().size() > 0) {
-                out.push_back(all_new_paths);
-            } else {
-                delete all_new_paths;
-            }
+            if (!all_new_paths->entities().empty())
+                out.push_back(all_new_paths.release());
 
         } else {
             Polylines simple_polylines = this->fill_surface(surface, params);
@@ -435,12 +427,8 @@ void Fill::fill_surface_extrusion(const Surface *surface, const FillParams &para
             if (!params.dont_adjust && params.full_infill() && !params.flow.bridge() && params.fill_exactly){
                 // compute the path of the nozzle -> extruded volume
                 double length_tot = 0;
-                for (auto pline = simple_polylines.begin(); pline != simple_polylines.end(); ++pline){
-                    Lines lines = pline->lines();
-                    for (auto line = lines.begin(); line != lines.end(); ++line){
-                        length_tot += unscaled(line->length());
-                    }
-                }
+                for (const Polyline &polyline : simple_polylines)
+                    length_tot += unscaled(polyline.length());
                 //compute flow to remove spacing_ratio from the equation
                 double extruded_volume = 0;
                 if (params.flow.spacing_ratio() < 1.f && !params.flow.bridge()) {
@@ -462,11 +450,12 @@ void Fill::fill_surface_extrusion(const Surface *surface, const FillParams &para
 #endif
 
             // Save into layer.
-            auto* eec = new ExtrusionEntityCollection();
+            auto  eec_owner = std::make_unique<ExtrusionEntityCollection>();
+            auto *eec       = eec_owner.get();
             /// pass the no_sort attribute to the extrusion path
             eec->set_can_sort_reverse(!this->no_sort(), !this->no_sort());
             /// add it into the collection
-            out.push_back(eec);
+            out.push_back(eec_owner.release());
             //get the role
             ExtrusionRole good_role = getRoleFromSurfaceType(params, surface);
             /// push the path
@@ -496,7 +485,7 @@ coord_t Fill::_line_spacing_for_density(const FillParams& params) const
     return scale_t(this->get_spacing() / params.density);
 }
 
-//FIXME: add recent improvmeent from perimetergenerator: avoid thick gapfill
+// Possible improvement: port the recent improvement from PerimeterGenerator: avoid thick gapfill.
 void
 Fill::do_gap_fill(const ExPolygons& gapfill_areas, const FillParams& params, ExtrusionEntitiesPtr& coll_out) const {
 
@@ -574,10 +563,10 @@ Fill::do_gap_fill(const ExPolygons& gapfill_areas, const FillParams& params, Ext
         //}
         //move them into the collection
         if (!gap_fill_entities.empty()) {
-            ExtrusionEntityCollection* coll_gapfill = new ExtrusionEntityCollection();
+            auto coll_gapfill = std::make_unique<ExtrusionEntityCollection>();
             coll_gapfill->set_can_sort_reverse(!this->no_sort(), !this->no_sort());
             coll_gapfill->append(std::move(gap_fill_entities));
-            coll_out.push_back(coll_gapfill);
+            coll_out.push_back(coll_gapfill.release());
         }
     }
 }
@@ -645,16 +634,46 @@ bool collision(const Points& pts_to_check, const Polylines& polylines_blocker, c
     double min_dist_square = static_cast<double>(width) * static_cast<double>(width) * 0.9 - SCALED_EPSILON;
     Polyline better_polylines(pts_to_check);
     Points better_pts = better_polylines.equally_spaced_points(double(width / 2));
-    for (const Point& p : better_pts) {
-        for (const Polyline& poly2 : polylines_blocker) {
-            for (const Point& p2 : poly2.points) {
-                if (p.distance_to_square(p2) < min_dist_square) {
-                    return true;
-                }
-            }
-        }
+    return std::any_of(better_pts.begin(), better_pts.end(), [&](const Point &point) {
+        return std::any_of(polylines_blocker.begin(), polylines_blocker.end(), [&](const Polyline &blocker) {
+            return std::any_of(blocker.points.begin(), blocker.points.end(), [&](const Point &blocker_point) {
+                return point.distance_to_square(blocker_point) < min_dist_square;
+            });
+        });
+    });
+}
+
+static void append_polyline_points_forward(const Polyline &poly, Points &path, double &distance, size_t begin_idx, size_t end_idx)
+{
+    if (begin_idx > end_idx)
+        return;
+    for (size_t i = begin_idx; i <= end_idx; ++i) {
+        distance += poly.points[i - 1].distance_to(poly.points[i]);
+        path.push_back(poly.points[i]);
     }
-    return false;
+}
+
+static void append_polyline_points_backward(const Polyline &poly, Points &path, double &distance, size_t begin_idx, size_t end_idx)
+{
+    for (size_t i = begin_idx; i > end_idx; --i) {
+        distance += poly.points[i - 1].distance_to(poly.points[i]);
+        path.push_back(poly.points[i - 1]);
+    }
+}
+
+static void remove_traversed_polygon_section(Polyline &poly, size_t begin_idx, size_t end_idx, size_t cut_idx,
+                                             const Point &p1, const Point &p2)
+{
+    if (begin_idx <= end_idx) {
+        poly.points.erase(poly.points.begin() + begin_idx, poly.points.begin() + end_idx + 1);
+        if (begin_idx != 0)
+            cut_polygon(poly, cut_idx, p1, p2);
+        return;
+    }
+
+    poly.points.erase(poly.points.begin() + begin_idx, poly.points.end());
+    poly.points.erase(poly.points.begin(), poly.points.begin() + end_idx);
+    cut_polygon(poly, poly.points.size() - 1, p1, p2);
 }
 
 /// Try to find a path inside polylines that allow to go from p1 to p2.
@@ -706,17 +725,11 @@ Points getFrontier(Polylines& polylines, const Point& p1, const Point& p2, const
             double dist_1_to_2 = p1.distance_to(poly.points[idx_12]);
             ret_1_to_2.push_back(poly.points[idx_12]);
             size_t max = idx_12 <= idx_21 ? idx_21 + 1 : poly.points.size();
-            for (size_t i = idx_12 + 1; i < max; i++) {
-                dist_1_to_2 += poly.points[i - 1].distance_to(poly.points[i]);
-                ret_1_to_2.push_back(poly.points[i]);
-            }
+            append_polyline_points_forward(poly, ret_1_to_2, dist_1_to_2, idx_12 + 1, max - 1);
             if (idx_12 > idx_21) {
                 dist_1_to_2 += poly.points.back().distance_to(poly.points.front());
                 ret_1_to_2.push_back(poly.points[0]);
-                for (size_t i = 1; i <= idx_21; i++) {
-                    dist_1_to_2 += poly.points[i - 1].distance_to(poly.points[i]);
-                    ret_1_to_2.push_back(poly.points[i]);
-                }
+                append_polyline_points_forward(poly, ret_1_to_2, dist_1_to_2, 1, idx_21);
             }
             dist_1_to_2 += p2.distance_to(poly.points[idx_21]);
 
@@ -725,17 +738,11 @@ Points getFrontier(Polylines& polylines, const Point& p1, const Point& p2, const
             double dist_2_to_1 = p1.distance_to(poly.points[idx_11]);
             ret_2_to_1.push_back(poly.points[idx_11]);
             size_t min = idx_22 <= idx_11 ? idx_22 : 0;
-            for (size_t i = idx_11; i > min; i--) {
-                dist_2_to_1 += poly.points[i - 1].distance_to(poly.points[i]);
-                ret_2_to_1.push_back(poly.points[i - 1]);
-            }
+            append_polyline_points_backward(poly, ret_2_to_1, dist_2_to_1, idx_11, min);
             if (idx_22 > idx_11) {
                 dist_2_to_1 += poly.points.back().distance_to(poly.points.front());
                 ret_2_to_1.push_back(poly.points[poly.points.size() - 1]);
-                for (size_t i = poly.points.size() - 1; i > idx_22; i--) {
-                    dist_2_to_1 += poly.points[i - 1].distance_to(poly.points[i]);
-                    ret_2_to_1.push_back(poly.points[i - 1]);
-                }
+                append_polyline_points_backward(poly, ret_2_to_1, dist_2_to_1, poly.points.size() - 1, idx_22);
             }
             dist_2_to_1 += p2.distance_to(poly.points[idx_22]);
 
@@ -748,33 +755,13 @@ Points getFrontier(Polylines& polylines, const Point& p1, const Point& p2, const
                 if (collision(ret_1_to_2, polylines_blockers, width)) return Points();
                 //break loop
                 poly.points.erase(poly.points.end() - 1);
-                //remove points
-                if (idx_12 <= idx_21) {
-                    poly.points.erase(poly.points.begin() + idx_12, poly.points.begin() + idx_21 + 1);
-                    if (idx_12 != 0) {
-                        cut_polygon(poly, idx_11, p1, p2);
-                    } //else : already cut at the good place
-                } else {
-                    poly.points.erase(poly.points.begin() + idx_12, poly.points.end());
-                    poly.points.erase(poly.points.begin(), poly.points.begin() + idx_21);
-                    cut_polygon(poly, poly.points.size() - 1, p1, p2);
-                }
+                remove_traversed_polygon_section(poly, idx_12, idx_21, idx_11, p1, p2);
                 return ret_1_to_2;
             } else {
                 if (collision(ret_2_to_1, polylines_blockers, width)) return Points();
                 //break loop
                 poly.points.erase(poly.points.end() - 1);
-                //remove points
-                if (idx_22 <= idx_11) {
-                    poly.points.erase(poly.points.begin() + idx_22, poly.points.begin() + idx_11 + 1);
-                    if (idx_22 != 0) {
-                        cut_polygon(poly, idx_21, p1, p2);
-                    } //else : already cut at the good place
-                } else {
-                    poly.points.erase(poly.points.begin() + idx_22, poly.points.end());
-                    poly.points.erase(poly.points.begin(), poly.points.begin() + idx_11);
-                    cut_polygon(poly, poly.points.size() - 1, p1, p2);
-                }
+                remove_traversed_polygon_section(poly, idx_22, idx_11, idx_21, p1, p2);
                 return ret_2_to_1;
             }
         } else {
@@ -835,6 +822,25 @@ Points getFrontier(Polylines& polylines, const Point& p1, const Point& p2, const
     return Points();
 }
 
+static bool try_connect_polyline(const Polyline &polyline, Polylines &connected, Polylines &polylines_frontier,
+                                 const Polylines &polylines_blocker, coord_t spacing,
+                                 coord_t max_connection_distance, coord_t max_frontier_size)
+{
+    Points &pts_end = connected.back().points;
+    const Point &first_point = polyline.points.front();
+    if (pts_end.back().distance_to(first_point) >= max_connection_distance)
+        return false;
+
+    Points pts_frontier = getFrontier(polylines_frontier, pts_end.back(), first_point, spacing,
+                                      polylines_blocker, max_frontier_size);
+    if (pts_frontier.empty())
+        return false;
+
+    pts_end.insert(pts_end.end(), pts_frontier.begin(), pts_frontier.end());
+    pts_end.insert(pts_end.end(), polyline.points.begin(), polyline.points.end());
+    return true;
+}
+
 /// Connect the infill_ordered polylines, in this order, from the back point to the next front point.
 /// It uses only the boundary polygons to do so, and can't pass two times at the same place.
 /// It avoid passing over the infill_ordered's polylines (preventing local over-extrusion).
@@ -843,7 +849,7 @@ Points getFrontier(Polylines& polylines, const Point& p1, const Point& p2, const
 ///             typical: N(infill_ordered) x ( N(boundary.points) + N(infill_ordered.points) )
 void connect_infill(const Polylines& infill_ordered, const ExPolygon& boundary, Polylines& polylines_out, const coord_t spacing, const FillParams& params) {
 
-    //TODO: fallback to the quick & dirty old algorithm when n(points) is too high.
+    // Performance note: could fall back to the quick & dirty old algorithm when n(points) is too high.
     Polylines polylines_frontier = to_polylines(to_polygons(boundary));
 
     Polylines polylines_blocker;
@@ -862,24 +868,12 @@ void connect_infill(const Polylines& infill_ordered, const ExPolygon& boundary, 
     Polylines polylines_connected_first;
     bool first = true;
     for (const Polyline& polyline : infill_ordered) {
-        if (!first) {
-            // Try to connect the lines.
-            Points& pts_end = polylines_connected_first.back().points;
-            const Point& last_point = pts_end.back();
-            const Point& first_point = polyline.points.front();
-            if (last_point.distance_to(first_point) < (spacing) * 10) {
-                Points pts_frontier = getFrontier(polylines_frontier, last_point, first_point, (spacing), polylines_blocker, (ideal_length) * 2);
-                if (!pts_frontier.empty()) {
-                    // The lines can be connected.
-                    pts_end.insert(pts_end.end(), pts_frontier.begin(), pts_frontier.end());
-                    pts_end.insert(pts_end.end(), polyline.points.begin(), polyline.points.end());
-                    continue;
-                }
-            }
-        }
+        if (!first && try_connect_polyline(polyline, polylines_connected_first, polylines_frontier,
+                                           polylines_blocker, spacing, spacing * 10, ideal_length * 2))
+            continue;
+
         // The lines cannot be connected.
         polylines_connected_first.emplace_back(std::move(polyline));
-
         first = false;
     }
 
@@ -1163,29 +1157,15 @@ namespace PrusaSimpleConnect {
                     auto segment = this->grid.segment(*it_contour_and_segment);
                     const Vec2d seg_pt1 = segment.first.cast<double>();
                     const Vec2d seg_pt2 = segment.second.cast<double>();
-                    if (min_distance_of_segments(seg_pt1, seg_pt2, *this->pt1, *this->pt2) < this->dist2_max) {
-                        // Mark this boundary segment as touching the infill line.
-                        ContourPointData& bdp = boundary_data[it_contour_and_segment->first][it_contour_and_segment->second];
-                        bdp.segment_consumed = true;
-                        // There is no need for checking seg_pt2 as it will be checked the next time.
-                        bool point_touching = false;
-                        if (segment_point_distance_squared(*this->pt1, *this->pt2, seg_pt1) < this->dist2_max) {
-                            point_touching = true;
-                            bdp.point_consumed = true;
-                        }
-#if 0
-                        {
-                            static size_t iRun = 0;
-                            ExPolygon expoly(Polygon(*grid.contours().front()));
-                            for (size_t i = 1; i < grid.contours().size(); ++i)
-                                expoly.holes.emplace_back(Polygon(*grid.contours()[i]));
-                            SVG svg(debug_out_path("%s-%d.svg", "FillBase-mark_boundary_segments_touching_infill", iRun++).c_str(), get_extents(expoly));
-                            svg.draw(expoly, "green");
-                            svg.draw(Line(segment.first, segment.second), "red");
-                            svg.draw(Line(this->pt1->cast<coord_t>(), this->pt2->cast<coord_t>()), "magenta");
-                        }
-#endif
-                    }
+                    if (min_distance_of_segments(seg_pt1, seg_pt2, *this->pt1, *this->pt2) >= this->dist2_max)
+                        continue;
+
+                    // Mark this boundary segment as touching the infill line.
+                    ContourPointData& bdp = boundary_data[it_contour_and_segment->first][it_contour_and_segment->second];
+                    bdp.segment_consumed = true;
+                    // There is no need for checking seg_pt2 as it will be checked the next time.
+                    if (segment_point_distance_squared(*this->pt1, *this->pt2, seg_pt1) < this->dist2_max)
+                        bdp.point_consumed = true;
                 }
                 // Continue traversing the grid along the edge.
                 return true;
@@ -1212,41 +1192,9 @@ namespace PrusaSimpleConnect {
                 (start_point.idx_segment < end_point.idx_segment || (start_point.idx_segment == end_point.idx_segment && start_point.t < end_point.t))) {
                 // The clipped polyline is non-empty.
                 for (size_t point_idx = start_point.idx_segment; point_idx <= end_point.idx_segment; ++point_idx) {
-                    //FIXME extend the EdgeGrid to suport tracing a thick line.
-#if 0
-                    Point pt1, pt2;
-                    Vec2d pt1d, pt2d;
-                    if (point_idx == start_point.idx_segment) {
-                        pt1d = start_point.point;
-                        pt1 = pt1d.cast<coord_t>();
-                    } else {
-                        pt1 = polyline.points[point_idx];
-                        pt1d = pt1.cast<double>();
-                    }
-                    if (point_idx == start_point.idx_segment) {
-                        pt2d = end_point.point;
-                        pt2 = pt1d.cast<coord_t>();
-                    } else {
-                        pt2 = polyline.points[point_idx];
-                        pt2d = pt2.cast<double>();
-                    }
-                    visitor.init(pt1d, pt2d);
-                    grid.visit_cells_intersecting_thick_line(pt1, pt2, distance_colliding, visitor);
-#else
+                    // Possible improvement: extend the EdgeGrid to support tracing a thick line.
                     Vec2d pt1 = (point_idx == start_point.idx_segment) ? start_point.point : polyline.points[point_idx].cast<double>();
                     Vec2d pt2 = (point_idx == end_point.idx_segment) ? end_point.point : polyline.points[point_idx + 1].cast<double>();
-#if 0
-                    {
-                        static size_t iRun = 0;
-                        ExPolygon expoly(Polygon(*grid.contours().front()));
-                        for (size_t i = 1; i < grid.contours().size(); ++i)
-                            expoly.holes.emplace_back(Polygon(*grid.contours()[i]));
-                        SVG svg(debug_out_path("%s-%d.svg", "FillBase-mark_boundary_segments_touching_infill0", iRun++).c_str(), get_extents(expoly));
-                        svg.draw(expoly, "green");
-                        svg.draw(polyline, "blue");
-                        svg.draw(Line(pt1.cast<coord_t>(), pt2.cast<coord_t>()), "magenta", scale_(0.1));
-                    }
-#endif
                     visitor.init(pt1, pt2);
                     // Simulate tracing of a thick line. This only works reliably if distance_colliding <= grid cell size.
                     Vec2d v = (pt2 - pt1).normalized() * distance_colliding;
@@ -1259,9 +1207,31 @@ namespace PrusaSimpleConnect {
                     b = pt1 + v + vperp;
                     if (Geometry::liang_barsky_line_clipping(a, b, bboxf))
                         grid.visit_cells_intersecting_line(a.cast<coord_t>(), b.cast<coord_t>(), visitor);
-#endif
                 }
             }
+        }
+    }
+
+    static void append_boundary_intersections(
+        const Polygon &contour_src,
+        size_t idx_contour,
+        size_t idx_point,
+        Points &contour_dst,
+        const std::vector<std::pair<EdgeGrid::Grid::ClosestPointResult, size_t>> &intersection_points,
+        size_t &intersection_idx,
+        std::vector<std::pair<size_t, size_t>> &map_infill_end_point_to_boundary)
+    {
+        while (intersection_idx < intersection_points.size()) {
+            const auto &intersection = intersection_points[intersection_idx];
+            if (intersection.first.contour_idx != idx_contour || intersection.first.start_point_idx != idx_point)
+                break;
+
+            const Vec2d pt1 = contour_src[idx_point].cast<double>();
+            const Vec2d pt2 = (idx_point + 1 == contour_src.size() ? contour_src.points.front() : contour_src.points[idx_point + 1]).cast<double>();
+            const Vec2d pt = lerp(pt1, pt2, intersection.first.t);
+            map_infill_end_point_to_boundary[intersection.second] = std::make_pair(idx_contour, contour_dst.size());
+            contour_dst.emplace_back(pt.cast<coord_t>());
+            ++intersection_idx;
         }
     }
 
@@ -1293,11 +1263,12 @@ namespace PrusaSimpleConnect {
                 for (const Polyline& pl : infill_ordered)
                     for (const Point* pt : { &pl.points.front(), &pl.points.back() }) {
                         EdgeGrid::Grid::ClosestPointResult cp = grid.closest_point_signed_distance(*pt, SCALED_EPSILON);
-                        if (cp.valid()) {
-                            // The infill end point shall lie on the contour.
-                            //assert(cp.distance < 2.); //triggered with simple cube with gyroid. Is it dangerous?
-                            intersection_points.emplace_back(cp, (&pl - infill_ordered.data()) * 2 + (pt == &pl.points.front() ? 0 : 1));
-                        }
+                        if (!cp.valid())
+                            continue;
+
+                        // The infill end point shall lie on the contour.
+                        //assert(cp.distance < 2.); //triggered with simple cube with gyroid. Is it dangerous?
+                        intersection_points.emplace_back(cp, (&pl - infill_ordered.data()) * 2 + (pt == &pl.points.front() ? 0 : 1));
                     }
                 std::sort(intersection_points.begin(), intersection_points.end(), [](const std::pair<EdgeGrid::Grid::ClosestPointResult, size_t>& cp1, const std::pair<EdgeGrid::Grid::ClosestPointResult, size_t>& cp2) {
                     return   cp1.first.contour_idx < cp2.first.contour_idx ||
@@ -1306,21 +1277,14 @@ namespace PrusaSimpleConnect {
                             (cp1.first.start_point_idx == cp2.first.start_point_idx && cp1.first.t < cp2.first.t)));
                 });
             }
-            auto it = intersection_points.begin();
-            auto it_end = intersection_points.end();
+            size_t intersection_idx = 0;
             for (size_t idx_contour = 0; idx_contour <= boundary_src.holes.size(); ++idx_contour) {
                 const Polygon& contour_src = (idx_contour == 0) ? boundary_src.contour : boundary_src.holes[idx_contour - 1];
                 Points& contour_dst = boundary[idx_contour];
                 for (size_t idx_point = 0; idx_point < contour_src.points.size(); ++idx_point) {
                     contour_dst.emplace_back(contour_src.points[idx_point]);
-                    for (; it != it_end && it->first.contour_idx == idx_contour && it->first.start_point_idx == idx_point; ++it) {
-                        // Add these points to the destination contour.
-                        const Vec2d pt1 = contour_src[idx_point].cast<double>();
-                        const Vec2d pt2 = (idx_point + 1 == contour_src.size() ? contour_src.points.front() : contour_src.points[idx_point + 1]).cast<double>();
-                        const Vec2d pt = lerp(pt1, pt2, it->first.t);
-                        map_infill_end_point_to_boundary[it->second] = std::make_pair(idx_contour, contour_dst.size());
-                        contour_dst.emplace_back(pt.cast<coord_t>());
-                    }
+                    append_boundary_intersections(contour_src, idx_contour, idx_point, contour_dst, intersection_points,
+                                                  intersection_idx, map_infill_end_point_to_boundary);
                 }
                 // Parametrize the curve.
                 std::vector<ContourPointData>& contour_data = boundary_data[idx_contour];
@@ -2258,8 +2222,7 @@ void mark_boundary_segments_touching_infill(
                     ip_high->trim_prev(trim_l);
                     assert(ip_low->next_trimmed == ip_high->prev_trimmed);
                     assert(validate_boundary_intersections(boundary_intersections));
-                    //FIXME mark point as consumed?
-                    //FIXME verify the sequence between prev and next?
+                    // Note: the point is not marked as consumed here and the prev/next sequence is not verified; unclear whether either is needed.
 #ifdef INFILL_DEBUG_OUTPUT
                     {
 #if 0
@@ -2312,7 +2275,7 @@ void mark_boundary_segments_touching_infill(
             visitor.perimeter_overlaps.clear();
 #endif // INFILL_DEBUG_OUTPUT
             for (size_t point_idx = start_point.idx_segment; point_idx <= end_point.idx_segment; ++point_idx) {
-                //FIXME extend the EdgeGrid to suport tracing a thick line.
+                // Possible improvement: extend the EdgeGrid to support tracing a thick line.
 #if 0
                 Point pt1, pt2;
                 Vec2d pt1d, pt2d;
@@ -2846,7 +2809,7 @@ void connect_infill(Polylines &&infill_ordered, const std::vector<const Polygon*
             arches.push_back({ &cp, path_length_along_contour_ccw(&cp, cp.next_on_contour, graph.boundary_params[cp.contour_idx].back()) });
     std::sort(arches.begin(), arches.end(), [](const auto &l, const auto &r) { return l.arc_length < r.arc_length; });
 
-    //FIXME improve the Traveling Salesman problem with 2-opt and 3-opt local optimization.
+    // Possible improvement: improve the Traveling Salesman heuristic with 2-opt and 3-opt local optimization.
     for (Arc &arc : arches)
         if (! arc.intersection->consumed && ! arc.intersection->next_on_contour->consumed) {
             // Indices of the polylines to be connected by a perimeter segment.
@@ -3661,7 +3624,7 @@ void Fill::connect_base_support(Polylines &&infill_ordered, const std::vector<co
             } else {
                 //bool    first     = ((&cp - graph.map_infill_end_point_to_boundary) & 1) == 0;
                 if (cp.prev_trimmed && cp.could_take_prev()) {
-                    //FIXME trace the trimmed line to decide what priority to assign to it.
+                    // Possible improvement: trace the trimmed line to decide what priority to assign to it.
                     // Is the end point close to the current vertical line or to the other vertical line?
                     const Point &pt   = graph.point(cp);
                     const Point &prev = graph.point(*cp.prev_on_contour);
@@ -3677,7 +3640,7 @@ void Fill::connect_base_support(Polylines &&infill_ordered, const std::vector<co
                     }
                 }
                 if (cp.next_trimmed && cp.could_take_next()) {
-                    //FIXME trace the trimmed line to decide what priority to assign to it.
+                    // Possible improvement: trace the trimmed line to decide what priority to assign to it.
                     const Point &pt   = graph.point(cp);
                     const Point &next = graph.point(*cp.next_on_contour);
                     if (std::abs(pt.x() - next.x()) < coord_t(0.5 * line_spacing)) {
@@ -3857,7 +3820,7 @@ void Fill::connect_infill(Polylines&& infill_ordered, const ExPolygon& boundary,
 void FillWithPerimeter::fill_surface_extrusion(const Surface *surface,
                                                const FillParams &params,
                                                ExtrusionEntitiesPtr &out) const {
-    ExtrusionEntityCollection *eecroot = new ExtrusionEntityCollection();
+    auto eecroot = std::make_unique<ExtrusionEntityCollection>();
     // you don't want to sort the extrusions: big infill first, small second
     eecroot->set_can_sort_reverse(true, true);
 
@@ -3877,10 +3840,12 @@ void FillWithPerimeter::fill_surface_extrusion(const Surface *surface,
     for (ExPolygon &expolygon : path_perimeter) {
         expolygon.assert_valid();
 
-        ExtrusionEntityCollection *eec_expoly = path_perimeter.size() == 1 ? eecroot :
-                                                                             new ExtrusionEntityCollection();
+        std::unique_ptr<ExtrusionEntityCollection> eec_expoly_owner;
         if (path_perimeter.size() > 1)
-            eecroot->append(ExtrusionEntitiesPtr{eec_expoly});
+            eec_expoly_owner = std::make_unique<ExtrusionEntityCollection>();
+        ExtrusionEntityCollection *eec_expoly = eec_expoly_owner ? eec_expoly_owner.get() : eecroot.get();
+        if (eec_expoly_owner)
+            eecroot->append(ExtrusionEntitiesPtr{eec_expoly_owner.release()});
         eec_expoly->set_can_sort_reverse(false, false);
 
         // create perimeter
@@ -3892,11 +3857,12 @@ void FillWithPerimeter::fill_surface_extrusion(const Surface *surface,
         }
         if (!polylines_peri.empty()) {
             // Save into layer.
-            ExtrusionEntityCollection *eec_peri = new ExtrusionEntityCollection();
+            auto  eec_peri_owner = std::make_unique<ExtrusionEntityCollection>();
+            auto *eec_peri       = eec_peri_owner.get();
             /// pass the no_sort attribute to the extrusion path
             eec_peri->set_can_sort_reverse(!this->no_sort(), !this->no_sort());
             /// add it into the collection
-            eec_expoly->append(ExtrusionEntitiesPtr{eec_peri});
+            eec_expoly->append(ExtrusionEntitiesPtr{eec_peri_owner.release()});
             // get the role
             ExtrusionRole good_role = getRoleFromSurfaceType(params, surface);
             /// push the path
@@ -3919,11 +3885,12 @@ void FillWithPerimeter::fill_surface_extrusion(const Surface *surface,
                 Polylines polys_infill = infill->fill_surface(&surfInner, params);
                 if (!polys_infill.empty()) {
                     // Save into layer.
-                    ExtrusionEntityCollection *eec_infill = new ExtrusionEntityCollection();
+                    auto  eec_infill_owner = std::make_unique<ExtrusionEntityCollection>();
+                    auto *eec_infill       = eec_infill_owner.get();
                     /// pass the no_sort attribute to the extrusion path
                     eec_infill->set_can_sort_reverse(!this->no_sort(), !this->no_sort());
                     /// add it into the collection
-                    eec_expoly->append(ExtrusionEntitiesPtr{eec_infill});
+                    eec_expoly->append(ExtrusionEntitiesPtr{eec_infill_owner.release()});
                     // get the role
                     ExtrusionRole good_role = getRoleFromSurfaceType(params, surface);
                     /// push the path
@@ -3977,11 +3944,8 @@ void FillWithPerimeter::fill_surface_extrusion(const Surface *surface,
     }
 
     // === end ===
-    if (!eecroot->empty()) {
-        out.push_back(eecroot);
-    } else {
-        delete eecroot;
-    }
+    if (!eecroot->empty())
+        out.push_back(eecroot.release());
 }
 
 

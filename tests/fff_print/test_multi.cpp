@@ -1,11 +1,8 @@
 #include <catch2/catch.hpp>
 
-#include <numeric>
-#include <sstream>
-
 #include "libslic3r/ClipperUtils.hpp"
-#include "libslic3r/Geometry.hpp"
 #include "libslic3r/Geometry/ConvexHull.hpp"
+#include "libslic3r/GCodeReader.hpp"
 #include "libslic3r/Print.hpp"
 #include "libslic3r/libslic3r.h"
 
@@ -82,7 +79,7 @@ SCENARIO("Ooze prevention", "[Multi]")
         if (boost::starts_with(line.cmd(), "T")) {
             // Ignore initial toolchange.
             if (tool != -1) {
-                int expected_temp = is_approx<double>(self.z(), print_config.get_abs_value("first_layer_height") + print_config.z_offset) ?
+                int expected_temp = is_approx<double>(self.z(), print_config.get_abs_value("first_layer_height", print_config.nozzle_diameter.get_at(size_t(tool))) + print_config.z_offset) ?
                     print_config.first_layer_temperature.get_at(tool) :
                     print_config.temperature.get_at(tool);
                 if (tool_temp[tool] != expected_temp + print_config.standby_temperature_delta)
@@ -230,10 +227,10 @@ SCENARIO("Stacked cubes", "[Multi]")
         std::string gcode = slice_stacked_cubes(config, lower_config, upper_config);
         auto [t0, t1] = test_shells(gcode);
         THEN("top interface shells") {
-            REQUIRE(t0.size() == lower_config.opt_int("top_solid_layers"));
+            REQUIRE(t0.size() == size_t(lower_config.opt_int("top_solid_layers")));
         }
         THEN("bottom interface shells") {
-            REQUIRE(t1.size() == upper_config.opt_int("bottom_solid_layers"));
+            REQUIRE(t1.size() == size_t(upper_config.opt_int("bottom_solid_layers")));
         }
     }
     WHEN("Slicing with auto-assigned extruders") {

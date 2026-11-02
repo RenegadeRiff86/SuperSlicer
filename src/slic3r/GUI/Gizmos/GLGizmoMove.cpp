@@ -7,7 +7,6 @@
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/GUI/GUI_ObjectManipulation.hpp"
 #include "slic3r/GUI/Plater.hpp"
-#include "libslic3r/Model.hpp"
 
 #include <GL/glew.h>
 
@@ -24,12 +23,13 @@ GLGizmoMove3D::GLGizmoMove3D(GLCanvas3D& parent, const std::string& icon_filenam
 
 std::string GLGizmoMove3D::get_tooltip() const
 {
-  if (m_hover_id == 0)
-        return "X: " + format(m_displacement.x(), 2);
-    else if (m_hover_id == 1)
-        return "Y: " + format(m_displacement.y(), 2);
-    else if (m_hover_id == 2)
-        return "Z: " + format(m_displacement.z(), 2);
+    constexpr int tooltip_decimal_places = 2;
+    if (m_hover_id == X)
+        return "X: " + format(m_displacement.x(), tooltip_decimal_places);
+    else if (m_hover_id == Y)
+        return "Y: " + format(m_displacement.y(), tooltip_decimal_places);
+    else if (m_hover_id == Z)
+        return "Z: " + format(m_displacement.z(), tooltip_decimal_places);
     else
         return "";
 }
@@ -89,7 +89,7 @@ void GLGizmoMove3D::on_dragging(const UpdateData& data)
         m_displacement.x() = calc_projection(data);
     else if (m_hover_id == 1)
         m_displacement.y() = calc_projection(data);
-    else if (m_hover_id == 2)
+    else if (m_hover_id == Z)
         m_displacement.z() = calc_projection(data);
         
     Selection &selection = m_parent.get_selection();
@@ -131,12 +131,13 @@ void GLGizmoMove3D::on_render()
     m_grabbers[1].color = AXES_COLOR[1];
 
     // z axis
-    m_grabbers[2].center = { 0.0, 0.0, half_box_size.z() + Offset };
-    m_grabbers[2].color = AXES_COLOR[2];
+    m_grabbers[Z].center = { 0.0, 0.0, half_box_size.z() + Offset };
+    m_grabbers[Z].color = AXES_COLOR[Z];
 
     if (OpenGLManager::get_gl_info().get_max_line_width() > 1) {
         float min = std::min(1.5f, OpenGLManager::get_gl_info().get_min_line_width());
-        float bigger = min <= 1.5f ? 2.f : min + 1.f;
+        constexpr float minimum_hovered_line_width = 2.f;
+        float bigger = min <= 1.5f ? minimum_hovered_line_width : min + 1.f;
         glsafe(::glLineWidth((m_hover_id != -1) ? bigger : min));
     }
 
@@ -146,11 +147,12 @@ void GLGizmoMove3D::on_render()
                 m_grabber_connections[id].old_center = m_grabbers[id].center;
                 m_grabber_connections[id].model.reset();
 
+                constexpr size_t connection_vertex_count = 2;
                 GLModel::Geometry init_data;
                 init_data.format = { GLModel::Geometry::EPrimitiveType::Lines, GLModel::Geometry::EVertexLayout::P3 };
                 init_data.color = AXES_COLOR[id];
-                init_data.vertices.reserve(2);
-                init_data.indices.reserve(2);
+                init_data.vertices.reserve(connection_vertex_count);
+                init_data.indices.reserve(connection_vertex_count);
 
                 // vertices
                 init_data.add_vertex((Vec3f)zero.cast<float>());
@@ -175,11 +177,11 @@ void GLGizmoMove3D::on_render()
         if (shader != nullptr) {
             shader->start_using();
             const Camera& camera = wxGetApp().plater()->get_camera();
-            shader->set_uniform("view_model_matrix", camera.get_view_matrix() * base_matrix);
-            shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+            shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix() * base_matrix);
+            shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
-            const std::array<int, 4>& viewport = camera.get_viewport();
-            shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+            const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
+            shader->set_uniform("viewport_size", Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
             shader->set_uniform("width", 0.25f);
             shader->set_uniform("gap_size", 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
@@ -206,11 +208,11 @@ void GLGizmoMove3D::on_render()
             shader->start_using();
 
             const Camera& camera = wxGetApp().plater()->get_camera();
-            shader->set_uniform("view_model_matrix", camera.get_view_matrix()* base_matrix);
-            shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+            shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, camera.get_view_matrix()* base_matrix);
+            shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
 #if ENABLE_GL_CORE_PROFILE
-            const std::array<int, 4>& viewport = camera.get_viewport();
-            shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
+            const std::array<int, GLViewportComponents>& viewport = camera.get_viewport();
+            shader->set_uniform("viewport_size", Vec2d(double(viewport[ViewportWidth]), double(viewport[ViewportHeight])));
             shader->set_uniform("width", 0.5f);
             shader->set_uniform("gap_size", 0.0f);
 #endif // ENABLE_GL_CORE_PROFILE
@@ -226,7 +228,7 @@ void GLGizmoMove3D::on_render()
             glsafe(::glDisable(GL_CULL_FACE));
             // draw grabber
             const Vec3d box_size = m_bounding_box.size();
-            const float mean_size = (float)((box_size.x() + box_size.y() + box_size.z()) / 3.0);
+            const float mean_size = static_cast<float>((box_size.x() + box_size.y() + box_size.z()) / 3.0);
             m_grabbers[m_hover_id].render(true, mean_size);
             glsafe(::glEnable(GL_CULL_FACE));
             shader->stop_using();
@@ -266,7 +268,7 @@ double GLGizmoMove3D::calc_projection(const UpdateData& data) const
     }
 
     if (wxGetKeyState(WXK_SHIFT))
-        projection = m_snap_step * (double)std::round(projection / m_snap_step);
+        projection = m_snap_step * static_cast<double>(std::round(projection / m_snap_step));
 
     return projection;
 }

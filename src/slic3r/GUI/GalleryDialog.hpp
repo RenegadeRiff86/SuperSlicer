@@ -23,7 +23,7 @@ namespace GUI {
 class GalleryDialog : public DPIDialog
 {
     wxListCtrl*     m_list_ctrl  { nullptr };
-    wxImageList*    m_image_list { nullptr };
+    std::unique_ptr<wxImageList> m_image_list;
     wxButton*       m_ok_btn     { nullptr };
     size_t          m_sys_item_count { 0 };
 

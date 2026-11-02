@@ -7,7 +7,6 @@
 
 #include "libslic3r/Flow.hpp"
 #include "libslic3r/Slicing.hpp"
-#include "libslic3r/libslic3r.h"
 
 #include "PresetHints.hpp"
 
@@ -18,6 +17,9 @@
 #include "I18N.hpp"
 
 namespace Slic3r {
+
+// Printer config option key holding the per-extruder nozzle diameters.
+static constexpr const char* KEY_NOZZLE_DIAMETER = "nozzle_diameter";
 
 using Slic3r::GUI::format_wxstr;
 
@@ -281,12 +283,12 @@ static const ConfigOptionFloatOrPercent& first_positive(const ConfigOptionFloatO
     return (v1 != nullptr && v1->value > 0) ? *v1 : ((v2.value > 0) ? v2 : v3);
 }
 
-//TODO since 2.4: check the flow computation (and try to simplify them)
+// Volumetric flow hint: max of feature mm3/s estimates for the active extruder/filament.
 std::string PresetHints::maximum_volumetric_flow_description(const PresetBundle &preset_bundle)
 {
     // Find out, to which nozzle index is the current filament profile assigned.
     int idx_extruder  = 0;
-    int num_extruders = (int)preset_bundle.extruders_filaments.size();
+    int num_extruders = static_cast<int>(preset_bundle.extruders_filaments.size());
     for (; idx_extruder < num_extruders; ++ idx_extruder)
         if (preset_bundle.extruders_filaments[idx_extruder].get_selected_preset_name() == preset_bundle.filaments.get_selected_preset_name())
             break;
@@ -299,7 +301,7 @@ std::string PresetHints::maximum_volumetric_flow_description(const PresetBundle 
     const DynamicPrintConfig &printer_config  = preset_bundle.printers  .get_edited_preset().config;
 
     // Current printer values.
-    float  nozzle_diameter                  = (float)printer_config.opt_float("nozzle_diameter", idx_extruder);
+    float  nozzle_diameter                  = static_cast<float>(printer_config.opt_float(KEY_NOZZLE_DIAMETER, idx_extruder));
 
     // Print config values
     DynamicPrintConfig full_print_config;
@@ -316,7 +318,7 @@ std::string PresetHints::maximum_volumetric_flow_description(const PresetBundle 
     //double over_bridge_flow_ratio           = full_print_config.get_computed_value("over_bridge_flow_ratio");
     double perimeter_speed                  = full_print_config.get_computed_value("perimeter_speed");
     double external_perimeter_speed         = full_print_config.get_computed_value("external_perimeter_speed");
-    // double gap_fill_speed                = full_print_config.get_computed_value("gap_fill_speed");
+    double gap_fill_speed                   = full_print_config.get_computed_value("gap_fill_speed");
     double infill_speed                     = full_print_config.get_computed_value("infill_speed");
     double small_perimeter_speed            = full_print_config.get_computed_value("small_perimeter_speed");
     double solid_infill_speed               = full_print_config.get_computed_value("solid_infill_speed");
@@ -332,8 +334,6 @@ std::string PresetHints::maximum_volumetric_flow_description(const PresetBundle 
     const auto &external_perimeter_extrusion_spacing= *print_config.option<ConfigOptionFloatOrPercent>("external_perimeter_extrusion_spacing");
     const auto &first_layer_extrusion_width         = *print_config.option<ConfigOptionFloatOrPercent>("first_layer_extrusion_width");
     const auto &first_layer_extrusion_spacing       = *print_config.option<ConfigOptionFloatOrPercent>("first_layer_extrusion_spacing");
-    const auto &first_layer_infill_extrusion_width  = *print_config.option<ConfigOptionFloatOrPercent>("first_layer_infill_extrusion_width");
-    const auto &first_layer_infill_extrusion_spacing= *print_config.option<ConfigOptionFloatOrPercent>("first_layer_infill_extrusion_spacing");
     const auto &infill_extrusion_width              = *print_config.option<ConfigOptionFloatOrPercent>("infill_extrusion_width");
     const auto &infill_extrusion_spacing            = *print_config.option<ConfigOptionFloatOrPercent>("infill_extrusion_spacing");
     const auto &perimeter_extrusion_width           = *print_config.option<ConfigOptionFloatOrPercent>("perimeter_extrusion_width");
@@ -406,7 +406,7 @@ std::string PresetHints::maximum_volumetric_flow_description(const PresetBundle 
                 first_positive(first_layer_extrusion_width_ptr, external_perimeter_extrusion_width, extrusion_width),
                 first_positive(first_layer_extrusion_spacing_ptr, external_perimeter_extrusion_spacing, extrusion_spacing),
                 nozzle_diameter, lh, 
-                std::min(filament_max_overlap, (float)print_config.opt<ConfigOptionPercent>("external_perimeter_overlap")->get_abs_value(1)),
+                std::min(filament_max_overlap, static_cast<float>(print_config.opt<ConfigOptionPercent>("external_perimeter_overlap")->get_abs_value(1))),
                 bfr);
             if (external_flow.height() > external_flow.width())
                 external_flow = external_flow.with_height(external_flow.width());
@@ -421,7 +421,7 @@ std::string PresetHints::maximum_volumetric_flow_description(const PresetBundle 
                 first_positive(first_layer_extrusion_width_ptr, perimeter_extrusion_width, extrusion_width),
                 first_positive(first_layer_extrusion_spacing_ptr, perimeter_extrusion_spacing, extrusion_spacing),
                 nozzle_diameter, lh,
-                std::min(filament_max_overlap, (float)print_config.opt<ConfigOptionPercent>("perimeter_overlap")->get_abs_value(1)),
+                std::min(filament_max_overlap, static_cast<float>(print_config.opt<ConfigOptionPercent>("perimeter_overlap")->get_abs_value(1))),
                 bfr);
             if (perimeter_flow.height() > perimeter_flow.width())
                 perimeter_flow = perimeter_flow.with_height(perimeter_flow.width());
@@ -511,7 +511,22 @@ std::string PresetHints::maximum_volumetric_flow_description(const PresetBundle 
                 max_flow_extrusion_type = _u8L("support interface");
             }
         }
-        //FIXME handle gap_fill_speed
+        if (! bridging && perimeter_extruder_active && gap_fill_speed > 0.) {
+            Flow gap_fill_flow = Flow::new_from_config_width(frPerimeter,
+                first_positive(first_layer_extrusion_width_ptr, perimeter_extrusion_width, extrusion_width),
+                first_positive(first_layer_extrusion_spacing_ptr, perimeter_extrusion_spacing, extrusion_spacing),
+                nozzle_diameter, lh,
+                std::min(filament_max_overlap, static_cast<float>(print_config.opt<ConfigOptionPercent>("perimeter_overlap")->get_abs_value(1))),
+                bfr);
+            if (gap_fill_flow.height() > gap_fill_flow.width())
+                gap_fill_flow = gap_fill_flow.with_height(gap_fill_flow.width());
+            double gap_fill_rate = gap_fill_flow.mm3_per_mm() *
+                limit_by_first_layer_speed(gap_fill_speed, max_print_speed);
+            if (max_flow < gap_fill_rate) {
+                max_flow = gap_fill_rate;
+                max_flow_extrusion_type = _u8L("gap fill");
+            }
+        }
         if (! out.empty())
             out += "\n";
         bool limited_by_max_volumetric_speed = max_volumetric_speed > 0 && max_volumetric_speed < max_flow;
@@ -529,7 +544,7 @@ std::string PresetHints::maximum_volumetric_flow_description(const PresetBundle 
         out += pattern + " " + pattern2;
     }
 
- 	return out;
+    return out;
 }
 
 std::string PresetHints::recommended_thin_wall_thickness(const PresetBundle& preset_bundle)
@@ -541,7 +556,7 @@ std::string PresetHints::recommended_thin_wall_thickness(const PresetBundle& pre
     float   layer_height = float(print_config.opt_float("layer_height"));
     int     num_perimeters = print_config.option("perimeters")->get_int();
     bool    thin_walls = print_config.opt_bool("thin_walls");
-    float   nozzle_diameter = float(printer_config.opt_float("nozzle_diameter", 0));
+    float   nozzle_diameter = float(printer_config.opt_float(KEY_NOZZLE_DIAMETER, 0));
 
     std::string out;
     if (layer_height <= 0.f) {
@@ -549,9 +564,9 @@ std::string PresetHints::recommended_thin_wall_thickness(const PresetBundle& pre
         return out;
     }
 
-    float filament_max_overlap = (float)filament_config.get_computed_value("filament_max_overlap", 0);
-    float ext_peri_overlap = (float)print_config.opt<ConfigOptionPercent>("external_perimeter_overlap")->get_abs_value(1);
-    float peri_overlap = (float)print_config.opt<ConfigOptionPercent>("perimeter_overlap")->get_abs_value(1);
+    float filament_max_overlap = static_cast<float>(filament_config.get_computed_value("filament_max_overlap", 0));
+    float ext_peri_overlap = static_cast<float>(print_config.opt<ConfigOptionPercent>("external_perimeter_overlap")->get_abs_value(1));
+    float peri_overlap = static_cast<float>(print_config.opt<ConfigOptionPercent>("perimeter_overlap")->get_abs_value(1));
     Flow  external_perimeter_flow =  Flow::new_from_config(frExternalPerimeter,
         print_config,
         nozzle_diameter,
@@ -600,11 +615,11 @@ std::string PresetHints::recommended_extrusion_width(const PresetBundle& preset_
     const DynamicPrintConfig& print_config = preset_bundle.fff_prints.get_edited_preset().config;
     const DynamicPrintConfig& printer_config = preset_bundle.printers.get_edited_preset().config;
 
-    int nb_nozzles = printer_config.option<ConfigOptionFloats>("nozzle_diameter")->size();
+    int nb_nozzles = printer_config.option<ConfigOptionFloats>(KEY_NOZZLE_DIAMETER)->size();
 
     double nozzle_diameter = 0;
     for(int i=0; i< nb_nozzles; i++)
-        nozzle_diameter = std::max(nozzle_diameter, printer_config.opt_float("nozzle_diameter", i));
+        nozzle_diameter = std::max(nozzle_diameter, printer_config.opt_float(KEY_NOZZLE_DIAMETER, i));
     double layer_height = print_config.opt_float("layer_height");
     double first_layer_height = print_config.option<ConfigOptionFloatOrPercent>("first_layer_height")->get_abs_value(nozzle_diameter);
 
@@ -644,27 +659,33 @@ std::string PresetHints::top_bottom_shell_thickness_explanation(const PresetBund
     double  bottom_solid_min_thickness  	= print_config.opt_float("bottom_solid_min_thickness");
     double  layer_height                    = print_config.opt_float("layer_height");
     bool    variable_layer_height			= printer_config.opt_bool("variable_layer_height");
-    //FIXME the following line takes into account the 1st extruder only.
-    double  min_layer_height				= variable_layer_height ? Slicing::min_layer_height_from_nozzle(printer_config, 0) : layer_height;
+    // Variable LH floor is the smallest min height across all nozzles (most restrictive).
+    double  min_layer_height = layer_height;
+    if (variable_layer_height) {
+        const auto &nozzles = printer_config.option<ConfigOptionFloats>(KEY_NOZZLE_DIAMETER)->get_values();
+        min_layer_height = Slicing::min_layer_height_from_nozzle(printer_config, 0);
+        for (size_t i = 1; i < nozzles.size(); ++i)
+            min_layer_height = std::min(min_layer_height, Slicing::min_layer_height_from_nozzle(printer_config, uint16_t(i)));
+    }
 
-	if (layer_height <= 0.f) {
-		out += _u8L("Top / bottom shell thickness hint: Not available due to invalid layer height.");
-		return out;
-	}
+    if (layer_height <= 0.f) {
+        out += _u8L("Top / bottom shell thickness hint: Not available due to invalid layer height.");
+        return out;
+    }
 
     if (has_top_layers) {
-    	double top_shell_thickness = top_solid_layers * layer_height;
-    	if (top_shell_thickness < top_solid_min_thickness) {
-    		// top_solid_min_shell_thickness triggers even in case of normal layer height. Round the top_shell_thickness up
-    		// to an integer multiply of layer_height.
-    		double n = ceil(top_solid_min_thickness / layer_height);
-    		top_shell_thickness = n * layer_height;
-    	}
-    	double top_shell_thickness_minimum = std::max(top_solid_min_thickness, top_solid_layers * min_layer_height);
+        double top_shell_thickness = top_solid_layers * layer_height;
+        if (top_shell_thickness < top_solid_min_thickness) {
+            // top_solid_min_shell_thickness triggers even in case of normal layer height. Round the top_shell_thickness up
+            // to an integer multiply of layer_height.
+            double n = ceil(top_solid_min_thickness / layer_height);
+            top_shell_thickness = n * layer_height;
+        }
+        double top_shell_thickness_minimum = std::max(top_solid_min_thickness, top_solid_layers * min_layer_height);
         out += (boost::format(_u8L("Top shell is %1% mm thick for layer height %2% mm.")) % top_shell_thickness % layer_height).str();
         if (variable_layer_height && top_shell_thickness_minimum < top_shell_thickness) {
-        	out += " ";
-	        out += (boost::format(_u8L("Minimum top shell thickness is %1% mm.")) % top_shell_thickness_minimum).str();        	
+            out += " ";
+            out += (boost::format(_u8L("Minimum top shell thickness is %1% mm.")) % top_shell_thickness_minimum).str();        	
         }
     } else
         out += _u8L("Top is open.");
@@ -672,18 +693,18 @@ std::string PresetHints::top_bottom_shell_thickness_explanation(const PresetBund
     out += "\n";
 
     if (has_bottom_layers) {
-    	double bottom_shell_thickness = bottom_solid_layers * layer_height;
-    	if (bottom_shell_thickness < bottom_solid_min_thickness) {
-    		// bottom_solid_min_shell_thickness triggers even in case of normal layer height. Round the bottom_shell_thickness up
-    		// to an integer multiply of layer_height.
-    		double n = ceil(bottom_solid_min_thickness / layer_height);
-    		bottom_shell_thickness = n * layer_height;
-    	}
-    	double bottom_shell_thickness_minimum = std::max(bottom_solid_min_thickness, bottom_solid_layers * min_layer_height);
+        double bottom_shell_thickness = bottom_solid_layers * layer_height;
+        if (bottom_shell_thickness < bottom_solid_min_thickness) {
+            // bottom_solid_min_shell_thickness triggers even in case of normal layer height. Round the bottom_shell_thickness up
+            // to an integer multiply of layer_height.
+            double n = ceil(bottom_solid_min_thickness / layer_height);
+            bottom_shell_thickness = n * layer_height;
+        }
+        double bottom_shell_thickness_minimum = std::max(bottom_solid_min_thickness, bottom_solid_layers * min_layer_height);
         out += (boost::format(_u8L("Bottom shell is %1% mm thick for layer height %2% mm.")) % bottom_shell_thickness % layer_height).str();
         if (variable_layer_height && bottom_shell_thickness_minimum < bottom_shell_thickness) {
-        	out += " ";
-	        out += (boost::format(_u8L("Minimum bottom shell thickness is %1% mm.")) % bottom_shell_thickness_minimum).str();        	
+            out += " ";
+            out += (boost::format(_u8L("Minimum bottom shell thickness is %1% mm.")) % bottom_shell_thickness_minimum).str();        	
         }
     } else 
         out += _u8L("Bottom is open.");

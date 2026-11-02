@@ -11,10 +11,16 @@
 #include "slic3r/GUI/GUI_ObjectManipulation.hpp"
 #include "slic3r/GUI/Plater.hpp"
 
-// TODO: Display tooltips quicker on Linux
+// Tooltip delay is controlled by ImGui/wx hover timers; Linux uses the same path as other platforms.
 
 namespace Slic3r {
 namespace GUI {
+
+static constexpr size_t NEG_X_EXTENSION_INDEX = 2;
+static constexpr size_t POS_Y_EXTENSION_INDEX = 3;
+static constexpr size_t NEG_Y_EXTENSION_INDEX = 4;
+static constexpr size_t POS_Z_EXTENSION_INDEX = 5;
+static constexpr size_t NEG_Z_EXTENSION_INDEX = 6;
 
 const float GLGizmoBase::Grabber::SizeFactor = 0.05f;
 const float GLGizmoBase::Grabber::MinHalfSize = 1.5f;
@@ -82,23 +88,23 @@ void GLGizmoBase::Grabber::render(float size, const ColorRGBA& render_color)
     s_cone.model.set_color(render_color);
 
     const Camera& camera = wxGetApp().plater()->get_camera();
-    shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+    shader->set_uniform(Slic3r::GLShaderUniforms::ProjectionMatrix, camera.get_projection_matrix());
     const Transform3d& view_matrix = camera.get_view_matrix();
     const Matrix3d view_matrix_no_offset = view_matrix.matrix().block(0, 0, 3, 3);
     std::vector<Transform3d> elements_matrices(GRABBER_ELEMENTS_MAX_COUNT, Transform3d::Identity());
     elements_matrices[0] = matrix * Geometry::translation_transform(center) * Geometry::rotation_transform(angles) * Geometry::scale_transform(2.0 * half_size);
     Transform3d view_model_matrix = view_matrix * elements_matrices[0];
 
-    shader->set_uniform("view_model_matrix", view_model_matrix);
-    Matrix3d view_normal_matrix = view_matrix_no_offset * elements_matrices[0].matrix().block(0, 0, 3, 3).inverse().transpose();
-    shader->set_uniform("view_normal_matrix", view_normal_matrix);
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_model_matrix);
+    Matrix3d view_normal_matrix = view_matrix_no_offset * Geometry::normal_matrix(elements_matrices[0]);
+    shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
     s_cube.model.render();
 
     auto render_extension = [&view_matrix, &view_matrix_no_offset, shader](const Transform3d& matrix) {
         const Transform3d view_model_matrix = view_matrix * matrix;
-        shader->set_uniform("view_model_matrix", view_model_matrix);
-        const Matrix3d view_normal_matrix = view_matrix_no_offset * matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
-        shader->set_uniform("view_normal_matrix", view_normal_matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, view_model_matrix);
+        const Matrix3d view_normal_matrix = view_matrix_no_offset * Geometry::normal_matrix(matrix);
+        shader->set_uniform(Slic3r::GLShaderUniforms::ViewNormalMatrix, view_normal_matrix);
         s_cone.model.render();
     };
 
@@ -107,24 +113,24 @@ void GLGizmoBase::Grabber::render(float size, const ColorRGBA& render_color)
         render_extension(elements_matrices[1]);
     }
     if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::NegX)) != 0) {
-        elements_matrices[2] = elements_matrices[0] * Geometry::translation_transform(-Vec3d::UnitX()) * Geometry::rotation_transform({ 0.0, -0.5 * double(PI), 0.0 });
-        render_extension(elements_matrices[2]);
+        elements_matrices[NEG_X_EXTENSION_INDEX] = elements_matrices[0] * Geometry::translation_transform(-Vec3d::UnitX()) * Geometry::rotation_transform({ 0.0, -0.5 * double(PI), 0.0 });
+        render_extension(elements_matrices[NEG_X_EXTENSION_INDEX]);
     }
     if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::PosY)) != 0) {
-        elements_matrices[3] = elements_matrices[0] * Geometry::translation_transform(Vec3d::UnitY()) * Geometry::rotation_transform({ -0.5 * double(PI), 0.0, 0.0 });
-        render_extension(elements_matrices[3]);
+        elements_matrices[POS_Y_EXTENSION_INDEX] = elements_matrices[0] * Geometry::translation_transform(Vec3d::UnitY()) * Geometry::rotation_transform({ -0.5 * double(PI), 0.0, 0.0 });
+        render_extension(elements_matrices[POS_Y_EXTENSION_INDEX]);
     }
     if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::NegY)) != 0) {
-        elements_matrices[4] = elements_matrices[0] * Geometry::translation_transform(-Vec3d::UnitY()) * Geometry::rotation_transform({ 0.5 * double(PI), 0.0, 0.0 });
-        render_extension(elements_matrices[4]);
+        elements_matrices[NEG_Y_EXTENSION_INDEX] = elements_matrices[0] * Geometry::translation_transform(-Vec3d::UnitY()) * Geometry::rotation_transform({ 0.5 * double(PI), 0.0, 0.0 });
+        render_extension(elements_matrices[NEG_Y_EXTENSION_INDEX]);
     }
     if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::PosZ)) != 0) {
-        elements_matrices[5] = elements_matrices[0] * Geometry::translation_transform(Vec3d::UnitZ());
-        render_extension(elements_matrices[5]);
+        elements_matrices[POS_Z_EXTENSION_INDEX] = elements_matrices[0] * Geometry::translation_transform(Vec3d::UnitZ());
+        render_extension(elements_matrices[POS_Z_EXTENSION_INDEX]);
     }
     if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::NegZ)) != 0) {
-        elements_matrices[6] = elements_matrices[0] * Geometry::translation_transform(-Vec3d::UnitZ()) * Geometry::rotation_transform({ double(PI), 0.0, 0.0 });
-        render_extension(elements_matrices[6]);
+        elements_matrices[NEG_Z_EXTENSION_INDEX] = elements_matrices[0] * Geometry::translation_transform(-Vec3d::UnitZ()) * Geometry::rotation_transform({ double(PI), 0.0, 0.0 });
+        render_extension(elements_matrices[NEG_Z_EXTENSION_INDEX]);
     }
 
     if (raycasters[0] == nullptr) {
@@ -133,15 +139,15 @@ void GLGizmoBase::Grabber::render(float size, const ColorRGBA& render_color)
         if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::PosX)) != 0)
             raycasters[1] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[1]);
         if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::NegX)) != 0)
-            raycasters[2] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[2]);
+            raycasters[NEG_X_EXTENSION_INDEX] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[NEG_X_EXTENSION_INDEX]);
         if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::PosY)) != 0)
-            raycasters[3] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[3]);
+            raycasters[POS_Y_EXTENSION_INDEX] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[POS_Y_EXTENSION_INDEX]);
         if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::NegY)) != 0)
-            raycasters[4] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[4]);
+            raycasters[NEG_Y_EXTENSION_INDEX] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[NEG_Y_EXTENSION_INDEX]);
         if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::PosZ)) != 0)
-            raycasters[5] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[5]);
+            raycasters[POS_Z_EXTENSION_INDEX] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[POS_Z_EXTENSION_INDEX]);
         if ((int(extensions) & int(GLGizmoBase::EGrabberExtension::NegZ)) != 0)
-            raycasters[6] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[6]);
+            raycasters[NEG_Z_EXTENSION_INDEX] = canvas.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, picking_id, *s_cone.mesh_raycaster, elements_matrices[NEG_Z_EXTENSION_INDEX]);
     }
     else {
         for (size_t i = 0; i < GRABBER_ELEMENTS_MAX_COUNT; ++i) {
@@ -174,7 +180,7 @@ void GLGizmoBase::set_hover_id(int id)
     assert(!m_dragging);
 
     // allow empty grabbers when not using grabbers but use hover_id - flatten, rotate
-//    if (!m_grabbers.empty() && id >= (int) m_grabbers.size())
+//    if (!m_grabbers.empty() && id >= static_cast<int>(m_grabbers.size()))
 //        return;
     
     m_hover_id = id;
@@ -204,7 +210,7 @@ void GLGizmoBase::unregister_grabbers_for_picking()
 
 void GLGizmoBase::render_grabbers(const BoundingBoxf3& box) const
 {
-    render_grabbers((float)((box.size().x() + box.size().y() + box.size().z()) / 3.0));
+    render_grabbers(static_cast<float>((box.size().x() + box.size().y() + box.size().z()) / 3.0));
 }
 
 void GLGizmoBase::render_grabbers(float size) const
@@ -222,7 +228,7 @@ void GLGizmoBase::render_grabbers(size_t first, size_t last, float size, bool fo
     glsafe(::glDisable(GL_CULL_FACE));
     for (size_t i = first; i <= last; ++i) {
         if (m_grabbers[i].enabled)
-            m_grabbers[i].render(force_hover ? true : m_hover_id == (int)i, size);
+            m_grabbers[i].render(force_hover ? true : m_hover_id == static_cast<int>(i), size);
     }
     glsafe(::glEnable(GL_CULL_FACE));
     shader->stop_using();

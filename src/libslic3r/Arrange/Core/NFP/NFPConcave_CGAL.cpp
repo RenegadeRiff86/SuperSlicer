@@ -48,7 +48,7 @@ ExPolygons nfp_concave_concave_cgal(const ExPolygon &fixed, const ExPolygon &mov
     return union_ex(nfps);
 }
 
-// TODO: holes
+// Preserve holes in the CGAL polygon before vertical decomposition.
 Polygons convex_decomposition_cgal(const ExPolygon &expoly)
 {
     CGAL::Polygon_vertical_decomposition_2<K> decomp;

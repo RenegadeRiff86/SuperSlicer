@@ -1,11 +1,11 @@
-///|/ Copyright (c) Prusa Research 2018 - 2023 Oleksandra Iushchenko @YuSanka, Lukáš Hejl @hejllukas, Enrico Turri @enricoturri1966, David Kocík @kocikdav, Vojtěch Bubník @bubnikv, Tomáš Mészáros @tamasmeszaros, Lukáš Matěna @lukasmatena, Vojtěch Král @vojtechkral
+// |/ Copyright (c) Prusa Research 2018 - 2023 Oleksandra Iushchenko @YuSanka, Lukáš Hejl @hejllukas, Enrico Turri @enricoturri1966, David Kocík @kocikdav, Vojtěch Bubník @bubnikv, Tomáš Mészáros @tamasmeszaros, Lukáš Matěna @lukasmatena, Vojtěch
+// Král @vojtechkral
 ///|/
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
 #ifndef slic3r_GUI_wxExtensions_hpp_
 #define slic3r_GUI_wxExtensions_hpp_
 
-#include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/Color.hpp"
 
 #include <wx/checklst.h>
@@ -56,7 +56,13 @@ wxMenuItem* append_menu_check_item(wxMenu* menu, int id, const wxString& string,
 
 void enable_menu_item(wxUpdateUIEvent& evt, std::function<bool()> const cb_condition, wxMenuItem* item, wxWindow* win);
 
-uint32_t color_from_hex(std::string hex);
+inline constexpr int DEFAULT_BITMAP_SIZE = 16;
+// Settings-tab toolbar buttons (save, edit, cog) follow Preferences > Tab icon size.
+// Tab icon size 0 hides tab images only; these buttons stay at 32 px.
+// Per-field lock/undo/check decorations stay at DEFAULT_BITMAP_SIZE.
+int settings_toolbar_icon_px();
+
+uint32_t color_from_hex(const std::string& hex);
 wxColour color_from_int(uint32_t colour);
 std::string color_to_hex(uint32_t color);
 
@@ -70,7 +76,7 @@ int     em_unit(wxWindow* win);
 // if height == -1, then it will us ehte same value as width.
 wxBitmapBundle* get_bmp_bundle(const std::string& bmp_name, int width, int height, Slic3r::ColorReplaces& color_changes);
 // shortcut for get_bmp_bundle when you only want to add one ColorReplace from the accent color (ed6b21/2172eb)
-wxBitmapBundle* get_bmp_bundle(const std::string& bmp_name, int width = 16, int height = -1, const std::string& new_color_rgb = std::string());
+wxBitmapBundle* get_bmp_bundle(const std::string& bmp_name, int width = DEFAULT_BITMAP_SIZE, int height = -1, const std::string& new_color_rgb = std::string());
 wxBitmapBundle* get_empty_bmp_bundle(int width, int height);
 wxBitmapBundle* get_solid_bmp_bundle(int width, int height, const std::string& color);
 
@@ -174,7 +180,7 @@ public:
                     const bool grayscale = false);
     ScalableBitmap(wxWindow* parent, 
         const wxBitmap& bitmap,
-        const int px_cnt = 16) 
+        const int px_cnt = DEFAULT_BITMAP_SIZE) 
         : m_bmp(bitmap), m_bmp_width(px_cnt) {};
 
     ScalableBitmap( wxWindow *parent,
@@ -202,7 +208,7 @@ private:
     wxBitmapBundle  m_bmp = wxBitmapBundle();
     wxBitmap        m_bitmap = wxBitmap();
     std::string     m_icon_name = "";
-    int             m_bmp_width{ 16 };
+    int             m_bmp_width{ DEFAULT_BITMAP_SIZE };
     int             m_bmp_height{ -1 };
 };
 
@@ -276,7 +282,7 @@ public:
 
     void SetBitmap_(const ScalableBitmap& bmp);
     void SetBitmap_(const wxBitmap& bmp);
-    bool SetBitmap_(const std::string& bmp_name, int bmp_width = 16);
+    bool SetBitmap_(const std::string& bmp_name, int bmp_width = -1);
     void SetBitmapDisabled_(const ScalableBitmap &bmp);
     int  GetBitmapHeight();
 
@@ -291,7 +297,7 @@ private:
 protected:
     wxWindow*       m_parent { nullptr };
     // bitmap dimensions 
-    int             m_bmp_width{ 16 };
+    int             m_bmp_width{ DEFAULT_BITMAP_SIZE };
     int             m_bmp_height{ -1 };
     bool            m_has_border {false};
 };

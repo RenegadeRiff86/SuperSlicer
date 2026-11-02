@@ -62,20 +62,18 @@ class PlaterWorker: public Worker {
 
             CursorSetterRAII busycursor{wctl};
             
-            using namespace std::chrono;
-            steady_clock::time_point process_start = steady_clock::now();
+            const std::chrono::steady_clock::time_point process_start = std::chrono::steady_clock::now();
             m_job->process(wctl);
-            steady_clock::time_point process_end = steady_clock::now();
-            m_process_duration = duration_cast<milliseconds>(process_end - process_start).count();
+            const std::chrono::steady_clock::time_point process_end = std::chrono::steady_clock::now();
+            m_process_duration = std::chrono::duration_cast<std::chrono::milliseconds>(process_end - process_start).count();
         }
 
         void finalize(bool canceled, std::exception_ptr &eptr) override
         {
-            using namespace std::chrono;
-            steady_clock::time_point finalize_start = steady_clock::now();
+            const std::chrono::steady_clock::time_point finalize_start = std::chrono::steady_clock::now();
             m_job->finalize(canceled, eptr);
-            steady_clock::time_point finalize_end = steady_clock::now();
-            long long finalize_duration = duration_cast<milliseconds>(finalize_end - finalize_start).count();
+            const std::chrono::steady_clock::time_point finalize_end = std::chrono::steady_clock::now();
+            const long long finalize_duration = std::chrono::duration_cast<std::chrono::milliseconds>(finalize_end - finalize_start).count();
 
             BOOST_LOG_TRIVIAL(info)
                 << std::fixed // do not use scientific notations
@@ -89,27 +87,24 @@ class PlaterWorker: public Worker {
                 show_error(m_plater, _L("An unexpected error occured") + ": " + e.what());
                 eptr = nullptr;
             }
+
+            // Re-enable action buttons after arrange/orient/fill-bed jobs.
+            if (m_plater) {
+                const bool enable = !m_plater->model().objects.empty()
+                    && !m_plater->is_export_gcode_scheduled();
+                m_plater->sidebar().enable_buttons(enable);
+            }
         }
 
         PlaterJob(Plater *p, std::unique_ptr<Job> j)
             : m_job{std::move(j)}, m_plater{p}
         {
-            // TODO: decide if disabling slice button during UI job is what we
-            // want.
-            //        if (m_plater)
-            //            m_plater->sidebar().enable_buttons(false);
+            // Freeze slice/export buttons while a UI job owns the plate.
+            if (m_plater)
+                m_plater->sidebar().enable_buttons(false);
         }
 
-        ~PlaterJob() override
-        {
-            // TODO: decide if disabling slice button during UI job is what we want.
-
-            // Reload scene ensures that the slice button gets properly
-            // enabled or disabled after the job finishes, depending on the
-            // state of slicing. This might be an overkill but works for now.
-            //        if (m_plater)
-            //            m_plater->canvas3D()->reload_scene(false);
-        }
+        ~PlaterJob() override = default;
     };
 
 public:

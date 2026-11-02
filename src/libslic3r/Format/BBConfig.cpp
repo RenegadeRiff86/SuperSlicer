@@ -16,37 +16,44 @@
 #include <boost/property_tree/ptree.hpp>
 
 namespace Slic3r {
+
+// Repeated string literals extracted to named constants (BP1001).
+static constexpr const char* kFillPattern = "fill_pattern";
+static constexpr const char* kFilamentCustomVariables = "filament_custom_variables";
+static constexpr const char* kSupportMaterialStyle = "support_material_style";
+static constexpr const char* kSupportMaterialTopInterfacePattern = "support_material_top_interface_pattern";
+static constexpr const char* kParsePrefix = ": parse ";
     
 namespace BBConfiguration {
 // BBS: add json support
-#define BBL_JSON_KEY_VERSION "version"
-#define BBL_JSON_KEY_IS_CUSTOM "is_custom_defined"
-#define BBL_JSON_KEY_URL "url"
-#define BBL_JSON_KEY_NAME "name"
-#define BBL_JSON_KEY_DESCRIPTION "description"
-#define BBL_JSON_KEY_FORCE_UPDATE "force_update"
-#define BBL_JSON_KEY_MACHINE_MODEL_LIST "machine_model_list"
-#define BBL_JSON_KEY_PROCESS_LIST "process_list"
-#define BBL_JSON_KEY_SUB_PATH "sub_path"
-#define BBL_JSON_KEY_FILAMENT_LIST "filament_list"
-#define BBL_JSON_KEY_MACHINE_LIST "machine_list"
-#define BBL_JSON_KEY_TYPE "type"
-#define BBL_JSON_KEY_FROM "from"
-#define BBL_JSON_KEY_SETTING_ID "setting_id"
-#define BBL_JSON_KEY_BASE_ID "base_id"
-#define BBL_JSON_KEY_USER_ID "user_id"
-#define BBL_JSON_KEY_FILAMENT_ID "filament_id"
-#define BBL_JSON_KEY_UPDATE_TIME "updated_time"
-#define BBL_JSON_KEY_INHERITS "inherits"
-#define BBL_JSON_KEY_INSTANTIATION "instantiation"
-#define BBL_JSON_KEY_NOZZLE_DIAMETER "nozzle_diameter"
-#define BBL_JSON_KEY_PRINTER_TECH "machine_tech"
-#define BBL_JSON_KEY_FAMILY "family"
-#define BBL_JSON_KEY_BED_MODEL "bed_model"
-#define BBL_JSON_KEY_BED_TEXTURE "bed_texture"
-#define BBL_JSON_KEY_HOTEND_MODEL "hotend_model"
-#define BBL_JSON_KEY_DEFAULT_MATERIALS "default_materials"
-#define BBL_JSON_KEY_MODEL_ID "model_id"
+static constexpr const char* BBL_JSON_KEY_VERSION = "version";
+static constexpr const char* BBL_JSON_KEY_IS_CUSTOM = "is_custom_defined";
+static constexpr const char* BBL_JSON_KEY_URL = "url";
+static constexpr const char* BBL_JSON_KEY_NAME = "name";
+static constexpr const char* BBL_JSON_KEY_DESCRIPTION = "description";
+static constexpr const char* BBL_JSON_KEY_FORCE_UPDATE = "force_update";
+static constexpr const char* BBL_JSON_KEY_MACHINE_MODEL_LIST = "machine_model_list";
+static constexpr const char* BBL_JSON_KEY_PROCESS_LIST = "process_list";
+static constexpr const char* BBL_JSON_KEY_SUB_PATH = "sub_path";
+static constexpr const char* BBL_JSON_KEY_FILAMENT_LIST = "filament_list";
+static constexpr const char* BBL_JSON_KEY_MACHINE_LIST = "machine_list";
+static constexpr const char* BBL_JSON_KEY_TYPE = "type";
+static constexpr const char* BBL_JSON_KEY_FROM = "from";
+static constexpr const char* BBL_JSON_KEY_SETTING_ID = "setting_id";
+static constexpr const char* BBL_JSON_KEY_BASE_ID = "base_id";
+static constexpr const char* BBL_JSON_KEY_USER_ID = "user_id";
+static constexpr const char* BBL_JSON_KEY_FILAMENT_ID = "filament_id";
+static constexpr const char* BBL_JSON_KEY_UPDATE_TIME = "updated_time";
+static constexpr const char* BBL_JSON_KEY_INHERITS = "inherits";
+static constexpr const char* BBL_JSON_KEY_INSTANTIATION = "instantiation";
+static constexpr const char* BBL_JSON_KEY_NOZZLE_DIAMETER = "nozzle_diameter";
+static constexpr const char* BBL_JSON_KEY_PRINTER_TECH = "machine_tech";
+static constexpr const char* BBL_JSON_KEY_FAMILY = "family";
+static constexpr const char* BBL_JSON_KEY_BED_MODEL = "bed_model";
+static constexpr const char* BBL_JSON_KEY_BED_TEXTURE = "bed_texture";
+static constexpr const char* BBL_JSON_KEY_HOTEND_MODEL = "hotend_model";
+static constexpr const char* BBL_JSON_KEY_DEFAULT_MATERIALS = "default_materials";
+static constexpr const char* BBL_JSON_KEY_MODEL_ID = "model_id";
 
 std::map<std::string, std::string> key_translation_map;
 std::map<std::string, std::map<std::string, std::string>> value_translation_map;
@@ -219,10 +226,10 @@ void init()
     //key_translation_map["z_offset"]                                 = "z_offset";
     key_translation_map["xy_hole_compensation"]                     = "xy_inner_size_compensation";
     key_translation_map["independent_support_layer_height"]         = "support_material_layer_height";
-    key_translation_map["sparse_infill_pattern"]                    = "fill_pattern";
+    key_translation_map["sparse_infill_pattern"]                    = kFillPattern;
     key_translation_map["filename_format"]                          = "output_filename_format";
     key_translation_map["support_base_pattern"]                     = "support_material_pattern";
-    key_translation_map["support_interface_pattern"]                = "support_material_top_interface_pattern";
+    key_translation_map["support_interface_pattern"]                = kSupportMaterialTopInterfacePattern;
     key_translation_map["top_surface_pattern"]                      = "top_fill_pattern";
     key_translation_map["support_object_xy_distance"]               = "support_material_xy_spacing";
     key_translation_map["fuzzy_skin_point_distance"]                = "fuzzy_skin_point_dist";
@@ -236,7 +243,7 @@ void init()
     key_translation_map["print_sequence"]                           = "complete_objects";
     key_translation_map["brim_type"]                                = "brim_type"; //handled by from_prusa
     //key_translation_map["notes"]                                    = "notes";
-    key_translation_map["support_style"]                   = "support_material_style";
+    key_translation_map["support_style"]                   = kSupportMaterialStyle;
     //key_translation_map["ironing"]                                  = "ironing";
     //key_translation_map["ironing_type"]                             = "ironing_type";
     //key_translation_map["ironing_angle"]                            = "ironing_angle";
@@ -382,25 +389,25 @@ void init()
     key_translation_map["wipe"]                                = "wipe";
 
     //pattern
-    value_translation_map["fill_pattern"]["monotonicline"] = "monotoniclines"; //2.7
-    value_translation_map["fill_pattern"]["zig-zag"] = "rectilinear";
-    value_translation_map["fill_pattern"]["tri-hexagon"] = "stars";
-    //value_translation_map["fill_pattern"]["rectilinear-grid"] = "???"; //can't convert let the config_substitutions emit the warning
-    value_translation_map["top_fill_pattern"] = value_translation_map["fill_pattern"];
-    value_translation_map["bottom_fill_pattern"] = value_translation_map["fill_pattern"];
-    value_translation_map["solid_fill_pattern"] = value_translation_map["fill_pattern"];
-    value_translation_map["brim_ears_pattern"] = value_translation_map["fill_pattern"];
-    value_translation_map["bridge_fill_pattern"] = value_translation_map["fill_pattern"];
-    value_translation_map["support_material_top_interface_pattern"] = value_translation_map["fill_pattern"];
-    value_translation_map["support_material_bottom_interface_pattern"] = value_translation_map["fill_pattern"];
+    value_translation_map[kFillPattern]["monotonicline"] = "monotoniclines"; //2.7
+    value_translation_map[kFillPattern]["zig-zag"] = "rectilinear";
+    value_translation_map[kFillPattern]["tri-hexagon"] = "stars";
+    //value_translation_map[kFillPattern]["rectilinear-grid"] = "???"; //can't convert let the config_substitutions emit the warning
+    value_translation_map["top_fill_pattern"] = value_translation_map[kFillPattern];
+    value_translation_map["bottom_fill_pattern"] = value_translation_map[kFillPattern];
+    value_translation_map["solid_fill_pattern"] = value_translation_map[kFillPattern];
+    value_translation_map["brim_ears_pattern"] = value_translation_map[kFillPattern];
+    value_translation_map["bridge_fill_pattern"] = value_translation_map[kFillPattern];
+    value_translation_map[kSupportMaterialTopInterfacePattern] = value_translation_map[kFillPattern];
+    value_translation_map["support_material_bottom_interface_pattern"] = value_translation_map[kFillPattern];
     //specific
-    value_translation_map["fill_pattern"]["default"] = "gyroid";
+    value_translation_map[kFillPattern]["default"] = "gyroid";
     value_translation_map["top_fill_pattern"]["default"] = "monotonic";
     value_translation_map["bottom_fill_pattern"]["default"] = "monotonic";
     value_translation_map["solid_fill_pattern"]["default"] = "rectilinear";
     value_translation_map["brim_ears_pattern"]["default"] = "concentric";
     value_translation_map["bridge_fill_pattern"]["default"] = "rectilinear";
-    value_translation_map["support_material_top_interface_pattern"]["default"] = "auto";
+    value_translation_map[kSupportMaterialTopInterfacePattern]["default"] = "auto";
     value_translation_map["support_material_bottom_interface_pattern"]["default"] = "auto";
     //value_translation_map["support_material_interface_pattern"]["rectilinear_interlaced"] = "???"; //can't convert let the config_substitutions emit the warning
  
@@ -410,13 +417,13 @@ void init()
     //value_translation_map["support_material_pattern"]["hollow"] = ""; //can't convert, let the config_substitutions emit the warning
     value_translation_map["seam_position"]["back"] = "rear";
     value_translation_map["filament_type"]["TPU"] = "FLEX";
-    value_translation_map["support_material_style"]["normal"] = "grid";
-    value_translation_map["support_material_style"]["default"] = "grid";
-    value_translation_map["support_material_style"]["tree"] = "snug"; // organic in 2.7
-    value_translation_map["support_material_style"]["tree_slim"] = "snug"; // organic in 2.7
-    value_translation_map["support_material_style"]["tree_strong"] = "snug"; // organic in 2.7
-    value_translation_map["support_material_style"]["tree_hybrid"] = "snug"; // organic in 2.7
-    value_translation_map["support_material_style"]["organic"] = "snug"; // organic in 2.7
+    value_translation_map[kSupportMaterialStyle]["normal"] = "grid";
+    value_translation_map[kSupportMaterialStyle]["default"] = "grid";
+    value_translation_map[kSupportMaterialStyle]["tree"] = "snug"; // organic in 2.7
+    value_translation_map[kSupportMaterialStyle]["tree_slim"] = "snug"; // organic in 2.7
+    value_translation_map[kSupportMaterialStyle]["tree_strong"] = "snug"; // organic in 2.7
+    value_translation_map[kSupportMaterialStyle]["tree_hybrid"] = "snug"; // organic in 2.7
+    value_translation_map[kSupportMaterialStyle]["organic"] = "snug"; // organic in 2.7
     value_translation_map["retract_lift_top"]["Bottom Only"] = "Not on top";
     value_translation_map["retract_lift_top"]["Top Only"] = "Only on top";
     value_translation_map["thumbnails_format"]["BTT_TFT"] = "BIQU";
@@ -435,11 +442,11 @@ void init()
     custom_gcode_replace.emplace_back("bed_temperature_initial_layer_vector", "\"\"");
     custom_gcode_replace.emplace_back("[temperature_initial_layer]", "{first_layer_temperature[initial_extruder]}");
     custom_gcode_replace.emplace_back("temperature_initial_layer", "first_layer_temperature[initial_extruder]");
-    //custom_gcode_replace.emplace_back("overall_chamber_temperature", "chamber_temperature"); //fixme: it's a max.
+    // overall_chamber_temperature is a max over tools in BBL; SuperSlicer chamber_temperature is not equivalent, so leave unmapped.
 
     //if plate_name, then add plate_name as custom setting
     key_custom_settings_translation_map["print_custom_variables"] = BBSettingType(bbstFFF_PRINT | bbstSLA_PRINT);
-    key_custom_settings_translation_map["filament_custom_variables"] = BBSettingType(bbstFFF_FILAMENT | bbstSLA_MATERIAL);
+    key_custom_settings_translation_map[kFilamentCustomVariables] = BBSettingType(bbstFFF_FILAMENT | bbstSLA_MATERIAL);
     key_custom_settings_translation_map["printer_custom_variables"] = BBSettingType(bbstFFF_PRINTER | bbstSLA_PRINTER);
     key_custom_settings_translation_map["plate_name"] = BBSettingType(bbstFFF_PRINT | bbstSLA_PRINT);
 }
@@ -483,8 +490,8 @@ void complicated_convert(t_config_option_key &opt_key,
             value = "disabled";
         }
     }
-    if ("support_material_top_interface_pattern" == opt_key || "support_interface_pattern" == opt_key) {
-        output["support_material_top_interface_pattern"] = value;
+    if (kSupportMaterialTopInterfacePattern == opt_key || "support_interface_pattern" == opt_key) {
+        output[kSupportMaterialTopInterfacePattern] = value;
         output["support_material_bottom_interface_pattern"] = value;
     }
     if ("initial_layer_line_width" == opt_key || "first_layer_extrusion_width" == opt_key) {
@@ -586,11 +593,11 @@ bool push_into_custom_variable(DynamicPrintConfig &print_config,
                 value += opt_key + std::string("=") + opt_value + std::string("\n");
         }
         if ((it->second & bbstFFF_FILAMENT) != 0 || (it->second & bbstSLA_MATERIAL) != 0) {
-            if (print_config.opt<ConfigOptionStrings>("filament_custom_variables") == nullptr)
-                print_config.set_deserialize("filament_custom_variables", "");
-            const std::string &val = print_config.opt<ConfigOptionStrings>("filament_custom_variables")->get_at(0);
+            if (print_config.opt<ConfigOptionStrings>(kFilamentCustomVariables) == nullptr)
+                print_config.set_deserialize(kFilamentCustomVariables, "");
+            const std::string &val = print_config.opt<ConfigOptionStrings>(kFilamentCustomVariables)->get_at(0);
             if (val.find(opt_key) == std::string::npos)
-                print_config.opt<ConfigOptionStrings>("filament_custom_variables")
+                print_config.opt<ConfigOptionStrings>(kFilamentCustomVariables)
                     ->set_at(val + opt_key + std::string("=") + opt_value + std::string("\n"), 0);
         }
         if ((it->second & bbstFFF_PRINTER) != 0 || (it->second & bbstSLA_PRINTER) != 0) {
@@ -611,12 +618,12 @@ bool push_into_custom_variables(DynamicPrintConfig &            print_config,
 {
     if (auto it = key_custom_settings_translation_map.find(opt_key); it != key_custom_settings_translation_map.end()) {
         if ((it->second & bbstFFF_FILAMENT) != 0 || (it->second & bbstSLA_MATERIAL) != 0) {
-            for (int i = 0; i < opt_value.size(); ++i) {
-                if (print_config.opt<ConfigOptionStrings>("filament_custom_variables") == nullptr)
-                    print_config.set_deserialize("filament_custom_variables", "");
-                const std::string &val = print_config.opt<ConfigOptionStrings>("filament_custom_variables")->get_at(i);
+            for (size_t i = 0; i < opt_value.size(); ++i) {
+                if (print_config.opt<ConfigOptionStrings>(kFilamentCustomVariables) == nullptr)
+                    print_config.set_deserialize(kFilamentCustomVariables, "");
+                const std::string &val = print_config.opt<ConfigOptionStrings>(kFilamentCustomVariables)->get_at(i);
                 if (val.find(opt_key) == std::string::npos)
-                    print_config.opt<ConfigOptionStrings>("filament_custom_variables")
+                    print_config.opt<ConfigOptionStrings>(kFilamentCustomVariables)
                         ->set_at(val + opt_key + std::string("=") + opt_value[i] + std::string("\n"), i);
             }
             return true;
@@ -625,7 +632,7 @@ bool push_into_custom_variables(DynamicPrintConfig &            print_config,
     return false;
 }
 
-//TODO: ensure it's inside '{' '[' script section, reliably
+// Transform the complete custom-G-code text because parser section boundaries are not available at this stage.
 void custom_gcode_transform(DynamicPrintConfig &print_config)
 {
     for (std::string opt_key : {"template_custom_gcode", "toolchange_gcode", "before_layer_gcode",
@@ -679,7 +686,6 @@ bool read_json_file_bambu(const std_path &temp_file,
     std::string            new_support_style;
     std::string            is_infill_first;
     std::string            get_wall_sequence;
-    bool                   is_project_settings = false;
 
     CNumericLocalesSetter locales_setter;
 
@@ -701,8 +707,6 @@ bool read_json_file_bambu(const std_path &temp_file,
                 key_values.emplace(BBL_JSON_KEY_IS_CUSTOM, it.value());
             } else if (boost::iequals(it.key(), BBL_JSON_KEY_NAME)) {
                 key_values.emplace(BBL_JSON_KEY_NAME, it.value());
-                if (it.value() == "project_settings")
-                    is_project_settings = true;
             } else if (boost::iequals(it.key(), BBL_JSON_KEY_URL)) {
                 key_values.emplace(BBL_JSON_KEY_URL, it.value());
             } else if (boost::iequals(it.key(), BBL_JSON_KEY_TYPE)) {
@@ -727,7 +731,7 @@ bool read_json_file_bambu(const std_path &temp_file,
                         key_vector_values[it.key()].push_back(iter.value());
                     } else {
                         // should not happen
-                        BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << ": parse " << temp_file
+                        BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << kParsePrefix << temp_file
                                                  << " error, invalid json array for " << it.key();
                         break;
                     }
@@ -735,17 +739,17 @@ bool read_json_file_bambu(const std_path &temp_file,
             } else {
                 // should not happen
                 BOOST_LOG_TRIVIAL(error)
-                    << __FUNCTION__ << ": parse " << temp_file << " error, invalid json type for " << it.key();
+                    << __FUNCTION__ << kParsePrefix << temp_file << " error, invalid json type for " << it.key();
             }
         }
     } catch (const std_ifstream::failure &err) {
-        BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << ": parse " << temp_file
+        BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << kParsePrefix << temp_file
                                  << " got a ifstream error, reason = " << err.what();
     } catch (nlohmann::detail::parse_error &err) {
-        BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << ": parse " << temp_file
+        BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << kParsePrefix << temp_file
                                  << " got a nlohmann::detail::parse_error, reason = " << err.what();
     } catch (std::exception &err) {
-        BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << ": parse " << temp_file
+        BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << kParsePrefix << temp_file
                                  << " got a generic exception, reason = " << err.what();
     }
 

@@ -85,7 +85,7 @@ indexed_triangle_set slices_to_mesh(
     its_merge(ret, straight_walls(slices.front(), zmin, grid.front()));
     its_merge(ret, triangulate_expolygons_3d(slices.back(), grid.back(), NORMALS_UP));
 
-    // FIXME: these repairs do not fix the mesh entirely. There will be cracks
+    // Known limitation: these repairs do not fix the mesh entirely. There will be cracks
     // in the output. It is very hard to do the meshing in a way that does not
     // leave errors.
     int num_mergedv = its_merge_vertices(ret);

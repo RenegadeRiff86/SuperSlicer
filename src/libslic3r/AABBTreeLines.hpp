@@ -54,47 +54,8 @@ inline std::tuple<int, int> coordinate_aligned_ray_hit_count(size_t             
     using Floating                        = typename std::conditional<std::is_floating_point<Scalar>::value, Scalar, double>::type;
     const auto &node                      = tree.node(node_idx);
     assert(node.is_valid());
-    if (node.is_leaf()) {
-        const LineType &line = lines[node.idx];
-        if (ray_origin[other_coordinate] < std::min(line.a[other_coordinate], line.b[other_coordinate]) ||
-            ray_origin[other_coordinate] >= std::max(line.a[other_coordinate], line.b[other_coordinate])) { 
-                // the second inequality is nonsharp for a reason 
-                //  without it, we may count contour border twice when the lines meet exactly at the spot of intersection. this prevents is
-            return {0, 0};
-        }
 
-        Scalar line_max = std::max(line.a[coordinate], line.b[coordinate]);
-        Scalar line_min = std::min(line.a[coordinate], line.b[coordinate]);
-        if (ray_origin[coordinate] > line_max) {
-            return {1, 0};
-        } else if (ray_origin[coordinate] < line_min) {
-            return {0, 1};
-        } else {
-            // find intersection of ray with line
-            //  that is when ( line.a + t * (line.b - line.a) )[other_coordinate] == ray_origin[other_coordinate]
-            //  t = ray_origin[oc] - line.a[oc] / (line.b[oc] - line.a[oc]);
-            //  then we want to get value of intersection[ coordinate]
-            //  val_c = line.a[c] + t * (line.b[c] - line.a[c]);
-            //  Note that ray and line may overlap, when  (line.b[oc] - line.a[oc]) is zero
-            //  In that case, we use line.a as the intersection point
-            Floating distance_oc = line.b[other_coordinate] - line.a[other_coordinate];
-            Floating val_c;
-            if (std::abs(distance_oc) < (std::is_floating_point<Scalar>::value ? EPSILON : SCALED_EPSILON)) {
-                // Line is nearly degenerate (parallel to ray), use line.a as intersection point
-                val_c = line.a[coordinate];
-            } else {
-                Floating t = (ray_origin[other_coordinate] - line.a[other_coordinate]) / distance_oc;
-                val_c = line.a[coordinate] + t * (line.b[coordinate] - line.a[coordinate]);
-            }
-            if (ray_origin[coordinate] > val_c) {
-                return {1, 0};
-            } else if (ray_origin[coordinate] < val_c) {
-                return {0, 1};
-            } else { // ray origin is on boundary
-                return {-1, -1};
-            }
-        }
-    } else {
+    if (!node.is_leaf()) {
         int         intersections_above = 0;
         int         intersections_below = 0;
         size_t      left_node_idx       = node_idx * 2 + 1;
@@ -104,26 +65,64 @@ inline std::tuple<int, int> coordinate_aligned_ray_hit_count(size_t             
         assert(node_left.is_valid());
         assert(node_right.is_valid());
 
-        if (node_left.bbox.min()[other_coordinate] <= ray_origin[other_coordinate] &&
-            node_left.bbox.max()[other_coordinate] >=
-                ray_origin[other_coordinate]) {
-            auto [above, below] = coordinate_aligned_ray_hit_count<LineType, TreeType, VectorType, coordinate>(left_node_idx, tree, lines,
-                                                                                                               ray_origin);
-            if (above < 0 || below < 0) return {-1, -1};
-            intersections_above += above;
-            intersections_below += below;
-        }
+        auto add_intersections = [&](size_t child_node_idx, const auto &child_node) {
+            if (child_node.bbox.min()[other_coordinate] > ray_origin[other_coordinate] ||
+                child_node.bbox.max()[other_coordinate] < ray_origin[other_coordinate])
+                return true;
 
-        if (node_right.bbox.min()[other_coordinate] <= ray_origin[other_coordinate] &&
-            node_right.bbox.max()[other_coordinate] >= ray_origin[other_coordinate]) {
-            auto [above, below] = coordinate_aligned_ray_hit_count<LineType, TreeType, VectorType, coordinate>(right_node_idx, tree, lines,
+            auto [above, below] = coordinate_aligned_ray_hit_count<LineType, TreeType, VectorType, coordinate>(child_node_idx, tree, lines,
                                                                                                                ray_origin);
-            if (above < 0 || below < 0) return {-1, -1};
+            if (above < 0 || below < 0)
+                return false;
+
             intersections_above += above;
             intersections_below += below;
-        }
+            return true;
+        };
+
+        if (!add_intersections(left_node_idx, node_left) || !add_intersections(right_node_idx, node_right))
+            return {-1, -1};
+
         return {intersections_above, intersections_below};
     }
+
+    const LineType &line = lines[node.idx];
+    if (ray_origin[other_coordinate] < std::min(line.a[other_coordinate], line.b[other_coordinate]) ||
+        ray_origin[other_coordinate] >= std::max(line.a[other_coordinate], line.b[other_coordinate])) {
+        // The second inequality is nonsharp for a reason: without it, a contour border may be counted twice
+        // when two lines meet exactly at the intersection point.
+        return {0, 0};
+    }
+
+    const Scalar line_max = std::max(line.a[coordinate], line.b[coordinate]);
+    const Scalar line_min = std::min(line.a[coordinate], line.b[coordinate]);
+    if (ray_origin[coordinate] > line_max)
+        return {1, 0};
+    if (ray_origin[coordinate] < line_min)
+        return {0, 1};
+
+    // find intersection of ray with line
+    //  that is when ( line.a + t * (line.b - line.a) )[other_coordinate] == ray_origin[other_coordinate]
+    //  t = ray_origin[oc] - line.a[oc] / (line.b[oc] - line.a[oc]);
+    //  then we want to get value of intersection[ coordinate]
+    //  val_c = line.a[c] + t * (line.b[c] - line.a[c]);
+    //  Note that ray and line may overlap, when  (line.b[oc] - line.a[oc]) is zero
+    //  In that case, we use line.a as the intersection point
+    const Floating distance_oc = line.b[other_coordinate] - line.a[other_coordinate];
+    const Floating threshold   = std::is_floating_point<Scalar>::value ? EPSILON : SCALED_EPSILON;
+    Floating       val_c       = line.a[coordinate];
+
+    if (std::abs(distance_oc) >= threshold) {
+        Floating t = (ray_origin[other_coordinate] - line.a[other_coordinate]) / distance_oc;
+        val_c      = line.a[coordinate] + t * (line.b[coordinate] - line.a[coordinate]);
+    }
+
+    if (ray_origin[coordinate] > val_c)
+        return {1, 0};
+    if (ray_origin[coordinate] < val_c)
+        return {0, 1};
+
+    return {-1, -1};
 }
 
 template<typename LineType, typename TreeType, typename VectorType>
@@ -137,7 +136,7 @@ inline void insert_intersections_with_line(std::vector<std::pair<VectorType, siz
     const auto &node = tree.node(node_idx);
     assert(node.is_valid());
     if (node.is_leaf()) {
-        VectorType intersection_pt;
+        VectorType intersection_pt = VectorType::Zero();
         if (line_alg::intersection(line, lines[node.idx], &intersection_pt)) {
             result.emplace_back(intersection_pt, node.idx);
         }
@@ -229,10 +228,7 @@ inline AABBTreeIndirect::Tree<LineType::Dim, typename LineType::Scalar> build_aa
     input.reserve(lines.size());
     for (size_t i = 0; i < lines.size(); ++i) {
         const LineType &line = lines[i];
-        InputType       n;
-        n.m_idx      = i;
-        n.m_centroid = (line.a + line.b) * 0.5;
-        n.m_bbox     = BoundingBox(line.a, line.a);
+        InputType n { i, BoundingBox(line.a, line.a), (line.a + line.b) * 0.5 };
         n.m_bbox.extend(line.b);
         input.emplace_back(n);
     }

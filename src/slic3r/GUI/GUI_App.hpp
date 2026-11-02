@@ -1,5 +1,6 @@
 ///|/ Modified 2026 by Stan Elston (RenegadeRiff86) -- see git history.
-///|/ Copyright (c) Prusa Research 2018 - 2023 Vojtěch Bubník @bubnikv, Oleksandra Iushchenko @YuSanka, Tomáš Mészáros @tamasmeszaros, David Kocík @kocikdav, Lukáš Matěna @lukasmatena, Enrico Turri @enricoturri1966, Filip Sykala @Jony01, Lukáš Hejl @hejllukas, Vojtěch Král @vojtechkral
+// |/ Copyright (c) Prusa Research 2018 - 2023 Vojtěch Bubník @bubnikv, Oleksandra Iushchenko @YuSanka, Tomáš Mészáros @tamasmeszaros, David Kocík @kocikdav, Lukáš Matěna @lukasmatena, Enrico Turri @enricoturri1966, Filip Sykala @Jony01, Lukáš Hejl
+// @hejllukas, Vojtěch Král @vojtechkral
 ///|/ Copyright (c) 2021 Li Jiang
 ///|/
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
@@ -23,7 +24,6 @@
 #include <wx/snglinst.h>
 
 #include <mutex>
-#include <stack>
 
 class wxMenuItem;
 class wxMenuBar;
@@ -110,6 +110,7 @@ enum ConfigMenuIDs {
 
 class Tab;
 class ConfigWizard;
+class AutomationServer;
 
 static wxString dots("…", wxConvUTF8);
 
@@ -157,8 +158,8 @@ private:
 
     wxFont		    m_small_font;
     wxFont		    m_bold_font;
-	wxFont			m_normal_font;
-	wxFont			m_code_font;
+    wxFont			m_normal_font;
+    wxFont			m_code_font;
     wxFont		    m_link_font;
 
     int             m_em_unit; // width of a "m"-symbol in pixels for current system font
@@ -177,18 +178,23 @@ private:
 
     std::unique_ptr<ImGuiWrapper> m_imgui;
     std::unique_ptr<PrintHostJobQueue> m_printhost_job_queue;
-	std::unique_ptr <OtherInstanceMessageHandler> m_other_instance_message_handler;
+    std::unique_ptr <OtherInstanceMessageHandler> m_other_instance_message_handler;
     std::unique_ptr <AppUpdater> m_app_updater;
     std::unique_ptr <wxSingleInstanceChecker> m_single_instance_checker;
     std::unique_ptr <Downloader> m_downloader;
+#ifdef SLIC3R_ENABLE_AUTOMATION_API
+    std::unique_ptr<AutomationServer> m_automation_server;
+#endif
     std::string m_instance_hash_string;
-	size_t m_instance_hash_int = 0;
+    size_t m_instance_hash_int = 0;
 
 public:
     bool            OnInit() override;
+    int             OnExit() override;
     bool            initialized() const { return m_initialized; }
 
     explicit GUI_App(EAppMode mode = EAppMode::Editor);
+    ~GUI_App() override;
 
     EAppMode get_app_mode() const { return m_app_mode; }
     bool is_editor() const { return m_app_mode == EAppMode::Editor; }
@@ -229,7 +235,7 @@ public:
     void            UpdateAllStaticTextDarkUI(wxWindow* parent) const;
     void            SetWindowVariantForButton(wxButton* btn);
     void            init_fonts();
-	void            update_fonts(const MainFrame *main_frame = nullptr);
+    void            update_fonts(const MainFrame *main_frame = nullptr);
     void            set_label_clr_modified(const wxColour& clr);
     void            set_label_clr_sys(const wxColour& clr);
     void            set_label_clr_default(const wxColour& clr);
@@ -294,9 +300,11 @@ public:
     void            recreate_GUI(const wxString& message);
     void            system_info();
     void            keyboard_shortcuts();
-    void            change_calibration_dialog(const wxDialog* have_to_destroy = nullptr, wxDialog* new_one = nullptr);
+    void            change_calibration_dialog(const wxDialog* have_to_destroy = nullptr, std::unique_ptr<wxDialog> new_one = nullptr);
     void            html_dialog();
     void            bed_leveling_dialog();
+    void            z_offset_calibration_dialog();
+    void            z_offset_result_dialog();
     void            flow_ratio_dialog();
     void            flow_speed_dialog();
     void            filament_temperature_dialog();
@@ -319,6 +327,7 @@ public:
 
     void            persist_window_geometry(wxTopLevelWindow *window, bool default_maximized = false);
     void            update_ui_from_settings();
+    void            configure_automation_api_from_preferences();
 
     bool            switch_language();
     bool            load_language(wxString language, bool initial);
@@ -344,7 +353,7 @@ public:
     void            load_current_presets(bool check_printer_presets = true);
 
     wxString        current_language_code() const { return m_wxLocale->GetCanonicalName(); }
-	// Translate the language code to a code, for which Prusa Research maintains translations. Defaults to "en_US".
+    // Translate the language code to a code, for which Prusa Research maintains translations. Defaults to "en_US".
     wxString 		current_language_code_safe() const;
     bool            is_localized() const { return m_wxLocale->GetLocale() != "English"; }
 
@@ -387,7 +396,7 @@ public:
     std::mutex      not_modal_dialog_mutex;
     wxDialog*       not_modal_dialog = nullptr;
 
-	PresetUpdater*  get_preset_updater() { return preset_updater.get(); }
+    PresetUpdater*  get_preset_updater() { return preset_updater.get(); }
     PrinterTechnology get_current_printer_technology() const;
 
     wxBookCtrlBase* tab_panel() const ;
@@ -396,14 +405,14 @@ public:
 
     std::vector<Tab *>      tabs_list;
 
-	RemovableDriveManager* removable_drive_manager() { return m_removable_drive_manager.get(); }
-	OtherInstanceMessageHandler* other_instance_message_handler() { return m_other_instance_message_handler.get(); }
+    RemovableDriveManager* removable_drive_manager() { return m_removable_drive_manager.get(); }
+    OtherInstanceMessageHandler* other_instance_message_handler() { return m_other_instance_message_handler.get(); }
     wxSingleInstanceChecker* single_instance_checker() {return m_single_instance_checker.get();}
 
-	void        init_single_instance_checker(const std::string &name, const std::string &path);
-	void        set_instance_hash (const size_t hash) { m_instance_hash_int = hash; m_instance_hash_string = std::to_string(hash); }
+    void        init_single_instance_checker(const std::string &name, const std::string &path);
+    void        set_instance_hash (const size_t hash) { m_instance_hash_int = hash; m_instance_hash_string = std::to_string(hash); }
     std::string get_instance_hash_string ()           { return m_instance_hash_string; }
-	size_t      get_instance_hash_int ()              { return m_instance_hash_int; }
+    size_t      get_instance_hash_int ()              { return m_instance_hash_int; }
 
     ImGuiWrapper* imgui() { return m_imgui.get(); }
 
@@ -444,13 +453,13 @@ public:
 
 
     // URL download - PrusaSlicer gets system call to open prusaslicer:// URL which should contain address of download
-    void            start_download(std::string url) const;
+    void            start_download(const std::string& url) const;
 
     void            open_wifi_config_dialog(bool forced, const wxString& drive_path = {});
     bool            get_wifi_config_dialog_shown() const { return m_wifi_config_dialog_shown; }
 private:
     bool            on_init_inner();
-	void            init_app_config();
+    void            init_app_config();
     // returns old config path to copy from if such exists,
     // returns an empty string if such config path does not exists or if it cannot be loaded.
     std::string     check_older_app_config(Semver current_version, bool backup);
@@ -462,7 +471,7 @@ private:
     bool            config_wizard_startup();
     // Returns true if the configuration is fine. 
     // Returns true if the configuration is not compatible and the user decided to rather close the slicer instead of reconfiguring.
-	bool            check_updates(const bool verbose, int nb_updates = 0);
+    bool            check_updates(const bool verbose, int nb_updates = 0);
     void            on_version_read(wxCommandEvent& evt) const;
     // if the data from version file are already downloaded, shows dialogs to start download of new version of app
     void            app_updater(bool from_user) const;
