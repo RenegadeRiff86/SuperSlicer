@@ -10,10 +10,6 @@
 
 #include <boost/log/trivial.hpp>
 
-// TEMP DEBUG: disable optimization in this file so the debugger shows real
-// locals/state while stepping. Remove before committing.
-#pragma optimize("", off)
-
 namespace Slic3r {
 
 // Named constants replacing repeated numeric literals flagged by the BP analyzer
@@ -258,6 +254,30 @@ void change_axis_value(std::string& line, char axis, const float new_value, cons
     line = line.replace(pos, end - pos, to_string_nozero(new_value, decimal_digits));
 }
 
+// Write F before any comment so a slowed extrusion does not hide the new feedrate
+// inside the comment text.
+void set_line_feedrate(std::string &line, float mm_per_min)
+{
+    if (line.find(" F") != std::string::npos) {
+        change_axis_value(line, 'F', mm_per_min, 1);
+        return;
+    }
+    const std::string fword = " F" + to_string_nozero(mm_per_min, 1);
+    const size_t comment = line.find(';');
+    if (comment == std::string::npos)
+        line += fword;
+    else
+        line.insert(comment, fword + " ");
+}
+
+bool is_g_move(const std::string &raw, char digit)
+{
+    return raw.size() > size_t(GCODE_SPACE_POS)
+        && raw[GCODE_CMD_POS] == 'G'
+        && raw[GCODE_DIGIT_POS] == digit
+        && raw[GCODE_SPACE_POS] == ' ';
+}
+
 int16_t get_fan_speed(const std::string &line, GCodeFlavor flavor) {
     if (line.compare(0, GCODE_PREFIX_LEN, "M106") == 0) {
         if (flavor == (gcfMach3) || flavor == (gcfMachinekit)) {
@@ -440,34 +460,48 @@ float FanMover::_fan_slowdown_target_speed(float elapsed) const
 
 bool FanMover::_apply_active_fan_slowdown(BufferData &data)
 {
-    if (m_fan_slowdown_remaining <= 0.f || data.de <= 0.f || data.time <= 0.f)
+    if (m_fan_slowdown_remaining <= 0.f || data.time <= 0.f)
         return false;
+
+    auto advance_clock = [this](float dt) {
+        m_fan_slowdown_remaining = std::max(0.f, m_fan_slowdown_remaining - dt);
+    };
+
     const std::string &r = data.raw;
-    if (r.size() <= GCODE_SPACE_POS || r[GCODE_CMD_POS] != 'G' || (r[GCODE_DIGIT_POS] != '1' && r[GCODE_DIGIT_POS] != '0') || r[GCODE_SPACE_POS] != ' ')
-        return false;
+    const bool is_linear = is_g_move(r, '0') || is_g_move(r, '1');
+    const bool is_arc = is_g_move(r, '2') || is_g_move(r, '3');
+    const bool is_extrusion = data.de > 0.f;
+    // G0/G1 extrusions always get a feedrate. G2/G3 do too when the arc extrudes:
+    // the programmed speed is known from the move time even if F lives on an earlier line.
+    const bool can_slow = is_extrusion && (is_linear || is_arc);
 
-    const float dist = std::sqrt(data.dx * data.dx + data.dy * data.dy + data.dz * data.dz);
-    if (dist <= 0.f)
-        return false;
-
-    const float elapsed_before = m_fan_slowdown_total - m_fan_slowdown_remaining;
-    const float target_speed = _fan_slowdown_target_speed(elapsed_before);
-    const float cur_speed = dist / data.time;
-    const float new_speed = std::min(cur_speed, target_speed);
-    if (new_speed >= cur_speed - 0.001f) {
-        m_fan_slowdown_remaining = std::max(0.f, m_fan_slowdown_remaining - data.time);
+    if (!can_slow) {
+        // Travel and other non-extrusion time still let the fan catch up.
+        advance_clock(float(data.time));
         return false;
     }
 
-    const float new_time = dist / new_speed;
-    m_buffer_time_size += (new_time - data.time);
-    data.time = new_time;
-    if (r.find(" F") != std::string::npos)
-        change_axis_value(data.raw, 'F', new_speed * FEEDRATE_SECONDS_PER_MINUTE, 1);
-    else
-        data.raw += " F" + to_string_nozero(new_speed * FEEDRATE_SECONDS_PER_MINUTE, 1);
+    const float dist = std::sqrt(data.dx * data.dx + data.dy * data.dy + data.dz * data.dz);
+    if (dist <= 0.f) {
+        advance_clock(float(data.time));
+        return false;
+    }
 
-    m_fan_slowdown_remaining = std::max(0.f, m_fan_slowdown_remaining - data.time);
+    const float elapsed_before = m_fan_slowdown_total - m_fan_slowdown_remaining;
+    const float target_speed = _fan_slowdown_target_speed(elapsed_before);
+    const float cur_speed = dist / float(data.time);
+    // Never faster than the feedrate already on this move. The ramp target is
+    // already at or above the overhang floor, so a slower authored move is kept.
+    const float new_speed = std::min(cur_speed, target_speed);
+    if (new_speed >= cur_speed - 0.001f) {
+        advance_clock(float(data.time));
+        return false;
+    }
+
+    // This move is not in the delay buffer yet; put_in_buffer() accounts for its time.
+    data.time = dist / new_speed;
+    set_line_feedrate(data.raw, new_speed * float(FEEDRATE_SECONDS_PER_MINUTE));
+    advance_clock(float(data.time));
     return true;
 }
 
@@ -633,59 +667,31 @@ int16_t FanMover::_find_last_emitted_fan_speed() const
     return last_emitted_fan_speed;
 }
 
-float FanMover::_slow_buffer_approach_moves(float t_req, float v_floor, float approach_speed)
+void FanMover::_apply_overhang_approach_slowdown(int16_t fan_before, int overhang_fan_speed)
 {
-    float window_time = 0.f;
-    if (! (v_floor > 0.f && approach_speed > 0.f && v_floor < approach_speed && t_req > 0.f))
-        return window_time;
-
-    auto it = m_buffer.end();
-    while (it != m_buffer.begin() && window_time < t_req) {
-        --it;
-        const std::string &r = it->raw;
-        const bool is_move = r.size() > 2 && r[0] == 'G'
-            && (r[1] == '1' || r[1] == '0') && r[2] == ' ';
-        if (is_move && it->de > 0 && it->time > 0) {
-            const float dist = std::sqrt(it->dx*it->dx + it->dy*it->dy + it->dz*it->dz);
-            if (dist > 0) {
-                const float fan_progress = std::clamp(1.f - window_time / t_req, 0.f, 1.f);
-                const float target_speed = v_floor + (approach_speed - v_floor) * fan_progress;
-                const float cur_speed = dist / it->time;
-                const float new_speed = std::min(cur_speed, target_speed);
-                const float new_time = dist / new_speed;
-                m_buffer_time_size += (new_time - it->time);
-                it->time = new_time;
-                if (r.find(" F") != std::string::npos)
-                    change_axis_value(it->raw, 'F', new_speed * 60.f, 1);
-                else
-                    it->raw += " F" + to_string_nozero(new_speed * 60.f, 1);
-                window_time += it->time;
-            }
-        } else if (is_move) {
-            break;
-        } else if (it->fan_speed >= 0) {
-            break;
-        }
-    }
-    return window_time;
-}
-
-void FanMover::_apply_overhang_approach_slowdown(int overhang_fan_speed)
-{
-    // Fan-readiness slowdown: once per Overhang perimeter block, slow only the
-    // contiguous non-overhang approach moves already in the delay buffer. The fan
-    // command itself is always emitted at this marker so the adaptive graph tracks.
-    const float approach_speed = static_cast<float>(m_current_speed);
+    // Forward ramp only. Moves already in the delay buffer happened before this
+    // fan command and keep the feedrate they were given.
+    // m_current_speed at the marker is often a travel or unretract. The speed to
+    // ramp back to is the print speed captured when the overhang block started,
+    // which is m_current_speed from the last extruding move.
+    const float print_speed = m_overhang_block_print_speed > 0.f
+        ? m_overhang_block_print_speed
+        : static_cast<float>(m_current_speed);
     const float v_floor = overhang_speed_percent
-        ? approach_speed * overhang_speed_value / FAN_PERCENT_MAX
+        ? print_speed * overhang_speed_value / FAN_PERCENT_MAX
         : overhang_speed_value;
-    const float t_req = _fan_spinup_time_seconds(m_output_fan_speed, overhang_fan_speed);
-    const float window_time = _slow_buffer_approach_moves(t_req, v_floor, approach_speed);
+    const float t_req = _fan_spinup_time_seconds(fan_before, int16_t(overhang_fan_speed));
+    if (!(t_req > 0.f && print_speed > 0.f && v_floor > 0.f && v_floor < print_speed)) {
+        // Spin-up is instant, or the floor is not slower than the print speed.
+        // Do not change feedrates.
+        m_fan_slowdown_remaining = 0.f;
+        m_fan_slowdown_total = 0.f;
+        return;
+    }
     m_fan_slowdown_total = t_req;
-    m_fan_slowdown_approach_speed = approach_speed;
+    m_fan_slowdown_approach_speed = print_speed;
     m_fan_slowdown_v_floor = v_floor;
-    m_fan_slowdown_remaining = std::max(0.f, t_req - window_time);
-    m_overhang_block_approach_slowdown_done = true;
+    m_fan_slowdown_remaining = t_req;
 }
 
 void FanMover::_process_overhang_fan_marker(GCodeReader& reader, const GCodeReader::GCodeLine& line)
@@ -725,28 +731,37 @@ void FanMover::_process_overhang_fan_marker(GCodeReader& reader, const GCodeRead
               << " lower_output=" << lower_output_fan
               << '\n';
     }
-    const bool step_up = overhang_fan_speed > m_output_fan_speed;
+    // Fan speed in effect at this marker (last command parsed), not a stale value
+    // already flushed, and not a kick to 100%.
+    const int16_t fan_before = m_back_buffer_fan_speed >= 0
+        ? int16_t(m_back_buffer_fan_speed)
+        : int16_t(m_output_fan_speed);
+    const bool output_step_up = overhang_fan_speed > m_output_fan_speed;
+    const bool step_up = output_step_up && overhang_fan_speed > fan_before;
     const bool first_in_block = !m_overhang_block_approach_slowdown_done;
     const bool force_marker_fan = first_in_block;
     const bool speed_change = overhang_fan_speed != m_output_fan_speed || lower_buffer_fan_count > 0 || lower_output_fan || force_marker_fan;
     const int16_t target_fan_speed = int16_t(overhang_fan_speed);
+    // Startup delay used to pull this M106 onto the previous layer. With a delay,
+    // or with the slowdown option, leave the command on the overhang and ramp the
+    // nozzle forward for the spin-up. A later higher step-up restarts that ramp.
+    const bool ramp_nozzle = slowdown_for_fan || nb_seconds_delay > 0.f;
 
-    if (slowdown_for_fan && step_up && first_in_block)
-        _apply_overhang_approach_slowdown(overhang_fan_speed);
+    if (first_in_block && m_overhang_block_print_speed <= 0.f) {
+        m_overhang_block_print_speed = m_last_extrude_speed > 0.
+            ? static_cast<float>(m_last_extrude_speed)
+            : static_cast<float>(m_current_speed);
+    }
+    if (ramp_nozzle && step_up)
+        _apply_overhang_approach_slowdown(fan_before, overhang_fan_speed);
 
-    if (slowdown_for_fan && speed_change) {
-        // Emit the overhang's own curve value directly so each overhang
-        // section holds one consistent fan speed. The old path kicked the
-        // fan to 100% here and relied on a deferred "end fan kickstart" to
-        // settle back to the target -- but that settle is suppressed while the
-        // 100% blast is the current output (see write_buffer_data), so the fan
-        // stayed pinned at 100% through the whole overhang AND bled into the
-        // following perimeter/external (and sometimes the next layer). Setting
-        // the target directly removes both the 100% jump and the bleed. Fan
-        // spin-up is meant to be covered by the approach slowdown
-        // (overhangs_speed < 100%); the firmware fan_kickstart still applies
-        // at the emitted M106 itself.
-        const char *comment = (step_up && first_in_block)
+    if (ramp_nozzle && (slowdown_for_fan ? speed_change : (output_step_up || force_marker_fan))) {
+        // Emit the overhang's own curve value at this marker. The old path kicked
+        // the fan to 100% and relied on a deferred "end fan kickstart" to settle
+        // back -- that settle is suppressed while the 100% blast is the current
+        // output, so the fan stayed pinned at 100%. Spin-up is covered by the
+        // forward nozzle ramp, not by moving M106 earlier.
+        const char *comment = (step_up && ramp_nozzle)
             ? "set override fan (slowdown)"
             : "set override fan (overhang)";
         const std::string fan_gcode = _set_fan(target_fan_speed, comment);
@@ -754,9 +769,9 @@ void FanMover::_process_overhang_fan_marker(GCodeReader& reader, const GCodeRead
         m_back_buffer_fan_speed = target_fan_speed;
         if (first_in_block)
             m_overhang_block_approach_slowdown_done = true;
-    } else if (!slowdown_for_fan && (step_up || force_marker_fan)) {
+    } else if (!ramp_nozzle && (output_step_up || force_marker_fan)) {
         const std::string fan_gcode = _set_fan(overhang_fan_speed, "set override fan");
-        if (force_marker_fan && !step_up) {
+        if (force_marker_fan && !output_step_up) {
             _queue_fan_at_marker(fan_gcode, overhang_fan_speed, true);
             m_back_buffer_fan_speed = overhang_fan_speed;
         } else {
@@ -816,9 +831,24 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                 std::string extrusion_string = line.raw().substr(6, line.raw().size() - 6);
                 current_role                 = string_to_gcode_extrusion_role(extrusion_string);
                 assert(current_role != GCodeExtrusionRole::None);
-                if (current_role == GCodeExtrusionRole::OverhangPerimeter)
+                if (current_role == GCodeExtrusionRole::OverhangPerimeter) {
                     m_overhang_block_approach_slowdown_done = false;
+                    // Capture before this block's own F command. Travels and unretracts
+                    // sit between the previous extrusion and this line, so m_current_speed
+                    // is not the print speed anymore.
+                    const float captured = m_last_extrude_speed > 0.
+                        ? static_cast<float>(m_last_extrude_speed)
+                        : static_cast<float>(m_current_speed);
+                    // A ramp still running from the previous overhang is returning to that
+                    // block's print speed. Don't replace it with a slower capture.
+                    if (!(m_fan_slowdown_remaining > 0.f && m_overhang_block_print_speed > captured))
+                        m_overhang_block_print_speed = captured;
+                }
             }
+            if (line.raw().find("WIPE_START") != std::string::npos)
+                m_in_wipe = true;
+            if (line.raw().find("WIPE_END") != std::string::npos)
+                m_in_wipe = false;
             if (line.raw().size() > 16 && line.raw().rfind("; custom gcode", 0) != std::string::npos)
                 m_is_custom_gcode = line.raw().rfind("; custom gcode end", 0) == std::string::npos;
             _process_overhang_fan_marker(reader, line);
@@ -827,8 +857,8 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
                 m_overhang_fan_hold_speed = std::max(m_overhang_fan_hold_speed, m_last_overhang_min_fan_speed);
                 m_overhang_fan_hold_until_extrusion = true;
                 m_last_overhang_min_fan_speed = -1;
-                m_fan_slowdown_remaining = 0.f;
-                m_fan_slowdown_total = 0.f;
+                // The nozzle ramp keeps running. A short overhang must not snap the
+                // next feature back to full speed while the fan is still spinning up.
             }
         }
     }
@@ -855,6 +885,8 @@ void FanMover::_process_gcode_line(GCodeReader& reader, const GCodeReader::GCode
             } else
                 move_data.de = line.dist_E(reader);
         }
+        if (!m_in_wipe && move_data.de > 0. && move_data.time > 0. && m_current_speed > 0.)
+            m_last_extrude_speed = m_current_speed;
         _apply_active_fan_slowdown(move_data);
         BufferData& new_data = put_in_buffer(std::move(move_data));
         assert(new_data.dx == 0 || reader.x() == new_data.x);

@@ -4451,12 +4451,12 @@ void PrintConfigDef::init_fff_params()
     def = this->add("overhangs_fan_speedup_slowdown", coBool);
     def->label = L("Slow down for fan spin-up on overhangs");
     def->category = OptionCategory::firmware;
-    def->tooltip = L("Instead of moving the overhang fan command earlier (the 'Fan startup delay' behaviour, which raises the fan on the normal moves before the overhang),"
-        " keep the fan command at the overhang and slow down the approach moves so the fan has time to reach the target speed before the overhang prints."
-        "\nThe approach is never slowed below the overhang's own print speed ('Overhangs speed')."
-        " If 'Overhangs speed' is 100% (no overhang slowdown) this option has little effect; lower 'Overhangs speed' to give the fan room to spin up."
-        "\nUses the 'Fan startup delay' value as the fan spin-up time. The print-time estimate does not account for this extra slowdown."
-        "\nRequires 'Fan startup delay' > 0.");
+    def->tooltip = L("Keep the fan command on the overhang, at that overhang's target speed, instead of moving it earlier."
+        "\nWhile the fan spins up, the nozzle starts at the overhang speed, then ramps back to the print speed over the fan startup delay."
+        " It is never slower than 'Overhangs speed'. Moves that already happened before the fan command are not slowed."
+        " A short overhang keeps ramping on the following feature until the fan has had its full spin-up time."
+        "\nUses the 'Fan startup delay' as the spin-up time, scaled by how far the fan speed changes. The print-time estimate does not account for this extra slowdown."
+        "\nRequires 'Fan startup delay' > 0. If 'Overhangs speed' is not slower than the print speed, feedrates are left unchanged.");
     def->mode = comAdvancedE | comSuSi;
     def->set_default_value(std::make_unique<ConfigOptionBool>(false));
 
