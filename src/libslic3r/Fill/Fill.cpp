@@ -1279,10 +1279,10 @@ Polylines Layer::generate_sparse_infill_polylines_for_anchoring(FillAdaptive::Oc
         }
 
         switch (surface_fill.params.pattern) {
-        case ipCount: continue; break;
-        case ipSupportBase: continue; break;
-        case ipEnsuring: continue; break;
-        case ipSmooth: assert(false); continue; break; // it's supposed to be solid
+        case ipCount: continue;
+        case ipSupportBase: continue;
+        case ipEnsuring: continue;
+        case ipSmooth: assert(false); continue; // it's supposed to be solid
         case ipLightning:
         case ipAdaptiveCubic:
         case ipSupportCubic:
@@ -1308,7 +1308,7 @@ Polylines Layer::generate_sparse_infill_polylines_for_anchoring(FillAdaptive::Oc
         default: {
                 // all pattern should be in this list
                 assert(false);
-                continue; break;
+                continue;
             }
         }
         LayerRegion &layerm = *m_regions[surface_fill.region_id];

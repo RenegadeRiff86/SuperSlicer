@@ -639,7 +639,11 @@ void CalibrationBedDialog::create_z_offset_geometry(wxCommandEvent& /*event_args
         for (const std::string& script : scripts->get_values())
             if (script.find("z_offset_test_postprocess.py") == std::string::npos)
                 filtered_scripts.push_back(script);
-        new_print_config.set_key_value("post_process", std::make_unique<ConfigOptionStrings>(std::move(filtered_scripts)));
+        // An empty script list is valid. ConfigOptionStrings refuses to take an empty vector.
+        std::unique_ptr<ConfigOptionStrings> post_process = filtered_scripts.empty()
+            ? std::make_unique<ConfigOptionStrings>()
+            : std::make_unique<ConfigOptionStrings>(std::move(filtered_scripts));
+        new_print_config.set_key_value("post_process", std::move(post_process));
     }
 
     this->gui_app->get_tab(Preset::TYPE_FFF_PRINT)->load_config(new_print_config);

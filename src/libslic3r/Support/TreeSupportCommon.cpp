@@ -219,8 +219,6 @@ void tree_supports_show_error(std::string_view message, bool critical)
 {
     printf("Error: %s, critical: %d\n", message.data(), int(critical));
 #ifdef TREE_SUPPORT_SHOW_ERRORS_WIN32
-    static bool showed_critical = false;
-    static bool showed_performance = false;
     auto bugtype = std::string(critical ? " This is a critical bug. It may cause missing or malformed branches.\n" : "This bug should only decrease performance.\n");
     bool show    = (critical && !g_showed_critical_error) || (!critical && !g_showed_performance_warning);
     (critical ? g_showed_critical_error : g_showed_performance_warning) = true;

@@ -581,10 +581,8 @@ static inline std::optional<Arc> try_create_arc_impl(
     Vec2i64 vstart = (*begin - circle.center).cast<int64_t>();
     Vec2i64 vend   = (*std::prev(end) - circle.center).cast<int64_t>();
     double  angle  = atan2(double(cross2(vstart, vend)), double(vstart.dot(vend)));
-    double angle1 = angle;
     if (orientation == Orientation::CW)
         angle *= -1.;
-    double angle2 = angle;
     if (angle < 0)
         angle += 2. * M_PI;
     assert(angle >= 0. && angle < 2. * M_PI + EPSILON);
@@ -630,10 +628,8 @@ static inline std::optional<Arc> try_create_arc_impl(
         // check that it correctly set the direction of the arc.
         double angle_test = Slic3r::Geometry::ArcWelder::arc_angle(ret_arc->start_point.cast<coordf_t>(), ret_arc->end_point.cast<coordf_t>(), double(ret_arc->radius));
         double ccw_angle = angle_ccw(ret_arc->start_point - ret_arc->center, ret_arc->end_point - ret_arc->center);
-        double ccw_angle1 = ccw_angle;
         if (ret_arc->direction != Orientation::CCW)
             ccw_angle = (-ccw_angle);
-        double ccw_angle2 = ccw_angle;
         if (ccw_angle < 0)
             ccw_angle = 2 * PI + ccw_angle;
         assert(is_approx(ccw_angle, angle_test, 0.01));

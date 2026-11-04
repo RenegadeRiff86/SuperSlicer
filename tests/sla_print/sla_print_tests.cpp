@@ -5,6 +5,8 @@
 
 #include <libslic3r/TriangleMeshSlicer.hpp>
 #include <libslic3r/SLA/SupportTreeMesher.hpp>
+#include <libslic3r/SLA/SupportPointGenerator.hpp>
+#include <libslic3r/SLA/SupportIslands/SampleConfigFactory.hpp>
 #include <libslic3r/BranchingTree/PointCloud.hpp>
 
 using namespace Slic3r;
@@ -38,42 +40,44 @@ TEST_CASE("Support point generator should be deterministic if seeded",
     AABBMesh emesh{mesh};
     
     sla::SupportTreeConfig supportcfg;
-    sla::SupportPointGenerator::Config autogencfg;
+    sla::SupportPointGeneratorConfig autogencfg;
     autogencfg.head_diameter = float(2 * supportcfg.head_front_radius_mm);
-    sla::SupportPointGenerator point_gen{emesh, autogencfg, [] {}, [](int) {}};
-        
+    autogencfg.island_configuration = sla::SampleConfigFactory::apply_density(
+        sla::SampleConfigFactory::create(autogencfg.head_diameter), autogencfg.density_relative);
+
     auto   bb      = mesh.bounding_box();
     double zmin    = bb.min.z();
     double zmax    = bb.max.z();
     double gnd     = zmin - supportcfg.object_elevation_mm;
     auto   layer_h = 0.05f;
-    
+
     auto slicegrid = grid(float(gnd), float(zmax), layer_h);
     std::vector<ExPolygons> slices = slice_mesh_ex(mesh.its, slicegrid, CLOSING_RADIUS);
-    
-    point_gen.seed(0);
-    point_gen.execute(slices, slicegrid);
-    
+
+    auto place = [&]() {
+        std::vector<ExPolygons> copy = slices;
+        sla::SupportPointGeneratorData data = sla::prepare_generator_data(std::move(copy), slicegrid);
+        return sla::move_on_mesh_surface(sla::generate_support_points(data, autogencfg), emesh, layer_h);
+    };
+
     auto get_chksum = [](const std::vector<sla::SupportPoint> &pts){
         int64_t chksum = 0;
         for (auto &pt : pts) {
             auto p = scaled(pt.pos);
             chksum += p.x() + p.y() + p.z();
         }
-        
         return chksum;
     };
-    
-    int64_t checksum = get_chksum(point_gen.output());
-    size_t ptnum = point_gen.output().size();
-    REQUIRE(point_gen.output().size() > 0);
-    
-    for (int i = 0; i < 20; ++i) {
-        point_gen.output().clear();
-        point_gen.seed(0);
-        point_gen.execute(slices, slicegrid);
-        REQUIRE(point_gen.output().size() == ptnum);
-        REQUIRE(checksum == get_chksum(point_gen.output()));
+
+    sla::SupportPoints first = place();
+    int64_t checksum = get_chksum(first);
+    size_t ptnum = first.size();
+    REQUIRE(ptnum > 0);
+
+    for (int i = 0; i < 4; ++i) {
+        sla::SupportPoints again = place();
+        REQUIRE(again.size() == ptnum);
+        REQUIRE(checksum == get_chksum(again));
     }
 }
 

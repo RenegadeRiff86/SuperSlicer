@@ -1206,8 +1206,11 @@ void GLGizmoMeasure::render_dimensioning()
 
         // stem
         shader->set_uniform(Slic3r::GLShaderUniforms::ViewModelMatrix, overlap ?
-            ss_to_ndc_matrix * Geometry::translation_transform(v1ss_3) * q12ss * Geometry::translation_transform(-ARROW_HEAD_LENGTH_SCALE * TRIANGLE_HEIGHT * Vec3d::UnitX()) * Geometry::scale_transform({ v12ss_len + 4.0 * TRIANGLE_HEIGHT, 1.0f, 1.0f }) :
-            ss_to_ndc_matrix * Geometry::translation_transform(v1ss_3) * q12ss * Geometry::scale_transform({ v12ss_len, 1.0f, 1.0f }));
+            ss_to_ndc_matrix * Geometry::translation_transform(v1ss_3) * q12ss *
+                Geometry::translation_transform(-ARROW_HEAD_LENGTH_SCALE * TRIANGLE_HEIGHT * Vec3d::UnitX()) *
+                Geometry::scale_transform({ v12ss_len + 4.0 * TRIANGLE_HEIGHT, 1.0f, 1.0f }) :
+            ss_to_ndc_matrix * Geometry::translation_transform(v1ss_3) * q12ss *
+                Geometry::scale_transform({ v12ss_len, 1.0f, 1.0f }));
         m_dimensioning.line.set_color(ColorRGBA::WHITE());
         m_dimensioning.line.render();
 

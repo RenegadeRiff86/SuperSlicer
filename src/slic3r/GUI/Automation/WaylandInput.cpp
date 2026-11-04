@@ -450,7 +450,7 @@ private:
         frame(*text_device);
         return input_success();
 #else
-        (void) request;
+        static_cast<void>(request);
         return input_failure(ERROR_OPERATION_FAILED,
             "text input needs libei 1.6 or newer; this build linked an older libei");
 #endif

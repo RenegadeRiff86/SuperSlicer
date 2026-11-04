@@ -5,6 +5,8 @@
 #ifndef SLA_SUPPORTPOINT_HPP
 #define SLA_SUPPORTPOINT_HPP
 
+#include <cmath>
+
 #include <libslic3r/Point.hpp>
 
 namespace Slic3r {
@@ -21,57 +23,91 @@ enum class PointsStatus {
     UserModified    // User has done some edits.
 };
 
+// Why an automatic support point was placed. Island points are the ones the
+// support gizmo refuses to delete while "lock unique islands" is on.
+enum class SupportPointType {
+    manual_add,
+    island,
+    slope,
+};
+
 struct SupportPoint
 {
-    Vec3f pos;
-    float head_front_radius;
-    bool  is_new_island;
-    
-    SupportPoint()
-        : pos(Vec3f::Zero()), head_front_radius(0.f), is_new_island(false)
-    {}
-    
-    SupportPoint(float pos_x,
-                 float pos_y,
-                 float pos_z,
-                 float head_radius,
-                 bool  new_island = false)
+    Vec3f pos = Vec3f::Zero();
+    float head_front_radius = 0.f;
+    SupportPointType type = SupportPointType::manual_add;
+
+    SupportPoint() = default;
+
+    SupportPoint(float pos_x, float pos_y, float pos_z, float head_radius, bool new_island = false)
         : pos(pos_x, pos_y, pos_z)
         , head_front_radius(head_radius)
-        , is_new_island(new_island)
+        , type(new_island ? SupportPointType::island : SupportPointType::manual_add)
     {}
-    
+
     SupportPoint(Vec3f position, float head_radius, bool new_island = false)
         : pos(position)
         , head_front_radius(head_radius)
-        , is_new_island(new_island)
+        , type(new_island ? SupportPointType::island : SupportPointType::manual_add)
     {}
-    
+
+    SupportPoint(Vec3f position, float head_radius, SupportPointType point_type)
+        : pos(position)
+        , head_front_radius(head_radius)
+        , type(point_type)
+    {}
+
     SupportPoint(Eigen::Matrix<float, 5, 1, Eigen::DontAlign> data)
         : pos(data(0), data(1), data(2))
         , head_front_radius(data(3))
-        , is_new_island(data(4) != 0.f)
+        , type(support_point_type_from_stored(data(4)))
     {}
-    
+
+    bool is_island() const { return type == SupportPointType::island; }
+    // Kept so existing call sites and the 3MF/AMF bool column still compile.
+    bool is_new_island() const { return is_island(); }
+
     bool operator==(const SupportPoint &sp) const
     {
         float rdiff = std::abs(head_front_radius - sp.head_front_radius);
-        return (pos == sp.pos) && rdiff < float(EPSILON) &&
-               is_new_island == sp.is_new_island;
+        return (pos == sp.pos) && rdiff < float(EPSILON) && type == sp.type;
     }
-    
+
     bool operator!=(const SupportPoint &sp) const { return !(sp == (*this)); }
-    
+
     template<class Archive> void serialize(Archive &ar)
     {
-        ar(pos, head_front_radius, is_new_island);
+        // The gizmo cache historically stored a bool. Island stays island;
+        // slope and manual both reload as a user-movable point.
+        bool island = is_island();
+        ar(pos, head_front_radius, island);
+        if (Archive::is_loading::value)
+            type = island ? SupportPointType::island : SupportPointType::manual_add;
+    }
+
+    static SupportPointType support_point_type_from_stored(float stored)
+    {
+        if (std::abs(stored - 1.f) < float(EPSILON))
+            return SupportPointType::island;
+        if (std::abs(stored - 3.f) < float(EPSILON))
+            return SupportPointType::slope;
+        return SupportPointType::manual_add;
+    }
+
+    static float stored_value(SupportPointType point_type)
+    {
+        switch (point_type) {
+        case SupportPointType::island: return 1.f;
+        case SupportPointType::manual_add: return 2.f;
+        case SupportPointType::slope: return 3.f;
+        }
+        return 0.f;
     }
 };
 
 using SupportPoints = std::vector<SupportPoint>;
 
-SupportPoints transformed_support_points(const ModelObject &mo,
-                                         const Transform3d &trafo);
+SupportPoints transformed_support_points(const ModelObject &mo, const Transform3d &trafo);
 
 }} // namespace Slic3r::sla
 

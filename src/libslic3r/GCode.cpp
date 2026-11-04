@@ -4288,7 +4288,6 @@ void GCodeGenerator::process_layer_single_object(
                 //clear any leftover
                 if(!m_last_too_small.empty()){
                     // finish extrude the little thing that was left before us and incompatible with our next extrusion.
-                    ExtrusionPath to_finish = m_last_too_small;
                     gcode += this->_extrude(m_last_too_small, m_last_description, m_last_speed_mm_per_sec);
                     m_last_too_small.polyline.clear();
                 }
@@ -4912,7 +4911,6 @@ void GCodeGenerator::split_at_seam_pos(ExtrusionLoop& loop, bool was_clockwise)
         return;
 
 #if _DEBUG
-    ExtrusionLoop old_loop = loop;
     for (const ExtrusionPath &path : loop.paths)
         for (size_t i = 1; i < path.polyline.size(); ++i)
             assert(!path.polyline.get_point(i - 1).coincides_with_epsilon(path.polyline.get_point(i)));
@@ -5700,7 +5698,7 @@ std::string GCodeGenerator::extrude_loop(const ExtrusionLoop &original_loop, con
     // we discard it in that case
     ExtrusionPaths& building_paths = loop_to_seam.paths;
     for (const ExtrusionPath &path : building_paths) {
-        (void)path;
+        static_cast<void>(path);
         DEBUG_VISIT(path, LoopAssertVisitor())
     }
     //direction is now set, make the path unreversable
@@ -7546,7 +7544,6 @@ std::pair<double, double> GCodeGenerator::_compute_acceleration(const ExtrusionP
                     }
                 }
                 goto accel_perimeter;
-                break;
             case GCodeExtrusionRole::ThinWall:
                 if (m_config.thin_walls_acceleration.value > 0) {
                     double thin_walls_acceleration = m_config.get_computed_value("thin_walls_acceleration");
@@ -7963,7 +7960,7 @@ std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const Extrus
 
         // Adaptive pressure advance: replace the resolved per-role PA with a value
         // interpolated from the per-filament flow/acceleration calibration model.
-        // Bridges keep their dedicated static PA (bridge flow is atypical) and travel
+        // Bridges keep their dedicated static PA unless adapt-on-bridges is enabled, and travel
         // keeps 0; overhang perimeters only adapt when the user opts in. The static PA
         // computed above is passed as the fallback used when the model is empty.
         const int tool_id = m_writer.tool()->id();
@@ -7974,7 +7971,8 @@ std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const Extrus
             const bool is_travel   = arole == GCodeExtrusionRole::Travel;
             const bool is_overhang = arole == GCodeExtrusionRole::OverhangPerimeter;
             const bool adapt_overhang = m_config.filament_adaptive_pressure_advance_overhangs.get_at(tool_id);
-            if (!is_bridge && !is_travel && (!is_overhang || adapt_overhang)) {
+            const bool adapt_bridges = m_config.filament_adaptive_pressure_advance_bridges.get_at(tool_id);
+            if ((!is_bridge || adapt_bridges) && !is_travel && (!is_overhang || adapt_overhang)) {
                 const AdaptivePAModel &model = adaptive_pa_model(tool_id);
                 if (!model.empty()) {
                     const double flow_mm3_s = path.mm3_per_mm() * speed_mm_s;
@@ -8071,6 +8069,9 @@ std::string GCodeGenerator::_before_extrude(const ExtrusionPath &path, const std
     }
     // extrude arc or line
     GCodeExtrusionRole grole = extrusion_role_to_gcode_extrusion_role(path.role());
+    // feature_gcode (between extrusion role changes) runs after set_region_for_extrude
+    // has already applied region_gcode for this island. The role script sees the region
+    // that is about to print and can override it. Issue #40.
     if (grole != m_last_extrusion_role && !m_config.feature_gcode.value.empty()) {
         DynamicConfig config;
         config.set_key_value("extrusion_role", std::make_unique<ConfigOptionString>(gcode_extrusion_role_to_string(grole)));

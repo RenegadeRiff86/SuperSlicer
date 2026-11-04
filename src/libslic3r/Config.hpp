@@ -511,6 +511,7 @@ enum OutputFormat : uint16_t {
     ofAnycubicMono,
     ofAnycubicMonoX,
     ofAnycubicMonoSE,
+    ofAnycubicMono4,
 };
 
 enum class BridgeType : uint8_t {

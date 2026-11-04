@@ -2,13 +2,43 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "SuperSlicer: Build and run normally",
+      "name": "SuperSlicer: Unoptimized debug",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build-linux-x86_64-debug/bin/superslicer",
+      "args": [],
+      "cwd": "/home/selston/Documents/Repos/SuperSlicer",
+      "preLaunchTask": "SuperSlicer: Launch unoptimized debug",
+      "terminal": "integrated",
+      "stopOnEntry": false,
+      "presentation": {
+        "group": "SuperSlicer",
+        "order": 1
+      }
+    },
+    {
+      "name": "SuperSlicer: Optimized debug",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build-linux-x86_64-relwithdebinfo/bin/superslicer",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "SuperSlicer: Launch optimized debug",
+      "terminal": "integrated",
+      "stopOnEntry": false,
+      "presentation": {
+        "group": "SuperSlicer",
+        "order": 2
+      }
+    },
+    {
+      "name": "SuperSlicer: Build and run release",
       "type": "lldb",
       "request": "launch",
       "program": "${workspaceFolder}/build-linux-x86_64-release/bin/superslicer",
       "args": [],
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "SuperSlicer: Build VS Code release",
+      "preLaunchTask": "SuperSlicer: Launch release",
       "terminal": "integrated",
       "stopOnEntry": false
     },
@@ -16,8 +46,10 @@
       "name": "SuperSlicer: Debug automation (explicit opt-in)",
       "type": "lldb",
       "request": "launch",
-      "program": "${workspaceFolder}/build-linux-x86_64-release/bin/superslicer",
-      "args": ["--automation-api"],
+      "program": "${workspaceFolder}/build-linux-x86_64-debug/bin/superslicer",
+      "args": [
+        "--automation-api"
+      ],
       "envFile": "/tmp/superslicer-automation-session.env",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "SuperSlicer: Prepare automation debug token",

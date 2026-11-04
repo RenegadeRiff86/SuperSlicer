@@ -17,6 +17,7 @@
 #include "libslic3r/BuildVolume.hpp"
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/SLA/Rerf.hpp"
 #include "libslic3r/GCode/ThumbnailData.hpp"
 #include "libslic3r/Geometry/ConvexHull.hpp"
 #include "libslic3r/ExtrusionEntity.hpp"
@@ -927,7 +928,10 @@ GLCanvas3D::Mouse::Mouse()
 
 void GLCanvas3D::Labels::render(const std::vector<const ModelInstance*>& sorted_instances) const
 {
-    if (!m_enabled || !is_shown())
+    const bool show_names = m_enabled && is_shown();
+    const DynamicPrintConfig *config = m_canvas.config();
+    const bool show_rerf = sla::photon_mono4_rerf_enabled(config);
+    if (!show_names && !show_rerf)
         return;
 
     const Camera& camera = wxGetApp().plater()->get_camera();
@@ -949,6 +953,7 @@ void GLCanvas3D::Labels::render(const std::vector<const ModelInstance*>& sorted_
         std::string title;
         std::string label;
         std::string print_order;
+        std::string exposure;
         bool selected;
     };
 
@@ -994,9 +999,23 @@ void GLCanvas3D::Labels::render(const std::vector<const ModelInstance*>& sorted_
         }
     }
 
+    const BoundingBoxf rerf_bed = show_rerf ? sla::rerf_bed_bbox(config) : BoundingBoxf{};
+    const double rerf_base_s = show_rerf ? sla::rerf_base_exposure_s(config) : 0.;
+
     // calculate eye bounding boxes center zs
     for (Owner& owner : owners) {
         owner.eye_center_z = (world_to_eye * owner.world_box.center())(EyeCenterZCoordinate);
+        if (show_rerf) {
+            const Vec3d &box_min = owner.world_box.min;
+            const Vec3d &box_max = owner.world_box.max;
+            BoundingBoxf object_xy{Vec2d{box_min.x(), box_min.y()}, Vec2d{box_max.x(), box_max.y()}};
+            if (!object_xy.defined) {
+                object_xy.min -= Vec2d{0.01, 0.01};
+                object_xy.max += Vec2d{0.01, 0.01};
+                object_xy.defined = object_xy.min.x() < object_xy.max.x() && object_xy.min.y() < object_xy.max.y();
+            }
+            owner.exposure = sla::rerf_exposure_label(object_xy, rerf_bed, rerf_base_s);
+        }
     }
 
     // sort owners by center eye zs and selection
@@ -1026,6 +1045,8 @@ void GLCanvas3D::Labels::render(const std::vector<const ModelInstance*>& sorted_
 
         if (x < 0.0f || viewport[ViewportWidth] < x || y < 0.0f || viewport[ViewportHeight] < y)
             continue;
+        if (!show_names && owner.exposure.empty())
+            continue;
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, owner.selected ? 3.0f : 1.5f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
@@ -1034,17 +1055,28 @@ void GLCanvas3D::Labels::render(const std::vector<const ModelInstance*>& sorted_
         imgui.begin(owner.title, ImGuiWindowFlags_NoMouseInputs | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove);
         ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
         float win_w = ImGui::GetWindowWidth();
-        float label_len = ImGui::CalcTextSize(owner.label.c_str()).x;
-        ImGui::SetCursorPosX(0.5f * (win_w - label_len));
-        ImGui::AlignTextToFramePadding();
-        imgui.text(owner.label);
+        if (show_names) {
+            float label_len = ImGui::CalcTextSize(owner.label.c_str()).x;
+            ImGui::SetCursorPosX(0.5f * (win_w - label_len));
+            ImGui::AlignTextToFramePadding();
+            imgui.text(owner.label);
+        }
 
-        if (!owner.print_order.empty()) {
+        if (show_names && !owner.print_order.empty()) {
             ImGui::Separator();
             float po_len = ImGui::CalcTextSize(owner.print_order.c_str()).x;
             ImGui::SetCursorPosX(0.5f * (win_w - po_len));
             ImGui::AlignTextToFramePadding();
             imgui.text(owner.print_order);
+        }
+
+        if (!owner.exposure.empty()) {
+            if (show_names)
+                ImGui::Separator();
+            float exposure_len = ImGui::CalcTextSize(owner.exposure.c_str()).x;
+            ImGui::SetCursorPosX(0.5f * (win_w - exposure_len));
+            ImGui::AlignTextToFramePadding();
+            imgui.text(owner.exposure);
         }
 
         // force re-render while the windows gets to its final size (it takes several frames)

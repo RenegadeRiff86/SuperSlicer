@@ -496,6 +496,36 @@ set(SLIC3R_SOURCES
     SLA/SupportPoint.hpp
     SLA/SupportPointGenerator.hpp
     SLA/SupportPointGenerator.cpp
+    SLA/SupportIslands/EvaluateNeighbor.cpp
+    SLA/SupportIslands/EvaluateNeighbor.hpp
+    SLA/SupportIslands/ExpandNeighbor.cpp
+    SLA/SupportIslands/ExpandNeighbor.hpp
+    SLA/SupportIslands/IStackFunction.hpp
+    SLA/SupportIslands/LineUtils.cpp
+    SLA/SupportIslands/LineUtils.hpp
+    SLA/SupportIslands/NodeDataWithResult.hpp
+    SLA/SupportIslands/Parabola.hpp
+    SLA/SupportIslands/ParabolaUtils.cpp
+    SLA/SupportIslands/ParabolaUtils.hpp
+    SLA/SupportIslands/PointUtils.cpp
+    SLA/SupportIslands/PointUtils.hpp
+    SLA/SupportIslands/PolygonUtils.cpp
+    SLA/SupportIslands/PolygonUtils.hpp
+    SLA/SupportIslands/PostProcessNeighbor.cpp
+    SLA/SupportIslands/PostProcessNeighbor.hpp
+    SLA/SupportIslands/PostProcessNeighbors.cpp
+    SLA/SupportIslands/PostProcessNeighbors.hpp
+    SLA/SupportIslands/SampleConfig.hpp
+    SLA/SupportIslands/SampleConfigFactory.cpp
+    SLA/SupportIslands/SampleConfigFactory.hpp
+    SLA/SupportIslands/SupportIslandPoint.cpp
+    SLA/SupportIslands/SupportIslandPoint.hpp
+    SLA/SupportIslands/UniformSupportIsland.cpp
+    SLA/SupportIslands/UniformSupportIsland.hpp
+    SLA/SupportIslands/VectorUtils.hpp
+    SLA/SupportIslands/VoronoiGraph.hpp
+    SLA/SupportIslands/VoronoiGraphUtils.cpp
+    SLA/SupportIslands/VoronoiGraphUtils.hpp
     SLA/Clustering.hpp
     SLA/Clustering.cpp
     SLA/ReprojectPointsOnMesh.hpp
@@ -580,6 +610,7 @@ add_library(libslic3r_cgal STATIC
     MeshBoolean.hpp MeshBoolean.cpp
     TryCatchSignal.hpp TryCatchSignal.cpp
     Triangulation.hpp Triangulation.cpp
+    SLA/SupportIslands/VoronoiDiagramCGAL.hpp SLA/SupportIslands/VoronoiDiagramCGAL.cpp
 )
 target_include_directories(libslic3r_cgal PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 

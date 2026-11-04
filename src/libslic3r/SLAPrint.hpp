@@ -12,6 +12,7 @@
 
 #include "PrintBase.hpp"
 #include "SLA/SupportTree.hpp"
+#include "SLA/SupportPointGenerator.hpp"
 #include "Point.hpp"
 #include "Format/SLAArchiveWriter.hpp"
 #include "GCode/ThumbnailData.hpp"
@@ -368,6 +369,9 @@ private:
     };
 
     std::unique_ptr<SupportData>  m_supportdata;
+
+    // Layer connectivity built during slicing, consumed by automatic support placement.
+    sla::SupportPointGeneratorData m_support_point_generator_data;
 
     // Holds CSG operations for the printed object, prioritized by print steps.
     CSGContainer                  m_mesh_to_slice;

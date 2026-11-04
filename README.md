@@ -82,17 +82,7 @@ Use `--printer-profile`, `--print-profile`, and `--material-profile` to select i
 
 `--extruders N` overrides the extruder count by replicating the loaded profile's per-extruder settings (including the multi-material wiping volumes), which makes it possible to exercise multi-extruder behavior such as per-extruder supports from a single-extruder profile.
 
-On Windows, the developer helper `gcode_viewer_control.py` can drive the standalone viewer or attach to a debugger-owned main window, slice its loaded model, select the integrated preview, control its custom sliders, resize the real HWND, and capture the result (it requires `pywinauto`):
-
-```
-python gcode_viewer_control.py --layer-ratio 0.35 --move-ratio 0.60 --screenshot viewer.png model.stl -- --load profile.ini --output model.gcode
-python gcode_viewer_control.py --process-id 19332 --main-window --slice --select-view gcode --window-x 100 --window-y 100 --window-width 1200 --window-height 800 --screenshot integrated.png --keep-open
-python gcode_viewer_control.py --process-id 19332 --main-window --rotate-x 90 --slice --select-view gcode --layer-ratio 0.36 --screenshot rotated.png --keep-open
-```
-
-`--rotate-x DEG` selects all plater objects and applies a relative rotation through the sidebar Rotation X field before slicing, so support scenarios that need the model laid on its side can be scripted end to end.
-
-Use `--window-state normal|maximized|minimized` for state changes. The helper closes a launched or attached window after capture by default; pass `--keep-open` for interactive follow-up.
+The G-code viewer is the `superslicer-gcodeviewer` symlink next to the `superslicer` binary. Open an existing file with `superslicer-gcodeviewer model.gcode`. Driving the running GUI (slice, preview, screenshot, export) is `tests/automation/`; see `tests/automation/README.md`.
 
 ## Development
 

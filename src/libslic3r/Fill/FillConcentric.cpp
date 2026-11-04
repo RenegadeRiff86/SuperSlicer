@@ -439,8 +439,6 @@ FillConcentric::fill_surface_extrusion(
         // check if not over-extruding
         if (!params.dont_adjust && params.full_infill() && !params.flow.bridge() && params.fill_exactly) {
             // compute the path of the nozzle -> extruded volume
-            double length_tot = 0;
-            int    nb_lines   = 0;
             ExtrusionVolume get_volume;
             for (ExtrusionEntity *ee : out_to_check) ee->visit(get_volume);
             // compute flow to remove spacing_ratio from the equation

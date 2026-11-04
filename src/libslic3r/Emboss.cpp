@@ -1005,9 +1005,8 @@ bool CALLBACK EnumFamCallBack(LPLOGFONT       lplf,
         std::wstring name = lplf->lfFaceName;
         fontList->push_back(name);
     }
-    return true;
-    // UNREFERENCED_PARAMETER(lplf);
     UNREFERENCED_PARAMETER(lpntm);
+    return true;
 }
 
 EmbossStyles Emboss::get_font_list_by_enumeration() {   

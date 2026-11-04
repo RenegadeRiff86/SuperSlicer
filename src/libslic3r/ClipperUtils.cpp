@@ -180,7 +180,6 @@ namespace ClipperUtils {
         // collection to follow the path around the bb
         std::vector<int> bb_path;
         int sides_this;
-        bool need_remove_duplicates = false;
         Points intersections; // buffer
         size_t prev_i = size_t(-1);
         size_t i_end = size_t(-1);

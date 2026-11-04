@@ -493,8 +493,9 @@ void NotificationManager::PopNotification::render_text(ImGuiWrapper& imgui, cons
             if (i == m_normal_lines_count - 1 && m_endlines.size() > m_normal_lines_count && !m_multiline) {
                 // second line with "more" hypertext
                 assert(m_normal_lines_count - PREVIOUS_LINE_OFFSET >= 0);
-                line = m_text1.substr(m_endlines[m_normal_lines_count - PREVIOUS_LINE_OFFSET] + (m_text1[m_endlines[m_normal_lines_count - PREVIOUS_LINE_OFFSET]] == '\n' || m_text1[m_endlines[m_normal_lines_count - PREVIOUS_LINE_OFFSET]] == ' ' ? 1 : 0),
-  m_endlines[m_normal_lines_count - 1] - m_endlines[m_normal_lines_count - PREVIOUS_LINE_OFFSET] - (m_text1[m_endlines[m_normal_lines_count - PREVIOUS_LINE_OFFSET]] == '\n' || m_text1[m_endlines[m_normal_lines_count - PREVIOUS_LINE_OFFSET]] == ' ' ? 1 : 0));
+                const size_t previous_end = m_endlines[m_normal_lines_count - PREVIOUS_LINE_OFFSET];
+                const size_t skip = (m_text1[previous_end] == '\n' || m_text1[previous_end] == ' ') ? 1 : 0;
+                line = m_text1.substr(previous_end + skip, m_endlines[m_normal_lines_count - 1] - previous_end - skip);
                 while (ImGui::CalcTextSize(line.c_str()).x > m_window_width - m_window_width_offset - ImGui::CalcTextSize(("  [" + _u8L("More") + "]").c_str()).x) {
                     line = line.substr(0, line.length() - 1);
                 }

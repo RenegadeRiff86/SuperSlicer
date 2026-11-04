@@ -53,6 +53,10 @@ class Registry {
             entries.emplace(OutputFormat::ofAnycubicMono, anycubic_sla_format(OutputFormat::ofAnycubicMono, "pwmo", "Photon Mono"));
             entries.emplace(OutputFormat::ofAnycubicMonoX, anycubic_sla_format(OutputFormat::ofAnycubicMonoX, "pwmx", "Photon Mono X"));
             entries.emplace(OutputFormat::ofAnycubicMonoSE, anycubic_sla_format(OutputFormat::ofAnycubicMonoSE, "pwms", "Photon Mono SE"));
+            // Photon Mono 4 (.pm4n) is the version-1 RLE container. UVtools treats that as the
+            // default for this extension; the printer identifies the file by the extension and
+            // the 17 µm pixel size in the header.
+            entries.emplace(OutputFormat::ofAnycubicMono4, anycubic_sla_format(OutputFormat::ofAnycubicMono4, "pm4n", "Photon Mono 4"));
             entries.emplace(OutputFormat::ofMaskedCWS, masked_cws_format());
 
             /**

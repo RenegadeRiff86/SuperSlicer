@@ -44,6 +44,7 @@ group:Pressure/Linear advance
 	line:Adaptive
 		setting:id$0:filament_adaptive_pressure_advance
 		setting:id$0:filament_adaptive_pressure_advance_overhangs
+		setting:id$0:filament_adaptive_pressure_advance_bridges
 	setting:id$0:full_width$1:filament_adaptive_pressure_advance_model
 	line:Perimeter pa
 		setting:id$0:width$4:filament_perimeter_pa

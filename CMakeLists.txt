@@ -780,7 +780,7 @@ set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT S
 
 add_dependencies(gettext_make_pot hintsToPot)
 
-# Slice-verification tooling (scripts/slice_verify.py, doc/slice-verification.md).
+# Slice-verification tooling (scripts/slice_verify.py).
 # Attached here rather than added to the solution by hand so it survives
 # regeneration -- a CMake-generated solution discards manual edits. Requires the
 # Visual Studio Python workload; skipped silently when it is not installed, since

@@ -14,7 +14,6 @@ and after and diffing the G-code. That is easy to get *silently* wrong:
     run against a GUI export never matches even when the toolpath is identical.
 
 Everything known about those traps is encoded here so nobody has to remember it.
-See doc/slice-verification.md for the reasoning and the measurements behind it.
 
 QUICK START
 -----------
@@ -602,7 +601,7 @@ def _cmd_models(args) -> int:
             where = "in repo" if m.in_repo else "local only (not redistributable)"
             print("          present: {0}  [{1}]".format(m.path, where))
         else:
-            print("          MISSING -- expected at {0} (see doc/slice-verification.md)".format(m.path))
+            print("          MISSING -- expected at {0}".format(m.path))
     print("\nFeature gates (off by default -- without these the code does not run):")
     for g in FEATURE_GATES.values():
         print("  {0:9s} {1:34s} default: {2}".format(g.name, g.option, g.default_state))

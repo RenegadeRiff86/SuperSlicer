@@ -14,8 +14,10 @@
 #include "libslic3r/AppConfig.hpp"
 #include "libslic3r/CustomGCode.hpp"
 #include "libslic3r/Model.hpp"
+#include "libslic3r/Flow.hpp"
 #include "libslic3r/Utils.hpp"
 
+#include <cmath>
 #include <wx/file.h>
 #include <wx/msgdlg.h>
 
@@ -53,14 +55,17 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
     {ROLE_GAP_FILL, "extrusion_width"},
     {ROLE_INTERNAL_BRIDGE_INFILL, "extrusion_width"},
     {ROLE_IRONING, "top_infill_extrusion_width"},
-    // overhangs_width is an unsupported-width THRESHOLD, not a line width. Overhang paths
-    // use the same flow as external perimeters (FlowRole::frExternalPerimeter).
+    // overhangs_width is an unsupported-width threshold. The line itself is a bridging
+    // flow from the external perimeter (see special_role_line).
     {ROLE_OVERHANG_PERIMETER, "external_perimeter_extrusion_width"},
     {ROLE_PERIMETER, "perimeter_extrusion_width"},
     {ROLE_SOLID_INFILL, "solid_infill_extrusion_width"},
     {ROLE_SUPPORT_MATERIAL, "support_material_extrusion_width"},// support material layer_height can go up/down depending on config.
     {ROLE_SUPPORT_MATERIAL_INTERFACE, "support_material_extrusion_width"},
-    {ROLE_THIN_WALL, "thin_walls_min_width"},
+    // thin_walls_min_width is the threshold that marks a line as thin, not the extruded
+    // width. Thin walls use the external-perimeter flow, which also keeps the digit
+    // meshes at a printable size.
+    {ROLE_THIN_WALL, "external_perimeter_extrusion_width"},
     {ROLE_TOP_SOLID_INFILL, "top_infill_extrusion_width"},
     {ROLE_FIRST_LAYER, "first_layer_extrusion_width"}
 
@@ -85,10 +90,10 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
 
     std::unordered_map<std::string, std::string> er_spacing_ToOptionKey = {
     {ROLE_INTERNAL_INFILL, "infill_extrusion_spacing"},
-    {ROLE_BRIDGE_INFILL, kExtrusionSpacingKey}, //special calc required
+    {ROLE_BRIDGE_INFILL, kExtrusionSpacingKey},
     {ROLE_EXTERNAL_PERIMETER, "external_perimeter_extrusion_spacing"},
-    {ROLE_GAP_FILL, kExtrusionSpacingKey},//special calc required for commented ones
-    {ROLE_INTERNAL_BRIDGE_INFILL, kExtrusionSpacingKey}, //special calc required
+    {ROLE_GAP_FILL, kExtrusionSpacingKey},
+    {ROLE_INTERNAL_BRIDGE_INFILL, kExtrusionSpacingKey},
     {ROLE_IRONING, "ironing_spacing"},
     {ROLE_OVERHANG_PERIMETER, "external_perimeter_extrusion_spacing"},
     {ROLE_PERIMETER, "perimeter_extrusion_spacing"},
@@ -226,6 +231,56 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         const double spacing = print_config->get_abs_value(spacing_key.c_str(), nozzle_diameter);
         return spacing > 0 ? spacing : default_er_spacing;
     };
+
+    // Bridge, overhang, and gap-fill widths are not the extrusion_width setting. Match
+    // Flow::bridging_flow / PerimeterGenerator so the bend is scaled to the line that
+    // will actually be printed.
+    struct RoleLine { double width; double spacing; bool special; };
+    auto special_role_line = [&](const std::string& role, double height) -> RoleLine {
+        auto bridging = [&](const char* type_key, const char* ratio_key, FlowRole reference) -> RoleLine {
+            BridgeType type = BridgeType::btFromNozzle;
+            if (const auto* opt = print_config->option<ConfigOptionEnum<BridgeType>>(type_key))
+                type = opt->value;
+            double ratio = print_config->get_abs_value(ratio_key, 1.0);
+            if (ratio <= 0)
+                ratio = 1.0;
+            double diameter = nozzle_diameter;
+            if (type == BridgeType::btFromHeight)
+                diameter = height;
+            else if (type == BridgeType::btFromFlow) {
+                const Flow reference_flow = Flow::new_from_config(
+                    reference, *print_config, float(nozzle_diameter), float(height), 1.f, false);
+                diameter = std::sqrt(std::max(0.0, 4.0 * reference_flow.mm3_per_mm() / M_PI));
+            }
+            const Flow flow = Flow::bridging_flow(
+                float(std::sqrt(ratio) * diameter), float(nozzle_diameter));
+            return { flow.width(), flow.spacing(), true };
+        };
+        if (role == ROLE_BRIDGE_INFILL || role == ROLE_INTERNAL_BRIDGE_INFILL)
+            return bridging("bridge_type", "bridge_flow_ratio", FlowRole::frInfill);
+        if (role == ROLE_OVERHANG_PERIMETER)
+            return bridging("overhangs_type", "overhangs_flow_ratio", FlowRole::frExternalPerimeter);
+        if (role == ROLE_GAP_FILL) {
+            const Flow perimeter = Flow::new_from_config(
+                FlowRole::frPerimeter, *print_config, float(nozzle_diameter), float(height), 1.f, false);
+            double overlap = print_config->get_abs_value("gap_fill_overlap", 1.0);
+            if (overlap <= 0)
+                overlap = 1.0;
+            const Flow gap = Flow::new_from_width(
+                perimeter.width(), float(nozzle_diameter), float(height), float(overlap), false);
+            return { gap.width(), gap.spacing(), true };
+        }
+        if (role == ROLE_THIN_WALL) {
+            double width = print_config->get_abs_value("external_perimeter_extrusion_width", nozzle_diameter);
+            if (width <= 0)
+                width = default_er_width;
+            double spacing = print_config->get_abs_value("external_perimeter_extrusion_spacing", nozzle_diameter);
+            if (spacing <= 0)
+                spacing = default_er_spacing;
+            return { width, spacing, true };
+        }
+        return { 0, 0, false };
+    };
     // first_layer_speed is a MAX when absolute, or a scale of the current feature speed when
     // given as a percent (100% means "no first-layer modification").
     auto resolve_role_speed = [&](const std::string& role_name) {
@@ -355,6 +410,10 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                     er_speed = (er_speed != 0) ? er_speed : default_er_speed;
                     er_accel = (er_accel != 0) ? er_accel : default_er_accel;
                     er_spacing = (er_spacing != 0) ? er_spacing : default_er_spacing;
+                    if (const RoleLine line = special_role_line(selected_extrusion_role, role_layer_height(selected_extrusion_role)); line.special) {
+                        er_width = line.width > 0 ? line.width : default_er_width;
+                        er_spacing = line.spacing > 0 ? line.spacing : default_er_spacing;
+                    }
                     first_layer_width = (first_layer_width != 0) ? first_layer_width : first_layer_flow.width();
                     first_layer_spacing = (first_layer_spacing != 0) ? first_layer_spacing : first_layer_flow.spacing();
 
@@ -362,7 +421,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                     first_layer_width = std::round((first_layer_width * kPercentScale / nozzle_diameter) * kPercentScale) / kPercentScale;
 
                 } else {
-                    er_width = print_config->get_abs_value("solid_infill_extrusion_width", nozzle_diameter); // Tracked in #44: add special flow handling for gap fill and bridges.
+                    er_width = print_config->get_abs_value("solid_infill_extrusion_width", nozzle_diameter);
                     er_width = (er_width != 0) ? er_width : default_er_width;
                     er_width = std::round((er_width * kPercentScale / nozzle_diameter) * kPercentScale) / kPercentScale;
                     first_layer_width = default_first_layer_width;
@@ -434,6 +493,10 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
             if (role_found == true) {
                 er_width =   print_config->get_abs_value(er_width_ToOptionKey[er_role].c_str(), nozzle_diameter);
                 er_spacing = role_spacing_value(er_role, er_spacing_ToOptionKey[er_role]);
+                if (const RoleLine line = special_role_line(er_role, role_layer_height(er_role)); line.special) {
+                    er_width = line.width;
+                    er_spacing = line.spacing;
+                }
 
                 er_width = (er_width != 0) ? er_width : default_er_width;//found supported role but it has 0 value, need to give it defaults.
                 er_spacing = (er_spacing != 0) ? er_spacing : default_er_spacing;
@@ -578,16 +641,17 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                 continue;
             if (nb_bends % kParityDivisor == 1)
                 continue;
-            // Tracked in #47: validate normal-size vs thin-wall-specific label geometry.
+            // Thin-wall bends use the external-perimeter width, so these digits stay the
+            // same size as a normal 4-wall label instead of shrinking to thin_walls_min_width.
 
             Eigen::Vector3d bend_90_pos = bend_90_positions[nb_bends];
             const std::string pa_values_string = format_pa_label_value(pa_values[nb_bends]);
 
             double xpos = bend_90_pos.x() + (xy_scaled_90_bend_x / kGeometryCenterDivisor) + (xy_scaled_number_x / kGeometryCenterDivisor) + nozzle_diameter;
-            //double ypos = bend_90_pos.y() + (xy_scaled_90_bend_y / kGeometryCenterDivisor) - (xy_scaled_number_y / kGeometryCenterDivisor)
-            double ypos = bend_90_pos.y() + (xy_scaled_90_bend_y / kGeometryCenterDivisor) - (xy_scaled_number_y / kGeometryCenterDivisor) + (nozzle_diameter * 3);
+            // The 90° mesh origin is its center, and that center is the notch. The digit
+            // origin is also its center, so the same Y puts the label beside the notch.
+            double ypos = bend_90_pos.y();
             double space_numbers_distance_x = (xy_scaled_number_x / kGeometryCenterDivisor) + nozzle_diameter + (xy_scaled_number_x / kGeometryCenterDivisor);//space the numbers by this amount.
-            // Tracked in #47: tune label Y position so it is centered with the 90-degree bend notch.
 
             const auto add_label_character = [&](char label_character) {
                 if (label_character == '.') {
@@ -713,8 +777,13 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         Eigen::Vector3d bend_90_mesh = model.objects[objs_idx[id_item]]->volumes[count_increments]->mesh().size();
         double model_height = bend_90_mesh.z() * last_90_bend_scale.z();
 
-        const std::string set_first_layer_prefix = pressure_advance_prefix(flavor, false);
-        std::string first_layer_region_prefix = "{if layer_z <= " + std::to_string(first_layer_height) + "}" + set_first_layer_prefix + std::to_string(first_pa) + "; first layer [layer_z] {endif}";
+        const int calibration_tool = 0;
+        const std::string custom_pa = (custom_pa_command != nullptr)
+            ? std::string(custom_pa_command->GetValue().ToUTF8())
+            : std::string();
+        const std::string set_first_layer_prefix = pressure_advance_command(
+            flavor, false, first_pa, calibration_tool, printer_config, custom_pa);
+        std::string first_layer_region_prefix = "{if layer_z <= " + std::to_string(first_layer_height) + "}" + set_first_layer_prefix + "; first layer [layer_z] {endif}";
 
         /*
         gcfRepRap,
@@ -844,6 +913,10 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
                 er_speed = resolve_role_speed(er_role);
                 er_accel = full_print_config.get_computed_value(er_accel_ToOptionKey[er_role].c_str(), nozzle_diameter);
                 er_spacing = role_spacing_value(er_role, er_spacing_ToOptionKey[er_role]);
+                if (const RoleLine line = special_role_line(er_role, role_layer_height(er_role)); line.special) {
+                    er_width = line.width;
+                    er_spacing = line.spacing;
+                }
 
                 er_width = (er_width != 0) ? er_width : default_er_width;
                 er_speed = (er_speed != 0) ? er_speed : default_er_speed;
@@ -868,18 +941,13 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
 
                 er_role = "defaults for " + er_role + " width spacing";
             }
-            if (er_role == choice_extrusion_role[kThinWallExtrusionRoleIndex] || er_role == ROLE_THIN_WALL){
-                er_width = default_er_width;// since the model gets scaled to thinwall size,it should use the default modifer? if it uses the thin_wall width modifer it fails to slice "ERROR:Layer height can't be greater than perimeter extrusion
-                                            // width"
-                er_width = std::round((default_er_width * kPercentScale / nozzle_diameter) * kPercentScale) / kPercentScale;
-            }
-            else{
-                er_width = std::round((er_width * kPercentScale / nozzle_diameter) * kPercentScale) / kPercentScale;
-            }
+            er_width = std::round((er_width * kPercentScale / nozzle_diameter) * kPercentScale) / kPercentScale;
             const std::string active_role = (selected_extrusion_role == ROLE_CHECK_ALL) ? er_role : selected_extrusion_role;
             if (active_role == ROLE_FIRST_LAYER)
                 er_spacing = first_layer_flow.spacing();
-            const std::string set_advance_prefix = pressure_advance_prefix(flavor, smooth_time);
+            const double bend_pa = num_part < pa_values.size() ? pa_values[num_part] : 0.0;
+            const std::string set_advance_prefix = pressure_advance_command(
+                flavor, smooth_time, bend_pa, calibration_tool, printer_config, custom_pa);
 
 
             /// --- custom config ---
@@ -898,7 +966,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
             }
             model.objects[objs_idx[id_item]]->volumes[num_part + extra_vol]->config.set_key_value(kLayerHeightKey, std::make_unique<ConfigOptionFloat>(kPaVolumeLayerHeightMm));
 
-            const std::string first_layer_scope_prefix = "{if layer_z <= " + std::to_string(first_layer_height) + "}" + set_first_layer_prefix + std::to_string(first_pa) + " ; first layer [layer_z]\n{endif}\n";
+            const std::string first_layer_scope_prefix = "{if layer_z <= " + std::to_string(first_layer_height) + "}" + set_first_layer_prefix + " ; first layer [layer_z]\n{endif}\n";
             const std::string next_layer_scope_prefix = "{if layer_z > " + std::to_string(first_layer_height) + "}";
             const std::string next_layer_scope_suffix = " {endif}";
 
@@ -933,7 +1001,7 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
             else{
                 model.objects[objs_idx[id_item]]->volumes[num_part + extra_vol]->config.set_key_value("region_gcode", std::make_unique<ConfigOptionString>(
                     first_layer_scope_prefix +
-                    next_layer_scope_prefix + set_advance_prefix + std::to_string(pa_values[num_part]) + " ; " + er_role + next_layer_scope_suffix + "\n"));
+                    next_layer_scope_prefix + set_advance_prefix + " ; " + er_role + next_layer_scope_suffix + "\n"));
             }
             //model.objects[objs_idx[id_item]]->ensure_on_bed(); // put at the correct z (kind of arrange-z)) shouldn't be needed though.
             //model.objects[objs_idx[id_item]]->center_around_origin();
@@ -944,7 +1012,8 @@ void CalibrationPressureAdvDialog::create_geometry(wxCommandEvent& event_args) {
         //                                              unless i need to change the numbers height and z position?
         if (enable_region_gcode_for_numbers == true){
             apply_pa_region_gcode_to_numbers(*model.objects[objs_idx[id_item]], pa_values, number_positions.size(),
-                                             count_numbers, count_borders, extra_vol, flavor, smooth_time, num_part);
+                                             count_numbers, count_borders, extra_vol, flavor, smooth_time,
+                                             calibration_tool, printer_config, custom_pa, num_part);
         }
     };
     for (int id_item = 0; id_item < currentTestCount; ++id_item)

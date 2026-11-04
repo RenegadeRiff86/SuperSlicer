@@ -1161,13 +1161,15 @@ namespace client
 
             const auto *float_or_percent = static_cast<const ConfigOptionFloatOrPercent*>(opt.opt);
             if (!float_or_percent->percent)
-                return opt.opt->get_float();
+                return float_or_percent->value;
 
             const ConfigOptionDef *opt_def = print_config_def.get(opt_key);
             assert(opt_def != nullptr);
-            double value = opt.opt->get_float() * 0.01; // percent to ratio
+            // get_float() already divides a percent by 100. The stored number is the
+            // percent itself (75 for 75%), so resolve from that or the height is 100x too small.
             if (opt_def == nullptr)
-                return value;
+                return float_or_percent->get_abs_value(1);
+            double value = float_or_percent->value / PERCENT_SCALE;
 
             const ConfigOption *opt_parent =
                 opt_def->ratio_over.empty() ? nullptr : ctx->resolve_symbol(opt_def->ratio_over);

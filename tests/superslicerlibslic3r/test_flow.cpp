@@ -131,14 +131,14 @@ SCENARIO("Flow: Flow math for non-bridges", "[!mayfail]") {
         assert(layer_height < nozzle_diameter);
 
         // Spacing for non-bridges is has some overlap
-        THEN("External perimeter flow has a default spacing fixed to 1.05*nozzle_diameter") {
+        THEN("External perimeter flow has a default spacing fixed to the nozzle diameter") {
             Flow flow = Flow::new_from_config_width(frExternalPerimeter, width_0, spacing_0, nozzle_diameter, layer_height, spacing_ratio);
-            REQUIRE(flow.spacing() == Approx((1.05f*nozzle_diameter) - layer_height * (1.0 - PI / 4.0)));
+            REQUIRE(flow.spacing() == Approx(nozzle_diameter - layer_height * (1.0 - PI / 4.0)));
         }
 
-        THEN("Internal perimeter flow has a default spacing fixed to 1.125*nozzle_diameter") {
+        THEN("Internal perimeter flow has a default spacing fixed to the nozzle diameter") {
             Flow flow {Flow::new_from_config_width(frPerimeter, width_0, spacing_0, nozzle_diameter, layer_height, spacing_ratio)};
-            REQUIRE(flow.spacing() == Approx((1.125*nozzle_diameter) - layer_height * (1.0 - PI / 4.0)));
+            REQUIRE(flow.spacing() == Approx(nozzle_diameter - layer_height * (1.0 - PI / 4.0)));
         }
         THEN("Spacing for supplied width is 0.8927f") {
             Flow flow {Flow::new_from_config_width(frExternalPerimeter, width_1, spacing_1, nozzle_diameter, layer_height, spacing_ratio)};
@@ -160,7 +160,7 @@ SCENARIO("Flow: Flow math for non-bridges", "[!mayfail]") {
             }
             THEN("Min width is respected") {
                 auto flow{ Flow::new_from_config_width(frPerimeter, width_0, spacing_0, nozzle_diameter, layer_height, spacing_ratio) };
-                REQUIRE(flow.width() >= Approx(1.05*nozzle_diameter));
+                REQUIRE(flow.width() >= Approx(nozzle_diameter));
             }
         }
         WHEN("Layer height is set to 0.3") {
@@ -171,7 +171,7 @@ SCENARIO("Flow: Flow math for non-bridges", "[!mayfail]") {
             }
             THEN("Min width is respected.") {
                 auto flow{ Flow::new_from_config_width(frPerimeter, width_0, spacing_0, nozzle_diameter, layer_height, spacing_ratio) };
-                REQUIRE(flow.width() >= Approx(1.05*nozzle_diameter));
+                REQUIRE(flow.width() >= Approx(nozzle_diameter));
             }
         }
     }

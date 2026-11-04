@@ -493,9 +493,6 @@ static Surfaces expand_merge_surfaces(
     ExPolygons src = fill_surfaces_extract_expolygons(surfaces, {surface_type}, thickness);
     if (src.empty())
         return {};
-    ExPolygons init_src = src;
-    ExPolygons init_shells = shells;
-    ExPolygons sparse_shells = sparse;
     std::vector<RegionExpansion> expansions = propagate_waves(src, shells, expansion_params_into_solid_infill);
     bool                         expanded_into_shells = !expansions.empty();
     bool                         expanded_into_sparse = false;
@@ -610,8 +607,6 @@ void LayerRegion::process_external_surfaces(const Layer *lower_layer, const Poly
     double     layer_thickness;
     ExPolygons shells = union_ex(fill_surfaces_extract_expolygons(m_fill_surfaces.surfaces, { stPosInternal | stDensSolid }, layer_thickness));
     ExPolygons sparse = union_ex(fill_surfaces_extract_expolygons(m_fill_surfaces.surfaces, { stPosInternal | stDensSparse }, layer_thickness));
-    ExPolygons init_shells = shells;
-    ExPolygons init_sparse = sparse;
 #ifdef _DEBUG
     for (auto &srf : m_fill_surfaces.surfaces) {
         assert(srf.surface_type == (stPosInternal | stDensSolid) ||

@@ -64,15 +64,104 @@ inline std::string format_pa_label_value(double value)
     return label == "-0" ? "0" : label;
 }
 
-inline std::string pressure_advance_prefix(GCodeFlavor flavor, bool smooth_time)
+inline std::string format_pa_command_value(double value)
 {
+    std::ostringstream stream;
+    stream.imbue(std::locale::classic());
+    stream << std::fixed << std::setprecision(kPaControlStreamPrecision) << value;
+
+    std::string text = stream.str();
+    const size_t decimal_pos = text.find('.');
+    if (decimal_pos != std::string::npos) {
+        while (text.size() > decimal_pos + 1 && text.back() == '0')
+            text.pop_back();
+        if (!text.empty() && text.back() == '.')
+            text.pop_back();
+    }
+    return text == "-0" ? "0" : text;
+}
+
+// Klipper dispatches SET_PRESSURE_ADVANCE by stepper name. Tool 0 is "extruder";
+// later tools are "extruderN" unless the printer preset names them.
+inline std::string klipper_extruder_name(const DynamicPrintConfig* printer, int tool_id)
+{
+    std::string name = "extruder";
+    if (printer != nullptr && tool_id >= 0) {
+        if (const auto* names = printer->option<ConfigOptionStrings>("tool_name")) {
+            if (size_t(tool_id) < names->size() && !names->get_at(tool_id).empty())
+                name = names->get_at(tool_id);
+        }
+        if (name == "extruder" && tool_id > 0)
+            name += std::to_string(tool_id);
+    }
+    return name;
+}
+
+inline std::string apply_pa_command_template(std::string command, const std::string& value, const std::string& extruder)
+{
+    const auto replace_all = [](std::string& text, const std::string& from, const std::string& to) {
+        for (size_t pos = 0; (pos = text.find(from, pos)) != std::string::npos; pos += to.size())
+            text.replace(pos, from.size(), to);
+    };
+    replace_all(command, "{value}", value);
+    replace_all(command, "{extruder}", extruder);
+    return command;
+}
+
+// Firmware command for one calibration PA value. An empty custom_template uses the same
+// shape GCodeWriter emits: Klipper names the extruder (and any mirror steppers), RepRap
+// uses M572 D<tool>, Marlin uses M900 K. A template may contain {value} and {extruder}.
+inline std::string pressure_advance_command(
+    GCodeFlavor flavor, bool smooth_time, double value, int tool_id,
+    const DynamicPrintConfig* printer, const std::string& custom_template)
+{
+    const std::string value_text = format_pa_command_value(value);
+    const std::string extruder = klipper_extruder_name(printer, tool_id);
+    if (!custom_template.empty())
+        return apply_pa_command_template(custom_template, value_text, extruder);
+
     switch (flavor) {
-    case gcfKlipper:
-        return smooth_time ? "SET_PRESSURE_ADVANCE SMOOTH_TIME=" : "SET_PRESSURE_ADVANCE ADVANCE=";
+    case gcfKlipper: {
+        const std::string command_body = smooth_time
+            ? "SET_PRESSURE_ADVANCE SMOOTH_TIME=" + value_text
+            : "SET_PRESSURE_ADVANCE ADVANCE=" + value_text;
+        std::string command = command_body + " EXTRUDER=" + extruder;
+        if (printer != nullptr && tool_id >= 0) {
+            if (const auto* mirrors = printer->option<ConfigOptionStrings>("tool_pressure_advance_mirrors")) {
+                if (size_t(tool_id) < mirrors->size()) {
+                    const std::string& list = mirrors->get_at(tool_id);
+                    for (size_t start = 0; start <= list.size(); ) {
+                        size_t end = list.find(',', start);
+                        if (end == std::string::npos)
+                            end = list.size();
+                        const std::string entry = list.substr(start, end - start);
+                        const size_t first = entry.find_first_not_of(" \t");
+                        if (first != std::string::npos) {
+                            const size_t last = entry.find_last_not_of(" \t");
+                            command += "\n" + command_body + " EXTRUDER=" + entry.substr(first, last - first + 1);
+                        }
+                        if (end == list.size())
+                            break;
+                        start = end + 1;
+                    }
+                }
+            }
+        }
+        return command;
+    }
     case gcfMarlinFirmware:
-        return "M900 K";
+        return "M900 K" + value_text;
     case gcfRepRap:
-        return "M572 D0 S"; // D0 is the single-extruder default; custom multi-tool commands are tracked in #42.
+    case gcfSprinter: {
+        bool single_extruder_multi_material = false;
+        if (printer != nullptr) {
+            if (const auto* opt = printer->option<ConfigOptionBool>("single_extruder_multi_material"))
+                single_extruder_multi_material = opt->value;
+        }
+        if (tool_id >= 0 && !single_extruder_multi_material)
+            return "M572 D" + std::to_string(tool_id) + " S" + value_text;
+        return "M572 S" + value_text;
+    }
     default:
         return "";
     }
@@ -158,9 +247,11 @@ inline void apply_pa_region_gcode_to_numbers(ModelObject& object,
                                       int extra_vol,
                                       GCodeFlavor flavor,
                                       bool smooth_time,
+                                      int tool_id,
+                                      const DynamicPrintConfig* printer,
+                                      const std::string& custom_template,
                                       size_t& num_part)
 {
-    const std::string set_advance_prefix = pressure_advance_prefix(flavor, smooth_time);
 
     int pa_index = 0;
     int nb_number = 0;
@@ -185,7 +276,8 @@ inline void apply_pa_region_gcode_to_numbers(ModelObject& object,
         for (int number_set = 0; number_set < count_numbers; number_set++) {
             object.volumes[number_set + num_part + extra_vol]->config.set_key_value(
                 "region_gcode",
-                std::make_unique<ConfigOptionString>(set_advance_prefix + std::to_string(pa_values[pa_index]) + " ; "));
+                std::make_unique<ConfigOptionString>(pressure_advance_command(
+                    flavor, smooth_time, pa_values[pa_index], tool_id, printer, custom_template) + " ; "));
 
             nb_number++;
         }

@@ -55,12 +55,19 @@ bool Line::intersection_infinite(const Line &other, Point* point) const
 
 coordf_t Line::perp_distance_to(const Point &point) const
 {
+    return std::abs(this->perp_signed_distance_to(point));
+}
+
+double Line::perp_signed_distance_to(const Point &point) const
+{
+    // Sign follows the line direction. For a CCW polygon, positive is inside.
+    // Line({0,0},{0,2}) and point {1,1} is -1.
     const Line  &line = *this;
     const Vec2d  v  = (line.b - line.a).cast<double>();
     const Vec2d  va = (point - line.a).cast<double>();
     if (line.a == line.b)
         return va.norm();
-    return std::abs(cross2(v, va)) / v.norm();
+    return cross2(v, va) / v.norm();
 }
 
 double Line::orientation() const

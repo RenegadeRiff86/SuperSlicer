@@ -886,7 +886,6 @@ void connect_infill(const Polylines& infill_ordered, const ExPolygon& boundary, 
             const Point& last_point = pts_end.back();
             const Point& first_point = polyline.points.front();
 
-            Polylines before = polylines_frontier;
             Points pts_frontier = getFrontier(polylines_frontier, last_point, first_point, (spacing), polylines_blocker);
             if (!pts_frontier.empty()) {
                 // The lines can be connected.
@@ -1371,7 +1370,6 @@ namespace PrusaSimpleConnect {
         }
         assert(boundary_data.size() == boundary_src.holes.size() + 1);
 
-        size_t idx_chain_last = 0;
         for (ConnectionCost& connection_cost : connections_sorted) {
             const std::pair<size_t, size_t>* cp1 = &map_infill_end_point_to_boundary[connection_cost.idx_first * 2 + 1];
             const std::pair<size_t, size_t>* cp1prev = cp1 - 1;

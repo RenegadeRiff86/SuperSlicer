@@ -2207,6 +2207,8 @@ ConfigWizardIndex::ConfigWizardIndex(wxWindow *parent)
     });
 
     Bind(wxEVT_LEFT_UP, [this](wxMouseEvent &evt) {
+        if (evt.GetY() >= GetClientSize().y - logo_band_height())
+            return;
         if (item_hover >= 0) { go_to(item_hover); }
     });
 }
@@ -2282,7 +2284,28 @@ void ConfigWizardIndex::go_to(size_t i)
         Refresh();
 
         new_active->on_activate();
+        ensure_item_visible(item_active);
     }
+}
+
+void ConfigWizardIndex::ensure_item_visible(size_t item)
+{
+    if (item >= items.size())
+        return;
+
+    const int yinc = item_height();
+    const int item_y = static_cast<int>(item) * yinc;
+    const int list_h = std::max(0, GetClientSize().y - logo_band_height());
+    if (list_h <= 0)
+        return;
+    int view_x = 0;
+    int view_y_units = 0;
+    GetViewStart(&view_x, &view_y_units);
+    const int view_y = view_y_units * kScrollStepPx;
+    if (item_y < view_y)
+        Scroll(view_x, item_y / kScrollStepPx);
+    else if (item_y + yinc > view_y + list_h)
+        Scroll(view_x, std::max(0, item_y + yinc - list_h) / kScrollStepPx);
 }
 
 void ConfigWizardIndex::go_to(const ConfigWizardPage *page)
@@ -2323,9 +2346,13 @@ void ConfigWizardIndex::on_paint(wxPaintEvent &evt)
     const int yoff_text = bullet_h > em_h ? (bullet_h - em_h) / kHalfDivisor : 0;
     const int yinc = item_height();
 
-    int index_width = 0;
-    wxCoord index_height = yinc * items.size();
+    int index_width = bg.GetWidth() + em_w / kHalfDivisor;
+    // Empty space under the last name lets that name scroll clear of the logo.
+    const int index_height = yinc * static_cast<int>(items.size()) + logo_band_height();
+    const int list_h = std::max(0, size.y - logo_band_height());
 
+    if (list_h > 0)
+        dc.SetClippingRegion(0, start.y, std::max(size.x, 1), list_h);
     unsigned y = 0;
     for (size_t i = 0; i < items.size(); i++) {
         const Item &item = items[i];
@@ -2347,19 +2374,16 @@ void ConfigWizardIndex::on_paint(wxPaintEvent &evt)
         y += yinc;
         index_width = std::max(index_width, static_cast<int>(x) + text_size.x);
     }
+    if (list_h > 0)
+        dc.DestroyClippingRegion();
 
-    // draw logo
-    if (int y = start.y + size.y - bg.GetHeight(); y >= 0) {
-        dc.DrawBitmap(bg.get_bitmap(), 0, y, false);
-        index_width = std::max(index_width, bg.GetWidth() + em_w / kHalfDivisor);
-    }
+    // Pin the logo to the bottom of the index. The list scrolls in the space above it.
+    if (int logo_y = start.y + size.y - logo_band_height(); logo_y >= start.y)
+        dc.DrawBitmap(bg.get_bitmap(), 0, logo_y, false);
 
-    index_height = std::max(index_height, bg.GetHeight() + em_w / kHalfDivisor);
-
-    wxSize virtual_size = GetVirtualSize();
-    if (virtual_size.GetWidth() != index_width && virtual_size.GetHeight() != index_height) {
+    const wxSize virtual_size = GetVirtualSize();
+    if (virtual_size.GetWidth() != index_width || virtual_size.GetHeight() != index_height)
         SetVirtualSize(index_width, index_height);
-    }
 
     if (GetMinSize().x < index_width) {
         CallAfter([this, index_width]() {
@@ -2374,6 +2398,15 @@ void ConfigWizardIndex::on_mouse_move(wxMouseEvent &evt)
     wxClientDC dc(this);
     DoPrepareDC(dc);
     const wxPoint pos = evt.GetLogicalPosition(dc);
+
+    if (evt.GetY() >= GetClientSize().y - logo_band_height()) {
+        if (item_hover != -1) {
+            item_hover = -1;
+            Refresh();
+        }
+        evt.Skip();
+        return;
+    }
 
     const ssize_t item_hover_new = pos.y / item_height();
 
@@ -2575,6 +2608,10 @@ void ConfigWizard::priv::init_dialog_size()
     }
 
     q->SetSize(window_rect);
+    // A printer page can be taller than the dialog. FitInside gives the content
+    // window a vertical scrollbar instead of clipping the extra rows.
+    if (hscroll != nullptr)
+        hscroll->FitInside();
 }
 
 void ConfigWizard::priv::load_vendors()
@@ -3551,6 +3588,7 @@ ConfigWizard::ConfigWizard(wxWindow *parent)
     topsizer->Add(p->hscroll, 1, wxEXPAND);
 
     p->btn_sel_all = new wxButton(this, wxID_ANY, _L("Select all standard printers in this page"));
+    p->btn_sel_all->Hide();
     p->btnsizer->Add(p->btn_sel_all);
 
     p->btn_prev = new wxButton(this, wxID_ANY, _L("< &Back"));
@@ -3724,7 +3762,16 @@ ConfigWizard::ConfigWizard(wxWindow *parent)
         if (is_last)
             p->btn_finish->SetFocus();
 
+        // The button selects printers on the page that is open. Welcome, filaments
+        // and the later pages have nothing for it to select.
+        const bool printer_page = dynamic_cast<PagePrinters*>(p->index->active_page()) != nullptr;
+        p->btn_sel_all->Show(printer_page);
+
         Layout();
+        if (p->hscroll != nullptr) {
+            p->hscroll->FitInside();
+            p->hscroll->Scroll(0, 0);
+        }
     });
 
     if (wxLinux_gtk3)

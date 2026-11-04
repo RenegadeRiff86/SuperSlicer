@@ -1857,7 +1857,7 @@ ClosePoint find_close_point(const Point &p, ProjectionDistances &result, std::ve
 
 float priv::calc_size_sq(const Point &p){    
     // NOTE: p.squaredNorm() can't be use due to overflow max int value
-    return (float) p.x() * p.x() + (float) p.y() * p.y();
+    return static_cast<float>(p.x()) * p.x() + static_cast<float>(p.y()) * p.y();
 }
 
 priv::SearchData priv::create_search_data(const ExPolygons        &shapes,
@@ -3192,8 +3192,8 @@ bool priv::is_over_whole_expoly(const CutAOI    &cutAOI,
         if (ie_s == nullptr || ie_t == nullptr) 
             return false;
 
-        assert(ie_s->attr != (unsigned char) IntersectingElement::Type::undefined);
-        assert(ie_t->attr != (unsigned char) IntersectingElement::Type::undefined);
+        assert(ie_s->attr != static_cast<unsigned char>(IntersectingElement::Type::undefined));
+        assert(ie_t->attr != static_cast<unsigned char>(IntersectingElement::Type::undefined));
 
         // check if it is neighbor indices
         uint32_t i_s = ie_s->shape_point_index;

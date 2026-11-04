@@ -366,7 +366,13 @@ void fill_header(anycubicsla_format_header &h,
 
 
     h.payload_size  = sizeof(h) - sizeof(h.tag) - sizeof(h.payload_size);
-    h.pixel_size_um = 50;
+    // One pixel size is stored for both axes. Derive it from the panel instead of assuming
+    // the 50 µm of the original Photon Mono; the Mono 4 panel is 17 µm.
+    const float display_width_mm = get_cfg_value_f(cfg, "display_width");
+    if (h.res_x > 0 && display_width_mm > 0.f)
+        h.pixel_size_um = display_width_mm / static_cast<float>(h.res_x) * 1000.f;
+    else
+        h.pixel_size_um = 50.f;
 }
 
 } // namespace

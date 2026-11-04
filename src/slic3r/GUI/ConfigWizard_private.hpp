@@ -569,6 +569,10 @@ private:
     size_t last_page;
 
     int item_height() const { return std::max(bullet_black.GetHeight(), em_w) + em_w; }
+    // The list scrolls in the client area above this band. The logo stays there
+    // so it does not cover page names or the printer page beside the index.
+    int logo_band_height() const { return bg.GetHeight(); }
+    void ensure_item_visible(size_t item);
 
     void on_paint(wxPaintEvent &evt);
     void on_mouse_move(wxMouseEvent &evt);

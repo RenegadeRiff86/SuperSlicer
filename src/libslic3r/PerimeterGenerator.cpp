@@ -249,9 +249,6 @@ static void fuzzy_paths(ExtrusionPaths& paths, coordf_t fuzzy_skin_thickness, co
     //not always a loop, with arachne
     const bool is_loop = paths.front().first_point() == last_point;
 #ifdef _DEBUG
-    const Point first_point = paths.front().first_point();
-    const bool is_debug_loop = (last_point == last_point);
-    ExtrusionPaths saved_paths = paths;
     if (is_loop) assert(paths.back().last_point() == paths.front().first_point());
     for (size_t i = 1; i < paths.size(); i++) {
         assert(paths[i - 1].last_point() == paths[i].first_point());
@@ -913,16 +910,19 @@ ExtrusionPaths PerimeterGenerator::create_overhangs_classic(const Parameters &pa
     ExtrusionPaths paths;
     coord_t resolution = std::max(SCALED_EPSILON, this->get_resolution(0, false, nullptr));
 
-    // if no overhang detection
+    // An empty support set means nothing is underneath this loop. Overhang detection
+    // being switched off never reaches here. Keep the overhang role and full overhang
+    // speed, and stay out of the distance pass, which measures the current layer and
+    // would treat this loop as supported.
     if (params.lower_slices_bridge_dynamic.empty()) {
-        // error
         paths.emplace_back(loop_polygons,
-                           ExtrusionAttributes{role,
+                           ExtrusionAttributes{role | ExtrusionRoleModifier::ERM_Bridge,
                                                ExtrusionFlow{is_external ? params.ext_mm3_per_mm() :
                                                                            params.mm3_per_mm(),
                                                              is_external ? params.ext_perimeter_flow.width() :
                                                                            params.perimeter_flow.width(),
-                                                             float(params.layer->height)}},
+                                                             float(params.layer->height)},
+                                               OverhangAttributes{1.f, 1.f, 0.f, false, true, false, false}},
                            false);
         assert(paths.back().mm3_per_mm() == paths.back().mm3_per_mm());
         assert(paths.back().height() == paths.back().height());
@@ -1682,24 +1682,8 @@ void PerimeterGenerator::_sort_overhangs(const Parameters &params,
         assert(paths[i - 1].last_point().coincides_with_epsilon(paths[i].first_point()));
     }
 
-    if (overhang_params.is_external && overhang_params.has_dynamic && dynamic_overhang_height >= 0) {
-        bool has_dynamic_path = false;
-        for (const ExtrusionPath &path : paths) {
-            if (int(path.height()) == dynamic_overhang_height) {
-                has_dynamic_path = true;
-                break;
-            }
-        }
-        const int normal_height = overhang_params.overhang_type_2_lh[OverhangType::NOT_OVERHANG];
-        if (has_dynamic_path && normal_height >= 0) {
-            for (ExtrusionPath &path : paths) {
-                if (int(path.height()) == normal_height) {
-                    path.attributes_mutable().role = path.role() | ExtrusionRoleModifier::ERM_Bridge;
-                    path.overhang_attributes_mutable() = OverhangAttributes{1, 1, 0, false, true, true, false};
-                }
-            }
-        }
-    }
+    // A supported fragment on the same loop as a real overhang stays a normal perimeter.
+    // Promoting it to full overhang speed is what tagged vertical walls as overhangs.
 
     //now that very small paths has been merge, remove useless points
     for (ExtrusionPath &path : paths) {
@@ -2154,11 +2138,10 @@ ExtrusionPaths PerimeterGenerator::create_overhangs_arachne(const Parameters &  
     ExtrusionPaths paths;
     coord_t resolution = std::max(SCALED_EPSILON, this->get_resolution(0,false, nullptr));
     const bool is_loop = Point{ arachne_path.front().x(), arachne_path.front().y() }.coincides_with_epsilon(Point{ arachne_path.back().x(), arachne_path.back().y() });
-    // if no overhang detection
+    // Same empty-support case as create_overhangs_classic: the loop is an overhang.
     if (params.lower_slices_bridge_dynamic.empty() ) {
-        //error
         append(paths, Geometry::unsafe_variable_width(Arachne::to_thick_polyline(arachne_path),
-            role,
+            role | ExtrusionRoleModifier::ERM_Bridge,
             is_external ? params.ext_perimeter_flow : params.perimeter_flow,
             std::max(params.ext_perimeter_flow.scaled_width() / 4, scale_t(params.print_config.resolution)),
             (is_external ? params.ext_perimeter_flow : params.perimeter_flow).scaled_width() / COARSE_SPACING_DIVISOR));
@@ -2166,6 +2149,7 @@ ExtrusionPaths PerimeterGenerator::create_overhangs_arachne(const Parameters &  
         for (ExtrusionPath& path : paths) {
             //these variable_width paths aren't gapfill, they are proper perimeters
             path.set_can_reverse(is_loop);
+            path.overhang_attributes_mutable() = OverhangAttributes{1.f, 1.f, 0.f, false, true, false, false};
         }
         return paths;
 
@@ -2442,7 +2426,6 @@ ExtrusionPaths PerimeterGenerator::create_overhangs_arachne(const Parameters &  
             } else {
                 assert(poly.size() >= 2);
                 assert(is_length_more_than_epsilon(poly));
-                ClipperLib_Z::Path old_poly = poly;
                 auto it_end = Slic3r::douglas_peucker_impl(
                     poly.begin(), poly.end(), poly.begin(), double(SCALED_EPSILON),
                     [](const ClipperLib_Z::IntPoint &p) { return Point(p.x(), p.y()); });
@@ -4695,7 +4678,6 @@ void PerimeterGenerator::processs_no_bridge(const Parameters params, Surfaces& a
             ExPolygons support = diff_ex(last, unsupported, ApplySafetyOffset::Yes);
                         //only consider the part that can be bridged (really, by the bridge algorithm)
                         //first, separate into islands (ie, each ExPlolygon)
-                        int numploy = 0;
                         //only consider the bottom layer that intersect unsupported, to be sure it's only on our island.
                         //a detector per island
                         ExPolygons bridgeable;
@@ -6562,7 +6544,6 @@ void PerimeterGenerator::_merge_thin_walls(const Parameters &params, ExtrusionEn
 #if _DEBUG
             LoopAssertVisitor loop_assert_visitor;
             searcher.search_result.loop->visit(loop_assert_visitor);
-            const ExtrusionLoop orig_loop = *searcher.search_result.loop;
 #endif
             if (!searcher.search_result.from_start)
                 tw.reverse();

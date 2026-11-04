@@ -73,7 +73,6 @@ void Snapshot::load_ini(const std::string &path)
 
     // Parse snapshot.ini
     std::string group_name_vendor = "Vendor:";
-    std::string key_filament = "filament";
     std::string key_prefix_model = "model_";
     for (auto &section : tree) {
         if (section.first == "snapshot") {

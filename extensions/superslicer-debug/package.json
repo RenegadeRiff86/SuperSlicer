@@ -1,0 +1,15 @@
+{
+  "name": "superslicer-debug",
+  "displayName": "SuperSlicer Debug",
+  "description": "Unused. Debug modes are the Unoptimized debug and Optimized debug entries in launch.json.",
+  "version": "0.1.1",
+  "publisher": "renegaderiff86",
+  "license": "AGPL-3.0-only",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Debuggers"
+  ],
+  "main": "./extension.js"
+}

@@ -103,6 +103,18 @@ void SVG::draw(const ExPolygon &expolygon, const std::string &fill, const float 
     this->path(d, true, 0, fill_opacity);
 }
 
+void SVG::draw_original(const ExPolygon &expolygon)
+{
+    std::string d;
+    for (const Polygon &p : to_polygons(expolygon)) {
+        d += "M ";
+        for (const Point &pt : p.points)
+            d += std::to_string(pt.x()) + " " + std::to_string(pt.y()) + " ";
+        d += "z ";
+    }
+    this->path(d, false, 1, 0.f);
+}
+
 void SVG::draw_outline(const ExPolygon &expolygon, const std::string &stroke_outer, const std::string &stroke_holes, coordf_t stroke_width)
 {
     draw_outline(expolygon.contour, stroke_outer, stroke_width);

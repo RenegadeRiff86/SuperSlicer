@@ -3,6 +3,8 @@
 #include "libslic3r/SLA/AGGRaster.hpp"
 #include "libslic3r/SLA/DefaultSupportTree.hpp"
 #include "libslic3r/SLA/BranchingTreeSLA.hpp"
+#include "libslic3r/SLA/SupportPointGenerator.hpp"
+#include "libslic3r/SLA/SupportIslands/SampleConfigFactory.hpp"
 
 #include <iomanip>
 
@@ -129,16 +131,15 @@ void test_supports(const std::string          &obj_filename,
 
     // TODO: do the cgal hole cutting...
 
-    // Create the support point generator
-    sla::SupportPointGenerator::Config autogencfg;
+    sla::SupportPointGeneratorConfig autogencfg;
     autogencfg.head_diameter = float(2 * supportcfg.head_front_radius_mm);
-    sla::SupportPointGenerator point_gen{sm.emesh, autogencfg, [] {}, [](int) {}};
-
-    point_gen.seed(0); // Make the test repeatable
-    point_gen.execute(out.model_slices, out.slicegrid);
-
-    // Get the calculated support points.
-    sm.pts = point_gen.output();
+    autogencfg.island_configuration = sla::SampleConfigFactory::apply_density(
+        sla::SampleConfigFactory::create(autogencfg.head_diameter), autogencfg.density_relative);
+    std::vector<ExPolygons> slices = out.model_slices;
+    sla::SupportPointGeneratorData data =
+        sla::prepare_generator_data(std::move(slices), out.slicegrid);
+    sla::LayerSupportPoints layer_points = sla::generate_support_points(data, autogencfg);
+    sm.pts = sla::move_on_mesh_surface(layer_points, sm.emesh, layer_h);
 
     int validityflags = ASSUME_NO_REPAIR;
 
@@ -467,20 +468,16 @@ double predict_error(const ExPolygon &p, const sla::PixelDim &pd)
 
 sla::SupportPoints calc_support_pts(
     const TriangleMesh &                      mesh,
-    const sla::SupportPointGenerator::Config &cfg)
+    const sla::SupportPointGeneratorConfig &cfg)
 {
-    // Prepare the slice grid and the slices
     auto                    bb      = cast<float>(mesh.bounding_box());
     std::vector<float>      heights = grid(bb.min.z(), bb.max.z(), 0.1f);
     std::vector<ExPolygons> slices  = slice_mesh_ex(mesh.its, heights, CLOSING_RADIUS);
 
-    // Prepare the support point calculator
+    sla::SupportPointGeneratorConfig config = cfg;
+    config.island_configuration = sla::SampleConfigFactory::apply_density(
+        sla::SampleConfigFactory::create(config.head_diameter), config.density_relative);
+    sla::SupportPointGeneratorData data = sla::prepare_generator_data(std::move(slices), heights);
     AABBMesh emesh{mesh};
-    sla::SupportPointGenerator spgen{emesh, cfg, []{}, [](int){}};
-
-    // Calculate the support points
-    spgen.seed(0);
-    spgen.execute(slices, heights);
-
-    return spgen.output();
+    return sla::move_on_mesh_surface(sla::generate_support_points(data, config), emesh, 0.1);
 }

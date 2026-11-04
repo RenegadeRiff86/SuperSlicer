@@ -1056,8 +1056,6 @@ void ArcPolyline::split_at(distf_t distance, ArcPolyline &p1, ArcPolyline &p2) c
     if (p1.size() > 1 && p2.size() > 1 && (!p1.m_path.back().linear() || !p2.m_path[1].linear()) ) {
         assert(std::abs(p1.m_path.back().radius) == std::abs(p2.m_path[1].radius));
         assert(p1.m_path.back().length ==0 && p2.m_path[1].length > 0);
-        coordf_t length_old_p1 = p1.m_path.back().length;
-        coordf_t length_old_p2 = p2.m_path[1].length;
         p1.m_path.back().length = Geometry::ArcWelder::segment_length<coordf_t>(p1.m_path[p1.m_path.size()-2], p1.m_path.back());
         p1.m_path.back().center = Geometry::ArcWelder::arc_center_scalar(p1.m_path[p1.m_path.size()-2].point, p1.m_path.back().point, p1.m_path.back().radius, p1.m_path.back().ccw());
         p2.m_path[1].length = Geometry::ArcWelder::segment_length<coordf_t>(p2.m_path[0], p2.m_path[1]);
@@ -1783,7 +1781,6 @@ void ArcPolyline::make_arc(ArcFittingType with_fitting_arc, coordf_t tolerance, 
                                     ccw_angle = 2 * PI + ccw_angle;
                                 assert(is_approx(ccw_angle, angle, EPSILON));
                                 assert(data.arc_data.center.distance_to(end.center) < 100*SCALED_EPSILON);
-                                Point center_round = centert;
                                 assert(is_approx(1,2,2) && is_approx(2,1,2));
                                 assert(is_approx(end.center.x(), centert.x(), coord_t(2)) && is_approx(end.center.y(), centert.y(), coord_t(2)));
                                 assert(is_approx(data.arc_data.length, end.length, 2.*SCALED_EPSILON));
@@ -1819,10 +1816,8 @@ void ArcPolyline::make_arc(ArcFittingType with_fitting_arc, coordf_t tolerance, 
                                 Vec2d center = Slic3r::Geometry::ArcWelder::arc_center(prev.cast<coordf_t>(), seg.point.cast<coordf_t>(), double(seg.radius), seg.ccw());
                                 double angle = Slic3r::Geometry::ArcWelder::arc_angle(prev.cast<coordf_t>(), seg.point.cast<coordf_t>(), double(seg.radius));
                                 double ccw_angle = angle_ccw(prev - Point::round(center), seg.point - Point::round(center));
-                                double ccw_angle1 = ccw_angle;
                                 if (!seg.ccw())
                                     ccw_angle = (-ccw_angle);
-                                double ccw_angle2 = ccw_angle;
                                 if (ccw_angle < 0)
                                     ccw_angle = 2 * PI + ccw_angle;
                                 assert(is_approx(ccw_angle, angle, 0.01));
@@ -1879,9 +1874,6 @@ bool ArcPolyline::is_valid() const {
     }
 #ifdef _DEBUG
     assert(m_path.empty() || m_path.front().linear());
-    double min_radius = 0;
-    double max_radius = 0;
-    Point first_center;
     for (size_t i = 1; i < m_path.size(); ++i) {
         if(!this->is_3D)
             assert(!m_path[i - 1].point.coincides_with_epsilon(m_path[i].point));
@@ -1906,11 +1898,9 @@ bool ArcPolyline::is_valid() const {
             assert(is_approx(new_length2, m_path[i].length, SCALED_EPSILON*2.));
             Slic3r::Geometry::ArcWelder::Orientation orientation = Slic3r::Geometry::ArcWelder::arc_orientation(m_path[i - 1].point, m_path[i].point, m_path[i].center, m_path[i].radius);
             assert(orientation == m_path[i].orientation);
-            Slic3r::Geometry::ArcWelder::Orientation orientation2 = Slic3r::Geometry::ArcWelder::arc_orientation(m_path[i - 1].point, m_path[i].point, Point::round(center), m_path[i].radius);
             assert(is_approx(coord_t(center.x()), m_path[i].center.x(), coord_t(std::abs(m_path[i].radius / 100))));
             assert(is_approx(coord_t(center.y()), m_path[i].center.y(), coord_t(std::abs(m_path[i].radius / 100))));
         }
-        //assert(std::abs(max_radius - min_radius) <= std::abs(max_radius) * 0.01);
     }
     assert(not_arc(*this) == m_only_strait);
 #endif

@@ -129,6 +129,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "filament_adaptive_pressure_advance",
         "filament_adaptive_pressure_advance_model",
         "filament_adaptive_pressure_advance_overhangs",
+        "filament_adaptive_pressure_advance_bridges",
         "enforce_retract_first_layer",
         "end_gcode",
         "end_filament_gcode",

@@ -9,6 +9,7 @@
 #include "libslic3r/Config.hpp"
 
 #include "BitmapCache.hpp"
+#include "Automation/AutomationIds.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"
 #include "libslic3r/Config.hpp"
@@ -50,6 +51,7 @@ ModeButton::ModeButton(wxWindow *parent, const std::string &mode_name, int px_cn
 {
     update_bitmap();
     Init(_(mode_name));
+    SetName(wxString::FromUTF8(AutomationIds::mode(mode_name)));
 }
 
  //ModeButton::ModeButton(wxWindow* parent,
@@ -80,10 +82,20 @@ void ModeButton::Init(const wxString &mode)
 
     SetBitmapMargins(3, 0);
 
-    //button events
-    Bind(wxEVT_BUTTON,          &ModeButton::OnButton, this);
-    Bind(wxEVT_ENTER_WINDOW,    &ModeButton::OnEnterBtn, this);
-    Bind(wxEVT_LEAVE_WINDOW,    &ModeButton::OnLeaveBtn, this);
+    // Bold is the selected state. Measure it now and lock the button to that
+    // size: wxBU_EXACTFIT otherwise grows the control when the font changes,
+    // which is what a hover used to do by switching to bold.
+    const wxSize resting = GetBestSize();
+    SetFont(Slic3r::GUI::wxGetApp().bold_font());
+    const wxSize bold = GetBestSize();
+    SetFont(Slic3r::GUI::wxGetApp().normal_font());
+    const wxSize reserved(
+        resting.x > bold.x ? resting.x : bold.x,
+        resting.y > bold.y ? resting.y : bold.y);
+    SetMinSize(reserved);
+    SetMaxSize(reserved);
+
+    Bind(wxEVT_BUTTON, &ModeButton::OnButton, this);
 }
 
 void ModeButton::OnButton(wxCommandEvent& event)

@@ -4,6 +4,23 @@ This directory is the reusable way to drive the **running SuperSlicer GUI**.
 Do not write one-off scripts in `/tmp`. Extend `gui_drive.py` and the modules
 it imports so the next session can find the same command.
 
+## Automation debug mode
+
+The MCP server `superslicer-automation` is registered with Cursor, and it stays
+quiet until you turn it on. Off, the only tool is `automation_debug`. On, the
+GUI commands (snapshot, slice, export, calibration, and the rest) are published.
+
+```
+python3 tests/automation/gui_drive.py automation-debug on
+python3 tests/automation/gui_drive.py automation-debug off
+python3 tests/automation/gui_drive.py automation-debug status
+```
+
+The same switch is in the command palette as "SuperSlicer: Automation debug on"
+and "off". The slicer still listens only when it was started with
+`--automation-api` (the "Debug automation" launch configuration). The token is
+not printed by the MCP server.
+
 ## Start the slicer once
 
 ```
@@ -116,8 +133,15 @@ python3 tests/automation/gui_drive.py --attach scroll --lines 20
 `window` without numbers prints the current screen position and size. `scroll`
 moves the current settings page; positive `--dy` shows content below.
 
+When the slicer covers the chat, tile the two programs and put Cursor in front.
+This does not need a running automation API:
+
+```
+python3 tests/automation/gui_drive.py desktop
+```
+
 ## Other durable commands
 
-See the module docstring in `gui_drive.py` and `doc/gui-menu-audit.md`.
+See the module docstring in `gui_drive.py`.
 `automation_client.py` is the HTTP/MCP client. `moonraker.py` is the printer-host
 client. `z_offset_workflow.py` is the Z-offset sequence those commands call.

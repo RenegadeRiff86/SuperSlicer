@@ -42,7 +42,6 @@ Polyline Polygon::split_at_vertex(const Point &point) const
         if (pt == point)
             return this->split_at_index(int(&pt - &this->points.front()));
     throw Slic3r::InvalidArgument("Point not found");
-    return Polyline();
 }
 
 // Split a closed polygon into an open polyline, with the split point duplicated at both ends.

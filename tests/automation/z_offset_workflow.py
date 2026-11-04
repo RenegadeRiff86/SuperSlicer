@@ -281,6 +281,7 @@ def run_workflow(
         raise AutomationError(
             f"expected 9 pad SET_GCODE_OFFSET lines, found {exported.get('pad_count')}"
         )
+    result = dict(generated_test)
     if moonraker:
         result["moonraker"] = send_gcode(
             export_path, moonraker, start=start_print

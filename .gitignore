@@ -16,6 +16,7 @@ xs/assertlib*
 /.vscode/*
 !/.vscode/extensions.json
 !/.vscode/launch.json
+!/.vscode/settings.json
 !/.vscode/tasks.json
 build*
 build-linux/*
@@ -50,6 +51,8 @@ resources/shapes/*.gcode
 # The CLI writes next to the working directory, which for a --slice run from the
 # checkout is the repository root.
 /*.gcode
+# Arrange and geometry dumps (SVG) land in the working directory the same way.
+/*.svg
 
 # Byte-code from running tests/automation/gui_drive.py out of the tree.
 __pycache__/

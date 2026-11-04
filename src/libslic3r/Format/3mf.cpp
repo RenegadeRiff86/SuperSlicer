@@ -1504,12 +1504,15 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
                 }
                 if (version == 1) {
                     for (unsigned int i=0; i<object_data_points.size(); i+=5)
-                    sla_support_points.emplace_back(float(std::atof(object_data_points[i+0].c_str())),
-                                                    float(std::atof(object_data_points[i+1].c_str())),
-                                                    float(std::atof(object_data_points[i+2].c_str())),
-                                                    float(std::atof(object_data_points[i+3].c_str())),
-                                                    // Note: this legacy format stores the boolean as 0 / 1 and imports it as a float.
-                                                    std::abs(std::atof(object_data_points[i+4].c_str()) - 1.) < EPSILON);
+                    sla_support_points.emplace_back(
+                        Vec3f(float(std::atof(object_data_points[i+0].c_str())),
+                              float(std::atof(object_data_points[i+1].c_str())),
+                              float(std::atof(object_data_points[i+2].c_str()))),
+                        float(std::atof(object_data_points[i+3].c_str())),
+                        // 0 and 2 are a user point, 1 is an island, 3 is a slope.
+                        // Older files stored only the island flag as 0 or 1.
+                        sla::SupportPoint::support_point_type_from_stored(
+                            float(std::atof(object_data_points[i+4].c_str()))));
                 }
 
                 if (!sla_support_points.empty())
@@ -3629,7 +3632,7 @@ static constexpr const char* kFoundInvalidObjectId = "Found invalid object id";
                 // Store the layer height profile as a single space separated list.
                 for (size_t i = 0; i < sla_support_points.size(); ++i) {
                     sprintf(buffer, (i==0 ? "%f %f %f %f %f" : " %f %f %f %f %f"),  sla_support_points[i].pos(0), sla_support_points[i].pos(1), sla_support_points[i].pos(2),
-                        sla_support_points[i].head_front_radius, static_cast<float>(sla_support_points[i].is_new_island));
+                        sla_support_points[i].head_front_radius, sla::SupportPoint::stored_value(sla_support_points[i].type));
                     out += buffer;
                 }
                 out += "\n";

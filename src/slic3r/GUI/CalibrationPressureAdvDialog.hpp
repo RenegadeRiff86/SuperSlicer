@@ -52,6 +52,8 @@ protected:
     std::map<int, SavedPaValues> savedPaBeforeST;
 
     wxBoxSizer* dynamicSizer = nullptr;
+    // Empty uses the firmware command. Tokens: {value} {extruder}.
+    wxTextCtrl* custom_pa_command = nullptr;
     int currentTestCount;
 };
 

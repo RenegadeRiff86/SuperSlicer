@@ -433,9 +433,8 @@ wxString from_path(const boost::filesystem::path &path)
 
 boost::filesystem::path into_path(const wxString &str)
 {
-    boost::filesystem::path fixpath(str.wx_str());
-    // note: lexically_normal() already do make_preferred()
-    fixpath.lexically_normal();
+    // lexically_normal() returns a normalized copy; it does not modify the path in place.
+    boost::filesystem::path fixpath(boost::filesystem::path(str.wx_str()).lexically_normal());
 #ifdef _WIN32
     // on windows, we need to force long path support when possible/needed, by appedning the R"(\\?\)" to force long path
     if (!fixpath.empty() && fixpath.string().front() != '\\' && (fixpath.is_absolute() || fixpath.size() > 250)) {

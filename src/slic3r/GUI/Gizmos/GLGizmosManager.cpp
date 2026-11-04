@@ -77,11 +77,11 @@ GLGizmosManager::EType GLGizmosManager::get_gizmo_from_mouse(const Vec2d &mouse_
 
     // is mouse horizontally in the area?
     if ((border <= static_cast<float>(mouse_pos(0)) &&
-         ((float) mouse_pos(0) <= border + icons_size))) {
+         (static_cast<float>(mouse_pos(0)) <= border + icons_size))) {
         // which icon is it on?
         size_t from_top = static_cast<size_t>(static_cast<float>(mouse_pos(1)) - top_y) / stride_y;
         // is it really on the icon or already past the border?
-        if ((float) mouse_pos(1) <= top_y + from_top * stride_y + icons_size) {
+        if (static_cast<float>(mouse_pos(1)) <= top_y + from_top * stride_y + icons_size) {
             std::vector<size_t> selectable = get_selectable_idxs();
             if (from_top < selectable.size()) 
                 return static_cast<EType>(selectable[from_top]);

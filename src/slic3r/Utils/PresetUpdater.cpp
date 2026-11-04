@@ -617,6 +617,9 @@ bool VendorSync::parse_tags(const std::string &json) {
 }
 
 void VendorSync::sort_available() {
+    // best points into available_profiles. Sorting moves those elements, and a
+    // previous sync may already hold a pointer into storage that emplace grew.
+    best = nullptr;
     if (available_profiles.empty()) {
         return;
     }
@@ -1050,6 +1053,7 @@ bool VendorSync::uninstall_vendor_config() {
     this->is_synch = false;
     this->can_upgrade = false;
     this->available_profiles = {};
+    this->best = nullptr;
     return true;
 }
 

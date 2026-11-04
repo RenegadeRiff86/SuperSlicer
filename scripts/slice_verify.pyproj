@@ -8,7 +8,7 @@
   makes it survive a cmake regeneration. Do not add it to the solution by hand.
 
   There is nothing to build; "building" a Python project is a no-op.
-  See doc/slice-verification.md for what the script is for.
+  scripts/slice_verify.py is the tool. Its module docstring is the manual.
 -->
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
   <PropertyGroup>
@@ -38,9 +38,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="slice_verify.py" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="..\doc\slice-verification.md" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" Condition="Exists('$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets')" />
 </Project>

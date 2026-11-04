@@ -3407,6 +3407,7 @@ void TabFilament::toggle_options()
     bool use_adaptive_pa = use_pa && m_config->opt_bool("filament_adaptive_pressure_advance", 0);
     toggle_option("filament_adaptive_pressure_advance_model", use_adaptive_pa, 0);
     toggle_option("filament_adaptive_pressure_advance_overhangs", use_adaptive_pa, 0);
+    toggle_option("filament_adaptive_pressure_advance_bridges", use_adaptive_pa, 0);
 
     //if (m_active_page->title() == "Advanced")
     {

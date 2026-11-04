@@ -317,13 +317,21 @@ find_package_handle_standard_args(OpenVDB
 #  Determine ABI number
 # ------------------------------------------------------------------------
 
-# Set the ABI number the library was built against. Uses vdb_print
-find_program(OPENVDB_PRINT vdb_print PATHS ${OpenVDB_INCLUDE_DIR} )
-
-OPENVDB_ABI_VERSION_FROM_PRINT(
-  "${OPENVDB_PRINT}"
+# The ABI has to match the headers that will be included. vdb_print on PATH
+# may be a different OpenVDB: /usr/bin/vdb_print reports abi13 while the
+# bundled 8.2 headers reject any ABI above their major version.
+OPENVDB_ABI_VERSION_FROM_HEADER(
+  "${OpenVDB_INCLUDE_DIR}/openvdb/version.h"
   ABI OpenVDB_ABI
 )
+
+if(NOT OpenVDB_ABI)
+  find_program(OPENVDB_PRINT vdb_print PATHS ${OpenVDB_INCLUDE_DIR} NO_DEFAULT_PATH)
+  OPENVDB_ABI_VERSION_FROM_PRINT(
+    "${OPENVDB_PRINT}"
+    ABI OpenVDB_ABI
+  )
+endif()
 
 if(NOT OpenVDB_FIND_QUIETLY)
   if(NOT OpenVDB_ABI)

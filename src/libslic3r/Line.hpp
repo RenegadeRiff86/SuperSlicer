@@ -216,6 +216,8 @@ public:
     coordf_t distance_to(const Point &point) const { return distance_to(point, this->a, this->b); }
     double distance_to_infinite_squared(const Point &point, Point *closest_point) const { return line_alg::distance_to_infinite_squared(*this, point, closest_point); }
     coordf_t perp_distance_to(const Point &point) const;
+    // Signed distance. For a CCW polygon outline, positive is inside the shape.
+    double perp_signed_distance_to(const Point &point) const;
     bool   parallel_to(double angle) const;
     bool   parallel_to(const Line& line) const;
     bool   perpendicular_to(double angle) const;

@@ -176,7 +176,9 @@ static constexpr int    NINETY_PERCENT = 90;                   // 90% of the bas
 static constexpr int    OVERLAP_GRAPH_STEP_PCT = QUARTER_PERCENT; // legacy overhang graphs sample at 25%-overlap steps
 static constexpr int    RIGHT_ANGLE_DEGREES = 90;              // angle fields capped at a right angle
 static constexpr int    DEFAULT_BED_TEMP_C = 60;               // default bed temperature (degrees C)
-static constexpr int    DEFAULT_FIRST_LAYER_WIDTH_PCT = 140;   // first-layer (infill) width: 140% of nozzle diameter
+// First-layer width matches the nozzle. A wider bead is squished sideways, and the
+// flow math does not correct that volume on a curve.
+static constexpr int    DEFAULT_FIRST_LAYER_WIDTH_PCT = FULL_PERCENT;
 static constexpr double DEFAULT_PURGE_VOLUME_MM3 = 140;        // purge volume between any two tools on the wipe tower (mm^3)
 static constexpr double DEFAULT_PURGE_VOLUME_HALF_MM3 = DEFAULT_PURGE_VOLUME_MM3 / 2; // per-tool load/unload share
 static constexpr double DEFAULT_WIPE_TOWER_Y_MM = 140;         // default Y of the wipe tower front-left corner (mm)
@@ -392,6 +394,7 @@ static const t_config_enum_values s_keys_map_OutputFormat {
     {"AnyMono", ofAnycubicMono},
     {"AnyMonoX", ofAnycubicMonoX},
     {"AnyMonoSE", ofAnycubicMonoSE},
+    {"AnyMono4", ofAnycubicMono4},
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(OutputFormat)
 
@@ -1934,7 +1937,7 @@ void PrintConfigDef::init_fff_params()
     def->full_label = L("External perimeters width");
     def->category = OptionCategory::width;
     def->tooltip = L("Set this to a non-zero value to set a manual extrusion width for external perimeters. "
-        "If left zero, default extrusion width will be used if set, otherwise 1.05 x nozzle diameter will be used. "
+        "If left zero, default extrusion width will be used if set, otherwise the nozzle diameter will be used. "
         "If expressed as percentage (for example 112.5%), it will be computed over nozzle diameter."
         STR_SPACING_WIDTH_OVERLAP_TOOLTIP);
     def->sidetext = L("mm or %");
@@ -1944,7 +1947,7 @@ void PrintConfigDef::init_fff_params()
     def->max_literal = { CONFIRM_LITERAL_ABOVE_10, true };
     def->can_phony = true;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(std::make_unique<ConfigOptionFloatOrPercent>(105, true));
+    def->set_default_value(std::make_unique<ConfigOptionFloatOrPercent>(FULL_PERCENT, true));
 
     def = this->add(KEY_EXTERNAL_PERIMETER_EXTRUSION_SPACING, coFloatOrPercent);
     def->label = L("External perimeters");
@@ -2747,6 +2750,16 @@ void PrintConfigDef::init_fff_params()
     def->label = L("Adapt PA on overhangs");
     def->tooltip = L("Experimental: also apply the adaptive pressure advance model to overhang perimeters."
         " When disabled, overhang perimeters keep their static (per-role) pressure advance value.");
+    def->category = OptionCategory::filament;
+    def->mode = comExpert | comSuSi;
+    def->is_vector_extruder = true;
+    def->set_default_value(std::make_unique<ConfigOptionBools>(std::initializer_list<bool>{ false }));
+
+    def = this->add("filament_adaptive_pressure_advance_bridges", coBools);
+    def->label = L("Adapt PA on bridges");
+    def->tooltip = L("Also apply the adaptive pressure advance model to bridge and internal bridge infill."
+        " When disabled, bridges keep their static pressure advance, because bridge flow does not match"
+        " the flow the model was calibrated at.");
     def->category = OptionCategory::filament;
     def->mode = comExpert | comSuSi;
     def->is_vector_extruder = true;
@@ -4043,7 +4056,7 @@ void PrintConfigDef::init_fff_params()
     def->full_label = L("Infill width");
     def->category = OptionCategory::width;
     def->tooltip = L("Set this to a non-zero value to set a manual extrusion width for infill. "
-        "If left as zero, default extrusion width will be used if set, otherwise 1.125 x nozzle diameter will be used. "
+        "If left as zero, default extrusion width will be used if set, otherwise the nozzle diameter will be used. "
         "You may want to use fatter extrudates to speed up the infill and make your parts stronger. "
         "If expressed as percentage (for example 110%) it will be computed over nozzle diameter."
         STR_SPACING_WIDTH_DEFAULT_TOOLTIP);
@@ -5091,6 +5104,15 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comPrusa;
     def->set_default_value(std::make_unique<ConfigOptionBool>(false));
 
+    def = this->add("rerf_calibration", coBool);
+    def->label = L("Exposure range finder");
+    def->category = OptionCategory::output;
+    def->tooltip = L("Photon Mono 4 only. Exports R_E_R_F.pm4n and shows each object's exposure on the plate. "
+        "Looking at the bottom of the plate, the back-left area uses the normal exposure and the area in front of it adds 0.25 s. "
+        "The pairs continue to the right. Bottom layers keep the initial exposure. The printer does this only for that file name.");
+    def->mode = comSimpleAE | comPrusa;
+    def->set_default_value(std::make_unique<ConfigOptionBool>(false));
+
     def = this->add("output_filename_format", coString);
     def->label = L("Output filename format");
     def->category = OptionCategory::output;
@@ -5508,7 +5530,7 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::width;
     def->tooltip = L("Set this to a non-zero value to set a manual extrusion width for perimeters. "
         "You may want to use thinner extrudates to get more accurate surfaces. "
-        "If left zero, default extrusion width will be used if set, otherwise 1.125 x nozzle diameter will be used. "
+        "If left zero, default extrusion width will be used if set, otherwise the nozzle diameter will be used. "
         "If expressed as percentage (for example 105%) it will be computed over nozzle diameter."
         STR_SPACING_WIDTH_OVERLAP_TOOLTIP);
     def->sidetext = L("mm or %");
@@ -6638,7 +6660,7 @@ void PrintConfigDef::init_fff_params()
     def->full_label = L("Solid infill width");
     def->category = OptionCategory::width;
     def->tooltip = L("Set this to a non-zero value to set a manual extrusion width for infill for solid surfaces. "
-        "If left as zero, default extrusion width will be used if set, otherwise 1.125 x nozzle diameter will be used. "
+        "If left as zero, default extrusion width will be used if set, otherwise the nozzle diameter will be used. "
         "If expressed as percentage (for example 110%) it will be computed over nozzle diameter."
         STR_SPACING_WIDTH_DEFAULT_TOOLTIP);
     def->sidetext = L("mm or %");
@@ -7662,7 +7684,7 @@ void PrintConfigDef::init_fff_params()
     def->max_literal = { CONFIRM_LITERAL_ABOVE_10, true };
     def->can_phony = true;
     def->mode = comAdvancedE | comPrusa;
-    def->set_default_value(std::make_unique<ConfigOptionFloatOrPercent>(105, true));
+    def->set_default_value(std::make_unique<ConfigOptionFloatOrPercent>(FULL_PERCENT, true));
 
     def = this->add(KEY_TOP_INFILL_EXTRUSION_SPACING, coFloatOrPercent);
     def->label = L("Top solid spacing");
@@ -9463,6 +9485,7 @@ void PrintConfigDef::init_sla_params()
         {"AnyMono", L("Anycubic Mono")},
         {"AnyMonoX", L("Anycubic Mono X")},
         {"AnyMonoSE", L("Anycubic Mono SE")},
+        {"AnyMono4", L("Anycubic Photon Mono 4")},
     });
     def->mode = comAdvancedE | comSuSi; // output_format should be preconfigured in profiles;
     def->set_default_value(std::make_unique<ConfigOptionEnum<OutputFormat>>(ofSL1));

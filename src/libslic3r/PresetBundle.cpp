@@ -798,7 +798,6 @@ DynamicPrintConfig PresetBundle::full_fff_config() const
                 // Setting a vector value from all filament_configs.
                 for (size_t i = 0; i < filament_opts.size(); ++ i)
                     filament_opts[i] = filament_configs[i]->option(key);
-                std::string opt_key_str = key;
                 static_cast<ConfigOptionVectorBase*>(opt_dst)->set(filament_opts);
             }
         }
@@ -1528,7 +1527,6 @@ std::pair<PresetsConfigSubstitutions, size_t> PresetBundle::load_configbundle(
             }
             Preset::normalize(config);
             // Report configuration fields, which are misplaced into a wrong group.
-            auto copy = config;
             std::string incorrect_keys = Preset::remove_invalid_keys(config, *default_config);
             if (! incorrect_keys.empty())
                 BOOST_LOG_TRIVIAL(error) << ERR_VENDOR_CONFIG_BUNDLE << path << "\": The printer preset \"" << 
@@ -1661,7 +1659,6 @@ std::pair<PresetsConfigSubstitutions, size_t> PresetBundle::load_configbundle(
             }
 
             // Report configuration fields, which are misplaced into a wrong group.
-            auto copy2 = config;
             std::string incorrect_keys = Preset::remove_invalid_keys(config, default_config);
             if (!incorrect_keys.empty())
                 BOOST_LOG_TRIVIAL(error) << ERR_VENDOR_CONFIG_BUNDLE << path << "\": The physical printer \"" <<

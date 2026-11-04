@@ -1942,7 +1942,6 @@ void generate_support_toolpaths(
 
             if(bottom_contact_layer.layer)  assert_valid(bottom_contact_layer.polygons_to_extrude());
             if(top_contact_layer.layer)     assert_valid(top_contact_layer.polygons_to_extrude());
-            bool has_top_contact_layer = top_contact_layer.layer != nullptr;
             if(base_layer.layer)            assert_valid(base_layer.polygons_to_extrude());
             if(interface_layer.layer)       assert_valid(interface_layer.polygons_to_extrude());
             if(base_interface_layer.layer)  assert_valid(base_interface_layer.polygons_to_extrude());

@@ -44,3 +44,15 @@ endif()
 
 
 # add_subdirectory(example)
+
+# Bridge tongues and infill with nothing under it. Kept separate so it can be
+# built without the legacy suites.
+add_executable(bridge_support_tests
+    bridge_support/bridge_support_tests.cpp
+    bridge_support/test_bridge_support.cpp
+)
+target_link_libraries(bridge_support_tests test_common test_common_data libslic3r)
+target_compile_definitions(bridge_support_tests PRIVATE
+    BRIDGE_SUPPORT_MODEL="${CMAKE_SOURCE_DIR}/models/thin_walls_bowflex.stl")
+set_property(TARGET bridge_support_tests PROPERTY FOLDER "tests")
+add_test(bridge_support_tests bridge_support_tests)

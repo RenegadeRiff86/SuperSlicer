@@ -54,6 +54,8 @@ public:
     void draw(const Lines &lines, const std::string &stroke = "black", coordf_t stroke_width = 0);
     
     void draw(const ExPolygon &expolygon, const std::string &fill = "grey", const float fill_opacity=1.f);
+    // Outline in unscaled integer coordinates. Used by the island sampler's debug dumps.
+    void draw_original(const ExPolygon &expolygon);
     void draw_outline(const ExPolygon &polygon, const std::string &stroke_outer = "black", const std::string &stroke_holes = "blue", coordf_t stroke_width = 0);
     void draw(const ExPolygons &expolygons, const std::string &fill = "grey", const float fill_opacity=1.f);
     void draw_outline(const ExPolygons &polygons, const std::string &stroke_outer = "black", const std::string &stroke_holes = "blue", coordf_t stroke_width = 0);

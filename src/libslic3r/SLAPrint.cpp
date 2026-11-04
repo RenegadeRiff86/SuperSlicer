@@ -11,6 +11,7 @@
 #include "StaticMap.hpp"
 
 #include "Format/SLAArchiveFormatRegistry.hpp"
+#include "SLA/Rerf.hpp"
 
 #include "Geometry.hpp"
 #include "Thread.hpp"
@@ -613,6 +614,9 @@ std::string SLAPrint::output_filename(const std::string &filename_base) const
     config.set_key_value("default_output_extension",
                          new ConfigOptionString(default_ext));
 
+    if (m_print_config.rerf_calibration.value && m_printer_config.output_format.value == OutputFormat::ofAnycubicMono4)
+        return sla::RERF_FILENAME;
+
     return this->PrintBase::output_filename(m_print_config.output_filename_format.value, default_ext, filename_base, &config);
 }
 
@@ -870,6 +874,7 @@ bool SLAPrint::invalidate_state_by_config_options(const std::vector<t_config_opt
         "max_print_height"sv,
         "printer_technology"sv,
         "output_filename_format"sv,
+        "rerf_calibration"sv,
         "fast_tilt_time"sv,
         "slow_tilt_time"sv,
         "high_viscosity_tilt_time"sv,
@@ -1218,6 +1223,17 @@ SLAPrintObject::get_parts_to_slice(SLAPrintObjectStep untilstep) const
 
     return ret;
 }
+
+namespace sla {
+SupportPoints transformed_support_points(const ModelObject &mo, const Transform3d &trafo)
+{
+    auto spts = mo.sla_support_points;
+    Transform3f tr = trafo.cast<float>();
+    for (SupportPoint &suppt : spts)
+        suppt.pos = tr * suppt.pos;
+    return spts;
+}
+} // namespace sla
 
 sla::SupportPoints SLAPrintObject::transformed_support_points() const
 {

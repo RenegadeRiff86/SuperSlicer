@@ -102,7 +102,6 @@ static BoundingBoxf extrusionentity_extents(const ExtrusionEntity *extrusion_ent
     if (extrusion_entity_collection != nullptr)
         return extrusionentity_extents(*extrusion_entity_collection);
     throw Slic3r::RuntimeError("Unexpected extrusion_entity type in extrusionentity_extents()");
-    return BoundingBoxf();
 }
 
 BoundingBoxf get_print_extrusions_extents(const Print &print)

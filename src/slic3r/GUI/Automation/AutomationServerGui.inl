@@ -366,8 +366,16 @@
         if (!window->IsShownOnScreen() || !window->IsEnabled())
             return failure(ERROR_OPERATION_FAILED, "the Wayland input target is not visible and enabled", request_id);
 
+        // A move only has to land inside the window. A click is delivered to the
+        // surface under the pointer. Keyboard focus is a different fact: on Wayland
+        // another program can keep it while this window is still the one under the
+        // pointer. The point below is computed from this window, so send the click
+        // when the window is on screen.
         wxWindow* active = wxGetActiveWindow();
-        if (active == nullptr || !is_descendant_or_self(active, m_app.mainframe))
+        const bool foreground =
+            active != nullptr && is_descendant_or_self(active, m_app.mainframe);
+        const std::string type = arguments.value("type", std::string());
+        if (type != "move" && !foreground && !window->IsShownOnScreen())
             return failure(
                 ERROR_TARGET_NOT_FOREGROUND,
                 "SuperSlicer or its owned dialog is not the foreground window",
@@ -387,11 +395,20 @@
                 "Wayland coordinates must be element-relative values from 0 through 1",
                 request_id);
 
-        const wxRect target_rect =
-            element_client_rect(window, element.kind);
-        const wxPoint origin =
-            window->ClientToScreen(target_rect.GetPosition());
-        const wxSize size = target_rect.GetSize();
+        // The menu bar is above the client area, so a fraction of the client
+        // never reaches it. A top-level window uses its outer frame.
+        wxRect screen_rect;
+        if (element.kind == AutomationElementKind::Window &&
+            dynamic_cast<wxTopLevelWindow*>(window) != nullptr)
+            screen_rect = window->GetScreenRect();
+        else {
+            const wxRect target_rect = element_client_rect(window, element.kind);
+            screen_rect = wxRect(
+                window->ClientToScreen(target_rect.GetPosition()),
+                target_rect.GetSize());
+        }
+        const wxPoint origin = screen_rect.GetPosition();
+        const wxSize size = screen_rect.GetSize();
         const auto screen_point = [origin, size](double relative_x, double relative_y) {
             return json {
                 { "x", origin.x + relative_x * std::max(0, size.x - 1) },
@@ -403,7 +420,7 @@
             { "automation_id", element.automation_id },
             { "element_kind", static_cast<int>(element.kind) },
             { "scope", into_u8(active_scope()->GetName()) },
-            { "active", into_u8(active->GetName()) },
+            { "active", active == nullptr ? std::string() : into_u8(active->GetName()) },
             { "x", origin.x },
             { "y", origin.y },
             { "width", size.x },
@@ -805,6 +822,286 @@
         return encode_screenshot(image, request_id);
     }
 
+    // Paste src onto dest at dest_origin. Both images are top-down. Pixels that
+    // fall outside dest are dropped. src is opaque enough that its RGB replaces dest.
+    void blit_image(wxImage& dest, const wxImage& src, const wxPoint& dest_origin)
+    {
+        if (!dest.IsOk() || !src.IsOk())
+            return;
+        unsigned char* dest_rgb = dest.GetData();
+        unsigned char* dest_alpha = dest.GetAlpha();
+        const unsigned char* src_rgb = src.GetData();
+        const unsigned char* src_alpha = src.GetAlpha();
+        const int dest_width = dest.GetWidth();
+        const int dest_height = dest.GetHeight();
+        const int src_width = src.GetWidth();
+        const int src_height = src.GetHeight();
+        for (int y = 0; y < src_height; ++y) {
+            const int dest_y = dest_origin.y + y;
+            if (dest_y < 0 || dest_y >= dest_height)
+                continue;
+            for (int x = 0; x < src_width; ++x) {
+                const int dest_x = dest_origin.x + x;
+                if (dest_x < 0 || dest_x >= dest_width)
+                    continue;
+                const std::size_t src_index =
+                    static_cast<std::size_t>(y * src_width + x);
+                const std::size_t dest_index =
+                    static_cast<std::size_t>(dest_y * dest_width + dest_x);
+                dest_rgb[3U * dest_index] = src_rgb[3U * src_index];
+                dest_rgb[3U * dest_index + 1U] = src_rgb[3U * src_index + 1U];
+                dest_rgb[3U * dest_index + 2U] = src_rgb[3U * src_index + 2U];
+                if (dest_alpha != nullptr)
+                    dest_alpha[dest_index] = src_alpha != nullptr ? src_alpha[src_index] : 255;
+            }
+        }
+    }
+
+    wxImage image_from_canvas(const CanvasScreenshot& pixels)
+    {
+        wxImage image(static_cast<int>(pixels.width), static_cast<int>(pixels.height));
+        image.InitAlpha();
+        unsigned char* rgb = image.GetData();
+        unsigned char* alpha = image.GetAlpha();
+        for (unsigned int y = 0; y < pixels.height; ++y) {
+            const unsigned int source_y = pixels.height - y - 1;
+            for (unsigned int x = 0; x < pixels.width; ++x) {
+                const std::size_t source = 4U * (source_y * pixels.width + x);
+                const std::size_t target = static_cast<std::size_t>(y * pixels.width + x);
+                rgb[3U * target] = pixels.pixels[source];
+                rgb[3U * target + 1U] = pixels.pixels[source + 1U];
+                rgb[3U * target + 2U] = pixels.pixels[source + 2U];
+                alpha[target] = pixels.pixels[source + 3U];
+            }
+        }
+        return image;
+    }
+
+    // gtk_widget_draw paints the widget tree, not the OpenGL buffer. The canvas
+    // rectangle would otherwise be empty, so the current framebuffer is painted over it.
+    void composite_shown_canvas(wxWindow* scope, wxImage& image)
+    {
+        if (m_app.plater() == nullptr)
+            return;
+        GLCanvas3D* canvas = m_app.plater()->get_current_canvas3D();
+        wxGLCanvas* widget = canvas != nullptr ? canvas->get_wxglcanvas() : nullptr;
+        if (widget == nullptr || !is_descendant_or_self(widget, scope) || !widget->IsShownOnScreen())
+            return;
+
+        CanvasScreenshot pixels;
+        if (!canvas->capture_current_framebuffer(pixels))
+            return;
+        wxImage gl_image = image_from_canvas(pixels);
+        if (!gl_image.IsOk())
+            return;
+
+        const wxSize frame_size = scope->GetSize();
+        const wxSize client_size = scope->GetClientSize();
+        const bool image_is_client =
+            std::abs(image.GetWidth() - client_size.x) < std::abs(image.GetWidth() - frame_size.x);
+        const wxPoint image_origin = image_is_client
+            ? scope->ClientToScreen(wxPoint(0, 0))
+            : scope->GetScreenPosition();
+        const wxSize image_span = image_is_client ? client_size : frame_size;
+        const double scale_x = image_span.x > 0
+            ? static_cast<double>(image.GetWidth()) / image_span.x : 1.0;
+        const double scale_y = image_span.y > 0
+            ? static_cast<double>(image.GetHeight()) / image_span.y : 1.0;
+
+        const wxPoint canvas_origin = widget->ClientToScreen(wxPoint(0, 0));
+        const wxSize canvas_size = widget->GetClientSize();
+        const int dest_x = static_cast<int>(std::lround((canvas_origin.x - image_origin.x) * scale_x));
+        const int dest_y = static_cast<int>(std::lround((canvas_origin.y - image_origin.y) * scale_y));
+        const int dest_w = std::max(1, static_cast<int>(std::lround(canvas_size.x * scale_x)));
+        const int dest_h = std::max(1, static_cast<int>(std::lround(canvas_size.y * scale_y)));
+        if (gl_image.GetWidth() != dest_w || gl_image.GetHeight() != dest_h)
+            gl_image.Rescale(dest_w, dest_h, wxIMAGE_QUALITY_HIGH);
+        blit_image(image, gl_image, wxPoint(dest_x, dest_y));
+    }
+
+#if defined(__WXGTK__)
+    // Render the window this process owns. spectacle --activewindow captures
+    // whichever program the compositor has focused, and on Wayland Raise() does
+    // not move that focus, so the old check rejected every capture.
+    json capture_owned_window(wxWindow* scope, const std::string& request_id)
+    {
+        if (scope == nullptr || !scope->IsShown())
+            return failure(ERROR_OPERATION_FAILED, "screenshot target is not visible", request_id);
+
+        GtkWidget* widget = scope->GetHandle();
+        if (widget == nullptr || !gtk_widget_get_realized(widget))
+            return failure(ERROR_OPERATION_FAILED, "screenshot target has no window", request_id);
+
+        GtkAllocation allocation;
+        gtk_widget_get_allocation(widget, &allocation);
+        if (allocation.width <= 0 || allocation.height <= 0)
+            return failure(ERROR_OPERATION_FAILED, "screenshot target has no size", request_id);
+
+        cairo_surface_t* surface = cairo_image_surface_create(
+            CAIRO_FORMAT_ARGB32, allocation.width, allocation.height);
+        if (cairo_surface_status(surface) != CAIRO_STATUS_SUCCESS) {
+            cairo_surface_destroy(surface);
+            return failure(ERROR_OPERATION_FAILED, "could not allocate screenshot surface", request_id);
+        }
+        cairo_t* context = cairo_create(surface);
+        cairo_translate(context, -allocation.x, -allocation.y);
+        cairo_rectangle(context, allocation.x, allocation.y, allocation.width, allocation.height);
+        cairo_set_source_rgb(context, 0.15, 0.15, 0.15);
+        cairo_fill(context);
+        gtk_widget_draw(widget, context);
+        cairo_destroy(context);
+        cairo_surface_flush(surface);
+
+        wxImage image(allocation.width, allocation.height);
+        image.InitAlpha();
+        const unsigned char* source = cairo_image_surface_get_data(surface);
+        const int stride = cairo_image_surface_get_stride(surface);
+        unsigned char* rgb = image.GetData();
+        unsigned char* alpha = image.GetAlpha();
+        for (int y = 0; y < allocation.height; ++y) {
+            const unsigned char* row = source + y * stride;
+            for (int x = 0; x < allocation.width; ++x) {
+                std::uint32_t pixel = 0;
+                std::memcpy(&pixel, row + x * 4, sizeof(pixel));
+                const unsigned int stored_alpha = (pixel >> 24) & 0xffU;
+                const unsigned int stored_red = (pixel >> 16) & 0xffU;
+                const unsigned int stored_green = (pixel >> 8) & 0xffU;
+                const unsigned int stored_blue = pixel & 0xffU;
+                const std::size_t target = static_cast<std::size_t>(y * allocation.width + x);
+                if (stored_alpha == 0U) {
+                    rgb[3U * target] = 0;
+                    rgb[3U * target + 1U] = 0;
+                    rgb[3U * target + 2U] = 0;
+                    alpha[target] = 0;
+                    continue;
+                }
+                rgb[3U * target] = static_cast<unsigned char>((stored_red * 255U) / stored_alpha);
+                rgb[3U * target + 1U] = static_cast<unsigned char>((stored_green * 255U) / stored_alpha);
+                rgb[3U * target + 2U] = static_cast<unsigned char>((stored_blue * 255U) / stored_alpha);
+                alpha[target] = static_cast<unsigned char>(stored_alpha);
+            }
+        }
+        cairo_surface_destroy(surface);
+        composite_shown_canvas(scope, image);
+        composite_gtk_popups(widget, image);
+        return encode_screenshot(image, request_id);
+    }
+
+    // An open menu is a separate GTK window. Draw it into the capture so a
+    // screenshot shows the menu the pointer is over, not only the frame under it.
+    void composite_gtk_popups(GtkWidget* owner, wxImage& image)
+    {
+        if (owner == nullptr || !image.IsOk())
+            return;
+        GdkWindow* owner_window = gtk_widget_get_window(owner);
+        if (owner_window == nullptr)
+            return;
+        gint owner_x = 0;
+        gint owner_y = 0;
+        gdk_window_get_origin(owner_window, &owner_x, &owner_y);
+
+        struct Popup
+        {
+            GtkWidget* widget;
+            int x;
+            int y;
+            int width;
+            int height;
+        };
+        std::vector<Popup> popups;
+        GList* toplevels = gtk_window_list_toplevels();
+        for (GList* item = toplevels; item != nullptr; item = item->next) {
+            GtkWidget* other = GTK_WIDGET(item->data);
+            if (other == owner || !gtk_widget_get_visible(other) || !gtk_widget_get_mapped(other))
+                continue;
+            GdkWindow* window = gtk_widget_get_window(other);
+            if (window == nullptr)
+                continue;
+            GtkAllocation allocation;
+            gtk_widget_get_allocation(other, &allocation);
+            if (allocation.width < 4 || allocation.height < 4)
+                continue;
+            gint x = 0;
+            gint y = 0;
+            gdk_window_get_origin(window, &x, &y);
+            popups.push_back({
+                other, x - owner_x, y - owner_y, allocation.width, allocation.height
+            });
+        }
+        g_list_free(toplevels);
+        if (popups.empty())
+            return;
+
+        int min_x = 0;
+        int min_y = 0;
+        int max_x = image.GetWidth();
+        int max_y = image.GetHeight();
+        for (const Popup& popup : popups) {
+            min_x = std::min(min_x, popup.x);
+            min_y = std::min(min_y, popup.y);
+            max_x = std::max(max_x, popup.x + popup.width);
+            max_y = std::max(max_y, popup.y + popup.height);
+        }
+        if (max_x - min_x > 8000 || max_y - min_y > 8000)
+            return;
+        if (min_x < 0 || min_y < 0 || max_x > image.GetWidth() || max_y > image.GetHeight()) {
+            wxImage canvas(max_x - min_x, max_y - min_y);
+            canvas.InitAlpha();
+            std::memset(canvas.GetData(), 20, static_cast<std::size_t>(canvas.GetWidth()) * canvas.GetHeight() * 3U);
+            std::memset(canvas.GetAlpha(), 255, static_cast<std::size_t>(canvas.GetWidth()) * canvas.GetHeight());
+            blit_image(canvas, image, wxPoint(-min_x, -min_y));
+            image = std::move(canvas);
+            for (Popup& popup : popups) {
+                popup.x -= min_x;
+                popup.y -= min_y;
+            }
+        }
+
+        for (const Popup& popup : popups) {
+            cairo_surface_t* surface = cairo_image_surface_create(
+                CAIRO_FORMAT_ARGB32, popup.width, popup.height);
+            if (cairo_surface_status(surface) != CAIRO_STATUS_SUCCESS) {
+                cairo_surface_destroy(surface);
+                continue;
+            }
+            cairo_t* context = cairo_create(surface);
+            GtkAllocation allocation;
+            gtk_widget_get_allocation(popup.widget, &allocation);
+            cairo_translate(context, -allocation.x, -allocation.y);
+            gtk_widget_draw(popup.widget, context);
+            cairo_destroy(context);
+            cairo_surface_flush(surface);
+
+            wxImage part(popup.width, popup.height);
+            part.InitAlpha();
+            const unsigned char* source = cairo_image_surface_get_data(surface);
+            const int stride = cairo_image_surface_get_stride(surface);
+            unsigned char* rgb = part.GetData();
+            unsigned char* alpha = part.GetAlpha();
+            for (int y = 0; y < popup.height; ++y) {
+                const unsigned char* row = source + y * stride;
+                for (int x = 0; x < popup.width; ++x) {
+                    std::uint32_t pixel = 0;
+                    std::memcpy(&pixel, row + x * 4, sizeof(pixel));
+                    const unsigned int stored_alpha = (pixel >> 24) & 0xffU;
+                    const std::size_t target = static_cast<std::size_t>(y * popup.width + x);
+                    if (stored_alpha == 0U) {
+                        alpha[target] = 0;
+                        continue;
+                    }
+                    rgb[3U * target] = static_cast<unsigned char>((((pixel >> 16) & 0xffU) * 255U) / stored_alpha);
+                    rgb[3U * target + 1U] = static_cast<unsigned char>((((pixel >> 8) & 0xffU) * 255U) / stored_alpha);
+                    rgb[3U * target + 2U] = static_cast<unsigned char>(((pixel & 0xffU) * 255U) / stored_alpha);
+                    alpha[target] = static_cast<unsigned char>(stored_alpha);
+                }
+            }
+            cairo_surface_destroy(surface);
+            blit_image(image, part, wxPoint(popup.x, popup.y));
+        }
+    }
+#endif
+
+#if !defined(__WXGTK__)
     json capture_active_window(wxWindow* scope, const std::string& request_id)
     {
         if (scope == nullptr || wxGetActiveWindow() != scope)
@@ -855,6 +1152,7 @@
                 request_id);
         return encode_screenshot(image, request_id);
     }
+#endif
 
     json gui_screenshot(const json& arguments, const std::string& request_id)
     {
@@ -887,7 +1185,11 @@
                 ERROR_OPERATION_FAILED,
                 "screenshot target must be the active SuperSlicer window or current canvas",
                 request_id);
+#if defined(__WXGTK__)
+        return capture_owned_window(scope, request_id);
+#else
         return capture_active_window(scope, request_id);
+#endif
     }
 
     json gui_load_model(const json& arguments, const std::string& request_id)

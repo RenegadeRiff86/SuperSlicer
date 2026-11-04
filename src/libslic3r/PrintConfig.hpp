@@ -1191,6 +1191,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionBools,               filament_adaptive_pressure_advance))
     ((ConfigOptionStrings,             filament_adaptive_pressure_advance_model))
     ((ConfigOptionBools,               filament_adaptive_pressure_advance_overhangs))
+    ((ConfigOptionBools,               filament_adaptive_pressure_advance_bridges))
     ((ConfigOptionFloats,              filament_solid_infill_pa))
     ((ConfigOptionBools,               filament_soluble))
     ((ConfigOptionFloats,              filament_support_material_pa))
@@ -1443,6 +1444,7 @@ std::string validate(const FullPrintConfig &config);
 PRINT_CONFIG_CLASS_DEFINE(
     SLAPrintConfig,
     ((ConfigOptionString, output_filename_format))
+    ((ConfigOptionBool,   rerf_calibration))
     ((ConfigOptionString, print_custom_variables))
 )
 

@@ -54,6 +54,17 @@ The following functions are provided:
 
   If the file does not exist, variables are unmodified.
 
+``OPENVDB_ABI_VERSION_FROM_HEADER``
+
+  OPENVDB_ABI_VERSION_FROM_HEADER ( <header_path>
+    ABI [<version>] )
+
+  Parse the provided version.h for the ABI the library was built with
+  (#define OPENVDB_ABI_VERSION_NUMBER). This is the value client code must
+  use. A vdb_print found on PATH can belong to a different OpenVDB.
+
+  If the file does not exist or has no ABI define, variables are unmodified.
+
 ``OPENVDB_ABI_VERSION_FROM_PRINT``
 
   OPENVDB_ABI_VERSION_FROM_PRINT ( <vdb_print>
@@ -119,6 +130,30 @@ endfunction()
 
 ########################################################################
 ########################################################################
+
+
+function(OPENVDB_ABI_VERSION_FROM_HEADER OPENVDB_VERSION_FILE)
+  cmake_parse_arguments(_VDB "" "ABI" "" ${ARGN})
+
+  if(NOT EXISTS ${OPENVDB_VERSION_FILE})
+    return()
+  endif()
+
+  file(STRINGS "${OPENVDB_VERSION_FILE}" openvdb_abi_str
+    REGEX "^#define[\t ]+OPENVDB_ABI_VERSION_NUMBER[\t ]+.*"
+  )
+  if(NOT openvdb_abi_str)
+    return()
+  endif()
+  string(REGEX REPLACE "^.*OPENVDB_ABI_VERSION_NUMBER[\t ]+([0-9]*).*$" "\\1"
+    _OpenVDB_ABI "${openvdb_abi_str}"
+  )
+  unset(openvdb_abi_str)
+
+  if(_VDB_ABI AND _OpenVDB_ABI)
+    set(${_VDB_ABI} ${_OpenVDB_ABI} PARENT_SCOPE)
+  endif()
+endfunction()
 
 
 function(OPENVDB_ABI_VERSION_FROM_PRINT OPENVDB_PRINT)

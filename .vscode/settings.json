@@ -1,0 +1,7 @@
+{
+  "clangd.arguments": [
+    "--background-index=0",
+    "-j=2",
+    "--pch-storage=disk"
+  ]
+}

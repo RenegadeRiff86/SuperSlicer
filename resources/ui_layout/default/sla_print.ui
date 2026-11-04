@@ -66,6 +66,7 @@ group:Slicing
 
 page:Output options:output+page_white
 group:Output file
+	setting:rerf_calibration
 	setting:full_width:output_filename_format
 
 page:Dependencies:wrench

@@ -18,6 +18,7 @@
 #include <wx/scrolwin.h>
 #include <wx/file.h>
 #include <wx/choice.h>
+#include <wx/textctrl.h>
 #include <wx/msgdlg.h>
 #include <wx/settings.h>
 #include "Jobs/ArrangeJob.hpp"
@@ -35,11 +36,13 @@
 namespace Slic3r {
 namespace GUI {
 
-// Tracked in #40: confirm custom G-code ordering around extrusion-role and region changes.
+// Region G-code is emitted when a region is entered. Feature G-code runs later, immediately
+// before the extrusion, so the calibration project clears feature_gcode and writes the PA
+// command into region_gcode. A user macro in feature_gcode would otherwise replace it.
 // Number/point model Z scaling intentionally spans first_layer_height + base_layer_height so
 // embossed labels still slice when first_layer_height <= base_layer_height. See #38.
-// Tracked in #41: audit Marlin/RepRap PA calibration command semantics.
-// Tracked in #42: support custom and multi-tool PA command workflows.
+// Marlin uses M900 K. RepRap uses M572 D<tool> S, matching GCodeWriter. Klipper names the
+// extruder stepper. The dialog's PA command field overrides that with {value} and {extruder}.
 // PA label values are formatted compactly before digit meshes are loaded.
 // Manual PA text entry is normalized to C-locale decimal text before ToCDouble parsing, so
 // comma-decimal locales do not break PA calculations. See #38.
@@ -125,6 +128,17 @@ void CalibrationPressureAdvDialog::create_buttons(wxStdDialogButtonSizer* button
         commonSizer->Add(generateButton, 0, wxALIGN_CENTER_VERTICAL | wxALL, kControlBorder);
 
         panelSizer->Add(commonSizer, 0, wxALL, kPanelInnerPaddingPx);
+
+        wxBoxSizer* commandSizer = new wxBoxSizer(wxHORIZONTAL);
+        wxStaticText* command_label = new wxStaticText(mainPanel, wxID_ANY, _L("PA command: "));
+        command_label->SetForegroundColour(text_color);
+        custom_pa_command = new wxTextCtrl(mainPanel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(420, -1));
+        custom_pa_command->SetHint(_L("Leave empty for the firmware command. A custom command can use {value} and {extruder}."));
+        custom_pa_command->SetToolTip(_L("Overrides the generated pressure-advance line. {value} is the bend's PA, {extruder} is the tool stepper name (Klipper) or tool index (RepRap)."));
+        commandSizer->Add(command_label, 0, wxALIGN_CENTER_VERTICAL | wxALL, kControlBorder);
+        commandSizer->Add(custom_pa_command, 1, wxALIGN_CENTER_VERTICAL | wxEXPAND | wxALL, kControlBorder);
+        panelSizer->Add(commandSizer, 0, wxEXPAND | wxLEFT | wxRIGHT, kPanelInnerPaddingPx);
+
         dynamicSizer = new wxBoxSizer(wxVERTICAL);
         panelSizer->Add(dynamicSizer, 1, wxEXPAND | wxALL, kControlBorder);
         buttons->Add(mainPanel, 1, wxEXPAND | wxALL, kPanelInnerPaddingPx);

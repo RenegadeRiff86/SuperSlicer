@@ -708,8 +708,8 @@ void FreqChangedParams::Show(PrinterTechnology tech)
     for (auto& entry : m_og_other)
         entry.second->Show( (entry.first & tech) != 0);
 
-    // correct showing of the FreqChangedParams sizer when m_wiping_dialog_button is hidden
-    assert(m_wiping_dialog_button);
+    // The purging-volumes button exists only when a frequent-settings line is tagged
+    // freq_purging_volumes. Hide it when present and the FFF page is showing.
     if (m_wiping_dialog_button) {
         const bool is_wdb_shown = m_wiping_dialog_button->IsShown();
         if ((tech & PrinterTechnology::ptFFF) != 0 && !is_wdb_shown)
@@ -1992,6 +1992,42 @@ enum ExportingStatus{
     EXPORTING_TO_LOCAL
 };
 
+namespace {
+
+// Titles passed to Plater::new_project() by the calibration generators.
+// reset() stores the title as the project filename, so a later Save writes
+// "<title>.3mf" and replaces any file that already has that name.
+bool is_calibration_project_file(const wxString& filename)
+{
+    if (filename.empty())
+        return false;
+
+    static constexpr const char* titles[] = {
+        "First layer calibration",
+        "Klipper Z offset calibration",
+        "Pressure advance line calibration",
+        "Temperature calibration",
+        "Adaptive PA calibration",
+        "Above the Bridges flow calibration",
+        "Top Fill flow calibration",
+        "Flow calibration",
+        "Orca YOLO flow calibration",
+        "Orca YOLO flow calibration fine",
+        "Bridge calibration",
+        "Retraction calibration",
+        "Calibration cube",
+    };
+
+    const wxString stem = from_path(into_path(filename).stem());
+    for (const char* title : titles) {
+        if (stem == wxString::FromUTF8(title) || stem == _L(title))
+            return true;
+    }
+    return false;
+}
+
+} // namespace
+
 // Plater / private
 struct Plater::priv
 {
@@ -2079,11 +2115,15 @@ struct Plater::priv
                     suggested_project_name = output_file.empty() ? _L("Untitled") : from_u8(output_file.stem().string());
                 }
 
+                const bool calibration_project = is_calibration_project_file(suggested_project_name);
                 std::string act_key = "default_action_on_dirty_project";
                 std::string act = wxGetApp().app_config->get(act_key);
                 if (act.empty()) {
-                    RichMessageDialog dialog(mainframe, reason + "\n" + format_wxstr(_L("Do you want to save the changes to \"%1%\"?"), suggested_project_name), wxString(SLIC3R_APP_NAME), wxYES_NO | wxCANCEL);
-                    dialog.SetYesNoLabels(_L("Save"), _L("Discard"));
+                    const wxString question = calibration_project ?
+                        format_wxstr(_L("\"%1%\" is a calibration file and cannot be overwritten.\nDo you want to save the project to a new file?"), suggested_project_name) :
+                        format_wxstr(_L("Do you want to save the changes to \"%1%\"?"), suggested_project_name);
+                    RichMessageDialog dialog(mainframe, reason + "\n" + question, wxString(SLIC3R_APP_NAME), wxYES_NO | wxCANCEL);
+                    dialog.SetYesNoLabels(calibration_project ? _L("Save as") : _L("Save"), _L("Discard"));
                     dialog.ShowCheckBox(_L("Remember my choice"));
                     res = dialog.ShowModal();
                     if (res != wxID_CANCEL)
@@ -2107,7 +2147,9 @@ struct Plater::priv
                     res = (act == "1") ? wxID_YES : wxID_NO;
 
                 if (res == wxID_YES)
-                    if (!mainframe->save_project_as(project_name)) {
+                    // A calibration title is not a user project path. Save as a new file,
+                    // and export_3mf refuses the write if that calibration file already exists.
+                    if (!mainframe->save_project_as(calibration_project ? wxString() : project_name)) {
                         // Return Cancel only, when we don't remember a choice for closing the application.
                         // Elsewhere it can causes an impossibility to close the application at all.
                         res = act.empty() ? wxID_CANCEL : wxID_NO;
@@ -8153,6 +8195,18 @@ bool Plater::export_3mf(const boost::filesystem::path& output_path)
     if (!path.Lower().EndsWith(".3mf"))
         return false;
 
+    if (is_calibration_project_file(path)) {
+        boost::system::error_code ec;
+        if (boost::filesystem::exists(into_path(path), ec)) {
+            MessageDialog dlg(this,
+                format_wxstr(_L("Cannot overwrite the calibration file \"%1%\"."), path),
+                _L("Save project"),
+                wxOK | wxICON_WARNING);
+            dlg.ShowModal();
+            return false;
+        }
+    }
+
     // take care about private data stored into .3mf
     // modify model
     publish(p->model);
@@ -8627,6 +8681,12 @@ void Plater::on_config_change(const DynamicConfig &config)
         else if (opt_key == "max_print_height") {
             bed_shape_changed = true;
             update_scheduled = true;
+        }
+        else if (opt_key == "rerf_calibration" || opt_key == "exposure_time") {
+            if (p->view3D != nullptr) {
+                p->view3D->set_as_dirty();
+                p->view3D->get_wxglcanvas()->Refresh();
+            }
         }
         else if (opt_key == "printer_model") {
             //p->reset_gcode_toolpaths(); //why only reset gcode, and only in this case?

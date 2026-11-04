@@ -105,7 +105,7 @@ const t_field& OptionsGroup::build_field(const OptionKeyIdx& key_idx, const Conf
                 break;
             case coNone:  assert(false); break;
             default:
-                throw Slic3r::LogicError("This control doesn't exist till now"); break;
+                throw Slic3r::LogicError("This control doesn't exist till now");
         }
     }
     // Grab a reference to fields for convenience

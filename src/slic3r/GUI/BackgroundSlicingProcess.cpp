@@ -774,9 +774,8 @@ void BackgroundSlicingProcess::finalize_gcode()
         throw Slic3r::ExportError(GUI::format(_L("Copying of the temporary G-code has finished but the exported code couldn't be opened during copy check. The output G-code is at %1%.tmp."), export_path));
         break;
     default:
-        throw Slic3r::ExportError(_u8L("Unknown error occured during exporting G-code."));
         BOOST_LOG_TRIVIAL(error) << "Unexpected fail code(" << static_cast<int>(copy_ret_val) << ") durring copy_file() to " << export_path << ".";
-        break;
+        throw Slic3r::ExportError(_u8L("Unknown error occured during exporting G-code."));
     }
 
     m_print->set_status(100, GUI::format(_L("G-code file exported to %1%"), export_path));

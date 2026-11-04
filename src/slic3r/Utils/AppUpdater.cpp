@@ -256,8 +256,10 @@ boost::filesystem::path AppUpdater::priv::download_file(const DownloadAppData& d
         return boost::filesystem::path();
     }
 
+    // 2.4.0 windows installer is 65MB. Binaries grow; 130 MiB leaves about 100% of headroom.
+    // That limit belongs in the version file.
     std::string error_message;
-    bool res = http_get_file(data.url, 130 * BYTES_PER_MEBIBYTE //2.4.0 windows installer is 65MB //lm:I don't know, but larger. The binaries will grow. // dk: changed to 130, to have 100% more space. We should put this information into version file. 
+    bool res = http_get_file(data.url, 130 * BYTES_PER_MEBIBYTE 
         // on_progress
         , [&last_gui_progress, expected_size](Http::Progress progress) {
             // size check

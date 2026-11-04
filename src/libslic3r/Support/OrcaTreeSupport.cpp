@@ -473,7 +473,6 @@ static bool is_inside_ex(const ExPolygons &polygons, const Point &pt)
 // use project_onto which is more accurate but more expensive
 static bool move_out_expolys(const ExPolygons& polygons, Point& from, double distance, double max_move_distance)
 {
-    Point from0 = from;
     ExPolygons polys_dilated = union_ex(offset_ex(polygons, scale_(distance)));
     Point pt = find_closest_ex(from, polys_dilated);
     Point outward_dir = pt - from;

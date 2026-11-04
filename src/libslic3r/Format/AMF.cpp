@@ -1239,7 +1239,7 @@ bool store_amf(std::string &path, Model *model, const DynamicPrintConfig *config
             for (size_t i = 0; i < sla_support_points.size(); ++i) {
                 if (i != 0)
                     stream << ";";
-                stream << sla_support_points[i].pos(0) << ";" << sla_support_points[i].pos(1) << ";" << sla_support_points[i].pos(2) << ";" << sla_support_points[i].head_front_radius << ";" << sla_support_points[i].is_new_island;
+                stream << sla_support_points[i].pos(0) << ";" << sla_support_points[i].pos(1) << ";" << sla_support_points[i].pos(2) << ";" << sla_support_points[i].head_front_radius << ";" << sla::SupportPoint::stored_value(sla_support_points[i].type);
             }
             stream << "\n    </metadata>\n";
         }

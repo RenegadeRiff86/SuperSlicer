@@ -42,6 +42,11 @@
 #include <wx/menuitem.h>
 #include <wx/mstream.h>
 #include <wx/utils.h>
+
+#if defined(__WXGTK__)
+#include <cairo.h>
+#include <gtk/gtk.h>
+#endif
 #include <wx/scrolwin.h>
 #include <wx/slider.h>
 #include <wx/spinctrl.h>
@@ -56,7 +61,9 @@
 #include <atomic>
 #include <chrono>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <future>
 #include <limits>
 #include <map>
@@ -88,8 +95,10 @@ constexpr auto DEFAULT_GUI_TIMEOUT = std::chrono::seconds(10);
 constexpr double ZERO_COORDINATE = 0.0;
 constexpr int UNBOUNDED_PREVIEW_RANGE = std::numeric_limits<int>::max();
 using CanvasScreenshot = ThumbnailData;
+#if !defined(__WXGTK__)
 using SpectacleArguments = std::array<std::string, 6>;
 using SpectacleArgumentPointers = std::array<const char*, 7>;
+#endif
 
 constexpr char ERROR_DISABLED[] = "dis" "abled";
 constexpr char ERROR_OPERATION_FAILED[] = "operation_" "failed";
@@ -777,7 +786,7 @@ private:
             tool(TOOL_UI_SNAPSHOT, "Return a generation-scoped semantic snapshot of the active SuperSlicer window or owned modal dialog."),
             tool(TOOL_UI_SCREENSHOT, "Capture only the SuperSlicer main window, active owned dialog, or registered canvas."),
             tool("superslicer_ui_action", "Invoke, set, select, toggle, or focus a generation-scoped semantic UI element."),
-            tool(TOOL_INPUT, "Send wx events or consent-gated Wayland input using element-relative coordinates."),
+            tool(TOOL_INPUT, "Send wx command events, or a real Wayland pointer event kept inside a SuperSlicer window."),
             tool(TOOL_WAIT, "Wait for an asynchronous slicing or export operation with a bounded timeout."),
             tool(TOOL_BATCH, "Run a bounded sequence of automation calls in order."),
             tool("superslicer_load_model", "Load a model through the normal plater GUI handler."),
@@ -870,7 +879,11 @@ private:
             m_wayland_input.perform(request, std::chrono::milliseconds(0));
         if (!performed.ok)
             return failure(performed.code, performed.message, request_id);
-        return success({ { FIELD_ACCEPTED, true }, { "backend", "wayland" } }, request_id);
+        return success({
+            { FIELD_ACCEPTED, true },
+            { "backend", "wayland" },
+            { "point", target_result["point"] }
+        }, request_id);
     }
 
     json call_gui(const std::string& tool, const json& arguments, const std::string& request_id)

@@ -30,21 +30,13 @@ FlowErrorNegativeSpacing::FlowErrorNegativeSpacing() :
 FlowErrorNegativeFlow::FlowErrorNegativeFlow() :
     FlowError("Flow::mm3_per_mm() produced negative flow. Did you set some extrusion width too small, or the (maximum) layer height too high?") {}
 
-// This static method returns a sane extrusion width default.
-float Flow::auto_extrusion_width(FlowRole role, float nozzle_diameter)
+// A zero width field uses this. The extruded volume is the requested cross-section
+// times the centerline length. Nothing reduces that volume where a bead wider than
+// the nozzle has to squish sideways through a bend, so the default stays at the
+// nozzle diameter for every role.
+float Flow::auto_extrusion_width(FlowRole /*role*/, float nozzle_diameter)
 {
-    switch (role) {
-    case frSupportMaterial:
-    case frSupportMaterialInterface:
-    case frTopSolidInfill:
-    case frExternalPerimeter:
-        return 1.05f * nozzle_diameter;
-    default:
-    case frPerimeter:
-    case frSolidInfill:
-    case frInfill:
-        return 1.125f * nozzle_diameter;
-    }
+    return nozzle_diameter;
 }
 
 // Common option key literals extracted to address BP1001 repeated strings in this file.

@@ -973,7 +973,6 @@ static void chain_lines_by_triangle_connectivity(IntersectionLines &lines, Polyg
                     (first_line->a_id      != -1 && first_line->a_id      == last_line->b_id)) {
                     // The current loop is complete. Add it to the output.
                     assert(first_line->a == last_line->b);
-                    Points loop_pts_init = loop_pts;
                     while (loop_pts.size() > 2 && loop_pts.front().coincides_with(loop_pts.back())) {
                         loop_pts.pop_back();
                     }

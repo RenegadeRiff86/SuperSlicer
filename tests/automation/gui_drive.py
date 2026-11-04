@@ -35,6 +35,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from automation_mode import set_debug_enabled, status as automation_debug_status  # noqa: E402
+from desktop_windows import DesktopWindowError, place as place_desktop  # noqa: E402
 from automation_client import (  # noqa: E402  (path set up above)
     DEFAULT_EXECUTABLE,
     DEFAULT_PORT,
@@ -504,6 +506,23 @@ def command_z_offset_regression(client: ApiClient, args: argparse.Namespace) -> 
         )
 
 
+def command_automation_debug(_client: ApiClient, args: argparse.Namespace) -> None:
+    if args.state == "on":
+        set_debug_enabled(True)
+    elif args.state == "off":
+        set_debug_enabled(False)
+    reported = automation_debug_status()
+    print("on" if reported["enabled"] else "off")
+    print(reported["path"])
+
+
+def command_desktop(_client: ApiClient, args: argparse.Namespace) -> None:
+    try:
+        print(place_desktop(args.cursor_fraction))
+    except DesktopWindowError as exc:
+        raise AutomationError(str(exc)) from exc
+
+
 def command_window(client: ApiClient, args: argparse.Namespace) -> None:
     _print_mapping(
         "window",
@@ -645,6 +664,13 @@ def build_parser() -> argparse.ArgumentParser:
     # Launching only to shut down again is useless, so this one keeps the slicer up.
     launch_parser = commands.add_parser("launch", help="start the slicer, print its token, and leave it running")
     launch_parser.set_defaults(handler=command_status, keep_open=True)
+
+    debug_parser = commands.add_parser(
+        "automation-debug",
+        help="turn the automation MCP API on or off (default off)",
+    )
+    debug_parser.add_argument("state", choices=("on", "off", "status"))
+    debug_parser.set_defaults(handler=command_automation_debug, skip_slicer=True)
 
     status_parser = commands.add_parser("status", help="print the API status block")
     status_parser.set_defaults(handler=command_status)
@@ -801,6 +827,18 @@ def add_workflow_commands(commands) -> None:
 
     add_z_offset_commands(commands)
     add_flow_calibration_commands(commands)
+
+    desktop_parser = commands.add_parser(
+        "desktop",
+        help="tile Cursor on the left and SuperSlicer on the right, and focus Cursor",
+    )
+    desktop_parser.add_argument(
+        "--cursor-fraction",
+        type=float,
+        default=0.56,
+        help="share of the work area given to Cursor (default 0.56)",
+    )
+    desktop_parser.set_defaults(handler=command_desktop, skip_slicer=True)
 
     window_parser = commands.add_parser(
         "window", help="print or move the SuperSlicer window in screen pixels"

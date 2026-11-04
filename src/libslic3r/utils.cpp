@@ -210,10 +210,10 @@ static boost::filesystem::path clean_absolute_path(const boost::filesystem::path
 
 static std::string clean_dir(const std::string &dir_name)
 {
-    // make sure the path is well formed for the os.
-    boost::filesystem::path fixpath(dir_name);
-    // note: lexically_normal() already do make_preferred()
-    fixpath.lexically_normal();
+    // lexically_normal() returns a normalized copy; it does not modify the path in place.
+    // Startup builds resource paths as "<binary>/../resources", and a debug assert below
+    // rejects any remaining ".." segment.
+    boost::filesystem::path fixpath(boost::filesystem::path(dir_name).lexically_normal());
     assert(fixpath.string().find("..") == std::string::npos);
     return fixpath.string();
 }

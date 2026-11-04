@@ -467,8 +467,9 @@ void DesktopIntegrationDialog::undo_desktop_intgration()
 }
 void DesktopIntegrationDialog::perform_downloader_desktop_integration()
 {
-    assert(false);
-    return; // slic3r/superslicer: have to test & see exaclty what's doing
+    // Linux URL-handler registration is not implemented yet. Returning lets the
+    // configuration wizard finish instead of aborting a debug build.
+    return;
     BOOST_LOG_TRIVIAL(debug) << "performing downloader desktop integration.";
     // Path to appimage
     const char* appimage_env = std::getenv("APPIMAGE");

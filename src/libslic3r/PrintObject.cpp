@@ -11,6 +11,7 @@
 #include "AABBTreeLines.hpp"
 #include "ExPolygon.hpp"
 #include "Flow.hpp"
+#include "BridgeOverInfill.hpp"
 #include "GCode/ExtrusionProcessor.hpp"
 #include "Line.hpp"
 #include "Point.hpp"
@@ -105,6 +106,7 @@ constexpr int    PROGRESS_PERCENT_SCALE          = 100;  // percent scale for se
 constexpr double MAX_DENSITY_PERCENT             = 100.; // full (100%) fill density
 constexpr double HALF                            = 0.5;  // generic one-half factor (halving, PI*0.5 quarter turns)
 constexpr double DEEP_INFILL_EXPAND_FACTOR       = 1.5;  // expand/shrink of the deep-infill region by 1.5x spacing
+constexpr int    BRIDGE_TONGUE_SAMPLE_RADIUS     = 3;    // samples; a narrower protruding bridge run is pulled back to its neighbours
 constexpr double MIN_INFILL_AREA_SPACING_FACTOR  = 1.5;  // min perimeter-infill island area, in units of 1.5x spacing
 constexpr double TEN_PERCENT                     = 0.1;  // 10% ratio threshold
 [[maybe_unused]] constexpr double DBG_SVG_OUTLINE_MM      = 0.05; // stroke width (mm) for debug SVG outlines
@@ -3278,6 +3280,249 @@ void PrintObject::replaceSurfaceType(SurfaceType st_to_replace, SurfaceType st_r
     }
 }
 
+Polygons expand_bridged_area_to_anchors(Polygons bridged_area, Lines anchors, const Flow &bridging_flow, double bridging_angle)
+{
+        auto lines_rotate = [](Lines &lines, double cos_angle, double sin_angle) {
+            for (Line &l : lines) {
+                double ax = double(l.a.x());
+                double ay = double(l.a.y());
+                l.a.x()   = coord_t(round(cos_angle * ax - sin_angle * ay));
+                l.a.y()   = coord_t(round(cos_angle * ay + sin_angle * ax));
+                double bx = double(l.b.x());
+                double by = double(l.b.y());
+                l.b.x()   = coord_t(round(cos_angle * bx - sin_angle * by));
+                l.b.y()   = coord_t(round(cos_angle * by + sin_angle * bx));
+            }
+        };
+
+        auto segments_overlap = [](coord_t alow, coord_t ahigh, coord_t blow, coord_t bhigh) {
+            return (alow >= blow && alow <= bhigh) || (ahigh >= blow && ahigh <= bhigh) || (blow >= alow && blow <= ahigh) ||
+                   (bhigh >= alow && bhigh <= ahigh);
+        };
+
+        Polygons expanded_bridged_area{};
+        double   aligning_angle = -bridging_angle + PI * HALF;
+        {
+            polygons_rotate(bridged_area, aligning_angle);
+            lines_rotate(anchors, cos(aligning_angle), sin(aligning_angle));
+            BoundingBox bb_x = get_extents(bridged_area);
+            BoundingBox bb_y = get_extents(anchors);
+
+            const size_t n_vlines = (bb_x.max.x() - bb_x.min.x() + bridging_flow.scaled_spacing() - 1) / bridging_flow.scaled_spacing();
+            std::vector<Line> vertical_lines(n_vlines);
+            for (size_t i = 0; i < n_vlines; i++) {
+                coord_t x           = bb_x.min.x() + i * bridging_flow.scaled_spacing();
+                coord_t y_min       = bb_y.min.y() - bridging_flow.scaled_spacing();
+                coord_t y_max       = bb_y.max.y() + bridging_flow.scaled_spacing();
+                vertical_lines[i].a = Point{x, y_min};
+                vertical_lines[i].b = Point{x, y_max};
+            }
+
+            auto anchors_and_walls_tree = AABBTreeLines::LinesDistancer<Line>{std::move(anchors)};
+            auto bridged_area_tree      = AABBTreeLines::LinesDistancer<Line>{to_lines(bridged_area)};
+
+            std::vector<std::vector<Line>> polygon_sections(n_vlines);
+            for (size_t i = 0; i < n_vlines; i++) {
+                auto area_intersections = bridged_area_tree.intersections_with_line<true>(vertical_lines[i]);
+                for (int intersection_idx = 0; intersection_idx < int(area_intersections.size()) - 1; intersection_idx++) {
+                    if (bridged_area_tree.outside(
+                            (area_intersections[intersection_idx].first + area_intersections[intersection_idx + 1].first) / 2) < 0) {  // midpoint
+                        polygon_sections[i].emplace_back(area_intersections[intersection_idx].first,
+                                                         area_intersections[intersection_idx + 1].first);
+                    }
+                }
+                auto anchors_intersections = anchors_and_walls_tree.intersections_with_line<true>(vertical_lines[i]);
+
+                for (Line &section : polygon_sections[i]) {
+                    auto maybe_below_anchor = std::upper_bound(anchors_intersections.rbegin(), anchors_intersections.rend(), section.a,
+                                                               [](const Point &a, const std::pair<Point, size_t> &b) {
+                                                                   return a.y() > b.first.y();
+                                                               });
+                    if (maybe_below_anchor != anchors_intersections.rend()) {
+                        section.a = maybe_below_anchor->first;
+                        section.a.y() -= bridging_flow.scaled_width() * (HALF + HALF);
+                    }
+
+                    auto maybe_upper_anchor = std::upper_bound(anchors_intersections.begin(), anchors_intersections.end(), section.b,
+                                                               [](const Point &a, const std::pair<Point, size_t> &b) {
+                                                                   return a.y() < b.first.y();
+                                                               });
+                    if (maybe_upper_anchor != anchors_intersections.end()) {
+                        section.b = maybe_upper_anchor->first;
+                        section.b.y() += bridging_flow.scaled_width() * (HALF + HALF);
+                    }
+                }
+
+                for (int section_idx = 0; section_idx < int(polygon_sections[i].size()) - 1; section_idx++) {
+                    Line &section_a = polygon_sections[i][section_idx];
+                    Line &section_b = polygon_sections[i][section_idx + 1];
+                    if (segments_overlap(section_a.a.y(), section_a.b.y(), section_b.a.y(), section_b.b.y())) {
+                        section_b.a = section_a.a.y() < section_b.a.y() ? section_a.a : section_b.a;
+                        section_b.b = section_a.b.y() < section_b.b.y() ? section_b.b : section_a.b;
+                        section_a.a = section_a.b;
+                    }
+                }
+
+                polygon_sections[i].erase(std::remove_if(polygon_sections[i].begin(), polygon_sections[i].end(),
+                                                         [](const Line &s) { return s.a == s.b; }),
+                                          polygon_sections[i].end());
+                std::sort(polygon_sections[i].begin(), polygon_sections[i].end(),
+                          [](const Line &a, const Line &b) { return a.a.y() < b.b.y(); });
+            }
+
+
+            // A few bridge lines that run on past the rest of the bridge sag on
+            // their own. Pull that run back. An extension the whole bridge
+            // reaches together stays, because those samples moved as one.
+            {
+                const size_t line_count = polygon_sections.size();
+                struct EndY { coord_t low; coord_t high; };
+                auto window_of = [line_count](size_t line_idx) {
+                    const size_t radius = size_t(BRIDGE_TONGUE_SAMPLE_RADIUS);
+                    const size_t begin = line_idx > radius ? line_idx - radius : 0;
+                    const size_t end_idx = std::min(line_count, line_idx + radius + 1);
+                    return std::pair<size_t, size_t>{begin, end_idx};
+                };
+                std::vector<std::vector<EndY>> eroded(line_count);
+                for (size_t line_idx = 0; line_idx < line_count; ++line_idx) {
+                    const auto &sections = polygon_sections[line_idx];
+                    eroded[line_idx].resize(sections.size());
+                    const auto [window_begin, window_end] = window_of(line_idx);
+                    for (size_t section_idx = 0; section_idx < sections.size(); ++section_idx) {
+                        const Line &section = sections[section_idx];
+                        coord_t low = section.a.y();
+                        coord_t high = section.b.y();
+                        for (size_t neighbor_line = window_begin; neighbor_line < window_end; ++neighbor_line) {
+                            for (const Line &neighbor : polygon_sections[neighbor_line]) {
+                                if (!segments_overlap(section.a.y(), section.b.y(), neighbor.a.y(), neighbor.b.y()))
+                                    continue;
+                                low = std::max(low, neighbor.a.y());
+                                high = std::min(high, neighbor.b.y());
+                            }
+                        }
+                        eroded[line_idx][section_idx] = EndY{low, high};
+                    }
+                }
+                std::vector<std::vector<EndY>> opened(line_count);
+                for (size_t line_idx = 0; line_idx < line_count; ++line_idx) {
+                    const auto &sections = polygon_sections[line_idx];
+                    opened[line_idx].resize(sections.size());
+                    const auto [window_begin, window_end] = window_of(line_idx);
+                    for (size_t section_idx = 0; section_idx < sections.size(); ++section_idx) {
+                        const Line &section = sections[section_idx];
+                        coord_t low = eroded[line_idx][section_idx].low;
+                        coord_t high = eroded[line_idx][section_idx].high;
+                        for (size_t neighbor_line = window_begin; neighbor_line < window_end; ++neighbor_line) {
+                            const auto &neighbor_sections = polygon_sections[neighbor_line];
+                            for (size_t neighbor_idx = 0; neighbor_idx < neighbor_sections.size(); ++neighbor_idx) {
+                                const Line &neighbor = neighbor_sections[neighbor_idx];
+                                if (!segments_overlap(section.a.y(), section.b.y(), neighbor.a.y(), neighbor.b.y()))
+                                    continue;
+                                low = std::min(low, eroded[neighbor_line][neighbor_idx].low);
+                                high = std::max(high, eroded[neighbor_line][neighbor_idx].high);
+                            }
+                        }
+                        opened[line_idx][section_idx] = EndY{low, high};
+                    }
+                }
+                for (size_t line_idx = 0; line_idx < line_count; ++line_idx) {
+                    auto &sections = polygon_sections[line_idx];
+                    for (size_t section_idx = 0; section_idx < sections.size(); ++section_idx) {
+                        const EndY end = opened[line_idx][section_idx];
+                        if (end.low < end.high) {
+                            sections[section_idx].a.y() = end.low;
+                            sections[section_idx].b.y() = end.high;
+                        }
+                    }
+                    sections.erase(std::remove_if(sections.begin(), sections.end(),
+                                                  [](const Line &s) { return s.a.y() >= s.b.y(); }),
+                                   sections.end());
+                    std::sort(sections.begin(), sections.end(),
+                              [](const Line &a, const Line &b) { return a.a.y() < b.b.y(); });
+                }
+            }
+
+            // reconstruct polygon from polygon sections
+            struct TracedPoly
+            {
+                Points lows;
+                Points highs;
+            };
+
+            std::vector<TracedPoly> current_traced_polys;
+            for (const auto &polygon_slice : polygon_sections) {
+                std::unordered_set<const Line *> used_segments;
+                for (TracedPoly &traced_poly : current_traced_polys) {
+                    auto candidates_begin = std::upper_bound(polygon_slice.begin(), polygon_slice.end(), traced_poly.lows.back(),
+                                                             [](const Point &low, const Line &seg) { return seg.b.y() > low.y(); });
+                    auto candidates_end   = std::upper_bound(polygon_slice.begin(), polygon_slice.end(), traced_poly.highs.back(),
+                                                             [](const Point &high, const Line &seg) { return seg.a.y() > high.y(); });
+
+                    bool segment_added = false;
+                    for (auto candidate = candidates_begin; candidate != candidates_end && !segment_added; candidate++) {
+                        if (used_segments.find(&(*candidate)) != used_segments.end()) {
+                            continue;
+                        }
+
+                        if ((traced_poly.lows.back() - candidate->a).cast<double>().squaredNorm() <
+                            36.0 * double(bridging_flow.scaled_spacing()) * bridging_flow.scaled_spacing()) {
+                            traced_poly.lows.push_back(candidate->a);
+                        } else {
+                            traced_poly.lows.push_back(traced_poly.lows.back() + Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
+                            traced_poly.lows.push_back(candidate->a - Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
+                            traced_poly.lows.push_back(candidate->a);
+                        }
+
+                        if ((traced_poly.highs.back() - candidate->b).cast<double>().squaredNorm() <
+                            36.0 * double(bridging_flow.scaled_spacing()) * bridging_flow.scaled_spacing()) {
+                            traced_poly.highs.push_back(candidate->b);
+                        } else {
+                            traced_poly.highs.push_back(traced_poly.highs.back() + Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
+                            traced_poly.highs.push_back(candidate->b - Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
+                            traced_poly.highs.push_back(candidate->b);
+                        }
+                        segment_added = true;
+                        used_segments.insert(&(*candidate));
+                    }
+
+                    if (!segment_added) {
+                        // Zero overlapping segments, we just close this polygon
+                        traced_poly.lows.push_back(traced_poly.lows.back() + Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
+                        traced_poly.highs.push_back(traced_poly.highs.back() + Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
+                        Polygon &new_poly = expanded_bridged_area.emplace_back(std::move(traced_poly.lows));
+                        new_poly.points.insert(new_poly.points.end(), traced_poly.highs.rbegin(), traced_poly.highs.rend());
+                        traced_poly.lows.clear();
+                        traced_poly.highs.clear();
+                    }
+                }
+
+                current_traced_polys.erase(std::remove_if(current_traced_polys.begin(), current_traced_polys.end(),
+                                                          [](const TracedPoly &tp) { return tp.lows.empty(); }),
+                                           current_traced_polys.end());
+
+                for (const auto &segment : polygon_slice) {
+                    if (used_segments.find(&segment) == used_segments.end()) {
+                        TracedPoly &new_tp = current_traced_polys.emplace_back();
+                        new_tp.lows.push_back(segment.a - Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
+                        new_tp.lows.push_back(segment.a);
+                        new_tp.highs.push_back(segment.b - Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
+                        new_tp.highs.push_back(segment.b);
+                    }
+                }
+            }
+
+            // add not closed polys
+            for (TracedPoly &traced_poly : current_traced_polys) {
+                Polygon &new_poly = expanded_bridged_area.emplace_back(std::move(traced_poly.lows));
+                new_poly.points.insert(new_poly.points.end(), traced_poly.highs.rbegin(), traced_poly.highs.rend());
+            }
+            expanded_bridged_area = union_safety_offset(expanded_bridged_area);
+        }
+
+        polygons_rotate(expanded_bridged_area, -aligning_angle);
+        return expanded_bridged_area;
+}
+
 // This method applies bridge flow to the first internal solid layer above sparse infill.
 void PrintObject::bridge_over_infill()
 {
@@ -3731,173 +3976,7 @@ void PrintObject::bridge_over_infill()
     // LAMBDA that will fill given polygons with lines, exapand the lines to the nearest anchor, and reconstruct polygons from the newly
     // generated lines
     auto construct_anchored_polygon = [](Polygons bridged_area, Lines anchors, const Flow &bridging_flow, double bridging_angle) {
-        auto lines_rotate = [](Lines &lines, double cos_angle, double sin_angle) {
-            for (Line &l : lines) {
-                double ax = double(l.a.x());
-                double ay = double(l.a.y());
-                l.a.x()   = coord_t(round(cos_angle * ax - sin_angle * ay));
-                l.a.y()   = coord_t(round(cos_angle * ay + sin_angle * ax));
-                double bx = double(l.b.x());
-                double by = double(l.b.y());
-                l.b.x()   = coord_t(round(cos_angle * bx - sin_angle * by));
-                l.b.y()   = coord_t(round(cos_angle * by + sin_angle * bx));
-            }
-        };
-
-        auto segments_overlap = [](coord_t alow, coord_t ahigh, coord_t blow, coord_t bhigh) {
-            return (alow >= blow && alow <= bhigh) || (ahigh >= blow && ahigh <= bhigh) || (blow >= alow && blow <= ahigh) ||
-                   (bhigh >= alow && bhigh <= ahigh);
-        };
-
-        Polygons expanded_bridged_area{};
-        double   aligning_angle = -bridging_angle + PI * HALF;
-        {
-            polygons_rotate(bridged_area, aligning_angle);
-            lines_rotate(anchors, cos(aligning_angle), sin(aligning_angle));
-            BoundingBox bb_x = get_extents(bridged_area);
-            BoundingBox bb_y = get_extents(anchors);
-
-            const size_t n_vlines = (bb_x.max.x() - bb_x.min.x() + bridging_flow.scaled_spacing() - 1) / bridging_flow.scaled_spacing();
-            std::vector<Line> vertical_lines(n_vlines);
-            for (size_t i = 0; i < n_vlines; i++) {
-                coord_t x           = bb_x.min.x() + i * bridging_flow.scaled_spacing();
-                coord_t y_min       = bb_y.min.y() - bridging_flow.scaled_spacing();
-                coord_t y_max       = bb_y.max.y() + bridging_flow.scaled_spacing();
-                vertical_lines[i].a = Point{x, y_min};
-                vertical_lines[i].b = Point{x, y_max};
-            }
-
-            auto anchors_and_walls_tree = AABBTreeLines::LinesDistancer<Line>{std::move(anchors)};
-            auto bridged_area_tree      = AABBTreeLines::LinesDistancer<Line>{to_lines(bridged_area)};
-
-            std::vector<std::vector<Line>> polygon_sections(n_vlines);
-            for (size_t i = 0; i < n_vlines; i++) {
-                auto area_intersections = bridged_area_tree.intersections_with_line<true>(vertical_lines[i]);
-                for (int intersection_idx = 0; intersection_idx < int(area_intersections.size()) - 1; intersection_idx++) {
-                    if (bridged_area_tree.outside(
-                            (area_intersections[intersection_idx].first + area_intersections[intersection_idx + 1].first) / 2) < 0) {  // midpoint
-                        polygon_sections[i].emplace_back(area_intersections[intersection_idx].first,
-                                                         area_intersections[intersection_idx + 1].first);
-                    }
-                }
-                auto anchors_intersections = anchors_and_walls_tree.intersections_with_line<true>(vertical_lines[i]);
-
-                for (Line &section : polygon_sections[i]) {
-                    auto maybe_below_anchor = std::upper_bound(anchors_intersections.rbegin(), anchors_intersections.rend(), section.a,
-                                                               [](const Point &a, const std::pair<Point, size_t> &b) {
-                                                                   return a.y() > b.first.y();
-                                                               });
-                    if (maybe_below_anchor != anchors_intersections.rend()) {
-                        section.a = maybe_below_anchor->first;
-                        section.a.y() -= bridging_flow.scaled_width() * (HALF + HALF);
-                    }
-
-                    auto maybe_upper_anchor = std::upper_bound(anchors_intersections.begin(), anchors_intersections.end(), section.b,
-                                                               [](const Point &a, const std::pair<Point, size_t> &b) {
-                                                                   return a.y() < b.first.y();
-                                                               });
-                    if (maybe_upper_anchor != anchors_intersections.end()) {
-                        section.b = maybe_upper_anchor->first;
-                        section.b.y() += bridging_flow.scaled_width() * (HALF + HALF);
-                    }
-                }
-
-                for (int section_idx = 0; section_idx < int(polygon_sections[i].size()) - 1; section_idx++) {
-                    Line &section_a = polygon_sections[i][section_idx];
-                    Line &section_b = polygon_sections[i][section_idx + 1];
-                    if (segments_overlap(section_a.a.y(), section_a.b.y(), section_b.a.y(), section_b.b.y())) {
-                        section_b.a = section_a.a.y() < section_b.a.y() ? section_a.a : section_b.a;
-                        section_b.b = section_a.b.y() < section_b.b.y() ? section_b.b : section_a.b;
-                        section_a.a = section_a.b;
-                    }
-                }
-
-                polygon_sections[i].erase(std::remove_if(polygon_sections[i].begin(), polygon_sections[i].end(),
-                                                         [](const Line &s) { return s.a == s.b; }),
-                                          polygon_sections[i].end());
-                std::sort(polygon_sections[i].begin(), polygon_sections[i].end(),
-                          [](const Line &a, const Line &b) { return a.a.y() < b.b.y(); });
-            }
-
-            // reconstruct polygon from polygon sections
-            struct TracedPoly
-            {
-                Points lows;
-                Points highs;
-            };
-
-            std::vector<TracedPoly> current_traced_polys;
-            for (const auto &polygon_slice : polygon_sections) {
-                std::unordered_set<const Line *> used_segments;
-                for (TracedPoly &traced_poly : current_traced_polys) {
-                    auto candidates_begin = std::upper_bound(polygon_slice.begin(), polygon_slice.end(), traced_poly.lows.back(),
-                                                             [](const Point &low, const Line &seg) { return seg.b.y() > low.y(); });
-                    auto candidates_end   = std::upper_bound(polygon_slice.begin(), polygon_slice.end(), traced_poly.highs.back(),
-                                                             [](const Point &high, const Line &seg) { return seg.a.y() > high.y(); });
-
-                    bool segment_added = false;
-                    for (auto candidate = candidates_begin; candidate != candidates_end && !segment_added; candidate++) {
-                        if (used_segments.find(&(*candidate)) != used_segments.end()) {
-                            continue;
-                        }
-
-                        if ((traced_poly.lows.back() - candidate->a).cast<double>().squaredNorm() <
-                            36.0 * double(bridging_flow.scaled_spacing()) * bridging_flow.scaled_spacing()) {
-                            traced_poly.lows.push_back(candidate->a);
-                        } else {
-                            traced_poly.lows.push_back(traced_poly.lows.back() + Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
-                            traced_poly.lows.push_back(candidate->a - Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
-                            traced_poly.lows.push_back(candidate->a);
-                        }
-
-                        if ((traced_poly.highs.back() - candidate->b).cast<double>().squaredNorm() <
-                            36.0 * double(bridging_flow.scaled_spacing()) * bridging_flow.scaled_spacing()) {
-                            traced_poly.highs.push_back(candidate->b);
-                        } else {
-                            traced_poly.highs.push_back(traced_poly.highs.back() + Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
-                            traced_poly.highs.push_back(candidate->b - Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
-                            traced_poly.highs.push_back(candidate->b);
-                        }
-                        segment_added = true;
-                        used_segments.insert(&(*candidate));
-                    }
-
-                    if (!segment_added) {
-                        // Zero overlapping segments, we just close this polygon
-                        traced_poly.lows.push_back(traced_poly.lows.back() + Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
-                        traced_poly.highs.push_back(traced_poly.highs.back() + Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
-                        Polygon &new_poly = expanded_bridged_area.emplace_back(std::move(traced_poly.lows));
-                        new_poly.points.insert(new_poly.points.end(), traced_poly.highs.rbegin(), traced_poly.highs.rend());
-                        traced_poly.lows.clear();
-                        traced_poly.highs.clear();
-                    }
-                }
-
-                current_traced_polys.erase(std::remove_if(current_traced_polys.begin(), current_traced_polys.end(),
-                                                          [](const TracedPoly &tp) { return tp.lows.empty(); }),
-                                           current_traced_polys.end());
-
-                for (const auto &segment : polygon_slice) {
-                    if (used_segments.find(&segment) == used_segments.end()) {
-                        TracedPoly &new_tp = current_traced_polys.emplace_back();
-                        new_tp.lows.push_back(segment.a - Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
-                        new_tp.lows.push_back(segment.a);
-                        new_tp.highs.push_back(segment.b - Point{bridging_flow.scaled_spacing() / 2, 0});  // half-spacing gap between traced polygon edges
-                        new_tp.highs.push_back(segment.b);
-                    }
-                }
-            }
-
-            // add not closed polys
-            for (TracedPoly &traced_poly : current_traced_polys) {
-                Polygon &new_poly = expanded_bridged_area.emplace_back(std::move(traced_poly.lows));
-                new_poly.points.insert(new_poly.points.end(), traced_poly.highs.rbegin(), traced_poly.highs.rend());
-            }
-            expanded_bridged_area = union_safety_offset(expanded_bridged_area);
-        }
-
-        polygons_rotate(expanded_bridged_area, -aligning_angle);
-        return expanded_bridged_area;
+        return expand_bridged_area_to_anchors(std::move(bridged_area), std::move(anchors), bridging_flow, bridging_angle);
     };
     
     Slic3r::parallel_for(size_t(0), clustered_layers_for_threads.size(),
@@ -4006,7 +4085,6 @@ void PrintObject::bridge_over_infill()
                 }
                 total_fill_area   = closing(total_fill_area, float(SCALED_EPSILON));
                 expansion_area    = closing(expansion_area, float(SCALED_EPSILON));
-                Polygons expansion_area_1 = expansion_area;
                 expansion_area    = intersection(expansion_area, deep_infill_area);
                 Polylines anchors = intersection_pl(infill_lines[lidx - 1], shrink(expansion_area, spacing));
                 if (has_same_internal_bridge_min_width) {

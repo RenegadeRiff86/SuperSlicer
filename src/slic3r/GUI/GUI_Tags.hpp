@@ -53,8 +53,6 @@ public:
     void Init(const wxString& mode);
 
     void    OnButton(wxCommandEvent& event);
-    void    OnEnterBtn(wxMouseEvent& event) { focus_button(true); event.Skip(); }
-    void    OnLeaveBtn(wxMouseEvent& event) { focus_button(m_is_selected); event.Skip(); }
 
     void    SetState(const bool state);
     void    update_bitmap();

@@ -47,6 +47,11 @@ std::string tab(const wxString& caption)
     return std::string(PREFIX) + "tab." + slug(caption);
 }
 
+std::string mode(const std::string& name)
+{
+    return std::string(PREFIX) + "mode." + slug(wxString::FromUTF8(name));
+}
+
 std::string calibration(const std::string& fragment)
 {
     return std::string(PREFIX) + "calibration." + fragment;

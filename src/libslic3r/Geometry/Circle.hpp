@@ -226,10 +226,10 @@ int ray_circle_intersections(T r, T a, T b, T c, std::pair<Eigen::Matrix<T, 2, 1
     T lv2 = a * a + b * b;
     if (lv2 < T(SCALED_EPSILON * SCALED_EPSILON)) {
         // Degenerate line coefficients (a ~ b ~ 0): report no intersections. A line touching
-        // the circle is handled by ray_circle_intersections_r2_lv2_c2 (it returns 1 when d == 0).
+        // the circle is handled by ray_circle_intersections_r2_lv2_c (it returns 1 when d == 0).
         return 0;
     }
-    return ray_circle_intersections_r2_lv2_c2(r * r, a, b, a * a + b * b, c, out);
+    return ray_circle_intersections_r2_lv2_c(r * r, a, b, lv2, c, out);
 }
 
 
