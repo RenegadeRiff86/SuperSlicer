@@ -42,12 +42,13 @@ private:
     const bool relative_e;
     const bool only_overhangs;
     const float kickstart; // in s
-    // When true, instead of pre-starting the overhang fan early, keep the fan command at
-    // the overhang and slow the approach moves so the fan reaches target speed in time.
+    // When true, keep an overhang fan step-up on the overhang and slow the nozzle while
+    // the fan spins up. A non-zero fan startup delay does the same even when this is false,
+    // instead of shifting that M106 onto the previous layer.
     const bool slowdown_for_fan;
-    // Floor for the approach slowdown (= overhangs_speed). If percent, it is a fraction of
-    // the approach move's own speed; otherwise an absolute mm/s value. The approach is never
-    // slowed below this.
+    // Floor for the spin-up ramp (= overhangs_speed). If percent, it is a fraction of the
+    // print speed the ramp returns to; otherwise an absolute mm/s value. Feedrates are
+    // never rewritten below this, and never above the feedrate already on the move.
     const float overhang_speed_value;
     const bool overhang_speed_percent;
 
@@ -58,6 +59,11 @@ private:
     GCodeExtrusionRole current_role = GCodeExtrusionRole::Custom;
     // in unit/second
     double m_current_speed = 1000 / 60.0;
+    // Feedrate of the last extruding move. Travels, unretracts, and wipes also write
+    // m_current_speed, so the print speed to ramp back to is this value, captured as
+    // the overhang block starts. Wipes are skipped so a fast wipe does not become that speed.
+    double m_last_extrude_speed = 0.;
+    bool m_in_wipe = false;
     bool m_is_custom_gcode = false;
     uint16_t m_current_extruder = 0;
 
@@ -77,14 +83,17 @@ private:
     std::string m_overhang_fan_hold_pending_raw;
     BufferData m_current_kickstart{"",-1,0};
     float m_current_kickstart_duration = 0;
-    // Continues an overhang fan-readiness slowdown on moves after the SET_FAN_SPEED marker
-    // when the delay buffer does not contain enough approach distance.
+    // Forward nozzle ramp armed at an overhang fan step-up. Remaining/total are seconds
+    // of spin-up still to elapse. The ramp is not cleared at "; end of overhang fan":
+    // a short overhang keeps slowing the next feature until the fan has caught up.
     float m_fan_slowdown_remaining = 0.f;
     float m_fan_slowdown_total     = 0.f;
+    // Print speed (mm/s) the ramp returns to. Floor is m_fan_slowdown_v_floor.
     float m_fan_slowdown_approach_speed = 0.f;
     float m_fan_slowdown_v_floor   = 0.f;
-    // True after the first step-up fan command in the current ;TYPE:Overhang perimeter block.
-    // Adaptive graph markers after that always emit at the marker; approach F-slowdown runs once.
+    // Print speed in effect when this ;TYPE:Overhang perimeter block started.
+    float m_overhang_block_print_speed = 0.f;
+    // True after the first fan marker in the current ;TYPE:Overhang perimeter block.
     bool m_overhang_block_approach_slowdown_done = false;
 
     //buffer
@@ -162,10 +171,9 @@ private:
     // Further extracted from the "; overhang fan : SET_FAN_SPEED" marker handling inside
     // _process_gcode_line to address BP1015 (nesting up to 9 levels).
     void _process_overhang_fan_marker(GCodeReader& reader, const GCodeReader::GCodeLine& line);
-    void _apply_overhang_approach_slowdown(int overhang_fan_speed);
-    // Slows buffered approach moves within t_req seconds of the buffer's back towards v_floor,
-    // ramping from approach_speed. Returns the total time actually covered by adjusted moves.
-    float _slow_buffer_approach_moves(float t_req, float v_floor, float approach_speed);
+    // Arm a forward feedrate ramp at an overhang fan step-up. Does not rewrite moves
+    // already sitting in the delay buffer.
+    void _apply_overhang_approach_slowdown(int16_t fan_before, int overhang_fan_speed);
     // Scans m_process_output backwards for the fan speed of the last emitted M106/M107 line.
     int16_t _find_last_emitted_fan_speed() const;
 
