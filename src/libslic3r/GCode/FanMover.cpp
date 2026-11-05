@@ -159,7 +159,10 @@ void FanMover::_drop_immediate_lower_fan_commands()
                     continue;
                 const int16_t next_fan_speed = fan_speed(lines[next]);
                 if (next_fan_speed >= 0) {
-                    drop_line = next_fan_speed > current_fan_speed;
+                    // A higher command before the next extrusion supersedes this one.
+                    // The same speed again is a duplicate from the cooling pass and
+                    // the overhang restore below; keep the later command.
+                    drop_line = next_fan_speed >= current_fan_speed;
                     break;
                 }
                 if (is_extrusion_move(lines[next]))
@@ -186,9 +189,31 @@ void FanMover::_drop_immediate_lower_fan_commands()
 
         const std::string_view body = line_body(line);
         int overhang_fan_speed = 0;
-        if (body.rfind(overhang_fan_prefix, 0) == 0 &&
-            parse_number(body.substr(overhang_fan_prefix.size()), overhang_fan_speed) &&
-            overhang_fan_speed > 0 && restored_fan_speed >= 0 && restored_fan_speed + 1 < overhang_fan_speed) {
+        bool upcoming_same_speed = false;
+        const bool is_overhang_fan = body.rfind(overhang_fan_prefix, 0) == 0
+            && parse_number(body.substr(overhang_fan_prefix.size()), overhang_fan_speed)
+            && overhang_fan_speed > 0;
+        if (is_overhang_fan) {
+            for (size_t look = end == m_process_output.size() ? end : end + 1; look < m_process_output.size();) {
+                size_t look_end = m_process_output.find('\n', look);
+                if (look_end == std::string::npos)
+                    look_end = m_process_output.size();
+                const std::string_view ahead(m_process_output.data() + look, look_end - look);
+                if (!is_comment_or_empty(ahead)) {
+                    const int16_t ahead_speed = fan_speed(ahead);
+                    if (ahead_speed >= 0) {
+                        upcoming_same_speed = std::abs(ahead_speed - overhang_fan_speed) <= 1;
+                        break;
+                    }
+                    if (is_extrusion_move(ahead))
+                        break;
+                }
+                look = look_end == m_process_output.size() ? look_end : look_end + 1;
+            }
+        }
+        if (is_overhang_fan && restored_fan_speed >= 0 &&
+            std::abs(restored_fan_speed - overhang_fan_speed) > 1 &&
+            !upcoming_same_speed) {
             std::string fan_gcode = _set_fan(int16_t(overhang_fan_speed), "set override fan (overhang)");
             restored += fan_gcode + (fan_gcode.empty() || fan_gcode.back() == '\n' ? "" : "\n");
             restored_fan_speed = int16_t(overhang_fan_speed);
@@ -769,13 +794,15 @@ void FanMover::_process_overhang_fan_marker(GCodeReader& reader, const GCodeRead
         m_back_buffer_fan_speed = target_fan_speed;
         if (first_in_block)
             m_overhang_block_approach_slowdown_done = true;
-    } else if (!ramp_nozzle && (output_step_up || force_marker_fan)) {
+    } else if (!ramp_nozzle && nb_seconds_delay > 0.f && (output_step_up || force_marker_fan)) {
         const std::string fan_gcode = _set_fan(overhang_fan_speed, "set override fan");
+        // Delay 0 is handled above. A positive startup delay still moves the
+        // command earlier; a zero-length split is not used for that path.
         if (force_marker_fan && !output_step_up) {
             _queue_fan_at_marker(fan_gcode, overhang_fan_speed, true);
             m_back_buffer_fan_speed = overhang_fan_speed;
         } else {
-            // Original pre-start behaviour (slowdown feature off).
+            // Original pre-start behaviour (slowdown feature off, startup delay > 0).
             _remove_slow_fan(overhang_fan_speed, m_buffer_time_size + 1, true);
             if (!m_buffer.empty() && (m_buffer_time_size - m_buffer.front().time * 0.1) > nb_seconds_delay) {
                 _print_in_middle_G1(m_buffer.front(), m_buffer_time_size - nb_seconds_delay, fan_gcode);
@@ -977,6 +1004,23 @@ void FanMover::write_buffer_data()
 // Owner comments (kickstart noise avoidance, hold for extrusion alignment, etc.) preserved verbatim.
 void FanMover::_handle_g_command(const std::string& cmd, GCodeReader& reader, const GCodeReader::GCodeLine& line, double& time)
 {
+    auto release_overhang_fan_hold = [&](double e_delta) {
+        if (!(m_overhang_fan_hold_until_extrusion && e_delta > 0.))
+            return;
+        m_overhang_fan_hold_until_extrusion = false;
+        m_overhang_fan_hold_speed = -1;
+        // The reset between overhang segments is an M107 when the default fan is
+        // disabled. PWM rounding makes a real step-down (58%) look like 57, so only
+        // drop a pending command that is clearly below the speed this segment
+        // requested. That covers overhangs tagged as a normal perimeter too.
+        // A step-down, or the first extrusion after the overhang, is still applied.
+        const bool reset_below_this_overhang = m_last_overhang_min_fan_speed >= 0
+            && m_overhang_fan_hold_pending_speed + 1 < m_last_overhang_min_fan_speed;
+        if (m_overhang_fan_hold_pending_speed >= 0 && !reset_below_this_overhang)
+            put_in_buffer(BufferData(m_overhang_fan_hold_pending_raw, 0, int16_t(m_overhang_fan_hold_pending_speed)));
+        m_overhang_fan_hold_pending_speed = -1;
+        m_overhang_fan_hold_pending_raw.clear();
+    };
     if (::atoi(&cmd[1]) == GCODE_G1 || ::atoi(&cmd[1]) == GCODE_G0) {
         double distx = line.dist_X(reader);
         double disty = line.dist_Y(reader);
@@ -988,22 +1032,8 @@ void FanMover::_handle_g_command(const std::string& cmd, GCodeReader& reader, co
             time = dist / m_current_speed;
             assert(time >= 0 && time < MAX_BUFFER_TIME && !std::isnan(time));
         }
-        if (m_overhang_fan_hold_until_extrusion && line.has(Axis::E)) {
-            m_overhang_fan_hold_until_extrusion = false;
-            m_overhang_fan_hold_speed = -1;
-            // Local lambda to encapsulate the re-apply of suppressed fan hold.
-            // This flattens nesting and documents the intent (read from owner comments):
-            // keep the fan high through the post-overhang gap so it doesn't drop mid-feature;
-            // defer the lower target and re-apply aligned with next extrusion via the delay buffer.
-            auto reapply_suppressed_fan_hold = [&] {
-                if (m_overhang_fan_hold_pending_speed >= 0) {
-                    put_in_buffer(BufferData(m_overhang_fan_hold_pending_raw, 0, int16_t(m_overhang_fan_hold_pending_speed)));
-                    m_overhang_fan_hold_pending_speed = -1;
-                    m_overhang_fan_hold_pending_raw.clear();
-                }
-            };
-            reapply_suppressed_fan_hold();
-        }
+        const double e_delta = relative_e ? (line.has(Axis::E) ? line.e() : 0.) : line.dist_E(reader);
+        release_overhang_fan_hold(e_delta);
     } else if (::atoi(&cmd[1]) == GCODE_G2 || ::atoi(&cmd[1]) == GCODE_G3) {
         // Note: arc dist approximation (current chord length for G2/G3 timing in the fan buffer;
         // sufficient for kickstart/slowdown heuristics). Real arc math would be part of a larger
@@ -1017,6 +1047,8 @@ void FanMover::_handle_g_command(const std::string& cmd, GCodeReader& reader, co
             time = dist / m_current_speed;
             assert(time >= 0 && time < MAX_BUFFER_TIME && !std::isnan(time));
         }
+        const double e_delta = relative_e ? (line.has(Axis::E) ? line.e() : 0.) : line.dist_E(reader);
+        release_overhang_fan_hold(e_delta);
     }
 }
 
