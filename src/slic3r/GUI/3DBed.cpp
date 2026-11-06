@@ -296,30 +296,39 @@ void Bed3D::init_gridlines()
     while (bed_bbox.radius() > step * 100) {
         step *= 10;
     }
-    for (coord_t x = bed_bbox.min.x(), idx= 0; x <= bed_bbox.max.x(); x += step, idx++) {
+    // Start inset by half the leftover so a bed that is not a multiple of the step
+    // has the same margin on both sides. Counting from the corner leaves the whole
+    // remainder on the far edge.
+    const Point bed_center = bed_bbox.center();
+    auto add_grid_line = [&](coord_t along, bool vertical) {
         Polyline line;
-        line.append(Point(x, bed_bbox.min.y()));
-        line.append(Point(x, bed_bbox.max.y()));
-        if (idx % 10 == 0)
+        if (vertical) {
+            line.append(Point(along, bed_bbox.min.y()));
+            line.append(Point(along, bed_bbox.max.y()));
+        } else {
+            line.append(Point(bed_bbox.min.x(), along));
+            line.append(Point(bed_bbox.max.x(), along));
+        }
+        const coord_t center = vertical ? bed_center.x() : bed_center.y();
+        const coord_t delta = along - center;
+        const coord_t from_center = delta >= 0 ? delta + step / 2 : -((-delta) + step / 2);
+        const coord_t k = from_center / step;
+        if (k % 10 == 0)
             axes_lines_big.push_back(line);
-        else if(idx%2==1)
+        else if (k % 2 != 0)
             axes_lines_small.push_back(line);
         else
             axes_lines.push_back(line);
         axes_lines_camera.push_back(line);
-    }
-    for (coord_t y = bed_bbox.min.y(), idx = 0; y <= bed_bbox.max.y(); y += step, idx++) {
-        Polyline line;
-        line.append(Point(bed_bbox.min.x(), y));
-        line.append(Point(bed_bbox.max.x(), y));
-        if (idx % 10 == 0)
-            axes_lines_big.push_back(line);
-        else if (idx % 2 == 1)
-            axes_lines_small.push_back(line);
-        else
-            axes_lines.push_back(line);
-        axes_lines_camera.push_back(line);
-    }
+    };
+    const auto centered_start = [step](coord_t min_v, coord_t max_v) {
+        const coord_t span = max_v - min_v;
+        return min_v + (span % step) / 2;
+    };
+    for (coord_t x = centered_start(bed_bbox.min.x(), bed_bbox.max.x()); x <= bed_bbox.max.x(); x += step)
+        add_grid_line(x, true);
+    for (coord_t y = centered_start(bed_bbox.min.y(), bed_bbox.max.y()); y <= bed_bbox.max.y(); y += step)
+        add_grid_line(y, false);
 
     // clip with a slightly grown expolygon because our lines lay on the contours and may get erroneously clipped
     Polygons contour_offset = offset(m_contour, float(SCALED_EPSILON));

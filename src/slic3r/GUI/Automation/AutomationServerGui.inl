@@ -1245,6 +1245,57 @@
         return success({ { "view", view } }, request_id);
     }
 
+    // Named views land on seven points of the sphere. A support that sits between them is
+    // hidden from all seven, so the aim is a yaw and a pitch in degrees instead of a name.
+    json gui_camera(const json& arguments, const std::string& request_id)
+    {
+        Plater* plater = m_app.plater();
+        if (plater == nullptr)
+            return failure(ERROR_OPERATION_FAILED, "plater is not ready", request_id);
+
+        const bool has_yaw = arguments.contains("yaw") && !arguments["yaw"].is_null();
+        const bool has_pitch = arguments.contains("pitch") && !arguments["pitch"].is_null();
+        if (has_yaw && !arguments["yaw"].is_number())
+            return failure(ERROR_OPERATION_FAILED, "yaw must be a number of degrees", request_id);
+        if (has_pitch && !arguments["pitch"].is_number())
+            return failure(ERROR_OPERATION_FAILED, "pitch must be a number of degrees", request_id);
+
+        Camera& camera = plater->get_camera();
+        const auto [yaw, pitch] = camera.get_view_angles();
+        const bool relative = arguments.value("relative", false);
+        const bool fit = arguments.value("fit", false);
+        if (has_yaw || has_pitch || fit) {
+            GLCanvas3D* canvas = plater->get_current_canvas3D();
+            if (fit && canvas != nullptr)
+                canvas->zoom_to_volumes();
+
+            double next_yaw = yaw;
+            double next_pitch = pitch;
+            if (relative) {
+                if (has_yaw)
+                    next_yaw += arguments["yaw"].get<double>();
+                if (has_pitch)
+                    next_pitch += arguments["pitch"].get<double>();
+            } else {
+                if (has_yaw)
+                    next_yaw = arguments["yaw"].get<double>();
+                if (has_pitch)
+                    next_pitch = arguments["pitch"].get<double>();
+            }
+            camera.set_view_angles(next_yaw, next_pitch);
+            if (canvas != nullptr) {
+                canvas->set_as_dirty();
+                canvas->render();
+            }
+        }
+
+        const auto [reported_yaw, reported_pitch] = camera.get_view_angles();
+        return success({
+            { "yaw", reported_yaw },
+            { "pitch", reported_pitch }
+        }, request_id);
+    }
+
     // The preview's move-type toggles (travel, wipe, retractions, ...) live in the legend,
     // which ImGui draws straight onto the canvas: it owns no wx window, so it appears in no
     // snapshot and no click can reach it. Naming the options here is the only way a script

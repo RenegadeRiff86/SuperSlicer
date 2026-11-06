@@ -204,6 +204,32 @@ class ApiClient:
     def select_view(self, view: str) -> dict[str, Any]:
         return self.rest("POST", "/api/v1/workflows/select_view", {"view": view})
 
+    def camera(
+        self,
+        yaw: float | None = None,
+        pitch: float | None = None,
+        relative: bool = False,
+        fit: bool = False,
+    ) -> dict[str, Any]:
+        """Aim the platter camera and report the angles it landed on.
+
+        yaw is degrees around the vertical: 0 looks from the front, 90 from the right,
+        and values keep going, so 15 and 200 see different sides. pitch is degrees above
+        the bed: 0 is level, 90 looks straight down, -90 looks up from underneath.
+        relative adds those degrees to the current aim. fit frames the model. With neither
+        angle the call only reports where the camera is looking.
+        """
+        body: dict[str, Any] = {}
+        if yaw is not None:
+            body["yaw"] = yaw
+        if pitch is not None:
+            body["pitch"] = pitch
+        if relative:
+            body["relative"] = True
+        if fit:
+            body["fit"] = True
+        return self.rest("POST", "/api/v1/workflows/camera", body)
+
     def set_preview(self, **fields: Any) -> dict[str, Any]:
         """Set preview slider ranges and/or move-type visibility, and report the visibility
         of every option afterwards. Pass options={"wipe": True} to switch a move type on:

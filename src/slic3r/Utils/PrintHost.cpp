@@ -29,6 +29,7 @@
 #include "MPMDv2.hpp"
 #include "MKS.hpp"
 #include "Moonraker.hpp"
+#include "BambuLan.hpp"
 #include "../GUI/PrintHostDialogs.hpp"
 #include "../GUI/GUI.hpp"
 #include "slic3r/GUI/I18N.hpp"
@@ -82,6 +83,7 @@ std::unique_ptr<PrintHost> PrintHost::get_print_host(DynamicPrintConfig *config)
             case htMKS:       return std::make_unique<MKS>(config);
             case htMoonraker: return std::make_unique<Moonraker>(config);
             case htMiniDeltaLCD: return std::make_unique<MiniDeltaLCD>(config);
+            case htBambuLan:  return std::make_unique<BambuLan>(config);
             default:          return nullptr;
         }
     } else {

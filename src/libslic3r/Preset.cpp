@@ -856,8 +856,11 @@ static std::vector<std::string> s_Preset_print_options {
         "parallel_objects_step_max_z",
         "complete_objects_one_skirt",
         "complete_objects_sort",
-        "extruder_clearance_radius", 
-        "extruder_clearance_height", "gcode_comments", "gcode_label_objects", "output_filename_format", "post_process", "perimeter_extruder",
+        // Kept so an older print profile that still stores machine clearance is not
+        // discarded. The printer preset owns the value; see PresetBundle.
+        "extruder_clearance_radius",
+        "extruder_clearance_height",
+        "gcode_comments", "gcode_label_objects", "output_filename_format", "post_process", "perimeter_extruder",
         "gcode_substitutions",
         "infill_extruder", "solid_infill_extruder", "support_material_extruder", "support_material_interface_extruder", 
         "ooze_prevention", "standby_temperature_delta", "interface_shells",
@@ -1134,7 +1137,7 @@ static std::vector<std::string> s_Preset_printer_options {
     "gcode_min_resolution",
     "max_gcode_per_second",
     // Note: the print host keys are left here just for conversion from the Printer preset to the Physical Printer preset.
-    "host_type", opt_key_print_host, opt_key_printhost_apikey, opt_key_printhost_cafile, opt_key_printhost_port,
+    "host_type", opt_key_print_host, opt_key_printhost_apikey, "bambu_device_serial", opt_key_printhost_cafile, opt_key_printhost_port,
     "single_extruder_multi_material", 
     // custom gcode
     "start_gcode",
@@ -1154,7 +1157,9 @@ static std::vector<std::string> s_Preset_printer_options {
     "printer_notes", 
      // mmu
      "cooling_tube_retraction",
-     "cooling_tube_length", "high_current_on_filament_swap", "parking_pos_retraction", "extra_loading_move", "max_print_height", 
+     "cooling_tube_length", "high_current_on_filament_swap", "parking_pos_retraction", "extra_loading_move", "max_print_height",
+     "extruder_clearance_height",
+     "extruder_clearance_radius", 
     "default_print_profile", opt_key_inherits,
     "remaining_times",
     "remaining_times_type",
@@ -2328,6 +2333,7 @@ static std::vector<std::string> s_PhysicalPrinter_opts {
     "host_type",
     opt_key_print_host,
     opt_key_printhost_apikey,
+    "bambu_device_serial",
     opt_key_printhost_cafile,
     "printhost_client_cert",
     "printhost_client_cert_password",
@@ -2343,6 +2349,7 @@ static std::vector<std::string> s_PhysicalPrinter_print_host_options {
     "host_type",
     opt_key_print_host,
     opt_key_printhost_apikey,
+    "bambu_device_serial",
     opt_key_printhost_cafile,
     "printhost_client_cert",
     "printhost_client_cert_password",
@@ -2399,6 +2406,7 @@ bool PhysicalPrinter::has_empty_config() const
 {
     return  config.opt_string(opt_key_print_host                 ).empty() &&
             config.opt_string(opt_key_printhost_apikey          ).empty() &&
+            config.opt_string("bambu_device_serial"             ).empty() &&
             config.opt_string(opt_key_printhost_cafile          ).empty() &&
             config.opt_string("printhost_client_cert"           ).empty() && 
             config.opt_string("printhost_client_cert_password"  ).empty() && 
@@ -2636,49 +2644,11 @@ void PhysicalPrinterCollection::load_printer(const std::string& path, const std:
         it->save();
 }
 
-// if there is saved user presets, contains information about "Print Host upload",
-// Create default printers with this presets
-// Note! "Print Host upload" options will be cleared after physical printer creations
-void PhysicalPrinterCollection::load_printers_from_presets(PrinterPresetCollection& printer_presets)
+// Host address, access code, and serial stay on the printer preset so Printer
+// Settings can show them. Moving them into a generated physical printer removed
+// the fields from the page.
+void PhysicalPrinterCollection::load_printers_from_presets(PrinterPresetCollection&)
 {
-    int cnt=0;
-    for (Preset& preset: printer_presets) {
-        DynamicPrintConfig& config = preset.config;
-        for(const char* option : legacy_print_host_options) {
-            if (!config.opt_string(option).empty()) {
-                // check if printer with those "Print Host upload" options already exist
-                PhysicalPrinter* existed_printer = find_printer_with_same_config(config);
-                if (existed_printer)
-                    // just add preset for this printer
-                    existed_printer->add_preset(preset.name);
-                else {
-                    std::string new_printer_name = (boost::format("Printer %1%") % ++cnt ).str();
-                    while (find_printer(new_printer_name))
-                        new_printer_name = (boost::format("Printer %1%") % ++cnt).str();
-
-                    // create new printer from this preset
-                    PhysicalPrinter printer(new_printer_name, this->default_config(), preset);
-                    printer.loaded = true;
-                    save_printer(printer);
-                }
-
-                // erase "Print Host upload" information from the preset
-                for (const char *opt : legacy_print_host_options)
-                    config.opt_string(opt).clear();
-                // save changes for preset
-                preset.save();
-
-                // update those changes for edited preset if it's equal to the preset
-                Preset& edited = printer_presets.get_edited_preset();
-                if (preset.name == edited.name) {
-                    for (const char *opt : legacy_print_host_options)
-                        edited.config.opt_string(opt).clear();
-                }
-
-                break;
-            }
-        }
-    }
 }
 
 PhysicalPrinter* PhysicalPrinterCollection::find_printer( const std::string& name, bool case_sensitive_search)

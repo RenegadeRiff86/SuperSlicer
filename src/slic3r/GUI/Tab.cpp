@@ -23,6 +23,7 @@
 #include "slic3r/GUI/BedShapeDialog.hpp"
 #include "Tab.hpp"
 
+#include "libslic3r/LocalesUtils.hpp"
 #include "libslic3r/Log.hpp"
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/GCode/GCodeProcessor.hpp"
@@ -53,6 +54,7 @@
 #include "WipeTowerDialog.hpp"
 
 
+#include <algorithm>
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/predicate.hpp>
@@ -69,6 +71,9 @@
 #include <wx/bmpcbox.h>
 #include <wx/bmpbuttn.h>
 #include <wx/button.h>
+#include <wx/clrpicker.h>
+#include <wx/stattext.h>
+#include <wx/textctrl.h>
 #include <wx/collpane.h>
 #include <wx/filedlg.h>
 #include <wx/imaglist.h>
@@ -233,11 +238,24 @@ void Tab::create_preset_tab()
     m_scaled_buttons.reserve(TAB_BUTTON_CAPACITY);
     m_scaled_buttons.reserve(PAGE_BUTTON_CAPACITY);
 
+    const bool resin_tab = type() == Preset::TYPE_SLA_MATERIAL;
+    const long labeled_button = wxBU_LEFT;
+    const long icon_button = wxBU_EXACTFIT | wxNO_BORDER;
     add_scaled_button(panel, &m_btn_compare_preset, "compare");
-    add_scaled_button(panel, &m_btn_save_preset, "save");
+    add_scaled_button(panel, &m_btn_save_preset, "save",
+        resin_tab ? _L("Save") : wxString(), resin_tab ? labeled_button : icon_button);
     add_scaled_button(panel, &m_btn_save_as_preset, "save_as");
-    add_scaled_button(panel, &m_btn_rename_preset, "edit");
-    add_scaled_button(panel, &m_btn_delete_preset, "cross");
+    add_scaled_button(panel, &m_btn_rename_preset, "edit",
+        resin_tab ? _L("Rename") : wxString(), resin_tab ? labeled_button : icon_button);
+    add_scaled_button(panel, &m_btn_delete_preset, "cross",
+        resin_tab ? _L("Delete") : wxString(), resin_tab ? labeled_button : icon_button);
+    if (resin_tab) {
+        add_scaled_button(panel, &m_btn_new_resin, "resin_add", _L("New resin"), labeled_button);
+        m_btn_new_resin->SetToolTip(_L("Create a resin for this printer and set its exposure times."));
+        m_btn_new_resin->SetName("superslicer.material.new_resin");
+        m_btn_new_resin->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { create_new_resin(); });
+        m_btn_save_as_preset->Hide();
+    }
     if (type() == Preset::Type::TYPE_PRINTER)
         add_scaled_button(panel, &m_btn_edit_ph_printer, "cog");
 
@@ -328,8 +346,10 @@ void Tab::create_preset_tab()
         else
             m_h_buttons_sizer->Add(btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, toolbar_gap);
     };
+    add_toolbar_btn(m_btn_new_resin);
     add_toolbar_btn(m_btn_save_preset);
-    add_toolbar_btn(m_btn_save_as_preset);
+    if (m_btn_new_resin == nullptr)
+        add_toolbar_btn(m_btn_save_as_preset);
     add_toolbar_btn(m_btn_rename_preset);
     add_toolbar_btn(m_btn_delete_preset);
     add_toolbar_btn(m_btn_edit_ph_printer);
@@ -4036,6 +4056,14 @@ void TabPrinter::toggle_options()
     full_print_config.apply(printer_config);
 
     m_config_manipulation.toggle_printer_fff_options(m_config, full_print_config);
+
+    // The serial is the Bambu Developer LAN topic. Other host types do not use it.
+    if (m_active_page) {
+        const auto *host_type = m_config->option<ConfigOptionEnum<PrintHostType>>("host_type");
+        const bool bambu_lan = host_type != nullptr && host_type->value == htBambuLan;
+        for (auto &group : m_active_page->m_optgroups)
+            group->show_field("bambu_device_serial", bambu_lan);
+    }
     
     if (m_last_gcode_flavor != uint8_t(m_config->option<ConfigOptionEnum<GCodeFlavor>>(kGcodeFlavorKey)->value)) {
         m_last_gcode_flavor = uint8_t(m_config->option<ConfigOptionEnum<GCodeFlavor>>(kGcodeFlavorKey)->value);
@@ -4094,16 +4122,19 @@ void TabPrinter::toggle_options()
 
 void TabPrinter::update()
 {
-    assert(get_printer_technology() == m_presets->get_edited_preset().printer_technology());
     m_update_cnt++;
-    m_presets->get_edited_preset().printer_technology() == ptFFF ? update_fff() : update_sla();
+    // The tab's technology flag is updated later in load_current_preset(). The
+    // edited preset is already the printer being selected, including an SLA
+    // printer chosen from the physical-printer dialog.
+    const PrinterTechnology edited_technology = m_presets->get_edited_preset().printer_technology();
+    if (edited_technology == ptFFF)
+        update_fff();
+    else
+        update_sla();
     m_update_cnt--;
 
-    if (get_printer_technology() == ptFFF) {
+    if (edited_technology == ptFFF)
         m_config_manipulation.update_printer_fff_config(m_config, true);
-    } else if (get_printer_technology() == ptSLA) {
-        // nothing to do
-    }
 
     update_description_lines();
     Layout();
@@ -4824,11 +4855,194 @@ void Tab::transfer_options(const std::string &name_from, const std::string &name
     load_current_preset();
 }
 
+namespace {
+
+class NewResinDialog : public DPIDialog
+{
+public:
+    NewResinDialog(wxWindow* parent, const PresetCollection* presets, const std::string& suggested_name,
+        const wxColour& colour, double exposure_s, double bottom_exposure_s)
+        : DPIDialog(parent, wxID_ANY, _L("New resin"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE, "new_resin")
+        , m_presets(presets)
+    {
+        SetFont(wxGetApp().normal_font());
+        wxBoxSizer* root = new wxBoxSizer(wxVERTICAL);
+        wxStaticText* intro = new wxStaticText(this, wxID_ANY,
+            _L("Starts from the resin selected now. You can change the other values on this page after it is created."));
+        intro->Wrap(44 * em_unit());
+        root->Add(intro, 0, wxEXPAND | wxALL, 10);
+
+        wxFlexGridSizer* grid = new wxFlexGridSizer(2, 8, 10);
+        grid->AddGrowableCol(1);
+
+        auto add_row = [&](const wxString& label, wxWindow* editor) {
+            grid->Add(new wxStaticText(this, wxID_ANY, label), 0, wxALIGN_CENTER_VERTICAL);
+            grid->Add(editor, 1, wxEXPAND);
+        };
+
+        m_name = new wxTextCtrl(this, wxID_ANY, from_u8(suggested_name), wxDefaultPosition, wxSize(28 * em_unit(), -1));
+        m_name->SetName("superslicer.material.resin_name");
+        m_name->Bind(wxEVT_TEXT, [this](wxCommandEvent&) { refresh_validity(); });
+        add_row(_L("Name"), m_name);
+
+        m_colour = new wxColourPickerCtrl(this, wxID_ANY, colour);
+        m_colour->SetName("superslicer.material.resin_colour");
+        add_row(_L("Color"), m_colour);
+
+        m_exposure = new wxTextCtrl(this, wxID_ANY, wxString::FromUTF8(Slic3r::to_string_nozero(exposure_s, 2)));
+        m_exposure->SetName("superslicer.material.resin_exposure");
+        m_exposure->Bind(wxEVT_TEXT, [this](wxCommandEvent&) { refresh_validity(); });
+        add_row(_L("Exposure time (s)"), m_exposure);
+
+        m_bottom = new wxTextCtrl(this, wxID_ANY, wxString::FromUTF8(Slic3r::to_string_nozero(bottom_exposure_s, 2)));
+        m_bottom->SetName("superslicer.material.resin_bottom_exposure");
+        m_bottom->Bind(wxEVT_TEXT, [this](wxCommandEvent&) { refresh_validity(); });
+        add_row(_L("Bottom exposure time (s)"), m_bottom);
+
+        root->Add(grid, 0, wxEXPAND | wxLEFT | wxRIGHT, 10);
+
+        m_message = new wxStaticText(this, wxID_ANY, wxEmptyString);
+        m_message->SetName("superslicer.material.resin_message");
+        root->Add(m_message, 0, wxEXPAND | wxALL, 10);
+
+        wxStdDialogButtonSizer* buttons = CreateStdDialogButtonSizer(wxOK | wxCANCEL);
+        wxButton* ok = static_cast<wxButton*>(FindWindowById(wxID_OK, this));
+        ok->SetLabel(_L("Create resin"));
+        ok->SetName("superslicer.material.resin_create");
+        ok->Bind(wxEVT_UPDATE_UI, [this](wxUpdateUIEvent& event) { event.Enable(m_valid); });
+        root->Add(buttons, 0, wxEXPAND | wxALL, 10);
+
+        SetSizer(root);
+        root->SetSizeHints(this);
+        CenterOnParent();
+        wxGetApp().UpdateDlgDarkUI(this);
+        refresh_validity();
+    }
+
+    std::string name() const { return into_u8(m_name->GetValue()); }
+    wxColour colour() const { return m_colour->GetColour(); }
+    double exposure_s() const { return m_exposure_s; }
+    double bottom_exposure_s() const { return m_bottom_s; }
+
+protected:
+    void on_dpi_changed(const wxRect&) override
+    {
+        msw_buttons_rescale(this, em_unit(), { wxID_OK, wxID_CANCEL });
+        Layout();
+    }
+
+private:
+    static bool parse_seconds(const wxString& text, double& out)
+    {
+        std::string value = into_u8(text);
+        boost::trim(value);
+        std::replace(value.begin(), value.end(), ',', '.');
+        if (value.empty())
+            return false;
+        try {
+            size_t used = 0;
+            out = std::stod(value, &used);
+            return used == value.size() && out >= 0.;
+        } catch (const std::exception&) {
+            return false;
+        }
+    }
+
+    void refresh_validity()
+    {
+        wxString message;
+        bool name_ok = false;
+        const std::string preset_name = name();
+        const char* blocked = "<>[]:/\\|?*\"";
+        if (preset_name.empty())
+            message = _L("The name cannot be empty.");
+        else if (preset_name.front() == ' ' || preset_name.back() == ' ')
+            message = _L("The name cannot start or end with a space.");
+        else if (preset_name.find_first_of(blocked) != std::string::npos)
+            message = _L("The name cannot contain") + " " + blocked;
+        else {
+            name_ok = true;
+            if (m_presets != nullptr) {
+                const Preset* existing = m_presets->find_preset(preset_name, false);
+                if (existing != nullptr && (existing->is_default || existing->is_system || existing->is_external)) {
+                    message = _L("That name belongs to a built-in resin. Choose another.");
+                    name_ok = false;
+                } else if (existing != nullptr)
+                    message = _L("A resin with this name already exists. Creating it again replaces that one.");
+            }
+        }
+        const bool exposure_ok = parse_seconds(m_exposure->GetValue(), m_exposure_s);
+        const bool bottom_ok = parse_seconds(m_bottom->GetValue(), m_bottom_s);
+        if (name_ok && !exposure_ok)
+            message = _L("Exposure time has to be a number of seconds, zero or more.");
+        else if (name_ok && exposure_ok && !bottom_ok)
+            message = _L("Bottom exposure time has to be a number of seconds, zero or more.");
+        m_valid = name_ok && exposure_ok && bottom_ok;
+        m_message->SetLabel(message);
+        m_message->Wrap(44 * em_unit());
+        Layout();
+    }
+
+    const PresetCollection* m_presets = nullptr;
+    wxTextCtrl* m_name = nullptr;
+    wxColourPickerCtrl* m_colour = nullptr;
+    wxTextCtrl* m_exposure = nullptr;
+    wxTextCtrl* m_bottom = nullptr;
+    wxStaticText* m_message = nullptr;
+    double m_exposure_s = 0.;
+    double m_bottom_s = 0.;
+    bool m_valid = false;
+};
+
+std::string next_resin_name(const PresetCollection* presets)
+{
+    std::string name = "My resin";
+    for (int index = 2; presets != nullptr && presets->find_preset(name, false) != nullptr; ++index)
+        name = "My resin " + std::to_string(index);
+    return name;
+}
+
+} // namespace
+
 // Save the current preset into file.
 // This removes the "dirty" flag of the preset, possibly creates a new preset under a new name,
 // and activates the new preset.
 // Wizard calls save_preset with a name "My Settings", otherwise no name is provided and this method
 // opens a Slic3r::GUI::SavePresetDialog dialog.
+void Tab::create_new_resin()
+{
+    if (m_config == nullptr || m_presets == nullptr)
+        return;
+
+    const ConfigOptionFloat* exposure = m_config->option<ConfigOptionFloat>("exposure_time");
+    const ConfigOptionFloat* bottom = m_config->option<ConfigOptionFloat>("initial_exposure_time");
+    const ConfigOptionString* colour = m_config->option<ConfigOptionString>("material_colour");
+    wxColour initial_colour(96, 128, 236);
+    if (colour != nullptr && !colour->value.empty()) {
+        wxColour parsed(wxString::FromUTF8(colour->value));
+        if (parsed.IsOk())
+            initial_colour = parsed;
+    }
+
+    NewResinDialog dialog(this,
+        m_presets,
+        next_resin_name(m_presets),
+        initial_colour,
+        exposure == nullptr ? 2.5 : exposure->value,
+        bottom == nullptr ? 40. : bottom->value);
+    if (dialog.ShowModal() != wxID_OK)
+        return;
+
+    if (ConfigOptionFloat* edited = m_config->option<ConfigOptionFloat>("exposure_time"))
+        edited->value = dialog.exposure_s();
+    if (ConfigOptionFloat* edited = m_config->option<ConfigOptionFloat>("initial_exposure_time"))
+        edited->value = dialog.bottom_exposure_s();
+    if (ConfigOptionString* edited = m_config->option<ConfigOptionString>("material_colour"))
+        edited->value = into_u8(dialog.colour().GetAsString(wxC2S_HTML_SYNTAX));
+
+    save_preset(dialog.name());
+}
+
 void Tab::save_preset(std::string name /*= ""*/, bool detach)
 {
     // since buttons(and choices too) don't get focus on Mac, we set focus manually

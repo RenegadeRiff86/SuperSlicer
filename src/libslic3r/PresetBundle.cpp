@@ -14,6 +14,8 @@
 #include "PrintConfig.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <map>
 #include <set>
 #include <fstream>
 #include <unordered_set>
@@ -51,6 +53,185 @@ static constexpr const char* CONFIG_KEY_PRINTER_SETTINGS_ID = "printer_settings_
 
 // Prefix for vendor config-bundle parse-error log messages (includes the opening quote).
 static constexpr const char* ERR_VENDOR_CONFIG_BUNDLE = "Error in a Vendor Config Bundle \"";
+
+// Keys this version treats as printer geometry even when a bundle still stores them on a print profile.
+static constexpr const char* PRINTER_GEOMETRY_KEYS[] = {
+    "extruder_clearance_height",
+    "extruder_clearance_radius",
+};
+
+// key -> preset sections that carried it. Reported once per bundle, not once per inherited preset.
+using MisplacedKeys = std::map<std::string, std::set<std::string>>;
+
+static void note_incorrect_keys(MisplacedKeys &dst, const std::string &section, const std::string &incorrect_keys)
+{
+    if (incorrect_keys.empty())
+        return;
+    size_t start = 0;
+    while (start < incorrect_keys.size()) {
+        const size_t comma = incorrect_keys.find(',', start);
+        std::string key = incorrect_keys.substr(start, comma == std::string::npos ? std::string::npos : comma - start);
+        while (!key.empty() && key.front() == ' ')
+            key.erase(key.begin());
+        while (!key.empty() && key.back() == ' ')
+            key.pop_back();
+        if (!key.empty())
+            dst[key].insert(section);
+        if (comma == std::string::npos)
+            break;
+        start = comma + 1;
+    }
+}
+
+static void log_misplaced_keys(const std::string &path, const MisplacedKeys &misplaced)
+{
+    if (misplaced.empty())
+        return;
+    std::string message;
+    for (const auto &entry : misplaced) {
+        if (!message.empty())
+            message += "; ";
+        message += entry.first;
+        message += " (";
+        bool first = true;
+        for (const std::string &section : entry.second) {
+            if (!first)
+                message += ", ";
+            first = false;
+            message += section;
+        }
+        message += ")";
+    }
+    BOOST_LOG_TRIVIAL(error) << ERR_VENDOR_CONFIG_BUNDLE << path
+        << "\": ignored keys that do not belong to their preset: " << message;
+}
+
+static std::vector<std::string> inherit_names(const boost::property_tree::ptree &node)
+{
+    std::vector<std::string> names;
+    const std::string raw = node.get<std::string>(CONFIG_KEY_INHERITS, "");
+    if (!raw.empty())
+        unescape_strings_cstyle(raw, names);
+    for (std::string &name : names) {
+        while (!name.empty() && (name.front() == ' ' || name.front() == '\t'))
+            name.erase(name.begin());
+        while (!name.empty() && (name.back() == ' ' || name.back() == '\t'))
+            name.pop_back();
+    }
+    names.erase(std::remove(names.begin(), names.end(), std::string()), names.end());
+    return names;
+}
+
+// Move an agreed machine-clearance value off print profiles and onto FFF printers
+// in the same bundle that do not already inherit one. The ini files are left unchanged.
+static void rehome_printer_geometry(boost::property_tree::ptree &tree)
+{
+    namespace pt = boost::property_tree;
+    const std::string print_prefix = "print:";
+    const std::string printer_prefix = "printer:";
+
+    std::map<std::string, std::set<std::string>> values_by_key;
+    for (const auto &section : tree) {
+        if (!boost::starts_with(section.first, print_prefix) || section.first.size() <= print_prefix.size())
+            continue;
+        for (const char *key : PRINTER_GEOMETRY_KEYS) {
+            const auto it = section.second.find(key);
+            if (it == section.second.not_found() || it->second.data().empty())
+                continue;
+            values_by_key[key].insert(it->second.data());
+        }
+    }
+    std::map<std::string, std::string> agreed;
+    for (const char *key : PRINTER_GEOMETRY_KEYS) {
+        const auto found = values_by_key.find(key);
+        if (found != values_by_key.end() && found->second.size() == 1)
+            agreed.emplace(key, *found->second.begin());
+    }
+    if (agreed.empty())
+        return;
+
+    struct PrinterSection {
+        pt::ptree *node = nullptr;
+        std::vector<std::string> inherits;
+    };
+    std::map<std::string, PrinterSection> printers;
+    for (auto &section : tree) {
+        if (!boost::starts_with(section.first, printer_prefix) || section.first.size() <= printer_prefix.size())
+            continue;
+        PrinterSection printer;
+        printer.node = &section.second;
+        printer.inherits = inherit_names(section.second);
+        printers.emplace(section.first.substr(printer_prefix.size()), printer);
+    }
+
+    struct Walker {
+        const std::map<std::string, PrinterSection> &printers;
+        bool is_sla(const std::string &name, int depth, std::set<std::string> &seen) const
+        {
+            if (depth > 32 || !seen.insert(name).second)
+                return false;
+            const auto it = printers.find(name);
+            if (it == printers.end())
+                return false;
+            const std::string tech = it->second.node->get<std::string>("printer_technology", "");
+            if (tech == "SLA")
+                return true;
+            if (tech == "FFF")
+                return false;
+            for (const std::string &parent : it->second.inherits)
+                if (is_sla(parent, depth + 1, seen))
+                    return true;
+            return false;
+        }
+        bool has_key(const std::string &name, const std::string &key, int depth, std::set<std::string> &seen) const
+        {
+            if (depth > 32 || !seen.insert(name).second)
+                return false;
+            const auto it = printers.find(name);
+            if (it == printers.end())
+                return false;
+            if (it->second.node->find(key) != it->second.node->not_found())
+                return true;
+            for (const std::string &parent : it->second.inherits)
+                if (has_key(parent, key, depth + 1, seen))
+                    return true;
+            return false;
+        }
+    } walker{printers};
+
+    bool any_fff_printer = false;
+    for (auto &printer : printers) {
+        std::set<std::string> seen_sla;
+        if (walker.is_sla(printer.first, 0, seen_sla))
+            continue;
+        any_fff_printer = true;
+        for (const auto &key_value : agreed) {
+            std::set<std::string> seen_key;
+            if (walker.has_key(printer.first, key_value.first, 0, seen_key))
+                continue;
+            printer.second.node->put(key_value.first, key_value.second);
+        }
+    }
+    if (!any_fff_printer)
+        return;
+
+    for (auto &section : tree) {
+        if (!boost::starts_with(section.first, print_prefix))
+            continue;
+        for (const auto &key_value : agreed)
+            section.second.erase(key_value.first);
+    }
+}
+
+static std::unordered_set<std::string> owned_preset_keys(const DynamicPrintConfig &config)
+{
+    std::unordered_set<std::string> keys;
+    for (const std::string &key : config.keys())
+        keys.insert(key);
+    keys.insert("alias");
+    keys.insert("renamed_from");
+    return keys;
+}
 
 static std::vector<std::string> s_project_options {
     "colorprint_heights",
@@ -746,10 +927,24 @@ DynamicPrintConfig PresetBundle::full_fff_config() const
     DynamicPrintConfig out;
     out.apply(FullPrintConfig::defaults());
     out.apply(this->fff_prints.get_edited_preset().config);
+    // Captured before the printer preset is applied. A printer that is still at the
+    // default has not set a machine clearance, so an older print profile value is kept.
+    const double print_clearance_height = out.opt_float("extruder_clearance_height");
+    const double print_clearance_radius = out.opt_float("extruder_clearance_radius");
     // Add the default filament preset to have the "filament_preset_id" defined.
     out.apply(this->filaments.default_preset().config);
     out.apply(this->printers.get_edited_preset().config);
     out.apply(this->project_config);
+    auto keep_print_clearance = [&out](const char *key, double print_value) {
+        const ConfigOptionFloat *def = FullPrintConfig::defaults().option<ConfigOptionFloat>(key);
+        ConfigOptionFloat *now = out.option<ConfigOptionFloat>(key);
+        if (def == nullptr || now == nullptr)
+            return;
+        if (std::abs(now->value - def->value) <= 1e-4 && std::abs(print_value - def->value) > 1e-4)
+            now->value = print_value;
+    };
+    keep_print_clearance("extruder_clearance_height", print_clearance_height);
+    keep_print_clearance("extruder_clearance_radius", print_clearance_radius);
 
     auto   *nozzle_diameter = dynamic_cast<const ConfigOptionFloats*>(out.option("nozzle_diameter"));
     size_t  num_extruders   = nozzle_diameter->size();
@@ -1198,7 +1393,7 @@ ConfigSubstitutions PresetBundle::load_config_file_config_bundle_dont_save(
 // removed through the flattening process by this function.
 // This function will never fail, but it will produce error messages through boost::log.
 // system_profiles will not be flattened, and they will be kept inside the "inherits" field
-static void flatten_configbundle_hierarchy(boost::property_tree::ptree &tree, const std::string &group_name, const std::vector<std::string> &system_profiles)
+static void flatten_configbundle_hierarchy(boost::property_tree::ptree &tree, const std::string &group_name, const std::vector<std::string> &system_profiles, const std::unordered_set<std::string> &owned_keys, MisplacedKeys *misplaced)
 {
     namespace pt = boost::property_tree;
 
@@ -1307,6 +1502,11 @@ static void flatten_configbundle_hierarchy(boost::property_tree::ptree &tree, co
                     // Don't inherit "renamed_from" flag, it does not make sense. The "renamed_from" flag only makes sense for a concrete preset.
                     if (boost::starts_with((*it_inherits)->name, "*"))
                         BOOST_LOG_TRIVIAL(error) << boost::format("Nonpublic intermediate preset %1% contains a \"renamed_from\" field, which is ignored") % (*it_inherits)->name;
+                } else if (owned_keys.find(it->first) == owned_keys.end()) {
+                    // A key this preset group does not own stays on the parent. Copying it
+                    // would turn one misplaced key into one error for every child preset.
+                    if (misplaced != nullptr)
+                        (*misplaced)[it->first].insert(group_name + ":" + (*it_inherits)->name);
                 } else if (prst->node->find(it->first) == prst->node->not_found())
                     prst->node->add_child(it->first, it->second);
     }
@@ -1324,13 +1524,20 @@ static void flatten_configbundle_hierarchy(boost::property_tree::ptree &tree, co
 }
 
 // preset_bundle is set when loading user config bundles, which must not overwrite the system profiles.
-static void flatten_configbundle_hierarchy(boost::property_tree::ptree &tree, const PresetBundle *preset_bundle)
+static void flatten_configbundle_hierarchy(boost::property_tree::ptree &tree, const PresetBundle *preset_bundle, const PresetBundle &owned_by, MisplacedKeys *misplaced)
 {
-    flatten_configbundle_hierarchy(tree, "print",           preset_bundle ? preset_bundle->fff_prints.system_preset_names()    : std::vector<std::string>());
-    flatten_configbundle_hierarchy(tree, PRESET_TYPE_FILAMENT,        preset_bundle ? preset_bundle->filaments.system_preset_names()     : std::vector<std::string>());
-    flatten_configbundle_hierarchy(tree, PRESET_TYPE_SLA_PRINT,       preset_bundle ? preset_bundle->sla_prints.system_preset_names()    : std::vector<std::string>());
-    flatten_configbundle_hierarchy(tree, PRESET_TYPE_SLA_MATERIAL,    preset_bundle ? preset_bundle->sla_materials.system_preset_names() : std::vector<std::string>());
-    flatten_configbundle_hierarchy(tree, "printer",         preset_bundle ? preset_bundle->printers.system_preset_names()      : std::vector<std::string>());
+    const std::unordered_set<std::string> print_keys = owned_preset_keys(owned_by.fff_prints.default_preset().config);
+    const std::unordered_set<std::string> filament_keys = owned_preset_keys(owned_by.filaments.default_preset().config);
+    const std::unordered_set<std::string> sla_print_keys = owned_preset_keys(owned_by.sla_prints.default_preset().config);
+    const std::unordered_set<std::string> sla_material_keys = owned_preset_keys(owned_by.sla_materials.default_preset().config);
+    std::unordered_set<std::string> printer_keys = owned_preset_keys(owned_by.printers.default_preset(0).config);
+    for (const std::string &key : owned_by.printers.default_preset(1).config.keys())
+        printer_keys.insert(key);
+    flatten_configbundle_hierarchy(tree, "print",           preset_bundle ? preset_bundle->fff_prints.system_preset_names()    : std::vector<std::string>(), print_keys, misplaced);
+    flatten_configbundle_hierarchy(tree, PRESET_TYPE_FILAMENT,        preset_bundle ? preset_bundle->filaments.system_preset_names()     : std::vector<std::string>(), filament_keys, misplaced);
+    flatten_configbundle_hierarchy(tree, PRESET_TYPE_SLA_PRINT,       preset_bundle ? preset_bundle->sla_prints.system_preset_names()    : std::vector<std::string>(), sla_print_keys, misplaced);
+    flatten_configbundle_hierarchy(tree, PRESET_TYPE_SLA_MATERIAL,    preset_bundle ? preset_bundle->sla_materials.system_preset_names() : std::vector<std::string>(), sla_material_keys, misplaced);
+    flatten_configbundle_hierarchy(tree, "printer",         preset_bundle ? preset_bundle->printers.system_preset_names()      : std::vector<std::string>(), printer_keys, misplaced);
 }
 
 // Load a config bundle file, into presets and store the loaded presets into separate files
@@ -1374,9 +1581,12 @@ std::pair<PresetsConfigSubstitutions, size_t> PresetBundle::load_configbundle(
     if (flags.has(LoadConfigBundleAttribute::LoadVendorOnly))
         return std::make_pair(PresetsConfigSubstitutions{}, 0);
 
-    // 1.5) Flatten the config bundle by applying the inheritance rules. Internal profiles (with names starting with '*') are removed.
+    // 1.5) Put machine geometry on the printer presets, then flatten inheritance.
+    // Internal profiles (with names starting with '*') are removed.
     // If loading a user config bundle, do not flatten with the system profiles, but keep the "inherits" flag intact.
-    flatten_configbundle_hierarchy(tree, flags.has(LoadConfigBundleAttribute::LoadSystem) ? nullptr : this);
+    rehome_printer_geometry(tree);
+    MisplacedKeys misplaced_keys;
+    flatten_configbundle_hierarchy(tree, flags.has(LoadConfigBundleAttribute::LoadSystem) ? nullptr : this, *this, &misplaced_keys);
 
     // 2) Parse the property_tree, extract the active preset names and the profiles, save them into local config files.
     // Parse the obsolete preset names, to be deleted when upgrading from the old configuration structure.
@@ -1528,9 +1738,7 @@ std::pair<PresetsConfigSubstitutions, size_t> PresetBundle::load_configbundle(
             Preset::normalize(config);
             // Report configuration fields, which are misplaced into a wrong group.
             std::string incorrect_keys = Preset::remove_invalid_keys(config, *default_config);
-            if (! incorrect_keys.empty())
-                BOOST_LOG_TRIVIAL(error) << ERR_VENDOR_CONFIG_BUNDLE << path << "\": The printer preset \"" << 
-                    section.first << "\" contains the following incorrect keys: " << incorrect_keys << ", which were removed";
+            note_incorrect_keys(misplaced_keys, section.first, incorrect_keys);
             if (flags.has(LoadConfigBundleAttribute::LoadSystem) && presets == &printers) {
                 // Filter out printer presets, which are not mentioned in the vendor profile.
                 // These presets are considered not installed.
@@ -1660,9 +1868,7 @@ std::pair<PresetsConfigSubstitutions, size_t> PresetBundle::load_configbundle(
 
             // Report configuration fields, which are misplaced into a wrong group.
             std::string incorrect_keys = Preset::remove_invalid_keys(config, default_config);
-            if (!incorrect_keys.empty())
-                BOOST_LOG_TRIVIAL(error) << ERR_VENDOR_CONFIG_BUNDLE << path << "\": The physical printer \"" <<
-                section.first << "\" contains the following incorrect keys: " << incorrect_keys << ", which were removed";
+            note_incorrect_keys(misplaced_keys, section.first, incorrect_keys);
 
             const PhysicalPrinter* ph_printer_existing = ph_printers->find_printer(ph_printer_name, false);
             if (ph_printer_existing != nullptr) {
@@ -1716,6 +1922,7 @@ std::pair<PresetsConfigSubstitutions, size_t> PresetBundle::load_configbundle(
     }
 
     update_alias_maps();
+    log_misplaced_keys(path, misplaced_keys);
 
     return std::make_pair(std::move(substitutions), presets_loaded + ph_printers_loaded);
 }

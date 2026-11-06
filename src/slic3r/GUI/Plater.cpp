@@ -2016,6 +2016,9 @@ bool is_calibration_project_file(const wxString& filename)
         "Bridge calibration",
         "Retraction calibration",
         "Calibration cube",
+        "Exposure range finder",
+        "Normal exposure",
+        "First layer exposure",
     };
 
     const wxString stem = from_path(into_path(filename).stem());
@@ -5556,7 +5559,10 @@ void Plater::priv::show_action_buttons(const bool ready_to_slice_) const
     wxWindowUpdateLocker noUpdater(sidebar);
 
     DynamicPrintConfig* selected_printer_config = wxGetApp().preset_bundle->physical_printers.get_selected_printer_config();
-    const auto print_host_opt = selected_printer_config ? selected_printer_config->option<ConfigOptionString>("print_host") : nullptr;
+    const DynamicPrintConfig& edited_printer = wxGetApp().preset_bundle->printers.get_edited_preset().config;
+    const auto print_host_opt = !edited_printer.opt_string("print_host").empty()
+        ? edited_printer.option<ConfigOptionString>("print_host")
+        : (selected_printer_config ? selected_printer_config->option<ConfigOptionString>("print_host") : nullptr);
     const bool send_gcode_shown = print_host_opt != nullptr && !print_host_opt->value.empty();
     
     // when a background processing is ON, export_btn and/or send_btn are showing
@@ -8398,12 +8404,16 @@ void Plater::reslice_SLA_until_step(SLAPrintObjectStep step, const ModelObject &
 
 void Plater::send_gcode()
 {
-    // if physical_printer is selected, send gcode for this printer
+    // The printer preset carries the host address. A selected physical printer
+    // is used when that preset has no address of its own.
     DynamicPrintConfig* physical_printer_config = wxGetApp().preset_bundle->physical_printers.get_selected_printer_config();
-    if (! physical_printer_config || p->model.objects.empty())
+    DynamicPrintConfig* host_config = &wxGetApp().preset_bundle->printers.get_edited_preset().config;
+    if (host_config->opt_string("print_host").empty())
+        host_config = physical_printer_config;
+    if (! host_config || p->model.objects.empty())
         return;
 
-    PrintHostJob upload_job(physical_printer_config);
+    PrintHostJob upload_job(host_config);
     if (upload_job.empty())
         return;
 

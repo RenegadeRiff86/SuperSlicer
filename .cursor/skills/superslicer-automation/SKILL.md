@@ -26,6 +26,8 @@ Drive the GUI through the MCP server `project-0-SuperSlicer-superslicer-automati
 
 `invoke` posts the command and does not move the pointer. `hover` enters a control. `pointer` clicks only when SuperSlicer is the foreground window, because the click is delivered to whatever surface is under the pointer. `screenshot` renders the SuperSlicer window this process owns and writes a PNG to the path you pass. It does not ask the compositor which window is active, and it returns no image bytes. Read the PNG after it is written. `desktop` tiles the windows and leaves Cursor in front.
 
+`camera` aims the platter. `yaw` is degrees around the vertical: 0 looks from the front, 90 from the right, and the value keeps going, so 15 and 200 are different sides. `pitch` is degrees above the bed: 0 is level, 90 looks straight down, and -90 looks up from underneath. `relative` adds those degrees to the current aim. `fit` frames the model. Omit both angles to read the current aim. A named front, top, or iso view only hits seven points; use degrees when the thing you need sits between them. Pass the canvas ref `superslicer.canvas.preview` (or `superslicer.canvas.3d`) to `screenshot` when the sidebars would crowd the model out of the frame.
+
 `wait` with `dialog` matches a dialog title. Calibration dialogs are not modal, so `modal` never sees them. A modal `wxMessageBox` blocks the GUI thread and the HTTP call can return 504 even though the click landed; read the setting that should have changed.
 
 ## Leave these alone

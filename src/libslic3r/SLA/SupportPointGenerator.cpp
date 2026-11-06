@@ -240,6 +240,36 @@ NearPoints create_near_points(
     return near_points;
 }
 
+ExPolygons get_shapes(const PartLinks &part_links);
+
+// The part of this slice that does not meet the slice below it. The previous slice is
+// grown by the horizontal step of a wall at the critical angle, so a steeper wall still
+// counts as connected and a sliver from the clipper safety offset does too.
+ExPolygons disconnected_from_previous(
+    const ExPolygon &current,
+    const ExPolygons &previous,
+    float layer_height,
+    double critical_angle
+) {
+    if (previous.empty())
+        return { current };
+    double carry_mm = 0.;
+    if (critical_angle <= 1e-4)
+        carry_mm = 1e6;
+    else if (critical_angle < M_PI_2 - 1e-4)
+        carry_mm = static_cast<double>(layer_height) / std::tan(critical_angle);
+    const ExPolygons carried = offset_ex(previous, scale_(carry_mm));
+    return diff_ex(current, carried);
+}
+
+bool inside_any(const ExPolygons &shapes, const Point &point)
+{
+    for (const ExPolygon &shape : shapes)
+        if (shape.contains(point))
+            return true;
+    return false;
+}
+
 /// <summary>
 /// Add support point to near_points when it is neccessary
 /// </summary>
@@ -247,12 +277,14 @@ NearPoints create_near_points(
 /// <param name="config">Configuration to sample</param>
 /// <param name="near_points">Keep previous sampled suppport points</param>
 /// <param name="part_z">current z coordinate of part</param>
+/// <param name="layer_height">Height of this layer, in mm</param>
 /// <param name="maximal_radius">Max distance to seach support for sample</param>
 void support_part_overhangs(
     const LayerPart &part,
     const SupportPointGeneratorConfig &config,
     NearPoints &near_points,
     float part_z,
+    float layer_height,
     coord_t maximal_radius
 ) {
     NearPoints::CheckFnc is_supported = []
@@ -267,7 +299,14 @@ void support_part_overhangs(
         return dp.cast<double>().squaredNorm() < r2;
     };
 
+    const ExPolygons disconnected = disconnected_from_previous(
+        *part.shape, get_shapes(part.prev_parts), layer_height, config.critical_angle);
+    if (disconnected.empty())
+        return;
+
     for (const Point &p : part.samples) {
+        if (!inside_any(disconnected, p))
+            continue;
         if (!near_points.exist_true_in_radius(p, maximal_radius, is_supported)) {
             // not supported sample, soo create new support point
             near_points.add(LayerSupportPoint{
@@ -1536,7 +1575,10 @@ LayerSupportPoints generate_support_points(
                 near_points, permanent_supports, permanent_index, layer.print_z, layer_id, part_id,
                 config
             );
-            support_part_overhangs(part, config, near_points, layer.print_z, maximal_radius);
+            const float layer_height = layer_id == 0 ? layer.print_z :
+                layer.print_z - layers[layer_id - 1].print_z;
+            support_part_overhangs(
+                part, config, near_points, layer.print_z, layer_height, maximal_radius);
             grids.push_back(std::move(near_points));
         }
         prev_grids = std::move(grids);

@@ -14,6 +14,9 @@
 
 #include <GL/glew.h>
 
+#include <cmath>
+#include <utility>
+
 namespace Slic3r {
 namespace GUI {
 
@@ -534,6 +537,46 @@ void Camera::set_distance(double distance)
         m_view_matrix.translate((distance - m_distance) * get_dir_forward());
         m_distance = distance;
     }
+}
+
+std::pair<double, double> Camera::get_view_angles() const
+{
+    const Vec3d offset = get_position() - m_target;
+    const double length = offset.norm();
+    if (length <= EPSILON)
+        return { 0.0, 0.0 };
+
+    const double pitch = Geometry::rad2deg(std::asin(std::clamp(offset.z() / length, -1.0, 1.0)));
+    // At the pole the position no longer carries a yaw. The up vector does: for a view
+    // from above it is (-sin yaw, cos yaw), and from below that vector is flipped.
+    const double horizontal = std::hypot(offset.x(), offset.y());
+    double yaw;
+    if (horizontal <= length * 1e-4) {
+        const Vec3d up = get_dir_up();
+        yaw = offset.z() >= 0.0
+            ? Geometry::rad2deg(std::atan2(-up.x(), up.y()))
+            : Geometry::rad2deg(std::atan2(up.x(), -up.y()));
+    } else
+        yaw = Geometry::rad2deg(std::atan2(offset.x(), -offset.y()));
+    return { yaw, pitch };
+}
+
+void Camera::set_view_angles(double yaw_deg, double pitch_deg)
+{
+    pitch_deg = std::clamp(pitch_deg, -90.0, 90.0);
+    const double yaw = Geometry::deg2rad(yaw_deg);
+    const double pitch = Geometry::deg2rad(pitch_deg);
+    const double horizontal = std::cos(pitch);
+    const Vec3d direction(horizontal * std::sin(yaw), -horizontal * std::cos(yaw), std::sin(pitch));
+    Vec3d up = Vec3d::UnitZ();
+    // UnitZ is parallel to the view direction at the poles, so look_at would have no up.
+    if (std::abs(pitch_deg) >= 89.0) {
+        up = Vec3d(-std::sin(yaw), std::cos(yaw), 0.0);
+        if (pitch_deg < 0.0)
+            up = -up;
+    }
+    const Vec3d safe_direction = direction.norm() > EPSILON ? direction.normalized() : Vec3d::UnitZ();
+    look_at(m_target + m_distance * safe_direction, m_target, up);
 }
 
 void Camera::look_at(const Vec3d& position, const Vec3d& target, const Vec3d& up)

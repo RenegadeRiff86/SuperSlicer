@@ -44,6 +44,7 @@ constexpr char kPrintHostTypeKey[]          = "host_type";
 constexpr char kPrintHostAuthorizationKey[] = "printhost_authorization_type";
 constexpr char kPrintHostAddressKey[]       = "print_host";
 constexpr char kPrintHostApiKey[]           = "printhost_apikey";
+constexpr char kBambuSerialKey[]            = "bambu_device_serial";
 constexpr size_t MIN_MODEL_NAME_LENGTH = 2;
 constexpr size_t MODEL_GENERATION_INDEX = 2;
 
@@ -400,6 +401,10 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
     option.opt.width = Field::def_width_wider();
     m_optgroup->append_single_option_line(option);
 
+    option           = m_optgroup->create_option_from_def(kBambuSerialKey);
+    option.opt.width = Field::def_width_wider();
+    m_optgroup->append_single_option_line(option);
+
     option           = m_optgroup->create_option_from_def(kPrintHostPortKey);
     option.opt.width = Field::def_width_wider();
     Line port_line = m_optgroup->create_single_option_line(option);
@@ -630,6 +635,8 @@ void PhysicalPrinterDialog::update(bool printer_change)
             m_optgroup->hide_field(kPrintHostApiKey);
         }
 
+        m_optgroup->show_field(kBambuSerialKey, opt && opt->value == htBambuLan);
+
         // hide api key and ca file for MPMDv2
         if (opt && opt->value == htMPMDv2) {
             m_optgroup->hide_field(kPrintHostApiKey);
@@ -643,6 +650,7 @@ void PhysicalPrinterDialog::update(bool printer_change)
     else {
         m_optgroup->set_value(OptionKeyIdx::scalar(kPrintHostTypeKey), int(PrintHostType::htOctoPrint), true, false);
         m_optgroup->hide_field(kPrintHostTypeKey);
+        m_optgroup->hide_field(kBambuSerialKey);
 
         m_optgroup->show_field(kPrintHostAuthorizationKey);
 

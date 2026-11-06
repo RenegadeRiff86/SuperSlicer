@@ -443,6 +443,7 @@ static const t_config_enum_values s_keys_map_PrintHostType {
     {"mpmdv2",          htMPMDv2},
     { "mks",            htMKS },
     {"monoprice",       htMiniDeltaLCD },
+    { "bambu_lan",      htBambuLan },
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(PrintHostType)
 
@@ -869,11 +870,20 @@ void PrintConfigDef::init_common_params()
     def->cli = ConfigOptionDef::nocli;
     def->set_default_value(std::make_unique<ConfigOptionString>(""));
 
+    def = this->add("bambu_device_serial", coString);
+    def->label = L("Bambu serial");
+    def->category = OptionCategory::general;
+    def->tooltip = L("Serial number of a Bambu Lab printer in Developer LAN mode. It is printed on the printer and used as the MQTT device topic.");
+    def->mode = comAdvancedE | comPrusa;
+    def->cli = ConfigOptionDef::nocli;
+    def->set_default_value(std::make_unique<ConfigOptionString>(""));
+
     def = this->add("printhost_apikey", coString);
-    def->label = L("API Key / Password");
+    def->label = L("API key or LAN access code");
     def->category = OptionCategory::general;
     def->tooltip = L("Slic3r can upload G-code files to a printer host. This field should contain "
-                   "the API Key or the password required for authentication.");
+                   "the API Key or the password required for authentication. "
+                   "For a Bambu Lab printer in Developer LAN mode, put the LAN access code here.");
     def->mode = comAdvancedE | comPrusa;
     def->cli = ConfigOptionDef::nocli;
     def->set_default_value(std::make_unique<ConfigOptionString>(""));
@@ -2188,7 +2198,7 @@ void PrintConfigDef::init_fff_params()
     def = this->add("extruder_clearance_height", coFloat);
     def->label = L("Height");
     def->full_label = L("Extruder clearance height");
-    def->category = OptionCategory::output;
+    def->category = OptionCategory::general;
     def->tooltip = L("Set this to the vertical distance between your nozzle tip and (usually) the X carriage rods. "
                    "In other words, this is the height of the clearance cylinder around your extruder, "
                    "and it represents the maximum depth the extruder can reach before colliding with "
@@ -2200,7 +2210,7 @@ void PrintConfigDef::init_fff_params()
 
     def = this->add("extruder_clearance_radius", coFloat);
     def->label = L("Radius");
-    def->category = OptionCategory::output;
+    def->category = OptionCategory::general;
     def->full_label = L("Extruder clearance radius");
     def->tooltip = L("Set this to the clearance radius around your extruder. "
                    "If the extruder is not centered, choose the largest value for safety. "
@@ -5018,7 +5028,8 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::general;
     def->tooltip = L("Slic3r can upload G-code files to a printer host. This field must contain "
                    "the kind of the host."
-                   "\nPrusaLink is only available for prusa printer.");
+                   "\nPrusaLink is only available for prusa printer."
+                   "\nBambu Lab (Developer LAN) talks to a printer that has LAN Only and Developer Mode enabled. Put the printer IP in the host field, the LAN access code in the API key, and the printer serial in the serial field.");
     def->set_enum<PrintHostType>({
         { "prusalink",      "PrusaLink" },
         { "prusaconnect",   "PrusaConnect" },
@@ -5032,6 +5043,7 @@ void PrintConfigDef::init_fff_params()
         { "mpmdv2",         "MPMDv2" },
         { "mks",            "MKS" },
         { "monoprice",      "Monoprice lcd" },
+        { "bambu_lan",      "Bambu Lab (Developer LAN)" },
     });
     def->mode = comAdvancedE | comPrusa;
     def->cli = ConfigOptionDef::nocli;
@@ -5108,8 +5120,9 @@ void PrintConfigDef::init_fff_params()
     def->label = L("Exposure range finder");
     def->category = OptionCategory::output;
     def->tooltip = L("Photon Mono 4 only. Exports R_E_R_F.pm4n and shows each object's exposure on the plate. "
-        "Looking at the bottom of the plate, the back-left area uses the normal exposure and the area in front of it adds 0.25 s. "
-        "The pairs continue to the right. Bottom layers keep the initial exposure. The printer does this only for that file name.");
+        "The printer runs the test only for that file name. Area 1 uses the normal exposure, and each next area adds a fixed 0.25 s. "
+        "Looking at the bottom of the plate, area 1 is back-left and area 2 is in front of it. The pairs continue to the right. "
+        "Bottom exposure stays the same on every area.");
     def->mode = comSimpleAE | comPrusa;
     def->set_default_value(std::make_unique<ConfigOptionBool>(false));
 
@@ -8837,7 +8850,8 @@ void PrintConfigDef::init_sla_support_params(const std::string &prefix)
     def = this->add(prefix + "support_critical_angle", coFloat);
     def->label = L("Critical angle");
     def->category = OptionCategory::support;
-    def->tooltip = L("The default angle for connecting support sticks and junctions.");
+    def->tooltip = L("The default angle for connecting support sticks and junctions. "
+        "A surface steeper than this, measured from the bed, is left unsupported.");
     def->sidetext = L("°");
                     def->min = 0;
     def->max = RIGHT_ANGLE_DEGREES;
@@ -9138,7 +9152,7 @@ void PrintConfigDef::init_sla_params()
 
     def = this->add("exposure_time", coFloat);
     def->label = L("Exposure time");
-    def->tooltip = L("Exposure time");
+    def->tooltip = L("How long each normal layer is exposed.");
     def->sidetext = L("s");
     def->min = 0;
     def->mode = comSimpleAE | comPrusa;
@@ -9161,8 +9175,8 @@ void PrintConfigDef::init_sla_params()
     def->set_default_value(std::make_unique<ConfigOptionFloat>(DEFAULT_MAX_INITIAL_EXPOSURE_S));
 
     def = this->add("initial_exposure_time", coFloat);
-    def->label = L("Initial exposure time");
-    def->tooltip = L("Initial exposure time");
+    def->label = L("Bottom exposure time");
+    def->tooltip = L("How long the first layers stay exposed so the print sticks to the plate.");
     def->sidetext = L("s");
     def->min = 0;
     def->mode = comSimpleAE | comPrusa;

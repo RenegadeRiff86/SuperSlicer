@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>First layer exposure</title>
+</head>
+<body>
+<table width="100%">
+<tbody>
+<tr>
+<td style="text-align: center;">
+<h1>First layer exposure</h1>
+</td>
+</tr>
+<tr>
+<td style="text-align: right;">
+    <table><tr><td>Needs:</td>
+        <td style="text-align: left;">Photon Mono 4</td></tr>
+    </table>
+</td>
+</tr>
+</tbody>
+</table>
+
+<p>This test finds the bottom exposure, the time the first layers stay lit so the print sticks. The Photon Mono 4 runs it only when the file is named R_E_R_F.pm4n. Any other name is a normal print, and every area gets the same exposure.</p>
+<p>The steps are fixed. Area 1 uses the resin's bottom exposure. Each next area adds 0.25&nbsp;s. The slicer does not store a different time on each copy, and the step cannot be changed. Changing the resin's bottom exposure moves the whole set.</p>
+<p>Normal exposure is not one of these eight times. Use Normal exposure for that test.</p>
+<p>Generate tiles places a small cube in each area. Use my model places a copy of a model you choose. A model larger than an area is scaled down so it stays in that one exposure. Supports, the pad, and hollowing are turned off.</p>
+
+<h2>Areas, looking at the bottom of the plate</h2>
+<p>The back-left copy is area 1. The copy in front of it is area 2. The pairs continue to the right. Each copy is labeled with the bottom exposure the printer will give its first layers.</p>
+<table border="1" cellpadding="8" cellspacing="0" style="margin-left: auto; margin-right: auto; text-align: center;">
+  <tr><td>1<br>Back left</td><td>3</td><td>5</td><td>7<br>Back right</td></tr>
+  <tr><td>2<br>Front left</td><td>4</td><td>6</td><td>8<br>Front right</td></tr>
+</table>
+
+<h2>After the print</h2>
+<p>Pick the copy that stuck cleanly and apply it. That writes its time into the resin's bottom exposure and turns the range-finder export off, so the next file uses a normal name.</p>
+</body>
+</html>

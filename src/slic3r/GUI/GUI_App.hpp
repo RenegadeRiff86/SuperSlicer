@@ -312,6 +312,8 @@ public:
     void            over_bridge_dialog();
     void            calibration_cube_dialog();
     void            calibration_retraction_dialog();
+    void            rerf_calibration_dialog();
+    void            rerf_first_layer_dialog();
     void            calibration_pressureadv_dialog();
     void            calibration_pressureadv_adaptive_dialog();
     void            calibration_pressureadv_adaptive_results_dialog();

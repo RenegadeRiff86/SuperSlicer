@@ -51,6 +51,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/CalibrationTempDialog.hpp
     GUI/CalibrationRetractionDialog.cpp
     GUI/CalibrationRetractionDialog.hpp
+    GUI/CalibrationRerfDialog.cpp
+    GUI/CalibrationRerfDialog.hpp
     GUI/CalibrationPressureAdvDialog.cpp
     GUI/CalibrationPressureAdvDialog.hpp
     GUI/CalibrationPressureAdvGeometry.cpp
@@ -349,6 +351,8 @@ set(SLIC3R_GUI_SOURCES
     Utils/FixModelByWin10.hpp
     Utils/Moonraker.cpp
     Utils/Moonraker.hpp
+    Utils/BambuLan.cpp
+    Utils/BambuLan.hpp
     Utils/OctoPrint.cpp
     Utils/OctoPrint.hpp
     Utils/Klipper.cpp

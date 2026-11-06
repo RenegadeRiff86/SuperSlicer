@@ -8,6 +8,10 @@ group:Size and coordinates
 		setting:max_print_height
 		setting:init_z_rotate
 	end_line
+	line:Extruder clearance (mm)
+		setting:width$6:extruder_clearance_radius
+		setting:width$6:extruder_clearance_height
+	end_line
 	line:z utilities
 		setting:z_step
 		setting:lift_min
@@ -18,7 +22,10 @@ group:extruders_count_event:milling_count_event:Capabilities
 	setting:single_extruder_multi_material
 	milling_count
 group:Print Host upload
-	print_host_upload_description
+	setting:host_type
+	setting:print_host
+	setting:printhost_apikey
+	setting:bambu_device_serial
 group:silent_mode_event:filename_format_event:Firmware
 	setting:gcode_flavor
     line:Supports

@@ -292,6 +292,15 @@ def tool_view(arguments: dict[str, Any]) -> Any:
     return _client().select_view(arguments["view"])
 
 
+def tool_camera(arguments: dict[str, Any]) -> Any:
+    return _client().camera(
+        yaw=arguments.get("yaw"),
+        pitch=arguments.get("pitch"),
+        relative=bool(arguments.get("relative")),
+        fit=bool(arguments.get("fit")),
+    )
+
+
 def tool_preview_options(arguments: dict[str, Any]) -> Any:
     options = arguments.get("options") or {}
     return _client().set_preview(options=options) if options else _client().preview_options()
@@ -576,6 +585,20 @@ TOOLS: list[tuple[str, str, dict[str, Any], Callable[[dict[str, Any]], Any]]] = 
     ("load_model", "Load a model onto the platter.", _schema({"model": _string("Path to STL, 3MF, or another model.")}, ["model"]), tool_load),
     ("slice", "Slice the current platter and wait until it finishes.", _schema({"timeout_ms": _integer("Wait timeout in milliseconds. Default 300000.")}), tool_slice),
     ("view", "Select the 3D editor or the preview.", _schema({"view": {"type": "string", "enum": ["3d", "preview"]}}, ["view"]), tool_view),
+    (
+        "camera",
+        "Aim the platter camera by degrees. yaw 0 looks from the front and 90 from the right; "
+        "pitch 0 is level, 90 looks straight down, and -90 looks from underneath. "
+        "A named front, top, or iso view only hits seven points, so a support between them stays hidden until the aim is a degree value. "
+        "relative adds the degrees to the current aim. fit frames the model. Omit both angles to read the current aim.",
+        _schema({
+            "yaw": _number("Degrees around the vertical. 0 is the front, 90 is the right."),
+            "pitch": _number("Degrees above the bed. 0 is level, 90 is straight down, -90 is from underneath."),
+            "relative": _boolean("Add yaw and pitch to the current aim instead of setting them."),
+            "fit": _boolean("Frame the model after aiming."),
+        }),
+        tool_camera,
+    ),
     (
         "preview_options",
         "Show or set which preview move types are drawn. These toggles are ImGui and have no element to click.",

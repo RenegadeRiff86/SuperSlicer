@@ -274,6 +274,10 @@ def command_view(client: ApiClient, args: argparse.Namespace) -> None:
     print(client.select_view(args.view))
 
 
+def command_camera(client: ApiClient, args: argparse.Namespace) -> None:
+    print(client.camera(yaw=args.yaw, pitch=args.pitch, relative=args.relative, fit=args.fit))
+
+
 def command_preview_options(client: ApiClient, args: argparse.Namespace) -> None:
     requested: dict[str, bool] = {}
     for assignment in args.option or ():
@@ -772,6 +776,13 @@ def add_workflow_commands(commands) -> None:
     view_parser = commands.add_parser("view", help="select 3d or preview")
     view_parser.add_argument("view", choices=("3d", "preview"))
     view_parser.set_defaults(handler=command_view)
+
+    camera_parser = commands.add_parser("camera", help="aim the platter camera by degrees")
+    camera_parser.add_argument("--yaw", type=float, default=None, help="degrees around the vertical; 0 is the front, 90 is the right")
+    camera_parser.add_argument("--pitch", type=float, default=None, help="degrees above the bed; 0 is level, 90 is straight down, -90 is from underneath")
+    camera_parser.add_argument("--relative", action="store_true", help="add the degrees to the current aim")
+    camera_parser.add_argument("--fit", action="store_true", help="frame the model")
+    camera_parser.set_defaults(handler=command_camera)
 
     preview_options_parser = commands.add_parser(
         "preview-options",

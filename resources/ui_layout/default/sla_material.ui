@@ -1,5 +1,9 @@
 #logs
 page:Material:resin
+group:Exposure
+    setting:exposure_time
+    setting:initial_exposure_time
+
 group:material_density_event:Material
 	setting:material_colour
     setting:bottle_cost
@@ -10,12 +14,8 @@ group:material_density_event:Material
 group:Layers
     setting:initial_layer_height
 
-group:Exposure
-    setting:exposure_time
-    setting:initial_exposure_time
-
 group:label_width$19:Corrections
-    line:material_correction
+    line:Expansion
 		setting:label$X:width$6:material_correction_x
 		setting:label$Y:width$6:material_correction_y
 		setting:label$Z:width$6:material_correction_z

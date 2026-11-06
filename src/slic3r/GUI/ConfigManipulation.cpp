@@ -737,8 +737,14 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
 void ConfigManipulation::update_printer_fff_config(DynamicPrintConfig *config,
                                                    const bool          is_global_config)
 {
-    const std::vector<double> &nozzle_sizes = config->option<ConfigOptionFloats>("nozzle_diameter")->get_values();
-    double min_step_size = config->option("z_step")->get_float();
+    const auto *nozzle_diameters = config->option<ConfigOptionFloats>("nozzle_diameter");
+    const ConfigOption *z_step = config->option("z_step");
+    // An SLA printer has neither of these. Applying this FFF check to it
+    // crashes when a physical printer is saved onto that preset.
+    if (nozzle_diameters == nullptr || z_step == nullptr)
+        return;
+    const std::vector<double> &nozzle_sizes = nozzle_diameters->get_values();
+    double min_step_size = z_step->get_float();
     //for each extruder
     for (size_t extruder_idx = 0; extruder_idx < nozzle_sizes.size(); ++extruder_idx) {
         double min_lh = config->get_computed_value("min_layer_height", extruder_idx);

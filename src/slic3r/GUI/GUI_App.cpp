@@ -98,6 +98,7 @@ class wxZipStreamLink;
 #include "CalibrationOverBridgeDialog.hpp"
 #include "CalibrationTempDialog.hpp"
 #include "CalibrationRetractionDialog.hpp"
+#include "CalibrationRerfDialog.hpp"
 #include "CalibrationPressureAdvDialog.hpp"
 #include "CalibrationPressureAdvAdaptiveDialog.hpp"
 #include "ConfigWizard.hpp"
@@ -2890,6 +2891,14 @@ void GUI_App::calibration_cube_dialog()
 void GUI_App::calibration_retraction_dialog()
 {
     change_calibration_dialog(nullptr, std::make_unique<CalibrationRetractionDialog>(this, mainframe));
+}
+void GUI_App::rerf_calibration_dialog()
+{
+    change_calibration_dialog(nullptr, std::make_unique<CalibrationRerfDialog>(this, mainframe, RerfTarget::Normal));
+}
+void GUI_App::rerf_first_layer_dialog()
+{
+    change_calibration_dialog(nullptr, std::make_unique<CalibrationRerfDialog>(this, mainframe, RerfTarget::FirstLayer));
 }
 void GUI_App::calibration_pressureadv_dialog()
 {

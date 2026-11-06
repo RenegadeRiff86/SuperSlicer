@@ -2109,38 +2109,76 @@ void MainFrame::init_menubar_as_editor()
     if (wxGetApp().is_editor())
     {
         m_calibration_menu = new wxMenu();
+        const auto fff_printer = [this]() {
+            return plater() != nullptr && plater()->printer_technology() == ptFFF;
+        };
+        // The plater config is only the keys the platter needs. output_format is not one of them,
+        // so reading it there leaves this item disabled on the Photon Mono 4.
+        const auto mono4_printer = []() {
+            const PresetBundle* bundle = wxGetApp().preset_bundle.get();
+            if (bundle == nullptr)
+                return false;
+            const Preset& printer = bundle->printers.get_edited_preset();
+            if (printer.printer_technology() != ptSLA)
+                return false;
+            const auto* format = printer.config.option<ConfigOptionEnum<OutputFormat>>("output_format");
+            return format != nullptr && format->value == OutputFormat::ofAnycubicMono4;
+        };
+        append_menu_item(m_calibration_menu, wxID_ANY, _(L("Normal exposure")),
+            _(L("Photon Mono 4. Export R_E_R_F.pm4n. Area 1 uses the resin's normal exposure and each next area adds a fixed 0.25 s. You can use your own model.")),
+            [](wxCommandEvent&) { wxGetApp().rerf_calibration_dialog(); },
+            "", nullptr, mono4_printer, this);
+        append_menu_item(m_calibration_menu, wxID_ANY, _(L("First layer exposure")),
+            _(L("Photon Mono 4. Export R_E_R_F.pm4n. Area 1 uses the resin's bottom exposure and each next area adds a fixed 0.25 s. You can use your own model.")),
+            [](wxCommandEvent&) { wxGetApp().rerf_first_layer_dialog(); },
+            "", nullptr, mono4_printer, this);
+        m_calibration_menu->AppendSeparator();
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Introduction")), _(L("How to use this menu and calibrations.")),
-            [](wxCommandEvent&) { wxGetApp().html_dialog(); });
+            [](wxCommandEvent&) { wxGetApp().html_dialog(); },
+            "", nullptr, fff_printer, this);
         m_calibration_menu->AppendSeparator();
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Bed/Extruder leveling")), _(L("Create a test print to help you to level your printer bed.")),
-            [](wxCommandEvent&) { wxGetApp().bed_leveling_dialog(); });
+            [](wxCommandEvent&) { wxGetApp().bed_leveling_dialog(); },
+            "", nullptr, fff_printer, this);
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Klipper Z offset")), _(L("Create a first-layer test with a different Z offset on each pad.")),
-            [](wxCommandEvent&) { wxGetApp().z_offset_calibration_dialog(); });
+            [](wxCommandEvent&) { wxGetApp().z_offset_calibration_dialog(); },
+            "", nullptr, fff_printer, this);
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Apply Z offset")), _(L("Save a filament Z offset from a printed pad test.")),
-            [](wxCommandEvent&) { wxGetApp().z_offset_result_dialog(); });
+            [](wxCommandEvent&) { wxGetApp().z_offset_result_dialog(); },
+            "", nullptr, fff_printer, this);
         m_calibration_menu->AppendSeparator();
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Filament Flow calibration")), _(L("Create a test print to help you to set your filament extrusion multiplier (visual inspection).")),
-            [](wxCommandEvent&) { wxGetApp().flow_ratio_dialog(); });
+            [](wxCommandEvent&) { wxGetApp().flow_ratio_dialog(); },
+            "", nullptr, fff_printer, this);
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Extruder Flow calibration")), _(L("Create a test print to help you to set your extruder extrusion multiplier curve for a range of speed (precision scale needed).")),
-            [](wxCommandEvent&) { wxGetApp().flow_speed_dialog(); });
+            [](wxCommandEvent&) { wxGetApp().flow_speed_dialog(); },
+            "", nullptr, fff_printer, this);
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Filament temperature calibration")), _(L("Create a test print to help you to set your filament temperature.")),
-            [](wxCommandEvent&) { wxGetApp().filament_temperature_dialog(); });
+            [](wxCommandEvent&) { wxGetApp().filament_temperature_dialog(); },
+            "", nullptr, fff_printer, this);
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Extruder retraction calibration")), _(L("Create a test print to help you to set your retraction length.")),
-            [](wxCommandEvent&) { wxGetApp().calibration_retraction_dialog(); });
-            append_menu_item(m_calibration_menu, wxID_ANY, _(L("Pressure calibration")), _(L("Create a model for tuning Pressure Linear advance.")),
-            [](wxCommandEvent&) { wxGetApp().calibration_pressureadv_dialog(); });
+            [](wxCommandEvent&) { wxGetApp().calibration_retraction_dialog(); },
+            "", nullptr, fff_printer, this);
+        append_menu_item(m_calibration_menu, wxID_ANY, _(L("Pressure calibration")), _(L("Create a model for tuning Pressure Linear advance.")),
+            [](wxCommandEvent&) { wxGetApp().calibration_pressureadv_dialog(); },
+            "", nullptr, fff_printer, this);
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Adaptive pressure advance calibration")), _(L("Create a flow x acceleration grid to build a per-filament adaptive pressure advance model.")),
-            [](wxCommandEvent&) { wxGetApp().calibration_pressureadv_adaptive_dialog(); });
+            [](wxCommandEvent&) { wxGetApp().calibration_pressureadv_adaptive_dialog(); },
+            "", nullptr, fff_printer, this);
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Adaptive pressure advance results")), _(L("After printing the grid, enter the best pressure advance per box to build the adaptive PA model.")),
-            [](wxCommandEvent&) { wxGetApp().calibration_pressureadv_adaptive_results_dialog(); });
+            [](wxCommandEvent&) { wxGetApp().calibration_pressureadv_adaptive_results_dialog(); },
+            "", nullptr, fff_printer, this);
         m_calibration_menu->AppendSeparator();
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Bridge flow calibration")), _(L("Create a test print to help you to set your bridge flow ratio.")),
-            [](wxCommandEvent&) { wxGetApp().bridge_tuning_dialog(); });
+            [](wxCommandEvent&) { wxGetApp().bridge_tuning_dialog(); },
+            "", nullptr, fff_printer, this);
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Ironing pattern calibration")), _(L("Create a test print to help you to set your over-bridge flow ratio and ironing pattern.")),
-            [](wxCommandEvent&) { wxGetApp().over_bridge_dialog(); });
+            [](wxCommandEvent&) { wxGetApp().over_bridge_dialog(); },
+            "", nullptr, fff_printer, this);
         m_calibration_menu->AppendSeparator();
         append_menu_item(m_calibration_menu, wxID_ANY, _(L("Calibration cube")), _(L("Print a calibration cube, for various calibration goals.")),
-            [](wxCommandEvent&) { wxGetApp().calibration_cube_dialog(); });
+            [](wxCommandEvent&) { wxGetApp().calibration_cube_dialog(); },
+            "", nullptr, fff_printer, this);
     }
 
     // objects menu
@@ -2301,12 +2339,6 @@ void MainFrame::update_menubar()
 
     m_changeable_menu_items[miPrinterTab]   ->SetBitmap(*get_bmp_bundle(is_fff ? "printer" : "sla_printer"));
 
-    if (m_calibration_menu) {
-        int id = m_menubar->FindMenu(m_calibration_menu->GetTitle());
-        if (id != wxNOT_FOUND) {
-            m_menubar->EnableTop(id, is_fff);
-        }
-    }
 }
 
 

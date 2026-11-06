@@ -9,6 +9,7 @@
 #include "3DScene.hpp"
 #include "CoordAxes.hpp"
 #include <array>
+#include <utility>
 
 namespace Slic3r {
 namespace GUI {
@@ -143,6 +144,12 @@ public:
 
     // rotate the camera around three axes parallel to the camera local axes and passing through m_target
     void rotate_local_around_target(const Vec3d& rotation_rad);
+
+    // Yaw is degrees around world Z: 0 looks from the front (-Y), 90 from the right (+X).
+    // Pitch is degrees above the bed: 0 is horizontal, 90 looks straight down, -90 from underneath.
+    // The pair is yaw, then pitch. Both are reported in degrees, yaw in (-180, 180].
+    std::pair<double, double> get_view_angles() const;
+    void set_view_angles(double yaw_deg, double pitch_deg);
 
     // returns true if the camera z axis (forward) is pointing in the negative direction of the world z axis
     bool is_looking_downward() const { return get_dir_forward().dot(Vec3d::UnitZ()) < 0.0; }

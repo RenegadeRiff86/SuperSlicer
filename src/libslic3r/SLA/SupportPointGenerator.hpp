@@ -46,6 +46,10 @@ struct SupportPointGeneratorConfig{
     // Configuration for sampling island
     SampleConfig island_configuration = create_default_island_configuration(head_diameter);
 
+    // A surface steeper than this, measured in radians from the bed, carries itself and
+    // does not get a new support point. An island still does: nothing is printed under it.
+    double critical_angle = 0.7853981633974483; // pi/4, 45 degrees
+
     // maximal allowed distance to layer part for permanent(manual edited) support
     // helps to identify not wanted support points during automatic support generation.
     double max_allowed_distance_sq = scale_(1) * scale_(1); // 1mm

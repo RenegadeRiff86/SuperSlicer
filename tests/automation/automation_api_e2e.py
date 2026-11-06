@@ -193,6 +193,7 @@ def check_transport_and_protocol(client: ApiClient, status: dict[str, Any]) -> N
         "superslicer_load_model",
         "superslicer_slice",
         "superslicer_select_view",
+        "superslicer_camera",
         "superslicer_set_preview",
         "superslicer_set_transform",
         "superslicer_export_gcode",

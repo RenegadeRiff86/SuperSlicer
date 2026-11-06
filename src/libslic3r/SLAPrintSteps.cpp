@@ -522,8 +522,19 @@ void SLAPrint::Steps::slice_model(SLAPrintObject &po)
     // Layer links for the island sampler. Rebuilt whenever the slices change.
     if (po.m_config.supports_enable.get_bool()) {
         std::vector<ExPolygons> slices = po.get_model_slices();
+        // A flat span the tree can already bridge from a wall does not get its own points.
+        // The hull still gets points wherever a layer is shallower than the critical angle.
+        sla::PrepareSupportConfig prepare;
+        const bool branching_tree =
+            po.m_config.support_tree_type.value != sla::SupportTreeType::Default;
+        const double bridge_mm = branching_tree
+            ? po.m_config.branchingsupport_max_bridge_length.value
+            : po.m_config.support_max_bridge_length.value;
+        const float bridge = float(scale_(std::max(0., bridge_mm)));
+        prepare.peninsula_self_supported_width = bridge;
+        prepare.peninsula_min_width = bridge + 1.f;
         po.m_support_point_generator_data = sla::prepare_generator_data(
-            std::move(slices), po.m_model_height_levels, {}, [this]() { throw_if_canceled(); }, [](int) {});
+            std::move(slices), po.m_model_height_levels, prepare, [this]() { throw_if_canceled(); }, [](int) {});
     }
 
 //    po.m_preview_meshes[slaposObjectSlice] = po.get_mesh_to_print();
@@ -679,9 +690,11 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
         case sla::SupportTreeType::Default:
         case sla::SupportTreeType::Organic:
             config.head_diameter = float(cfg.support_head_front_diameter);
+            config.critical_angle = cfg.support_critical_angle.value * PI / 180.;
             break;
         case sla::SupportTreeType::Branching:
             config.head_diameter = float(cfg.branchingsupport_head_front_diameter);
+            config.critical_angle = cfg.branchingsupport_critical_angle.value * PI / 180.;
             break;
         }
         config.island_configuration = sla::SampleConfigFactory::apply_density(

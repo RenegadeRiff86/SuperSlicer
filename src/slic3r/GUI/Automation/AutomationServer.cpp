@@ -712,6 +712,7 @@ private:
             { "load_model", "superslicer_load_model" },
             { "slice", "superslicer_slice" },
             { "select_view", "superslicer_select_view" },
+            { "camera", "superslicer_camera" },
             { "set_preview", "superslicer_set_preview" },
             { "set_transform", "superslicer_set_transform" },
             { "export_gcode", "superslicer_export_gcode" },
@@ -742,6 +743,7 @@ private:
             "superslicer_load_model",
             "superslicer_slice",
             "superslicer_select_view",
+            "superslicer_camera",
             "superslicer_set_preview",
             "superslicer_set_transform",
             "superslicer_export_gcode",
@@ -792,6 +794,7 @@ private:
             tool("superslicer_load_model", "Load a model through the normal plater GUI handler."),
             tool("superslicer_slice", "Start slicing and return an operation_id."),
             tool("superslicer_select_view", "Select the 3D or Preview panel."),
+            tool("superslicer_camera", "Aim the platter camera by degrees. yaw 0 is the front and 90 is the right; pitch 0 is level, 90 looks straight down, and -90 looks from underneath. Omit both to read the current aim. relative adds the degrees to the current aim. fit frames the model."),
             tool("superslicer_set_preview", "Set preview layer or move slider ranges."),
             tool("superslicer_set_transform", "Commit selected-object position, rotation, or scale."),
             tool("superslicer_export_gcode", "Export G-code to an explicit path with overwrite protection."),
@@ -950,6 +953,8 @@ private:
             return gui_slice(request_id);
         if (tool == "superslicer_select_view")
             return gui_select_view(arguments, request_id);
+        if (tool == "superslicer_camera")
+            return gui_camera(arguments, request_id);
         if (tool == "superslicer_set_preview")
             return gui_set_preview(arguments, request_id);
         if (tool == "superslicer_set_transform")

@@ -239,6 +239,7 @@ protected:
     ScalableButton*		m_btn_compare_preset {nullptr};
     ScalableButton*		m_btn_save_preset {nullptr};
     ScalableButton*		m_btn_save_as_preset {nullptr};
+    ScalableButton*		m_btn_new_resin {nullptr};
     ScalableButton*		m_btn_rename_preset {nullptr};
     ScalableButton*		m_btn_delete_preset {nullptr};
     ScalableButton*		m_btn_edit_ph_printer {nullptr};
@@ -422,6 +423,7 @@ public:
     void		compare_preset() const;
     void		transfer_options(const std::string&name_from, const std::string&name_to, std::vector<std::string> options);
     void		save_preset(std::string name = std::string(), bool detach = false);
+    void		create_new_resin();
     void		rename_preset();
     void		delete_preset();
     void		toggle_show_hide_incompatible();
