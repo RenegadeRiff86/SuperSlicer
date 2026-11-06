@@ -442,6 +442,11 @@ public:
     bool is_first() const { return m_count == 0; }
 };
 
+// GTK draws a native button over anything painted behind it. Replace the
+// widget's CSS provider (do not stack a new one) so the fill and caption stay
+// visible for button, hover, active, and checked.
+void apply_native_button_fill(wxWindow* button, const wxColour& background, const wxColour& foreground, bool underline);
+
 }}
 
 #endif

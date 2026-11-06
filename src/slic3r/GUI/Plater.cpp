@@ -762,6 +762,7 @@ struct Sidebar::priv
 
     wxButton *btn_export_gcode;
     wxButton *btn_reslice;
+    wxStaticText *action_hint{ nullptr };
     ScalableButton *btn_send_gcode;
     //ScalableButton *btn_eject_device;
     ScalableButton* btn_export_gcode_removable; //exports to removable drives (appears only if removable drive is connected)
@@ -1060,6 +1061,8 @@ Sidebar::Sidebar(Plater *parent)
         wxGetApp().SetWindowVariantForButton((*btn));
         (*btn)->SetFont(wxGetApp().bold_font());
         wxGetApp().UpdateDarkUI((*btn), true);
+        const wxSize best = (*btn)->GetBestSize();
+        (*btn)->SetMinSize(wxSize(std::max(best.GetWidth(), button_height * 4), std::max(best.GetHeight(), button_height)));
     };
 
     init_btn(&p->btn_export_gcode, _L("Export G-code") + dots , scaled_height);
@@ -1069,8 +1072,6 @@ Sidebar::Sidebar(Plater *parent)
     p->btn_send_gcode->SetName("superslicer.action.send_gcode");
     p->btn_export_gcode_removable->SetName(
         "superslicer.action.export_gcode_removable");
-
-    enable_buttons(false);
 
     auto *btns_sizer = new wxBoxSizer(wxHORIZONTAL);
 
@@ -1084,10 +1085,16 @@ Sidebar::Sidebar(Plater *parent)
     btns_sizer->Add(p->btn_reslice, 1, wxEXPAND | wxTOP | wxBOTTOM, sidebar_margin);
     btns_sizer->Add(complect_btns_sizer, 1, wxEXPAND | wxTOP | wxBOTTOM, sidebar_margin);
 
+    p->action_hint = new wxStaticText(this, wxID_ANY, wxEmptyString);
+    p->action_hint->SetFont(wxGetApp().small_font());
+    p->action_hint->Hide();
+
     auto *sizer = new wxBoxSizer(wxVERTICAL);
     sizer->Add(p->scrolled, 1, wxEXPAND);
     sizer->Add(btns_sizer, 0, wxEXPAND | wxLEFT, sidebar_margin);
+    sizer->Add(p->action_hint, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, sidebar_margin);
     SetSizer(sizer);
+    enable_buttons(false, _L("Add a model to slice."));
 
     // Events
     p->btn_export_gcode->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { p->plater->export_gcode(false); });
@@ -1307,8 +1314,12 @@ void Sidebar::msw_rescale()
 #else
     const int scaled_height = p->btn_export_gcode_removable->GetBitmapHeight() + ButtonHeightPaddingPx;
 #endif
-    p->btn_export_gcode->SetMinSize(wxSize(-1, scaled_height));
-    p->btn_reslice     ->SetMinSize(wxSize(-1, scaled_height));
+    const auto fit_action_btn = [scaled_height](wxButton* btn) {
+        const wxSize best = btn->GetBestSize();
+        btn->SetMinSize(wxSize(std::max(best.GetWidth(), scaled_height * 4), std::max(best.GetHeight(), scaled_height)));
+    };
+    fit_action_btn(p->btn_export_gcode);
+    fit_action_btn(p->btn_reslice);
 
     p->scrolled->Layout();
 
@@ -1811,13 +1822,27 @@ void Sidebar::show_sliced_info_sizer(const bool show)
     p->scrolled->Refresh();
 }
 
-void Sidebar::enable_buttons(bool enable)
+void Sidebar::enable_buttons(bool enable, const wxString& disabled_reason)
 {
     p->btn_reslice->Enable(enable);
     p->btn_export_gcode->Enable(enable);
     p->btn_send_gcode->Enable(enable);
 //    p->btn_eject_device->Enable(enable);
     p->btn_export_gcode_removable->Enable(enable);
+    if (p->action_hint == nullptr)
+        return;
+    wxString hint = disabled_reason;
+    if (!enable && hint.empty())
+        hint = _L("Unavailable until the platter is ready to slice.");
+    const bool show = !enable && !hint.empty();
+    const wxString label = show ? hint : wxString();
+    const bool relayout = p->action_hint->GetLabel() != label || p->action_hint->IsShown() != show;
+    p->action_hint->SetLabel(label);
+    p->action_hint->Wrap(std::max(GetClientSize().GetWidth() - 16, 80));
+    if (p->action_hint->IsShown() != show)
+        p->action_hint->Show(show);
+    if (relayout)
+        Layout();
 }
 
 bool Sidebar::show_reslice(bool show)          const { return p->btn_reslice->Show(show); }
@@ -3569,7 +3594,14 @@ void Plater::priv::object_list_changed()
     // Action buttons require a fully in-volume model (same gate as a valid slice).
     const bool model_fits = view3D->get_canvas3d()->check_volumes_outside_state() == ModelInstancePVS_Inside;
 
-    sidebar->enable_buttons(!model.objects.empty() && !export_in_progress && model_fits);
+    wxString why;
+    if (model.objects.empty())
+        why = _L("Add a model to slice.");
+    else if (export_in_progress)
+        why = _L("Wait for the current export to finish.");
+    else if (!model_fits)
+        why = _L("Move the model onto the bed.");
+    sidebar->enable_buttons(why.empty(), why);
 }
 
 void Plater::priv::select_all()

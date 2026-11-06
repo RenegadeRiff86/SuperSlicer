@@ -6,6 +6,7 @@
 #include "GUI_ObjectList.hpp"
 #include "GUI_Factories.hpp"
 
+#include "OG_CustomCtrl.hpp"
 #include "OptionsGroup.hpp"
 #include "GUI_App.hpp"
 #include "wxExtensions.hpp"
@@ -247,7 +248,7 @@ void ObjectSettings::update_config_values(ModelConfig* config)
         }
     };
 
-    auto toggle_field = [this](const t_config_option_key & opt_key, bool toggle, int opt_index)
+    auto toggle_field = [this](const t_config_option_key & opt_key, bool toggle, int opt_index, const wxString& disabled_reason)
     {
         Field* field = nullptr;
         for (auto og : m_og_settings) {
@@ -255,8 +256,16 @@ void ObjectSettings::update_config_values(ModelConfig* config)
             if (field != nullptr)
                 break;
         }
-        if (field)
-            field->toggle_widget_enable(toggle);
+        if (!field)
+            return;
+        field->set_disabled_reason(toggle ? wxString() : disabled_reason);
+        field->toggle_widget_enable(toggle);
+        if (wxWindow* window = field->getWindow()) {
+            if (auto* custom = dynamic_cast<OG_CustomCtrl*>(window->GetParent())) {
+                custom->update_positions();
+                custom->Refresh();
+            }
+        }
     };
 
     ConfigManipulation config_manipulation(load_config, toggle_field, nullptr, config);

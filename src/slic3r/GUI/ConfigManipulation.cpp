@@ -10,6 +10,7 @@
 #include "libslic3r/PresetBundle.hpp"
 #include "MsgDialog.hpp"
 
+#include <initializer_list>
 #include <string>
 #include <wx/msgdlg.h>
 
@@ -47,6 +48,88 @@ constexpr const char* OPT_SUPPORT_MATERIAL_INTERFACE_EXTRUDER = "support_materia
 constexpr const char* OPT_SUPPORT_MATERIAL_SYNCHRONIZE_LAYERS = "support_material_synchronize_layers";
 constexpr const char* OPT_TOP_FILL_PATTERN = "top_fill_pattern";
 constexpr const char* OPT_TOP_SOLID_LAYERS = "top_solid_layers";
+
+bool key_is(const std::string& key, std::initializer_list<const char*> names)
+{
+    for (const char* name : names)
+        if (key == name)
+            return true;
+    return false;
+}
+
+// Shown on the row when a field is turned off. The last toggle_field() call
+// wins, so a later call can pass its own clause.
+const char* reason_for_key(const std::string& key)
+{
+    if (key_is(key, {"single_extruder_multi_material", "toolchange_gcode",
+                     "retract_length_toolchange", "retract_restart_extra_toolchange"}))
+        return "Needs a second extruder.";
+    if (key_is(key, {"arc_fitting_resolution", "arc_fitting_tolerance", "arc_fitting_ignore_holes"}))
+        return "Set Arc fitting to something other than Disabled.";
+    if (key == "remaining_times_type")
+        return "Turn on Print remaining times.";
+    if (key == "gcode_min_resolution")
+        return "Set a minimum extrusion length or a maximum G1 rate above zero.";
+    if (key == "gcode_command_buffer")
+        return "Set a maximum G1 rate above zero.";
+    if (key == "silent_mode")
+        return "Only for Marlin.";
+    if (key == "material_print_speed")
+        return "Not available on the Original Prusa SL1.";
+    if (key == "thumbnails_color")
+        return "Turn on a custom thumbnail colour.";
+    if (key_is(key, {"thumbnails_end_file", "thumbnails_tag_format"}))
+        return "Not used with the BIQU thumbnail format.";
+    if (key_is(key, {"retract_length"}))
+        return "Turn off Firmware retraction.";
+    if (key_is(key, {"retract_speed", "deretract_speed", "retract_before_wipe", "retract_restart_extra",
+                     "wipe", "wipe_speed", "wipe_only_crossing", "wipe_return"}))
+        return "Set a retraction length, or turn off Firmware retraction.";
+    if (key_is(key, {"retract_lift_above", "retract_lift_below", "retract_lift_top",
+                     "retract_lift_first_layer", "retract_lift_before_travel"}))
+        return "Set Lift Z above zero.";
+    if (key_is(key, {"travel_slope", "travel_lift_before_obstacle"}))
+        return "Turn on Ramping lift.";
+    if (key_is(key, {"wipe_advanced_nozzle_melted_volume", "wipe_advanced_multiplier", "wipe_advanced_algo"}))
+        return "Turn on Advanced wipe volume.";
+    if (key.rfind("support_tree_", 0) == 0)
+        return "Set the support style to Organic or Tree.";
+    if (key.rfind("branchingsupport_", 0) == 0)
+        return "Turn on Supports and choose the branching tree.";
+    if (key.rfind("support_", 0) == 0 && key.rfind("support_material", 0) != 0)
+        return "Turn on Supports.";
+    if (key.rfind("pad_", 0) == 0)
+        return "Turn on the pad.";
+    if (key.rfind("raft_", 0) == 0 || key_is(key, {"first_layer_acceleration_over_raft", "first_layer_speed_over_raft"}))
+        return "Set Raft layers above zero.";
+    if (key.rfind("brim_", 0) == 0)
+        return "Set Brim width above zero.";
+    if (key.rfind("skirt_", 0) == 0)
+        return "Set Loops (skirt) above zero.";
+    if (key.rfind("support_material", 0) == 0)
+        return "Turn on Generate support material.";
+    if (key.rfind("ironing_", 0) == 0 || key == "ironing")
+        return "Turn on Ironing.";
+    if (key.rfind("fuzzy_skin", 0) == 0)
+        return "Set Fuzzy skin to something other than None.";
+    if (key.rfind("gap_fill", 0) == 0)
+        return "Turn on Gap fill.";
+    if (key.rfind("infill_", 0) == 0 || key.rfind("fill_", 0) == 0 || key.rfind("solid_infill", 0) == 0
+        || key.rfind("top_solid", 0) == 0 || key.rfind("bottom_solid", 0) == 0
+        || key_is(key, {"top_fill_pattern", "bottom_fill_pattern", "solid_fill_pattern", "fill_density", "fill_pattern", "fill_angle"}))
+        return "Set Fill density above zero, or add solid layers.";
+    if (key.rfind("overhangs_", 0) == 0 || key == "overhangs")
+        return "Turn on Overhangs.";
+    if (key.rfind("thin_", 0) == 0 || key.rfind("perimeter", 0) == 0 || key.rfind("external_perimeter", 0) == 0
+        || key.rfind("extra_perimeter", 0) == 0 || key.rfind("seam_", 0) == 0 || key == "only_one_perimeter_top"
+        || key == "only_one_perimeter_first_layer" || key == "no_perimeter_unsupported_algo")
+        return "Set Perimeters above zero.";
+    if (key.rfind("wipe_tower", 0) == 0)
+        return "Turn on the wipe tower.";
+    if (key.rfind("small_perimeter", 0) == 0)
+        return "Set Small perimeters speed above zero.";
+    return "Unavailable with the current settings.";
+}
 } // namespace
 
 
@@ -62,13 +145,21 @@ void ConfigManipulation::apply(DynamicPrintConfig* config, DynamicPrintConfig* n
         load_config();
 }
 
-void ConfigManipulation::toggle_field(const std::string& opt_key, const bool toggle, int opt_index/* = -1*/)
+void ConfigManipulation::toggle_field(const std::string& opt_key, const bool toggle, int opt_index/* = -1*/, const char* reason_when_off/* = nullptr*/)
 {
     if (local_config) {
         if (local_config->option(opt_key) == nullptr)
             return;
     }
-    cb_toggle_field(opt_key, toggle, opt_index);
+    if (!cb_toggle_field)
+        return;
+    wxString reason;
+    if (!toggle) {
+        const char* text = reason_when_off != nullptr ? reason_when_off : reason_for_key(opt_key);
+        reason = wxString::FromUTF8(text);
+        reason = wxGetTranslation(reason);
+    }
+    cb_toggle_field(opt_key, toggle, opt_index, reason);
 }
 
 // !! if using cb_value_change(X) or something like that, you need a special code in Field.cpp (search for 'update_print_fff_config')
@@ -606,7 +697,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
               "support_material_interface_contact_loops", "support_material_with_sheath", "support_material_pattern",
               "support_material_spacing", "support_material_angle", "support_material_angle_height", "support_material_layer_height",
               "support_material_bottom_interface_pattern"})
-            toggle_field(key, false);
+            toggle_field(key, false, -1, "Not used with tree supports.");
     }
 
     toggle_field("perimeter_extrusion_width", have_perimeters || have_brim);
@@ -887,7 +978,7 @@ void ConfigManipulation::toggle_printer_fff_options(DynamicPrintConfig *config, 
 
         // wipe_only_crossing can only work if avoid_crossing_perimeters
         if (!full_config.option("avoid_crossing_perimeters")->get_bool()) {
-            toggle_field("wipe_only_crossing", false, i);
+            toggle_field("wipe_only_crossing", false, static_cast<int>(i), "Turn on Avoid crossing perimeters.");
         }
         
         toggle_field("travel_lift_before_obstacle", ramping_lift, i);
@@ -930,23 +1021,23 @@ void ConfigManipulation::toggle_print_sla_options(DynamicPrintConfig* config)
     toggle_field("support_max_bridge_length", supports_en && is_default_tree);
     toggle_field("support_enforcers_only", supports_en);
     toggle_field("support_max_pillar_link_distance", supports_en && is_default_tree);
-    toggle_field("support_pillar_widening_factor", false);
-    toggle_field("support_max_weight_on_model", false);
+    toggle_field("support_pillar_widening_factor", false, -1, "Not used with this support tree.");
+    toggle_field("support_max_weight_on_model", false, -1, "Not used with this support tree.");
 
     toggle_field("branchingsupport_head_front_diameter", supports_en && is_branching_tree);
     toggle_field("branchingsupport_head_penetration", supports_en && is_branching_tree);
     toggle_field("branchingsupport_head_width", supports_en && is_branching_tree);
     toggle_field("branchingsupport_pillar_diameter", supports_en && is_branching_tree);
     toggle_field("branchingsupport_small_pillar_diameter_percent", supports_en && is_branching_tree);
-    toggle_field("branchingsupport_max_bridges_on_pillar", false);
-    toggle_field("branchingsupport_pillar_connection_mode", false);
+    toggle_field("branchingsupport_max_bridges_on_pillar", false, -1, "Not used with the branching tree.");
+    toggle_field("branchingsupport_pillar_connection_mode", false, -1, "Not used with the branching tree.");
     toggle_field("branchingsupport_buildplate_only", supports_en && is_branching_tree);
     toggle_field("branchingsupport_base_diameter", supports_en && is_branching_tree);
     toggle_field("branchingsupport_base_height", supports_en && is_branching_tree);
     toggle_field("branchingsupport_base_safety_distance", supports_en && is_branching_tree);
     toggle_field("branchingsupport_critical_angle", supports_en && is_branching_tree);
     toggle_field("branchingsupport_max_bridge_length", supports_en && is_branching_tree);
-    toggle_field("branchingsupport_max_pillar_link_distance", false);
+    toggle_field("branchingsupport_max_pillar_link_distance", false, -1, "Not used with the branching tree.");
     toggle_field("branchingsupport_pillar_widening_factor", supports_en && is_branching_tree);
     toggle_field("branchingsupport_max_weight_on_model", supports_en && is_branching_tree);
 
@@ -969,7 +1060,7 @@ void ConfigManipulation::toggle_print_sla_options(DynamicPrintConfig* config)
     toggle_field("support_object_elevation", supports_en && is_default_tree && !zero_elev);
     toggle_field("branchingsupport_object_elevation", supports_en && is_branching_tree && !zero_elev);
     toggle_field("pad_object_gap", zero_elev);
-    toggle_field("pad_around_object_everywhere", zero_elev);
+    toggle_field("pad_around_object_everywhere", zero_elev, -1, "Turn on Pad around object.");
     toggle_field("pad_object_connector_stride", zero_elev);
     toggle_field("pad_object_connector_width", zero_elev);
     toggle_field("pad_object_connector_penetration", zero_elev);

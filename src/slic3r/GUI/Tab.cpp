@@ -287,6 +287,7 @@ void Tab::create_preset_tab()
     // Bitmaps to be shown on the "Revert to system" aka "Lock to system" button next to each input field.
     add_scaled_bitmap(this, m_bmp_value_lock  , "lock_closed");
     add_scaled_bitmap(this, m_bmp_value_unlock, "lock_open");
+    add_scaled_bitmap(this, m_bmp_revert_all, "revert_all_");
     m_bmp_non_system = &m_bmp_white_bullet;
     // Bitmaps to be shown on the "Undo user changes" button next to each input field.
     add_scaled_bitmap(this, m_bmp_value_revert, "undo");
@@ -530,7 +531,7 @@ void Tab::load_initial_data()
         m_config_base = m_config;
         has_parent = m_presets->get_selected_preset_parent() != nullptr;
     }
-    m_bmp_non_system = has_parent ? &m_bmp_value_unlock : &m_bmp_white_bullet;
+    m_bmp_non_system = has_parent ? &m_bmp_revert_all : &m_bmp_white_bullet;
     m_ttg_non_system = has_parent ? &m_ttg_value_unlock : &m_ttg_white_bullet_ns;
     m_tt_non_system  = has_parent ? &m_tt_value_unlock  : &m_ttg_white_bullet_ns;
 }
@@ -742,7 +743,9 @@ void Tab::decorate()
 
         bool is_nonsys_value = false;
         bool is_modified_value = true;
-        const ScalableBitmap* sys_icon  = &m_bmp_value_lock;
+        // A closed lock on a value that already matches the system reads as a
+        // disabled field. Leave the slot empty until the value actually differs.
+        const ScalableBitmap* sys_icon  = nullptr;
         const ScalableBitmap* icon      = &m_bmp_value_revert;
 
         const wxColour* color = m_is_default_preset ? &m_default_label_clr : &m_sys_label_clr;
@@ -1109,13 +1112,20 @@ void Tab::update_undo_buttons()
 {
     const int toolbar_px = settings_toolbar_icon_px();
     m_undo_btn->        SetBitmap_(m_is_modified_values ? m_bmp_value_revert.name(): m_bmp_white_bullet.name(), toolbar_px);
-    m_undo_to_sys_btn-> SetBitmap_(m_is_nonsys_values   ? m_bmp_non_system->name() : m_bmp_value_lock.name(), toolbar_px);
-
-    //m_undo_btn->        SetBitmap_(m_is_modified_values ? m_bmp_value_revert: m_bmp_white_bullet);
-    //m_undo_to_sys_btn-> SetBitmap_(m_is_nonsys_values   ? *m_bmp_non_system : m_bmp_value_lock);
-
     m_undo_btn->SetToolTip(m_is_modified_values ? m_ttg_value_revert : m_ttg_white_bullet);
-    m_undo_to_sys_btn->SetToolTip(m_is_nonsys_values ? *m_ttg_non_system : m_ttg_value_lock);
+
+    // Hide the reset control while every value on the page matches the system.
+    // A lock in that state looked like a disabled toolbar button.
+    const bool show_sys = m_is_nonsys_values && m_bmp_non_system != nullptr;
+    if (show_sys) {
+        m_undo_to_sys_btn->SetBitmap_(m_bmp_non_system->name(), toolbar_px);
+        m_undo_to_sys_btn->SetToolTip(*m_ttg_non_system);
+    }
+    if (m_undo_to_sys_btn->IsShown() != show_sys) {
+        m_undo_to_sys_btn->Show(show_sys);
+        if (m_h_buttons_sizer)
+            m_h_buttons_sizer->Layout();
+    }
 }
 
 void Tab::on_roll_back_value(const bool to_sys /*= true*/)
@@ -1415,13 +1425,21 @@ Field* Tab::get_field(Page*& selected_page, const t_config_option_key& opt_key, 
     return field;
 }
 
-void Tab::toggle_option(const std::string& opt_key, bool toggle, int32_t opt_index/* = -1*/)
+void Tab::toggle_option(const std::string& opt_key, bool toggle, int32_t opt_index/* = -1*/, const wxString& disabled_reason/* = wxString()*/)
 {
     if (!m_active_page)
         return;
     Field* field = m_active_page->get_field(opt_key, opt_index);
-    if (field)
-        field->toggle_widget_enable(toggle);
+    if (!field)
+        return;
+    field->set_disabled_reason(toggle ? wxString() : disabled_reason);
+    field->toggle_widget_enable(toggle);
+    if (wxWindow* window = field->getWindow()) {
+        if (auto* custom = dynamic_cast<OG_CustomCtrl*>(window->GetParent())) {
+            custom->update_positions();
+            custom->Refresh();
+        }
+    }
 };
 
 // To be called by custom widgets, load a value into a config,
@@ -1724,6 +1742,7 @@ void Tab::build_preset_description_line(ConfigOptionsGroup* optgroup)
                                                  wxDefaultSize, wxDefaultPosition, wxBU_LEFT | wxBU_EXACTFIT);
         ScalableButton* btn = m_detach_preset_btn;
         btn->SetFont(Slic3r::GUI::wxGetApp().normal_font());
+        btn->SetMinSize(btn->GetBestSize());
 
         auto sizer = new wxBoxSizer(wxHORIZONTAL);
         sizer->Add(btn);
@@ -2737,6 +2756,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                     ramming_dialog_btn->SetFont(Slic3r::GUI::wxGetApp().normal_font());
                     wxGetApp().SetWindowVariantForButton(ramming_dialog_btn);
                     wxGetApp().UpdateDarkUI(ramming_dialog_btn);
+                    ramming_dialog_btn->SetMinSize(ramming_dialog_btn->GetBestSize());
                     auto sizer = new wxBoxSizer(wxHORIZONTAL);
                     sizer->Add(ramming_dialog_btn);
 
@@ -2845,7 +2865,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                     btn->SetToolTip(_L("Ask the Klipper host which [extruder_stepper] units follow this "
                                        "extruder, and fill the list with them. Needs the printer to be "
                                        "online and a physical printer with a host URL selected."));
-                    btn->SetSize(btn->GetBestSize());
+                    btn->SetMinSize(btn->GetBestSize());
                     wxBoxSizer *sizer = new wxBoxSizer(wxHORIZONTAL);
                     sizer->Add(btn);
                     btn->Bind(wxEVT_BUTTON, [tab, idx_page](wxCommandEvent &e) {
@@ -2864,7 +2884,7 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                     ScalableButton* btn = new ScalableButton(parent, wxID_ANY, "undo", _L("Reset to Filament Color"),
                                                      wxDefaultSize, wxDefaultPosition, wxBU_LEFT | wxBU_EXACTFIT);
                     btn->SetFont(Slic3r::GUI::wxGetApp().normal_font());
-                    btn->SetSize(btn->GetBestSize());
+                    btn->SetMinSize(btn->GetBestSize());
                     wxBoxSizer *sizer = new wxBoxSizer(wxHORIZONTAL);
                     sizer->Add(btn);
                     assert(m_config);
@@ -3418,8 +3438,9 @@ void TabFilament::toggle_options()
         // bool fan_always_on = m_config->opt_bool("fan_always_on", 0);
 
         //get_field("max_fan_speed")->toggle_widget_enable(m_config->opt_float("fan_below_layer_time", 0) > 0);
-        toggle_option("min_print_speed", m_config->opt_float("slowdown_below_layer_time", 0) > 0, 0);
-        toggle_option("max_speed_reduction", m_config->opt_float("slowdown_below_layer_time", 0) > 0, 0);
+        const wxString slowdown = _L("Set Slow down if layer print time is below above zero.");
+        toggle_option("min_print_speed", m_config->opt_float("slowdown_below_layer_time", 0) > 0, 0, slowdown);
+        toggle_option("max_speed_reduction", m_config->opt_float("slowdown_below_layer_time", 0) > 0, 0, slowdown);
 
         // hidden 'cooling', it's now deactivated.
              //for (auto el : { "min_fan_speed", "disable_fan_first_layers" })
@@ -3430,11 +3451,13 @@ void TabFilament::toggle_options()
         //for (auto el : { "min_fan_speed", "disable_fan_first_layers" })
         //    get_field(el)->toggle_widget_enable(fan_always_on);
 
-        toggle_option("max_fan_speed", 
-            m_config->opt_float("fan_below_layer_time", 0) > 0 
-            || m_config->opt_float("slowdown_below_layer_time", 0) > 0, 0);
+        toggle_option("max_fan_speed",
+            m_config->opt_float("fan_below_layer_time", 0) > 0
+            || m_config->opt_float("slowdown_below_layer_time", 0) > 0, 0,
+            _L("Set Fan speedup time or Slow down if layer print time is below above zero."));
 
-        toggle_option("overhangs_fan_speed", !m_config->is_enabled("overhangs_dynamic_fan_speed", 0), 0);
+        toggle_option("overhangs_fan_speed", !m_config->is_enabled("overhangs_dynamic_fan_speed", 0), 0,
+            _L("Turn off Dynamic fan speed for overhangs."));
     }
 
     bool use_pa = m_config->option("filament_pressure_advance")->is_enabled(0);
@@ -3444,19 +3467,21 @@ void TabFilament::toggle_options()
         "filament_gap_fill_pa", "filament_thin_walls_pa", "filament_ironing_pa", "filament_travel_pa",
         "filament_first_layer_pa", "filament_first_layer_pa_over_raft", "filament_pressure_advance_smooth_time",
         "filament_adaptive_pressure_advance"}) {
-        toggle_option(field_name, use_pa, 0);
+        toggle_option(field_name, use_pa, 0, _L("Turn on Enable pressure advance."));
     }
     // The adaptive PA model + overhang toggle only matter when adaptive PA itself is on.
     bool use_adaptive_pa = use_pa && m_config->opt_bool("filament_adaptive_pressure_advance", 0);
-    toggle_option("filament_adaptive_pressure_advance_model", use_adaptive_pa, 0);
-    toggle_option("filament_adaptive_pressure_advance_overhangs", use_adaptive_pa, 0);
-    toggle_option("filament_adaptive_pressure_advance_bridges", use_adaptive_pa, 0);
+    const wxString adaptive = _L("Turn on Adaptive pressure advance.");
+    toggle_option("filament_adaptive_pressure_advance_model", use_adaptive_pa, 0, adaptive);
+    toggle_option("filament_adaptive_pressure_advance_overhangs", use_adaptive_pa, 0, adaptive);
+    toggle_option("filament_adaptive_pressure_advance_bridges", use_adaptive_pa, 0, adaptive);
 
     //if (m_active_page->title() == "Advanced")
     {
         bool multitool_ramming = m_config->opt_bool("filament_multitool_ramming", 0);
-        toggle_option("filament_multitool_ramming_volume", multitool_ramming, 0);
-        toggle_option("filament_multitool_ramming_flow", multitool_ramming, 0);
+        const wxString ramming = _L("Turn on Multitool ramming.");
+        toggle_option("filament_multitool_ramming_volume", multitool_ramming, 0, ramming);
+        toggle_option("filament_multitool_ramming_flow", multitool_ramming, 0, ramming);
     }
 
     //if (m_active_page->title() == "Filament Overrides")
@@ -4119,7 +4144,7 @@ void TabPrinter::toggle_options()
         int  max_field = silent_mode ? SILENT_MODE_MAX_FIELD : 1;
         for (const std::string &opt : Preset::machine_limits_options())
             for (int i = 0; i < max_field; ++i)
-                toggle_option(opt, enabled, i);
+                toggle_option(opt, enabled, i, _L("Set How to apply limits to something other than Disable."));
 
         update_machine_limits_description(machine_limits_usage->value);
     }
@@ -4237,7 +4262,7 @@ void Tab::update_ui_items_related_on_parent_preset(const Preset* selected_preset
 {
     m_is_default_preset = selected_preset_parent != nullptr && selected_preset_parent->is_default;
 
-    m_bmp_non_system = selected_preset_parent ? &m_bmp_value_unlock : &m_bmp_white_bullet;
+    m_bmp_non_system = selected_preset_parent ? &m_bmp_revert_all : &m_bmp_white_bullet;
     m_ttg_non_system = selected_preset_parent ? &m_ttg_value_unlock : &m_ttg_white_bullet_ns;
     m_tt_non_system  = selected_preset_parent ? &m_tt_value_unlock  : &m_ttg_white_bullet_ns;
 }
@@ -5415,10 +5440,17 @@ wxSizer* Tab::compatible_widget_create(wxWindow* parent, PresetDependencies &dep
     deps.checkbox = CheckBox::GetNewWin(parent, _L("All"));
     deps.checkbox->SetFont(Slic3r::GUI::wxGetApp().normal_font());
     wxGetApp().UpdateDarkUI(deps.checkbox);
-    deps.btn = new ScalableButton(parent, wxID_ANY, "printer", format_wxstr(" %s %s", _L("Set"), dots),
+    const bool choosing_printers = deps.type == Preset::TYPE_PRINTER;
+    const wxString set_label = choosing_printers ? _L("Set printers") : _L("Set print profiles");
+    deps.btn = new ScalableButton(parent, wxID_ANY, "printer", " " + set_label,
                                   wxDefaultSize, wxDefaultPosition, wxBU_LEFT | wxBU_EXACTFIT);
     deps.btn->SetFont(Slic3r::GUI::wxGetApp().normal_font());
-    deps.btn->SetSize(deps.btn->GetBestSize());
+    deps.btn->SetToolTip(choosing_printers ? _L("Choose the printers this profile is compatible with.")
+                                           : _L("Choose the print profiles this profile is compatible with."));
+    const wxSize set_best = deps.btn->GetBestSize();
+    const int set_min_w = std::max(set_best.GetWidth(), 16 * em_unit(parent));
+    deps.btn->SetMinSize(wxSize(set_min_w, set_best.GetHeight()));
+    deps.btn->SetSize(deps.btn->GetMinSize());
 
     auto sizer = new wxBoxSizer(wxHORIZONTAL);
     sizer->Add((deps.checkbox), 0, wxALIGN_CENTER_VERTICAL);
@@ -5456,8 +5488,14 @@ wxSizer* Tab::compatible_widget_create(wxWindow* parent, PresetDependencies &dep
         // create button ourself to have an axtra one, (apply) and rename it "all"
         wxSizer * top_sizer = dlg.GetSizer();
         wxStdDialogButtonSizer * std_bt_sizer = dlg.CreateStdDialogButtonSizer(wxYES | wxNO | wxCANCEL);
-        std_bt_sizer->GetAffirmativeButton()->SetLabel(_L("Set"));
-        std_bt_sizer->GetNegativeButton()->SetLabel(_L("Set All"));
+        std_bt_sizer->GetAffirmativeButton()->SetLabel(_L("Set selected"));
+        std_bt_sizer->GetNegativeButton()->SetLabel(_L("Set all"));
+        for (wxButton* dialog_btn : {std_bt_sizer->GetAffirmativeButton(), std_bt_sizer->GetNegativeButton(), std_bt_sizer->GetCancelButton()}) {
+            if (dialog_btn == nullptr)
+                continue;
+            const wxSize best = dialog_btn->GetBestSize();
+            dialog_btn->SetMinSize(best);
+        }
         top_sizer->Add(std_bt_sizer, wxSizerFlags().Expand().DoubleBorder());
         //top_sizer->Add(dlg.CreateSeparatedSizer(std_bt_sizer), wxSizerFlags().Expand().DoubleBorder());
         wxGetApp().UpdateDlgDarkUI(&dlg);
@@ -6056,10 +6094,13 @@ bool VectorManager::is_empty_vector()
 // Return a callback to create a TabPrinter widget to edit bed shape
 wxSizer* TabPrinter::create_bed_shape_widget(wxWindow* parent)
 {
-    ScalableButton* btn = new ScalableButton(parent, wxID_ANY, "printer", " " + _(L("Set")) + " " + dots,
+    ScalableButton* btn = new ScalableButton(parent, wxID_ANY, "printer", " " + _L("Set bed shape"),
         wxDefaultSize, wxDefaultPosition, wxBU_LEFT | wxBU_EXACTFIT);
     btn->SetFont(wxGetApp().normal_font());
-    btn->SetSize(btn->GetBestSize());
+    btn->SetToolTip(_L("Edit the bed shape, texture, and model."));
+    const wxSize bed_best = btn->GetBestSize();
+    btn->SetMinSize(wxSize(std::max(bed_best.GetWidth(), 16 * em_unit(parent)), bed_best.GetHeight()));
+    btn->SetSize(btn->GetMinSize());
 
     auto sizer = new wxBoxSizer(wxHORIZONTAL);
     sizer->Add(btn, 0, wxALIGN_CENTER_VERTICAL);
@@ -6341,16 +6382,10 @@ void Tab::compatible_widget_reload(PresetDependencies &deps)
 
 void Tab::fill_icon_descriptions()
 {
-    m_icon_descriptions.emplace_back(&m_bmp_value_lock, L("LOCKED LOCK"),
-        // TRN Description for "LOCKED LOCK"
-        L("indicates that the settings are the same as the system (or default) values for the current option group"));
-
-    m_icon_descriptions.emplace_back(&m_bmp_value_unlock, L("UNLOCKED LOCK"),
-        // TRN Description for "UNLOCKED LOCK"
-        L("indicates that some settings were changed and are not equal to the system (or default) values for "
-        "the current option group.\n"
-        "Click the UNLOCKED LOCK icon to reset all settings for current option group to "
-        "the system (or default) values."));
+    m_icon_descriptions.emplace_back(&m_bmp_revert_all, L("RESET"),
+        // TRN Description for the reset-to-system icon. A matching value has no icon.
+        L("indicates that the value was changed and is not equal to the system (or default) value.\n"
+          "Click to reset it to the system (or default) value."));
 
     m_icon_descriptions.emplace_back(&m_bmp_white_bullet, L("WHITE BULLET"),
         // TRN Description for "WHITE BULLET"
@@ -6373,11 +6408,8 @@ void Tab::set_tooltips_text()
 {
     // --- Tooltip text for reset buttons (for whole options group)
     // Text to be shown on the "Revert to system" aka "Lock to system" button next to each input field.
-    m_ttg_value_lock =		_(L("LOCKED LOCK icon indicates that the settings are the same as the system (or default) values "
-                                "for the current option group"));
-    m_ttg_value_unlock =	_(L("UNLOCKED LOCK icon indicates that some settings were changed and are not equal "
-                                "to the system (or default) values for the current option group.\n"
-                                "Click to reset all settings for current option group to the system (or default) values."));
+    m_ttg_value_lock =		_(L("This page matches the system values."));
+    m_ttg_value_unlock =	_(L("Reset the settings in this group to the system value."));
     m_ttg_white_bullet_ns =	_(L("WHITE BULLET icon indicates a non system (or non default) preset."));
     m_ttg_non_system =		&m_ttg_white_bullet_ns;
     // Text to be shown on the "Undo user changes" button next to each input field.
@@ -6389,10 +6421,8 @@ void Tab::set_tooltips_text()
 
     // --- Tooltip text for reset buttons (for each option in group)
     // Text to be shown on the "Revert to system" aka "Lock to system" button next to each input field.
-    m_tt_value_lock =		_(L("LOCKED LOCK icon indicates that the value is the same as the system (or default) value."));
-    m_tt_value_unlock =		_(L("UNLOCKED LOCK icon indicates that the value was changed and is not equal "
-                                "to the system (or default) value.\n"
-                                "Click to reset current value to the system (or default) value."));
+    m_tt_value_lock =		_(L("This value matches the system value."));
+    m_tt_value_unlock =		_(L("Reset to the system value."));
     // 	m_tt_white_bullet_ns=	_(L("WHITE BULLET icon indicates a non system preset."));
     m_tt_non_system =		&m_ttg_white_bullet_ns;
     // Text to be shown on the "Undo user changes" button next to each input field.
@@ -6591,7 +6621,7 @@ void TabSLAMaterial::toggle_options()
 {
     const Preset &current_printer = wxGetApp().preset_bundle->printers.get_edited_preset();
     std::string model = current_printer.config.opt_string("printer_model");
-    m_config_manipulation.toggle_field("material_print_speed", model != "SL1");
+    m_config_manipulation.toggle_field("material_print_speed", model != "SL1", -1, "Not available on the Original Prusa SL1.");
 
     if (m_active_page->title() == "Material Overrides")
         update_material_overrides_page();
@@ -6791,8 +6821,8 @@ ConfigManipulation Tab::create_config_manipulation()
         update();
     };
 
-    auto cb_toggle_field = [this](const t_config_option_key& opt_key, bool toggle, int32_t opt_index) {
-        return toggle_option(opt_key, toggle, opt_index);
+    auto cb_toggle_field = [this](const t_config_option_key& opt_key, bool toggle, int32_t opt_index, const wxString& disabled_reason) {
+        return toggle_option(opt_key, toggle, opt_index, disabled_reason);
     };
 
     auto cb_value_change = [this](const std::string &opt_key, const boost::any &value) {

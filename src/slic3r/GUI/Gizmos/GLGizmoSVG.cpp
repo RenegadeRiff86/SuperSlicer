@@ -2147,7 +2147,7 @@ GuiCfg create_gui_configuration() {
     cfg.lock_offset = cfg.input_offset - (cfg.icon_width + 2 * space);
 
     ImVec2 letter_m_size = ImGui::CalcTextSize("M");
-    const float count_letter_M_in_input = 12.f;
+    const float count_letter_M_in_input = 18.f;
     cfg.input_width = letter_m_size.x * count_letter_M_in_input;
     cfg.texture_max_size_px = std::round(
         (cfg.input_width + cfg.input_offset + cfg.icon_width + space) / ICON_ALIGNMENT_GRID) * ICON_ALIGNMENT_GRID;

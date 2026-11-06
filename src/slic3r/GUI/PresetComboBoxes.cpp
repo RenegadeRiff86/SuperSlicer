@@ -60,7 +60,7 @@ namespace GUI {
 static constexpr const char* ICON_SLA_PRINTER     = "sla_printer";
 static constexpr const char* ICON_EDIT_UNI        = "edit_uni";
 static constexpr const char* LABEL_SYSTEM_PRESETS = L("System presets");
-static constexpr int PRESET_COMBO_MIN_WIDTH_EM = 20;
+static constexpr int PRESET_COMBO_MIN_WIDTH_EM = 24;
 
 #define BORDER_W 10
 
