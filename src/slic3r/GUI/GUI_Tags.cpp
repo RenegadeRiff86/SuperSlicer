@@ -12,6 +12,7 @@
 #include "Automation/AutomationIds.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"
+#include "GUI_Utils.hpp"
 #include "libslic3r/Config.hpp"
 #include "I18N.hpp"
 #include "Plater.hpp"
@@ -165,19 +166,14 @@ void ModeButton::focus_button(const bool focus)
                              Slic3r::GUI::wxGetApp().normal_font();
 
     SetFont(new_font);
-#ifdef _WIN32
-    GetParent()->Refresh(); // force redraw a background of the selected mode button
-#else
-    SetForegroundColour(wxSystemSettings::GetColour(focus ? wxSYS_COLOUR_BTNTEXT : 
-#if defined (__linux__) && defined (__WXGTK3__)
-        wxSYS_COLOUR_GRAYTEXT
-#elif defined (__linux__) && defined (__WXGTK2__)
-        wxSYS_COLOUR_BTNTEXT
-#else 
-        wxSYS_COLOUR_BTNSHADOW
-#endif    
-    ));
-#endif /* no _WIN32 */
+    auto& app = Slic3r::GUI::wxGetApp();
+    const wxColour background = focus ? app.get_color_hovered_btn() : app.get_window_default_clr();
+    const wxColour foreground = focus ? app.get_style_role_color("tab.text.selected") : app.get_label_clr_default();
+    // Grey text on an idle mode button reads as a disabled control. Idle stays
+    // the window colour; the selected mode keeps the accent fill and a dark caption.
+    apply_native_button_fill(this, background, foreground, focus);
+    if (wxWindow* parent = GetParent())
+        parent->Refresh();
 
     Refresh();
     Update();

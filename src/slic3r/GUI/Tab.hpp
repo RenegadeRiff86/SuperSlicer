@@ -283,6 +283,7 @@ protected:
     // Bitmaps to be shown on the "Revert to system" aka "Lock to system" button next to each input field.
     ScalableBitmap 			m_bmp_value_lock;
     ScalableBitmap 			m_bmp_value_unlock;
+    ScalableBitmap          m_bmp_revert_all;
     ScalableBitmap 			m_bmp_white_bullet;
     // The following bitmap points to either m_bmp_value_unlock or m_bmp_white_bullet, depending on whether the current preset has a parent preset.
     ScalableBitmap 		   *m_bmp_non_system;
@@ -470,7 +471,7 @@ public:
     std::pair<OG_CustomCtrl*, bool*> get_custom_ctrl_with_blinking_ptr(const t_config_option_key& opt_key, int32_t opt_index = -1);
 
     Field*          get_field(Page*& selected_page, const t_config_option_key &opt_key, int32_t opt_index = -1) const;
-    void			toggle_option(const std::string& opt_key, bool toggle, int32_t opt_index = -1);
+    void			toggle_option(const std::string& opt_key, bool toggle, int32_t opt_index = -1, const wxString& disabled_reason = wxString());
     wxSizer*		description_line_widget(wxWindow* parent, ogStaticText** StaticText, wxString text = wxEmptyString);
     bool			current_preset_is_dirty() const;
     bool			saved_preset_is_dirty() const;

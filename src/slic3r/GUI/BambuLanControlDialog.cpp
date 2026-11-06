@@ -628,9 +628,9 @@ BambuLanControlDialog::BambuLanControlDialog(wxWindow *parent, PresetBundle *bun
     }
     auto *temps = new wxBoxSizer(wxHORIZONTAL);
     temps->Add(new wxStaticText(this, wxID_ANY, _L("Nozzle")), 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 4);
-    m_nozzle_temp = new wxSpinCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(em * 8, -1), wxSP_ARROW_KEYS, 0, 300, nozzle_seed);
+    m_nozzle_temp = new wxSpinCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(em * 10, -1), wxSP_ARROW_KEYS, 0, 300, nozzle_seed);
     temps->Add(m_nozzle_temp, 0, wxRIGHT, 4);
-    auto *set_nozzle = new wxButton(this, wxID_ANY, _L("Set"));
+    auto *set_nozzle = new wxButton(this, wxID_ANY, _L("Set nozzle"));
     set_nozzle->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) {
         save_temperature(true);
         const std::string seq = next_sequence();
@@ -642,9 +642,9 @@ BambuLanControlDialog::BambuLanControlDialog(wxWindow *parent, PresetBundle *bun
     m_commands.push_back(set_nozzle);
     temps->Add(set_nozzle, 0, wxRIGHT, em);
     temps->Add(new wxStaticText(this, wxID_ANY, _L("Bed")), 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 4);
-    m_bed_temp = new wxSpinCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(em * 8, -1), wxSP_ARROW_KEYS, 0, 120, bed_seed);
+    m_bed_temp = new wxSpinCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(em * 10, -1), wxSP_ARROW_KEYS, 0, 120, bed_seed);
     temps->Add(m_bed_temp, 0, wxRIGHT, 4);
-    auto *set_bed = new wxButton(this, wxID_ANY, _L("Set"));
+    auto *set_bed = new wxButton(this, wxID_ANY, _L("Set bed"));
     set_bed->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) {
         save_temperature(false);
         const std::string seq = next_sequence();

@@ -9,6 +9,7 @@
 #include "Automation/AutomationIds.hpp"
 #include "GUI_App.hpp"
 #include "GUI_Tags.hpp"
+#include "GUI_Utils.hpp"
 #include "ThemeMetrics.hpp"
 #include "wxExtensions.hpp"
 
@@ -66,6 +67,7 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, bool add_mode_buttons/* = fal
     m_line_margin = Slic3r::GUI::ThemeMetrics::notebook_line_margin(this);
 
     SetBackgroundStyle(wxBG_STYLE_PAINT);
+    SetBackgroundColour(Slic3r::GUI::wxGetApp().get_window_default_clr());
 
     m_sizer = new wxBoxSizer(wxHORIZONTAL);
     this->SetSizer(m_sizer);
@@ -91,6 +93,9 @@ void ButtonsListCtrl::OnPaint(wxPaintEvent&)
 {
     auto &app = Slic3r::GUI::wxGetApp();
     app.UpdateDarkUI(this);
+    const wxColour window_bg = app.get_window_default_clr();
+    if (GetBackgroundColour() != window_bg)
+        SetBackgroundColour(window_bg);
 
     wxAutoBufferedPaintDC buffered_dc(this);
     wxGCDC dc(buffered_dc);
@@ -136,14 +141,40 @@ void ButtonsListCtrl::OnPaint(wxPaintEvent&)
     dc.SetPen(wxPen(app.get_style_role_color(ROLE_TAB_BORDER_ACTIVE), m_line_margin));
     dc.DrawLine(client_rect.GetLeft(), client_rect.GetBottom() - m_line_margin / 2,
                 client_rect.GetRight(), client_rect.GetBottom() - m_line_margin / 2);
+
+    // The native button covers chrome painted behind it. This bar sits in the
+    // strip under the button, so it stays visible as a second selected cue.
+    const auto draw_accent = [&](const wxRect& rect) {
+        const int bar_h = std::max(3, m_line_margin);
+        const int inset = std::max(2, rect.GetWidth() / 8);
+        const int width = std::max(4, rect.GetWidth() - 2 * inset);
+        const int y = client_rect.GetBottom() - bar_h + 1;
+        dc.SetPen(*wxTRANSPARENT_PEN);
+        dc.SetBrush(wxBrush(app.get_color_hovered_btn()));
+        dc.DrawRectangle(rect.GetLeft() + inset, y, width, bar_h);
+    };
+    for (int idx = 0; idx < int(m_pageButtons.size()); ++idx) {
+        if (ScalableButton* button = m_pageButtons[idx]) {
+            if (get_tab_state(button, idx) == TabVisualState::Selected)
+                draw_accent(button->GetRect());
+        }
+    }
+    if (m_mode_sizer) {
+        for (Slic3r::GUI::ModeButton* mode_btn : m_mode_sizer->get_btns()) {
+            if (mode_btn && mode_btn->is_selected())
+                draw_accent(mode_btn->GetRect());
+        }
+    }
 }
 
 ButtonsListCtrl::TabVisualState ButtonsListCtrl::get_tab_state(const ScalableButton* button, int idx) const
 {
-    if (button == m_focused_button)
-        return TabVisualState::Focused;
+    // A click focuses the button as well as selecting it. Selection has to win,
+    // or the open page keeps the idle colours.
     if (idx == m_selection)
         return TabVisualState::Selected;
+    if (button == m_focused_button)
+        return TabVisualState::Focused;
     if (button == m_hovered_button)
         return TabVisualState::Hovered;
     return TabVisualState::Default;
@@ -152,12 +183,17 @@ ButtonsListCtrl::TabVisualState ButtonsListCtrl::get_tab_state(const ScalableBut
 void ButtonsListCtrl::apply_tab_state(ScalableButton* button, TabVisualState state) const
 {
     auto &app = Slic3r::GUI::wxGetApp();
+    const bool selected = state == TabVisualState::Selected;
+    const wxColour& background = app.get_style_role_color(
+        selected                       ? ROLE_TAB_BG_SELECTED :
+        state == TabVisualState::Hovered ? ROLE_TAB_BG_HOVER :
+                                          ROLE_TAB_BG_DEFAULT);
     const wxColour& text_color = app.get_style_role_color(
-        state == TabVisualState::Selected ? ROLE_TAB_TEXT_SELECTED :
-        state == TabVisualState::Hovered  ? ROLE_TAB_TEXT_HOVER    :
-                                            ROLE_TAB_TEXT_DEFAULT);
+        selected                       ? ROLE_TAB_TEXT_SELECTED :
+        state == TabVisualState::Hovered ? ROLE_TAB_TEXT_HOVER :
+                                          ROLE_TAB_TEXT_DEFAULT);
 
-    button->SetForegroundColour(text_color);
+    Slic3r::GUI::apply_native_button_fill(button, background, text_color, selected);
 #ifdef __APPLE__
     button->SetWindowStyle(wxBORDER_SUNKEN | wxBORDER_SIMPLE);
 #endif

@@ -69,7 +69,7 @@ class OG_CustomCtrl :public wxPanel
         wxCoord draw_mode_bmp(wxDC& dc, wxCoord v_pos);
         wxCoord draw_text      (wxDC& dc, wxPoint pos, const wxString& text, const wxString& tooltip, const wxColour* color, int width, bool is_url = false, bool align_right = false);
         wxPoint draw_blinking_bmp(wxDC& dc, wxPoint pos, bool is_blinking);
-        wxPoint draw_act_bmps(wxDC& dc, wxPoint pos, const wxBitmapBundle& bmp_undo_to_sys, const wxBitmapBundle& bmp_undo, const wxBitmapBundle* bmp_enable, bool is_blinking, size_t rect_id = 0);
+        wxPoint draw_act_bmps(wxDC& dc, wxPoint pos, const wxBitmapBundle* bmp_undo_to_sys, const wxBitmapBundle& bmp_undo, const wxBitmapBundle* bmp_enable, bool is_blinking, size_t rect_id = 0);
         wxCoord draw_edit_bmp(wxDC& dc, wxPoint pos, const wxBitmapBundle* bmp_edit);
         bool    launch_browser() const;
         bool    is_separator() const { return og_line.is_separator(); }
@@ -107,6 +107,8 @@ public:
 
     void    msw_rescale();
     void    sys_color_changed();
+    // Move the value windows after icons are shown or hidden.
+    void    update_positions();
 
     wxPoint get_pos(const Line& line, Field* field = nullptr);
     int     get_height(const Line& line);

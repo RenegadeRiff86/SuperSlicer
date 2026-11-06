@@ -190,7 +190,9 @@ public:
     bool					has_undo_ui()			const { return m_undo_ui.undo_bitmap != nullptr; }
     const wxBitmapBundle&	undo_bitmap()			const { return m_undo_ui.undo_bitmap->bmp(); }
     const wxString*			undo_tooltip()			const { return m_undo_ui.undo_tooltip; }
-    const wxBitmapBundle&	undo_to_sys_bitmap()	const { return m_undo_ui.undo_to_sys_bitmap->bmp(); }
+    bool                    has_undo_to_sys_ui()    const { return m_undo_ui.undo_to_sys_bitmap != nullptr; }
+    // Null when the value already matches the system value, so the row does not keep an empty icon slot.
+    const wxBitmapBundle*	undo_to_sys_bitmap()	const { return m_undo_ui.undo_to_sys_bitmap ? &m_undo_ui.undo_to_sys_bitmap->bmp() : nullptr; }
     const wxString*			undo_to_sys_tooltip()	const { return m_undo_ui.undo_to_sys_tooltip; }
     const wxColour*			label_color()			const { return m_undo_ui.label_color; }
 
@@ -302,6 +304,9 @@ public:
 
     // for saving state
     bool                            m_is_enable{true};
+    // Shown on the row when toggle_field turns the control off. GTK often
+    // will not show a tooltip on a disabled widget.
+    wxString                        m_disabled_reason;
 
     double							opt_height{ 0.0 };
     bool							parent_is_custom_ctrl{ false };
@@ -320,9 +325,13 @@ public:
     /// Fires the enable or disable function, based on the input.
     inline void			toggle_widget_enable(bool en) {
         m_is_enable = en;
+        if (en)
+            m_disabled_reason.clear();
         en ? widget_enable() : widget_disable();
     }
     inline bool is_widget_enabled() const { return m_is_enable; }
+    void set_disabled_reason(const wxString& reason) { m_disabled_reason = reason; }
+    const wxString& disabled_reason() const { return m_disabled_reason; }
 
     virtual wxString	get_tooltip_text(const wxString& default_string);
     // Delayed rich tooltip (avoids flicker while the mouse crosses fields).
@@ -368,6 +377,9 @@ public:
     static int def_width()			;
     static int def_width_wider()	;
     static int def_width_thinner()	;
+    // Em width actually used for this option. Numeric fields are at least
+    // def_width(); single-line strings default to def_width_wider().
+    static int width_units(const ConfigOptionDef& opt);
 
 protected:
     // current value
@@ -552,6 +564,9 @@ public:
     void            set_internal_any_value(const boost::any &value, bool change_event = false) override;
     void			set_values(const std::vector<std::string> &values);
     void			set_values(const wxArrayString &values);
+    // Size the combo after its labels exist. Long names such as
+    // "Bambu Lab (Developer LAN)" are measured before the first show.
+    void            fit_width_to_entries();
     boost::any&		get_value() override;
 
     void            msw_rescale() override;

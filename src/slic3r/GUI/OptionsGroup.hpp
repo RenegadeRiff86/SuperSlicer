@@ -126,7 +126,7 @@ protected:
 public:
     const bool		staticbox {true}; // false if title is empty.
     const wxString	title;
-    int             title_width = 20;// {200};
+    int             title_width = 24;// wide enough for "API key or LAN access code"
     bool            no_title = false;
     wxSizer*		sizer {nullptr};
     OG_CustomCtrl*  custom_ctrl{ nullptr };

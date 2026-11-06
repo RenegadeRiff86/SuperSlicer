@@ -661,7 +661,7 @@ void GLGizmoCut3D::render_move_center_input(int axis)
 {
     m_imgui->text(m_axis_names[axis]+":");
     ImGui::SameLine();
-    ImGui::PushItemWidth(0.3f*m_control_width);
+    ImGui::PushItemWidth(0.7f*m_control_width);
 
     Vec3d move = m_plane_center;
     double in_val, value = in_val = move[axis];

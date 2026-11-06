@@ -9,6 +9,7 @@
 #include "ThemeMetrics.hpp"
 #include "libslic3r/AppConfig.hpp"
 
+#include <algorithm>
 #include <wx/dcbuffer.h>
 #include <wx/utils.h>
 #include <boost/algorithm/string/split.hpp>
@@ -24,6 +25,36 @@ static bool is_point_in_rect(const wxPoint& pt, const wxRect& rect)
 {
     return  rect.GetLeft() <= pt.x && pt.x <= rect.GetRight() &&
             rect.GetTop() <= pt.y && pt.y <= rect.GetBottom();
+}
+
+static bool is_boolean_option(ConfigOptionType type)
+{
+    return type == coBool || type == coBools;
+}
+
+// Undo, and the reset-to-system icon only when that icon is actually drawn.
+static int action_icon_slots(const UndoValueUIManager& ui, bool can_be_disabled)
+{
+    if (!ui.has_undo_ui())
+        return DOUBLE_BUTTON_WIDTH + (can_be_disabled ? 1 : 0);
+    int slots = 1;
+    if (ui.has_undo_to_sys_ui())
+        ++slots;
+    if (can_be_disabled || ui.has_enable_ui())
+        ++slots;
+    return slots;
+}
+
+// Bools stay at their own width. Everything else uses the wider of the
+// requested em width and the window, so a GTK spin button's extra padding
+// does not leave the unit drawn on top of the arrows.
+static int control_span_px(const Field* field, const ConfigOptionDef& opt, int em)
+{
+    const int window_w = (field && field->getWindow()) ? field->getWindow()->GetSize().GetWidth() : 0;
+    if (is_boolean_option(opt.type))
+        return std::max(0, window_w);
+    const int requested = Field::width_units(opt) * em;
+    return std::max(window_w, requested);
 }
 
 static wxSize get_bitmap_size(const wxBitmapBundle* bmp, wxWindow* parent)
@@ -166,9 +197,7 @@ wxPoint OG_CustomCtrl::get_pos(const Line& line, Field* field_in/* = nullptr*/)
             if (blinking_button_width) blinking_button_width += m_h_gap;
 
             if (line.widget) {
-                // for widgets, like buttons, has to increase the h spacing to make some place to icons.
-                // Undo + undo-to-sys + blink occupy three icon slots when undo UI is present.
-                h_pos += (line.has_undo_ui() ? 3 : 1) * blinking_button_width;
+                h_pos += action_icon_slots(line, false) * blinking_button_width;
 
                 for (auto child : line.widget_sizer->GetChildren())
                     if (child->IsWindow())
@@ -187,15 +216,13 @@ wxPoint OG_CustomCtrl::get_pos(const Line& line, Field* field_in/* = nullptr*/)
             {
                 Field *field = opt_group->get_field(
                     OptionKeyIdx{option_set.front().opt_key, option_set.front().opt_idx});
-                int width_units = 2;
-                width_units += (field->has_enable_ui() ? 1 : 0);
-                width_units += (option_set.front().opt.can_be_disabled ? 1 : 0);
-                h_pos += width_units * blinking_button_width;
+                h_pos += action_icon_slots(*field, option_set.front().opt.can_be_disabled) * blinking_button_width;
                 correct_line_height(ctrl_line.height, field->getWindow());
                 break;
             }
 
             bool is_multioption_line = option_set.size() > 1 || !option_set.front().opt.label.empty();
+            int value_origin = h_pos;
             for (size_t i = 0; i < option_set.size(); ++i) {
                 if (i >= ctrl_line.is_visible.size() || !ctrl_line.is_visible[i])
                     continue;
@@ -257,14 +284,13 @@ wxPoint OG_CustomCtrl::get_pos(const Line& line, Field* field_in/* = nullptr*/)
 
                 //round it to next m_em_unit
                 h_pos += (h_pos % m_em_unit == 0) ? 0 : m_em_unit - (h_pos % m_em_unit);
+                if (i == 0)
+                    value_origin = h_pos;
 
-                // size of little widget before the real one (note: this happen before Tab::decorate, so it's not possibel to use field->has_enable_ui()
-                h_pos += (option.can_be_disabled ? 3 : 2) * blinking_button_width;
-                
-                if (field == field_in) {
-                    //correct_horiz_pos(h_pos, field);
+                h_pos += action_icon_slots(*field, option.can_be_disabled) * blinking_button_width;
+
+                if (field == field_in)
                     break;
-                }
 
                 if (opt.opt.gui_type == ConfigOptionDef::GUIType::legend)
                     h_pos += DOUBLE_BUTTON_WIDTH * blinking_button_width;
@@ -276,16 +302,30 @@ wxPoint OG_CustomCtrl::get_pos(const Line& line, Field* field_in/* = nullptr*/)
                         }
                     }
                 } else
-                    h_pos += (opt.opt.width >= 0 ? opt.opt.width * m_em_unit : field->getWindow()->GetSize().x) + m_h_gap;; //field->getWindow()->GetSize().x + m_h_gap;
+                    h_pos += control_span_px(field, opt.opt, m_em_unit) + m_h_gap;
 
-                if (option_set.size() == 1 && option_set.front().opt.full_width)
+                if (option_set.size() == 1 && option_set.front().opt.full_width && !is_boolean_option(option.type))
                     break;
 
-                // add sidetext if any
-                if ((!option.sidetext.empty() || opt_group->sidetext_width > 0 || option.sidetext_width > 0) && option.sidetext_width != 0)
-                    h_pos += (option.sidetext_width > 0 ? option.sidetext_width : opt_group->sidetext_width)* m_em_unit + m_h_gap;
+                if (!option.sidetext.empty()) {
+                    wxCoord unit_w = 0, unit_h = 0;
+                    GetTextExtent(_(option.sidetext), &unit_w, &unit_h, 0, 0, &m_font);
+                    h_pos += unit_w + m_h_gap;
+                }
+                h_pos += m_em_unit / 2;
 
-                if (opt.opt_key != option_set.back().opt_key || opt.opt_idx != option_set.back().opt_idx) //! instead of (opt != option_set.back())
+                if (!field->is_widget_enabled() && !field->disabled_reason().empty()) {
+                    wxCoord reason_w = 0, reason_h = 0;
+                    GetTextExtent(field->disabled_reason(), &reason_w, &reason_h, 0, 0, &m_font);
+                    h_pos += reason_w + m_h_gap;
+                }
+
+                const bool more = opt.opt_key != option_set.back().opt_key || opt.opt_idx != option_set.back().opt_idx;
+                if (i == 0 && option_set.size() > 1) {
+                    const int column = value_origin + (Field::def_width() + 6) * m_em_unit;
+                    if (h_pos < column)
+                        h_pos = column;
+                } else if (more)
                     h_pos += lround(0.6 * m_em_unit);
             }
             break;
@@ -587,6 +627,12 @@ void OG_CustomCtrl::msw_rescale()
     GetParent()->Layout();
 }
 
+void OG_CustomCtrl::update_positions()
+{
+    for (CtrlLine& line : ctrl_lines)
+        line.correct_items_positions();
+}
+
 void OG_CustomCtrl::sys_color_changed()
 {
 }
@@ -799,7 +845,8 @@ void OG_CustomCtrl::CtrlLine::render(wxDC& dc, wxCoord v_pos)
             else
                 h_pos += DOUBLE_BUTTON_WIDTH * blinking_button_width;
             // update width for full_width fields
-            if (option_set.front().opt.full_width && front_field->getWindow())
+            if (option_set.front().opt.full_width && front_field->getWindow()
+                && !is_boolean_option(option_set.front().opt.type))
                 front_field->getWindow()->SetSize(ctrl->GetSize().x - h_pos, -1);
         }
         return;
@@ -807,6 +854,7 @@ void OG_CustomCtrl::CtrlLine::render(wxDC& dc, wxCoord v_pos)
 
     size_t bmp_rect_id = 0;
     bool is_multioption_line = option_set.size() > 1 || !option_set.front().opt.label.empty();
+    int value_origin = h_pos;
     for (size_t i = 0; i < option_set.size(); ++i) {
         if (i >= is_visible.size() || !is_visible[i])
             continue;
@@ -847,6 +895,8 @@ void OG_CustomCtrl::CtrlLine::render(wxDC& dc, wxCoord v_pos)
 
         //round it to next m_em_unit
         h_pos += (h_pos % ctrl->m_em_unit == 0 ) ? 0 : ctrl->m_em_unit - (h_pos % ctrl->m_em_unit);
+        if (i == 0)
+            value_origin = h_pos;
 
         if (field) {
             if(field->has_undo_ui())
@@ -862,18 +912,25 @@ void OG_CustomCtrl::CtrlLine::render(wxDC& dc, wxCoord v_pos)
                         h_pos += child->GetWindow()->GetSize().x + ctrl->m_h_gap;
             }
             else if (field->getWindow())
-                h_pos += (opt.opt.width >= 0 ? opt.opt.width * ctrl->m_em_unit : field->getWindow()->GetSize().x) + ctrl->m_h_gap;
+                h_pos += control_span_px(field, opt.opt, ctrl->m_em_unit) + ctrl->m_h_gap;
         }
 
-        // add field
-        if (option_set.size() == 1 && option_set.front().opt.full_width)
+        if (option_set.size() == 1 && option_set.front().opt.full_width && !is_boolean_option(option.type))
             break;
 
-        // add sidetext if any
-        if ( (!option.sidetext.empty() || ctrl->opt_group->sidetext_width > 0 || option.sidetext_width > 0 ) && option.sidetext_width != 0)
-            h_pos = draw_text(dc, wxPoint(h_pos, v_pos), _(option.sidetext), option_tooltip, nullptr, (option.sidetext_width > 0 ? option.sidetext_width : ctrl->opt_group->sidetext_width ) * ctrl->m_em_unit);
+        if (!option.sidetext.empty())
+            h_pos = draw_text(dc, wxPoint(h_pos, v_pos), _(option.sidetext), option_tooltip, nullptr, 0);
+        h_pos += ctrl->m_em_unit / 2;
 
-        if (opt.opt_key != option_set.back().opt_key || opt.opt_idx != option_set.back().opt_idx) //! istead of (opt != option_set.back())
+        if (field && !field->is_widget_enabled() && !field->disabled_reason().empty())
+            h_pos = draw_text(dc, wxPoint(h_pos, v_pos), field->disabled_reason(), wxString(), nullptr, 0);
+
+        const bool more = opt.opt_key != option_set.back().opt_key || opt.opt_idx != option_set.back().opt_idx;
+        if (i == 0 && option_set.size() > 1) {
+            const int column = value_origin + (Field::def_width() + 6) * ctrl->m_em_unit;
+            if (h_pos < column)
+                h_pos = column;
+        } else if (more)
             h_pos += lround(0.6 * ctrl->m_em_unit);
     }
 }
@@ -977,19 +1034,21 @@ wxPoint OG_CustomCtrl::CtrlLine::draw_blinking_bmp(wxDC& dc, wxPoint pos, bool i
     return wxPoint(h_pos, v_pos);
 }
 
-wxPoint OG_CustomCtrl::CtrlLine::draw_act_bmps(wxDC& dc, wxPoint pos, const wxBitmapBundle& bmp_undo_to_sys, const wxBitmapBundle& bmp_undo, const wxBitmapBundle* bmp_enable, bool is_blinking, size_t rect_id)
+wxPoint OG_CustomCtrl::CtrlLine::draw_act_bmps(wxDC& dc, wxPoint pos, const wxBitmapBundle* bmp_undo_to_sys, const wxBitmapBundle& bmp_undo, const wxBitmapBundle* bmp_enable, bool is_blinking, size_t rect_id)
 {
     wxCoord h_pos = pos.x;
     wxCoord v_pos = pos.y + height / CENTER_DIVISOR - this->ctrl->m_bmp_blinking_sz.GetHeight() / CENTER_DIVISOR;
 
     if (m_has_icon) {
-        // undo_to_sys
-        dc.DrawBitmap(bmp_undo_to_sys.GetBitmapFor(ctrl), h_pos, v_pos);
+        if (bmp_undo_to_sys) {
+            dc.DrawBitmap(bmp_undo_to_sys->GetBitmapFor(ctrl), h_pos, v_pos);
 
-        int bmp_dim = get_bitmap_size(&bmp_undo_to_sys, ctrl).GetWidth();
-        rects_undo_to_sys_icon[rect_id] = wxRect(h_pos, v_pos, bmp_dim, bmp_dim);
+            int bmp_dim = get_bitmap_size(bmp_undo_to_sys, ctrl).GetWidth();
+            rects_undo_to_sys_icon[rect_id] = wxRect(h_pos, v_pos, bmp_dim, bmp_dim);
 
-        h_pos += bmp_dim + ctrl->m_h_gap;
+            h_pos += bmp_dim + ctrl->m_h_gap;
+        } else if (rect_id < rects_undo_to_sys_icon.size())
+            rects_undo_to_sys_icon[rect_id] = wxRect();
 
         // undo & search arrow
         dc.DrawBitmap(bmp_undo.GetBitmapFor(ctrl), h_pos, v_pos);

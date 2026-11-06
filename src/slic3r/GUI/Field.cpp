@@ -231,9 +231,50 @@ void Field::PostInitialize()
 }
 
 // Values of width to alignments of fields
-int Field::def_width()			{ return 8; }
+int Field::def_width()			{ return 10; }
 int Field::def_width_wider()	{ return 16; }
 int Field::def_width_thinner()	{ return 4; }
+
+namespace {
+bool is_numeric_option(ConfigOptionType type)
+{
+    switch (type) {
+    case coFloat:
+    case coFloats:
+    case coInt:
+    case coInts:
+    case coPercent:
+    case coPercents:
+    case coFloatOrPercent:
+    case coFloatsOrPercents:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool is_single_line_string(const ConfigOptionDef& opt)
+{
+    return !opt.multiline && (opt.type == coString || opt.type == coStrings);
+}
+}
+
+int Field::width_units(const ConfigOptionDef& opt)
+{
+    int units = def_width();
+    if (opt.type == coPercent || opt.type == coPercents)
+        units = def_width_thinner();
+    else if (is_single_line_string(opt))
+        units = def_width_wider();
+    if (opt.width > 0)
+        units = opt.width;
+    // A few characters is not enough once the spin arrows are drawn.
+    // Percent fields stay compact unless the layout asked for something wider.
+    const bool percent = opt.type == coPercent || opt.type == coPercents;
+    if (is_numeric_option(opt.type) && !percent && units > 0 && units < def_width())
+        units = def_width();
+    return units;
+}
 
 void Field::on_kill_focus() {
     // call the registered function if it is available
@@ -970,9 +1011,8 @@ bool is_defined_input_value(wxWindow* win, const ConfigOptionType& type)
 }
 
 void TextCtrl::BUILD() {
-    auto size = wxSize((this->m_opt.type == ConfigOptionType::coPercent ? def_width_thinner() : def_width())*m_em_unit, wxDefaultCoord);
+    auto size = wxSize(width_units(m_opt) * m_em_unit, wxDefaultCoord);
     if (m_opt.height >= 0) size.SetHeight(m_opt.height*m_em_unit);
-    if (m_opt.width >= 0) size.SetWidth(m_opt.width*m_em_unit);
 
     wxString text_value = wxString("");
 
@@ -1168,13 +1208,12 @@ boost::any& TextCtrl::get_value()
 void TextCtrl::msw_rescale()
 {
     Field::msw_rescale();
-    auto size = wxSize(def_width() * m_em_unit, wxDefaultCoord);
+    auto size = wxSize(width_units(m_opt) * m_em_unit, wxDefaultCoord);
 
     if (m_opt.height >= 0)
         size.SetHeight(m_opt.height*m_em_unit);
     else if (parent_is_custom_ctrl && opt_height > 0)
         size.SetHeight(lround(opt_height*m_em_unit));
-    if (m_opt.width >= 0) size.SetWidth(m_opt.width*m_em_unit);
 
     if (size != wxDefaultSize) {
         if (::TextInput* text_input = dynamic_cast<::TextInput*>(window)) {
@@ -1294,12 +1333,6 @@ void CheckBox::SysColorChanged(wxWindow* win)
 }
 
 void CheckBox::BUILD() {
-    auto size = wxSize(wxDefaultSize);
-    if (m_opt.height >= 0) 
-        size.SetHeight(m_opt.height*m_em_unit);
-    if (m_opt.width >= 0) 
-        size.SetWidth(m_opt.width*m_em_unit);
-
     bool check_value = m_opt.type == coBool ?
         m_opt.default_value->get_bool() : m_opt.type == coBools ?
         m_opt.default_value->get_bool(m_opt_key_idx.idx) :
@@ -1315,7 +1348,9 @@ void CheckBox::BUILD() {
         window->Disable();
 
     CheckBox::SetValue(window, check_value);
-    
+    // A checkbox must not inherit the width of a neighbouring text field.
+    window->SetInitialSize(window->GetBestSize());
+
 #ifdef __WXGTK2__
     //gtk2 can't resize checkboxes, so we are using togglable buttons instead
     window->Bind(wxEVT_TOGGLEBUTTON, ([this](wxCommandEvent e) {
@@ -1407,9 +1442,8 @@ int get_default_int(double min, double max){
 }
 
 void SpinCtrl::BUILD() {
-    auto size = wxSize(def_width() * m_em_unit, wxDefaultCoord);
+    auto size = wxSize(width_units(m_opt) * m_em_unit, wxDefaultCoord);
     if (m_opt.height >= 0) size.SetHeight(m_opt.height*m_em_unit);
-    if (m_opt.width >= 0) size.SetWidth(m_opt.width*m_em_unit);
 
     wxString	text_value = wxString("");
     int			default_value = UNDEF_VALUE;
@@ -1534,10 +1568,11 @@ void SpinCtrl::msw_rescale()
     Field::msw_rescale();
 
     auto field = dynamic_cast<::SpinInput*>(window);
+    const int width_px = width_units(m_opt) * m_em_unit;
     if (parent_is_custom_ctrl)
-        field->SetSize(wxSize(def_width() * m_em_unit, lround(opt_height * m_em_unit)));
+        field->SetSize(wxSize(width_px, lround(opt_height * m_em_unit)));
     else
-        field->SetMinSize(wxSize(def_width() * m_em_unit, int(1.9f*field->GetFont().GetPixelSize().y)));
+        field->SetMinSize(wxSize(width_px, int(1.9f*field->GetFont().GetPixelSize().y)));
 }
 
 #if 1
@@ -1580,12 +1615,6 @@ void Choice::BUILD() {
 #endif //__WXOSX__
     }
 
-#ifdef __WXGTK3__
-    wxSize best_sz = temp->GetBestSize();
-    if (best_sz.x > size.x)
-        temp->SetSize(best_sz);
-#endif //__WXGTK3__
-
     temp->SetFont(Slic3r::GUI::wxGetApp().normal_font());
     if (!wxOSX) temp->SetBackgroundStyle(wxBG_STYLE_PAINT);
 
@@ -1600,6 +1629,7 @@ void Choice::BUILD() {
             set_selection();
         }
     }
+    fit_width_to_entries();
     this->suppress_scroll();
     temp->Bind(wxEVT_MOUSEWHEEL, [this](wxMouseEvent& e) {
         if (m_suppress_scroll && !m_is_dropped)
@@ -1831,6 +1861,7 @@ void Choice::set_values(const std::vector<std::string>& values)
     for (const std::string& el : values)
         ww->Append(from_u8(el));
     ww->SetValue(value);
+    fit_width_to_entries();
 
     m_disable_change_event = false;
 }
@@ -1855,8 +1886,29 @@ void Choice::set_values(const wxArrayString &values)
     for (const auto &el : values)
         ww->Append(el);
     ww->SetValue(value);
+    fit_width_to_entries();
 
     m_disable_change_event = false;
+}
+
+void Choice::fit_width_to_entries()
+{
+    auto* field = dynamic_cast<choice_ctrl*>(window);
+    if (field == nullptr || m_em_unit <= 0)
+        return;
+
+    int text_px = 0;
+    for (unsigned i = 0; i < field->GetCount(); ++i)
+        text_px = std::max(text_px, field->GetTextExtent(field->GetString(i)).GetWidth());
+    if (!field->GetValue().empty())
+        text_px = std::max(text_px, field->GetTextExtent(field->GetValue()).GetWidth());
+
+    const int floor_px = (m_opt.width > 0 ? m_opt.width : def_width_wider()) * m_em_unit;
+    const int content_px = text_px + 3 * m_em_unit;
+    const int width_px = std::min(28 * m_em_unit, std::max(floor_px, content_px));
+    const int height = field->GetSize().GetHeight();
+    field->SetMinSize(wxSize(width_px, field->GetMinHeight()));
+    field->SetSize(wxSize(width_px, height > 0 ? height : -1));
 }
 
 boost::any& Choice::get_value()
@@ -1977,6 +2029,7 @@ void Choice::msw_rescale()
     else
         field->SetMinSize(size);
 #endif
+    fit_width_to_entries();
 }
 
 void ColourPicker::BUILD()
