@@ -41,6 +41,7 @@
 #include "Notebook.hpp"
 #include "OG_CustomCtrl.hpp"
 #include "ThemeMetrics.hpp"
+#include "BambuLanControlDialog.hpp"
 #include "PhysicalPrinterDialog.hpp"
 #include "Plater.hpp"
 #include "PresetComboBoxes.hpp"
@@ -2482,6 +2483,28 @@ std::vector<Slic3r::GUI::PageShp> Tab::create_pages(const std::string& setting_t
                 current_line.append_option(option);
             }
             if (logs) Slic3r::slic3r_log->info(LOG_CHANNEL_SETTINGS_GUI) << "create setting " << setting_id <<"  with label "<< option.opt.label << "and height "<< option.opt.height<<" fw:"<< option.opt.full_width << "\n";
+        } else if (full_line == "bambu_lan_controls") {
+            TabPrinter *tab = dynamic_cast<TabPrinter *>(this);
+            if (tab == nullptr || !current_group)
+                continue;
+            current_line = {"", ""};
+            current_line.full_width = 1;
+            current_line.widget = [tab](wxWindow *parent) {
+                auto *btn = new wxButton(parent, wxID_ANY, _L("Printer controls..."));
+                btn->SetFont(wxGetApp().normal_font());
+                wxGetApp().SetWindowVariantForButton(btn);
+                wxGetApp().UpdateDarkUI(btn);
+                auto *row = new wxBoxSizer(wxHORIZONTAL);
+                row->Add(btn, 0, wxALIGN_CENTER_VERTICAL);
+                tab->m_bambu_controls_btn = btn;
+                tab->m_bambu_controls_row = row;
+                btn->Bind(wxEVT_BUTTON, [tab](wxCommandEvent &) {
+                    BambuLanControlDialog dlg(tab, wxGetApp().preset_bundle.get());
+                    dlg.ShowModal();
+                });
+                return row;
+            };
+            current_group->append_line(current_line);
         } else if (boost::starts_with(full_line, "height")) {
             std::string arg = "";
             if (size_t dblp_pos = full_line.find(":"); full_line.size() > KEY_VALUE_DIRECTIVE_MIN_LENGTH && dblp_pos != std::string::npos)
@@ -4033,6 +4056,8 @@ void TabPrinter::activate_selected_page(std::function<void()> throw_if_canceled)
 
 void TabPrinter::clear_pages()
 {
+    m_bambu_controls_btn = nullptr;
+    m_bambu_controls_row = nullptr;
     Tab::clear_pages();
 
     m_machine_limits_description_line           = nullptr;
@@ -4063,6 +4088,17 @@ void TabPrinter::toggle_options()
         const bool bambu_lan = host_type != nullptr && host_type->value == htBambuLan;
         for (auto &group : m_active_page->m_optgroups)
             group->show_field("bambu_device_serial", bambu_lan);
+        if (m_bambu_controls_row) {
+            for (auto &group : m_active_page->m_optgroups) {
+                if (!group->sizer || !group->sizer->Show(m_bambu_controls_row, bambu_lan, true))
+                    continue;
+                if (m_bambu_controls_btn)
+                    m_bambu_controls_btn->Show(bambu_lan);
+                if (wxWindow *parent = m_bambu_controls_btn ? m_bambu_controls_btn->GetParent() : nullptr)
+                    parent->Layout();
+                break;
+            }
+        }
     }
     
     if (m_last_gcode_flavor != uint8_t(m_config->option<ConfigOptionEnum<GCodeFlavor>>(kGcodeFlavorKey)->value)) {

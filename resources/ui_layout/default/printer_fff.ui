@@ -26,6 +26,7 @@ group:Print Host upload
 	setting:print_host
 	setting:printhost_apikey
 	setting:bambu_device_serial
+	bambu_lan_controls
 group:silent_mode_event:filename_format_event:Firmware
 	setting:gcode_flavor
     line:Supports

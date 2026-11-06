@@ -30,6 +30,7 @@
 //	   Slic3r::GUI::Tab::Preset;
 //	       - Single preset item: name, file is default or external.
 
+#include <wx/button.h>
 #include <wx/panel.h>
 #include <wx/notebook.h>
 #include <wx/listbook.h>
@@ -648,6 +649,8 @@ class TabPrinter : public Tab
 public:
     ogStaticText* m_fff_print_host_upload_description_line{ nullptr };
     ogStaticText* m_sla_print_host_upload_description_line{ nullptr };
+    wxButton* m_bambu_controls_btn{ nullptr };
+    wxSizer* m_bambu_controls_row{ nullptr };
 //    void build_printhost(ConfigOptionsGroup *optgroup);
 
     bool        m_has_single_extruder_MM_page = false;

@@ -5,11 +5,18 @@
 #include "BambuLan.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
+#include <cerrno>
+#include <chrono>
+#include <condition_variable>
 #include <cstring>
+#include <deque>
 #include <fstream>
 #include <functional>
+#include <mutex>
 #include <sstream>
+#include <thread>
 #include <vector>
 
 #include <boost/filesystem.hpp>
@@ -60,6 +67,16 @@ std::string safe_upload_name(const std::string &stem)
     if (name.size() > 40)
         name.resize(40);
     return name + ".gcode.3mf";
+}
+
+std::string normalize_bambu_host(std::string host)
+{
+    const auto scheme = host.find("://");
+    if (scheme != std::string::npos)
+        host.erase(0, scheme + 3);
+    while (!host.empty() && (host.back() == '/' || std::isspace(static_cast<unsigned char>(host.back()))))
+        host.pop_back();
+    return host;
 }
 
 #if !defined(_WIN32)
@@ -187,6 +204,50 @@ bool ssl_read_some(SSL *ssl, std::string &buf)
         return false;
     buf.append(tmp, tmp + n);
     return true;
+}
+
+enum class SslIo { Data, Timeout, Closed };
+
+// A short receive timeout is a pause, not a dead printer. The long-lived
+// controls session uses it so a jog can be written between reports.
+SslIo ssl_read_status(SSL *ssl, std::string &buf, std::string &error)
+{
+    char tmp[4096];
+    ERR_clear_error();
+    const int n = SSL_read(ssl, tmp, sizeof(tmp));
+    if (n > 0) {
+        buf.append(tmp, tmp + n);
+        return SslIo::Data;
+    }
+    const int code = SSL_get_error(ssl, n);
+    if (code == SSL_ERROR_WANT_READ || code == SSL_ERROR_WANT_WRITE
+        || (code == SSL_ERROR_SYSCALL && (errno == EAGAIN || errno == EWOULDBLOCK || errno == ETIMEDOUT || errno == EINTR))) {
+        ERR_clear_error();
+        return SslIo::Timeout;
+    }
+    if (code == SSL_ERROR_ZERO_RETURN)
+        error = "The printer closed the MQTT connection";
+    else {
+        const unsigned long err = ERR_get_error();
+        error = "The printer closed the MQTT connection";
+        if (err)
+            error += std::string(": ") + ERR_error_string(err, nullptr);
+    }
+    return SslIo::Closed;
+}
+
+std::string mqtt_publish_payload(unsigned char type, const std::string &body)
+{
+    if (body.size() < 2)
+        return {};
+    const size_t topic_len = (static_cast<unsigned char>(body[0]) << 8) | static_cast<unsigned char>(body[1]);
+    size_t offset = 2 + topic_len;
+    const int qos = (type >> 1) & 0x03;
+    if (qos > 0)
+        offset += 2;
+    if (body.size() < offset)
+        return {};
+    return body.substr(offset);
 }
 
 void mqtt_remaining_length(std::vector<unsigned char> &out, size_t len)
@@ -400,6 +461,7 @@ public:
         }
         if (!mqtt_read_packet(m_mqtt.ssl, m_mqtt_pending, type, reply, error))
             return false;
+        m_connected = true;
         return true;
     }
 
@@ -517,6 +579,126 @@ public:
         return ftp_expect(ctrl.ssl, ftp_buf, 226, error);
     }
 
+    bool connected() const { return m_connected && m_mqtt.ssl != nullptr; }
+
+    void set_mqtt_recv_timeout_ms(int ms)
+    {
+        if (m_mqtt.fd < 0)
+            return;
+        timeval tv{};
+        tv.tv_sec = ms / 1000;
+        tv.tv_usec = static_cast<long>((ms % 1000) * 1000);
+        setsockopt(m_mqtt.fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    }
+
+    bool mqtt_ping(std::string &error)
+    {
+        if (!mqtt_write_packet(m_mqtt.ssl, 0xC0, {})) {
+            error = "MQTT keepalive failed";
+            m_connected = false;
+            return false;
+        }
+        return true;
+    }
+
+    // Read one MQTT packet. Timeout leaves the connection open.
+    SslIo mqtt_read_timeout(unsigned char &type, std::string &body, std::string &error)
+    {
+        std::string raw = std::move(m_mqtt_pending);
+        m_mqtt_pending.clear();
+        auto pull = [&](size_t need) -> SslIo {
+            while (raw.size() < need) {
+                const SslIo st = ssl_read_status(m_mqtt.ssl, raw, error);
+                if (st != SslIo::Data) {
+                    m_mqtt_pending = std::move(raw);
+                    if (st == SslIo::Closed)
+                        m_connected = false;
+                    return st;
+                }
+            }
+            return SslIo::Data;
+        };
+        if (pull(2) != SslIo::Data)
+            return m_connected ? SslIo::Timeout : SslIo::Closed;
+        type = static_cast<unsigned char>(raw[0]);
+        size_t len = 0;
+        size_t mult = 1;
+        size_t i = 1;
+        for (;;) {
+            if (pull(i + 1) != SslIo::Data)
+                return m_connected ? SslIo::Timeout : SslIo::Closed;
+            const unsigned char byte = static_cast<unsigned char>(raw[i++]);
+            len += static_cast<size_t>(byte & 0x7f) * mult;
+            if ((byte & 0x80) == 0)
+                break;
+            mult *= 128;
+            if (mult > 128 * 128 * 128) {
+                error = "MQTT packet is too long";
+                m_connected = false;
+                return SslIo::Closed;
+            }
+        }
+        if (pull(i + len) != SslIo::Data)
+            return m_connected ? SslIo::Timeout : SslIo::Closed;
+        body.assign(raw, i, len);
+        if (raw.size() > i + len)
+            m_mqtt_pending.assign(raw, i + len, std::string::npos);
+        if ((type & 0xF0) == 0x30)
+            m_last_report = mqtt_publish_payload(type, body);
+        else if ((type & 0xF0) == 0xC0) {
+            // The printer's ping has to be answered or it drops the session.
+            std::vector<unsigned char> empty;
+            if (!mqtt_write_packet(m_mqtt.ssl, 0xD0, empty)) {
+                error = "MQTT keepalive failed";
+                m_connected = false;
+                return SslIo::Closed;
+            }
+        } else if ((type & 0xF0) == 0xE0) {
+            error = "The printer closed the MQTT connection";
+            m_connected = false;
+            return SslIo::Closed;
+        }
+        return SslIo::Data;
+    }
+
+    // Block until a report contains needle, or the deadline passes.
+    // On timeout, reply is the last report seen (possibly empty).
+    bool wait_containing(const std::string &needle, int timeout_ms, std::string &reply, std::string &error)
+    {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+        while (std::chrono::steady_clock::now() < deadline) {
+            unsigned char type = 0;
+            std::string body;
+            const SslIo st = mqtt_read_timeout(type, body, error);
+            if (st == SslIo::Timeout)
+                continue;
+            if (st == SslIo::Closed)
+                return false;
+            if ((type & 0xF0) != 0x30)
+                continue;
+            if (!needle.empty() && m_last_report.find(needle) != std::string::npos) {
+                reply = m_last_report;
+                return true;
+            }
+        }
+        reply = m_last_report;
+        error = "The printer did not answer that command.";
+        return false;
+    }
+
+    // Read whatever is waiting, and answer a server ping. Timeout is success.
+    bool poll_once(std::string &error)
+    {
+        unsigned char type = 0;
+        std::string body;
+        const SslIo st = mqtt_read_timeout(type, body, error);
+        (void) type;
+        (void) body;
+        if (st == SslIo::Closed)
+            return false;
+        return true;
+    }
+
 private:
     std::string m_host;
     std::string m_access_code;
@@ -524,6 +706,8 @@ private:
     SSL_CTX *m_ctx = nullptr;
     TlsSocket m_mqtt;
     std::string m_mqtt_pending;
+    std::string m_last_report;
+    bool m_connected = false;
 };
 
 #endif // !_WIN32
@@ -556,22 +740,28 @@ bool pack_gcode_3mf(const std::string &gcode_path, const std::string &zip_path, 
 
 } // namespace
 
+BambuLanCredentials bambu_lan_credentials(const DynamicPrintConfig *config)
+{
+    BambuLanCredentials creds;
+    if (!config)
+        return creds;
+    if (const auto *host = config->option<ConfigOptionString>("print_host"))
+        creds.host = normalize_bambu_host(host->value);
+    if (const auto *code = config->option<ConfigOptionString>("printhost_apikey"))
+        creds.access_code = code->value;
+    if (const auto *serial = config->option<ConfigOptionString>("bambu_device_serial"))
+        creds.serial = serial->value;
+    return creds;
+}
+
 BambuLan::BambuLan(DynamicPrintConfig *config)
 {
     if (!config)
         return;
-    if (const auto *host = config->option<ConfigOptionString>("print_host"))
-        m_host = host->value;
-    if (const auto *code = config->option<ConfigOptionString>("printhost_apikey"))
-        m_access_code = code->value;
-    if (const auto *serial = config->option<ConfigOptionString>("bambu_device_serial"))
-        m_serial = serial->value;
-    // The host field is a bare IP. Drop a scheme or trailing slash if one was pasted in.
-    const auto scheme = m_host.find("://");
-    if (scheme != std::string::npos)
-        m_host.erase(0, scheme + 3);
-    while (!m_host.empty() && (m_host.back() == '/' || std::isspace(static_cast<unsigned char>(m_host.back()))))
-        m_host.pop_back();
+    const BambuLanCredentials creds = bambu_lan_credentials(config);
+    m_host = creds.host;
+    m_access_code = creds.access_code;
+    m_serial = creds.serial;
 }
 
 const char *BambuLan::get_name() const
@@ -660,6 +850,217 @@ bool BambuLan::upload(PrintHostUpload upload_data, ProgressFn progress_fn, Error
         return false;
     }
     return true;
+#endif
+}
+
+struct BambuLanSession::Impl
+{
+    std::string host;
+    std::string access_code;
+    std::string serial;
+    std::mutex mu;
+    std::condition_variable cv;
+    struct Job {
+        std::string payload;
+        std::string needle;
+        int timeout_ms = 0;
+        ResultFn done;
+    };
+    std::deque<Job> jobs;
+    bool stop = false;
+    bool started = false;
+    std::thread worker;
+};
+
+namespace {
+
+#if !defined(_WIN32)
+
+constexpr int kMqttPollMs = 200;
+constexpr int kMqttKeepaliveS = 15;
+
+bool open_control_session(const std::string &host, const std::string &access_code, const std::string &serial,
+                          std::unique_ptr<BambuSession> &session, std::string &error)
+{
+    session = std::make_unique<BambuSession>(host, access_code, serial);
+    if (!session->ok() || !session->mqtt_connect(error) || !session->mqtt_wait_report(error)) {
+        session.reset();
+        if (error.empty())
+            error = "Could not connect to the printer.";
+        return false;
+    }
+    session->set_mqtt_recv_timeout_ms(kMqttPollMs);
+    return true;
+}
+
+#endif
+
+} // namespace
+
+BambuLanSession::BambuLanSession(std::string host, std::string access_code, std::string serial)
+    : m_impl(std::make_unique<Impl>())
+{
+    m_impl->host = std::move(host);
+    m_impl->access_code = std::move(access_code);
+    m_impl->serial = std::move(serial);
+}
+
+BambuLanSession::~BambuLanSession()
+{
+    stop();
+}
+
+void BambuLanSession::stop()
+{
+    if (!m_impl)
+        return;
+    {
+        std::lock_guard<std::mutex> lock(m_impl->mu);
+        m_impl->stop = true;
+    }
+    m_impl->cv.notify_all();
+    if (m_impl->worker.joinable())
+        m_impl->worker.join();
+}
+
+void BambuLanSession::start(ResultFn on_connect)
+{
+    if (!m_impl)
+        return;
+    {
+        std::lock_guard<std::mutex> lock(m_impl->mu);
+        if (m_impl->started)
+            return;
+        m_impl->started = true;
+        m_impl->stop = false;
+    }
+
+#if defined(_WIN32)
+    if (on_connect)
+        on_connect(false, {}, "Bambu Developer LAN mode is not built for Windows yet.");
+    return;
+#else
+    m_impl->worker = std::thread([impl = m_impl.get(), on_connect = std::move(on_connect)] {
+        std::unique_ptr<BambuSession> session;
+        std::string error;
+        const bool up = open_control_session(impl->host, impl->access_code, impl->serial, session, error);
+        if (on_connect)
+            on_connect(up, {}, error);
+        if (!up)
+            return;
+
+        auto last_ping = std::chrono::steady_clock::now();
+        while (true) {
+            Impl::Job job;
+            bool have_job = false;
+            {
+                std::unique_lock<std::mutex> lock(impl->mu);
+                impl->cv.wait_for(lock, std::chrono::milliseconds(kMqttPollMs), [&] {
+                    return impl->stop || !impl->jobs.empty();
+                });
+                if (impl->stop && impl->jobs.empty())
+                    return;
+                if (impl->stop && !impl->jobs.empty()) {
+                    // Drop queued work once the dialog is closing.
+                    impl->jobs.clear();
+                    return;
+                }
+                if (!impl->jobs.empty()) {
+                    job = std::move(impl->jobs.front());
+                    impl->jobs.pop_front();
+                    have_job = true;
+                }
+            }
+
+            if (!session || !session->connected()) {
+                // Reconnect when a command is waiting. An idle dialog does not
+                // hammer the printer after the socket drops.
+                if (!have_job)
+                    continue;
+                std::string reconnect_error;
+                if (!open_control_session(impl->host, impl->access_code, impl->serial, session, reconnect_error)) {
+                    if (job.done)
+                        job.done(false, {}, reconnect_error);
+                    continue;
+                }
+                last_ping = std::chrono::steady_clock::now();
+            }
+
+            if (have_job) {
+                std::string pub_error;
+                std::string reply;
+                bool ok = session->mqtt_publish(job.payload, pub_error);
+                if (ok && !job.needle.empty()) {
+                    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(job.timeout_ms);
+                    ok = false;
+                    while (std::chrono::steady_clock::now() < deadline) {
+                        {
+                            std::lock_guard<std::mutex> lock(impl->mu);
+                            if (impl->stop) {
+                                pub_error = "The printer session is closed.";
+                                break;
+                            }
+                        }
+                        std::string piece;
+                        std::string slice_error;
+                        if (session->wait_containing(job.needle, kMqttPollMs, piece, slice_error)) {
+                            reply = std::move(piece);
+                            ok = true;
+                            pub_error.clear();
+                            break;
+                        }
+                        if (!piece.empty())
+                            reply = std::move(piece);
+                        if (!session->connected()) {
+                            pub_error = slice_error.empty() ? "The printer closed the MQTT connection" : slice_error;
+                            break;
+                        }
+                    }
+                    if (!ok && pub_error.empty())
+                        pub_error = "The printer did not answer that command.";
+                }
+                if (job.done)
+                    job.done(ok, reply, pub_error);
+                continue;
+            }
+
+            std::string poll_error;
+            if (!session->poll_once(poll_error))
+                session.reset();
+            const auto now = std::chrono::steady_clock::now();
+            if (session && now - last_ping > std::chrono::seconds(kMqttKeepaliveS)) {
+                std::string ping_error;
+                if (!session->mqtt_ping(ping_error))
+                    session.reset();
+                last_ping = now;
+            }
+        }
+    });
+#endif
+}
+
+void BambuLanSession::publish(std::string json, std::string await_containing, int timeout_ms, ResultFn on_done)
+{
+    if (!m_impl) {
+        if (on_done)
+            on_done(false, {}, "The printer session is closed.");
+        return;
+    }
+#if defined(_WIN32)
+    if (on_done)
+        on_done(false, {}, "Bambu Developer LAN mode is not built for Windows yet.");
+    return;
+#else
+    {
+        std::lock_guard<std::mutex> lock(m_impl->mu);
+        if (m_impl->stop || !m_impl->started) {
+            if (on_done)
+                on_done(false, {}, m_impl->stop ? "The printer session is closed." : "The printer is not connected.");
+            return;
+        }
+        m_impl->jobs.push_back(Impl::Job{std::move(json), std::move(await_containing), timeout_ms, std::move(on_done)});
+    }
+    m_impl->cv.notify_all();
 #endif
 }
 
