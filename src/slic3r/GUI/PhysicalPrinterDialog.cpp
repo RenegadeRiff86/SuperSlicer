@@ -332,6 +332,7 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
     auto create_sizer_with_btn = [](wxWindow* parent, ScalableButton** btn, const std::string& icon_name, const wxString& label) {
         *btn = new ScalableButton(parent, wxID_ANY, icon_name, label, wxDefaultSize, wxDefaultPosition, wxBU_LEFT | wxBU_EXACTFIT);
         (*btn)->SetFont(wxGetApp().normal_font());
+        (*btn)->SetMinSize((*btn)->GetBestSize());
 
         auto sizer = new wxBoxSizer(wxHORIZONTAL);
         sizer->Add(*btn);

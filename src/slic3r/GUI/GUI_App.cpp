@@ -2260,11 +2260,11 @@ const wxColour& GUI_App::get_style_role_color(const std::string& role) const
     };
 
     if (role == "tab.bg.default")
-        return ok(m_color_highlight_default);
+        return ok(m_color_window_default);
     if (role == "tab.bg.hover")
-        return ok(m_color_selected_btn_bg);
+        return ok(m_color_highlight_default);
     if (role == "tab.bg.selected")
-        return ok(m_color_selected_btn_bg);
+        return ok(m_color_hovered_btn);
     if (role == "tab.border.default")
         return ok(m_color_highlight_default);
     if (role == "tab.border.active")
@@ -2273,15 +2273,15 @@ const wxColour& GUI_App::get_style_role_color(const std::string& role) const
         return ok(m_color_default_btn_label);
     if (role == "tab.text.default")
         return ok(dark_mode() ? m_color_dark_mode_label_default : m_color_label_default);
-    // Tab captions use the theme's label colours, not the accent colours. The accent
-    // belongs on the tab's background and border; painting it on the text put an
-    // orange caption on the blue selected fill at 3.2:1 contrast, under the 4.5:1
-    // needed to read it. m_color_highlight_label_default is what combo.text.selected
-    // already uses over the same accent background.
+    // Idle and hover captions stay the normal label colour. The selected tab is
+    // filled with the bright theme accent, so its caption is a dark colour in
+    // both light and dark mode. A light caption on that orange fill is hard to read.
     if (role == "tab.text.hover")
         return ok(dark_mode() ? m_color_dark_mode_label_default : m_color_label_default);
-    if (role == "tab.text.selected")
-        return ok(m_color_highlight_label_default);
+    if (role == "tab.text.selected") {
+        static const wxColour kSelectedTabText(28, 22, 16);
+        return kSelectedTabText;
+    }
     if (role == "combo.bg.selected")
         return ok(m_color_highlight_default);
     if (role == "combo.bg.disabled") {

@@ -53,6 +53,11 @@ set(SLIC3R_GUI_SOURCES
     GUI/CalibrationRetractionDialog.hpp
     GUI/CalibrationRerfDialog.cpp
     GUI/CalibrationRerfDialog.hpp
+    GUI/BambuLanControlDialog.cpp
+    GUI/BambuLanControlDialog.hpp
+    # Orca's AMS widgets live in GUI/OrcaAMS and are not compiled here.
+    # They include Orca's MachineObject, nlohmann, and a Button class that
+    # collides with this tree. Printer controls links the same commands.
     GUI/CalibrationPressureAdvDialog.cpp
     GUI/CalibrationPressureAdvDialog.hpp
     GUI/CalibrationPressureAdvGeometry.cpp
@@ -353,6 +358,8 @@ set(SLIC3R_GUI_SOURCES
     Utils/Moonraker.hpp
     Utils/BambuLan.cpp
     Utils/BambuLan.hpp
+    Utils/BambuLanCamera.cpp
+    Utils/BambuLanCamera.hpp
     Utils/OctoPrint.cpp
     Utils/OctoPrint.hpp
     Utils/Klipper.cpp
@@ -472,11 +479,26 @@ if (MSVC)
         )
 endif ()
 
+# Developer LAN camera. Optional so a machine without FFmpeg still builds the controls.
+set(SLIC3R_BAMBU_CAMERA_FOUND FALSE)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(PkgConfig QUIET)
+    if (PkgConfig_FOUND)
+        pkg_check_modules(SLIC3R_BAMBU_CAMERA IMPORTED_TARGET
+            libavformat
+            libavcodec
+            libswscale
+            libavutil
+        )
+    endif()
+endif()
+
 add_library(libslic3r_gui STATIC ${SLIC3R_GUI_SOURCES})
 target_compile_definitions(libslic3r_gui PRIVATE
     $<$<BOOL:${SLIC3R_ALPHA}>:SLIC3R_ALPHA>
     $<$<BOOL:${SLIC3R_ENABLE_AUTOMATION_API}>:SLIC3R_ENABLE_AUTOMATION_API>
     $<$<BOOL:${SLIC3R_HAVE_LIBEI_TEXT}>:SLIC3R_HAVE_LIBEI_TEXT>
+    $<$<BOOL:${SLIC3R_BAMBU_CAMERA_FOUND}>:SLIC3R_BAMBU_CAMERA>
 )
 
 foreach(_source IN ITEMS ${SLIC3R_GUI_SOURCES})
@@ -495,6 +517,9 @@ elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(libslic3r_gui ${DBUS_LIBRARIES})
     if (SLIC3R_ENABLE_AUTOMATION_API)
         target_link_libraries(libslic3r_gui PkgConfig::SLIC3R_AUTOMATION_INPUT)
+    endif()
+    if (SLIC3R_BAMBU_CAMERA_FOUND)
+        target_link_libraries(libslic3r_gui PkgConfig::SLIC3R_BAMBU_CAMERA)
     endif()
 elseif (APPLE)
     target_link_libraries(libslic3r_gui ${DISKARBITRATION_LIBRARY} ${COREWLAN_LIBRARY})

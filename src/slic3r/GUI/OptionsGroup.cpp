@@ -427,11 +427,12 @@ void OptionsGroup::activate_line(Line& line)
         const auto& field = build_field(option);
 
         if (!custom_ctrl) {
+            const bool stretch = option.opt.full_width && option.opt.type != coBool && option.opt.type != coBools;
             if (is_window_field(field))
-                h_sizer->Add(field->getWindow(), option.opt.full_width ? 1 : 0,
-                    wxBOTTOM | wxTOP | (option.opt.full_width ? int(wxEXPAND) : int(wxALIGN_CENTER_VERTICAL)), (wxOSX || !staticbox) ? 0 : 2);
+                h_sizer->Add(field->getWindow(), stretch ? 1 : 0,
+                    wxBOTTOM | wxTOP | (stretch ? int(wxEXPAND) : int(wxALIGN_CENTER_VERTICAL)), (wxOSX || !staticbox) ? 0 : 2);
             if (is_sizer_field(field))
-                h_sizer->Add(field->getSizer(), 1, (option.opt.full_width ? int(wxEXPAND) : int(wxALIGN_CENTER_VERTICAL)), 0);
+                h_sizer->Add(field->getSizer(), stretch ? 1 : 0, (stretch ? int(wxEXPAND) : int(wxALIGN_CENTER_VERTICAL)), 0);
         }
         return;
     }
@@ -472,7 +473,8 @@ void OptionsGroup::activate_line(Line& line)
                 //h_sizer->Add(new wxStaticText(this->ctrl_parent(), wxID_ANY,"!"), 0, wxALIGN_CENTER_VERTICAL, 0);
             }
 
-            if (option_set.size() == 1 && option_set.front().opt.full_width)
+            if (option_set.size() == 1 && option_set.front().opt.full_width
+                && option_set.front().opt.type != coBool && option_set.front().opt.type != coBools)
             {
                 const auto v_sizer = new wxBoxSizer(wxVERTICAL);
                 m_options_mode.back()[opt.opt.mode].push_back(h_sizer->GetItemCount());
@@ -956,8 +958,10 @@ void ConfigOptionsGroup::sys_color_changed()
 
 void ConfigOptionsGroup::refresh()
 {
-    if (custom_ctrl)
+    if (custom_ctrl) {
+        custom_ctrl->update_positions();
         custom_ctrl->Refresh();
+    }
 }
 
 std::pair<OG_CustomCtrl *, bool *> ConfigOptionsGroup::get_custom_ctrl_with_blinking_ptr(

@@ -7880,6 +7880,14 @@ std::pair<double, double> GCodeGenerator::_compute_pressure_advance(const Extrus
 
     double pa = 0;
     double travel_pa = -1;
+    // Orca's pressure_advance is the Bambu flow-dynamics K. It is not written
+    // into filament_pressure_advance, so Klipper and Marlin hosts are unchanged.
+    if (m_writer.tool() != nullptr
+        && m_config.host_type.value == htBambuLan
+        && m_config.enable_pressure_advance.get_at(m_writer.tool()->id())) {
+        pa = std::max(0.0, m_config.pressure_advance.get_at(m_writer.tool()->id()));
+        return { pa, travel_pa };
+    }
     if (m_config.filament_pressure_advance.is_enabled()) {
         pa = m_config.filament_pressure_advance.get_at(m_writer.tool()->id());
         const double base_pa = pa;  // save before per-role overrides

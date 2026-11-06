@@ -24,6 +24,11 @@
 #include <wx/font.h>
 #include <wx/fontutil.h>
 
+#if defined(__WXGTK3__)
+#include <gtk/gtk.h>
+#include <string>
+#endif
+
 #include "libslic3r/Config.hpp"
 
 namespace Slic3r {
@@ -320,6 +325,100 @@ TaskTimer::TaskTimer(const std::string& task_name):
 {
     start_timer = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::system_clock::now().time_since_epoch());
+}
+
+namespace {
+wxString css_hex(const wxColour& colour)
+{
+    return wxString::Format("#%02X%02X%02X", colour.Red(), colour.Green(), colour.Blue());
+}
+
+#if defined(__WXGTK3__)
+const char* const kButtonCssKey = "superslicer-btn-css";
+const char* const kButtonCssTextKey = "superslicer-btn-css-text";
+
+void remove_button_css(GtkWidget* widget, GtkCssProvider* provider)
+{
+    if (widget == nullptr || provider == nullptr)
+        return;
+    gtk_style_context_remove_provider(gtk_widget_get_style_context(widget), GTK_STYLE_PROVIDER(provider));
+    if (GTK_IS_CONTAINER(widget)) {
+        GList* children = gtk_container_get_children(GTK_CONTAINER(widget));
+        for (GList* it = children; it != nullptr; it = it->next)
+            remove_button_css(GTK_WIDGET(it->data), provider);
+        g_list_free(children);
+    }
+}
+
+void add_button_css(GtkWidget* widget, GtkCssProvider* provider)
+{
+    if (widget == nullptr || provider == nullptr)
+        return;
+    gtk_style_context_add_provider(gtk_widget_get_style_context(widget), GTK_STYLE_PROVIDER(provider),
+        GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    if (GTK_IS_CONTAINER(widget)) {
+        GList* children = gtk_container_get_children(GTK_CONTAINER(widget));
+        for (GList* it = children; it != nullptr; it = it->next)
+            add_button_css(GTK_WIDGET(it->data), provider);
+        g_list_free(children);
+    }
+}
+#endif
+}
+
+void apply_native_button_fill(wxWindow* button, const wxColour& background, const wxColour& foreground, bool underline)
+{
+    if (button == nullptr || !background.IsOk() || !foreground.IsOk())
+        return;
+
+    button->SetBackgroundColour(background);
+    button->SetForegroundColour(foreground);
+
+#if defined(__WXGTK3__)
+    (void) underline;
+    GtkWidget* widget = static_cast<GtkWidget*>(button->GetHandle());
+    if (widget == nullptr)
+        return;
+
+    const wxString css = wxString::Format(
+        "button, button:hover, button:active, button:checked {\n"
+        "  background-image: none;\n"
+        "  background-color: %s;\n"
+        "  color: %s;\n"
+        "}\n"
+        "label {\n"
+        "  color: %s;\n"
+        "  background-image: none;\n"
+        "  background-color: transparent;\n"
+        "}\n",
+        css_hex(background), css_hex(foreground), css_hex(foreground));
+
+    const std::string utf8 = css.ToStdString();
+    auto* previous_text = static_cast<std::string*>(g_object_get_data(G_OBJECT(widget), kButtonCssTextKey));
+    if (previous_text != nullptr && *previous_text == utf8)
+        return;
+
+    auto* previous = static_cast<GtkCssProvider*>(g_object_get_data(G_OBJECT(widget), kButtonCssKey));
+    if (previous != nullptr)
+        remove_button_css(widget, previous);
+
+    GtkCssProvider* provider = gtk_css_provider_new();
+    GError* error = nullptr;
+    gtk_css_provider_load_from_data(provider, utf8.c_str(), static_cast<gssize>(utf8.size()), &error);
+    if (error != nullptr) {
+        g_error_free(error);
+        g_object_unref(provider);
+        return;
+    }
+    add_button_css(widget, provider);
+    // set_data_full releases the previous provider. gtk_css_provider_new()
+    // already holds the one reference this key owns.
+    g_object_set_data_full(G_OBJECT(widget), kButtonCssKey, provider, reinterpret_cast<GDestroyNotify>(g_object_unref));
+    g_object_set_data_full(G_OBJECT(widget), kButtonCssTextKey, new std::string(utf8),
+        [](gpointer data) { delete static_cast<std::string*>(data); });
+#else
+    (void) underline;
+#endif
 }
 
 TaskTimer::~TaskTimer()
