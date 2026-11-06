@@ -261,6 +261,16 @@ std::string GCodeWriter::write_pressure_advance(double pa) {
     if (m_tool) {
         tool_id = m_tool->id();
     }
+    // Bambu flow-dynamics K is M900 only. The flavor switch below still emits
+    // SET_PRESSURE_ADVANCE or M900 for every host that is not Bambu.
+    const int pa_tool = tool_id >= 0 ? tool_id : 0;
+    if (this->config.host_type.value == htBambuLan && this->config.enable_pressure_advance.get_at(pa_tool)) {
+        gcode += "M900 K" + to_string_nozero(pa, PA_OUTPUT_DECIMALS);
+        if (this->config.gcode_comments)
+            gcode += comment;
+        gcode += "\n";
+        return gcode;
+    }
     if (FLAVOR_IS(gcfRepRap) || FLAVOR_IS(gcfSprinter)) {
         if (tool_id >= 0 && !this->config.single_extruder_multi_material.value) {
             gcode += "M572 D" + std::to_string(tool_id) + " S" + to_string_nozero(pa, PA_OUTPUT_DECIMALS);

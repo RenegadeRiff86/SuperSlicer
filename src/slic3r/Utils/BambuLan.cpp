@@ -10,6 +10,7 @@
 #include <cerrno>
 #include <chrono>
 #include <condition_variable>
+#include <cstdlib>
 #include <cstring>
 #include <deque>
 #include <fstream>
@@ -490,8 +491,13 @@ public:
             std::string body;
             if (!mqtt_read_packet(m_mqtt.ssl, m_mqtt_pending, type, body, error))
                 return false;
-            if ((type & 0xF0) == 0x30 && body.find("print") != std::string::npos)
-                return true;
+            if ((type & 0xF0) == 0x30) {
+                m_last_report = mqtt_publish_payload(type, body);
+                if (m_on_report && !m_last_report.empty())
+                    m_on_report(m_last_report);
+                if (body.find("print") != std::string::npos)
+                    return true;
+            }
         }
         error = "The printer accepted the login but sent no status. Check the serial number.";
         return false;
@@ -643,8 +649,11 @@ public:
         body.assign(raw, i, len);
         if (raw.size() > i + len)
             m_mqtt_pending.assign(raw, i + len, std::string::npos);
-        if ((type & 0xF0) == 0x30)
+        if ((type & 0xF0) == 0x30) {
             m_last_report = mqtt_publish_payload(type, body);
+            if (m_on_report && !m_last_report.empty())
+                m_on_report(m_last_report);
+        }
         else if ((type & 0xF0) == 0xC0) {
             // The printer's ping has to be answered or it drops the session.
             std::vector<unsigned char> empty;
@@ -687,6 +696,11 @@ public:
     }
 
     // Read whatever is waiting, and answer a server ping. Timeout is success.
+    void set_on_report(std::function<void(const std::string &)> on_report)
+    {
+        m_on_report = std::move(on_report);
+    }
+
     bool poll_once(std::string &error)
     {
         unsigned char type = 0;
@@ -707,6 +721,7 @@ private:
     TlsSocket m_mqtt;
     std::string m_mqtt_pending;
     std::string m_last_report;
+    std::function<void(const std::string &)> m_on_report;
     bool m_connected = false;
 };
 
@@ -836,6 +851,10 @@ bool BambuLan::upload(PrintHostUpload upload_data, ProgressFn progress_fn, Error
         error_fn(wxString::FromUTF8(error));
         return false;
     }
+    // Orca SelectMachineDialog::get_ams_mapping_result. External spool is
+    // use_ams false and ams_mapping [-1]. An AMS slot is use_ams true and the
+    // tray id (ams_id * 4 + slot_id). The dialog stores that choice.
+    const BambuAmsPrintChoice ams = bambu_lan_ams_print_choice();
     const std::string payload =
         std::string("{\"print\":{\"sequence_id\":\"1\",\"command\":\"project_file\",")
         + "\"param\":\"Metadata/plate_1.gcode\","
@@ -844,7 +863,10 @@ bool BambuLan::upload(PrintHostUpload upload_data, ProgressFn progress_fn, Error
         + "\"url\":\"ftp:///" + json_escape(remote) + "\","
         + "\"md5\":\"\",\"project_id\":\"0\",\"profile_id\":\"0\",\"task_id\":\"0\",\"subtask_id\":\"0\","
         + "\"timelapse\":false,\"bed_type\":\"auto\",\"bed_leveling\":true,\"bed_levelling\":true,"
-        + "\"flow_cali\":false,\"vibration_cali\":false,\"layer_inspect\":false,\"use_ams\":false,\"ams_mapping\":[0]}}";
+        + "\"flow_cali\":false,\"vibration_cali\":false,\"layer_inspect\":false,\"use_ams\":"
+        + (ams.use_ams ? "true" : "false")
+        + ",\"ams_mapping\":" + ams.ams_mapping
+        + ",\"ams_mapping2\":" + ams.ams_mapping2 + "}}";
     if (!session.mqtt_publish(payload, error)) {
         error_fn(wxString::FromUTF8(error));
         return false;
@@ -870,9 +892,13 @@ struct BambuLanSession::Impl
     bool stop = false;
     bool started = false;
     std::thread worker;
+    std::function<void(const std::string &)> on_report;
 };
 
 namespace {
+
+std::mutex g_ams_choice_mu;
+BambuAmsPrintChoice g_ams_choice;
 
 #if !defined(_WIN32)
 
@@ -880,9 +906,11 @@ constexpr int kMqttPollMs = 200;
 constexpr int kMqttKeepaliveS = 15;
 
 bool open_control_session(const std::string &host, const std::string &access_code, const std::string &serial,
-                          std::unique_ptr<BambuSession> &session, std::string &error)
+                          std::unique_ptr<BambuSession> &session, std::string &error,
+                          const std::function<void(const std::string &)> &on_report)
 {
     session = std::make_unique<BambuSession>(host, access_code, serial);
+    session->set_on_report(on_report);
     if (!session->ok() || !session->mqtt_connect(error) || !session->mqtt_wait_report(error)) {
         session.reset();
         if (error.empty())
@@ -896,6 +924,46 @@ bool open_control_session(const std::string &host, const std::string &access_cod
 #endif
 
 } // namespace
+
+void bambu_lan_set_ams_print_choice(BambuAmsPrintChoice choice)
+{
+    if (choice.ams_mapping.empty())
+        choice.ams_mapping = "[-1]";
+    if (choice.ams_mapping2.empty())
+        choice.ams_mapping2 = "[{\"ams_id\":255,\"slot_id\":255}]";
+    std::lock_guard<std::mutex> lock(g_ams_choice_mu);
+    g_ams_choice = std::move(choice);
+}
+
+BambuAmsPrintChoice bambu_lan_ams_print_choice()
+{
+    std::lock_guard<std::mutex> lock(g_ams_choice_mu);
+    return g_ams_choice;
+}
+
+std::string bambu_ams_change_filament_json(bool load, const std::string &ams_id_in, const std::string &slot_id_in, int old_temp, int new_temp, const std::string &sequence_id)
+{
+    // Pasted from Orca MachineObject::command_ams_change_filament.
+    std::string ams_id = ams_id_in;
+    if (ams_id == "254")
+        ams_id = "255";
+    const int ams_n = std::atoi(ams_id.c_str());
+    const int slot_n = std::atoi(slot_id_in.c_str());
+    int tray_id = 0;
+    if (ams_n < 16)
+        tray_id = ams_n * 4 + slot_n;
+    const int target = !load ? 255 : (tray_id == 0 ? ams_n : tray_id);
+    const int slot_out = !load ? 255 : slot_n;
+    std::ostringstream os;
+    os << "{\"print\":{\"command\":\"ams_change_filament\",\"sequence_id\":\"" << sequence_id
+       << "\",\"curr_temp\":" << old_temp
+       << ",\"tar_temp\":" << new_temp
+       << ",\"ams_id\":" << ams_n
+       << ",\"target\":" << target
+       << ",\"slot_id\":" << slot_out
+       << "}}";
+    return os.str();
+}
 
 BambuLanSession::BambuLanSession(std::string host, std::string access_code, std::string serial)
     : m_impl(std::make_unique<Impl>())
@@ -923,6 +991,14 @@ void BambuLanSession::stop()
         m_impl->worker.join();
 }
 
+void BambuLanSession::set_on_report(std::function<void(const std::string &report)> on_report)
+{
+    if (!m_impl)
+        return;
+    std::lock_guard<std::mutex> lock(m_impl->mu);
+    m_impl->on_report = std::move(on_report);
+}
+
 void BambuLanSession::start(ResultFn on_connect)
 {
     if (!m_impl)
@@ -943,7 +1019,12 @@ void BambuLanSession::start(ResultFn on_connect)
     m_impl->worker = std::thread([impl = m_impl.get(), on_connect = std::move(on_connect)] {
         std::unique_ptr<BambuSession> session;
         std::string error;
-        const bool up = open_control_session(impl->host, impl->access_code, impl->serial, session, error);
+        std::function<void(const std::string &)> report_fn;
+        {
+            std::lock_guard<std::mutex> lock(impl->mu);
+            report_fn = impl->on_report;
+        }
+        const bool up = open_control_session(impl->host, impl->access_code, impl->serial, session, error, report_fn);
         if (on_connect)
             on_connect(up, {}, error);
         if (!up)
@@ -978,7 +1059,12 @@ void BambuLanSession::start(ResultFn on_connect)
                 if (!have_job)
                     continue;
                 std::string reconnect_error;
-                if (!open_control_session(impl->host, impl->access_code, impl->serial, session, reconnect_error)) {
+                std::function<void(const std::string &)> report_fn;
+                {
+                    std::lock_guard<std::mutex> lock(impl->mu);
+                    report_fn = impl->on_report;
+                }
+                if (!open_control_session(impl->host, impl->access_code, impl->serial, session, reconnect_error, report_fn)) {
                     if (job.done)
                         job.done(false, {}, reconnect_error);
                     continue;

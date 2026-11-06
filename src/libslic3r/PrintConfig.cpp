@@ -2714,6 +2714,37 @@ void PrintConfigDef::init_fff_params()
     def->set_default_value(disable_default_option(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{0.02})));
     def->aliases = {"filament_default_pa"};
 
+    // Orca's per-filament flow ratio and flow-dynamics K. The values are stored
+    // on the filament preset. G-code uses them only when the printer host is
+    // Bambu Lab (Developer LAN). Other hosts keep filament_pressure_advance.
+    def = this->add("filament_flow_ratio", coFloats);
+    def->label = L("Flow ratio");
+    def->tooltip = L("Orca filament flow ratio. SuperSlicer multiplies the extrusion multiplier by this value only when the printer host type is Bambu Lab (Developer LAN). Other hosts ignore it.");
+    def->category = OptionCategory::filament;
+    def->min = 0;
+    def->max = 2;
+    def->mode = comSimpleAE | comSuSi;
+    def->is_vector_extruder = true;
+    def->set_default_value(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{1.}));
+
+    def = this->add("enable_pressure_advance", coBools);
+    def->label = L("Enable pressure advance");
+    def->tooltip = L("Orca flow-dynamics K switch. When enabled, and the printer host type is Bambu Lab (Developer LAN), SuperSlicer emits M900 K from 'pressure_advance'. Other hosts ignore it and keep using 'filament_pressure_advance'.");
+    def->category = OptionCategory::filament;
+    def->mode = comSimpleAE | comSuSi;
+    def->is_vector_extruder = true;
+    def->set_default_value(std::make_unique<ConfigOptionBools>(std::initializer_list<bool>{ false }));
+
+    def = this->add("pressure_advance", coFloats);
+    def->label = L("Pressure advance");
+    def->tooltip = L("Orca flow-dynamics K for this filament. Used only when 'enable_pressure_advance' is on and the printer host type is Bambu Lab (Developer LAN). The command is M900 K. This does not change Klipper SET_PRESSURE_ADVANCE or Marlin M900 for any other host.");
+    def->category = OptionCategory::filament;
+    def->min = 0;
+    def->max = 2;
+    def->mode = comSimpleAE | comSuSi;
+    def->is_vector_extruder = true;
+    def->set_default_value(std::make_unique<ConfigOptionFloats>(std::initializer_list<double>{0.02}));
+
     def = this->add("filament_pressure_advance_smooth_time", coFloats);
     def->label = L("Smooth time");
     def->tooltip = L("Klipper only: the SMOOTH_TIME parameter of SET_PRESSURE_ADVANCE. It sets the"
@@ -9541,7 +9572,7 @@ static std::set<t_config_option_key> PrintConfigDef_ignore = {
     "standby_temperature", "scale", "rotate", "duplicate", "duplicate_grid",
     "start_perimeters_at_concave_points", "start_perimeters_at_non_overhang", "randomize_start",
     "seal_position", "vibration_limit", "bed_size",
-    "print_center", "g0", "threads", "pressure_advance", "wipe_tower_per_color_wipe",
+    "print_center", "g0", "threads", "wipe_tower_per_color_wipe",
     "cooling", "serial_port", "serial_speed",
     "exact_last_layer_height",
     "threads",

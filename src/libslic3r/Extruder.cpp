@@ -249,7 +249,14 @@ double Extruder::filament_cost() const
 
 double Extruder::extrusion_multiplier() const
 {
-    return m_config->extrusion_multiplier.get_at(m_id);
+    double multiplier = m_config->extrusion_multiplier.get_at(m_id);
+    // Orca's filament_flow_ratio changes flow only for a Bambu Developer LAN host.
+    if (m_config->host_type.value == htBambuLan) {
+        const double ratio = m_config->filament_flow_ratio.get_at(m_id);
+        if (ratio > 0.)
+            multiplier *= ratio;
+    }
+    return multiplier;
 }
 
 // Return a "retract_before_wipe" percentage as a factor clamped to <0, 1>

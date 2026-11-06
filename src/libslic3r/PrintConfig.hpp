@@ -1138,6 +1138,10 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloats,              extruder_temperature_offset))
     ((ConfigOptionString,              extrusion_axis))
     ((ConfigOptionFloats,              extrusion_multiplier))
+    // Orca filament keys. Applied only when host_type is htBambuLan.
+    ((ConfigOptionFloats,              filament_flow_ratio))
+    ((ConfigOptionBools,               enable_pressure_advance))
+    ((ConfigOptionFloats,              pressure_advance))
     ((ConfigOptionFloat,               fan_kickstart))
     ((ConfigOptionBool,                fan_percentage))
     ((ConfigOptionInt,                 fan_printer_min_speed))
@@ -1211,6 +1215,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionBool,                gcode_comments))
     ((ConfigOptionString,              gcode_filename_illegal_char))
     ((ConfigOptionEnum<GCodeFlavor>,   gcode_flavor))
+    ((ConfigOptionEnum<PrintHostType>, host_type))
     ((ConfigOptionEnum<LabelObjectsStyle>,  gcode_label_objects))
     ((ConfigOptionFloatOrPercent,      gcode_min_length))
     ((ConfigOptionFloatOrPercent,      gcode_min_resolution))

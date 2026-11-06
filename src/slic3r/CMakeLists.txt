@@ -55,6 +55,9 @@ set(SLIC3R_GUI_SOURCES
     GUI/CalibrationRerfDialog.hpp
     GUI/BambuLanControlDialog.cpp
     GUI/BambuLanControlDialog.hpp
+    # Orca's AMS widgets live in GUI/OrcaAMS and are not compiled here.
+    # They include Orca's MachineObject, nlohmann, and a Button class that
+    # collides with this tree. Printer controls links the same commands.
     GUI/CalibrationPressureAdvDialog.cpp
     GUI/CalibrationPressureAdvDialog.hpp
     GUI/CalibrationPressureAdvGeometry.cpp

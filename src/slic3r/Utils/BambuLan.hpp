@@ -29,6 +29,23 @@ struct BambuLanCredentials
 
 BambuLanCredentials bambu_lan_credentials(const DynamicPrintConfig *config);
 
+// Print-start AMS choice. Defaults to Orca's external spool: use_ams false,
+// ams_mapping [-1], ams_mapping2 ams_id 255 / slot_id 255.
+struct BambuAmsPrintChoice
+{
+    bool use_ams = false;
+    std::string ams_mapping = "[-1]";
+    std::string ams_mapping2 = "[{\"ams_id\":255,\"slot_id\":255}]";
+};
+
+void bambu_lan_set_ams_print_choice(BambuAmsPrintChoice choice);
+BambuAmsPrintChoice bambu_lan_ams_print_choice();
+
+// Orca MachineObject::command_ams_change_filament (DeviceManager.cpp).
+// sequence_id is supplied by the caller. extruder_id is omitted, matching
+// every Orca caller that does not pass one.
+std::string bambu_ams_change_filament_json(bool load, const std::string &ams_id, const std::string &slot_id, int old_temp, int new_temp, const std::string &sequence_id);
+
 // One Developer LAN MQTT session. Network calls run on a private thread so the
 // dialog can jog without opening a new connection per click. Callbacks run on
 // that thread.
@@ -45,6 +62,9 @@ public:
 
     void start(ResultFn on_connect);
     void stop();
+
+    // Printer status JSON, including the AMS block. Called on the session thread.
+    void set_on_report(std::function<void(const std::string &report)> on_report);
 
     // Publish JSON to device/<serial>/request. When await_containing is not
     // empty, wait up to timeout_ms for a report that contains it.
